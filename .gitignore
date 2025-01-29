@@ -1,0 +1,21 @@
+#----------
+# Backend
+#----------
+
+#----------
+# Frontend
+#----------
+frontend/node_modules
+frontend/.env
+frontend/.env.local
+frontend/.env.development
+frontend/.env.production
+frontend/.env.test
+frontend/.nuxt
+frontend/.output
+frontend/.cache
+frontend/.nitro
+frontend/.data
+frontend/dist
+frontend/tsconfig.json
+

@@ -1,0 +1,19 @@
+networks:
+  docker_test_network:
+
+services:
+  dataresearchanalysis.test:
+    build:
+      context: .
+      dockerfile: ./docker/frontend/Dockerfile
+    volumes:
+      - "./frontend:/frontend:delegated"
+    ports:
+      - "3000:3000"
+    expose:
+      - "3000"
+    networks:
+      - docker_test_network
+    environment:
+      - "VIRTUAL_HOST=dataresearchanalysis.test"
+    container_name: dataresearchanalysis.test
