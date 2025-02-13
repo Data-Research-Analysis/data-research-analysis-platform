@@ -12,7 +12,7 @@ onMounted(() => {
             <div class="flex flex-col h-full p-10 justify-between">
                 <div class="flex flex-row">
                     <div class="w-1/2">
-                        Data Reasearch Analysis Platform
+                        Data Reasearch Analysis
                     </div>
                     <!-- <div class="w-1/2 flex flex-row justify-between bg-blue-100">
                         <div class="w-1/2">

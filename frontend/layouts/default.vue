@@ -6,11 +6,11 @@ onMounted(() => {
 })
 </script>
 <template>
-    <v-container fluid>
+    <div>
         <header-nav />
         <div>
-            <slot />
+            <slot></slot>
         </div>
         <footer-nav />
-    </v-container>
+    </div>
 </template>

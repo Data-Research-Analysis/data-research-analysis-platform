@@ -1,15 +1,18 @@
 <script setup>
 import { onMounted } from "vue";
+import fontawesome from "~/plugins/fontawesome";
 const { openGithub, openLinkedin } = Utils();
 onMounted(() => {
 
 })
 </script>
 <template>
-    <div class="relative bg-primary-blue-100 text-white h-[87px] shadow-lg">
-        <img src="/logo.svg" class="absolute top-0 m-[-10px] h-[137px] z-10" />
-        <div class="absolute top-0 left-[40px] bg-black h-[117px] w-1/5"></div>
-        <div class="absolute top-0 right-[20px] h-[87px] w-3/5">
+    <div class="relative bg-primary-blue-100 text-white h-10 lg:h-15 shadow-lg">
+        <img src="/logo.svg" class="absolute top-0 -left-1 h-18 lg:h-20 z-10" />      
+        <div class="absolute top-[5px] right-5 w-3/5 flex flex-row justify-end flex lg:hidden">
+            <font-awesome icon="fas fa-bars" class="text-2xl cursor-pointer" />
+        </div>
+        <div class="absolute lg:top-2 lg:right-10 lg:h-10 w-3/5 hidden lg:block">
             <div class="flex flex-row justify-between items-center h-full">
                 <div class="flex flex-row items-center">
                     <div class="text-xl font-bold hover:text-gray-300 cursor-pointer">Home</div>
