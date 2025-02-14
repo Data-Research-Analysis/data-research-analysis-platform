@@ -8,8 +8,8 @@ onMounted(() => {
 <template>
     <div>
         <hero />
-        <about />
-        <features />
-        <community />
+        <about id="about" />
+        <features id="features" />
+        <community id="community" />
     </div>
 </template>

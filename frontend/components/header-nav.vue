@@ -1,4 +1,5 @@
 <script setup>
+import { NuxtLink } from "#components";
 import { onMounted } from "vue";
 import fontawesome from "~/plugins/fontawesome";
 const { openGithub, openLinkedin } = Utils();
@@ -15,11 +16,18 @@ onMounted(() => {
         <div class="absolute lg:top-2 lg:right-10 lg:h-10 w-3/5 hidden lg:block">
             <div class="flex flex-row justify-between items-center h-full">
                 <div class="flex flex-row items-center">
-                    <div class="text-xl font-bold hover:text-gray-300 cursor-pointer">Home</div>
-                    <div class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">About</div>
-                    <div class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">Features</div>
-                    <div class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">Timeline</div>
-                    <div class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">Community</div>
+                    <div class="text-xl font-bold hover:text-gray-300 cursor-pointer">
+                        <NuxtLink to="/">Home</NuxtLink>
+                    </div>
+                    <div class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">
+                        <NuxtLink to="#about">About</NuxtLink>
+                    </div>
+                    <div class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">
+                        <NuxtLink to="#features">Features</NuxtLink>
+                    </div>
+                    <div class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">
+                        <NuxtLink to="#community">Community</NuxtLink>
+                    </div>
                 </div>
                 <div class="flex flex-row mr-5">
                     <font-awesome icon="fab fa-github-square" class="ml-5 text-4xl hover:text-gray-300 cursor-pointer" @click="openGithub()"/>
