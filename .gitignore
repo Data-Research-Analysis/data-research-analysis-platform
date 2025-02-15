@@ -3,19 +3,19 @@
 #----------
 
 #----------
-# Frontend
+# Frontend Marketing
 #----------
-frontend/node_modules
-frontend/.env
-frontend/.env.local
-frontend/.env.development
-frontend/.env.production
-frontend/.env.test
-frontend/.nuxt
-frontend/.output
-frontend/.cache
-frontend/.nitro
-frontend/.data
-frontend/dist
-frontend/tsconfig.json
+frontend-marketing/node_modules
+frontend-marketing/.env
+frontend-marketing/.env.local
+frontend-marketing/.env.development
+frontend-marketing/.env.production
+frontend-marketing/.env.test
+frontend-marketing/.nuxt
+frontend-marketing/.output
+frontend-marketing/.cache
+frontend-marketing/.nitro
+frontend-marketing/.data
+frontend-marketing/dist
+frontend-marketing/tsconfig.json
 
