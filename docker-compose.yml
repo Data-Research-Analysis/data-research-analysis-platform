@@ -5,9 +5,9 @@ services:
   dataresearchanalysis.test:
     build:
       context: .
-      dockerfile: ./docker/frontend/Dockerfile
+      dockerfile: ./docker/frontend-marketing/Dockerfile
     volumes:
-      - "./frontend:/frontend:delegated"
+      - "./frontend-marketing:/frontend-marketing:delegated"
     ports:
       - "3000:3000"
     expose:
