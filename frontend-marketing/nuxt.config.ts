@@ -25,7 +25,7 @@ export default defineNuxtConfig({
   ],
   vite: {
     server: {
-      allowedHosts: ['0.0.0.0', 'dataresearchanalysis.test',],
+      allowedHosts: ['0.0.0.0', 'dataresearchanalysis.test', 'frontend-marketing.dataresearchanalysis.test'],
     },
     plugins: [
       tailwindcss(),
