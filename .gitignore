@@ -1,6 +1,14 @@
 #----------
-# Backend
+# Backend Marketing
 #----------
+backend-marketing/node_modules
+backend-marketing/.env
+backend-marketing/.env.local
+backend-marketing/.env.development
+backend-marketing/.env.production
+backend-marketing/.env.test
+backend-marketing/dist
+
 
 #----------
 # Frontend Marketing
@@ -19,3 +27,16 @@ frontend-marketing/.data
 frontend-marketing/dist
 frontend-marketing/tsconfig.json
 
+#----------
+# Backend Platform
+#----------
+backend-platform/node_modules
+backend-platform/.env
+backend-platform/dist
+
+#----------
+# Frontend Platform
+#----------
+frontend-platform/node_modules
+frontend-platform/.env
+frontend-platform/dist
