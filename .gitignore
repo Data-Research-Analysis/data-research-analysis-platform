@@ -40,3 +40,6 @@ backend-platform/dist
 frontend-platform/node_modules
 frontend-platform/.env
 frontend-platform/dist
+
+
+.env

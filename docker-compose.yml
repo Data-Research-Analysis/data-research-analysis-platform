@@ -2,18 +2,54 @@ networks:
   docker_test_network:
 
 services:
-  dataresearchanalysis.test:
+  frontend-marketing.dataresearchanalysis.test:
     build:
       context: .
       dockerfile: ./docker/frontend-marketing/Dockerfile
     volumes:
       - "./frontend-marketing:/frontend-marketing:delegated"
     ports:
-      - "3000:3000"
+      - "$FRONTEND_LOCAL_PORT:$FRONTEND_DOCKER_PORT"
     expose:
-      - "3000"
+      - "$FRONTEND_LOCAL_PORT"
     networks:
       - docker_test_network
     environment:
-      - "VIRTUAL_HOST=dataresearchanalysis.test"
-    container_name: dataresearchanalysis.test
+      - "VIRTUAL_HOST=frontend-marketing.dataresearchanalysis.test"
+    container_name: frontend-marketing.dataresearchanalysis.test
+
+  backend-marketing.dataresearchanalysis.test:
+    build:
+      context: .
+      dockerfile: ./docker/backend-marketing/Dockerfile
+    volumes:
+      - "./backend-marketing:/backend-marketing:delegated"
+    ports:
+      - "$BACKEND_LOCAL_PORT:$BACKEND_DOCKER_PORT"
+    expose:
+      - "$BACKEND_LOCAL_PORT"
+    networks:
+      - docker_test_network
+    environment:
+      - "VIRTUAL_HOST=backend-marketing.dataresearchanalysis.test"
+    container_name: backend-marketing.dataresearchanalysis.test
+
+  database-marketing.dataresearchanalysis.test:
+    build:
+      context: .
+      dockerfile: ./docker/database-marketing/Dockerfile
+    # volumes:
+    #   - db:/var/lib/postgres
+    ports:
+      - "$POSTGRESDB_LOCAL_PORT:$POSTGRESDB_DOCKER_PORT"
+    networks:
+      - docker_test_network
+    env_file:
+      - ./.env
+    environment:
+      - "VIRTUAL_HOST=database-marketing.dataresearchanalysis.test"
+      - "POSTGRES_USER=$POSTGRESDB_USER"
+      - "POSTGRES_PASSWORD=$POSTGRESDB_ROOT_PASSWORD"
+      - "POSTGRES_DB=$POSTGRESDB_DATABASE"
+    container_name: database-marketing.dataresearchanalysis.test
+
