@@ -17,7 +17,7 @@ function closeDrawer() {
 onMounted(() => {})
 </script>
 <template>
-    <div class="relative bg-primary-blue-100 text-white h-10 lg:h-15 shadow-lg">
+    <div class="relative bg-primary-blue-100 text-white h-10 lg:h-15 shadow-lg" id="top">
         <img src="/logo.svg" class="absolute top-0 -left-1 h-18 lg:h-20 z-10" />      
         <div class="absolute top-[5px] right-5 w-3/5 flex flex-row justify-end flex lg:hidden">
             <font-awesome icon="fas fa-bars" class="text-2xl cursor-pointer hover:text-gray-300" @click="openDrawer" />
@@ -39,6 +39,9 @@ onMounted(() => {})
                     </div>
                     <div class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">
                         <NuxtLink to="/privacy-policy">Privacy Policy</NuxtLink>
+                    </div>
+                    <div class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">
+                        <NuxtLink to="/terms-conditions">Terms</NuxtLink>
                     </div>
                 </div>
                 <div class="flex flex-row mr-5">

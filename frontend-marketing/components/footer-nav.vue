@@ -1,24 +1,46 @@
 <script setup>
 import { onMounted } from "vue";
 
+function scrollToTop() {
+    console.log("scrollToTop")
+    console.log("window", window)
+    window.scrollTo({ top: 0, behavior: 'smooth'});   
+}
 onMounted(() => {
-
+    document.addEventListener("scroll", () => {
+        const scrollButton = document.getElementById("scrollToTopButton");
+        if (window.scrollY > 100) {
+            scrollButton.classList.remove("hidden", "opacity-0", "translate-y-2");
+            scrollButton.classList.add("opacity-100", "translate-y-0");
+        } else {
+            scrollButton.classList.add("opacity-0", "translate-y-2");
+            scrollButton.classList.remove("opacity-100", "translate-y-0");
+            setTimeout(() => {
+                if (window.scrollY <= 100) {
+                    scrollButton.classList.add("hidden");
+                }
+            }, 300);
+        }
+    })
 })
 </script>
 <template>
     <div>
         <img src="/blue-background-top.svg" class="w-full" />
-        <div class="bg-primary-blue-100 w-full h-[200px] text-white text-xl font-bold">
+        <div class="bg-primary-blue-100 w-full h-full text-white text-xl font-bold">
             <div class="flex flex-col justify-between h-full p-5">
                 <div class="flex flex-row">
                     <div class="w-1/2">
-                        Data Reasearch Analysis
+                        <NuxtLink to="/" class="hover:text-gray-300">Data Reasearch Analysis</NuxtLink>
                     </div>
                     <div class="w-1/2 flex flex-row justify-end">
-                        <div class="w-1/2 flex flex-col">
+                        <div class="w-1/4 flex flex-col">
                             <span>Important Links</span>
                             <span class="text-base mt-2 mb-2">
-                                <NuxtLink to="/privacy-policy">Privacy Policy</NuxtLink>
+                                <NuxtLink to="/privacy-policy" class="hover:text-gray-300">Privacy Policy</NuxtLink>
+                            </span>
+                            <span class="text-base mb-2">
+                                <NuxtLink to="/terms-conditions" class="hover:text-gray-300">Terms &amp; Conditions</NuxtLink>
                             </span>
                         </div>
                         
@@ -30,6 +52,14 @@ onMounted(() => {
                     COPYRIGHT 2024 - 2025 Data Research Analysis (SMC-Private) Limited
                 </div>
             </div>
+        </div>
+        <div
+            id="scrollToTopButton"
+            @click="scrollToTop"
+            role="button"
+            class="hidden fixed right-20 bottom-5 w-12 p-2 rounded-lg mb-2 ml-2 flex flex-row cursor-pointer bg-red-500 hover:bg-red-700 text-white text-lg justify-center z-10 transition duration-150 ease-in-out"
+        >
+            <font-awesome icon="fas fa-arrow-up" />
         </div>
     </div>
 </template>
