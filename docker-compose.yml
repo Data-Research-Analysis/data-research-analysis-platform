@@ -1,6 +1,9 @@
 networks:
   docker_test_network:
 
+volumes:
+  postgres_data:
+
 services:
   frontend-marketing.dataresearchanalysis.test:
     build:
@@ -38,8 +41,8 @@ services:
     build:
       context: .
       dockerfile: ./docker/database-marketing/Dockerfile
-    # volumes:
-    #   - db:/var/lib/postgres
+    volumes:
+      - postgres_data:/var/lib/postgres/data
     ports:
       - "$POSTGRESDB_LOCAL_PORT:$POSTGRESDB_DOCKER_PORT"
     networks:
