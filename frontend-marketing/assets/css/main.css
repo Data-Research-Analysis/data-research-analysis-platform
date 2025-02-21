@@ -6,3 +6,34 @@
     --color-primary-blue-400: #296282;
     --color-primary-blue-500: #23536F;
 }
+
+@layer base {
+    h1 {
+        font-size: var(--text-3xl);
+        font-weight: 600;
+    }
+    h2 {
+        font-size: var(--text-2xl);
+        font-weight: 500;
+    }
+    h3 {
+        font-size: var(--text-xl);
+        font-weight: 500;
+    }
+    h4 {
+        font-size: var(--text-lg);
+        font-weight: 500;
+    }
+    h5 {
+        font-size: var(--text-base);
+        font-weight: 500;
+    }
+    h6 {
+        font-size: var(--text-sm);
+        font-weight: 500;
+    }
+    p {
+        margin-top: 16px;
+        margin-bottom: 16px;
+    }
+}

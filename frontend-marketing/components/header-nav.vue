@@ -29,13 +29,16 @@ onMounted(() => {})
                         <NuxtLink to="/">Home</NuxtLink>
                     </div>
                     <div class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">
-                        <NuxtLink to="#about">About</NuxtLink>
+                        <NuxtLink to="/#about">About</NuxtLink>
                     </div>
                     <div class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">
-                        <NuxtLink to="#features">Features</NuxtLink>
+                        <NuxtLink to="/#features">Features</NuxtLink>
                     </div>
                     <div class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">
-                        <NuxtLink to="#community">Community</NuxtLink>
+                        <NuxtLink to="/#community">Community</NuxtLink>
+                    </div>
+                    <div class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">
+                        <NuxtLink to="/privacy-policy">Privacy Policy</NuxtLink>
                     </div>
                 </div>
                 <div class="flex flex-row mr-5">
