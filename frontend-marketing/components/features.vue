@@ -76,7 +76,7 @@
                 <div class="flex flex-col">
                     <div class="bg-primary-blue-100 w-full h-full">
                         <div class="flex flex-row justify-between">
-                            <div class="w-1/2 flex flex-col mt-20">
+                            <div class="w-1/2 flex flex-col mt-10 mb-10">
                                 <div class="flex flex-col">
                                     <div class="flex flex-row justify-around">
                                         <font-awesome icon="fas fa-paintbrush" class="text-4xl text-white ml-30" />
@@ -112,7 +112,7 @@
                                     </div>
                                 </div>    
                             </div>
-                            <div class="w-1/2 flex flex-col mt-20">
+                            <div class="w-1/2 flex flex-col mt-10">
                                 <div class="flex flex-col">
                                     <div class="flex flex-row justify-around">
                                         <font-awesome icon="fas fa-clock" class="text-4xl text-white ml-30" />

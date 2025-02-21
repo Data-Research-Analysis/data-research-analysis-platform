@@ -25,10 +25,23 @@ export default defineNuxtConfig({
   ],
   vite: {
     server: {
-      allowedHosts: ['0.0.0.0', 'dataresearchanalysis.test', 'frontend-marketing.dataresearchanalysis.test'],
+      allowedHosts: ['dataresearchanalysis.com', 'dataresearchanalysis.test', 'frontend-marketing.dataresearchanalysis.test'],
     },
     plugins: [
       tailwindcss(),
     ],
-  }
+  },
+  plugins: [
+    { src: '~/plugins/recaptcha.ts', mode: 'client' },
+  ],
+  runtimeConfig: {
+    public: {
+      recaptcha: {
+        v3SiteKey: process.env.NUXT_RECAPTCHA_SITE_KEY,
+      },
+      NUXT_API_URL: process.env.NUXT_API_URL,
+      NUXT_RECAPTCHA_SITE_KEY: process.env.NUXT_RECAPTCHA_SITE_KEY,
+      POSTGRESQL_URL: process.env.POSTGRESQL_URL,
+    }
+  },
 })
