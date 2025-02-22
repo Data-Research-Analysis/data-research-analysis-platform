@@ -1,4 +1,5 @@
 require('dotenv').config();
+console.log("PORT", process.env.NUXT_PORT);
 module.exports = {
     apps: [
       {
