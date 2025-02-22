@@ -1,6 +1,7 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import tailwindcss from "@tailwindcss/vite";
 
+console.log("process.env.NUXT_PORT", process.env.NUXT_PORT ? parseInt(process.env.NUXT_PORT, 10) : 3000);
 export default defineNuxtConfig({
   compatibilityDate: '2024-11-01',
   ssr: false,
@@ -12,6 +13,9 @@ export default defineNuxtConfig({
   },
   devtools: {
     enabled: true
+  },
+  devServer: {
+    port: process.env.NUXT_PORT ? parseInt(process.env.NUXT_PORT, 10) : 3000,
   },
   components: [
     {
@@ -42,6 +46,7 @@ export default defineNuxtConfig({
       NUXT_API_URL: process.env.NUXT_API_URL,
       NUXT_RECAPTCHA_SITE_KEY: process.env.NUXT_RECAPTCHA_SITE_KEY,
       POSTGRESQL_URL: process.env.POSTGRESQL_URL,
+      NUXT_PORT: process.env.NUXT_PORT,
     }
   },
 })
