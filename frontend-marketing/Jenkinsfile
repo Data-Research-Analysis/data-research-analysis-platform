@@ -17,5 +17,13 @@ pipeline {
                 '''
             }
         }
+        stage('Deploy') {
+            steps {
+                sh '''
+                    ls -al
+                    cd frontend-marketing && pm2 start ecosystem.config.js
+                '''
+            }
+        }
     }
 }
