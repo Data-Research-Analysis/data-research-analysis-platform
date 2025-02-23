@@ -40,12 +40,6 @@ function closeDrawer() {
                 <div class="text-xl font-bold mt-2 hover:text-gray-300 cursor-pointer">
                     <NuxtLink to="/#community">Community</NuxtLink>
                 </div>
-                <div class="text-xl font-bold mt-2 hover:text-gray-300 cursor-pointer">
-                        <NuxtLink to="/privacy-policy">Privacy Policy</NuxtLink>
-                </div>
-                <div class="text-xl font-bold mt-2 hover:text-gray-300 cursor-pointer">
-                        <NuxtLink to="/terms-conditions">Terms</NuxtLink>
-                </div>
                 <div class="w-3/4 h-1 bg-white m-auto mt-5"></div>
                 <div class="flex flex-row mt-5">
                     <font-awesome icon="fab fa-github-square" class="text-4xl hover:text-gray-300 cursor-pointer" @click="openGithub()"/>

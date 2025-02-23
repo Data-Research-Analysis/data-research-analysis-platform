@@ -89,7 +89,7 @@
                                                     We know how difficult to use other similar software are that actually require hours 
                                                     of training before you can actually start to analyse your data. Data Research Analysis 
                                                     has been designed in such a way that will only require none to very little training so 
-                                                    that get you can get started with analysing your data.
+                                                    that you can get started with analysing your data.
                                                 </div>
                                             </div>
                                         </div>
