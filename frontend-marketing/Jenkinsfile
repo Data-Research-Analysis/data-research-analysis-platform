@@ -17,14 +17,5 @@ pipeline {
                 '''
             }
         }
-        stage('Deploy') {
-            steps {
-                sh '''
-                    ls -al
-                    cd frontend-marketing && pm2 start ./.output/server/index.mjs -- --name frontend-marketing --port $NUXT_PORT
-                    
-                '''
-            }
-        }
     }
 }
