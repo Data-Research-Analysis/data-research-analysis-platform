@@ -5,7 +5,7 @@ module.exports = {
         name: 'DRA-Backend-Marketing',
         port: process.env.PORT,
         exec_mode: 'fork',
-        instances: 'max',
+        instances: '1',
         script: 'ts-node src/index.ts'
       }
     ]
