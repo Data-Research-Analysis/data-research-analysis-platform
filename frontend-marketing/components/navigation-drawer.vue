@@ -24,8 +24,8 @@ function closeDrawer() {
                 '-translate-x-full': !props.drawerOpen
             }">
             <div class="">
-                <img src="/logo.svg" class="absolute top-0 -left-1 h-18 lg:h-20 z-10" />      
-                <font-awesome icon="fas fa-times" class="absolute top-2 right-2 text-4xl hover:text-gray-300 cursor-pointer" @click="closeDrawer" />
+                <img src="/logo.svg" class="absolute -top-1 -left-1 h-18 lg:h-20 z-10" />      
+                <font-awesome icon="fas fa-times" class="absolute top-18 right-2 text-4xl hover:text-gray-300 cursor-pointer" @click="closeDrawer" />
             </div>
             <div class="flex flex-col mt-20 ml-2">
                 <div class="text-xl font-bold hover:text-gray-300 cursor-pointer">
@@ -40,10 +40,10 @@ function closeDrawer() {
                 <div class="text-xl font-bold mt-2 hover:text-gray-300 cursor-pointer">
                     <NuxtLink to="/#community">Community</NuxtLink>
                 </div>
-                <div class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">
+                <div class="text-xl font-bold mt-2 hover:text-gray-300 cursor-pointer">
                         <NuxtLink to="/privacy-policy">Privacy Policy</NuxtLink>
                 </div>
-                <div class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">
+                <div class="text-xl font-bold mt-2 hover:text-gray-300 cursor-pointer">
                         <NuxtLink to="/terms-conditions">Terms</NuxtLink>
                 </div>
                 <div class="w-3/4 h-1 bg-white m-auto mt-5"></div>
