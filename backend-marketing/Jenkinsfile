@@ -14,7 +14,7 @@ pipeline {
                     ls -al
                     node --version
                     npm --version
-                    cd frontend-marketing && printf PORT=$PORT\rRECAPTCHA_SECRET=$RECAPTCHA_SECRET\rJWT_SECRET=$JWT_SECRET\RPOSTGRESQL_URL=$POSTGRESQL_URL\RNODE_ENV=$NODE_ENV > .env && npm ci && npm run start
+                    cd frontend-marketing && printf PORT=$PORT\rRECAPTCHA_SECRET=$RECAPTCHA_SECRET\rJWT_SECRET=$JWT_SECRET\rPOSTGRESQL_URL=$POSTGRESQL_URL\rNODE_ENV=$NODE_ENV > .env && npm ci && npm run start
                     ls -al
                 '''
             }
