@@ -5,7 +5,7 @@ module.exports = {
         name: 'DRA-Frontend-Marketing',
         port: process.env.NUXT_PORT,
         exec_mode: 'fork',
-        instances: 'max',
+        instances: '1',
         script: './.output/server/index.mjs'
       }
     ]
