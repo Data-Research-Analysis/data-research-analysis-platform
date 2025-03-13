@@ -1,45 +1,30 @@
 #----------
-# Backend Marketing
+# Backend
 #----------
-backend-marketing/node_modules
-backend-marketing/.env
-backend-marketing/.env.local
-backend-marketing/.env.development
-backend-marketing/.env.production
-backend-marketing/.env.test
-backend-marketing/dist
+backend/node_modules
+backend/.env
+backend/.env.local
+backend/.env.development
+backend/.env.production
+backend/.env.test
+backend/dist
 
 
 #----------
-# Frontend Marketing
+# Frontend
 #----------
-frontend-marketing/node_modules
-frontend-marketing/.env
-frontend-marketing/.env.local
-frontend-marketing/.env.development
-frontend-marketing/.env.production
-frontend-marketing/.env.test
-frontend-marketing/.nuxt
-frontend-marketing/.output
-frontend-marketing/.cache
-frontend-marketing/.nitro
-frontend-marketing/.data
-frontend-marketing/dist
-frontend-marketing/tsconfig.json
-
-#----------
-# Backend Platform
-#----------
-backend-platform/node_modules
-backend-platform/.env
-backend-platform/dist
-
-#----------
-# Frontend Platform
-#----------
-frontend-platform/node_modules
-frontend-platform/.env
-frontend-platform/dist
-
+frontend/node_modules
+frontend/.env
+frontend/.env.local
+frontend/.env.development
+frontend/.env.production
+frontend/.env.test
+frontend/.nuxt
+frontend/.output
+frontend/.cache
+frontend/.nitro
+frontend/.data
+frontend/dist
+frontend/tsconfig.json
 
 .env

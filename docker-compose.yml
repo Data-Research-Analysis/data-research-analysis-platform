@@ -5,12 +5,12 @@ volumes:
   postgres_data:
 
 services:
-  frontend-marketing.dataresearchanalysis.test:
+  frontend.dataresearchanalysis.test:
     build:
       context: .
-      dockerfile: ./docker/frontend-marketing/Dockerfile
+      dockerfile: ./docker/frontend/Dockerfile
     volumes:
-      - "./frontend-marketing:/frontend-marketing:delegated"
+      - "./frontend:/frontend:delegated"
     ports:
       - "$FRONTEND_LOCAL_PORT:$FRONTEND_DOCKER_PORT"
     expose:
@@ -18,15 +18,15 @@ services:
     networks:
       - docker_test_network
     environment:
-      - "VIRTUAL_HOST=frontend-marketing.dataresearchanalysis.test"
-    container_name: frontend-marketing.dataresearchanalysis.test
+      - "VIRTUAL_HOST=frontend.dataresearchanalysis.test"
+    container_name: frontend.dataresearchanalysis.test
 
-  backend-marketing.dataresearchanalysis.test:
+  backend.dataresearchanalysis.test:
     build:
       context: .
-      dockerfile: ./docker/backend-marketing/Dockerfile
+      dockerfile: ./docker/backend/Dockerfile
     volumes:
-      - "./backend-marketing:/backend-marketing:delegated"
+      - "./backend:/backend:delegated"
     ports:
       - "$BACKEND_LOCAL_PORT:$BACKEND_DOCKER_PORT"
     expose:
@@ -34,13 +34,13 @@ services:
     networks:
       - docker_test_network
     environment:
-      - "VIRTUAL_HOST=backend-marketing.dataresearchanalysis.test"
-    container_name: backend-marketing.dataresearchanalysis.test
+      - "VIRTUAL_HOST=backend.dataresearchanalysis.test"
+    container_name: backend.dataresearchanalysis.test
 
-  database-marketing.dataresearchanalysis.test:
+  database.dataresearchanalysis.test:
     build:
       context: .
-      dockerfile: ./docker/database-marketing/Dockerfile
+      dockerfile: ./docker/database/Dockerfile
     volumes:
       - postgres_data:/var/lib/postgres/data
     ports:
@@ -50,9 +50,9 @@ services:
     env_file:
       - ./.env
     environment:
-      - "VIRTUAL_HOST=database-marketing.dataresearchanalysis.test"
+      - "VIRTUAL_HOST=database.dataresearchanalysis.test"
       - "POSTGRES_USER=$POSTGRESDB_USER"
       - "POSTGRES_PASSWORD=$POSTGRESDB_ROOT_PASSWORD"
       - "POSTGRES_DB=$POSTGRESDB_DATABASE"
-    container_name: database-marketing.dataresearchanalysis.test
+    container_name: database.dataresearchanalysis.test
 
