@@ -11,24 +11,24 @@ pipeline {
         NUXT_PORT = credentials('NUXT_PORT')
     }
     stages {
-        stage('Build Frontend Marketing') {
+        stage('Build Frontend') {
             steps {
                 sh '''
                     ls -al
                     node --version
                     npm --version
-                    cd frontend-marketing && printf NUXT_API_URL=$NUXT_API_URL\rNUXT_RECAPTCHA_SITE_KEY=$NUXT_RECAPTCHA_SITE_KEY\rNUXT_PORT=$NUXT_PORT > .env && npm ci && npm run build
+                    cd frontend && printf NUXT_API_URL=$NUXT_API_URL\rNUXT_RECAPTCHA_SITE_KEY=$NUXT_RECAPTCHA_SITE_KEY\rNUXT_PORT=$NUXT_PORT > .env && npm ci && npm run build
                     ls -al
                 '''
             }
         }
-        stage('Build Backend Marketing') {
+        stage('Build Backend') {
             steps {
                 sh '''
                     ls -al
                     node --version
                     npm --version
-                    cd backend-marketing && printf PORT=$PORT\rRECAPTCHA_SECRET=$RECAPTCHA_SECRET\rJWT_SECRET=$JWT_SECRET\rPOSTGRESQL_URL=$POSTGRESQL_URL\rNODE_ENV=$NODE_ENV > .env && npm ci
+                    cd backend && printf PORT=$PORT\rRECAPTCHA_SECRET=$RECAPTCHA_SECRET\rJWT_SECRET=$JWT_SECRET\rPOSTGRESQL_URL=$POSTGRESQL_URL\rNODE_ENV=$NODE_ENV > .env && npm ci
                     ls -al
                 '''
             }
