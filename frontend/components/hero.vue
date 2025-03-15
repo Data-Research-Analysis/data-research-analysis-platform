@@ -15,7 +15,7 @@ const state = reactive({
 
 async function getToken() {
     state.loading = true;
-    const url = `${baseUrl()}generate-token`;
+    const url = `${baseUrl()}/generate-token`;
     const captchaResponse = await fetch(url, {
         method: "GET",
         headers: {
@@ -38,24 +38,24 @@ async function subscribeMe() {
         const token = await recaptcha();
         if (token) {
             state.subscriptionStep = 2;
-            const url = `${baseUrl()}verify-recaptcha`;
+            const url = `${baseUrl()}/verify-recaptcha`;
             const captchaResponse = await fetch(url, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    Authorization: `Bearer ${state.token}`,
+                    "Authorization": `Bearer ${state.token}`,
                 },
                 body: JSON.stringify({ recaptcha_token: token, email: state.email }),
             });
             const response = await captchaResponse.json();
             if (response.success && response.action === "subscribeForm" && response.score > 0.8) {
                 state.subscriptionStep = 2;
-                const url = `${baseUrl()}subscribe`;
+                const url = `${baseUrl()}/subscribe`;
                 const subscribeResponse = await fetch(url, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
-                        Authorization: `Bearer ${state.token}`,
+                        "Authorization": `Bearer ${state.token}`,
                     },
                     body: JSON.stringify({ email: state.email }),
                 });

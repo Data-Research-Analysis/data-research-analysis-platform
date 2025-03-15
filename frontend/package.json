@@ -22,6 +22,7 @@
     "tailwindcss": "^4.0.0",
     "vue": "latest",
     "vue-recaptcha-v3": "^2.0.1",
-    "vue-router": "latest"
+    "vue-router": "latest",
+    "vue-tippy": "^6.6.0"
   }
 }

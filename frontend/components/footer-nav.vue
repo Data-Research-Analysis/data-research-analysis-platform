@@ -37,6 +37,9 @@ onMounted(() => {
                         <div class="w-1/4 flex flex-col">
                             <span>Important Links</span>
                             <span class="text-base mt-2 mb-2">
+                                <NuxtLink to="/register" class="hover:text-gray-300">Register</NuxtLink>
+                            </span>
+                            <span class="text-base mt-2 mb-2">
                                 <NuxtLink to="/privacy-policy" class="hover:text-gray-300">Privacy Policy</NuxtLink>
                             </span>
                             <span class="text-base mb-2">

@@ -4,7 +4,7 @@
   "description": "Backend server for the marketing website.",
   "main": "index.js",
   "scripts": {
-    "start": "ts-node src/index.ts",
+    "start": "ts-node-dev src/index.ts",
     "migrate:up": "node-pg-migrate up",
     "migrate:down": "node-pg-migrate down",
     "migrate:redo": "node-pg-migrate redo",
@@ -24,9 +24,11 @@
     "typescript": "^5.7.3"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.17.1",
+    "express-validator": "^7.2.1",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.13.3",
     "pg-hstore": "^2.3.4",
