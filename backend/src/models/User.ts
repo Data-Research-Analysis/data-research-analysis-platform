@@ -1,6 +1,5 @@
 import { Sequelize, DataTypes, Model } from "sequelize";
 import { PostgresDriver } from "../drivers/PostgresDriver";
-import { UtilityService } from "../services/UtilityService";
 
 export class User extends Model {}
 PostgresDriver.getInstance().initialize().then(() => {
