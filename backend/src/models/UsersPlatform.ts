@@ -1,7 +1,13 @@
 import { Sequelize, DataTypes, Model } from "sequelize";
 import { PostgresDriver } from "../drivers/PostgresDriver";
 
-export class UsersPlatform extends Model {}
+export class UsersPlatform extends Model {
+  declare id: number;
+  declare email: string;
+  declare first_name: string;
+  declare last_name: string;
+  declare password: string;
+}
 PostgresDriver.getInstance().initialize().then(() => {
   const sequelize = PostgresDriver.getInstance().getDriver();
   if (sequelize) {

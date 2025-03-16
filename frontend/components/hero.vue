@@ -1,8 +1,7 @@
 <script setup>
 import { onMounted, reactive } from "vue";
-import { VueReCaptcha, useReCaptcha } from "vue-recaptcha-v3";
-const { executeRecaptcha, recaptchaLoaded } = useReCaptcha();
-const { baseUrl } = Utils();
+import { useReCaptcha } from "vue-recaptcha-v3";
+const recaptcha = useReCaptcha();
 
 const state = reactive({
     email: "",
@@ -35,19 +34,10 @@ async function subscribeMe() {
         state.subscriptionErrorMessage = "*Please enter a valid email address.";
     } else {
         state.subscriptionError = false;
-        const token = await recaptcha();
+        const token = await getRecaptchaToken(recaptcha, 'subscribeForm');
         if (token) {
             state.subscriptionStep = 2;
-            const url = `${baseUrl()}/verify-recaptcha`;
-            const captchaResponse = await fetch(url, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${state.token}`,
-                },
-                body: JSON.stringify({ recaptcha_token: token, email: state.email }),
-            });
-            const response = await captchaResponse.json();
+            const response = await verifyRecaptchaToken(state.token, token);
             if (response.success && response.action === "subscribeForm" && response.score > 0.8) {
                 state.subscriptionStep = 2;
                 const url = `${baseUrl()}/subscribe`;
@@ -80,11 +70,6 @@ async function subscribeMe() {
         }
     }
     state.loading = false;
-}
-
-async function recaptcha() {
-    await recaptchaLoaded(); // Wait for reCAPTCHA to load
-    return await executeRecaptcha("subscribeForm"); // Create a reCAPTCHA token
 }
 
 onMounted(async () => {

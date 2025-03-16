@@ -1,6 +1,8 @@
 import bcrypt  from 'bcryptjs';
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { UsersPlatform } from '../models/UsersPlatform';
+import { UtilityService } from '../services/UtilityService';
+import { IUsersPlatform } from '../types/IUsersPlatform';
 
 export class AuthProcessor {
     private static instance: AuthProcessor;
@@ -37,8 +39,22 @@ export class AuthProcessor {
     //     });
     // }
 
-    public async login(email: string, password: string): Promise<string> {
-        return new Promise<string>(async (resolve, reject) => {
+    public async login(email: string, password: string): Promise<IUsersPlatform> {
+        return new Promise<IUsersPlatform>(async (resolve, reject) => {
+            const user:UsersPlatform = await UsersPlatform.findOne({where: {email: email}});
+            if (user) {
+                const passwordMatch = await bcrypt.compare(password, user.password);
+                if (passwordMatch) {
+                    const secret = UtilityService.getInstance().getConstants('JWT_SECRET');
+                    const token = jwt.sign({user_id: user.id, email: email}, secret);
+                    const userPlatform:IUsersPlatform = {id: user.id, email: email, first_name: user.first_name, last_name: user.last_name, token: token};
+                    return resolve(userPlatform);
+                } else {
+                    return resolve(null);
+                }
+            } else {
+                return resolve(null);
+            }
             // const user = await User.findOne({email: email}).exec();
             // if (user) {
             //     const passwordMatch = await bcrypt.compare(password, user.password);
@@ -55,7 +71,6 @@ export class AuthProcessor {
 
     public async register(firstName: string, lastName: string, email: string, password: string): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
-            console.log("Registering user");
             const user:UsersPlatform = await UsersPlatform.findOne({where: {email: email}});
             if (!user) {
                 console.log("User does not exist for the given email, so creating a new user");
@@ -66,7 +81,6 @@ export class AuthProcessor {
                 });
                 return resolve(true);                    
             } else {
-                console.log("User already exists");
                 return resolve(false);
             }
         });

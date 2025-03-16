@@ -1,6 +1,4 @@
 <script setup>
-const { openGithub, openLinkedin } = Utils();
-
 </script>
 <template>
     <div class="flex flex-col">
