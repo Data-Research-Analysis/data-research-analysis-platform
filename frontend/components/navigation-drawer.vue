@@ -1,5 +1,4 @@
 <script setup>
-const { openGithub, openLinkedin } = Utils();
 const emits = defineEmits(["closeDrawer"]);
 const props = defineProps({
     drawerOpen: Boolean,

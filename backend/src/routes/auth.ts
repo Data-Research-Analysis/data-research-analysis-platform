@@ -24,8 +24,15 @@ router.post('/register', async (req: Request, res: Response, next: any) => {
 
 router.post('/login', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, async (req: Request, res: Response) => {
-    
+}, validateJWT, validate([body('email').notEmpty(), body('password').notEmpty()]), async (req: Request, res: Response) => {
+    const { email, password } = matchedData(req);
+    const response: any = await AuthProcessor.getInstance().login(email, password);
+    if (response) {
+        res.status(200).send(response);
+    }
+    else {
+        res.status(400).send({message: 'User not found for the provided email and password'});
+    }
 });
 
 export default router;
