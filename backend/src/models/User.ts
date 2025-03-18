@@ -1,9 +1,9 @@
 import { Sequelize, DataTypes, Model } from "sequelize";
-import { PostgresDriver } from "../drivers/PostgresDriver";
+import { DBDriver } from "../drivers/DBDriver";
 
 export class User extends Model {}
-PostgresDriver.getInstance().initialize().then(() => {
-    const sequelize = PostgresDriver.getInstance().getDriver();
+DBDriver.getInstance().getDriver().initialize().then(async () => {
+    const sequelize = await DBDriver.getInstance().getDriver().getConcreteDriver();
     if (sequelize) {
         User.init({
             email: {

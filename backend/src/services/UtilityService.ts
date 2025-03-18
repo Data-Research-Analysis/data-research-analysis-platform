@@ -1,7 +1,6 @@
 import dotenv from 'dotenv';
 import { PostgresDriver } from '../drivers/PostgresDriver';
 
-
 export class UtilityService {
     private static instance: UtilityService;
     private constructor() {}
@@ -23,6 +22,7 @@ export class UtilityService {
             PORT: process.env.PORT || 3003,
             RECAPTCHA_SECRET: process.env.RECAPTCHA_SECRET || '',
             JWT_SECRET: process.env.JWT_SECRET || '',
+            DB_Driver: process.env.DB_Driver || 'postgres',
             POSTGRESQL_URL: process.env.POSTGRESQL_URL || '',
         }[key];
     }
