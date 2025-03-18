@@ -1,5 +1,5 @@
 import { Sequelize, DataTypes, Model } from "sequelize";
-import { PostgresDriver } from "../drivers/PostgresDriver";
+import { DBDriver } from "../drivers/DBDriver";
 
 export class UsersPlatform extends Model {
   declare id: number;
@@ -8,8 +8,8 @@ export class UsersPlatform extends Model {
   declare last_name: string;
   declare password: string;
 }
-PostgresDriver.getInstance().initialize().then(() => {
-  const sequelize = PostgresDriver.getInstance().getDriver();
+DBDriver.getInstance().getDriver().initialize().then(async () => {
+  const sequelize = await DBDriver.getInstance().getDriver().getConcreteDriver();
   if (sequelize) {
     UsersPlatform.init({
       email: DataTypes.STRING,

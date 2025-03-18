@@ -55,17 +55,6 @@ export class AuthProcessor {
             } else {
                 return resolve(null);
             }
-            // const user = await User.findOne({email: email}).exec();
-            // if (user) {
-            //     const passwordMatch = await bcrypt.compare(password, user.password);
-            //     if (passwordMatch) {
-            //         const secret = Utility.getInstance().getConstants('JWT_SECRET');
-            //         let token = jwt.sign({user_id: user.id, email: email}, secret);
-            //         return resolve(token);
-            //     }
-            // } else {
-            //     return resolve('');
-            // }
         });
     }
 
