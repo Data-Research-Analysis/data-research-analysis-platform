@@ -17,14 +17,7 @@ const state = reactive({
 
 async function getToken() {
     state.loading = true;
-    const url = `${baseUrl()}/generate-token`;
-    const captchaResponse = await fetch(url, {
-        method: "GET",
-        headers: {
-            "Content-Type": "application/json",
-        },
-    });
-    const response = await captchaResponse.json();
+    const response = await getGeneratedToken();
     state.token = response.token;
     state.loading = false;
 }
