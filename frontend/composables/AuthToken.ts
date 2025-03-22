@@ -1,3 +1,7 @@
+/**
+ * Composable for managing the authentication token saved in the browser cookie
+ * @param token 
+ */
 export function setAuthToken(token: string) {
     const d = new Date();
     d.setTime(d.getTime() + (3 * 24 * 60 * 60 * 1000));//expire in 3 days

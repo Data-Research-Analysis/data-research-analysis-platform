@@ -1,5 +1,4 @@
 import dotenv from 'dotenv';
-import { PostgresDriver } from '../drivers/PostgresDriver';
 
 export class UtilityService {
     private static instance: UtilityService;
@@ -24,6 +23,13 @@ export class UtilityService {
             JWT_SECRET: process.env.JWT_SECRET || '',
             DB_Driver: process.env.DB_Driver || 'postgres',
             POSTGRESQL_URL: process.env.POSTGRESQL_URL || '',
+            MAIL_DRIVER: process.env.MAIL_DRIVER || '',
+            MAIL_HOST: process.env.MAIL_HOST || '',
+            MAIL_PORT: process.env.MAIL_PORT || '',
+            MAIL_USER: process.env.MAIL_USER || '',
+            MAIL_PASS: process.env.MAIL_PASS || '',
+            MAIL_FROM: process.env.MAIL_FROM || '',
+            MAIL_REPLY_TO: process.env.MAIL_REPLY_TO || '',
         }[key];
     }
 

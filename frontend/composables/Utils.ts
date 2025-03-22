@@ -10,6 +10,17 @@ export function baseUrl() {
     const config = useRuntimeConfig();
     return config.public.NUXT_API_URL;
 }
+export async function getGeneratedToken() {
+    const url = `${baseUrl()}/generate-token`;
+    const response = await fetch(url, {
+        method: "GET",
+        headers: {
+            "Content-Type": "application/json",
+        },
+    });
+    return await response.json();
+
+}
 export async function getRecaptchaToken (recaptcha:IReCaptchaComposition, type: string) {
     const { executeRecaptcha, recaptchaLoaded } = recaptcha;
     await recaptchaLoaded();

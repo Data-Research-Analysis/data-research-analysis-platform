@@ -2,30 +2,24 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('users_platform', {
+    await queryInterface.createTable('verification_codes', {
       id: {
         allowNull: false,
         autoIncrement: true,
         primaryKey: true,
         type: Sequelize.INTEGER
       },
-      email: {
+      code: {
         type: Sequelize.STRING
       },
-      first_name: {
-        type: Sequelize.STRING
+      user_platform_id: {
+        type: Sequelize.INTEGER,
+        references: {
+          model: 'users_platform',
+          key: 'id'
+        }
       },
-      last_name: {
-        type: Sequelize.STRING
-      },
-      password: {
-        type: Sequelize.STRING
-      },
-      email_verified_at: {
-        allowNull: true,
-        type: Sequelize.DATE
-      },
-      unsubscribe_from_emails_at: {
+      expired_at: {
         allowNull: true,
         type: Sequelize.DATE
       },
@@ -40,6 +34,6 @@ module.exports = {
     });
   },
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('users_platform');
+    await queryInterface.dropTable('verification_codes');
   }
 };
