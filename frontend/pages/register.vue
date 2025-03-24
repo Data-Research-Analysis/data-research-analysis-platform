@@ -18,6 +18,7 @@ const state = reactive({
     registrationSuccess: false,
     showAlert: false,
     token: "",
+    loading: false,
 });
 
 async function getToken() {
@@ -28,6 +29,7 @@ async function getToken() {
 }
 
 async function createAccount() {
+    state.loading = true;
     state.showAlert = false;
     state.registrationSuccess = false;
     state.errorMessages = [];
@@ -111,6 +113,7 @@ async function createAccount() {
             state.errorMessages.push("Recaptcha verification failed. Please refresh the page and try again.");
         }
     }
+    state.loading = false;
 }
 
 onMounted(async () => {
@@ -141,6 +144,7 @@ onMounted(async () => {
                 class="self-center w-3/4 p-5 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md"
                 :class="!state.firstNameError ? '' : 'bg-red-300 text-black'"
                 placeholder="First Name"
+                :disabled="state.loading"
             />
             <input
                 v-model="state.lastName"
@@ -148,6 +152,7 @@ onMounted(async () => {
                 class="self-center w-3/4 p-5 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md"
                 :class="!state.lastNameError ? '' : 'bg-red-300 text-black'"
                 placeholder="Last Name"
+                :disabled="state.loading"
             />
             <input
                 v-model="state.email"
@@ -155,6 +160,7 @@ onMounted(async () => {
                 class="self-center w-3/4 p-5 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md"
                 :class="!state.emailError ? '' : 'bg-red-300 text-black'"
                 placeholder="Email"
+                :disabled="state.loading"
             />
             <input
                 v-model="state.password"
@@ -163,6 +169,7 @@ onMounted(async () => {
                 :class="!state.passwordError ? '' : 'bg-red-300 text-black'"
                 placeholder="Password"
                 v-tippy="{ content: 'Password should be atleast 8 characters in length, have aleast one lowercase character, atleast one upper case character, atleast a number between 0 and 9 and atleast one special character (#?!@$%^&*-).' }"
+                :disabled="state.loading"
             />
             <input
                 v-model="state.rePassword"
@@ -171,8 +178,11 @@ onMounted(async () => {
                 :class="!state.rePasswordError ? '' : 'bg-red-300 text-black'"
                 placeholder="Repeat Password"
                 v-tippy="{ content: 'Repeast Password should be the same as the Password given above.' }"
+                :disabled="state.loading"
             />
+            <spinner v-if="state.loading"/>
             <div
+                v-else
                 class="w-1/4 text-center self-center mb-5 p-2 m-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md"
                 @click="createAccount"
             >
