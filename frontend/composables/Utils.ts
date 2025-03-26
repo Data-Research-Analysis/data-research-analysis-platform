@@ -34,6 +34,7 @@ export async function verifyRecaptchaToken (authToken: string, recaptchaToken: s
         headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${authToken}`,
+            "Authorization_Type": "non-auth",
         },
         body: JSON.stringify({ recaptcha_token: recaptchaToken }),
     });
