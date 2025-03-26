@@ -2,9 +2,10 @@
 import { NuxtLink } from "#components";
 import { onMounted, reactive } from "vue";
 import fontawesome from "~/plugins/fontawesome";
-
+const route = useRoute();
 const state = reactive({
-    drawerOpen: false
+    drawerOpen: false,
+    authenticated: false,
 })
 
 function openDrawer() {
@@ -13,7 +14,17 @@ function openDrawer() {
 function closeDrawer() {
  state.drawerOpen = false;
 }
-onMounted(() => {})
+
+watch(
+  route,
+  (value, oldValue) => {
+    state.authenticated = isAuthenticated();
+  },
+);
+
+onMounted(() => {
+    state.authenticated = isAuthenticated();
+})
 </script>
 <template>
     <div class="relative bg-primary-blue-100 text-white h-10 lg:h-15 shadow-lg z-10" id="top">
@@ -22,7 +33,7 @@ onMounted(() => {})
             <font-awesome icon="fas fa-bars" class="text-2xl cursor-pointer hover:text-gray-300" @click="openDrawer" />
         </div>
         <div class="absolute lg:top-2 lg:right-10 lg:h-10 w-3/5 hidden lg:block">
-            <div class="flex flex-row justify-between items-center h-full">
+            <div v-if="!state.authenticated" class="flex flex-row justify-between items-center h-full">
                 <div class="flex flex-row items-center">
                     <div class="text-xl font-bold hover:text-gray-300 cursor-pointer">
                         <NuxtLink to="/">Home</NuxtLink>
@@ -60,6 +71,23 @@ onMounted(() => {})
                     <font-awesome icon="fab fa-github-square" class="ml-5 text-4xl hover:text-gray-300 cursor-pointer" @click="openGithub()"/>
                     <font-awesome icon="fab fa-linkedin" class="ml-5 text-4xl hover:text-gray-300 cursor-pointer" @click="openLinkedin()"/>
                 </div>
+            </div>
+            <div v-else class="flex flex-row justify-end items-center h-full">
+                
+                <menu-dropdown>
+                    <template #menuItem="{ onClick }">
+                        <div @click="onClick" class="flex flex-col justify-center items-center w-10 h-10 bg-gray-200 border border-primary-blue-100 border-solid p-1 rounded-full cursor-pointer hover:bg-gray-300 font-bold text-center text-black text-none">
+                            M
+                        </div>
+                    </template>
+                    <template #dropdownMenu="{ onClick }">
+                        <div class="flex flex-col w-40 text-center">
+                            <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer pt-1 pb-1">
+                                <NuxtLink to="/logout">Logout</NuxtLink>
+                            </div>
+                        </div>
+                    </template>
+                </menu-dropdown>
             </div>
         </div>
        <navigation-drawer :drawer-open="state.drawerOpen" @close-drawer="closeDrawer" />

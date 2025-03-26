@@ -3,7 +3,6 @@ import { onMounted, reactive } from "vue";
 import { useReCaptcha } from "vue-recaptcha-v3";
 const router = useRouter();
 const recaptcha = useReCaptcha();
-
 const state = reactive({
     email: "",
     password: "",
@@ -56,6 +55,7 @@ async function loginUser() {
                 headers: {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${state.token}`,
+                    "Authorization_Type": "non-auth",
                 },
                 body: JSON.stringify({
                   email: state.email,

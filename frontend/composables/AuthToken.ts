@@ -11,11 +11,13 @@ export function getAuthToken() {
     const cookies = document.cookie.split(';')
     return cookies.find(cookie => {
         if (cookie.split('=')[0].includes('dra_auth_token')) {
-            console.log("cookie", cookie)
             return cookie;
         }
     })?.split('=')[1]
 }
 export function deleteAuthToken() {
     document.cookie = "dra_auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+}
+export function isAuthenticated() {
+    return getAuthToken() ? true : false;
 }

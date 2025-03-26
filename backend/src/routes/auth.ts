@@ -83,5 +83,10 @@ router.get('/resend-code/:code', async (req: Request, res: Response, next: any) 
     }
 });
 
+router.get('/validate-token', async (req: Request, res: Response, next: any) => {
+    next();
+},validateJWT, async (req: Request, res: Response) => {
+    res.status(200).send({message: 'validated token'});
+});
 
 export default router;
