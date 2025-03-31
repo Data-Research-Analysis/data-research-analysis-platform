@@ -43,16 +43,16 @@ function closeDrawer() {
                     <menu-dropdown>
                         <template #menuItem="{ onClick }">
                             <div @click="onClick" class="text-xl font-bold mt-2 cursor-pointer hover:text-gray-300 cursor-pointer">
-                                Cloud Access
+                                Products
                             </div>
                         </template>
                         <template #dropdownMenu="{ onClick }">
                             <div class="flex flex-col w-40 text-center">
                                 <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer border-b-1 border-primary-blue-100 border-solid pt-1 pb-1">
-                                    <NuxtLink to="/register">Register</NuxtLink>
+                                    <NuxtLink to="/register">Platform Register</NuxtLink>
                                 </div>
                                 <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer pt-1 pb-1">
-                                    <NuxtLink to="/login">Login</NuxtLink>
+                                    <NuxtLink to="/login">Platform Login</NuxtLink>
                                 </div>
                             </div>
                         </template>

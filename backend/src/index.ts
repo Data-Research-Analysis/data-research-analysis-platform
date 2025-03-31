@@ -5,7 +5,7 @@ import { UtilityService } from './services/UtilityService';
 import home from './routes/home';
 import auth from './routes/auth';
 import project from './routes/project';
-import model from './routes/model';
+import data_source from './routes/data_source';
 
 console.log('Starting up Data Research Analysis Marketing API Server');
 const app = express();
@@ -24,7 +24,7 @@ app.use(function(req, res, next) {
 app.use('/', home);
 app.use('/auth', auth);
 app.use('/project', project);
-app.use('/model', model);
+app.use('/data-source', data_source);
 
 app.listen(port, () => {
   return console.log(`Express is listening at http://localhost:${port}`);

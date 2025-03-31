@@ -24,7 +24,7 @@ module.exports = {
       createdAt: new Date(),
       updatedAt: new Date(),
     }, {
-      name: 'Atilus2  ',
+      name: 'Atilus3',
       user_platform_id: 1,
       createdAt: new Date(),
       updatedAt: new Date(),

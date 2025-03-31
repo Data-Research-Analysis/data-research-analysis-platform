@@ -1,5 +1,4 @@
 <script setup>
-import { onMounted, reactive } from "vue";
 const { $swal } = useNuxtApp();
 const state = reactive({
     project_name: '',
@@ -101,7 +100,7 @@ onMounted(async () => {
 })
 </script>
 <template>
-    <div class="min-h-100 flex flex-col m-10 border border-primary-blue-100 border-solid p-10 shadow-md">
+    <div class="min-h-100 flex flex-col m-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md">
         <div class="font-bold text-2xl mb-5">
             Projects
         </div>
@@ -121,26 +120,28 @@ onMounted(async () => {
             </notched-card>
             <notched-card v-for="project in state.projects" class="justify-self-center mt-10">
                 <template #body="{ onClick }">
-                    <div class="flex flex-col justify-center cursor-pointer">
-                        <div class="text-md font-bold">
-                            {{project.name}}
-                        </div>
-                        <div class="bg-gray-300 p-5">
-                            Screenshot here
-                        </div>
-                        <div class="flex flex-row justify-between mt-1">
-                            <ul class="text-xs">
-                                <li>{{ project.dataSources }} Data Sources</li>
-                                <li>{{ project.sheets }} Sheets</li>
-                                <li>{{ project.visualizations }} Visualizations</li>
-                                <li>{{ project.dashboards }} Dashboard</li>
-                                <li>{{ project.stories }} Story</li>
-                            </ul>
-                            <div>
-                                <font-awesome icon="fas fa-trash" class="text-xl text-red-500 hover:text-red-400" @click="deleteProject(project.id)" />
+                    <NuxtLink :to="`/projects/${project.name}/data-sources`">
+                        <div class="flex flex-col justify-center cursor-pointer">
+                            <div class="text-md font-bold">
+                                {{project.name}}
+                            </div>
+                            <div class="bg-gray-300 p-5">
+                                Screenshot here
+                            </div>
+                            <div class="flex flex-row justify-between mt-1">
+                                <ul class="text-xs">
+                                    <li>{{ project.dataSources }} Data Sources</li>
+                                    <li>{{ project.sheets }} Sheets</li>
+                                    <li>{{ project.visualizations }} Visualizations</li>
+                                    <li>{{ project.dashboards }} Dashboard</li>
+                                    <li>{{ project.stories }} Story</li>
+                                </ul>
+                                <div>
+                                    <font-awesome icon="fas fa-trash" class="text-xl text-red-500 hover:text-red-400" @click="deleteProject(project.id)" />
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    </NuxtLink>
                 </template>
             </notched-card>
         </div>

@@ -1,5 +1,6 @@
 import { DataTypes, Model } from "sequelize";
 import { DBDriver } from "../drivers/DBDriver";
+import { IDBDriver } from "../interfaces/IDBDriver";
 
 export class VerificationCodes extends Model {
   declare id: number;
@@ -7,8 +8,9 @@ export class VerificationCodes extends Model {
   declare user_platform_id: number;
   declare expired_at: Date;
 }
-DBDriver.getInstance().getDriver().initialize().then(async () => {
-  const sequelize = await DBDriver.getInstance().getDriver().getConcreteDriver();
+DBDriver.getInstance().getDriver().then(async (driver: IDBDriver) => {
+  await driver.initialize();
+  const sequelize = await driver.getConcreteDriver();
   if (sequelize) {
     VerificationCodes.init({
       code: DataTypes.STRING,

@@ -15,12 +15,14 @@ export class DBDriver {
     }
 
     //This is a factory method to get the relevant driver
-    public getDriver(): IDBDriver {
-        const dbDriver = UtilityService.getInstance().getConstants('DB_Driver');
-        if (dbDriver === 'postgres') {
-            return PostgresDriver.getInstance();
-        }
-        return null;
+    public getDriver(): Promise<IDBDriver> {
+        return new Promise<IDBDriver>(async (resolve, reject) => {
+            const dbDriver = UtilityService.getInstance().getConstants('DB_Driver');
+            if (dbDriver === 'postgres') {
+                return resolve(PostgresDriver.getInstance());
+            }
+            return resolve(null);
+        });
     }
    
 }

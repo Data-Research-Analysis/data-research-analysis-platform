@@ -1,11 +1,14 @@
 <script setup>
-import { onMounted } from "vue";
-
+const route = useRoute();
+const isHomePage = computed(() => {
+    return route.name === "index";
+})
 function scrollToTop() {
     console.log("scrollToTop")
     console.log("window", window)
     window.scrollTo({ top: 0, behavior: 'smooth'});   
 }
+
 onMounted(() => {
     document.addEventListener("scroll", () => {
         const scrollButton = document.getElementById("scrollToTopButton");
@@ -26,7 +29,7 @@ onMounted(() => {
 </script>
 <template>
     <div>
-        <img src="/blue-background-top.svg" class="w-full" />
+        <img v-if="isHomePage" src="/blue-background-top.svg" class="w-full" />
         <div class="bg-primary-blue-100 w-full h-full text-white text-xl font-bold">
             <div class="flex flex-col justify-between h-full p-5">
                 <div class="flex flex-row">
