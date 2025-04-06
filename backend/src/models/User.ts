@@ -20,7 +20,7 @@ DBDriver.getInstance().getDriver().then(async (driver: IDBDriver) => {
         {
             sequelize,
             modelName: 'User',
-            tableName: 'users',
+            tableName: 'dra_users',
         }
         );
     }

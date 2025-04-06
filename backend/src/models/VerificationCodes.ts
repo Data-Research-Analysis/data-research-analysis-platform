@@ -19,7 +19,7 @@ DBDriver.getInstance().getDriver().then(async (driver: IDBDriver) => {
     }, {
       sequelize,
       modelName: 'VerificationCodes',
-      tableName: 'verification_codes'
+      tableName: 'dra_verification_codes'
     });
   }
 });

@@ -3,7 +3,7 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('data_models', {
+    await queryInterface.createTable('dra_data_sources', {
       id: {
         allowNull: false,
         autoIncrement: true,
@@ -22,14 +22,14 @@ module.exports = {
       project_id: {
         type: Sequelize.INTEGER,
         references: {
-          model: 'projects',
+          model: 'dra_projects',
           key: 'id'
         }
       },
       user_platform_id: {
         type: Sequelize.INTEGER,
         references: {
-          model: 'users_platform',
+          model: 'dra_users_platform',
           key: 'id'
         }
       },
@@ -44,6 +44,6 @@ module.exports = {
     });
   },
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('data_models');
+    await queryInterface.dropTable('dra_data_sources');
   }
 };

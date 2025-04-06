@@ -8,7 +8,7 @@ function toggleDropdown() {
 }
 </script>
 <template>
-    <div class="cursor-pointer drop-shadow-md hover:drop-shadow-lg select-none">
+    <div class="drop-shadow-md hover:drop-shadow-lg select-none">
         <div class="w-50 h-50 p-5 bg-gray-100 notched-corner">
             <slot name="body"></slot>
         </div>

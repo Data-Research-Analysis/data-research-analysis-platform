@@ -10,6 +10,7 @@ export async function validateJWT (req: any, res: any, next: any) {
         let result: boolean = await TokenProcessor.getInstance().validateToken(jwtToken);
         if (result) {
             let tokenDetails = await TokenProcessor.getInstance().getTokenDetails(jwtToken);
+            console.log("tokenDetails", tokenDetails);
             if (typeAuthorization === 'auth' && tokenDetails && tokenDetails.user_id) {
                 req.body.tokenDetails = tokenDetails;
                 next();

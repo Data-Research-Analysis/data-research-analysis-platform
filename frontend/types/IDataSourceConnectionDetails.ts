@@ -1,4 +1,4 @@
-export interface IDBConnectionDetails {
+export interface IDataSourceConnectionDetails {
     host: string;
     port: number;
     schema: string;

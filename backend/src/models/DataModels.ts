@@ -21,7 +21,7 @@ DBDriver.getInstance().getDriver().then(async (driver: IDBDriver) => {
     }, {
       sequelize,
       modelName: 'DataModels',
-      tableName: 'data_models',
+      tableName: 'dra_data_models',
     });
   }
 });

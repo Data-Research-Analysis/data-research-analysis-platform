@@ -26,7 +26,7 @@ DBDriver.getInstance().getDriver().then(async (driver: IDBDriver) => {
     }, {
       sequelize,
       modelName: 'UsersPlatform',
-      tableName: 'users_platform'
+      tableName: 'dra_users_platform'
     });
     // UsersPlatform.hasMany(VerificationCodes, {foreignKey: 'user_platforms_id'});
   }

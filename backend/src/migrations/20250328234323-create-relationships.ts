@@ -3,7 +3,7 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('relationships', {
+    await queryInterface.createTable('dra_relationships', {
       id: {
         allowNull: false,
         autoIncrement: true,
@@ -19,35 +19,35 @@ module.exports = {
       local_data_model_id: {
         type: Sequelize.INTEGER,
         references: {
-          model: 'data_models',
+          model: 'dra_data_models',
           key: 'id'
         }
       },
       foreign_data_model_id: {
         type: Sequelize.INTEGER,
         references: {
-          model: 'data_models',
+          model: 'dra_data_models',
           key: 'id'
         }
       },
       local_column_id: {
         type: Sequelize.INTEGER,
         references: {
-          model: 'columns',
+          model: 'dra_columns',
           key: 'id'
         }
       },
       foreign_column_id: {
         type: Sequelize.INTEGER,
         references: {
-          model: 'columns',
+          model: 'dra_columns',
           key: 'id'
         }
       },
       user_platform_id: {
         type: Sequelize.INTEGER,
         references: {
-          model: 'users_platform',
+          model: 'dra_users_platform',
           key: 'id'
         }
       },
@@ -62,6 +62,6 @@ module.exports = {
     });
   },
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('relationships');
+    await queryInterface.dropTable('dra_relationships');
   }
 };

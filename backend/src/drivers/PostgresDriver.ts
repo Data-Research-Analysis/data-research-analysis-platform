@@ -7,7 +7,7 @@ import { IDBConnectionDetails } from "../types/IDBConnectionDetails";
 export class PostgresDriver implements IDBDriver{
     private static instance: PostgresDriver;
     private sequelize: Sequelize;
-    private sequelizeExternal: Sequelize;
+    private externalSequelize: Sequelize;
     private constructor() {
     }
     public static getInstance(): PostgresDriver {
@@ -59,11 +59,11 @@ export class PostgresDriver implements IDBDriver{
         return new Promise<Sequelize>(async (resolve, reject) => {
             console.log('Connecting to external postgres');
             const postgresUrl = `postgres://${connection.user}:${connection.password}@${connection.host}:${connection.port}/${connection.database}`;
-            const sequelize = new Sequelize(postgresUrl);
+            this.externalSequelize = new Sequelize(postgresUrl);
             try {
-                await sequelize.authenticate();
+                await this.externalSequelize.authenticate();
                 console.log('External PostgresSQL connection has been established successfully.');
-                return resolve(sequelize);
+                return resolve(this.externalSequelize);
             } catch (error) {
                 console.error('Unable to connect to the database:', error);
                 return resolve(null);
@@ -72,7 +72,7 @@ export class PostgresDriver implements IDBDriver{
     }
     public async getExternalConnection(): Promise<any> {
         return new Promise<any>(async (resolve, reject) => {
-            return resolve(this.sequelize);
+            return resolve(this.externalSequelize);
         });
     }
 

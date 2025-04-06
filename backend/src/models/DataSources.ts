@@ -16,14 +16,17 @@ DBDriver.getInstance().getDriver().then(async (driver: IDBDriver) => {
   if (sequelize) {
     DataSources.init({
       name: DataTypes.STRING,
-      data_type: DataTypes.ENUM,
+      data_type: {
+        type: DataTypes.ENUM,
+        values: ['excel', 'csv', 'postgresql', 'mysql', 'mariadb', 'mongodb'],
+      },
       connection_details: DataTypes.JSONB,
       project_id: DataTypes.STRING,
-      user_platform_id: DataTypes.DATE,
+      user_platform_id: DataTypes.INTEGER,
     }, {
       sequelize,
       modelName: 'DataSources',
-      tableName: 'data_sources',
+      tableName: 'dra_data_sources',
     });
   }
 });

@@ -1,17 +1,25 @@
 <script setup>
+import {useProjectsStore} from '@/stores/projects';
+import { useDataSourceStore } from '@/stores/data_sources';
+const projectsStore = useProjectsStore();
+const dataSourceStore = useDataSourceStore();
 const route = useRoute();
 const state = reactive({
     authenticated: false,
 })
 watch(
   route,
-  (value, oldValue) => {
+  async (value, oldValue) => {
     state.authenticated = isAuthenticated();
+    await projectsStore.retrieveProjects();
+    await dataSourceStore.retrieveDataSources();
   },
 );
 
-onMounted(() => {
+onMounted(async () => {
     state.authenticated = isAuthenticated();
+    await projectsStore.retrieveProjects();
+    await dataSourceStore.retrieveDataSources();
 })
 </script>
 <template>
@@ -24,7 +32,7 @@ onMounted(() => {
                 'flex-col': !state.authenticated,
             }"
         >
-            <sidebar v-if="state.authenticated" class="-mt-10 w-1/6"/>
+            <!-- <sidebar v-if="state.authenticated" class="-mt-12 w-1/6"/> -->
             <div class="w-full">
                 <slot></slot>
             </div>
