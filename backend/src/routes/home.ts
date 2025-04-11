@@ -30,6 +30,8 @@ router.post('/verify-recaptcha', async (req: Request, res: Response, next: any) 
 }, validateJWT, async (req: Request, res: Response) => {
     const { recaptcha_token } = req.body;
     const recaptchaSecret = UtilityService.getInstance().getConstants('RECAPTCHA_SECRET');
+    console.log('Verifying recaptcha token', recaptcha_token);
+    console.log('Recaptcha secret', recaptchaSecret);
     let response = {success: false};
     try {
       const requestOptions = {

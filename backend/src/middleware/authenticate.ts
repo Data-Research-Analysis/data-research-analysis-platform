@@ -14,14 +14,18 @@ export async function validateJWT (req: any, res: any, next: any) {
                 req.body.tokenDetails = tokenDetails;
                 next();
             } else if (typeAuthorization === 'non-auth') {
+                console.log('non-auth token found');
                 next();
             } else {
+                console.log('neither auth nor non-auth token found');
                 res.status(400).send({message: 'valid authorization token not provided'});    
             }
         } else {
+            console.log('token not valid');
             res.status(400).send({message: 'valid authorization token not provided'});
         }
     } else {
+        console.log('authorization header not found');
         res.status(400).send({message: 'valid authorization token not provided'});
     }
 }
