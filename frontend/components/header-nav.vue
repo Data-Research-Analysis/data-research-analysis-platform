@@ -47,7 +47,7 @@ onMounted(() => {
                     <div class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">
                         <NuxtLink to="/#community">Community</NuxtLink>
                     </div>
-                    <div>
+                    <!-- <div>
                         <menu-dropdown>
                             <template #menuItem="{ onClick }">
                                 <div @click="onClick" class="text-xl font-bold ml-12 cursor-pointer hover:text-gray-300 cursor-pointer">
@@ -65,7 +65,7 @@ onMounted(() => {
                                 </div>
                             </template>
                         </menu-dropdown>
-                    </div>
+                    </div> -->
                 </div>
                 <div class="flex flex-row mr-5">
                     <font-awesome icon="fab fa-github-square" class="ml-5 text-4xl hover:text-gray-300 cursor-pointer" @click="openGithub()"/>

@@ -39,7 +39,7 @@ function closeDrawer() {
                 <div class="text-xl font-bold mt-2 hover:text-gray-300 cursor-pointer">
                     <NuxtLink to="/#community">Community</NuxtLink>
                 </div>
-                <div>
+                <!-- <div>
                     <menu-dropdown>
                         <template #menuItem="{ onClick }">
                             <div @click="onClick" class="text-xl font-bold mt-2 cursor-pointer hover:text-gray-300 cursor-pointer">
@@ -57,7 +57,7 @@ function closeDrawer() {
                             </div>
                         </template>
                     </menu-dropdown>
-                </div>
+                </div> -->
                 <div class="w-3/4 h-1 bg-white m-auto mt-5"></div>
                 <div class="flex flex-row mt-5">
                     <font-awesome icon="fab fa-github-square" class="text-4xl hover:text-gray-300 cursor-pointer" @click="openGithub()"/>
