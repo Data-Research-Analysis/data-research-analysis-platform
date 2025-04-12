@@ -39,7 +39,7 @@ async function subscribeMe() {
                     headers: {
                         "Content-Type": "application/json",
                         "Authorization": `Bearer ${state.token}`,
-                        "Authorization_Type": "non-auth",
+                        "Authorization-Type": "non-auth",
                     },
                     body: JSON.stringify({ email: state.email }),
                 });

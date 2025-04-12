@@ -82,7 +82,7 @@ async function createAccount() {
                 headers: {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${state.token}`,
-                    "Authorization_Type": "non-auth",
+                    "Authorization-Type": "non-auth",
                 },
                 body: JSON.stringify({
                   first_name: state.firstName,

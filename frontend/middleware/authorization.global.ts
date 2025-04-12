@@ -12,7 +12,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`,
-          "Authorization_Type": "non-auth",
+          "Authorization-Type": "non-auth",
 
         },
       };
