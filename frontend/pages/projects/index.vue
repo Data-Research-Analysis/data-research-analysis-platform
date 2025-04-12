@@ -47,7 +47,7 @@ async function addProject() {
             headers: {
                 "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
-                "Authorization_Type": "auth",
+                "Authorization-Type": "auth",
             },
             body: JSON.stringify({
                 project_name: projectName,
@@ -104,7 +104,7 @@ async function deleteProject(projectId) {
         headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${token}`,
-            "Authorization_Type": "auth",
+            "Authorization-Type": "auth",
         },
     };
     const response = await fetch(`${baseUrl()}/project/delete/${projectId}`, requestOptions);
