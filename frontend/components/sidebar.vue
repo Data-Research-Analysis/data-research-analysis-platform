@@ -35,7 +35,7 @@ async function getDataSources() {
     //     headers: {
     //         "Content-Type": "application/json",
     //         "Authorization": `Bearer ${token}`,
-    //         "Authorization_Type": "auth",
+    //         "Authorization-Type": "auth",
     //     },
     // });
     // const data = await response.json();

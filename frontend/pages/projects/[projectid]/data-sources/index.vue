@@ -80,7 +80,7 @@ async function deleteDataSource(dataSourceId) {
         headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${token}`,
-            "Authorization_Type": "auth",
+            "Authorization-Type": "auth",
         },
     };
     const response = await fetch(`${baseUrl()}/data-source/delete/${dataSourceId}`, requestOptions);

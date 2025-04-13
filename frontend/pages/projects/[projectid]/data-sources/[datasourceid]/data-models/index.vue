@@ -3,7 +3,6 @@ import { useDataSourceStore } from '@/stores/data_sources';
 import { useProjectsStore } from '@/stores/projects';
 const dataSourceStore = useDataSourceStore();
 const projectsStore = useProjectsStore();
-const { $swal } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
 const state = reactive({
@@ -25,7 +24,7 @@ async function getDataModels() {
         headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${token}`,
-            "Authorization_Type": "auth",
+            "Authorization-Type": "auth",
         },
     });
     const data = await response.json();

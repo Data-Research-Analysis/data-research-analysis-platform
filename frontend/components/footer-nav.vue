@@ -11,7 +11,7 @@ function scrollToTop() {
 
 onMounted(() => {
     document.addEventListener("scroll", () => {
-        const scrollButton = document.getElementById("scrollToTopButton");
+        const scrollButton = document.getElementById("scroll_to_top_button");
         if (window.scrollY > 100) {
             scrollButton.classList.remove("hidden", "opacity-0", "translate-y-2");
             scrollButton.classList.add("opacity-100", "translate-y-0");
@@ -39,9 +39,9 @@ onMounted(() => {
                     <div class="w-1/2 flex flex-row justify-end mr-8">
                         <div class="w-1/4 flex flex-col">
                             <span>Important Links</span>
-                            <!-- <span class="text-base mt-2 mb-2">
+                            <span class="text-base mt-2 mb-2">
                                 <NuxtLink to="/register" class="hover:text-gray-300">Register</NuxtLink>
-                            </span> -->
+                            </span>
                             <span class="text-base mt-2 mb-2">
                                 <NuxtLink to="/privacy-policy" class="hover:text-gray-300">Privacy Policy</NuxtLink>
                             </span>
@@ -60,7 +60,7 @@ onMounted(() => {
             </div>
         </div>
         <div
-            id="scrollToTopButton"
+            id="scroll_to_top_button"
             @click="scrollToTop"
             role="button"
             class="hidden fixed right-20 bottom-5 w-12 p-2 rounded-lg mb-2 ml-2 flex flex-row cursor-pointer bg-red-500 hover:bg-red-700 text-white text-lg justify-center z-10 transition duration-150 ease-in-out"

@@ -35,7 +35,7 @@ async function unsubscribe() {
             headers: {
                 "Content-Type": "application/json",
                 "Authorization": `Bearer ${state.token}`,
-                "Authorization_Type": "non-auth",
+                "Authorization-Type": "non-auth",
             },
         };
         const response = await fetch(`${baseUrl()}/auth/unsubscribe/${encodeURIComponent(state.code)}`, requestOptions);

@@ -123,6 +123,7 @@ export class DataSourceProcessor {
                                     table_name: table.table_name,
                                     schema: table.table_schema,
                                     columns: [],
+                                    references: [],
                                 }
                             });
                             tables = _.uniqBy(tables, 'table_name');
@@ -135,6 +136,53 @@ export class DataSourceProcessor {
                                             data_type: result.data_type,
                                             character_maximum_length: result.character_maximum_length,
                                             table_name: table.table_name,
+                                            schema: table.schema,
+                                            reference: {
+                                                local_table_schema: null,
+                                                local_table_name: null,
+                                                local_column_name: null,
+
+                                                foreign_table_schema: null,
+                                                foreign_table_name: null,
+                                                foreign_column_name: null,
+                                            }
+                                        });
+                                    }
+                                });
+                            });
+
+                            const [results2, metadata2] = await dbConnector.query(
+                                `SELECT
+                                    tc.table_schema AS local_table_schema, 
+                                    tc.constraint_name, 
+                                    tc.table_name AS local_table_name, 
+                                    kcu.column_name AS local_column_name, 
+                                    ccu.table_schema AS foreign_table_schema,
+                                    ccu.table_name AS foreign_table_name,
+                                    ccu.column_name AS foreign_column_name 
+                                FROM information_schema.table_constraints AS tc 
+                                JOIN information_schema.key_column_usage AS kcu
+                                    ON tc.constraint_name = kcu.constraint_name
+                                    AND tc.table_schema = kcu.table_schema
+                                JOIN information_schema.constraint_column_usage AS ccu
+                                    ON ccu.constraint_name = tc.constraint_name
+                                WHERE tc.constraint_type = 'FOREIGN KEY'
+                                    AND tc.table_schema='${connection.schema}';`
+                            );
+                            results2.forEach((result: any) => {
+                                tables.forEach((table: any) => {
+                                    if (table.table_name === result.local_table_name) {
+                                        table.columns.forEach((column: any) => {
+                                            if (column.column_name === result.local_column_name) {
+                                                column.reference.local_table_schema = result.local_table_schema;
+                                                column.reference.local_table_name = result.local_table_name;
+                                                column.reference.local_column_name = result.local_column_name;
+
+                                                column.reference.foreign_table_schema = result.foreign_table_schema;
+                                                column.reference.foreign_table_name = result.foreign_table_name;
+                                                column.reference.foreign_column_name = result.foreign_column_name;
+                                                table.references.push(column.reference);
+                                            }
                                         });
                                     }
                                 });

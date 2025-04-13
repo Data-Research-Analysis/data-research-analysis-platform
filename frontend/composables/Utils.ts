@@ -39,5 +39,4 @@ export async function verifyRecaptchaToken (authToken: string, recaptchaToken: s
         body: JSON.stringify({ recaptcha_token: recaptchaToken }),
     });
     return await captchaResponse.json();
-
 }

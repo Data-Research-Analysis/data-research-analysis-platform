@@ -43,7 +43,7 @@ async function verifyToken() {
             headers: {
                 "Content-Type": "application/json",
                 "Authorization": `Bearer ${state.token}`,
-                "Authorization_Type": "non-auth",
+                "Authorization-Type": "non-auth",
             },
         };
         const response = await fetch(`${baseUrl()}/auth/verify-email/${encodeURIComponent(state.code)}`, requestOptions);

@@ -101,7 +101,7 @@ async function testConnection() {
                 headers: {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
-                    "Authorization_Type": "auth",
+                    "Authorization-Type": "auth",
                 },
                 body: JSON.stringify({
                     host: state.host,
@@ -147,7 +147,7 @@ async function connectAndSave() {
                 headers: {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
-                    "Authorization_Type": "auth",
+                    "Authorization-Type": "auth",
                 },
                 body: JSON.stringify({
                     host: state.host,
