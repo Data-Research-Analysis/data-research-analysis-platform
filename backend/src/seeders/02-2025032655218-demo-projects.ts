@@ -12,12 +12,19 @@ module.exports = {
      *   isBetaMember: false
      * }], {});
     */
-
-    await queryInterface.bulkInsert('users_platform', [{
-      email: 'user@test.com',
-      password: '$2b$10$j4dPIrxjGfFV6tzSmuJTZumqOQesfTCgfYfmSx1Ok7WrOcNy7vQru',
-      first_name: 'User',
-      last_name: 'Test',
+    await queryInterface.bulkInsert('dra_projects', [{
+      name: 'Atilus1',
+      user_platform_id: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }, {
+      name: 'Atilus2',
+      user_platform_id: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }, {
+      name: 'Atilus3',
+      user_platform_id: 1,
       createdAt: new Date(),
       updatedAt: new Date(),
     }]);
@@ -30,6 +37,6 @@ module.exports = {
      * Example:
      * await queryInterface.bulkDelete('People', null, {});
      */
-    await queryInterface.bulkDelete('users_platform', null, {});
+    await queryInterface.bulkDelete('dra_projects', null, {});
   }
 };

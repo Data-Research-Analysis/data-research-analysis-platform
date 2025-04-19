@@ -1,5 +1,4 @@
 <script setup>
-import { onMounted, reactive } from "vue";
 import { useReCaptcha } from "vue-recaptcha-v3";
 const router = useRouter();
 const recaptcha = useReCaptcha();

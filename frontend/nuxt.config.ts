@@ -38,7 +38,10 @@ export default defineNuxtConfig({
   plugins: [
     { src: '~/plugins/recaptcha.ts', mode: 'client' },
   ],
-  modules: ['nuxt-gtag'],
+  modules: [
+    'nuxt-gtag',
+    '@pinia/nuxt',
+  ],
   runtimeConfig: {
     public: {
       recaptcha: {
@@ -52,5 +55,5 @@ export default defineNuxtConfig({
   },
   gtag: {
     id: process.env.NUXT_GA_ID,
-  }
+  },
 })

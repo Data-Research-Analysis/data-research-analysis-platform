@@ -1,5 +1,4 @@
 <script setup>
-import { onMounted, reactive } from "vue";
 import { useReCaptcha } from "vue-recaptcha-v3";
 const router = useRouter();
 const route = useRoute();
@@ -44,6 +43,7 @@ async function verifyToken() {
             headers: {
                 "Content-Type": "application/json",
                 "Authorization": `Bearer ${state.token}`,
+                "Authorization-Type": "non-auth",
             },
         };
         const response = await fetch(`${baseUrl()}/auth/verify-email/${encodeURIComponent(state.code)}`, requestOptions);

@@ -1,9 +1,11 @@
 import { Sequelize, DataTypes, Model } from "sequelize";
 import { DBDriver } from "../drivers/DBDriver";
+import { IDBDriver } from "../interfaces/IDBDriver";
 
 export class User extends Model {}
-DBDriver.getInstance().getDriver().initialize().then(async () => {
-    const sequelize = await DBDriver.getInstance().getDriver().getConcreteDriver();
+DBDriver.getInstance().getDriver().then(async (driver: IDBDriver) => {
+  await driver.initialize();
+  const sequelize = await driver.getConcreteDriver();
     if (sequelize) {
         User.init({
             email: {
@@ -18,7 +20,7 @@ DBDriver.getInstance().getDriver().initialize().then(async () => {
         {
             sequelize,
             modelName: 'User',
-            tableName: 'users',
+            tableName: 'dra_users',
         }
         );
     }

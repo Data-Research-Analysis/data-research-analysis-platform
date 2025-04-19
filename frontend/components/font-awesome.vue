@@ -14,6 +14,11 @@ const props = defineProps({
     required: false,
     default: "",
   },
+  vTippyContent: {
+    type: String,
+    required: false,
+    default: "",
+  },
   // eslint-disable-next-line vue/require-default-prop
   onClick: {
     type: Function,
@@ -27,6 +32,7 @@ const props = defineProps({
       :icon="props.icon"
       :class="props.class"
       :title="props.title"
+      v-tippy="{ content: props.vTippyContent }"
       @click="props.onClick"
     />
   </client-only>

@@ -2,7 +2,7 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('verification_codes', {
+    await queryInterface.createTable('dra_verification_codes', {
       id: {
         allowNull: false,
         autoIncrement: true,
@@ -15,7 +15,7 @@ module.exports = {
       user_platform_id: {
         type: Sequelize.INTEGER,
         references: {
-          model: 'users_platform',
+          model: 'dra_users_platform',
           key: 'id'
         }
       },
@@ -34,6 +34,6 @@ module.exports = {
     });
   },
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('verification_codes');
+    await queryInterface.dropTable('dra_verification_codes');
   }
 };
