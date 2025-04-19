@@ -4,8 +4,6 @@ const isHomePage = computed(() => {
     return route.name === "index";
 })
 function scrollToTop() {
-    console.log("scrollToTop")
-    console.log("window", window)
     window.scrollTo({ top: 0, behavior: 'smooth'});   
 }
 

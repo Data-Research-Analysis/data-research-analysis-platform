@@ -2,7 +2,6 @@
 import _ from 'lodash';
 const { $swal } = useNuxtApp();
 const route = useRoute();
-const dataModelRef = useTemplateRef('dataModelRef');
 const state = reactive({
     show_dialog: false,
     tables: [
@@ -13,10 +12,10 @@ const state = reactive({
         ],
         query_options: {
             where: [],
-            group_by: [],
+            group_by: {},
             order_by: [],
-            offset: 0,
-            limit: 0,
+            offset: -1,
+            limit: -1,
         }
     },
     loading: false,
@@ -28,18 +27,27 @@ const state = reactive({
             name: 'GROUP BY',
         },
         {
+            name: 'ORDER BY',
+        },
+        {
             name: 'OFFSET',
         },
         {
             name: 'LIMIT',
         },
-        {
-            name: 'ORDER BY',
-        },
     ],
     equality: ['=', '>', '<', '>=', '<=', '!='],
     condition: ['AND', '0R'],
     order: ['ASC', 'DESC'],
+    aggregate_functions: ['SUM', 'AVG', 'COUNT', 'MIN', 'MAX'],
+    tableA: [{
+        text: 'block 1',
+    }, {
+        text: 'block 2',
+    }, {
+        text: 'block 3',
+    }],
+    tableB: [],
     
 });
 const showWhereClause = computed(() => {
@@ -48,6 +56,12 @@ const showWhereClause = computed(() => {
 const showOrderByClause = computed(() => {
     return state?.data_table?.query_options?.order_by?.length > 0;
 });
+const showGroupByClause = computed(() => {
+    return state?.data_table?.query_options?.group_by?.name ? true : false;
+});
+const showDataModelControls = computed(() => {
+    return state && state.data_table && state.data_table.columns && state.data_table.columns.length > 0;
+})
 function openDialog() {
     state.show_dialog = true;
 }
@@ -96,8 +110,8 @@ function deleteColumn(columnName) {
         state.data_table.query_options.where = [];
         state.data_table.query_options.group_by = [];
         state.data_table.query_options.order_by = [];
-        state.data_table.query_options.offset = 0;
-        state.data_table.query_options.limit = 0;
+        state.data_table.query_options.offset = -1;
+        state.data_table.query_options.limit = -1;
     }
 }
 function isColumnInDataModel(columnName, tableName) {
@@ -113,21 +127,26 @@ function addQueryOption(queryOption) {
             condition: '',// condition: 'AND', 'OR'
         });
     } else if (queryOption === 'GROUP BY') {
-        state.data_table.query_options.group_by.push({
-            name: queryOption,
-            column: '',
-        });
+        if (!state?.data_table?.query_options?.group_by?.name) {
+            state.data_table.query_options.group_by.name = queryOption;
+        }
+        if (!state?.data_table?.query_options?.group_by?.aggregate_functions) {
+            state.data_table.query_options.group_by.aggregate_functions = [{
+                column: '',
+                aggregate_function: '',// aggregate_functions: 'SUM', 'AVG', 'COUNT', 'MIN', 'MAX'
+            }];
+        } else {
+            state.data_table.query_options.group_by.aggregate_functions.push({
+                column: '',
+                aggregate_function: '',// aggregate_functions: 'SUM', 'AVG', 'COUNT', 'MIN', 'MAX'
+            });
+        }
+        console.log('state.data_table.query_options.group_by', state.data_table.query_options.group_by);
     } else if (queryOption === 'ORDER BY') {
         state.data_table.query_options.order_by.push({
             name: queryOption,
-            columns: [],
-            /**
-             * 
-             * {
-             *   name: '',
-             *   order: '',// order: 'ASC', 'DESC'
-             *   }
-             */
+            column: '',
+            order: '',// order: 'ASC', 'DESC' 
         });
     } else if (queryOption === 'OFFSET') {
         state.data_table.query_options.offset = 0;
@@ -142,15 +161,24 @@ function removeQueryOption(index) {
 }
 async function saveDataModel() {
     let sqlQuery = '';
+    let selectClause = [];
+    let fromJoinClause = [];
+    let whereClause = [];
+    let groupByClause = '';
+    let orderByClause = [];
+    let offsetClause = [];
+    let limitClause = [];
     let dataTables = state.data_table.columns.map((column) => `${column.schema}.${column.table_name}`);
+    let offsetStr = 'OFFSET 0';
+    let limitStr = 'LIMIT 1000';
     const fromJoinClauses = [];
     const tableCombinations = [];
     const lines = [];
     dataTables = _.uniq(dataTables);
     //TODO: Handle single table case. There will be no join clause in this case.
     if (dataTables.length === 1) {
-        lines.push(`FROM ${dataTables[0]}`);
-        sqlQuery = `SELECT ${state.data_table.columns.map((column) => `${column.schema}.${column.table_name}.${column.column_name}`).join(', ')}\n${lines.join('\n')}`;
+        fromJoinClause.push(`FROM ${dataTables[0]}`);
+        sqlQuery = `SELECT ${state.data_table.columns.map((column) => `${column.schema}.${column.table_name}.${column.column_name}`).join(', ')}`;
     } else {
         for (let i = 0; i < dataTables.length; i++) {
             for (let j = 0; j < dataTables.length; j++) {
@@ -172,25 +200,38 @@ async function saveDataModel() {
         });
         fromJoinClauses.forEach((clause, index) => {
             if (index === 0) {
-                lines.push(`FROM ${clause.local_table_schema}.${clause.local_table_name}`)
-                lines.push(`JOIN ${clause.foreign_table_schema}.${clause.foreign_table_name}`)
-                lines.push(`ON ${clause.local_table_schema}.${clause.local_table_name}.${clause.local_column_name} = ${clause.foreign_table_schema}.${clause.foreign_table_name}.${clause.foreign_column_name}`)
+                fromJoinClause.push(`FROM ${clause.local_table_schema}.${clause.local_table_name}`)
+                fromJoinClause.push(`JOIN ${clause.foreign_table_schema}.${clause.foreign_table_name}`)
+                fromJoinClause.push(`ON ${clause.local_table_schema}.${clause.local_table_name}.${clause.local_column_name} = ${clause.foreign_table_schema}.${clause.foreign_table_name}.${clause.foreign_column_name}`)
             } else {
-                if (!lines.includes(`JOIN ${clause.local_table_schema}.${clause.local_table_name}`)) {
-                    lines.push(`JOIN ${clause.local_table_schema}.${clause.local_table_name}`)
+                if (!fromJoinClause.includes(`JOIN ${clause.local_table_schema}.${clause.local_table_name}`)) {
+                    fromJoinClause.push(`JOIN ${clause.local_table_schema}.${clause.local_table_name}`)
                 }
-                if (!lines.includes(`JOIN ${clause.foreign_table_schema}.${clause.foreign_table_name}`)) {
-                    lines.push(`JOIN ${clause.foreign_table_schema}.${clause.foreign_table_name}`)
+                if (!fromJoinClause.includes(`JOIN ${clause.foreign_table_schema}.${clause.foreign_table_name}`)) {
+                    fromJoinClause.push(`JOIN ${clause.foreign_table_schema}.${clause.foreign_table_name}`)
                 }
-                if (!lines.includes(`ON ${clause.local_table_schema}.${clause.local_table_name}.${clause.local_column_name} = ${clause.foreign_table_schema}.${clause.foreign_table_name}.${clause.foreign_column_name}`)) {
-                    lines.push(`ON ${clause.local_table_schema}.${clause.local_table_name}.${clause.local_column_name} = ${clause.foreign_table_schema}.${clause.foreign_table_name}.${clause.foreign_column_name}`)
+                if (!fromJoinClause.includes(`ON ${clause.local_table_schema}.${clause.local_table_name}.${clause.local_column_name} = ${clause.foreign_table_schema}.${clause.foreign_table_name}.${clause.foreign_column_name}`)) {
+                    fromJoinClause.push(`ON ${clause.local_table_schema}.${clause.local_table_name}.${clause.local_column_name} = ${clause.foreign_table_schema}.${clause.foreign_table_name}.${clause.foreign_column_name}`)
                 }
             }
         });
-        sqlQuery = `SELECT ${state.data_table.columns.map((column) => `${column.schema}.${column.table_name}.${column.column_name}`).join(', ')}\n${lines.join('\n')}`;
+        sqlQuery = `SELECT ${state.data_table.columns.map((column) => `${column.schema}.${column.table_name}.${column.column_name}`).join(', ')}`;
     }
+
+    state?.data_table?.query_options?.group_by?.aggregate_functions?.forEach((aggregate_function) => {
+        sqlQuery += `, ${state.aggregate_functions[aggregate_function.aggregate_function]}(${aggregate_function.column})`;
+    });
+
+    sqlQuery += ` ${fromJoinClause.join('\n')}`;
     
-    console.log('state.data_table.query_options', state.data_table.query_options);
+    // let whereHavingClause = 'WHERE ';
+    if (showGroupByClause.value) {
+        sqlQuery += ` GROUP BY ${state.data_table.columns.map((column) => `${column.schema}.${column.table_name}.${column.column_name}`).join(', ')}`;
+        // whereHavingClause = 'HAVING ';
+    }
+
+    //TODO: come up with a ui and functionality of handling having clauses
+
     state.data_table.query_options.where.forEach((clause) => {
         if (clause.condition === '') {
             //first where clause
@@ -199,31 +240,61 @@ async function saveDataModel() {
             sqlQuery += ` ${state.condition[clause.condition]} ${clause.column} ${state.equality[clause.equality]} '${clause.value}'\n`;
         }
     });
-    console.log('sqlQuery', sqlQuery);
-}
 
-function keepDataModelInViewPort() {
-    //Keep the datatable in view while scrolling the page vertically. This allows the
-    //user to see the datatable while scrolling the page which helps in dragging the columns
-    //to the datamodel.
-    document.addEventListener("scroll", () => {
-        const dataModelContainer = document.getElementById("data-model-container");
-        if (window.scrollY > 500) {
-            const clientHeight = dataModelRef?.value?.clientHeight || 0;
-            dataModelContainer.style.transform = `translateY(${window.scrollY - clientHeight}px)`;
+    
+    state.data_table.query_options.order_by.forEach((clause, index) => {
+        if (index === 0) {
+            //first where clause
+            sqlQuery += ` ORDER BY ${clause.column} ${state.order[clause.order]}`;
         } else {
-            setTimeout(() => {
-                if (window.scrollY <= 500) {
-                    dataModelContainer.style.transform = `translateY(0px)`;
-                }
-            }, 300);
+            sqlQuery += `, ${clause.column} ${state.order[clause.order]}`;
         }
-    })
+    });
+    if (state.data_table.query_options.offset > -1) {
+        offsetStr = `OFFSET ${state.data_table.query_options.offset}`;
+    } else {
+        offsetStr = 'OFFSET 0';
+    }
+    if (state.data_table.query_options.limit > -1) {
+        limitStr = `LIMIT ${state.data_table.query_options.limit}`;
+    } else {
+        limitStr = 'LIMIT 1000';
+    }
+    sqlQuery += `\n${offsetStr}\n${limitStr}\n`;
+    
+    console.log('sqlQuery', sqlQuery);
+    $swal.fire({
+        icon: 'success',
+        title: `Generated SQL Query!`,
+        text: sqlQuery,
+    });
+
+    const { value: confirmDelete } = await $swal.fire({
+        icon: "success",
+        title: "SQL Query Generated!",
+        html: `Your SQL query has been generated and is a follows:<br /><br /> <span style='font-weight: bold;'>${sqlQuery}</span><br /><br /> Do you want to proceed with this SQL query to build your data model?`,
+        showCancelButton: true,
+        confirmButtonColor: "#3C8DBC",
+        cancelButtonColor: "#DD4B39",
+        confirmButtonText: "Yes, build my model now!",
+    });
+    if (!confirmDelete) {
+        return;
+    }
+    //build the data model
 }
 
 onMounted(async () => {
     await getDataSourceTables();
-    keepDataModelInViewPort();
+    const elements = document.getElementsByClassName('draggable')
+    elements.forEach((elemen) => {
+        elemen.addEventListener('drag', (event) => {
+            console.log('dragging event', event)
+            window.scrollTo({ top: 400, behavior: 'smooth'});
+
+        })
+    })
+
 })
 </script>
 <template>
@@ -241,7 +312,7 @@ onMounted(async () => {
                     <div v-for="table in state.tables" class="flex flex-col border border-primary-blue-100 border-solid p-1">
                         <h4 class="bg-gray-300 text-center font-bold p-1 mb-2">{{ table.schema }}.{{ table.table_name }}</h4>
                         <draggable
-                            class="list-group"
+                            class="list-group draggable"
                             :list="table.columns"
                             :group="{
                                 name: 'tables',
@@ -249,12 +320,14 @@ onMounted(async () => {
                                 put: false,
                             }"
                             itemKey="name"
-                            >
+                        >
                             <template #item="{ element, index }">
                                 <div class="list-group-item cursor-pointer p-1 ml-2 mr-2"
                                     :class="{
                                         'bg-gray-200': !element.reference.foreign_table_schema ? index % 2 === 0 : false,
                                         'bg-red-100 border-t-1 border-b-1 border-red-300': isColumnInDataModel(element.column_name, table.table_name),
+                                        'hover:bg-green-100': !isColumnInDataModel(element.column_name, table.table_name),
+                                        'hover:bg-red-300': element.reference && element.reference.foreign_table_schema,
                                     }"
                                 >
                                     Column: <strong>{{ element.column_name }}</strong><br />
@@ -272,9 +345,9 @@ onMounted(async () => {
                     </div>
                 </div>
             </div>
-            <div class="w-1/2 flex flex-col">
+            <div class="w-1/2 flex h-full flex-col">
                 <h2 class="font-bold text-center mb-5">Data Model</h2>
-                <div class="w-full border border-primary-blue-100 border-solid" id="data-model-container" ref="dataModelRef">
+                <div class="w-full border border-primary-blue-100 border-solid" id="data-model-container">
                     <div class="flex flex-col p-5">
                         <div class="flex flex-row justify-center bg-gray-300 text-center font-bold p-1 mb-2">
                             <h4 class="w-full font-bold">
@@ -285,18 +358,23 @@ onMounted(async () => {
                             </div>
                         </div>
                         <draggable
-                            class="list-group min-h-80 bg-gray-100"
+                            class="list-group min-h-100 bg-gray-100"
                             :list="state.data_table.columns"
                             group="tables"
                             @change="changeDataModel"
                             itemKey="name"
-                            >
+                        >
+                            <template #header>
+                                <div class="w-3/4 border border-gray-400 border-dashed h-10 flex text-center self-center items-center font-bold m-auto p-5 mt-5 mb-5 text-gray-500">
+                                    Drag columns from the tables given in the left into this area to build your data model.
+                                </div>
+                            </template>
                             <template #item="{ element, index }">
                                 <div class="list-group-item cursor-pointer p-1 ml-2 mr-2"
-                                :class="{
-                                    'bg-gray-200': index % 2 === 0,
-                                }"
-                                    >
+                                    :class="{
+                                        'bg-gray-200': index % 2 === 0,
+                                    }"
+                                >
                                     <div class="flex flex-row justify-between">
                                         <div class="ml-2">
                                             Table: {{ element.table_name }}<br />
@@ -309,87 +387,128 @@ onMounted(async () => {
                                     </div>
                                 </div>
                             </template>
+                            <template #footer>
+                                <div class="p-5">
+                                    <div v-if="showWhereClause" class="w-full flex flex-col mt-5">
+                                        <h3 class="font-bold mb-2">Where</h3>
+                                        <div class="flex flex-col bg-gray-100 p-5">
+                                            <div v-for="(clause, index) in state.data_table.query_options.where" class="flex flex-row justify-between">
+                                                <div v-if="index > 0" class="flex flex-col w-full mr-2">
+                                                    <h5 class="font-bold mb-2">Condition</h5>
+                                                    <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="clause.condition">
+                                                        <option v-for="(condition, index) in state.condition" :key="index" :value="index">{{ condition }}</option>
+                                                    </select>
+                                                </div>
+                                                <div class="flex flex-col w-full mr-2">
+                                                    <h5 class="font-bold mb-2">Column</h5>
+                                                    <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="clause.column">
+                                                        <option v-for="column in state.data_table.columns" :key="`${column.schema}.${column.table_name}.${column.column_name}`" :value="`${column.schema}.${column.table_name}.${column.column_name}`">{{ `${column.schema}.${column.table_name}.${column.column_name}` }}</option>
+                                                    </select>
+                                                </div>
+                                                <div class="flex flex-col w-full mr-2">
+                                                    <h5 class="font-bold mb-2">Equality</h5>
+                                                    <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="clause.equality">
+                                                        <option v-for="(equality, index) in state.equality" :key="index" :value="index">{{ equality }}</option>
+                                                    </select>
+                                                </div>
+                                                <div class="flex flex-col w-full mr-2">
+                                                    <h5 class="font-bold mb-2">Value</h5>
+                                                    <input type="text" class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="clause.value" />
+                                                </div>
+                                                <div class="items-center self-center text-2xl text-red-500 hover:text-red-200 cursor-pointer mt-5 select-none" @click="removeQueryOption(index)">
+                                                    <font-awesome icon="fas fa-minus"/>
+                                                </div>
+                                                <div v-if="index === state.data_table.query_options.where.length - 1" class="items-center self-center text-2xl text-blue-500 hover:text-blue-200 cursor-pointer mt-5 select-none" @click="addQueryOption('WHERE')">
+                                                    <font-awesome icon="fas fa-plus"/>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div v-if="showGroupByClause" class="w-full flex flex-col mt-5">
+                                        <h3 class="font-bold mb-2">Group By</h3>
+                                        <div class="flex flex-col bg-gray-100 p-5">
+                                            <div v-for="(clause, index) in state.data_table.query_options.group_by.aggregate_functions" class="flex flex-row justify-between">
+                                                <div class="flex flex-col w-full mr-2">
+                                                    <h5 class="font-bold mb-2">Aggregate Function</h5>
+                                                    <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="clause.aggregate_function">
+                                                        <option v-for="(aggregate_function, index) in state.aggregate_functions" :key="index" :value="index">{{ aggregate_function }}</option>
+                                                    </select>
+                                                </div>
+                                                <div class="flex flex-col w-full mr-2">
+                                                    <h5 class="font-bold mb-2">Column</h5>
+                                                    <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="clause.column">
+                                                        <option v-for="column in state.data_table.columns" :key="`${column.schema}.${column.table_name}.${column.column_name}`" :value="`${column.schema}.${column.table_name}.${column.column_name}`">{{ `${column.schema}.${column.table_name}.${column.column_name}` }}</option>
+                                                    </select>
+                                                </div>
+                                                <div v-if="index === state.data_table.query_options.group_by.aggregate_functions.length - 1" class="items-center self-center text-2xl text-blue-500 hover:text-blue-200 cursor-pointer mt-5 select-none" @click="addQueryOption('GROUP BY')">
+                                                    <font-awesome icon="fas fa-plus"/>
+                                                </div>
+                                                <div v-else class="items-center self-center text-2xl text-red-500 hover:text-red-200 cursor-pointer mt-5 select-none" @click="removeQueryOption(index)">
+                                                    <font-awesome icon="fas fa-minus"/>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div v-if="showOrderByClause" class="w-full flex flex-col mt-5">
+                                        <h3 class="font-bold mb-2">Order By</h3>
+                                        <div class="flex flex-col bg-gray-100 p-5">
+                                            <div v-for="(clause, index) in state.data_table.query_options.order_by" class="flex flex-row justify-between">
+                                                <div class="flex flex-col w-full mr-2">
+                                                    <h5 class="font-bold mb-2">Column</h5>
+                                                    <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="clause.column">
+                                                        <option v-for="column in state.data_table.columns" :key="`${column.schema}.${column.table_name}.${column.column_name}`" :value="`${column.schema}.${column.table_name}.${column.column_name}`">{{ `${column.schema}.${column.table_name}.${column.column_name}` }}</option>
+                                                    </select>
+                                                </div>
+                                                <div class="flex flex-col w-full mr-2">
+                                                    <h5 class="font-bold mb-2">Order</h5>
+                                                    <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="clause.order">
+                                                        <option v-for="(order, index) in state.order" :key="index" :value="index">{{ order }}</option>
+                                                    </select>
+                                                </div>
+                                                <div v-if="index === state.data_table.query_options.order_by.length - 1" class="items-center self-center text-2xl text-blue-500 hover:text-blue-200 cursor-pointer mt-5 select-none" @click="addQueryOption('ORDER BY')">
+                                                    <font-awesome icon="fas fa-plus"/>
+                                                </div>
+                                                <div v-else class="items-center self-center text-2xl text-red-500 hover:text-red-200 cursor-pointer mt-5 select-none" @click="removeQueryOption(index)">
+                                                    <font-awesome icon="fas fa-minus"/>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div v-if="state.data_table.query_options.offset > -1" class="w-full flex flex-col mt-5">
+                                        <h3 class="font-bold">Offset</h3>
+                                        <div class="flex flex-col bg-gray-100 p-5">
+                                            <div class="flex flex-row justify-between">
+                                                <div class="flex flex-col w-full mr-2">
+                                                    <h5 class="font-bold mb-2">Value</h5>
+                                                    <input type="number" class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="state.data_table.query_options.offset" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div v-if="state.data_table.query_options.limit > -1" class="w-full flex flex-col mt-5">
+                                        <h3 class="font-bold">Limit</h3>
+                                        <div class="flex flex-col bg-gray-100 p-5">
+                                            <div class="flex flex-row justify-between">
+                                                <div class="flex flex-col w-full mr-2">
+                                                    <h5 class="font-bold mb-2">Value</h5>
+                                                    <input type="number" class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="state.data_table.query_options.limit" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div v-if="showDataModelControls" class="w-full border border-gray-400 border-dashed h-15 flex items-center justify-center mb-5 cursor-pointer mt-5 hover:bg-gray-100 font-bold" @click="openDialog">
+                                        + Add Query Clause (for example: where, group by, order by)
+                                    </div>
+                                    <div
+                                        v-if="showDataModelControls"
+                                        class="w-full justify-center text-center items-center self-center mb-5 p-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md"
+                                        @click="saveDataModel"
+                                    >
+                                        Save Data Model
+                                    </div>
+                                </div>
+                            </template>
                         </draggable>
-                        <div v-if="showWhereClause" class="w-full flex flex-col mt-10">
-                            <h3 class="font-bold mb-2">Where</h3>
-                            <div class="flex flex-col bg-gray-100 p-5">
-                                <div v-for="(clause, index) in state.data_table.query_options.where" class="flex flex-row justify-between mb-5">
-                                    <div v-if="index > 0" class="flex flex-col w-full mr-2">
-                                        <h5 class="font-bold mb-2">Condition</h5>
-                                        <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="clause.condition">
-                                            <option v-for="(condition, index) in state.condition" :key="index" :value="index">{{ condition }}</option>
-                                        </select>
-                                    </div>
-                                    <div class="flex flex-col w-full mr-2">
-                                        <h5 class="font-bold mb-2">Column</h5>
-                                        <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="clause.column">
-                                            <option v-for="column in state.data_table.columns" :key="column.column_name" :value="column.column_name">{{ column.column_name }}</option>
-                                        </select>
-                                    </div>
-                                    <div class="flex flex-col w-full mr-2">
-                                        <h5 class="font-bold mb-2">Equality</h5>
-                                        <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="clause.equality">
-                                            <option v-for="(equality, index) in state.equality" :key="index" :value="index">{{ equality }}</option>
-                                        </select>
-                                    </div>
-                                    <div class="flex flex-col w-full mr-2">
-                                        <h5 class="font-bold mb-2">Value</h5>
-                                        <input type="text" class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="clause.value" />
-                                    </div>
-                                    <div v-if="index === state.data_table.query_options.where.length - 1" class="items-center self-center text-2xl text-blue-500 hover:text-blue-200 cursor-pointer mt-5 select-none" @click="addQueryOption('where')">
-                                        <font-awesome icon="fas fa-plus"/>
-                                    </div>
-                                    <div v-else class="items-center self-center text-2xl text-red-500 hover:text-red-200 cursor-pointer mt-5 select-none" @click="removeQueryOption(index)">
-                                        <font-awesome icon="fas fa-minus"/>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div v-if="showOrderByClause" class="w-full flex flex-col mt-10">
-                            <h3 class="font-bold mb-2">Order By</h3>
-                            <div class="flex flex-col bg-gray-100 p-5">
-                                <div v-for="(clause, index) in state.data_table.query_options.order_by" class="flex flex-row justify-between mb-5">
-                                    <div v-if="index > 0" class="flex flex-col w-full mr-2">
-                                        <h5 class="font-bold mb-2">Condition</h5>
-                                        <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="clause.condition">
-                                            <option v-for="(condition, index) in state.condition" :key="index" :value="index">{{ condition }}</option>
-                                        </select>
-                                    </div>
-                                    <div class="flex flex-col w-full mr-2">
-                                        <h5 class="font-bold mb-2">Column</h5>
-                                        <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="clause.column">
-                                            <option v-for="column in state.data_table.columns" :key="column.column_name" :value="column.column_name">{{ column.column_name }}</option>
-                                        </select>
-                                    </div>
-                                    <div class="flex flex-col w-full mr-2">
-                                        <h5 class="font-bold mb-2">Equality</h5>
-                                        <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="clause.equality">
-                                            <option v-for="(equality, index) in state.equality" :key="index" :value="index">{{ equality }}</option>
-                                        </select>
-                                    </div>
-                                    <div class="flex flex-col w-full mr-2">
-                                        <h5 class="font-bold mb-2">Value</h5>
-                                        <input type="text" class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="clause.value" />
-                                    </div>
-                                    <div v-if="index === state.data_table.query_options.where.length - 1" class="items-center self-center text-2xl text-blue-500 hover:text-blue-200 cursor-pointer mt-5 select-none" @click="addQueryOption('where')">
-                                        <font-awesome icon="fas fa-plus"/>
-                                    </div>
-                                    <div v-else class="items-center self-center text-2xl text-red-500 hover:text-red-200 cursor-pointer mt-5 select-none" @click="removeQueryOption(index)">
-                                        <font-awesome icon="fas fa-minus"/>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div v-if="state && state.data_table && state.data_table.columns && state.data_table.columns.length" class="w-full border border-gray-400 border-dashed h-15 flex items-center justify-center mb-5 cursor-pointer mt-5 hover:bg-gray-100 font-bold" @click="openDialog">
-                            + Add Query Clause (for example: where, group by, order by)
-                        </div>
-                        <div
-                            v-if="state && state.data_table && state.data_table.columns && state.data_table.columns.length"
-                            class="w-1/2 text-center self-center mb-5 p-2 m-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md"
-                            @click="saveDataModel"
-                        >
-                            Save Data Model
-                        </div>
                     </div>
                 </div>
             </div>
