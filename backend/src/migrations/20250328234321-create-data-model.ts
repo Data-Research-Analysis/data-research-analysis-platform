@@ -16,6 +16,9 @@ module.exports = {
       name: {
         type: Sequelize.STRING
       },
+      sql_query: {
+        type: Sequelize.TEXT
+      },
       data_source_id: {
         type: Sequelize.INTEGER,
         references: {

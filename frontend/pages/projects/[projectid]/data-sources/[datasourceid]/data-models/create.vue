@@ -1,15 +1,16 @@
 <script setup>
 import _ from 'lodash';
+import { routerKey } from 'vue-router';
 const { $swal } = useNuxtApp();
 const route = useRoute();
+const router = useRouter();
 const state = reactive({
     show_dialog: false,
     tables: [
     ],
     data_table: {
-        table_name: 'Table 1',
-        columns: [
-        ],
+        table_name: 'Data Model Table',
+        columns: [],
         query_options: {
             where: [],
             group_by: {},
@@ -37,18 +38,12 @@ const state = reactive({
         },
     ],
     equality: ['=', '>', '<', '>=', '<=', '!='],
-    condition: ['AND', '0R'],
+    condition: ['AND', 'OR'],
     order: ['ASC', 'DESC'],
     aggregate_functions: ['SUM', 'AVG', 'COUNT', 'MIN', 'MAX'],
-    tableA: [{
-        text: 'block 1',
-    }, {
-        text: 'block 2',
-    }, {
-        text: 'block 3',
-    }],
-    tableB: [],
-    
+    sql_query: '',
+    response_from_external_data_source_columns: [],
+    response_from_external_data_source_rows: [],
 });
 const showWhereClause = computed(() => {
     return state?.data_table?.query_options?.where?.length > 0;
@@ -62,16 +57,84 @@ const showGroupByClause = computed(() => {
 const showDataModelControls = computed(() => {
     return state && state.data_table && state.data_table.columns && state.data_table.columns.length > 0;
 })
+watch(() => state.data_table.table_name, (value) => {
+    //keep the table name to maximum length of 20 characters
+    state.data_table.table_name = value.substring(0, 20);
+}, { deep: true });
+function getColumValue(value, dataType) {
+    if (getDataType(dataType) === 'NUMBER' || getDataType(dataType) === 'BOOLEAN') {
+        return `${value}`;
+    } else if (getDataType(dataType) === 'TEXT') {
+        return `'${value}'`;
+    } else {
+        return `'${value}'`;
+    }
+}
+function whereColumnChanged(event) {
+    const column = state.data_table.columns.find((column) => `${column.schema}.${column.table_name}.${column.column_name}` === event.target.value);
+    if (column) {
+        const whereColumn = state.data_table.query_options.where.find((where_column) => where_column.column === event.target.value)
+        if (whereColumn) {
+            whereColumn.column_data_type = column.data_type;
+        }
+    }
+}
+function havingColumnChanged(event) {
+    const column = state.data_table.columns.find((column) => `${column.schema}.${column.table_name}.${column.column_name}` === event.target.value);
+    if (column) {
+        const havingColumn = state.data_table.query_options.group_by.having_conditions.find((having_column) => having_column.column === event.target.value)
+        if (havingColumn) {
+            havingColumn.column_data_type = column.data_type;
+        }
+    }
+}
+function aggregateFunctionChanged(event) {
+    const aggregateFunction = state.data_table.query_options.group_by.aggregate_functions.find((aggregate_function) => aggregate_function.aggregate_function === parseInt(event.target.value))
+    if (aggregateFunction && aggregateFunction.column !== "") {
+        const column = state.data_table.columns.find((column) => `${column.schema}.${column.table_name}.${column.column_name}` === aggregateFunction.column);
+        if (column) {
+            if (getDataType(column.data_type) !== 'NUMBER') {
+                if (state.aggregate_functions[aggregateFunction.aggregate_function] === 'SUM' || state.aggregate_functions[aggregateFunction.aggregate_function] === 'AVG') {
+                    $swal.fire({
+                        icon: 'error',
+                        title: `Error!`,
+                        text: `The aggregate function ${state.aggregate_functions[aggregateFunction.aggregate_function]} is not supported for the column ${column.column_name} due to its data type.`,
+                    });
+                    return;
+                }
+            }
+        }
+    }
+}
+function aggregateFunctionColumnChanged(event) {
+    const aggregateFunction = state.data_table.query_options.group_by.aggregate_functions.find((aggregate_function) => aggregate_function.column === event.target.value)
+    if (aggregateFunction && aggregateFunction.aggregate_function !== "") {
+        const column = state.data_table.columns.find((column) => `${column.schema}.${column.table_name}.${column.column_name}` === aggregateFunction.column);
+        if (column) {
+            if (getDataType(column.data_type) !== 'NUMBER') {
+                if (state.aggregate_functions[aggregateFunction.aggregate_function] === 'SUM' || state.aggregate_functions[aggregateFunction.aggregate_function] === 'AVG') {
+                    $swal.fire({
+                        icon: 'error',
+                        title: `Error!`,
+                        text: `The aggregate function ${state.aggregate_functions[aggregateFunction.aggregate_function]} is not supported for the column ${column.column_name} due to its data type.`,
+                    });
+                    return;
+                }
+            }
+        }
+    }
+}
+
 function openDialog() {
     state.show_dialog = true;
 }
 function closeDialog() {
     state.show_dialog = false;
 }
-function changeDataModel(event) {
+async function changeDataModel(event) {
     state.data_table.columns = state.data_table.columns.filter((column) => {
          //Remove the foreign key column. Do not allow to columns that are foreign keys in the referenced table
-        if (event.added.element.reference.foreign_table_schema && event.added.element.reference.local_table_name === column.table_name && event.added.element.reference.local_column_name === column.column_name) {
+        if (event?.added?.element?.reference?.foreign_table_schema && event?.added?.element?.reference?.local_table_name === column?.table_name && event?.added?.element?.reference?.local_column_name === column?.column_name) {
             $swal.fire({
                 icon: 'error',
                 title: `Error!`,
@@ -86,6 +149,7 @@ function changeDataModel(event) {
             return true;
         }
     });
+    await executeQueryOnExternalDataSource();    
 }
 async function getDataSourceTables() {
     const token = getAuthToken();
@@ -99,10 +163,9 @@ async function getDataSourceTables() {
         },
     });
     const data = await response.json();
-    console.log('getDataSourceTables', data);
     state.tables = data
 }
-function deleteColumn(columnName) {
+async function deleteColumn(columnName) {
     state.data_table.columns = state.data_table.columns.filter((column) => {
         return column.column_name !== columnName;
     });
@@ -113,6 +176,7 @@ function deleteColumn(columnName) {
         state.data_table.query_options.offset = -1;
         state.data_table.query_options.limit = -1;
     }
+    await executeQueryOnExternalDataSource();
 }
 function isColumnInDataModel(columnName, tableName) {
     return state.data_table.columns.filter((column) => column.column_name === columnName && column.table_name === tableName).length > 0;
@@ -122,6 +186,7 @@ function addQueryOption(queryOption) {
         state.data_table.query_options.where.push({
             name: queryOption,
             column: '',
+            column_data_type: '',
             equality: '',// equality: '=', '>', '<', '>=', '<=', '!='
             value: '',
             condition: '',// condition: 'AND', 'OR'
@@ -141,7 +206,24 @@ function addQueryOption(queryOption) {
                 aggregate_function: '',// aggregate_functions: 'SUM', 'AVG', 'COUNT', 'MIN', 'MAX'
             });
         }
-        console.log('state.data_table.query_options.group_by', state.data_table.query_options.group_by);
+
+        if (!state?.data_table?.query_options?.group_by?.having_conditions) {
+            state.data_table.query_options.group_by.having_conditions = [{
+                    column: '',
+                    column_data_type: '',
+                    equality: '',// equality: '=', '>', '<', '>=', '<=', '!='
+                    value: '',
+                    condition: '',// condition: 'AND', 'OR'
+            }]
+        }
+    } else if (queryOption === 'HAVING') {
+        state.data_table.query_options.group_by.having_conditions.push({
+                column: '',
+                column_data_type: '',
+                equality: '',// equality: '=', '>', '<', '>=', '<=', '!='
+                value: '',
+                condition: '',// condition: 'AND', 'OR'
+        })
     } else if (queryOption === 'ORDER BY') {
         state.data_table.query_options.order_by.push({
             name: queryOption,
@@ -154,31 +236,41 @@ function addQueryOption(queryOption) {
         state.data_table.query_options.limit = 0;
     }
     state.show_dialog = false;
-    console.log('state.data_table.query_options', state.data_table.query_options);
 }
-function removeQueryOption(index) {
-    state.data_table.query_options.where.splice(index, 1);
+function removeQueryOption(queryOption, index) {
+    if (queryOption === 'WHERE') {
+        state.data_table.query_options.where.splice(index, 1);
+    } else if (queryOption === 'GROUP BY') {
+        if (state.data_table.query_options.group_by.aggregate_functions.length > 1) {
+            state.data_table.query_options.group_by.aggregate_functions.splice(index, 1);
+        } else {
+            state.data_table.query_options.group_by = {};
+        }
+    } else if (queryOption === 'ORDER BY') {
+        state.data_table.query_options.order_by.splice(index, 1);
+    } else if (queryOption === 'HAVING') {
+        state.data_table.query_options.group_by.having_conditions.splice(index, 1);
+    } else if (queryOption === 'OFFSET') {
+        state.data_table.query_options.offset = -1;
+    } else if (queryOption === 'LIMIT') {
+        state.data_table.query_options.limit = -1;
+    }
 }
-async function saveDataModel() {
+
+function buildSQLQuery() {
     let sqlQuery = '';
-    let selectClause = [];
     let fromJoinClause = [];
-    let whereClause = [];
-    let groupByClause = '';
-    let orderByClause = [];
-    let offsetClause = [];
-    let limitClause = [];
     let dataTables = state.data_table.columns.map((column) => `${column.schema}.${column.table_name}`);
-    let offsetStr = 'OFFSET 0';
-    let limitStr = 'LIMIT 1000';
+  
     const fromJoinClauses = [];
     const tableCombinations = [];
-    const lines = [];
     dataTables = _.uniq(dataTables);
-    //TODO: Handle single table case. There will be no join clause in this case.
     if (dataTables.length === 1) {
         fromJoinClause.push(`FROM ${dataTables[0]}`);
-        sqlQuery = `SELECT ${state.data_table.columns.map((column) => `${column.schema}.${column.table_name}.${column.column_name}`).join(', ')}`;
+        sqlQuery = `SELECT ${state.data_table.columns.map((column) => {
+            const aliasName = column?.alias_name !== '' ? column.alias_name : `${column.schema}_${column.table_name}_${column.column_name}`;
+            return `${column.schema}.${column.table_name}.${column.column_name} AS ${aliasName}`;
+        }).join(', ')}`;
     } else {
         for (let i = 0; i < dataTables.length; i++) {
             for (let j = 0; j < dataTables.length; j++) {
@@ -204,44 +296,55 @@ async function saveDataModel() {
                 fromJoinClause.push(`JOIN ${clause.foreign_table_schema}.${clause.foreign_table_name}`)
                 fromJoinClause.push(`ON ${clause.local_table_schema}.${clause.local_table_name}.${clause.local_column_name} = ${clause.foreign_table_schema}.${clause.foreign_table_name}.${clause.foreign_column_name}`)
             } else {
-                if (!fromJoinClause.includes(`JOIN ${clause.local_table_schema}.${clause.local_table_name}`)) {
+                if (!fromJoinClause.includes(`FROM ${clause.local_table_schema}.${clause.local_table_name}`) && !fromJoinClause.includes(`JOIN ${clause.local_table_schema}.${clause.local_table_name}`)) {
                     fromJoinClause.push(`JOIN ${clause.local_table_schema}.${clause.local_table_name}`)
                 }
-                if (!fromJoinClause.includes(`JOIN ${clause.foreign_table_schema}.${clause.foreign_table_name}`)) {
-                    fromJoinClause.push(`JOIN ${clause.foreign_table_schema}.${clause.foreign_table_name}`)
-                }
-                if (!fromJoinClause.includes(`ON ${clause.local_table_schema}.${clause.local_table_name}.${clause.local_column_name} = ${clause.foreign_table_schema}.${clause.foreign_table_name}.${clause.foreign_column_name}`)) {
-                    fromJoinClause.push(`ON ${clause.local_table_schema}.${clause.local_table_name}.${clause.local_column_name} = ${clause.foreign_table_schema}.${clause.foreign_table_name}.${clause.foreign_column_name}`)
+                if (index > 0 && fromJoinClause[fromJoinClause.length - 1].includes(`ON ${clause.local_table_schema}.${clause.local_table_name}`)) {
+                    if (!fromJoinClause.includes(`ON ${clause.local_table_schema}.${clause.local_table_name}.${clause.local_column_name} = ${clause.foreign_table_schema}.${clause.foreign_table_name}.${clause.foreign_column_name}`)) {
+                        fromJoinClause.push(`AND ${clause.local_table_schema}.${clause.local_table_name}.${clause.local_column_name} = ${clause.foreign_table_schema}.${clause.foreign_table_name}.${clause.foreign_column_name}`)
+                    }
+                } else {
+                    if (!fromJoinClause.includes(`ON ${clause.local_table_schema}.${clause.local_table_name}.${clause.local_column_name} = ${clause.foreign_table_schema}.${clause.foreign_table_name}.${clause.foreign_column_name}`)) {
+                        fromJoinClause.push(`ON ${clause.local_table_schema}.${clause.local_table_name}.${clause.local_column_name} = ${clause.foreign_table_schema}.${clause.foreign_table_name}.${clause.foreign_column_name}`)
+                    }
                 }
             }
         });
-        sqlQuery = `SELECT ${state.data_table.columns.map((column) => `${column.schema}.${column.table_name}.${column.column_name}`).join(', ')}`;
+
+        sqlQuery = `SELECT ${state.data_table.columns.map((column) => {
+            const aliasName = column?.alias_name !== '' ? column.alias_name : `${column.schema}_${column.table_name}_${column.column_name}`;
+            return `${column.schema}.${column.table_name}.${column.column_name} AS ${aliasName}`;
+        }).join(', ')}`;
     }
 
     state?.data_table?.query_options?.group_by?.aggregate_functions?.forEach((aggregate_function) => {
         sqlQuery += `, ${state.aggregate_functions[aggregate_function.aggregate_function]}(${aggregate_function.column})`;
     });
 
-    sqlQuery += ` ${fromJoinClause.join('\n')}`;
-    
-    // let whereHavingClause = 'WHERE ';
-    if (showGroupByClause.value) {
-        sqlQuery += ` GROUP BY ${state.data_table.columns.map((column) => `${column.schema}.${column.table_name}.${column.column_name}`).join(', ')}`;
-        // whereHavingClause = 'HAVING ';
-    }
+    sqlQuery += ` ${fromJoinClause.join(' ')}`;
 
-    //TODO: come up with a ui and functionality of handling having clauses
-
+    //determining whether to save the value with single quotes or not depending on the data type of the column
     state.data_table.query_options.where.forEach((clause) => {
+        let value = getColumValue(clause.value, clause.column_data_type);
         if (clause.condition === '') {
-            //first where clause
-            sqlQuery += ` WHERE ${clause.column} ${state.equality[clause.equality]} '${clause.value}'\n`;
+            //first WHERE clause
+            sqlQuery += ` WHERE ${clause.column} ${state.equality[clause.equality]} ${value}`;
         } else {
-            sqlQuery += ` ${state.condition[clause.condition]} ${clause.column} ${state.equality[clause.equality]} '${clause.value}'\n`;
+            sqlQuery += ` ${state.condition[clause.condition]} ${clause.column} ${state.equality[clause.equality]} ${value}`;
         }
     });
-
-    
+    if (showGroupByClause.value) {
+        sqlQuery += ` GROUP BY ${state.data_table.columns.map((column) => `${column.schema}.${column.table_name}.${column.column_name}`).join(', ')}`;
+        state?.data_table?.query_options?.group_by?.having_conditions?.forEach((clause) => {
+            let value = getColumValue(clause.value, clause.column_data_type);
+            if (clause.condition === '') {
+                //first HAVING clause
+                sqlQuery += ` HAVING ${clause.column} ${state.equality[clause.equality]} ${value}`;
+            } else {
+                sqlQuery += ` ${state.condition[clause.condition]} ${clause.column} ${state.equality[clause.equality]} ${value}`;
+            }
+        });
+    }    
     state.data_table.query_options.order_by.forEach((clause, index) => {
         if (index === 0) {
             //first where clause
@@ -250,6 +353,15 @@ async function saveDataModel() {
             sqlQuery += `, ${clause.column} ${state.order[clause.order]}`;
         }
     });
+    
+    return sqlQuery;
+}
+
+async function saveDataModel() {
+    let offsetStr = 'OFFSET 0';
+    let limitStr = 'LIMIT 5';
+    let sqlQuery = buildSQLQuery();
+
     if (state.data_table.query_options.offset > -1) {
         offsetStr = `OFFSET ${state.data_table.query_options.offset}`;
     } else {
@@ -260,15 +372,13 @@ async function saveDataModel() {
     } else {
         limitStr = 'LIMIT 1000';
     }
-    sqlQuery += `\n${offsetStr}\n${limitStr}\n`;
-    
-    console.log('sqlQuery', sqlQuery);
+    sqlQuery += ` ${offsetStr} ${limitStr}`;
+    state.sql_query = sqlQuery;
     $swal.fire({
         icon: 'success',
         title: `Generated SQL Query!`,
         text: sqlQuery,
     });
-
     const { value: confirmDelete } = await $swal.fire({
         icon: "success",
         title: "SQL Query Generated!",
@@ -282,6 +392,56 @@ async function saveDataModel() {
         return;
     }
     //build the data model
+    const token = getAuthToken();
+    const url = `${baseUrl()}/data-source/build-data-model-on-query`;
+    const response = await fetch(url, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "Authorization-Type": "auth",
+        },
+        body: JSON.stringify({
+            data_source_id: route.params.datasourceid,
+            query: state.sql_query,
+            data_model_name: state.data_table.table_name,
+        })
+    });
+    if (response.status === 200) {
+        router.push(`/projects/${route.params.projectid}/data-sources/${route.params.datasourceid}/data-models`);
+    } else {
+        $swal.fire({
+            icon: 'error',
+            title: `Error! `,
+            text: 'Unfortunately, we encountered an error! Please refresh the page and try again.',
+        });
+    }
+}
+async function executeQueryOnExternalDataSource() {
+    state.response_from_external_data_source_columns = [];
+    state.response_from_external_data_source_rows = [];
+    state.sql_query = buildSQLQuery();
+    state.sql_query += ` OFFSET 0 LIMIT 5`;
+    const token = getAuthToken();
+    const url = `${baseUrl()}/data-source/execute-query-on-external-data-source`;
+    const response = await fetch(url, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "Authorization-Type": "auth",
+        },
+        body: JSON.stringify({
+            data_source_id: route.params.datasourceid,
+            query: state.sql_query,
+        })
+    });
+    const data = await response.json();
+    if (data && data.length) {
+        const columns = Object.keys(data[0]);
+        state.response_from_external_data_source_columns = columns;
+        state.response_from_external_data_source_rows = data;
+    }
 }
 
 onMounted(async () => {
@@ -289,12 +449,9 @@ onMounted(async () => {
     const elements = document.getElementsByClassName('draggable')
     elements.forEach((elemen) => {
         elemen.addEventListener('drag', (event) => {
-            console.log('dragging event', event)
             window.scrollTo({ top: 400, behavior: 'smooth'});
-
         })
     })
-
 })
 </script>
 <template>
@@ -304,6 +461,24 @@ onMounted(async () => {
         </div>
         <div class="text-md mb-10">
             You can create a new data model from the tables given below by dragging into the empty block shown in the data model section to the right.
+        </div>
+        <div v-if="state.response_from_external_data_source_columns && state.response_from_external_data_source_columns.length" class="flex flex-col">
+            <h3 class="font-bold text-left mb-5">Response From External Data Source</h3>
+            <table class="w-full border border-primary-blue-100 border-solid">
+                <thead>
+                    <tr>
+                        <th v-for="column in state.response_from_external_data_source_columns" class="bg-blue-100 border border-primary-blue-100 border-solid p-2 text-center font-bold">
+                            {{ column }}
+                        </th>
+                    </tr>
+                    <tr v-for="row in state.response_from_external_data_source_rows" class="border border-primary-blue-100 border-solid p-2 text-center font-bold">
+                        <td v-for="column in state.response_from_external_data_source_columns" class="border border-primary-blue-100 border-solid p-2 text-center">
+                            {{ row[column] }}
+                        </td>
+                    </tr>
+                </thead>
+            </table>
+            <div class="w-full h-1 bg-blue-300 mt-5 mb-5"></div>
         </div>
         <div class="flex flex-row m-10">
             <div class="w-1/2 flex flex-col pr-5 mr-5 border-r-2 border-primary-blue-100">
@@ -351,11 +526,8 @@ onMounted(async () => {
                     <div class="flex flex-col p-5">
                         <div class="flex flex-row justify-center bg-gray-300 text-center font-bold p-1 mb-2">
                             <h4 class="w-full font-bold">
-                                {{ state.data_table.table_name }}
+                                <input type="text" class="border border-primary-blue-100 border-solid p-2" placeholder="Enter Data Table Name" v-model="state.data_table.table_name" />
                             </h4>
-                            <div class="w-auto" v-tippy="{ content: 'View the final query result of the data model as a table.' }">
-                                <font-awesome icon="fas fa-expand" class="items-center self-center text-xl text-black hover:text-gray-400 cursor-pointer mr-4"/>
-                            </div>
                         </div>
                         <draggable
                             class="list-group min-h-100 bg-gray-100"
@@ -375,11 +547,15 @@ onMounted(async () => {
                                         'bg-gray-200': index % 2 === 0,
                                     }"
                                 >
-                                    <div class="flex flex-row justify-between">
+                                    <div class="flex flex-row justify-around">
                                         <div class="ml-2">
                                             Table: {{ element.table_name }}<br />
                                             <strong>Column: {{ element.column_name }}</strong><br />
                                             Column Data Type: {{ element.data_type }}
+                                        </div>
+                                        <div class="flex flex-col w-1/2 mr-2">
+                                            <h5 class="font-bold mb-2">Column Alias Name</h5>
+                                            <input type="text" class="w-full border border-primary-blue-100 border-solid p-2" placeholder="Enter Column Alias Name" v-model="element.alias_name" />
                                         </div>
                                         <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold" @click="deleteColumn(element.column_name)">
                                             Delete
@@ -401,7 +577,7 @@ onMounted(async () => {
                                                 </div>
                                                 <div class="flex flex-col w-full mr-2">
                                                     <h5 class="font-bold mb-2">Column</h5>
-                                                    <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="clause.column">
+                                                    <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="clause.column"  @change="whereColumnChanged">
                                                         <option v-for="column in state.data_table.columns" :key="`${column.schema}.${column.table_name}.${column.column_name}`" :value="`${column.schema}.${column.table_name}.${column.column_name}`">{{ `${column.schema}.${column.table_name}.${column.column_name}` }}</option>
                                                     </select>
                                                 </div>
@@ -415,7 +591,7 @@ onMounted(async () => {
                                                     <h5 class="font-bold mb-2">Value</h5>
                                                     <input type="text" class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="clause.value" />
                                                 </div>
-                                                <div class="items-center self-center text-2xl text-red-500 hover:text-red-200 cursor-pointer mt-5 select-none" @click="removeQueryOption(index)">
+                                                <div class="items-center self-center text-2xl text-red-500 hover:text-red-200 cursor-pointer mt-5 select-none" @click="removeQueryOption('WHERE', index)">
                                                     <font-awesome icon="fas fa-minus"/>
                                                 </div>
                                                 <div v-if="index === state.data_table.query_options.where.length - 1" class="items-center self-center text-2xl text-blue-500 hover:text-blue-200 cursor-pointer mt-5 select-none" @click="addQueryOption('WHERE')">
@@ -430,21 +606,53 @@ onMounted(async () => {
                                             <div v-for="(clause, index) in state.data_table.query_options.group_by.aggregate_functions" class="flex flex-row justify-between">
                                                 <div class="flex flex-col w-full mr-2">
                                                     <h5 class="font-bold mb-2">Aggregate Function</h5>
-                                                    <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="clause.aggregate_function">
+                                                    <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="clause.aggregate_function" @change="aggregateFunctionChanged">
                                                         <option v-for="(aggregate_function, index) in state.aggregate_functions" :key="index" :value="index">{{ aggregate_function }}</option>
                                                     </select>
                                                 </div>
                                                 <div class="flex flex-col w-full mr-2">
                                                     <h5 class="font-bold mb-2">Column</h5>
-                                                    <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="clause.column">
+                                                    <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="clause.column" @change="aggregateFunctionColumnChanged">
                                                         <option v-for="column in state.data_table.columns" :key="`${column.schema}.${column.table_name}.${column.column_name}`" :value="`${column.schema}.${column.table_name}.${column.column_name}`">{{ `${column.schema}.${column.table_name}.${column.column_name}` }}</option>
                                                     </select>
+                                                </div>
+                                                <div class="items-center self-center text-2xl text-red-500 hover:text-red-200 cursor-pointer mt-5 select-none" @click="removeQueryOption('GROUP BY', index)">
+                                                    <font-awesome icon="fas fa-minus"/>
                                                 </div>
                                                 <div v-if="index === state.data_table.query_options.group_by.aggregate_functions.length - 1" class="items-center self-center text-2xl text-blue-500 hover:text-blue-200 cursor-pointer mt-5 select-none" @click="addQueryOption('GROUP BY')">
                                                     <font-awesome icon="fas fa-plus"/>
                                                 </div>
-                                                <div v-else class="items-center self-center text-2xl text-red-500 hover:text-red-200 cursor-pointer mt-5 select-none" @click="removeQueryOption(index)">
+                                            </div>
+
+                                            <h4 v-if="state.data_table.query_options.group_by.having_conditions.length" class="font-bold mt-2 mb-2">Having</h4>
+                                            <div v-for="(clause, index) in state.data_table.query_options.group_by.having_conditions" class="flex flex-row justify-between">
+                                                <div v-if="index > 0" class="flex flex-col w-full mr-2">
+                                                    <h5 class="font-bold mb-2">Condition</h5>
+                                                    <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="clause.condition">
+                                                        <option v-for="(condition, index) in state.condition" :key="index" :value="index">{{ condition }}</option>
+                                                    </select>
+                                                </div>
+                                                <div class="flex flex-col w-full mr-2">
+                                                    <h5 class="font-bold mb-2">Column</h5>
+                                                    <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="clause.column" @change="havingColumnChanged">
+                                                        <option v-for="column in state.data_table.columns" :key="`${column.schema}.${column.table_name}.${column.column_name}`" :value="`${column.schema}.${column.table_name}.${column.column_name}`">{{ `${column.schema}.${column.table_name}.${column.column_name}` }}</option>
+                                                    </select>
+                                                </div>
+                                                <div class="flex flex-col w-full mr-2">
+                                                    <h5 class="font-bold mb-2">Equality</h5>
+                                                    <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="clause.equality">
+                                                        <option v-for="(equality, index) in state.equality" :key="index" :value="index">{{ equality }}</option>
+                                                    </select>
+                                                </div>
+                                                <div class="flex flex-col w-full mr-2">
+                                                    <h5 class="font-bold mb-2">Value</h5>
+                                                    <input type="text" class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="clause.value" />
+                                                </div>
+                                                <div class="items-center self-center text-2xl text-red-500 hover:text-red-200 cursor-pointer mt-5 select-none" @click="removeQueryOption('HAVING', index)">
                                                     <font-awesome icon="fas fa-minus"/>
+                                                </div>
+                                                <div v-if="index === state.data_table.query_options.group_by.having_conditions.length - 1" class="items-center self-center text-2xl text-blue-500 hover:text-blue-200 cursor-pointer mt-5 select-none" @click="addQueryOption('HAVING')">
+                                                    <font-awesome icon="fas fa-plus"/>
                                                 </div>
                                             </div>
                                         </div>
@@ -465,11 +673,11 @@ onMounted(async () => {
                                                         <option v-for="(order, index) in state.order" :key="index" :value="index">{{ order }}</option>
                                                     </select>
                                                 </div>
+                                                <div class="items-center self-center text-2xl text-red-500 hover:text-red-200 cursor-pointer mt-5 select-none" @click="removeQueryOption('ORDER BY', index)">
+                                                    <font-awesome icon="fas fa-minus"/>
+                                                </div>
                                                 <div v-if="index === state.data_table.query_options.order_by.length - 1" class="items-center self-center text-2xl text-blue-500 hover:text-blue-200 cursor-pointer mt-5 select-none" @click="addQueryOption('ORDER BY')">
                                                     <font-awesome icon="fas fa-plus"/>
-                                                </div>
-                                                <div v-else class="items-center self-center text-2xl text-red-500 hover:text-red-200 cursor-pointer mt-5 select-none" @click="removeQueryOption(index)">
-                                                    <font-awesome icon="fas fa-minus"/>
                                                 </div>
                                             </div>
                                         </div>
@@ -480,7 +688,12 @@ onMounted(async () => {
                                             <div class="flex flex-row justify-between">
                                                 <div class="flex flex-col w-full mr-2">
                                                     <h5 class="font-bold mb-2">Value</h5>
-                                                    <input type="number" class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="state.data_table.query_options.offset" />
+                                                    <div class="flex flex-row justify-between">
+                                                        <input type="number" class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="state.data_table.query_options.offset" min="0" />
+                                                        <div class="items-center self-center text-2xl text-red-500 hover:text-red-200 cursor-pointer ml-2 select-none" @click="removeQueryOption('OFFSET', 0)">
+                                                            <font-awesome icon="fas fa-minus"/>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -491,7 +704,12 @@ onMounted(async () => {
                                             <div class="flex flex-row justify-between">
                                                 <div class="flex flex-col w-full mr-2">
                                                     <h5 class="font-bold mb-2">Value</h5>
-                                                    <input type="number" class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="state.data_table.query_options.limit" />
+                                                    <div class="flex flex-row justify-between">
+                                                        <input type="number" class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="state.data_table.query_options.limit" min="0" />
+                                                        <div class="items-center self-center text-2xl text-red-500 hover:text-red-200 cursor-pointer ml-2 select-none" @click="removeQueryOption('LIMIT', 0)">
+                                                            <font-awesome icon="fas fa-minus"/>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>

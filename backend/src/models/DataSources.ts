@@ -21,7 +21,7 @@ DBDriver.getInstance().getDriver().then(async (driver: IDBDriver) => {
         values: ['excel', 'csv', 'postgresql', 'mysql', 'mariadb', 'mongodb'],
       },
       connection_details: DataTypes.JSONB,
-      project_id: DataTypes.STRING,
+      project_id: DataTypes.INTEGER,
       user_platform_id: DataTypes.INTEGER,
     }, {
       sequelize,

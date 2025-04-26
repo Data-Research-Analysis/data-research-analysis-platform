@@ -6,6 +6,7 @@ export class DataModels extends Model {
   declare id: number;
   declare schema: string;
   declare name: string;
+  declare sql_query: string;
   declare data_source_id: number;
   declare user_platform_id: number;
 }
@@ -16,8 +17,9 @@ DBDriver.getInstance().getDriver().then(async (driver: IDBDriver) => {
     DataModels.init({
       schema: DataTypes.STRING,
       name: DataTypes.STRING,
-      data_source_id: DataTypes.STRING,
-      user_platform_id: DataTypes.DATE,
+      sql_query: DataTypes.TEXT,
+      data_source_id: DataTypes.INTEGER,
+      user_platform_id: DataTypes.INTEGER,
     }, {
       sequelize,
       modelName: 'DataModels',

@@ -3,7 +3,6 @@ import type { IDataSource } from '~/types/IDataSource';
 export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     const dataSources = ref<IDataSource[]>([])
     const selectedDataSource = ref<IDataSource>()
-    const tablesFromDataSource = ref<IDataSource[]>([])
     
     if (localStorage.getItem('projects')) {
         dataSources.value = JSON.parse(localStorage.getItem('dataSources') || '[]')

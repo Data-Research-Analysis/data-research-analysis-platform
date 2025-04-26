@@ -1,5 +1,5 @@
 <script setup>
-import { useDataSourceStore } from '@/stores/data_sources';
+import { useDataModelsStore } from '@/stores/data_models';
 import { useProjectsStore } from '@/stores/projects';
 const dataSourceStore = useDataSourceStore();
 const projectsStore = useProjectsStore();
@@ -18,7 +18,7 @@ const dataSource = computed(() => {
 async function getDataModels() {
     state.data_models = [];
     const token = getAuthToken();
-    const url = `${baseUrl()}/data-source/list`;
+    const url = `${baseUrl()}/data-model/list`;
     const response = await fetch(url, {
         method: "GET",
         headers: {
@@ -28,7 +28,6 @@ async function getDataModels() {
         },
     });
     const data = await response.json();
-    console.log(data);
     state.data_models = data.map((dataSource) => {
         return {
             id: dataSource.id,
@@ -40,6 +39,10 @@ async function getDataModels() {
 }
 async function deleteDataModel(dataModelId) {
     
+}
+
+function cleanDataModelName(name) {
+    return name.replace(/_dra_[a-zA-Z0-9_]+/g, "");
 }
 
 onMounted(async () => {
@@ -55,25 +58,13 @@ onMounted(async () => {
             Data Models are part of the semantic data layer and will be the basis of the analysis that you will perform.
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5">
-            <notched-card class="justify-self-center mt-10">
-                <template #body="{ onClick }">
-                    <NuxtLink :to="`/projects/${project.id}/data-sources/${dataSource.id}/data-models/create`">
-                        <div class="flex flex-col justify-center text-lg font-bold cursor-pointer items-center">
-                            <div class="bg-gray-300 border border-gray-300 border-solid rounded-full w-20 h-20 flex items-center justify-center mb-5">
-                                <font-awesome icon="fas fa-plus" class="text-4xl text-gray-500" />
-                            </div>
-                            Create New Data Model
-                        </div>
-                    </NuxtLink>
-                </template>
-            </notched-card>
             <div v-for="dataModel in state.data_models" class="relative">
                 <notched-card class="justify-self-center mt-10">
                     <template #body="{ onClick }">
                         <NuxtLink :to="`/projects/${project.id}/data-sources/${dataSource.id}/data-models/${dataModel.id}`" class="hover:text-gray-500 cursor-pointer">
                             <div class="flex flex-col justify-between h-full">
                                 <div class="text-md font-bold">
-                                    {{dataModel.name}}
+                                    {{cleanDataModelName(dataModel.name)}}
                                 </div>
                                 <div class="flex flex-row justify-between mb-10">
                                     <ul class="text-xs">

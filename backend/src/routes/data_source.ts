@@ -1,13 +1,9 @@
-import express, { Express, Request, Response } from 'express';
-import { UtilityService } from '../services/UtilityService';
-import { TokenProcessor } from '../processors/TokenProcessor';
+import express, { Request, Response } from 'express';
 import { validateJWT } from '../middleware/authenticate';
 import { validate } from '../middleware/validator';
 import { body, param, matchedData } from 'express-validator';
 import { DataSourceProcessor } from '../processors/DataSourceProcessor';
 import { IDBConnectionDetails } from '../types/IDBConnectionDetails';
-import { DBDriver } from '../drivers/DBDriver';
-import { DataSources } from '../models/DataSources';
 const router = express.Router();
 
 
@@ -66,7 +62,6 @@ async (req: Request, res: Response) => {
     };
     const response = await DataSourceProcessor.getInstance().connectToDataSource(connection);
     if (response) {
-        console.log('req.body', req.body);
         await DataSourceProcessor.getInstance().saveConnection(connection,  req.body.tokenDetails, project_id);            
         res.status(200).send({message: 'The data source has been connected.'});        
     } else {
@@ -94,10 +89,31 @@ async (req: Request, res: Response) => {
     const { data_source_id } = matchedData(req);
     const tables = await DataSourceProcessor.getInstance().getTablesFromDataSource(data_source_id, req.body.tokenDetails);
     if (tables) {
-        console.log('tables', tables);
         res.status(200).send(tables);
     } else {
         res.status(400).send({message: 'Tables could not be accessed for the data source.'});
+    }
+});
+
+router.post('/execute-query-on-external-data-source', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([body('data_source_id').notEmpty().trim().escape().toInt(), body('query').notEmpty().trim().escape()]),
+async (req: Request, res: Response) => {
+    const { data_source_id, query } = matchedData(req);
+    const response = await DataSourceProcessor.getInstance().executeQueryOnExternalDataSource(data_source_id, query, req.body.tokenDetails);
+    res.status(200).send(response); 
+});
+
+router.post('/build-data-model-on-query', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([body('data_source_id').notEmpty().trim().escape().toInt(), body('query').notEmpty().trim().escape(), body('data_model_name').notEmpty().trim().escape()]),
+async (req: Request, res: Response) => {
+    const { data_source_id, query, data_model_name } = matchedData(req);
+    const response = await DataSourceProcessor.getInstance().buildDataModelOnQuery(data_source_id, query, data_model_name, req.body.tokenDetails);
+    if (response) {
+        res.status(200).send({message: 'The data model has been built.'}); 
+    } else {
+        res.status(400).send({message: 'The data model could not be built.'});
     }
 });
 

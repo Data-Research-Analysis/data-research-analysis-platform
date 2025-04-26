@@ -2,12 +2,13 @@ import { DBDriver } from "../drivers/DBDriver";
 import { UtilityService } from "../services/UtilityService";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { IDBConnectionDetails } from "../types/IDBConnectionDetails";
-import { Sequelize } from "sequelize";
+import { Sequelize, QueryTypes } from "sequelize";
 import { DataSources } from "../models/DataSources";
 import { ITokenDetails } from "../types/ITokenDetails";
 import { ProjectProcessor } from "./ProjectProcessor";
 import { Projects } from "../models/Projects";
 import _ from "lodash";
+import { DataModels } from "../models/DataModels";
 export class DataSourceProcessor {
     private static instance: DataSourceProcessor;
     private constructor() {}
@@ -49,12 +50,8 @@ export class DataSourceProcessor {
 
     public async saveConnection(connection: IDBConnectionDetails, tokenDetails: ITokenDetails, projectId: String): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
-            console.log('tokenDetails', tokenDetails);
             const { user_id } = tokenDetails;
             const project = await Projects.findOne({where: {id: projectId, user_platform_id: user_id}});
-            console.log('project', project);
-            console.log('project.id', project.id);
-            console.log('typeof user_id', typeof user_id);
             if (project) {
                 await DataSources.create({
                     name: 'postgresql',
@@ -100,13 +97,11 @@ export class DataSourceProcessor {
 
     public async getTablesFromDataSource(dataSourceId: number, tokenDetails: ITokenDetails): Promise<any> {
         return new Promise<any>(async (resolve, reject) => {
-            // console.log('Getting tables from external DB', connection);
             const driver = await DBDriver.getInstance().getDriver();
             if (driver) {
                 const dataSource = await DataSources.findOne({where: {id: dataSourceId, user_platform_id: tokenDetails.user_id}});
                 if (dataSource) {
                     const connection: IDBConnectionDetails = dataSource.connection_details;
-                    console.log('connection', connection);
                     const response: boolean = await driver.initialize();
                     if (response) {
                         const externalDriver = await DBDriver.getInstance().getDriver();
@@ -137,6 +132,7 @@ export class DataSourceProcessor {
                                             character_maximum_length: result.character_maximum_length,
                                             table_name: table.table_name,
                                             schema: table.schema,
+                                            alias_name: '',
                                             reference: {
                                                 local_table_schema: null,
                                                 local_table_name: null,
@@ -196,22 +192,71 @@ export class DataSourceProcessor {
                 } else {
                     return resolve(null);
                 }
-            //     const response: any = await driver.initialize();
-            //     if (response) {
-            //         const externalDriver = await DBDriver.getInstance().getDriver();
-            //         const dbConnector: Sequelize =  await externalDriver.connectExternalDB(connection);
-            //         if (dbConnector) {
-            //             const tables = await dbConnector.getQueryInterface().showAllTables();
-            //             return resolve(tables);
-            //         }
-            //         return resolve(false);
-            //     }
-            //     return resolve(false);
             }
             return resolve(null);
         });
     }
 
+    public async executeQueryOnExternalDataSource(dataSourceId: number, query: string, tokenDetails: ITokenDetails): Promise<any> {
+        return new Promise<any>(async (resolve, reject) => {
+            const driver = await DBDriver.getInstance().getDriver();
+            if (driver) {
+                const dataSource = await DataSources.findOne({where: {id: dataSourceId, user_platform_id: tokenDetails.user_id}});
+                if (dataSource) {
+                    const connection: IDBConnectionDetails = dataSource.connection_details;
+                    const response: boolean = await driver.initialize();
+                    if (response) {
+                        const externalDriver = await DBDriver.getInstance().getDriver();
+                        const dbConnector: Sequelize =  await externalDriver.connectExternalDB(connection);
+                        if (dbConnector) {
+                            try {
+                                const results = await dbConnector.query(query, { type: QueryTypes.SELECT });
+                                return resolve(results);
+                            } catch (error) {
+                                return resolve(null);
+                            }
+                        }
+                        return resolve(null);
+                    }
+                }
+            }
+        });
+    }
 
+    public async buildDataModelOnQuery(dataSourceId: number, query: string, dataModelName: string, tokenDetails: ITokenDetails): Promise<any> {
+        return new Promise<any>(async (resolve, reject) => {
+            const driver = await DBDriver.getInstance().getDriver();
+            if (driver) {
+                const dataSource = await DataSources.findOne({where: {id: dataSourceId, user_platform_id: tokenDetails.user_id}});
+                if (dataSource) {
+                    const connection: IDBConnectionDetails = dataSource.connection_details;
+                    const response: boolean = await driver.initialize();
+                    if (response) {
+                        const externalDriver = await DBDriver.getInstance().getDriver();
+                        const dbConnector: Sequelize =  await externalDriver.connectExternalDB(connection);
+                        if (dbConnector) {
+                            try {
+                                dataModelName = UtilityService.getInstance().uniquiseName(dataModelName);
+                                query = `CREATE TABLE ${dataModelName} AS ${query}`;
+                                await dbConnector.query(query, { type: QueryTypes.SELECT });
+                                await DataModels.create({
+                                    schema: 'public',
+                                    name: dataModelName,
+                                    sql_query: query,
+                                    data_source_id: dataSourceId,
+                                    user_platform_id: tokenDetails.user_id,
+                                });
+                                return resolve(true);
+                            } catch (error) {
+                                console.log('error', error);
+                                return resolve(null);
+                            }
+                        }
+                        return resolve(null);
+                    }
+                }
+            }
+        });
+    }
 
 }
