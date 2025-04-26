@@ -5,6 +5,4 @@ export interface IDBConnectionDetails {
     database: string;
     user: string;
     password: string;
-    ssl: boolean;
-    ssl_mode: string;
 }

@@ -58,6 +58,18 @@ onMounted(async () => {
             Data Models are part of the semantic data layer and will be the basis of the analysis that you will perform.
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5">
+            <notched-card class="justify-self-center mt-10">
+                <template #body="{ onClick }">
+                    <NuxtLink :to="`/projects/${project.id}/data-sources/${dataSource.id}/data-models/create`">
+                        <div class="flex flex-col justify-center text-lg font-bold cursor-pointer items-center">
+                            <div class="bg-gray-300 border border-gray-300 border-solid rounded-full w-20 h-20 flex items-center justify-center mb-5">
+                                <font-awesome icon="fas fa-plus" class="text-4xl text-gray-500" />
+                            </div>
+                            Create New Data Model
+                        </div>
+                    </NuxtLink>
+                </template>
+            </notched-card>
             <div v-for="dataModel in state.data_models" class="relative">
                 <notched-card class="justify-self-center mt-10">
                     <template #body="{ onClick }">

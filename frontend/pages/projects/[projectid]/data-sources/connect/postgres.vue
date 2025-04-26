@@ -14,16 +14,12 @@ const state = reactive({
     database_name: '',
     username: '',
     password: '',
-    ssl: false,
-    ssl_mode: '',
     host_error: false,
     port_error: false,
     schema_error: false,
     database_name_error: false,
     username_error: false,
     password_error: false,
-    ssl_error: false,
-    ssl_mode_error: false,
     loading: false,
     showAlert: false,
     errorMessages: [],
@@ -35,10 +31,6 @@ async function getToken() {
     const response = await getGeneratedToken();
     state.token = response.token;
     state.loading = false;
-}
-
-function toggleSSL() {
-    state.ssl = !state.ssl;
 }
 function validateFields() {
     if (!validate(state.host, "", [validateRequired])) {
@@ -77,19 +69,13 @@ function validateFields() {
     } else {
         state.password_error = false;
     }
-    if (!validate(state.ssl_mode, "", [validateRequired])) {
-        state.ssl_mode_error = true;
-        state.errorMessages.push("Please enter a valid SSL mode.");
-    } else {
-        state.ssl_mode_error = false;
-    }
 }
 async function testConnection() {
     state.loading = true;
     state.showAlert = false;
     state.errorMessages = [];
     validateFields();
-    if (state.host_error || state.port_error || state.database_name_error || state.username_error || state.password_error || state.ssl_mode_error) {
+    if (state.host_error || state.port_error || state.database_name_error || state.username_error || state.password_error) {
         state.showAlert = true;
         state.loading = false;
     } else {
@@ -110,8 +96,6 @@ async function testConnection() {
                     database_name: state.database_name,
                     username: state.username,
                     password: state.password,
-                    ssl: state.ssl,
-                    ssl_mode: state.ssl_mode,
                 }),
             };
             const response = await fetch(`${baseUrl()}/data-source/test-connection`, requestOptions);
@@ -135,7 +119,7 @@ async function connectAndSave() {
     state.showAlert = false;
     state.errorMessages = [];
     validateFields();
-    if (state.host_error || state.port_error || state.database_name_error || state.username_error || state.password_error || state.ssl_mode_error) {
+    if (state.host_error || state.port_error || state.database_name_error || state.username_error || state.password_error) {
         state.showAlert = true;
         state.loading = false;
     } else {
@@ -156,8 +140,6 @@ async function connectAndSave() {
                     database_name: state.database_name,
                     username: state.username,
                     password: state.password,
-                    ssl: state.ssl,
-                    ssl_mode: state.ssl_mode,
                     project_id: route.params.projectid,
                 }),
             };
@@ -246,24 +228,6 @@ onMounted(async () => {
             class="self-center w-1/2 p-5 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md"
             :class="!state.password_error ? '' : 'bg-red-300 text-black'"
             placeholder="Password"
-            :disabled="state.loading"
-        />
-        <div class="flex flex-row justify-start w-1/2 self-center items-center">
-           <div class="text-lg font-bold items-center -mt-2">
-                SSL Enabled
-            </div>
-            <switch-button
-                :status="state.ssl"
-                v-tippy="{ content: 'Grayed out is false, blue and white is true' }"
-                @click="toggleSSL"
-            />
-        </div>
-        <input
-            v-model="state.ssl_mode"
-            type="text"
-            class="self-center w-1/2 p-5 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md"
-            :class="!state.ssl_mode_error ? '' : 'bg-red-300 text-black'"
-            placeholder="SSL Mode"
             :disabled="state.loading"
         />
         <spinner v-if="state.loading"/>

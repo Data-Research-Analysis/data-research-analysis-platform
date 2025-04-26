@@ -20,8 +20,6 @@ module.exports = {
             database: 'postgres_dra_db',
             user: 'postgres',
             password: 'postgres',
-            ssl: 'false',
-            ssl_mode: 'disable',
         };
     await queryInterface.bulkInsert('dra_data_sources', [{
       name: 'postgresql',

@@ -10,26 +10,26 @@ const state = reactive({
     show_dialog: false,
     data_sources: [],
     available_data_sources: [
-        {
-            name: 'Excel File',
-            url: `${route.fullPath}/connect/excel`,
-        },
+        // {
+        //     name: 'Excel File',
+        //     url: `${route.fullPath}/connect/excel`,
+        // },
         {
             name: 'PostgreSQL',
             url: `${route.fullPath}/connect/postgres`,
         },
-        {
-            name: 'MariaDB',
-            url: `${route.fullPath}/connect/mariadb`,
-        },
-        {
-            name: 'MySQL',
-            url: `${route.fullPath}/connect/mysql`,
-        },
-        {
-            name: 'MongoDB',
-            url: `${route.fullPath}/connect/mongodb`,
-        },
+        // {
+        //     name: 'MariaDB',
+        //     url: `${route.fullPath}/connect/mariadb`,
+        // },
+        // {
+        //     name: 'MySQL',
+        //     url: `${route.fullPath}/connect/mysql`,
+        // },
+        // {
+        //     name: 'MongoDB',
+        //     url: `${route.fullPath}/connect/mongodb`,
+        // },
     ],
 })
 watch(
