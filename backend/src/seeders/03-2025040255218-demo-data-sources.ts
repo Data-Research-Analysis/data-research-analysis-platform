@@ -13,18 +13,21 @@ module.exports = {
      * }], {});
     */
 
-    await queryInterface.bulkInsert('projects', [{
-      name: 'Atilus1',
-      user_platform_id: 1,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }, {
-      name: 'Atilus2',
-      user_platform_id: 1,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }, {
-      name: 'Atilus2  ',
+    const connection = {
+            host: 'database.dataresearchanalysis.test',
+            port: '5432',
+            schema: 'public',
+            database: 'postgres_dra_db',
+            user: 'postgres',
+            password: 'postgres',
+            ssl: 'false',
+            ssl_mode: 'disable',
+        };
+    await queryInterface.bulkInsert('dra_data_sources', [{
+      name: 'postgresql',
+      connection_details: JSON.stringify(connection),
+      data_type: 'postgresql',
+      project_id: 1,
       user_platform_id: 1,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -38,6 +41,6 @@ module.exports = {
      * Example:
      * await queryInterface.bulkDelete('People', null, {});
      */
-    await queryInterface.bulkDelete('projects', null, {});
+    await queryInterface.bulkDelete('dra_data_sources', null, {});
   }
 };

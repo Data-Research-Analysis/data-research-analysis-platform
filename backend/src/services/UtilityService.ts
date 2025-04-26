@@ -1,4 +1,6 @@
 import dotenv from 'dotenv';
+import _ from 'lodash';
+import { v4 as uuidv4 } from 'uuid';
 
 export class UtilityService {
     private static instance: UtilityService;
@@ -14,6 +16,11 @@ export class UtilityService {
         dotenv.config();
         console.log('Initializing utilities');
 
+    }
+
+    public uniquiseName(name: string): string {
+        const uuid = uuidv4();
+        return `${name.toLowerCase().replace(/\s/g, '_')}_dra_${uuid.replace(/-/g, '_')}`;
     }
 
     public getConstants(key: string): any {

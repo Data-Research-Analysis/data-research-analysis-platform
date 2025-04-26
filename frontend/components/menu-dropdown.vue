@@ -1,5 +1,4 @@
 <script setup>
-import { reactive } from "vue";
 const router = useRouter();
 const state = reactive({
     dropdownOpen: false,

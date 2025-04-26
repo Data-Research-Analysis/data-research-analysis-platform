@@ -1,7 +1,4 @@
 <script setup>
-import { NuxtLink } from "#components";
-import { onMounted, reactive } from "vue";
-import fontawesome from "~/plugins/fontawesome";
 const route = useRoute();
 const state = reactive({
     drawerOpen: false,
@@ -32,7 +29,7 @@ onMounted(() => {
         <div class="absolute top-[5px] right-5 w-3/5 flex flex-row justify-end flex lg:hidden">
             <font-awesome icon="fas fa-bars" class="text-2xl cursor-pointer hover:text-gray-300" @click="openDrawer" />
         </div>
-        <div class="absolute lg:top-2 lg:right-10 lg:h-10 w-3/5 hidden lg:block">
+        <div class="absolute lg:top-2 lg:right-10 lg:h-10 w-3/4 hidden lg:block">
             <div v-if="!state.authenticated" class="flex flex-row justify-between items-center h-full">
                 <div class="flex flex-row items-center">
                     <div class="text-xl font-bold hover:text-gray-300 cursor-pointer">
@@ -47,25 +44,25 @@ onMounted(() => {
                     <div class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">
                         <NuxtLink to="/#community">Community</NuxtLink>
                     </div>
-                    <!-- <div>
+                    <div>
                         <menu-dropdown>
                             <template #menuItem="{ onClick }">
-                                <div @click="onClick" class="text-xl font-bold ml-12 cursor-pointer hover:text-gray-300 cursor-pointer">
-                                    Cloud Access
+                                <div @click="onClick" class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">
+                                    Products
                                 </div>
                             </template>
                             <template #dropdownMenu="{ onClick }">
                                 <div class="flex flex-col w-40 text-center">
                                     <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer border-b-1 border-primary-blue-100 border-solid pt-1 pb-1">
-                                        <NuxtLink to="/register">Register</NuxtLink>
+                                        <NuxtLink to="/register">Platform Register</NuxtLink>
                                     </div>
                                     <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer pt-1 pb-1">
-                                        <NuxtLink to="/login">Login</NuxtLink>
+                                        <NuxtLink to="/login">Platform Login</NuxtLink>
                                     </div>
                                 </div>
                             </template>
                         </menu-dropdown>
-                    </div> -->
+                    </div>
                 </div>
                 <div class="flex flex-row mr-5">
                     <font-awesome icon="fab fa-github-square" class="ml-5 text-4xl hover:text-gray-300 cursor-pointer" @click="openGithub()"/>
@@ -73,7 +70,6 @@ onMounted(() => {
                 </div>
             </div>
             <div v-else class="flex flex-row justify-end items-center h-full">
-                
                 <menu-dropdown>
                     <template #menuItem="{ onClick }">
                         <div @click="onClick" class="flex flex-col justify-center items-center w-10 h-10 bg-gray-200 border border-primary-blue-100 border-solid p-1 rounded-full cursor-pointer hover:bg-gray-300 font-bold text-center text-black text-none">

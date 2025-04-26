@@ -39,5 +39,16 @@ export async function verifyRecaptchaToken (authToken: string, recaptchaToken: s
         body: JSON.stringify({ recaptcha_token: recaptchaToken }),
     });
     return await captchaResponse.json();
+}
+export function getDataType(dataType: string) {
+    if (dataType === "text" || dataType === "varchar" || dataType === "char" || dataType === "character varying") {
+        return "TEXT";
+    } else if (dataType === "int" || dataType === "integer" || dataType === "bigint" || dataType === "float" || dataType === "double") {
+        return "NUMBER";
+    } else if (dataType === "date" || dataType.match(/^timestamp/) || dataType === "datetime") {
+        return "DATE";
+    } else if (dataType === "boolean") {
+        return "BOOLEAN";
+    }
 
 }

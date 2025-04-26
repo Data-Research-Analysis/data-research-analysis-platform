@@ -1,13 +1,15 @@
 import { DataTypes, Model } from "sequelize";
 import { DBDriver } from "../drivers/DBDriver";
+import { IDBDriver } from "../interfaces/IDBDriver";
 
 export class Projects extends Model {
   declare id: number;
   declare name: string;
   declare user_platform_id: number;
 }
-DBDriver.getInstance().getDriver().initialize().then(async () => {
-  const sequelize = await DBDriver.getInstance().getDriver().getConcreteDriver();
+DBDriver.getInstance().getDriver().then(async (driver: IDBDriver) => {
+  await driver.initialize();
+  const sequelize = await driver.getConcreteDriver();
   if (sequelize) {
     Projects.init({
       name: DataTypes.STRING,
@@ -15,7 +17,7 @@ DBDriver.getInstance().getDriver().initialize().then(async () => {
     }, {
       sequelize,
       modelName: 'Projects',
-      tableName: 'projects'
+      tableName: 'dra_projects'
     });
   }
 });
