@@ -50,5 +50,8 @@ export function getDataType(dataType: string) {
     } else if (dataType === "boolean") {
         return "BOOLEAN";
     }
-
+}
+export function isPlatformEnabled() {
+    const config = useRuntimeConfig();
+    return config.public.PLATFORM_ENABLED === "true";
 }

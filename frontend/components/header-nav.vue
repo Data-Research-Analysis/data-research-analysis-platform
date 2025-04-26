@@ -44,7 +44,7 @@ onMounted(() => {
                     <div class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">
                         <NuxtLink to="/#community">Community</NuxtLink>
                     </div>
-                    <div>
+                    <div v-if="isPlatformEnabled()">
                         <menu-dropdown>
                             <template #menuItem="{ onClick }">
                                 <div @click="onClick" class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">

@@ -39,7 +39,7 @@ function closeDrawer() {
                 <div class="text-xl font-bold mt-2 hover:text-gray-300 cursor-pointer">
                     <NuxtLink to="/#community">Community</NuxtLink>
                 </div>
-                <div>
+                <div v-if="isPlatformEnabled()">
                     <menu-dropdown>
                         <template #menuItem="{ onClick }">
                             <div @click="onClick" class="text-xl font-bold mt-2 cursor-pointer hover:text-gray-300 cursor-pointer">
