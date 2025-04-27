@@ -103,15 +103,15 @@ onMounted(async () => {
                     </div>
                 </div>
                 <div class="flex flex-row justify-center">
-                    <img src="/assets/images/sheets.png" class="w-3/4 border-2 border-white shadow-lg mt-5" />
+                    <img src="/assets/images/platform.gif" class="w-3/4 border-2 border-primary-blue-300 shadow-lg mt-5" />
                 </div>
                 <div class="text-md text-white mt-1">
-                    * High fidelity wireframe, actual screen may be different.
+                    * Demo of actual implementation at the moment. Actual screens may be different in the future.
                 </div>
             </div>
             <div class="hidden lg:flex lg:flex-row justify-between">
                 <div class="w-1/2 flex flex-col">
-                    <div class="text-4xl font-bold text-white ml-20 mt-40">
+                    <div class="text-4xl font-bold text-white ml-20 mt-20">
                         The one stop solution to your data analysis needs
                     </div>
                     <div class="text-xl font-bold text-white ml-20 mt-10">
@@ -141,13 +141,10 @@ onMounted(async () => {
                         </div>
                     </div>
                 </div>
-                <div class="w-1/2 flex flex-col">
-                    <div class="">
-                        <img src="/assets/images/sheets.png" class="w-3/4 border-2 border-white shadow-lg mt-5" />
-                    </div>
-                    <div class="text-md text-white mt-1">
-                        * High fidelity wireframe, actual screen may be different.
-                    </div>
+                <div class="w-1/2 flex flex-col justify-center items-center">
+                    <div>
+                        <img src="/assets/images/platform.gif" class="w-3/4 border-5 border-white shadow-lg mt-10" />
+                    </div>                    
                 </div>
             </div>
         </div>

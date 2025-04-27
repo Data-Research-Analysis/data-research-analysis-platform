@@ -17,7 +17,7 @@ function buildBreadcrumbs() {
     //this is a workaround for the issue with the route name being split into two parts
     const routeName = route.name.replaceAll('data-sources', 'datasources');
     route.fullPath.split('/').forEach((path, index) => {
-        if (path !== '') {
+        if (path && path !== '') {
             let breadCrumbText = routeName.split('-')[index - 1];
             if (breadCrumbText === 'projectid') {
                 breadCrumbText = projectsStore.getSelectedProject()?.name || path.replaceAll('-', ' ')
