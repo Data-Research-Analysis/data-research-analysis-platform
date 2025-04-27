@@ -27,20 +27,20 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
         isAuthorized = false;
       }
       if (isAuthorized) {
-        if (to.path === "/login" || to.path === "/register" || to.path === "/") {
+        if (to.path === "/login" || to.path === "/register" || to.path === "/" || to.path === "/privacy-policy" || to.path === "/terms-conditions") {
           return navigateTo("/projects");
         } else {
           return;
         }
       } else {
-        if (to.path === "/login" || to.path === "/register") {
+        if (to.path === "/login" || to.path === "/register" || to.path === "/privacy-policy" || to.path === "/terms-conditions") {
           return;
         }
         return navigateTo("/login");
       }
     }
   } else {
-    if (to.path === "/login" || to.path === "/register" || to.path === "/") {
+    if (to.path === "/login" || to.path === "/register" || to.path === "/" || to.path === "/privacy-policy" || to.path === "/terms-conditions") {
       return;
     }
     return navigateTo("/login");
