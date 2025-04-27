@@ -33,7 +33,7 @@
                 </div>
                 <div class="hidden lg:flex lg:flex-row lg:justify-center lg:mb-10">
                     <div class="w-1/2 flex flex-col p-5">
-                        <img src="/assets/images/build-data-model.gif" class="w-full border-5 border-primary-blue-100 shadow-lg" />
+                        <img src="/assets/images/build-data-model.gif" class="w-full border-5 border-white shadow-lg" />
                     </div>
                     <div class="w-1/2 flex flex-col justify-center p-5 mr-10 text-white">
                         <div class="text-lg">
