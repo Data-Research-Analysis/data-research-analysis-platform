@@ -57,6 +57,9 @@ const showGroupByClause = computed(() => {
 const showDataModelControls = computed(() => {
     return state && state.data_table && state.data_table.columns && state.data_table.columns.length > 0;
 })
+watch(() => state.data_table.query_options, async (value) => {
+    await executeQueryOnExternalDataSource();
+}, { deep: true })
 watch(() => state.data_table.table_name, (value) => {
     //keep the table name to maximum length of 20 characters
     state.data_table.table_name = value.substring(0, 20);
@@ -318,7 +321,9 @@ function buildSQLQuery() {
     }
 
     state?.data_table?.query_options?.group_by?.aggregate_functions?.forEach((aggregate_function) => {
-        sqlQuery += `, ${state.aggregate_functions[aggregate_function.aggregate_function]}(${aggregate_function.column})`;
+        if (aggregate_function.aggregate_function !== '' && aggregate_function.column !== '') {
+            sqlQuery += `, ${state.aggregate_functions[aggregate_function.aggregate_function]}(${aggregate_function.column})`;
+        }
     });
 
     sqlQuery += ` ${fromJoinClause.join(' ')}`;
@@ -326,31 +331,37 @@ function buildSQLQuery() {
     //determining whether to save the value with single quotes or not depending on the data type of the column
     state.data_table.query_options.where.forEach((clause) => {
         let value = getColumValue(clause.value, clause.column_data_type);
-        if (clause.condition === '') {
-            //first WHERE clause
-            sqlQuery += ` WHERE ${clause.column} ${state.equality[clause.equality]} ${value}`;
-        } else {
-            sqlQuery += ` ${state.condition[clause.condition]} ${clause.column} ${state.equality[clause.equality]} ${value}`;
+        if (clause.column !=='' && clause.equality !== '' && clause.value !== '') {
+            if (clause.condition === '') {
+                //first WHERE clause
+                sqlQuery += ` WHERE ${clause.column} ${state.equality[clause.equality]} ${value}`;
+            } else {
+                sqlQuery += ` ${state.condition[clause.condition]} ${clause.column} ${state.equality[clause.equality]} ${value}`;
+            }
         }
     });
     if (showGroupByClause.value) {
         sqlQuery += ` GROUP BY ${state.data_table.columns.map((column) => `${column.schema}.${column.table_name}.${column.column_name}`).join(', ')}`;
         state?.data_table?.query_options?.group_by?.having_conditions?.forEach((clause) => {
             let value = getColumValue(clause.value, clause.column_data_type);
-            if (clause.condition === '') {
-                //first HAVING clause
-                sqlQuery += ` HAVING ${clause.column} ${state.equality[clause.equality]} ${value}`;
-            } else {
-                sqlQuery += ` ${state.condition[clause.condition]} ${clause.column} ${state.equality[clause.equality]} ${value}`;
+            if (clause.column !=='' && clause.equality !== '' && clause.value !== '') {
+                if (clause.condition === '') {
+                    //first HAVING clause
+                    sqlQuery += ` HAVING ${clause.column} ${state.equality[clause.equality]} ${value}`;
+                } else {
+                    sqlQuery += ` ${state.condition[clause.condition]} ${clause.column} ${state.equality[clause.equality]} ${value}`;
+                }
             }
         });
     }    
     state.data_table.query_options.order_by.forEach((clause, index) => {
-        if (index === 0) {
-            //first where clause
-            sqlQuery += ` ORDER BY ${clause.column} ${state.order[clause.order]}`;
-        } else {
-            sqlQuery += `, ${clause.column} ${state.order[clause.order]}`;
+        if (clause.column !== '' && clause.order !== '') {
+            if (index === 0) {
+                //first where clause
+                sqlQuery += ` ORDER BY ${clause.column} ${state.order[clause.order]}`;
+            } else {
+                sqlQuery += `, ${clause.column} ${state.order[clause.order]}`;
+            } 
         }
     });
     

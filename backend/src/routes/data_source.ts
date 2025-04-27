@@ -91,7 +91,7 @@ async (req: Request, res: Response) => {
 
 router.post('/execute-query-on-external-data-source', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([body('data_source_id').notEmpty().trim().escape().toInt(), body('query').notEmpty().trim().escape()]),
+}, validateJWT, validate([body('data_source_id').notEmpty().trim().escape().toInt(), body('query').notEmpty().trim()]),
 async (req: Request, res: Response) => {
     const { data_source_id, query } = matchedData(req);
     const response = await DataSourceProcessor.getInstance().executeQueryOnExternalDataSource(data_source_id, query, req.body.tokenDetails);
@@ -100,7 +100,7 @@ async (req: Request, res: Response) => {
 
 router.post('/build-data-model-on-query', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([body('data_source_id').notEmpty().trim().escape().toInt(), body('query').notEmpty().trim().escape(), body('data_model_name').notEmpty().trim().escape()]),
+}, validateJWT, validate([body('data_source_id').notEmpty().trim().escape().toInt(), body('query').notEmpty().trim(), body('data_model_name').notEmpty().trim().escape()]),
 async (req: Request, res: Response) => {
     const { data_source_id, query, data_model_name } = matchedData(req);
     const response = await DataSourceProcessor.getInstance().buildDataModelOnQuery(data_source_id, query, data_model_name, req.body.tokenDetails);
