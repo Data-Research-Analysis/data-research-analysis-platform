@@ -105,9 +105,6 @@ onMounted(async () => {
                 <div class="flex flex-row justify-center">
                     <img src="/assets/images/platform.gif" class="w-3/4 border-2 border-primary-blue-300 shadow-lg mt-5" />
                 </div>
-                <div class="text-md text-white mt-1">
-                    * Demo of actual implementation at the moment. Actual screens may be different in the future.
-                </div>
             </div>
             <div class="hidden lg:flex lg:flex-row justify-between">
                 <div class="w-1/2 flex flex-col">
