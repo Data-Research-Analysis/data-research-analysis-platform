@@ -13,7 +13,7 @@
                 <div class="flex flex-col mb-10 lg:hidden">
                     <div class="flex flex-row justify-center">
                         <div class="w-3/4 flex flex-col p-5">
-                            <img src="/assets/images/data-sources.gif" class="w-full border-5 border-primary-blue-100 shadow-lg m-auto" />
+                            <img src="/assets/images/build-data-model.gif" class="w-full border-5 border-primary-blue-100 shadow-lg m-auto" />
                         </div>
                     </div>
                     <div class="flex flex-row justify-center">
