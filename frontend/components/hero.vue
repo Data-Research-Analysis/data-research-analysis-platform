@@ -64,6 +64,9 @@ async function subscribeMe() {
     }
     state.loading = false;
 }
+defineExpose({
+    state,
+});
 
 onMounted(async () => {
     await getToken();
@@ -79,12 +82,12 @@ onMounted(async () => {
                 <div class="text-xl font-bold text-white text-center mt-10">
                     Subscribe with us today so that you can get the front seat to the development of Data Research Analysis.
                 </div>
-                <spinner v-if="state.loading" :show="true" class="mt-10"/>
+                <spinner v-if="state.loading" :show="true" class="mt-10" data-cy="Loading..."/>
                 <div v-else class="flex flex-col">
                     <div v-if="state.subscriptionStep && state.subscriptionStep === 1" class="flex flex-col mt-5">
                         <div class="h-[60px] text-white mt-10 bg-white items-center flex flex-row shadow-lg">
-                            <input type="text" v-model="state.email" class="w-3/4 h-10 bg-white focus:border-white focus:outline-none border-white text-black font-bold ml-4" placeholder="Enter your email address" />
-                            <combo-button @click="subscribeMe" label="Subscribe Me" color="primary" class="w-1/4 h-13 mr-2 shadow-lg cursor-pointer" />
+                            <input type="text" v-model="state.email" class="w-3/4 h-10 bg-white focus:border-white focus:outline-none border-white text-black font-bold ml-4" placeholder="Enter your email address" data-cy="subscribe-email-input" />
+                            <combo-button @click="subscribeMe" label="Subscribe Me" color="primary" class="w-1/4 h-13 mr-2 shadow-lg cursor-pointer" data-cy="Subscribe Me" />
                         </div>
                         <div v-if="state.subscriptionError" class="text-red-500 text-md font-bold bg-red-100 p-2">
                             {{ state.subscriptionErrorMessage }}

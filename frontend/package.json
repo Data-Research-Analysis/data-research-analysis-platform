@@ -7,7 +7,8 @@
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "postinstall": "nuxt prepare",
+    "test": "vitest run"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^6.7.2",
@@ -16,17 +17,25 @@
     "@fortawesome/free-solid-svg-icons": "^6.7.2",
     "@fortawesome/vue-fontawesome": "^3.0.8",
     "@pinia/nuxt": "^0.10.1",
-    "@tailwindcss/vite": "^4.0.0",
-    "dotenv": "^16.4.7",
-    "nuxt": "^3.15.3",
+    "@tailwindcss/vite": "^4.1.4",
+    "dotenv": "^16.5.0",
+    "nuxt": "^3.17.1",
     "nuxt-gtag": "^3.0.2",
-    "pinia": "^3.0.1",
-    "sweetalert2": "^11.17.2",
+    "pinia": "^3.0.2",
+    "sweetalert2": "^11.19.1",
     "tailwindcss": "^4.0.0",
     "vue": "latest",
     "vue-recaptcha-v3": "^2.0.1",
-    "vue-router": "latest",
-    "vue-tippy": "^6.6.0",
+    "vue-router": "^4.5.1",
+    "vue-tippy": "^6.7.0",
     "vuedraggable": "^4.1.0"
+  },
+  "devDependencies": {
+    "@nuxt/test-utils": "^3.17.2",
+    "@vitejs/plugin-vue": "^5.2.3",
+    "@vue/test-utils": "^2.4.6",
+    "happy-dom": "^17.4.6",
+    "playwright-core": "^1.52.0",
+    "vitest": "^3.1.2"
   }
 }
