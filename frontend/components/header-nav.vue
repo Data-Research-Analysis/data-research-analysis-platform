@@ -5,19 +5,19 @@ const state = reactive({
     authenticated: false,
 })
 
-function openDrawer() {
- state.drawerOpen = true;
-}
-function closeDrawer() {
- state.drawerOpen = false;
-}
-
 watch(
   route,
   (value, oldValue) => {
     state.authenticated = isAuthenticated();
   },
 );
+
+function openDrawer() {
+ state.drawerOpen = true;
+}
+function closeDrawer() {
+ state.drawerOpen = false;
+}
 
 onMounted(() => {
     state.authenticated = isAuthenticated();

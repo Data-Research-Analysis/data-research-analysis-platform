@@ -4,10 +4,10 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     const dataSources = ref<IDataSource[]>([])
     const selectedDataSource = ref<IDataSource>()
     
-    if (localStorage.getItem('projects')) {
+    if (localStorage.getItem('dataSources')) {
         dataSources.value = JSON.parse(localStorage.getItem('dataSources') || '[]')
     }
-    if (localStorage.getItem('selectedProject')) {
+    if (localStorage.getItem('selectedDataSource')) {
         selectedDataSource.value = JSON.parse(localStorage.getItem('selectedDataSource') || 'null')
     }
     function setDataSources(dataSourcesList: IDataSource[]) {

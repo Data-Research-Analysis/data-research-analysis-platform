@@ -1,8 +1,10 @@
 <script setup>
 import {useProjectsStore} from '@/stores/projects';
 import { useDataSourceStore } from '@/stores/data_sources';
+import { useDataModelsStore } from '@/stores/data_models';
 const projectsStore = useProjectsStore();
 const dataSourceStore = useDataSourceStore();
+const dataModelsStore = useDataModelsStore();
 const route = useRoute();
 const state = reactive({
     authenticated: false,
@@ -13,6 +15,7 @@ watch(
     state.authenticated = isAuthenticated();
     await projectsStore.retrieveProjects();
     await dataSourceStore.retrieveDataSources();
+    await dataModelsStore.retrieveDataModels();
   },
 );
 
@@ -20,6 +23,7 @@ onMounted(async () => {
     state.authenticated = isAuthenticated();
     await projectsStore.retrieveProjects();
     await dataSourceStore.retrieveDataSources();
+    await dataModelsStore.retrieveDataModels();
 })
 </script>
 <template>

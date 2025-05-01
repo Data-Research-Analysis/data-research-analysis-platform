@@ -38,7 +38,7 @@ async (req: Request, res: Response) => {
     }
 });
 
-router.post('/save-connection', async (req: Request, res: Response, next: any) => {
+router.post('/add-data-source', async (req: Request, res: Response, next: any) => {
     next();
 }, validateJWT, validate([body('host').notEmpty().trim().escape(), body('port').notEmpty().trim().escape(),
     body('schema').notEmpty().trim().escape(), body('database_name').notEmpty().trim().escape(), body('username').notEmpty().trim().escape(),
@@ -56,7 +56,7 @@ async (req: Request, res: Response) => {
     };
     const response = await DataSourceProcessor.getInstance().connectToDataSource(connection);
     if (response) {
-        await DataSourceProcessor.getInstance().saveConnection(connection,  req.body.tokenDetails, project_id);            
+        await DataSourceProcessor.getInstance().addDataSource(connection,  req.body.tokenDetails, project_id);            
         res.status(200).send({message: 'The data source has been connected.'});        
     } else {
         res.status(400).send({message: 'The data source could not be connected.'});
