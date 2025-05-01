@@ -4,10 +4,10 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
     const dataModels = ref<IDataModel[]>([])
     const selectedDataModel = ref<IDataModel>()
     
-    if (localStorage.getItem('projects')) {
+    if (localStorage.getItem('dataModels')) {
         dataModels.value = JSON.parse(localStorage.getItem('dataModels') || '[]')
     }
-    if (localStorage.getItem('selectedProject')) {
+    if (localStorage.getItem('selectedDataModel')) {
         selectedDataModel.value = JSON.parse(localStorage.getItem('selectedDataModel') || 'null')
     }
     function setDataModels(dataModelsList: IDataModel[]) {
@@ -27,7 +27,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
             dataModels.value = [];
             return;
         }
-        const url = `${baseUrl()}/data-models/list`;
+        const url = `${baseUrl()}/data-model/list`;
         const response = await fetch(url, {
             method: "GET",
             headers: {

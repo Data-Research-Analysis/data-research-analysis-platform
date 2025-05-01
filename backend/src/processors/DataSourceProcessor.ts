@@ -48,7 +48,7 @@ export class DataSourceProcessor {
         });
     }
 
-    public async saveConnection(connection: IDBConnectionDetails, tokenDetails: ITokenDetails, projectId: String): Promise<boolean> {
+    public async addDataSource(connection: IDBConnectionDetails, tokenDetails: ITokenDetails, projectId: String): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             const project = await Projects.findOne({where: {id: projectId, user_platform_id: user_id}});
@@ -237,8 +237,8 @@ export class DataSourceProcessor {
                         if (dbConnector) {
                             try {
                                 dataModelName = UtilityService.getInstance().uniquiseName(dataModelName);
-                                query = `CREATE TABLE ${dataModelName} AS ${query}`;
-                                await dbConnector.query(query, { type: QueryTypes.SELECT });
+                                const createTableQuery = `CREATE TABLE ${dataModelName} AS ${query}`;
+                                await dbConnector.query(createTableQuery, { type: QueryTypes.SELECT });
                                 await DataModels.create({
                                     schema: 'public',
                                     name: dataModelName,

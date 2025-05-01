@@ -143,7 +143,7 @@ async function connectAndSave() {
                     project_id: route.params.projectid,
                 }),
             };
-            const response = await fetch(`${baseUrl()}/data-source/save-connection`, requestOptions);
+            const response = await fetch(`${baseUrl()}/data-source/add-data-source`, requestOptions);
             if (response.status === 200) {
                 state.connectionSuccess = true;
                 state.showAlert = true;

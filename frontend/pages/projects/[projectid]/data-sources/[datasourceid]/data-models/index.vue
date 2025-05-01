@@ -1,44 +1,76 @@
 <script setup>
-import { useDataModelsStore } from '@/stores/data_models';
 import { useProjectsStore } from '@/stores/projects';
-const dataSourceStore = useDataSourceStore();
+import { useDataSourceStore } from '@/stores/data_sources';
+import { useDataModelsStore } from '@/stores/data_models';
 const projectsStore = useProjectsStore();
+const dataSourceStore = useDataSourceStore();
+const dataModelsStore = useDataModelsStore();
+const { $swal } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
 const state = reactive({
     data_models: [],
 
 })
+watch(
+    dataModelsStore,
+    (value, oldValue) => {
+        getDataModels();
+    },
+)
 const project = computed(() => {
     return projectsStore.getSelectedProject();
 });
 const dataSource = computed(() => {
     return dataSourceStore.getSelectedDataSource();
 });
+const dataModel = computed(() => {
+    return dataModelsStore.getSelectedDataModel();
+});
 async function getDataModels() {
     state.data_models = [];
+    state.data_models = dataModelsStore.getDataModels().filter((dataModel) => dataModel.data_source_id === dataSource.value.id).map((dataModel) => {
+        return {
+            id: dataModel.id,
+            schema: dataModel.schema,
+            name: dataModel.name,
+            sql_query: dataModel.sql_query,
+            data_source_id: dataModel.data_source_id,
+            user_id: dataModel.user_platform_id,
+        }
+    });
+}
+async function deleteDataModel(dataModelId) {
+    const { value: confirmDelete } = await $swal.fire({
+        title: "Are you sure you want to delete the data model?",
+        text: "You won't be able to revert this!",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#3C8DBC",
+        cancelButtonColor: "#DD4B39",
+        confirmButtonText: "Yes, delete it!",
+    });
+    if (!confirmDelete) {
+        return;
+    }
     const token = getAuthToken();
-    const url = `${baseUrl()}/data-model/list`;
-    const response = await fetch(url, {
-        method: "GET",
+    const requestOptions = {
+        method: "DELETE",
         headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${token}`,
             "Authorization-Type": "auth",
         },
-    });
-    const data = await response.json();
-    state.data_models = data.map((dataSource) => {
-        return {
-            id: dataSource.id,
-            user_id: dataSource.user_platform_id,
-            name: dataSource.name,
-            dataModels: 0,
-        }
-    });
-}
-async function deleteDataModel(dataModelId) {
-    
+    };
+    const response = await fetch(`${baseUrl()}/data-model/delete/${dataModelId}`, requestOptions);
+    if (response && response.status === 200) {
+        const data = await response.json();
+        $swal.fire(`The data model has been deleted successfully.`);
+    } else {
+        $swal.fire(`There was an error deleting the data model.`);
+    }
+    await dataModelsStore.retrieveDataModels();
+    getDataModels();
 }
 
 function cleanDataModelName(name) {
@@ -46,7 +78,7 @@ function cleanDataModelName(name) {
 }
 
 onMounted(async () => {
-    await getDataModels();
+    getDataModels();
 })
 </script>
 <template>
@@ -88,7 +120,7 @@ onMounted(async () => {
                     </template>
                 </notched-card>
                 <div class="absolute top-5 -right-2 z-10 bg-gray-200 hover:bg-gray-300 border border-gray-200 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer" @click="deleteDataModel(dataModel.id)">
-                    <font-awesome icon="fas fa-xmark" class="text-xl text-red-500 hover:text-red-400" />
+                    <font-awesome icon="fas fa-xmark" class="text-xl text-red-500 hover:text-red-400 select-none" />
                 </div>
             </div>
         </div>

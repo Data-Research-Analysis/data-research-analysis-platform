@@ -1,5 +1,15 @@
 <script setup>
+const state = reactive({
+    authenticated: false,
+})
 const route = useRoute();
+watch(
+  route,
+  (value, oldValue) => {
+    state.authenticated = isAuthenticated();
+  },
+);
+
 const isHomePage = computed(() => {
     return route.name === "index";
 })
@@ -8,6 +18,7 @@ function scrollToTop() {
 }
 
 onMounted(() => {
+    state.authenticated = isAuthenticated();
     document.addEventListener("scroll", () => {
         const scrollButton = document.getElementById("scroll_to_top_button");
         if (window.scrollY > 100) {
@@ -37,10 +48,10 @@ onMounted(() => {
                     <div class="w-1/2 flex flex-row justify-end mr-8">
                         <div class="w-1/4 flex flex-col">
                             <span>Important Links</span>
-                            <span v-if="isPlatformEnabled()" class="text-base mt-2 mb-2">
+                            <span v-if="isPlatformEnabled() && !state.authenticated" class="text-base mt-2 mb-2">
                                 <NuxtLink to="/register" class="hover:text-gray-300">Register</NuxtLink>
                             </span>
-                            <span v-if="isPlatformEnabled()" class="text-base mt-2 mb-2">
+                            <span v-if="isPlatformEnabled() && !state.authenticated" class="text-base mt-2 mb-2">
                                 <NuxtLink to="/login" class="hover:text-gray-300">Login</NuxtLink>
                             </span>
                             <span class="text-base mt-2 mb-2">
