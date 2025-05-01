@@ -1,14 +1,7 @@
 <script setup>
-const router = useRouter();
-const state = reactive({
-    dropdownOpen: false,
-})
-function toggleDropdown() {
-    state.dropdownOpen = !state.dropdownOpen;
-}
 </script>
 <template>
-    <div class="drop-shadow-md hover:drop-shadow-lg select-none">
+    <div class="drop-shadow-md hover:drop-shadow-lg select-none" data-cy="notched-card">
         <div class="w-50 h-50 p-5 bg-gray-100 notched-corner">
             <slot name="body"></slot>
         </div>
