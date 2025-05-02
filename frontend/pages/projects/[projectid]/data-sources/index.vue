@@ -125,11 +125,11 @@ onMounted(async () => {
                 <notched-card class="justify-self-center mt-10">
                     <template #body="{ onClick }">
                         <NuxtLink :to="`/projects/${project.id}/data-sources/${dataSource.id}/data-models`" class="hover:text-gray-500 cursor-pointer" @click="setSelectedDataSource(dataSource.id)">
-                            <div class="flex flex-col justify-between h-full">
+                            <div class="flex flex-col justify-start h-full">
                                 <div class="text-md font-bold">
                                     {{dataSource.name}}
                                 </div>
-                                <div class="flex flex-row justify-between mb-10">
+                                <div class="flex flex-row justify-between mt-4 mb-10">
                                     <ul class="text-xs">
                                         <li>{{ dataSource.dataModels }} Data Sources</li>
                                     </ul>

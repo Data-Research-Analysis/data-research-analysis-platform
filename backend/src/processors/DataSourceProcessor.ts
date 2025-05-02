@@ -223,7 +223,7 @@ export class DataSourceProcessor {
         });
     }
 
-    public async buildDataModelOnQuery(dataSourceId: number, query: string, dataModelName: string, tokenDetails: ITokenDetails): Promise<any> {
+    public async buildDataModelOnQuery(dataSourceId: number, query: string, queryJSON: string, dataModelName: string, tokenDetails: ITokenDetails): Promise<any> {
         return new Promise<any>(async (resolve, reject) => {
             const driver = await DBDriver.getInstance().getDriver();
             if (driver) {
@@ -243,6 +243,7 @@ export class DataSourceProcessor {
                                     schema: 'public',
                                     name: dataModelName,
                                     sql_query: query,
+                                    query: queryJSON,
                                     data_source_id: dataSourceId,
                                     user_platform_id: tokenDetails.user_id,
                                 });

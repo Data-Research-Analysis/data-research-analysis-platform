@@ -23,4 +23,16 @@ async (req: Request, res: Response) => {
         res.status(400).send({message: 'The data model could not be deleted.'});
     }
 });
+router.post('/update-data-model-on-query', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([body('data_source_id').notEmpty().trim().escape().toInt(), body('data_model_id').notEmpty().trim().escape().toInt(), body('query').notEmpty().trim(), body('query_json').notEmpty().trim(), body('data_model_name').notEmpty().trim().escape()]),
+async (req: Request, res: Response) => {
+    const { data_source_id, data_model_id, query, query_json, data_model_name } = matchedData(req);
+    const response = await DataModelProcessor.getInstance().updateDataModelOnQuery(data_source_id, data_model_id, query, query_json, data_model_name, req.body.tokenDetails);
+    if (response) {
+        res.status(200).send({message: 'The data model has been rebuilt.'}); 
+    } else {
+        res.status(400).send({message: 'The data model could not be rebuilt.'});
+    }
+});
 export default router;

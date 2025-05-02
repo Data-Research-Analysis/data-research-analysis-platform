@@ -69,7 +69,15 @@ onMounted(() => {
                     <font-awesome icon="fab fa-linkedin" class="ml-5 text-4xl hover:text-gray-300 cursor-pointer" @click="openLinkedin()"/>
                 </div>
             </div>
-            <div v-else class="flex flex-row justify-end items-center h-full">
+            <div v-else class="flex flex-row justify-between items-center h-full">
+                <div class="flex flex-row items-start justify-between">
+                    <div class="text-xl font-bold hover:text-gray-300 cursor-pointer">
+                        <NuxtLink to="/">Projects</NuxtLink>
+                    </div>
+                    <div class="text-xl font-bold hover:text-gray-300 cursor-pointer ml-8">
+                        <NuxtLink to="/">Build Visualizations</NuxtLink>
+                    </div>
+                </div>
                 <menu-dropdown>
                     <template #menuItem="{ onClick }">
                         <div @click="onClick" class="flex flex-col justify-center items-center w-10 h-10 bg-gray-200 border border-primary-blue-100 border-solid p-1 rounded-full cursor-pointer hover:bg-gray-300 font-bold text-center text-black text-none">
