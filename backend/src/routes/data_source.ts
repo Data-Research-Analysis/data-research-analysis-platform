@@ -16,18 +16,19 @@ router.get('/list', async (req: Request, res: Response, next: any) => {
 
 router.post('/test-connection', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([body('host').notEmpty().trim().escape(), body('port').notEmpty().trim().escape(),
+}, validateJWT, validate([body('data_source_type').notEmpty().trim().escape(), body('host').notEmpty().trim().escape(), body('port').notEmpty().trim().escape(),
     body('schema').notEmpty().trim().escape(), body('database_name').notEmpty().trim().escape(), body('username').notEmpty().trim().escape(),
     body('password').notEmpty().trim().escape(),
 ]),
 async (req: Request, res: Response) => {
-    const { host, port, schema, database_name, username, password, } = matchedData(req);
+    const { data_source_type, host, port, schema, database_name, username, password, } = matchedData(req);
     const connection: IDBConnectionDetails = {
+        data_source_type: data_source_type,
         host: host,
         port: port,
         schema: schema,
         database: database_name,
-        user: username,
+        username: username,
         password: password,
     };
     const response = await DataSourceProcessor.getInstance().connectToDataSource(connection);
@@ -40,18 +41,19 @@ async (req: Request, res: Response) => {
 
 router.post('/add-data-source', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([body('host').notEmpty().trim().escape(), body('port').notEmpty().trim().escape(),
+}, validateJWT, validate([body('data_source_type').notEmpty().trim().escape(), body('host').notEmpty().trim().escape(), body('port').notEmpty().trim().escape(),
     body('schema').notEmpty().trim().escape(), body('database_name').notEmpty().trim().escape(), body('username').notEmpty().trim().escape(),
     body('password').notEmpty().trim().escape(), body('project_id').notEmpty().trim().escape(),
 ]),
 async (req: Request, res: Response) => {
-    const { host, port, schema, database_name, username, password, project_id } = matchedData(req);
+    const { data_source_type, host, port, schema, database_name, username, password, project_id } = matchedData(req);
     const connection: IDBConnectionDetails = {
+        data_source_type: data_source_type,
         host: host,
         port: port,
         schema: schema,
         database: database_name,
-        user: username,
+        username: username,
         password: password,
     };
     const response = await DataSourceProcessor.getInstance().connectToDataSource(connection);

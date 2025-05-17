@@ -1,5 +1,6 @@
 import { IDBDriver } from "../interfaces/IDBDriver";
 import { UtilityService } from "../services/UtilityService";
+import { EDataSourceType } from "../types/EDataSourceType";
 import { PostgresDriver } from "./PostgresDriver";
 import dotenv from 'dotenv';
 
@@ -15,12 +16,24 @@ export class DBDriver {
     }
 
     //This is a factory method to get the relevant driver
-    public getDriver(): Promise<IDBDriver> {
+    public getDriver(driverName: 'excel' | 'csv' | 'postgresql' | 'mysql' | 'mariadb' | 'mongodb'): Promise<IDBDriver> {
         return new Promise<IDBDriver>(async (resolve, reject) => {
-            const dbDriver = UtilityService.getInstance().getConstants('DB_Driver');
-            if (dbDriver === 'postgres') {
+            console.log('Getting driver', driverName);
+            console.log(driverName === EDataSourceType.POSTGRESQL);
+            if (driverName === EDataSourceType.POSTGRESQL) {
                 return resolve(PostgresDriver.getInstance());
+            } else if (driverName === EDataSourceType.MYSQL) {
+
+            } else if (driverName === EDataSourceType.MARIADB) {
+
+            } else if (driverName === EDataSourceType.MONGODB) {
+
+            } else if (driverName === EDataSourceType.CSV) {
+
+            } else if (driverName === EDataSourceType.EXCEL) {
+
             }
+
             return resolve(null);
         });
     }

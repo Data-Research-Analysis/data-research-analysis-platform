@@ -50,7 +50,6 @@ export default defineNuxtConfig({
       },
       NUXT_API_URL: process.env.NUXT_API_URL,
       NUXT_RECAPTCHA_SITE_KEY: process.env.NUXT_RECAPTCHA_SITE_KEY,
-      POSTGRESQL_URL: process.env.POSTGRESQL_URL,
       NUXT_PORT: process.env.NUXT_PORT,
       PLATFORM_ENABLED: process.env.NUXT_PLATFORM_ENABLED,
     }

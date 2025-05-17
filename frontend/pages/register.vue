@@ -96,6 +96,11 @@ async function createAccount() {
                 state.showAlert = true;
                 const data = await response.json();
                 state.errorMessages.push(data.message);
+                state.firstName = "";
+                state.lastName = "";
+                state.email = "";
+                state.password = "";
+                state.rePassword = "";
               } else {
                 state.registrationSuccess = false;
                 state.showAlert = true;

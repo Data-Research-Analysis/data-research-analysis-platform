@@ -466,7 +466,7 @@ onMounted(async () => {
         })
     })
     if (props.dataModel && props.dataModel.query) {
-        state.data_table = JSON.parse(props.dataModel.query);
+        state.data_table = props.dataModel.query;
     }
     state.tables = props.dataSourceTables
 })

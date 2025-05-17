@@ -1,5 +1,9 @@
 import { ITokenDetails } from "../types/ITokenDetails";
-import { Projects } from "../models/Projects";
+import { DRAProject } from "../models/DRAProject";
+import { DBDriver } from "../drivers/DBDriver";
+import { DRAUsersPlatform } from "../models/DRAUsersPlatform";
+import { DRADataSource } from "../models/DRADataSource";
+import { EDataSourceType } from "../types/EDataSourceType";
 export class ProjectProcessor {
     private static instance: ProjectProcessor;
     private constructor() {}
@@ -14,15 +18,32 @@ export class ProjectProcessor {
     async addProject(project_name: string, tokenDetails: ITokenDetails): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
-            await Projects.create({user_platform_id: user_id , name: project_name});
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            console.log((await driver.getConcreteDriver()))
+            const manager = (await driver.getConcreteDriver()).manager;
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!user) {
+                return resolve(false);
+            }
+            const project = new DRAProject();
+            project.name = project_name;
+            project.users_platform = user;
+            project.created_at = new Date();
+            await manager.save(project);
             return resolve(true);
         });
     }
 
-    async getProjects(tokenDetails: ITokenDetails): Promise<Projects[]> {
-        return new Promise<Projects[]>(async (resolve, reject) => {
+    async getProjects(tokenDetails: ITokenDetails): Promise<DRAProject[]> {
+        return new Promise<DRAProject[]>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
-            const projects = await Projects.findAll({where: {user_platform_id: user_id}});
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            const manager = (await driver.getConcreteDriver()).manager;
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!user) {
+                return resolve([]);
+            }
+            const projects = await manager.find(DRAProject, {where: {users_platform: user}});
             return resolve(projects);
         });
     }
@@ -30,7 +51,19 @@ export class ProjectProcessor {
     async deleteProject(projectId: number, tokenDetails: ITokenDetails): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
-            await Projects.destroy({where: {id: projectId, user_platform_id: user_id}});
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            const manager = (await driver.getConcreteDriver()).manager;
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!user) {
+                return resolve(false);
+            }
+            const project = await manager.findOne(DRAProject, {where: {id: projectId}});
+            if (!project) {
+                return resolve(false);
+            }
+            const dataSources = await manager.find(DRADataSource, {where: {project: project}});
+            await manager.remove(dataSources);
+            await manager.remove(project);
             return resolve(true);
         });
     }

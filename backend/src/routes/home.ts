@@ -2,7 +2,9 @@ import express, { Express, Request, Response } from 'express';
 import { UtilityService } from '../services/UtilityService';
 import { TokenProcessor } from '../processors/TokenProcessor';
 import { validateJWT } from '../middleware/authenticate';
-import { User } from '../models/User';
+import { DRAUser } from '../models/DRAUser';
+import { DBDriver } from '../drivers/DBDriver';
+import { EDataSourceType } from '../types/EDataSourceType';
 const router = express.Router();
 
 router.get('/generate-token', async (req: Request, res: Response, next: any) => {
@@ -15,10 +17,14 @@ router.post('/subscribe', async (req: Request, res: Response, next: any) => {
 }, validateJWT, async (req: Request, res: Response) => {
     const { email } = req.body;
     console.log("subscribe post request");
-    const existingUser = await User.findOne({where: {email}});
+    let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+    const manager = (await driver.getConcreteDriver()).manager;
+    const existingUser = await manager.findOne(DRAUser, {where: {email}});
     if (!existingUser) {
-      const user = User.build({email, createdAt: new Date()});
-      await user.save();
+      const user = new DRAUser();
+      user.email = email;
+      user.created_at = new Date();
+      await manager.save(user);
       res.status(200).send({message: 'Subscribed successfully', email});
     } else {
       res.status(400).send({message: 'The email provided is already subscribed. Please provide a new valid email.', email});

@@ -50,7 +50,8 @@ function closeDialog() {
 
 function getDataSources() {
     state.data_sources = [];
-    state.data_sources = dataSourceStore.getDataSources().filter((dataSource) => dataSource.project_id === project.value.id).map((dataSource) => {
+    console.log('getDataSources dataSourceStore.getDataSources()', dataSourceStore.getDataSources());
+    state.data_sources = dataSourceStore.getDataSources().filter((dataSource) => dataSource?.project?.id === project?.value?.id).map((dataSource) => {
         return {
             id: dataSource.id,
             name: dataSource.name,

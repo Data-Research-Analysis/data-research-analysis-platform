@@ -7,8 +7,9 @@ import auth from './routes/auth';
 import project from './routes/project';
 import data_source from './routes/data_source';
 import data_model from './routes/data_model';
+import "reflect-metadata";
 
-console.log('Starting up Data Research Analysis Marketing API Server');
+console.log('Starting up Data Research Analysis API Server');
 const app = express();
 UtilityService.getInstance().initialize();
 const port = parseInt(UtilityService.getInstance().getConstants('PORT'));
