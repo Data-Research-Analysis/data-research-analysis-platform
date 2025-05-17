@@ -29,13 +29,10 @@ export class AuthProcessor {
             if (!concreteDriver) {
                 return resolve(null);
             }
-            console.log('concreteDriver', concreteDriver);
             const manager = concreteDriver.manager;
             const user: DRAUsersPlatform = await manager.findOne(DRAUsersPlatform, {where: {email: email}});
             if (user) {
-                console.log('user', user);
                 const passwordMatch = await bcrypt.compare(password, user.password);
-                console.log('passwordMatch', passwordMatch);
                 if (passwordMatch) {
                     const secret = UtilityService.getInstance().getConstants('JWT_SECRET');
                     const token = jwt.sign({user_id: user.id, email: email}, secret);
@@ -54,7 +51,6 @@ export class AuthProcessor {
         return new Promise<boolean>(async (resolve, reject) => {
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             const concreteDriver = await driver.getConcreteDriver();
-            console.log('concreteDriver', concreteDriver);
             if (!concreteDriver) {
                 return resolve(null);
             }
@@ -109,7 +105,6 @@ export class AuthProcessor {
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             const manager = (await driver.getConcreteDriver()).manager;
             const verificationCode = await manager.findOne(DRAVerificationCode, {where: {code: encodeURIComponent(code)}, relations: {users_platform: true}});
-            console.log('verificationCode', verificationCode);
             if (verificationCode && verificationCode.expired_at > new Date()) {
                 const user: DRAUsersPlatform = await manager.findOne(DRAUsersPlatform, {where: {id: verificationCode.users_platform.id}});
                 if (user) {
