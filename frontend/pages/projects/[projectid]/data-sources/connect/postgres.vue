@@ -90,6 +90,7 @@ async function testConnection() {
                     "Authorization-Type": "auth",
                 },
                 body: JSON.stringify({
+                    data_source_type: "postgresql",
                     host: state.host,
                     port: state.port,
                     schema: state.schema,
@@ -134,6 +135,7 @@ async function connectAndSave() {
                     "Authorization-Type": "auth",
                 },
                 body: JSON.stringify({
+                    data_source_type: "postgresql",
                     host: state.host,
                     port: state.port,
                     schema: state.schema,

@@ -28,17 +28,21 @@ const dataModel = computed(() => {
     return dataModelsStore.getSelectedDataModel();
 });
 async function getDataModels() {
+    console.log('getDataModels dataModelsStore.getDataModels()', dataModelsStore.getDataModels());
+    console.log('dataSource.value.id', dataSource.value.id);
     state.data_models = [];
-    state.data_models = dataModelsStore.getDataModels().filter((dataModel) => dataModel.data_source_id === dataSource.value.id).map((dataModel) => {
+    state.data_models = dataModelsStore.getDataModels().filter((dataModel) => dataModel.data_source.id === dataSource.value.id).map((dataModel) => {
+        console.log('getDataModels dataModel', dataModel);
         return {
             id: dataModel.id,
             schema: dataModel.schema,
             name: dataModel.name,
             sql_query: dataModel.sql_query,
-            data_source_id: dataModel.data_source_id,
-            user_id: dataModel.user_platform_id,
+            data_source_id: dataModel.data_source.id,
+            user_id: dataModel.users_platform.id,
         }
     });
+    console.log('getDataModels', state.data_models);
 }
 async function deleteDataModel(dataModelId) {
     const { value: confirmDelete } = await $swal.fire({

@@ -1,12 +1,14 @@
 import bcrypt  from 'bcryptjs';
 import jwt, { JwtPayload } from "jsonwebtoken";
-import { UsersPlatform } from '../models/UsersPlatform';
+import { DRAUsersPlatform } from '../models/DRAUsersPlatform';
 import { UtilityService } from '../services/UtilityService';
 import { IUsersPlatform } from '../types/IUsersPlatform';
 import { MailDriver } from '../drivers/MailDriver';
 import { TemplateEngineService } from '../services/TemplateEngineService';
 import { ITemplateRenderer } from '../interfaces/ITemplateRenderer';
-import { VerificationCodes } from '../models/VerificationCodes';
+import { DRAVerificationCode } from '../models/DRAVerificationCode';
+import { DBDriver } from '../drivers/DBDriver';
+import { EDataSourceType } from '../types/EDataSourceType';
 
 export class AuthProcessor {
     private static instance: AuthProcessor;
@@ -20,34 +22,20 @@ export class AuthProcessor {
         return AuthProcessor.instance;
     }
 
-    // public async validateJWT(token: string): Promise<Authentication|null> {
-    //     return new Promise<Authentication|null>(async (resolve, reject) => {
-    //         const secret = Utility.getInstance().getConstants('JWT_SECRET');
-    //         let result: Authentication = {user_id: new mongoose.Types.ObjectId("000000000000")};
-    //         try {
-    //             const decoded = jwt.verify(token, secret) as JwtPayload;
-    //             if (decoded) {
-    //                 const userId = decoded.user_id;
-    //                 const email = decoded.email;
-    //                 const user = await User.findOne({ _id: userId, email: email }).exec();
-    //                 if (user) {
-    //                     result.user_id = user._id;
-    //                     return resolve(result);  
-    //                 } else {
-    //                     return resolve(null);
-    //                 }
-    //             }
-    //         } catch (error) {
-    //             return resolve(null);
-    //         }
-    //     });
-    // }
-
     public async login(email: string, password: string): Promise<IUsersPlatform> {
         return new Promise<IUsersPlatform>(async (resolve, reject) => {
-            const user:UsersPlatform = await UsersPlatform.findOne({where: {email: email}});
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            const concreteDriver = await driver.getConcreteDriver();
+            if (!concreteDriver) {
+                return resolve(null);
+            }
+            console.log('concreteDriver', concreteDriver);
+            const manager = concreteDriver.manager;
+            const user: DRAUsersPlatform = await manager.findOne(DRAUsersPlatform, {where: {email: email}});
             if (user) {
+                console.log('user', user);
                 const passwordMatch = await bcrypt.compare(password, user.password);
+                console.log('passwordMatch', passwordMatch);
                 if (passwordMatch) {
                     const secret = UtilityService.getInstance().getConstants('JWT_SECRET');
                     const token = jwt.sign({user_id: user.id, email: email}, secret);
@@ -64,23 +52,43 @@ export class AuthProcessor {
 
     public async register(firstName: string, lastName: string, email: string, password: string): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
-            const user:UsersPlatform = await UsersPlatform.findOne({where: {email: email}});
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            const concreteDriver = await driver.getConcreteDriver();
+            console.log('concreteDriver', concreteDriver);
+            if (!concreteDriver) {
+                return resolve(null);
+            }
+            const manager = concreteDriver.manager;
+            const user: DRAUsersPlatform = await manager.findOne(DRAUsersPlatform, {where: {email: email}});
+            const salt = parseInt(UtilityService.getInstance().getConstants('PASSWORD_SALT'));
             if (!user) {
                 console.log("User does not exist for the given email, so creating a new user");
-                const encryptedPassword = await bcrypt.hash(password, 10);
-                const emailVerificationCode = encodeURIComponent(await bcrypt.hash(`${email}${password}`, 10));
-                const unsubscribeCode = encodeURIComponent(await bcrypt.hash(`${email}${password}`, 10));
-                const newUser:UsersPlatform = await UsersPlatform.create({
-                    email: email,
-                    first_name: firstName,
-                    last_name: lastName,
-                    password: encryptedPassword,
-                });
+                const encryptedPassword = await bcrypt.hash(password, salt);
+                const emailVerificationCode = encodeURIComponent(await bcrypt.hash(`${email}${password}`, salt));
+                const unsubscribeCode = encodeURIComponent(await bcrypt.hash(`${email}${password}`, salt));
+
+                const newUser = new DRAUsersPlatform();
+                newUser.email = email;
+                newUser.first_name = firstName;
+                newUser.last_name = lastName;
+                newUser.password = encryptedPassword;
+                await manager.save(newUser);
+                
                 const expiredAt = new Date();
                 expiredAt.setDate(expiredAt.getDate() + 3);//expires in 3 days from now
                 //We need separate codes for email verification and unsubscription because we need to track the expiration of each code separately
-                await VerificationCodes.create({user_platform_id: newUser.id, code: emailVerificationCode, expired_at: expiredAt});
-                await VerificationCodes.create({user_platform_id: newUser.id, code: unsubscribeCode, expired_at: expiredAt});
+                let verificationCode = new DRAVerificationCode();
+                verificationCode.users_platform = newUser;
+                verificationCode.code = emailVerificationCode;
+                verificationCode.expired_at = expiredAt;
+                await manager.save(verificationCode);
+
+                verificationCode = new DRAVerificationCode();
+                verificationCode.users_platform = newUser;
+                verificationCode.code = unsubscribeCode;
+                verificationCode.expired_at = expiredAt;
+                await manager.save(verificationCode);
+                
                 const options: Array<ITemplateRenderer> = [
                     {key: 'name', value: `${firstName} ${lastName}`},
                     {key: 'email_verification_code', value: emailVerificationCode},
@@ -98,14 +106,18 @@ export class AuthProcessor {
 
     public async verifyEmail(code: string): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
-            const verificationCode = await VerificationCodes.findOne({where: {code: encodeURIComponent(code)}});
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            const manager = (await driver.getConcreteDriver()).manager;
+            const verificationCode = await manager.findOne(DRAVerificationCode, {where: {code: encodeURIComponent(code)}, relations: {users_platform: true}});
+            console.log('verificationCode', verificationCode);
             if (verificationCode && verificationCode.expired_at > new Date()) {
-                const user: UsersPlatform = await UsersPlatform.findOne({where: {id: verificationCode.user_platform_id}});
+                const user: DRAUsersPlatform = await manager.findOne(DRAUsersPlatform, {where: {id: verificationCode.users_platform.id}});
                 if (user) {
                     if (user.email_verified_at) {
                         return resolve(true);
                     } else {
-                        await UsersPlatform.update({email_verified_at: new Date()}, {where: {id: verificationCode.user_platform_id}});
+                        user.email_verified_at = new Date();
+                        await manager.save(user);
                         return resolve(true);
                     }
                 }
@@ -116,14 +128,17 @@ export class AuthProcessor {
 
     public async unsubscribe(code: string): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
-            const verificationCode = await VerificationCodes.findOne({where: {code: encodeURIComponent(code)}});
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            const manager = (await driver.getConcreteDriver()).manager;
+            const verificationCode = await manager.findOne(DRAVerificationCode, {where: {code: encodeURIComponent(code)}, relations: {users_platform: true}});
             if (verificationCode) {
-                const user: UsersPlatform = await UsersPlatform.findOne({where: {id: verificationCode.user_platform_id}});
+                const user: DRAUsersPlatform = await manager.findOne(DRAUsersPlatform, {where: {id: verificationCode.users_platform.id}});
                 if (user) {
                     if (user.unsubscribe_from_emails_at) {
                         return resolve(true);
                     } else {
-                        await UsersPlatform.update({unsubscribe_from_emails_at: new Date()}, {where: {id: verificationCode.user_platform_id}});
+                        user.unsubscribe_from_emails_at = new Date();
+                        await manager.save(user);
                         return resolve(true);
                     }
                 }
@@ -134,16 +149,28 @@ export class AuthProcessor {
 
     public async resendCode(code: string): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
-            const verificationCode = await VerificationCodes.findOne({where: {code: encodeURIComponent(code)}});
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            const manager = (await driver.getConcreteDriver()).manager;
+            const verificationCode = await manager.findOne(DRAVerificationCode, {where: {code: encodeURIComponent(code)}, relations: {users_platform: true}});
             if (verificationCode) {
-                const user: UsersPlatform = await UsersPlatform.findOne({where: {id: verificationCode.user_platform_id}});
+                const user: DRAUsersPlatform = await manager.findOne(DRAUsersPlatform, {where: {id: verificationCode.users_platform.id}});
                 if (user) {
                     const emailVerificationCode = encodeURIComponent(await bcrypt.hash(`${user.email}${user.password}`, 10));
                     const unsubscribeCode = encodeURIComponent(await bcrypt.hash(`${user.email}${user.password}`, 10));
                     const expiredAt = new Date();
                     expiredAt.setDate(expiredAt.getDate() + 3);//expires in 3 days from now
-                    await VerificationCodes.create({user_platform_id: user.id, code: emailVerificationCode, expired_at: expiredAt});
-                    await VerificationCodes.create({user_platform_id: user.id, code: unsubscribeCode, expired_at: expiredAt});
+                    let verificationCode = new DRAVerificationCode();
+                    verificationCode.users_platform = user;
+                    verificationCode.code = emailVerificationCode;
+                    verificationCode.expired_at = expiredAt;
+                    await manager.save(verificationCode);
+    
+                    verificationCode = new DRAVerificationCode();
+                    verificationCode.users_platform = user;
+                    verificationCode.code = unsubscribeCode;
+                    verificationCode.expired_at = expiredAt;
+                    await manager.save(verificationCode);
+                    
                     const options: Array<ITemplateRenderer> = [
                         {key: 'name', value: `${user.first_name} ${user.last_name}`},
                         {key: 'email_verification_code', value: emailVerificationCode},

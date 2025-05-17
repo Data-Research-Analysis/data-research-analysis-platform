@@ -10,7 +10,7 @@ const state = reactive({
 async function getDataModels() {
     state.data_models = [];
     const token = getAuthToken();
-    const url = `${baseUrl()}/data-source/list`;
+    const url = `${baseUrl()}/data-models/list`;
     const response = await fetch(url, {
         method: "GET",
         headers: {
@@ -29,6 +29,7 @@ async function getDataModels() {
             dataModels: 0,
         }
     });
+    console.log('getDataModels', state.data_models);
 }
 async function deleteDataModel(dataModelId) {
     

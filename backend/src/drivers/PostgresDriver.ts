@@ -1,13 +1,13 @@
-import { Sequelize } from "sequelize";
-import { UtilityService } from "../services/UtilityService";
+import { DataSource } from "typeorm";
 import dotenv from 'dotenv';
 import { IDBDriver } from "../interfaces/IDBDriver";
 import { IDBConnectionDetails } from "../types/IDBConnectionDetails";
+import { PostgresDataSource } from "../datasources/PostgresDataSource";
 
 export class PostgresDriver implements IDBDriver{
     private static instance: PostgresDriver;
-    private sequelize: Sequelize;
-    private externalSequelize: Sequelize;
+    private dataSource: DataSource;
+    private externalDataSource: DataSource;
     private constructor() {
     }
     public static getInstance(): PostgresDriver {
@@ -17,16 +17,19 @@ export class PostgresDriver implements IDBDriver{
         return PostgresDriver.instance;
     }
 
-    public async initialize(): Promise<boolean> {
+    public async initialize(dataSource: DataSource): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             dotenv.config();
             console.log('Initializing postgres driver');
-            const postgresUrl = UtilityService.getInstance().getConstants('POSTGRESQL_URL');
-            this.sequelize = new Sequelize(postgresUrl); 
             try {
-                await this.sequelize.authenticate();
-                console.log('PostgresSQL connection has been established successfully.');
-                return resolve(true);
+                    this.dataSource = await dataSource.initialize();
+                    if (this.dataSource.isInitialized) {
+                        console.log('PostgresSQL connection has been established successfully.');
+                        return resolve(true);
+                    } else {
+                        console.error('Unable to connect to the database:', this.dataSource);
+                        return resolve(false);
+                    }
             } catch (error) {
                 console.error('Unable to connect to the database:', error);
                 return resolve(false);
@@ -34,9 +37,9 @@ export class PostgresDriver implements IDBDriver{
         });
     }
 
-    public getConcreteDriver(): Promise<Sequelize> {
-        return new Promise<Sequelize>((resolve, reject) => {
-            return resolve(this.sequelize);
+    public getConcreteDriver(): Promise<DataSource> {
+        return new Promise<DataSource>((resolve, reject) => {
+            return resolve(this.dataSource);
         });
     }
 
@@ -50,20 +53,29 @@ export class PostgresDriver implements IDBDriver{
     public async close(): Promise<void> {
         return new Promise<void>(async (resolve, reject) => {
             console.log('Closing postgres connection');
-            await this.sequelize.close();
+            await this.dataSource.close();
             return resolve();
         });
     }
 
-    public async connectExternalDB(connection: IDBConnectionDetails): Promise<Sequelize> {
-        return new Promise<Sequelize>(async (resolve, reject) => {
+    public async connectExternalDB(connection: IDBConnectionDetails): Promise<DataSource> {
+        return new Promise<DataSource>(async (resolve, reject) => {
             console.log('Connecting to external postgres');
-            const postgresUrl = `postgres://${connection.user}:${connection.password}@${connection.host}:${connection.port}/${connection.database}`;
-            this.externalSequelize = new Sequelize(postgresUrl);
+            const host = connection.host;
+            const port = connection.port;
+            const database = connection.database;
+            const username = connection.username;
+            const password = connection.password;
+            let dataSource = PostgresDataSource.getInstance().getDataSource(host, port, database, username, password);
             try {
-                await this.externalSequelize.authenticate();
-                console.log('External PostgresSQL connection has been established successfully.');
-                return resolve(this.externalSequelize);
+                const result = await dataSource.initialize();
+                if (dataSource.isInitialized) {
+                    this.externalDataSource = dataSource;
+                    console.log('External PostgresSQL connection has been established successfully.');
+                    return resolve(this.externalDataSource);
+                }
+                console.error('Unable to connect to the database');
+                return resolve(null);
             } catch (error) {
                 console.error('Unable to connect to the database:', error);
                 return resolve(null);
@@ -72,7 +84,7 @@ export class PostgresDriver implements IDBDriver{
     }
     public async getExternalConnection(): Promise<any> {
         return new Promise<any>(async (resolve, reject) => {
-            return resolve(this.externalSequelize);
+            return resolve(this.externalDataSource);
         });
     }
 

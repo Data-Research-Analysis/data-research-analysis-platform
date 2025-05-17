@@ -1,11 +1,11 @@
-import { Sequelize } from "sequelize";
 import { IDBConnectionDetails } from "../types/IDBConnectionDetails";
+import { DataSource } from "typeorm";
 
 export interface IDBDriver {
-    initialize(): Promise<boolean>;
-    getConcreteDriver(): Promise<Sequelize>;
+    initialize(dataSource: DataSource): Promise<boolean>;
+    getConcreteDriver(): Promise<DataSource>;
     query(query: string, params: any): Promise<any>;
     close(): Promise<void>;
-    connectExternalDB(connection: IDBConnectionDetails): Promise<Sequelize>;
+    connectExternalDB(connection: IDBConnectionDetails): Promise<DataSource>;
     getExternalConnection(): Promise<any>;
 }

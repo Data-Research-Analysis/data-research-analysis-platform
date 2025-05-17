@@ -84,11 +84,12 @@ async function resendCode() {
 onMounted(async () => {
     await getToken();
     state.code = route.params.code;
+    console.log(state.code);
     await verifyToken();
 })
 </script>
 <template>
-    <div class="min-h-100 mt-10 flex flex-row justify-center w-full">
+    <div class="min-h-100 mt-10 mb-10 flex flex-row justify-center w-full">
         <div class="flex flex-col justify-center w-1/2 border border-primary-blue-100 border-solid p-10 shadow-md">
             <div v-if="state.verificationSuccess" class="self-center font-bold text-2xl mb-5">
                Email Verification Success!
