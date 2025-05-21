@@ -132,16 +132,16 @@ export class DataSourceProcessor {
             if (!project) {
                 return resolve(false);
             }
-            const dataSources = await manager.find(DRADataSource, {where: {project: project, users_platform: user}});
-            if (!dataSources) {
+            const dataSource = await manager.find(DRADataSource, {where: {project: project, users_platform: user}});
+            if (!dataSource) {
                 return resolve(false);
             }
-            const dataModels = await manager.find(DRADataModel, {where: {data_source: dataSources}});
+            const dataModels = await manager.find(DRADataModel, {where: {data_source: dataSource}});
             if (!dataModels) {
                 return resolve(false);
             }
             manager.remove(dataModels);
-            manager.remove(dataSources);
+            manager.remove(dataSource);
             return resolve(true);
         });
     }
@@ -173,17 +173,30 @@ export class DataSourceProcessor {
             const externalDriver = await DBDriver.getInstance().getDriver(dataSourceType);
             if (!externalDriver) {
                 return resolve(null);
-            }  
+            }
+            const dataModels = await manager.find(DRADataModel, {where: {data_source: dataSource}});
+            if (!dataModels) {
+                return resolve(false);
+            }
+            console.log('dataModels', dataModels);
+            const dataModelTables = dataModels.map((dataModel: DRADataModel) => {
+                return `'${dataModel.name}'`;
+            });
+            console.log('dataModelTables', dataModelTables);
             const dbConnector: DataSource =  await externalDriver.connectExternalDB(connection);
             if (!dbConnector) {
                 return resolve(null);
             }
-            let tablesSchema = await dbConnector.query(`SELECT tb.table_catalog, tb.table_schema, tb.table_name, co.column_name, co.data_type, co.character_maximum_length
+            let query = `SELECT tb.table_catalog, tb.table_schema, tb.table_name, co.column_name, co.data_type, co.character_maximum_length
 					FROM information_schema.tables AS tb
 					JOIN information_schema.columns AS co
 					ON tb.table_name = co.table_name
 					WHERE tb.table_schema = '${connection.schema}'
-					AND tb.table_type = 'BASE TABLE';`);
+					AND tb.table_type = 'BASE TABLE'`;
+            if (dataModelTables?.length) {
+                query += ` AND tb.table_name NOT IN (${dataModelTables.join(',')})`;
+            }
+            let tablesSchema = await dbConnector.query(query);
             let tables = tablesSchema.map((table: any) => {
                 return {
                     table_name: table.table_name,
@@ -193,6 +206,7 @@ export class DataSourceProcessor {
                 }
             });
             tables = _.uniqBy(tables, 'table_name');
+            console.log('tables', tables);
             tables.forEach((table: any) => {
                 tablesSchema.forEach((result: any) => {
                     if (table.table_name === result.table_name) {

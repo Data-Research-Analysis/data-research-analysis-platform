@@ -147,7 +147,7 @@ onMounted(async () => {
             <div v-for="project in state.projects" class="relative">
                 <notched-card class="justify-self-center mt-10">
                     <template #body="{ onClick }">
-                        <NuxtLink :to="`/projects/${project.id}/data-sources`" class="hover:text-gray-500 cursor-pointer" @click="setSelectedProject(project.id)">
+                        <NuxtLink :to="`/projects/${project.id}`" class="hover:text-gray-500 cursor-pointer" @click="setSelectedProject(project.id)">
                             <div class="flex flex-col justify-center">
                                 <div class="text-md font-bold">
                                     {{project.name}}

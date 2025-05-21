@@ -1,4 +1,4 @@
-import { Column, Entity, JoinTable, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, JoinColumn, JoinTable, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { DRAUsersPlatform } from './DRAUsersPlatform';
 @Entity('dra_verification_codes')
 export class DRAVerificationCode {
@@ -11,5 +11,6 @@ export class DRAVerificationCode {
 
   @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.verification_codes)
   @JoinTable()
+  @JoinColumn({ name: 'users_platform_id', referencedColumnName: 'id' })
   users_platform: DRAUsersPlatform
 }

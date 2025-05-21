@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "pg": "^8.15.6",
+    "reflect-metadata": "^0.2.2",
+    "typeorm": "^0.3.23"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.17"
+  }
+}

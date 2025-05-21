@@ -1,10 +1,15 @@
 <script setup>
+import { useProjectsStore } from '@/stores/projects';
 import { useDataModelsStore } from '@/stores/data_models';
 const dataModelsStore = useDataModelsStore();
+const projectsStore = useProjectsStore();
 const route = useRoute();
 const state = reactive({
     data_source_tables: [],
     data_model: {},
+});
+const project = computed(() => {
+    return projectsStore.getSelectedProject();
 });
 async function getDataSourceTables(dataSourceId) {
     const token = getAuthToken();
@@ -32,7 +37,10 @@ onMounted(async () => {
 });
 </script>
 <template>
-    <div class="flex flex-col min-h-100 p-10 mt-10 mb-10">
-        <data-model-builder v-if="(state.data_source_tables && state.data_source_tables.length) && (state.data_model && state.data_model.query)" :data-source-tables="state.data_source_tables" :data-model="state.data_model" :is-edit-data-model="true" />
+    <div class="flex flex-col">
+        <tabs :project-id="project.id"/>
+        <div class="flex flex-col min-h-100 mb-10">
+            <data-model-builder v-if="(state.data_source_tables && state.data_source_tables.length) && (state.data_model && state.data_model.query)" :data-source-tables="state.data_source_tables" :data-model="state.data_model" :is-edit-data-model="true" />
+        </div>
     </div>
 </template>

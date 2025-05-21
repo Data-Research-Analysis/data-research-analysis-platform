@@ -11,10 +11,12 @@ export const useProjectsStore = defineStore('projectsDRA', () => {
         selectedProject.value = JSON.parse(localStorage.getItem('selectedProject') || 'null')
     }
     function setProjects(projectsList: IProject[]) {
+        console.log('setProjects projectsList', projectsList)
         projects.value = projectsList
         localStorage.setItem('projects', JSON.stringify(projectsList))
     }
     function setSelectedProject(project: IProject) {
+        console.log('setSelectedProject project', project)
         selectedProject.value = project
         localStorage.setItem('selectedProject', JSON.stringify(project))
     }

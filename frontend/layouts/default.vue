@@ -2,9 +2,11 @@
 import {useProjectsStore} from '@/stores/projects';
 import { useDataSourceStore } from '@/stores/data_sources';
 import { useDataModelsStore } from '@/stores/data_models';
+import { useVisualizationsStore } from '@/stores/visualizations';
 const projectsStore = useProjectsStore();
 const dataSourceStore = useDataSourceStore();
 const dataModelsStore = useDataModelsStore();
+const visualizationsStore = useVisualizationsStore();
 const route = useRoute();
 const state = reactive({
     authenticated: false,
@@ -16,14 +18,22 @@ watch(
     await projectsStore.retrieveProjects();
     await dataSourceStore.retrieveDataSources();
     await dataModelsStore.retrieveDataModels();
+    await dataModelsStore.retrieveDataModelTables(projectsStore.getSelectedProject().id);
+    // await visualizationsStore.retrieveVisualizations();
+    if (value?.params?.projectid) {
+        const projectId = parseInt(value.params.projectid);
+        const project = projectsStore.getProjects().find((project) => project.id === projectId);
+        projectsStore.setSelectedProject(project);
+    }
   },
 );
-
 onMounted(async () => {
     state.authenticated = isAuthenticated();
     await projectsStore.retrieveProjects();
     await dataSourceStore.retrieveDataSources();
     await dataModelsStore.retrieveDataModels();
+    await dataModelsStore.retrieveDataModelTables(projectsStore.getSelectedProject().id);
+    // await visualizationsStore.retrieveVisualizations();
 })
 </script>
 <template>
@@ -31,13 +41,12 @@ onMounted(async () => {
         <header-nav />
         <breadcrumbs v-if="state.authenticated" />
         <div class="flex "
-            :class="{
-                'flex-row': state.authenticated,
-                'flex-col': !state.authenticated,
-            }"
+        :class="{
+            'flex-row': state.authenticated,
+            'flex-col': !state.authenticated,
+        }"
         >
-            <!-- <sidebar v-if="state.authenticated" class="-mt-12 w-1/6"/> -->
-            <div class="w-full">
+        <div class="w-full">
                 <slot></slot>
             </div>
         </div>

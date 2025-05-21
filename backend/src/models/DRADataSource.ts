@@ -1,4 +1,4 @@
-import { Column, Entity, JoinTable, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, JoinColumn, JoinTable, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { DRAUsersPlatform } from './DRAUsersPlatform';
 import { DRADataModel } from './DRADataModel';
 import { DRAProject } from './DRAProject';
@@ -20,12 +20,14 @@ export class DRADataSource {
 
     @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.data_sources)
     @JoinTable()
+    @JoinColumn({ name: 'users_platform_id', referencedColumnName: 'id' })
     users_platform: DRAUsersPlatform
     @OneToMany(() => DRADataModel, (dataModel) => dataModel.data_source, { cascade: ["remove", "update"] })
     @JoinTable()
     data_models: DRADataModel[]
     @ManyToOne(() => DRAProject, (project) => project.data_sources)
     @JoinTable()
+    @JoinColumn({ name: 'project_id', referencedColumnName: 'id' })
     project: DRAProject
     
 }

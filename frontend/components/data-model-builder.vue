@@ -459,7 +459,7 @@ async function executeQueryOnExternalDataSource() {
     }
 }
 onMounted(async () => {
-    const elements = document.getElementsByClassName('draggable')
+    const elements = document.getElementsByClassName('draggable');
     elements.forEach((elemen) => {
         elemen.addEventListener('drag', (event) => {
             window.scrollTo({ top: 400, behavior: 'smooth'});
@@ -472,7 +472,7 @@ onMounted(async () => {
 })
 </script>
 <template>
-   <div class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md">
+   <div class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 border border-primary-blue-100 border-solid p-10 shadow-md">
         <div class="font-bold text-2xl mb-5">
             Create A Data Model from the Connected Data Source
         </div>
@@ -502,9 +502,12 @@ onMounted(async () => {
                 <h2 class="font-bold text-center mb-5">Tables</h2>
                 <div class="grid grid-cols-1 sm:grid-cols-2 md:Grid-cols-3 md:gap-2">
                     <div v-for="table in state.tables" class="flex flex-col border border-primary-blue-100 border-solid p-1">
-                        <h4 class="bg-gray-300 text-center font-bold p-1 mb-2">{{ table.schema }}.{{ table.table_name }}</h4>
+                        <h4 class="bg-gray-300 text-center font-bold p-1 mb-2 overflow-clip text-ellipsis" 
+                            v-tippy="{ content: `${table.schema}.${table.table_name}`, placement: 'bottom' }"
+                        >
+                            {{ table.schema }}.{{ table.table_name }}
+                        </h4>
                         <draggable
-                            class="list-group draggable"
                             :list="table.columns"
                             :group="{
                                 name: 'tables',
@@ -514,7 +517,7 @@ onMounted(async () => {
                             itemKey="name"
                         >
                             <template #item="{ element, index }">
-                                <div class="list-group-item cursor-pointer p-1 ml-2 mr-2"
+                                <div class="cursor-pointer p-1 ml-2 mr-2"
                                     :class="{
                                         'bg-gray-200': !element.reference.foreign_table_schema ? index % 2 === 0 : false,
                                         'bg-red-100 border-t-1 border-b-1 border-red-300': isColumnInDataModel(element.column_name, table.table_name),
@@ -539,7 +542,7 @@ onMounted(async () => {
             </div>
             <div class="w-1/2 flex h-full flex-col">
                 <h2 class="font-bold text-center mb-5">Data Model</h2>
-                <div class="w-full border border-primary-blue-100 border-solid" id="data-model-container">
+                <div class="w-full border border-primary-blue-100 border-solid draggable" id="data-model-container">
                     <div class="flex flex-col p-5">
                         <div class="flex flex-row justify-center bg-gray-300 text-center font-bold p-1 mb-2">
                             <h4 class="w-full font-bold">
@@ -547,7 +550,7 @@ onMounted(async () => {
                             </h4>
                         </div>
                         <draggable
-                            class="list-group min-h-100 bg-gray-100"
+                            class="min-h-1000 bg-gray-100"
                             :list="state.data_table.columns"
                             group="tables"
                             @change="changeDataModel"
@@ -559,7 +562,7 @@ onMounted(async () => {
                                 </div>
                             </template>
                             <template #item="{ element, index }">
-                                <div class="list-group-item cursor-pointer p-1 ml-2 mr-2"
+                                <div class="cursor-pointer p-1 ml-2 mr-2"
                                     :class="{
                                         'bg-gray-200': index % 2 === 0,
                                     }"
@@ -739,7 +742,7 @@ onMounted(async () => {
                                         class="w-full justify-center text-center items-center self-center mb-5 p-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md"
                                         @click="saveDataModel"
                                     >
-                                        <template v-if="props.isEditDataModel">Edit</template><template v-else>Save</template> Data Model
+                                        <template v-if="props.isEditDataModel">Update</template><template v-else>Save</template> Data Model
                                     </div>
                                 </div>
                             </template>
