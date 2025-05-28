@@ -91,6 +91,11 @@ async function loginUser() {
 
 onMounted(async () => {
     await getToken();
+    window.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+            loginUser();
+        }
+    });
 
 })
 </script>
@@ -119,6 +124,7 @@ onMounted(async () => {
                 :class="!state.emailError ? '' : 'bg-red-300 text-black'"
                 placeholder="Email"
                 :disabled="state.loading"
+                @keydown.enter="loginUser"
             />
             <input
                 v-model="state.password"
@@ -127,12 +133,14 @@ onMounted(async () => {
                 :class="!state.passwordError ? '' : 'bg-red-300 text-black'"
                 placeholder="Password"
                 :disabled="state.loading"
+                @keydown.enter="loginUser"
             />
             <spinner v-if="state.loading"/>
             <div
                 v-else
                 class="w-1/4 text-center self-center mb-5 p-2 m-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md"
                 @click="loginUser"
+                @keydown.enter="loginUser"
             >
                 Login
             </div>

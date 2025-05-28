@@ -8,8 +8,6 @@ const dataSourceStore = useDataSourceStore();
 const dataModelsStore = useDataModelsStore();
 const visualizationsStore = useVisualizationsStore();
 const { $swal } = useNuxtApp();
-const route = useRoute();
-const router = useRouter();
 const state = reactive({
     data_models: [],
 
@@ -31,7 +29,7 @@ const dataModel = computed(() => {
 });
 async function getVisualizations() {
     state.data_models = [];
-    state.data_models = visualizationsStore.getVisualizations().filter((dataModel) => dataModel.data_source_id === dataSource.value.id).map((dataModel) => {
+    state.data_models = visualizationsStore.getVisualizations().filter((dataModel) => dataModel?.data_source_id === dataSource?.value?.id).map((dataModel) => {
         return {
             id: dataModel.id,
             schema: dataModel.schema,
@@ -84,7 +82,7 @@ onMounted(async () => {
 })
 </script>
 <template>
-    <div class="flex flex-col">
+    <div v-if="project && project.id" class="flex flex-col">
         <tabs :project-id="project.id"/>
         <div class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 mb-10 border border-primary-blue-100 border-solid p-10 shadow-md">
             <div class="font-bold text-2xl mb-5">

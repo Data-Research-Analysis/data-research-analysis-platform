@@ -18,7 +18,10 @@ watch(
     await projectsStore.retrieveProjects();
     await dataSourceStore.retrieveDataSources();
     await dataModelsStore.retrieveDataModels();
-    await dataModelsStore.retrieveDataModelTables(projectsStore.getSelectedProject().id);
+
+    if (projectsStore?.getSelectedProject()?.id) {
+        await dataModelsStore.retrieveDataModelTables(projectsStore?.getSelectedProject()?.id);
+    }
     // await visualizationsStore.retrieveVisualizations();
     if (value?.params?.projectid) {
         const projectId = parseInt(value.params.projectid);
@@ -32,7 +35,10 @@ onMounted(async () => {
     await projectsStore.retrieveProjects();
     await dataSourceStore.retrieveDataSources();
     await dataModelsStore.retrieveDataModels();
-    await dataModelsStore.retrieveDataModelTables(projectsStore.getSelectedProject().id);
+    console.log('mounted projectsStore.getSelectedProject()', projectsStore?.getSelectedProject()?.id || null);
+    if (projectsStore?.getSelectedProject()?.id) {
+        await dataModelsStore.retrieveDataModelTables(projectsStore?.getSelectedProject()?.id);
+    }
     // await visualizationsStore.retrieveVisualizations();
 })
 </script>

@@ -15,7 +15,10 @@ function buildBreadcrumbs() {
     let url = '';
     //for this method change the name of the route data-sources to datasources so that it is not split into two parts
     //this is a workaround for the issue with the route name being split into two parts
-    const routeName = route.name.replaceAll('data-sources', 'datasources');
+    const routeName = route?.name?.replaceAll('data-sources', 'datasources');
+    if (!routeName) {
+        return;
+    }
     route.fullPath.split('/').forEach((path, index) => {
         if (path && path !== '') {
             let breadCrumbText = routeName.split('-')[index - 1];
@@ -35,7 +38,6 @@ function buildBreadcrumbs() {
             });
         }
     });
-    console.log('state.paths', state.paths);
 }
 
 watch(

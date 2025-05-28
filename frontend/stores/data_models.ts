@@ -52,9 +52,13 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         setDataModels(data)
     }
     async function retrieveDataModelTables(projectId: number) {
+        if (!projectId) {
+            setDataModelTables([]);
+            return;
+        }
         const token = getAuthToken();
         if (!token) {
-            dataModelTables.value = [];
+            setDataModelTables([]);
             return;
         }
         const url = `${baseUrl()}/data-model/tables/project/${projectId}`;

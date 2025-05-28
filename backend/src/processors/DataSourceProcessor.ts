@@ -301,8 +301,12 @@ export class DataSourceProcessor {
             if (!dbConnector) {
                 return resolve(null);
             }
-            const results = await dbConnector.query(query);
-            return resolve(results);
+            try {
+                const results = await dbConnector.query(query);
+                return resolve(results);
+            } catch (error) {
+                return resolve(null);
+            }
         });
     }
 

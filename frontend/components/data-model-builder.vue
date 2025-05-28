@@ -5,8 +5,7 @@ const route = useRoute();
 const router = useRouter();
 const state = reactive({
     show_dialog: false,
-    tables: [
-    ],
+    tables: [],
     data_table: {
         table_name: 'Data Model Table',
         columns: [],
@@ -152,14 +151,14 @@ function closeDialog() {
 async function changeDataModel(event) {
     state.data_table.columns = state.data_table.columns.filter((column) => {
          //Remove the foreign key column. Do not allow to columns that are foreign keys in the referenced table
-        if (event?.added?.element?.reference?.foreign_table_schema && event?.added?.element?.reference?.local_table_name === column?.table_name && event?.added?.element?.reference?.local_column_name === column?.column_name) {
-            $swal.fire({
-                icon: 'error',
-                title: `Error!`,
-                text: `The column can not be added to the data model.`,
-            });
-            return false
-        }
+        // if (event?.added?.element?.reference?.foreign_table_schema && event?.added?.element?.reference?.local_table_name === column?.table_name && event?.added?.element?.reference?.local_column_name === column?.column_name) {
+        //     $swal.fire({
+        //         icon: 'error',
+        //         title: `Error!`,
+        //         text: `The column can not be added to the data model.`,
+        //     });
+        //     return false
+        // }
         //remove duplicate columns
         if (state.data_table.columns.filter((c) => c.column_name === column.column_name && c.table_name === column.table_name).length > 1) {
             return false;
@@ -265,7 +264,7 @@ function buildSQLQuery() {
     let fromJoinClause = [];
     let dataTables = state.data_table.columns.map((column) => `${column.schema}.${column.table_name}`);
   
-    const fromJoinClauses = [];
+    let fromJoinClauses = [];
     const tableCombinations = [];
     dataTables = _.uniq(dataTables);
     if (dataTables.length === 1) {
@@ -293,6 +292,27 @@ function buildSQLQuery() {
                 }
             });
         });
+
+        /**
+         * Reordering the fromJoinClauses so that any table that is seen as a foreign table seen earlier on in the list 
+         * is then seen as local table, then to add this particular table join object to the begining of the array
+         * so that the ordering of the tables being joined are correctly joined and their ON statements are correctly
+         * ordered as well.
+         */
+        let modified_tables = [];
+        for (let i=0; i<fromJoinClauses.length;i++) {
+            for (let j=0;j<fromJoinClauses.length;j++) {
+                if (fromJoinClauses[i].foreign_table_name === fromJoinClauses[j].local_table_name) {
+                    modified_tables.push(fromJoinClauses[j]);
+                }
+            }
+        }
+        for (let i=0; i<fromJoinClauses.length;i++) {
+            if (!modified_tables.find((table) => table.local_table_name === fromJoinClauses[i].local_table_name && table.foreign_table_name === fromJoinClauses[i].foreign_table_name)) {
+                modified_tables.push(fromJoinClauses[i]);
+            }
+        }
+        fromJoinClauses = modified_tables;
         fromJoinClauses.forEach((clause, index) => {
             if (index === 0) {
                 fromJoinClause.push(`FROM ${clause.local_table_schema}.${clause.local_table_name}`)
@@ -459,12 +479,25 @@ async function executeQueryOnExternalDataSource() {
     }
 }
 onMounted(async () => {
-    const elements = document.getElementsByClassName('draggable');
-    elements.forEach((elemen) => {
-        elemen.addEventListener('drag', (event) => {
-            window.scrollTo({ top: 400, behavior: 'smooth'});
-        })
+
+    document.addEventListener("scroll", () => {
+        // console.log('window.scrollY', window.scrollY);
+        if (window.scrollY > 1500) {
+            // console.log('in scroll')
+            const elements = document.getElementsByClassName('draggable');
+            elements.forEach((elemen) => {
+                // elemen.addEventListener('drag', (event) => {
+                    // window.scrollTo({ top: 400, behavior: 'smooth'});
+                // })
+            })
+        } else {
+            const elements = document.getElementsByClassName('draggable');
+            elements.forEach((elemen) => {
+                elemen.removeEventListener('drag', () => {})
+            })
+        }
     })
+
     if (props.dataModel && props.dataModel.query) {
         state.data_table = props.dataModel.query;
     }
@@ -522,7 +555,6 @@ onMounted(async () => {
                                         'bg-gray-200': !element.reference.foreign_table_schema ? index % 2 === 0 : false,
                                         'bg-red-100 border-t-1 border-b-1 border-red-300': isColumnInDataModel(element.column_name, table.table_name),
                                         'hover:bg-green-100': !isColumnInDataModel(element.column_name, table.table_name),
-                                        'hover:bg-red-300': element.reference && element.reference.foreign_table_schema,
                                     }"
                                 >
                                     Column: <strong>{{ element.column_name }}</strong><br />

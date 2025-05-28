@@ -1,4 +1,7 @@
 <script setup>
+import { useVisualizationsStore } from '@/stores/visualizations';
+
+const visualizationsStore = useVisualizationsStore();
 const route = useRoute();
 const state = reactive({
     dataModelsOpened: true,
@@ -16,6 +19,22 @@ watch(
     updateStatus();
   },
 );
+watch( visualizationsStore, (value) => {
+    console.log('columnsAdded changed', value.getColumnsAdded());
+});
+const columnsAdded = computed(() => {
+    return visualizationsStore.getColumnsAdded();
+});
+function isDataModelEnabled(dataModel) {
+    if (columnsAdded.value.length) {
+        const tableName = columnsAdded.value[0].table_name;
+        if (dataModel.model_name === tableName) {
+            return true;
+        }
+        return false;
+    }
+    return true;
+}
 function toggleDataModels(dataModel) {
     dataModel.show_model = !dataModel.show_model;
 }
@@ -45,7 +64,7 @@ onMounted(async () => {
             <div
                 v-for="dataModel in props.dataModels"
                 :key="dataModel.id"
-                class="text-md cursor-pointer w-full h-10 flex items-center justify-start mb-2"
+                class="text-mdw-full h-10 flex items-center justify-start mb-2"
                 :class="{
                     'opacity-0': !state.dataModelsOpened,
                     'opacity-100': state.dataModelsOpened,
@@ -53,15 +72,14 @@ onMounted(async () => {
                     'h-auto': state.dataModelsOpened
                 }"
             >
-                
-                <div class="flex flex-col ml-4 select-none">
+                <div v-if="isDataModelEnabled(dataModel)" class="flex flex-col ml-4 select-none cursor-pointer ">
                     <div class="flex flex-row" @click="toggleDataModels(dataModel)">
                         <font-awesome v-if="!dataModel.show_model" icon="fas fa-angle-right" class="mt-1 mr-1" />
                         <font-awesome v-else="dataModel.show_model" icon="fas fa-angle-down" class="mt-1 mr-1" />
-                        <h5 class="w-2/3 overflow-clip text-ellipsis"
+                        <h5 class="w-full"
                             v-tippy="{ content: `${dataModel.cleaned_model_name}`, placement: 'right' }"
                         >
-                            {{ dataModel.cleaned_model_name }}
+                            {{ dataModel.cleaned_model_name.length > 20 ? `${dataModel.cleaned_model_name.substring(0, 20)}...`: dataModel.cleaned_model_name }}
                         </h5>
                     </div>
                     <div v-if="dataModel.show_model">
@@ -73,11 +91,19 @@ onMounted(async () => {
                                 itemKey="column_name"
                             >
                                 <template #item="{ element, index }">
-                                    <h6 v-tippy="{content:`Column Name: ${element.column_name}<br />Column Data Type: ${element.data_type}`}" class="text-sm font-bold w-2/3 overflow-clip text-ellipsis">{{ element.column_name }}</h6>
+                                    <h6 v-tippy="{content:`Column Name: ${element.column_name}<br />Column Data Type: ${element.data_type}`}" class="text-sm font-bold hover:text-gray-500 p-1 m-1">
+                                        {{ element.column_name.length > 20 ? `${element.column_name.substring(0, 20)}...`: element.column_name }}
+                                    </h6>
                                 </template>
                             </draggable>
                         <!-- </div> -->
                     </div>
+                </div>
+                <div v-else class="flex flex-row items-center text-gray-500 ml-4 select-none"
+                    v-tippy="{ content: 'Delete all of the columns from the selected data model to add columns from this data model.', placement: 'right' }"
+                >
+                    <font-awesome icon="fas fa-angle-right" class="mt-1 mr-1" />
+                    {{ dataModel.cleaned_model_name.length > 20 ? `${dataModel.cleaned_model_name.substring(0, 20)}...`: dataModel.cleaned_model_name }}
                 </div>
             </div>
         </div>        

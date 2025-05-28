@@ -43,4 +43,12 @@ router.get('/tables/project/:project_id', async (req: Request, res: Response, ne
     const data_models_tables_list = await DataModelProcessor.getInstance().getTablesFromDataModels(project_id, req.body.tokenDetails);    
     res.status(200).send(data_models_tables_list);
 });
+router.post('/execute-query-on-data-model', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([body('query').notEmpty().trim()]),
+async (req: Request, res: Response) => {
+    const { data_source_id, query } = matchedData(req);
+    const response = await DataModelProcessor.getInstance().executeQueryOnDataModel(query, req.body.tokenDetails);
+    res.status(200).send(response); 
+});
 export default router;
