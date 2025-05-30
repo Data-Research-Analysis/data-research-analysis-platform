@@ -1,6 +1,7 @@
 import { Column, Entity, JoinColumn, JoinTable, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { DRAUsersPlatform } from './DRAUsersPlatform';
 import { DRADataSource } from './DRADataSource';
+import { DRAVisualization } from './DRAVisualization';
 @Entity('dra_projects')
 export class DRAProject {
     @PrimaryGeneratedColumn()
@@ -11,10 +12,13 @@ export class DRAProject {
     created_at: Date
 
     @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.projects)
-    @JoinTable()
     @JoinColumn({ name: 'users_platform_id', referencedColumnName: 'id' })
-    users_platform: DRAUsersPlatform
+    users_platform!: DRAUsersPlatform
+    
     @OneToMany(() => DRADataSource, (dataSource) => dataSource.project, { cascade: ["remove", "update"] })
-    @JoinTable()
-    data_sources: DRADataSource[]
+    data_sources!: DRADataSource[]
+
+    @OneToMany(() => DRAVisualization, (visualization) => visualization.project, { cascade: ["remove", "update"] })
+    visualizations!: DRAVisualization[]
+
 }

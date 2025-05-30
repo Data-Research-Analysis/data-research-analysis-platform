@@ -19,15 +19,14 @@ export class DRADataSource {
     created_at: Date
 
     @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.data_sources)
-    @JoinTable()
     @JoinColumn({ name: 'users_platform_id', referencedColumnName: 'id' })
-    users_platform: DRAUsersPlatform
+    users_platform!: DRAUsersPlatform
+    
     @OneToMany(() => DRADataModel, (dataModel) => dataModel.data_source, { cascade: ["remove", "update"] })
-    @JoinTable()
-    data_models: DRADataModel[]
+    data_models!: DRADataModel[]
+    
     @ManyToOne(() => DRAProject, (project) => project.data_sources)
-    @JoinTable()
     @JoinColumn({ name: 'project_id', referencedColumnName: 'id' })
-    project: DRAProject
+    project!: DRAProject
     
 }

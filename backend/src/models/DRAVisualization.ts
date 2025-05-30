@@ -1,18 +1,22 @@
-import { Column, Entity, JoinColumn, JoinTable, ManyToMany, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, JoinColumn, JoinTable, ManyToMany, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { DRAUsersPlatform } from './DRAUsersPlatform';
-import { DRADataModel } from './DRADataModel';
+import { DRAProject } from './DRAProject';
+import { DRAVisualizationModel } from './DRAVisualizationModel';
 @Entity('dra_visualizations')
 export class DRAVisualization {
   @PrimaryGeneratedColumn()
   id: number;
   
+  @OneToMany(() => DRAVisualizationModel, (visualizationModel) => visualizationModel.visualization)
+  visualization_models: DRAVisualizationModel[]
+
   @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.visualizations)
-  @JoinTable()
   @JoinColumn({ name: 'users_platform_id', referencedColumnName: 'id' })
-  users_platform: DRAUsersPlatform
-  @ManyToMany(() => DRADataModel)
-  @JoinTable()
-  @JoinColumn({ name: 'data_model_id', referencedColumnName: 'id' })
-  data_models: DRADataModel[]
+  users_platform!: DRAUsersPlatform
+  
+  @ManyToOne(() => DRAProject, (project) => project.visualizations)
+  @JoinColumn({ name: 'project_id', referencedColumnName: 'id' })
+  project!: DRAProject
+  
 
 }
