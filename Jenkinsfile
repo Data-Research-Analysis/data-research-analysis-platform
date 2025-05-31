@@ -33,7 +33,7 @@ pipeline {
                     ls -al
                     node --version
                     npm --version
-                    cd frontend && printf NUXT_API_URL=$NUXT_API_URL\rNUXT_RECAPTCHA_SITE_KEY=$NUXT_RECAPTCHA_SITE_KEY\rNUXT_PORT=$NUXT_PORT\nNUXT_PLATFORM_ENABLED=$NUXT_PLATFORM_ENABLED > .env && npm ci && npm run build
+                    cd frontend && printf NUXT_API_URL=$NUXT_API_URL\rNUXT_RECAPTCHA_SITE_KEY=$NUXT_RECAPTCHA_SITE_KEY\rNUXT_PORT=$NUXT_PORT\rNUXT_PLATFORM_ENABLED=$NUXT_PLATFORM_ENABLED > .env && npm ci && npm run build
                     ls -al
                 '''
             }
