@@ -43,7 +43,6 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
       }
     }
   } else {
-    console.log('to', to);
     if (to.path === "/login" || to.path === "/register"
         || to.path === "/" || to.path === "/privacy-policy"
         || to.path === "/terms-conditions" || to.name === "verify-email-code"

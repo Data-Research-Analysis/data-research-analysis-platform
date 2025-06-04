@@ -19,9 +19,8 @@ watch(
     updateStatus();
   },
 );
-watch( visualizationsStore, (value) => {
-    console.log('columnsAdded changed', value.getColumnsAdded());
-});
+// watch( visualizationsStore, (value) => {
+// });
 const columnsAdded = computed(() => {
     return visualizationsStore.getColumnsAdded();
 });
@@ -44,7 +43,6 @@ function updateStatus() {
     }
 }
 onMounted(async () => {
-    console.log('mounted props.dataModels', props.dataModels);
 })
 </script>
 <template>

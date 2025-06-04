@@ -481,9 +481,7 @@ async function executeQueryOnExternalDataSource() {
 onMounted(async () => {
 
     document.addEventListener("scroll", () => {
-        // console.log('window.scrollY', window.scrollY);
         if (window.scrollY > 1500) {
-            // console.log('in scroll')
             const elements = document.getElementsByClassName('draggable');
             elements.forEach((elemen) => {
                 // elemen.addEventListener('drag', (event) => {

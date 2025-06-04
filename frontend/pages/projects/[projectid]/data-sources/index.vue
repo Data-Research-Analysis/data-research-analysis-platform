@@ -2,7 +2,6 @@
 const route = useRoute();
 const router = useRouter();
 onMounted(() => {
-    console.log(route.fullPath);
     let path = route.fullPath.split('/');
     path = path.filter((item, index) => index < path.length - 1).join('/');
     router.push(path);
@@ -16,7 +15,6 @@ function closeDialog() {
 
 function getDataSources() {
     state.data_sources = [];
-    console.log('getDataSources dataSourceStore.getDataSources()', dataSourceStore.getDataSources());
     state.data_sources = dataSourceStore.getDataSources().filter((dataSource) => dataSource?.project?.id === project?.value?.id).map((dataSource) => {
         return {
             id: dataSource.id,

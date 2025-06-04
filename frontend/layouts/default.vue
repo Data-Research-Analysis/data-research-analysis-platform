@@ -35,7 +35,6 @@ onMounted(async () => {
     await projectsStore.retrieveProjects();
     await dataSourceStore.retrieveDataSources();
     await dataModelsStore.retrieveDataModels();
-    console.log('mounted projectsStore.getSelectedProject()', projectsStore?.getSelectedProject()?.id || null);
     if (projectsStore?.getSelectedProject()?.id) {
         await dataModelsStore.retrieveDataModelTables(projectsStore?.getSelectedProject()?.id);
     }
