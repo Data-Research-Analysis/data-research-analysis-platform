@@ -79,41 +79,32 @@ function selectChartType(chartType) {
         event.target.parentNode.removeEventListener('mousedown', () => {});
         draggableDivContainer.removeChild(event.target.parentNode);
     });
-
-    const changeDimensions = document.createElement('div');
-    changeDimensions.innerHTML = `Change Dimensions ${chartType} ${draggableDivContainer.childNodes.length}`;
-    changeDimensions.style.userSelect = 'none';
-    changeDimensions.addEventListener('click', (event) => {
-        state.selectedDiv = event.target.parentNode
-        state.isChangingDimensions = true;
-        state.initialWidth = event.target.parentNode.clientWidth;
-        state.initialHeight = event.target.parentNode.clientHeight;
-        state.initialWidth = event.clientX;
-        state.initialHeight = event.clientY;
-        // console.log('state.initialWidth', state.initialWidth);
-        // console.log('state.initialHeight', state.initialHeight);
-    });
-
     div.appendChild(deleteSpan);
-    div.appendChild(changeDimensions);
-    
     draggableDivContainer.appendChild(div);
     div.addEventListener('mousedown', (event) => {
         // console.log('mousedown on div', event);
-        state.selectedDiv = event.target;
-        state.offsetX = event.clientX - div.getBoundingClientRect().left;
-        state.offsetY = event.clientY - div.getBoundingClientRect().top;
-        state.initialX = state.offsetX;
-        state.initialY = state.offsetY;
-        state.selectedDiv.style.border = 'dashed 1px #000000';
-        if (state.offsetX > div.getBoundingClientRect().width - 50 && state.offsetY > div.getBoundingClientRect().height - 50) {
-            state.isChangingDimensions = true;
-            div.style.cursor = 'nw-resize';
-            state.isDragging = false;
-        } else {
-            state.isChangingDimensions = false;
-            div.style.cursor = 'move';
-            state.isDragging = true;
+        if (event.target.tagName === 'DIV') {
+            state.selectedDiv = event.target;
+            state.offsetX = event.clientX - div.getBoundingClientRect().left;
+            state.offsetY = event.clientY - div.getBoundingClientRect().top;
+            state.initialX = state.offsetX;
+            state.initialY = state.offsetY;
+            console.log('state.offsetX', state.offsetX)
+            console.log('state.offsetY', state.offsetY)
+            state.selectedDiv.style.border = 'dashed 1px #000000';
+            if (state.offsetX > div.getBoundingClientRect().width - 50 && state.offsetY > div.getBoundingClientRect().height - 50) {
+                state.isChangingDimensions = true;
+                div.style.cursor = 'nw-resize';
+                state.isDragging = false;
+            } else if (state.offsetX > 0 && state.offsetX < 10 && state.offsetY > div.getBoundingClientRect().height - 50) {
+                state.isChangingDimensions = true;
+                div.style.cursor = 'sw-resize';
+                state.isDragging = false;
+            } else {
+                state.isChangingDimensions = false;
+                div.style.cursor = 'move';
+                state.isDragging = true;
+            }
         }
     });
 
@@ -262,16 +253,34 @@ onMounted(async () => {
         })
     })
 
-    // document.getElementsByClassName('draggable-div').forEach((div) => {
-    //     div.addEventListener('mousedown', (event) => {
-    //         // console.log('mousedown on div', event);
-    //         state.selectedDiv = event.target;
-    //         state.offsetX = event.clientX - div.getBoundingClientRect().left;
-    //         state.offsetY = event.clientY - div.getBoundingClientRect().top;
-    //         state.isDragging = true;
-    //         state.selectedDiv.style.border = 'dashed 1px #000000';
-    //     });
-    // });
+    document.getElementsByClassName('draggable-div').forEach((div) => {
+        div.addEventListener('mousedown', (event) => {
+            // console.log('mousedown on div', event);
+            if (event.target.tagName === 'DIV') {
+                state.selectedDiv = event.target;
+                state.offsetX = event.clientX - div.getBoundingClientRect().left;
+                state.offsetY = event.clientY - div.getBoundingClientRect().top;
+                state.initialX = state.offsetX;
+                state.initialY = state.offsetY;
+                state.selectedDiv.style.border = 'dashed 1px #000000';
+                if (state.offsetX > div.getBoundingClientRect().width - 50 && state.offsetY > div.getBoundingClientRect().height - 50) {
+                    state.isChangingDimensions = true;
+                    div.style.cursor = 'nw-resize';
+                    state.isDragging = false;
+                } else {
+                    state.isChangingDimensions = false;
+                    div.style.cursor = 'move';
+                    state.isDragging = true;
+                }
+            }
+        });
+
+        div.addEventListener('mouseup', (event) => {
+            div.style.cursor = 'pointer';
+            state.isChangingDimensions = false;
+            state.isDragging = false;
+        });
+    });
     let draggableDivContainer = document.getElementsByClassName('draggable-div-container')[0];
     draggableDivContainer.addEventListener('mouseenter', (event) => {
         state.xDiff = event.clientX
@@ -281,7 +290,7 @@ onMounted(async () => {
     draggableDivContainer.addEventListener('mousemove', (event) => {
         let newX = event.clientX - draggableDivContainer.getBoundingClientRect().left - state.offsetX;
         let newY = event.clientY - draggableDivContainer.getBoundingClientRect().top - state.offsetY;
-        if (state.isDragging && state.selectedDiv) {
+        if (state.isDragging && state.selectedDiv && state.selectedDiv.tagName === 'DIV') {
             // console.log('mousemove on container', event);
             // console.log('dragging', `${event.clientX}px`)
             const windowWidth = draggableDivContainer.clientWidth;
@@ -301,7 +310,8 @@ onMounted(async () => {
             state.selectedDiv.style.left = `${newX}px`;
             state.selectedDiv.style.top = `${newY}px`;
         } else {
-            if (state.isChangingDimensions && state.selectedDiv) {
+            if (state.isChangingDimensions && state.selectedDiv && state.selectedDiv.tagName === 'DIV') {
+                console.log('selectedDiv', state.selectedDiv.tagName)
                 if (newX >= state.previousX && newY >= state.previousY) {
                     const newWidth = parseInt(state.selectedDiv.offsetWidth) + 1;
                     const newHeight = parseInt(state.selectedDiv.offsetHeight) + 1;
@@ -315,6 +325,7 @@ onMounted(async () => {
                 }
             }
         }
+
         state.previousX = newX;
         state.previousY = newY;
 
@@ -325,7 +336,6 @@ onMounted(async () => {
         //     const top = event.clientY - div.getBoundingClientRect().top;
         //     console.log('dragable-div width', width, 'height', height, 'left', left, 'top', top);
         //     console.log('dragable-div width + left', width + left);
-            
         // });
     })
 
@@ -337,12 +347,11 @@ onMounted(async () => {
         state.isDragging = false;
         state.isChangingDimensions = false;
     })
-
 });
 </script>
 <template>
     <div class="flex flex-row">
-        <sidebar class="w-1/6" :data-models="state.data_model_tables" />
+        <sidebar class="w-1/6" :data-models="state.clkl" />
         <div class="flex flex-row w-5/6">
             <div class="flex flex-col w-5/6 ml-2 mr-2">
                 <div class="flex flex-row justify-between">
@@ -352,12 +361,26 @@ onMounted(async () => {
                             <h3 class="ml-2 mr-2">Save Visualization</h3>
                         </div>
                     </div>
-                </div>   
+                </div>
                 <div class="flex flex-col min-h-200 overflow-x-auto ml-10 mr-2 mb-10 border border-primary-blue-100 border-solid bg-gray-200">
                     <div class="w-full border border-gray-400 border-dashed h-10 flex flex-row justify-center items-center text-center font-bold text-gray-500">
                         Drag columns from the side bar given in the left into the blue area below to build your visualization.
                     </div>
-                    <div class="w-full h-full bg-gray-300 draggable-div-container relative"></div>                    
+                    <div class="w-full h-full bg-gray-300 draggable-div-container relative">
+                        <div class="w-50 h-50 flex flex-col justify-between bg-blue-300 cursor-pointer draggable-div absolute top-0 left-0" style="border: none; cursor: pointer;">
+                            <div class="flex flex-row justify-between">
+                                <img src="/assets/images/resize-corner.svg" class="w-[12px] rotate-180 select-none" alt="Resize Visualization" />
+                                <img src="/assets/images/resize-corner.svg" class="w-[12px] rotate-270 select-none" alt="Resize Visualization" />
+                            </div>
+                            <div class="flex flex-col">
+                                <div style="user-select: none;">Delete pie 0</div>
+                            </div>
+                            <div class="flex flex-row justify-between">
+                                <img src="/assets/images/resize-corner.svg" class="w-[12px] rotate-90 select-none" alt="Resize Visualization" />
+                                <img src="/assets/images/resize-corner.svg" class="w-[12px] select-none" alt="Resize Visualization" />
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="flex flex-col w-1/6 mt-17 mb-10">
