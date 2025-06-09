@@ -31,16 +31,18 @@ function deleteSVGs() {
 function renderSVG() {
  const margin = {
     top: 50,
-    right: 30,
-    bottom: 80,
-    left: 150,
+    right: 50,
+    bottom: 100,
+    left: 50,
   };
   const width = props.width - margin.left - margin.right;
-  const height = Math.min(props.height, 500) - margin.top - margin.bottom;
+  const height = props.height - margin.top - margin.bottom;
   const svgHeight = height + margin.top + margin.bottom;
   const svgWidth = width + margin.left + margin.right;
   const color = $d3.scaleOrdinal(props.data.map((d) => d.label), $d3.schemeCategory10);
   
+  console.log('props.width', props.width, 'props.height', props.height, 'width', width, 'height', height, 'svgWidth', svgWidth, 'svgHeight', svgHeight);
+
   const total = props.data.reduce((total, item) => total + item.value, 0)
   const data = props.data.map((d) => {
     return {
@@ -87,11 +89,14 @@ function renderSVG() {
       .call(text => text.append("tspan")
           .attr("y", "-0.4em")
           .attr("font-weight", "bold")
+          .attr("font-size", "50px")
           .text(d => d.data.label))
       .call(text => text.filter(d => (d.endAngle - d.startAngle) > 0.25).append("tspan")
           .attr("x", 0)
           .attr("y", "0.7em")
           .attr("fill-opacity", 0.7)
+          .attr("font-weight", "bold")
+          .attr("font-size", "50px")
           .text(d => `${d.data.percent_value.toLocaleString("en-US")}%`));
 
   return svg;

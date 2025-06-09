@@ -89,9 +89,16 @@ onMounted(async () => {
                                 itemKey="column_name"
                             >
                                 <template #item="{ element, index }">
-                                    <h6 v-tippy="{content:`Column Name: ${element.column_name}<br />Column Data Type: ${element.data_type}`}" class="text-sm font-bold hover:text-gray-500 p-1 m-1">
-                                        {{ element.column_name.length > 20 ? `${element.column_name.substring(0, 20)}...`: element.column_name }}
-                                    </h6>
+                                    <div class="flex flex-row items-center">
+                                        <div class="h-10 flex flex-col justify-center">
+                                            <input type="checkbox" class="cursor-pointer mt-1" />
+                                        </div>
+                                        <div class="h-10 flex flex-col justify-center">
+                                            <h6 v-tippy="{content:`Column Name: ${element.column_name}<br />Column Data Type: ${element.data_type}`}" class="text-sm font-bold hover:text-gray-500 p-1 m-1">
+                                                {{ element.column_name.length > 20 ? `${element.column_name.substring(0, 20)}...`: element.column_name }}
+                                            </h6>
+                                        </div>
+                                    </div>
                                 </template>
                             </draggable>
                         <!-- </div> -->

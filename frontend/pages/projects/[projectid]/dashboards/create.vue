@@ -1,11 +1,12 @@
 <script setup>
+import { createVNode, render } from 'vue';
 import { useProjectsStore } from '@/stores/projects';
 import { useDataSourceStore } from '@/stores/data_sources';
 import { useDataModelsStore } from '@/stores/data_models';
 import { useVisualizationsStore } from '@/stores/visualizations';
 import _ from 'lodash';
-import { label } from 'happy-dom/lib/PropertySymbol.js';
-import { toDisplayString } from 'vue';
+import draggable from 'vuedraggable';
+import pie from '@/components/charts/pie-chart.vue';
 const projectsStore = useProjectsStore();
 const dataSourceStore = useDataSourceStore();
 const dataModelsStore = useDataModelsStore();
@@ -32,13 +33,17 @@ const state = reactive({
     offsetX: 0,
     offsetY: 0,
     isDragging: false,
-    isChangingDimensions: false,
+    isResizing: false,
+    activeHandle: '',
     initialWidth: 0,
     initialHeight: 0,
     initialX: 0,
     initialY: 0,
     previousX: 0,
     previousY: 0,
+    startResizeX: 0,
+    startResizeY: 0,
+    charts: [],
  });
 const project = computed(() => {
     return projectsStore.getSelectedProject();
@@ -58,90 +63,17 @@ const showQueryDialogButton = computed(() => {
 const showPieChart = computed(() => {
     return state.visualizations_data_model && state.visualizations_data_model.columns && state.visualizations_data_model.columns.length && state.visualizations_data_model.columns.length === 2 && state.pie_chart_data && state.pie_chart_data.length
 })
-function selectChartType(chartType) {
-    //table, pie, vertical_bar, horizontal_bar, vertical_bar_line, stacked_bar, multiline, heatmap, bubble, stacked_area, map
-    state.chart_mode = chartType;
-    const draggableDivContainer = document.getElementsByClassName('draggable-div-container')[0];
-    const div = document.createElement('div');
-    div.classList.add('w-50');
-    div.classList.add('h-50');
-    div.classList.add('bg-blue-300');
-    div.classList.add('cursor-pointer');
-    div.classList.add('draggable-div');
-    div.classList.add('absolute');
-    div.classList.add('top-0');
-    div.classList.add('left-0');
-    
-    const deleteSpan = document.createElement('div');
-    deleteSpan.innerHTML = `Delete ${chartType} ${draggableDivContainer.childNodes.length}`;
-    deleteSpan.style.userSelect = 'none';
-    deleteSpan.addEventListener('click', (event) => {
-        event.target.parentNode.removeEventListener('mousedown', () => {});
-        draggableDivContainer.removeChild(event.target.parentNode);
-    });
-    div.appendChild(deleteSpan);
-    draggableDivContainer.appendChild(div);
-    div.addEventListener('mousedown', (event) => {
-        // console.log('mousedown on div', event);
-        if (event.target.tagName === 'DIV') {
-            state.selectedDiv = event.target;
-            state.offsetX = event.clientX - div.getBoundingClientRect().left;
-            state.offsetY = event.clientY - div.getBoundingClientRect().top;
-            state.initialX = state.offsetX;
-            state.initialY = state.offsetY;
-            console.log('state.offsetX', state.offsetX)
-            console.log('state.offsetY', state.offsetY)
-            state.selectedDiv.style.border = 'dashed 1px #000000';
-            if (state.offsetX > div.getBoundingClientRect().width - 50 && state.offsetY > div.getBoundingClientRect().height - 50) {
-                state.isChangingDimensions = true;
-                div.style.cursor = 'nw-resize';
-                state.isDragging = false;
-            } else if (state.offsetX > 0 && state.offsetX < 10 && state.offsetY > div.getBoundingClientRect().height - 50) {
-                state.isChangingDimensions = true;
-                div.style.cursor = 'sw-resize';
-                state.isDragging = false;
-            } else {
-                state.isChangingDimensions = false;
-                div.style.cursor = 'move';
-                state.isDragging = true;
-            }
+async function changeDataModel(event) {
+    state.visualizations_data_model.columns = state.visualizations_data_model.columns.filter((column) => {
+        if (state.visualizations_data_model.columns.filter((c) => c.column_name === column.column_name && c.table_name === column.table_name).length > 1) {
+            return false;
+        } else {
+            return true;
         }
     });
-
-    div.addEventListener('mouseup', (event) => {
-        div.style.cursor = 'pointer';
-    });
-
-    // div.addEventListener('mouseleave', (event) => {
-    //     div.style.cursor = 'nw-resize';
-    // });
-    // div.addEventListener('mousemove', (event) => {
-    //     // console.log('mousemove on div', event);
-    //     state.offsetX = event.clientX - div.getBoundingClientRect().left;
-    //     state.offsetY = event.clientY - div.getBoundingClientRect().top;
-    //     // console.log('mousemove on div state.offset', state.offsetX, 'state.offsetY', state.offsetY);
-    //     // console.log('width', div.getBoundingClientRect().width);
-    //     // console.log('height', div.getBoundingClientRect().height);
-    //     console.log(state.offsetX > div.getBoundingClientRect().width - 20 || state.offsetY > div.getBoundingClientRect().height - 20);
-    //     if (state.offsetX > div.getBoundingClientRect().width - 20 || state.offsetY > div.getBoundingClientRect().height - 20) {
-    //         state.isChangingDimensions = false;
-    //         div.style.cursor = 'nw-resize';
-    //     } else {
-    //         state.isChangingDimensions = false;
-    //         div.style.cursor = 'move';
-    //     }
-    // });
-}
-async function changeDataModel(event) {
-    // state.visualizations_data_model.columns = state.visualizations_data_model.columns.filter((column) => {
-    //     if (state.visualizations_data_model.columns.filter((c) => c.column_name === column.column_name && c.table_name === column.table_name).length > 1) {
-    //         return false;
-    //     } else {
-    //         return true;
-    //     }
-    // });
-    // visualizationsStore.setColumnsAdded(state.visualizations_data_model.columns);
-    // await executeQueryOnDataModels();
+    visualizationsStore.setColumnsAdded(state.visualizations_data_model.columns);
+    console.log('state.visualizations_data_model.columns', state.visualizations_data_model.columns);
+    await executeQueryOnDataModels();
 }
 async function removeColumn(column) {
     console.log('removeColumn column', column);
@@ -206,7 +138,7 @@ async function executeQueryOnDataModels() {
     });
     console.log('state.pie_chart_data', state.pie_chart_data);
 }
-async function saveVisualization() {
+async function saveDashboard() {
     let sqlQuery = buildSQLQuery();
     state.sql_query = sqlQuery;
     // // build the data model
@@ -240,7 +172,300 @@ async function saveVisualization() {
     //     });
     // }
 }
+function selectChartType(chartType) {
+    //table, pie, vertical_bar, horizontal_bar, vertical_bar_line, stacked_bar, multiline, heatmap, bubble, stacked_area, map
+    state.chart_mode = chartType;
+    state.charts.push({
+        chart_type: chartType,
+        chart_id: state.charts.length + 1,
+        data: [[{label: 'label1', value: 10,},{label: 'label2', value: 30,}]],
+    });
+    // const draggableDivContainer = document.getElementsByClassName('draggable-div-container')[0];
+    // const cornerImage = document.getElementById('corner-image');
+    // const draggableDiv = document.createElement('div');
+    // const numChildren = draggableDivContainer.childNodes.length;
+    // const draggableModelColumns = document.getElementById('draggable-model-columns');
+    
+    // draggableDiv.classList.add('w-50', 'h-50', 'bg-gray-500', 'cursor-pointer', 'draggable-div', 'absolute', 'top-0', 'left-0', 'flex', 'flex-col', 'justify-between');
+    // draggableDiv.id = `draggableDiv-${numChildren}`;
 
+    // const topPartDiv = document.createElement('div');
+    // const bottomPartDiv = document.createElement('div');
+    
+    // topPartDiv.classList.add('flex', 'flex-row', 'justify-between');
+    // bottomPartDiv.classList.add('flex', 'flex-row', 'justify-between');
+    
+    // const topLeftCornerImage = cornerImage.cloneNode();
+    // topLeftCornerImage.id = `topLeftCornerImage-${numChildren + 1}`;
+    // const topRightCornerImage = cornerImage.cloneNode();
+    // topRightCornerImage.id = `topRightCornerImage-${numChildren + 1}`;
+    // const bottomLeftCornerImage = cornerImage.cloneNode();
+    // bottomLeftCornerImage.id = `bottomLeftCornerImage-${numChildren + 1}`;
+    // const bottomRightCornerImage = cornerImage.cloneNode();
+    // bottomRightCornerImage.id = `bottomRightCornerImage-${numChildren + 1}`;
+
+    // topLeftCornerImage.classList.remove('hidden');
+    // topLeftCornerImage.classList.add('rotate-180', 'top-left-corner-resize');
+    
+    // topRightCornerImage.classList.remove('hidden');
+    // topRightCornerImage.classList.add('rotate-270', 'top-right-corner-resize');
+
+    // bottomLeftCornerImage.classList.remove('hidden');
+    // bottomLeftCornerImage.classList.add('rotate-90', 'bottom-left-corner-resize');
+
+    // bottomRightCornerImage.classList.remove('hidden');
+    // bottomRightCornerImage.classList.add('bottom-right-corner-resize');
+
+    // topPartDiv.appendChild(topLeftCornerImage);
+    // topPartDiv.appendChild(topRightCornerImage);
+
+    // bottomPartDiv.appendChild(bottomLeftCornerImage);
+    // bottomPartDiv.appendChild(bottomRightCornerImage);
+    // draggableDiv.appendChild(topPartDiv);
+    // const draggableDivCustom = document.createElement('div');
+    // // draggableDivCustom.innerHTML = `<component :is="pie" chart-id="1" :data="[{label: 'label1', value: 10,},{label: 'label2', value: 30,}]" :width="400" :height="400" class="mt-5"/>`;
+   
+    // draggableDiv.appendChild(draggableDivCustom);
+
+    // const unmountDraggableComponent = mountDraggableComponent(draggableDivCustom);
+    // draggableDiv.appendChild(draggableModelColumns.cloneNode(true));
+
+    // const deleteSpan = document.createElement('div');
+    // deleteSpan.innerHTML = `Delete ${chartType} ${draggableDivContainer.childNodes.length}`;
+    // deleteSpan.style.userSelect = 'none';
+    // deleteSpan.addEventListener('click', (event) => {
+    //     event.target.parentNode.removeEventListener('mousedown', () => {});
+    //     draggableDivContainer.removeChild(event.target.parentNode);
+    // });
+    // draggableDiv.appendChild(deleteSpan);
+
+    draggableDiv.appendChild(bottomPartDiv);
+    draggableDivContainer.appendChild(draggableDiv);
+    draggableDiv.addEventListener('mousedown', (event) => {
+        if (event.target.tagName === 'DIV' && event.target.classList.contains('draggable-div')) {
+            state.selectedDiv = event.target;
+            draggableDiv.style.cursor = 'move';
+            state.isDragging = true;
+            state.isResizing = false;
+            state.offsetX = event.clientX - draggableDiv.getBoundingClientRect().left;
+            state.offsetY = event.clientY - draggableDiv.getBoundingClientRect().top;
+            state.initialX = state.offsetX;
+            state.initialY = state.offsetY;
+            console.log('state.offsetX', state.offsetX)
+            console.log('state.offsetY', state.offsetY)
+            state.selectedDiv.style.border = 'dashed 1px #000000';
+            document.addEventListener('mousemove', onDrag);
+            document.addEventListener('mouseup', stopDrag);
+        }
+    });
+    draggableDiv.addEventListener('mouseup', (event) => {
+        draggableDiv.style.cursor = 'pointer';
+    });
+    topLeftCornerImage.addEventListener('mousedown', (event) => {
+        state.isResizing = true;
+        state.isDragging = false;
+        state.activeHandle = 'TL';
+        state.startResizeX = event.clientX;
+        state.startResizeY = event.clientY;
+        state.selectedDiv = event.target.parentNode.parentNode;
+        state.initialWidth = state.selectedDiv.offsetWidth;
+        state.initialHeight = state.selectedDiv.offsetHeight;
+
+        const containerRect = draggableDivContainer.getBoundingClientRect();
+        const boxRect = state.selectedDiv.getBoundingClientRect();
+
+        const fixedBottom = containerRect.bottom - boxRect.bottom;
+        const fixedRight = containerRect.width - (boxRect.left - containerRect.left + boxRect.width);
+
+        state.selectedDiv.style.bottom = `${fixedBottom}px`;
+        state.selectedDiv.style.right = `${fixedRight}px`;
+
+        state.selectedDiv.style.left = 'auto';
+        state.selectedDiv.style.top = 'auto';
+        state.selectedDiv.style.cursor = 'nw-resize';
+        document.addEventListener('mousemove', onResize);
+        document.addEventListener('mouseup', stopResize);
+    });
+    topRightCornerImage.addEventListener('mousedown', (event) => {
+        state.isResizing = true;
+        state.isDragging = false;
+        state.activeHandle = 'TR';
+        state.startResizeX = event.clientX;
+        state.startResizeY = event.clientY;
+        state.selectedDiv = event.target.parentNode.parentNode;
+        state.initialWidth = state.selectedDiv.offsetWidth;
+        state.initialHeight = state.selectedDiv.offsetHeight;
+
+        const containerRect = draggableDivContainer.getBoundingClientRect();
+        const boxRect = state.selectedDiv.getBoundingClientRect();
+
+        const fixedBottom = containerRect.bottom - boxRect.bottom;
+        const fixedLeft = boxRect.left - containerRect.left;
+
+        state.selectedDiv.style.bottom = `${fixedBottom}px`;
+        state.selectedDiv.style.left = `${fixedLeft}px`;
+
+        state.selectedDiv.style.right = 'auto';
+        state.selectedDiv.style.top = 'auto';
+        state.selectedDiv.style.cursor = 'nesw-resize';
+        document.addEventListener('mousemove', onResize);
+        document.addEventListener('mouseup', stopResize);
+    });
+    bottomLeftCornerImage.addEventListener('mousedown', (event) => {
+        state.isResizing = true;
+        state.isDragging = false;
+        state.activeHandle = 'BL';
+        state.startResizeX = event.clientX;
+        state.startResizeY = event.clientY;
+        state.selectedDiv = event.target.parentNode.parentNode;
+        state.initialWidth = state.selectedDiv.offsetWidth;
+        state.initialHeight = state.selectedDiv.offsetHeight;
+
+        const containerRect = draggableDivContainer.getBoundingClientRect();
+        const boxRect = state.selectedDiv.getBoundingClientRect();
+
+        const fixedTop = boxRect.top - containerRect.top;
+        const fixedRight = containerRect.width - (boxRect.left - containerRect.left + boxRect.width);
+
+        state.selectedDiv.style.top = `${fixedTop}px`;
+        state.selectedDiv.style.right = `${fixedRight}px`;
+
+        state.selectedDiv.style.left = 'auto';
+        state.selectedDiv.style.bottom = 'auto';
+        state.selectedDiv.style.cursor = 'nesw-resize';
+        document.addEventListener('mousemove', onResize);
+        document.addEventListener('mouseup', stopResize);
+    });
+    bottomRightCornerImage.addEventListener('mouseenter', (event) => {
+        if (state.selectedDiv) {
+            state.selectedDiv.style.cursor = 'nwse-resize';
+        }
+    });
+    bottomRightCornerImage.addEventListener('mouseleave', (event) => {
+        if (state.selectedDiv) {
+            state.selectedDiv.style.cursor = 'pointer';
+        }
+    });
+    bottomRightCornerImage.addEventListener('mousedown', (event) => {
+        state.isResizing = true;
+        state.isDragging = false;
+        state.activeHandle = 'BR';
+        state.startResizeX = event.clientX;
+        state.startResizeY = event.clientY;
+        state.selectedDiv = event.target.parentNode.parentNode;
+        state.initialWidth = state.selectedDiv.offsetWidth;
+        state.initialHeight = state.selectedDiv.offsetHeight;
+
+        const containerRect = draggableDivContainer.getBoundingClientRect();
+        const boxRect = state.selectedDiv.getBoundingClientRect();
+
+        const fixedTop = boxRect.top - containerRect.top;
+        const fixedLeft = boxRect.left - containerRect.left;
+
+        state.selectedDiv.style.top = `${fixedTop}px`;
+        state.selectedDiv.style.left = `${fixedLeft}px`;
+
+        state.selectedDiv.style.right = 'auto';
+        state.selectedDiv.style.bottom = 'auto';
+        state.selectedDiv.style.cursor = 'nwse-resize';
+        document.addEventListener('mousemove', onResize);
+        document.addEventListener('mouseup', stopResize);
+    });
+}
+function onDrag(event) {
+    if (state.isDragging && state.selectedDiv) {
+        let draggableDivContainer = document.getElementsByClassName('draggable-div-container')[0];
+        let newX = event.clientX - draggableDivContainer.getBoundingClientRect().left - state.offsetX;
+        let newY = event.clientY - draggableDivContainer.getBoundingClientRect().top - state.offsetY;
+        
+        console.log('onDrag newX', newX);
+        console.log('onDrag newY', newY);
+        const windowWidth = draggableDivContainer.clientWidth;
+        const windowHeight = draggableDivContainer.clientHeight;
+        const draggableWidth = state.selectedDiv.clientWidth;
+        const draggableHeight = state.selectedDiv.clientHeight;
+        if (newX < 0) {
+            newX = 0
+        } else if (newX + draggableWidth > windowWidth) {
+            newX = windowWidth - draggableWidth;
+        }
+        if (newY < 0) {
+            newY = 0
+        } else if (newY + draggableHeight > windowHeight) {
+            newY = windowWidth - draggableHeight;
+        }
+        state.selectedDiv.style.left = `${newX}px`;
+        state.selectedDiv.style.top = `${newY}px`;
+    }
+}
+function stopDrag(event) {
+    if (state.selectedDiv) {
+        state.selectedDiv.style.border = 'none';
+        state.selectedDiv.style.cursor = 'pointer';
+    }
+    state.selectedDiv = null;
+    state.isDragging = false;
+    document.removeEventListener('mousemove', onDrag);
+    document.removeEventListener('mouseup', stopDrag);
+}
+function onResize(event) {
+    if (state.isResizing && state.selectedDiv) {
+        const deltaX = event.clientX - state.startResizeX;
+        const deltaY = event.clientY - state.startResizeY;
+        let newWidth;
+        let newHeight;
+
+        if (state.activeHandle === 'TL') {
+            newWidth = state.initialWidth - deltaX;
+            newHeight = state.initialHeight - deltaY;
+
+        } else if (state.activeHandle === 'TR') {
+            newWidth = state.initialWidth + deltaX;
+            newHeight = state.initialHeight - deltaY;
+
+        } else if (state.activeHandle === 'BL') {
+            newWidth = state.initialWidth - deltaX;
+            newHeight = state.initialHeight + deltaY;
+
+        } else if (state.activeHandle === 'BR') {
+            newWidth = state.initialWidth + deltaX;
+            newHeight = state.initialHeight + deltaY;
+        }
+        // Ensure minimum width and height
+        newWidth = Math.max(50, newWidth);
+        newHeight = Math.max(50, newHeight);
+        state.selectedDiv.style.width = `${newWidth}px`;
+        state.selectedDiv.style.height = `${newHeight}px`;
+    }
+}
+function stopResize(event) {
+    if (state.selectedDiv) {
+        state.selectedDiv.style.border = 'none';
+        state.selectedDiv.style.cursor = 'pointer';
+    }
+    state.selectedDiv = null;
+    state.isResizing = false;
+    document.removeEventListener('mousemove', onResize);
+    document.removeEventListener('mouseup', stopResize);
+}
+function mountDraggableComponent(element) {
+    const props = {
+        vModel: state.visualizations_data_model.columns,
+        group: "data_model_columns",
+        itemKey: "column_name",
+        class: "flex flex-row w-full h-50 bg-gray-400",
+        tag: "tr",
+    }
+    const vnode = createVNode(draggable, props);
+    render(vnode, element);
+    // const draggableComponent = createApp(draggable, props);
+    // draggableComponent.mount(element);
+    // draggableComponent.$on('change', changeDataModel);
+    // return () => draggableComponent.unmount();
+    return () => {
+        render(null, element);
+    }
+}
 onMounted(async () => {
     state.data_model_tables = []
     dataModelTables?.value?.forEach((dataModelTable) => {
@@ -252,134 +477,64 @@ onMounted(async () => {
             columns: dataModelTable.columns,
         })
     })
-
-    document.getElementsByClassName('draggable-div').forEach((div) => {
-        div.addEventListener('mousedown', (event) => {
-            // console.log('mousedown on div', event);
-            if (event.target.tagName === 'DIV') {
-                state.selectedDiv = event.target;
-                state.offsetX = event.clientX - div.getBoundingClientRect().left;
-                state.offsetY = event.clientY - div.getBoundingClientRect().top;
-                state.initialX = state.offsetX;
-                state.initialY = state.offsetY;
-                state.selectedDiv.style.border = 'dashed 1px #000000';
-                if (state.offsetX > div.getBoundingClientRect().width - 50 && state.offsetY > div.getBoundingClientRect().height - 50) {
-                    state.isChangingDimensions = true;
-                    div.style.cursor = 'nw-resize';
-                    state.isDragging = false;
-                } else {
-                    state.isChangingDimensions = false;
-                    div.style.cursor = 'move';
-                    state.isDragging = true;
-                }
-            }
-        });
-
-        div.addEventListener('mouseup', (event) => {
-            div.style.cursor = 'pointer';
-            state.isChangingDimensions = false;
-            state.isDragging = false;
-        });
-    });
-    let draggableDivContainer = document.getElementsByClassName('draggable-div-container')[0];
-    draggableDivContainer.addEventListener('mouseenter', (event) => {
-        state.xDiff = event.clientX
-        state.yDiff = event.clientY
-        // console.log('mouseenter state.xDiff', state.xDiff, 'state.yDiff', state.yDiff)
-    })
-    draggableDivContainer.addEventListener('mousemove', (event) => {
-        let newX = event.clientX - draggableDivContainer.getBoundingClientRect().left - state.offsetX;
-        let newY = event.clientY - draggableDivContainer.getBoundingClientRect().top - state.offsetY;
-        if (state.isDragging && state.selectedDiv && state.selectedDiv.tagName === 'DIV') {
-            // console.log('mousemove on container', event);
-            // console.log('dragging', `${event.clientX}px`)
-            const windowWidth = draggableDivContainer.clientWidth;
-            const windowHeight = draggableDivContainer.clientHeight;
-            const draggableWidth = state.selectedDiv.clientWidth;
-            const draggableHeight = state.selectedDiv.clientHeight;
-            if (newX < 0) {
-                newX = 0
-            } else if (newX + draggableWidth > windowWidth) {
-                newX = windowWidth - draggableWidth;
-            }
-            if (newY < 0) {
-                newY = 0
-            } else if (newY + draggableHeight > windowHeight) {
-                newY = windowWidth - draggableHeight;
-            }
-            state.selectedDiv.style.left = `${newX}px`;
-            state.selectedDiv.style.top = `${newY}px`;
-        } else {
-            if (state.isChangingDimensions && state.selectedDiv && state.selectedDiv.tagName === 'DIV') {
-                console.log('selectedDiv', state.selectedDiv.tagName)
-                if (newX >= state.previousX && newY >= state.previousY) {
-                    const newWidth = parseInt(state.selectedDiv.offsetWidth) + 1;
-                    const newHeight = parseInt(state.selectedDiv.offsetHeight) + 1;
-                    state.selectedDiv.style.width = `${newWidth}px`;
-                    state.selectedDiv.style.height = `${newHeight}px`;
-                } else {
-                    const newWidth = parseInt(state.selectedDiv.offsetWidth) - 1;
-                    const newHeight = parseInt(state.selectedDiv.offsetHeight) - 1;
-                    state.selectedDiv.style.width = `${newWidth}px`;
-                    state.selectedDiv.style.height = `${newHeight}px`;
-                }
-            }
-        }
-
-        state.previousX = newX;
-        state.previousY = newY;
-
-        // document.getElementsByClassName('draggable-div').forEach((div) => {
-        //     const width = div.getBoundingClientRect().width;
-        //     const height = event.clientY - div.getBoundingClientRect().height;
-        //     const left = div.getBoundingClientRect().left;
-        //     const top = event.clientY - div.getBoundingClientRect().top;
-        //     console.log('dragable-div width', width, 'height', height, 'left', left, 'top', top);
-        //     console.log('dragable-div width + left', width + left);
-        // });
-    })
-
-     document.getElementsByClassName('draggable-div-container')[0].addEventListener('mouseup', (event) => {
-        if (state.selectedDiv) {
-            state.selectedDiv.style.border = 'none';
-            state.selectedDiv = null
-        }
-        state.isDragging = false;
-        state.isChangingDimensions = false;
-    })
 });
 </script>
 <template>
     <div class="flex flex-row">
-        <sidebar class="w-1/6" :data-models="state.clkl" />
+        <sidebar class="w-1/6" :data-models="state.data_model_tables" />
         <div class="flex flex-row w-5/6">
             <div class="flex flex-col w-5/6 ml-2 mr-2">
                 <div class="flex flex-row justify-between">
                     <tabs :project-id="project.id"/>
                     <div class="flex flex-row">
-                        <div @click="saveVisualization" class="flex flex-row items-center mr-2 mt-5 p-2 text-md text-white font-bold border border-white border-solid cursor-pointer select-none bg-primary-blue-100 hover:bg-primary-blue-400">
-                            <h3 class="ml-2 mr-2">Save Visualization</h3>
+                        <div @click="saveDashboard" class="flex flex-row items-center mr-2 mt-5 p-2 text-md text-white font-bold border border-white border-solid cursor-pointer select-none bg-primary-blue-100 hover:bg-primary-blue-400">
+                            <h3 class="ml-2 mr-2">Save Dashboard</h3>
                         </div>
                     </div>
                 </div>
                 <div class="flex flex-col min-h-200 overflow-x-auto ml-10 mr-2 mb-10 border border-primary-blue-100 border-solid bg-gray-200">
+                    <component :is="pie" chart-id="1" :data="[{label: 'label1', value: 10,},{label: 'label2', value: 30,}]" :width="400" :height="400" class="mt-5"/>
                     <div class="w-full border border-gray-400 border-dashed h-10 flex flex-row justify-center items-center text-center font-bold text-gray-500">
                         Drag columns from the side bar given in the left into the blue area below to build your visualization.
                     </div>
                     <div class="w-full h-full bg-gray-300 draggable-div-container relative">
-                        <div class="w-50 h-50 flex flex-col justify-between bg-blue-300 cursor-pointer draggable-div absolute top-0 left-0" style="border: none; cursor: pointer;">
+                        <!-- <div class="w-50 h-50 flex flex-col justify-between bg-gray-300 cursor-pointer draggable-div absolute top-0 left-0" style="border: none; cursor: pointer;">
                             <div class="flex flex-row justify-between">
                                 <img src="/assets/images/resize-corner.svg" class="w-[12px] rotate-180 select-none" alt="Resize Visualization" />
                                 <img src="/assets/images/resize-corner.svg" class="w-[12px] rotate-270 select-none" alt="Resize Visualization" />
                             </div>
                             <div class="flex flex-col">
-                                <div style="user-select: none;">Delete pie 0</div>
+                                <draggable
+                                    id="draggable-model-columns"
+                                    v-model="state.visualizations_data_model.columns"
+                                    group="data_model_columns"
+                                    itemKey="column_name"
+                                    class="flex flex-row w-full h-50 bg-gray-400"
+                                    tag="tr"
+                                    @change="changeDataModel"
+                                >
+                                    <template #item="{ element, index }">
+                                        <div v-if="index === 0" class="text-left font-bold text-white px-4 py-2 border-r-1 border-gray-200">
+                                            <div v-if="showPieChart" class="flex flex-col">
+                                                <div class="flex flex-col justify-center">
+                                                    <pie-chart
+                                                        chart-id="1"
+                                                        :data="state.pie_chart_data"
+                                                        :width="1200"
+                                                        :height="1200"
+                                                        class="mt-5"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </draggable>
                             </div>
                             <div class="flex flex-row justify-between">
                                 <img src="/assets/images/resize-corner.svg" class="w-[12px] rotate-90 select-none" alt="Resize Visualization" />
                                 <img src="/assets/images/resize-corner.svg" class="w-[12px] select-none" alt="Resize Visualization" />
                             </div>
-                        </div>
+                        </div> -->
                     </div>
                 </div>
             </div>
@@ -434,5 +589,6 @@ onMounted(async () => {
                 </div>
             </div>
         </div>
+        <img src="/assets/images/resize-corner.svg" id="corner-image" class="bottom-right-corner-resize w-[15px] select-none hidden" alt="Resize Visualization" />
     </div>
 </template>
