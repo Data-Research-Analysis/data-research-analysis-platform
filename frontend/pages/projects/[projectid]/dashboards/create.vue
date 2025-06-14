@@ -20,29 +20,28 @@ const state = reactive({
         table_name: '',
         columns: [],
     },
-    sql_query: '',
+    sql_queries: [],
     chart_mode: 'table',//table, pie, vertical_bar, horizontal_bar, vertical_bar_line, stacked_bar, multiline, heatmap, bubble, map
     response_from_data_models_columns: [],
     response_from_data_models_rows: [],
     show_dialog: false,
     pie_chart_data: [],
-    selectedDiv: null,
-    xDiff: 0,
-    yDiff: 0,
+    selected_div: null,
+    selected_chart: null,
     offsetX: 0,
     offsetY: 0,
-    isDragging: false,
-    isResizing: false,
-    activeHandle: '',
-    initialWidth: 0,
-    initialHeight: 0,
-    initialX: 0,
-    initialY: 0,
-    previousX: 0,
-    previousY: 0,
-    startResizeX: 0,
-    startResizeY: 0,
-    charts: [],
+    is_dragging: false,
+    is_resizing: false,
+    active_handle: '',
+    initial_width: 0,
+    initial_height: 0,
+    initial_width_draggable: 0,
+    initial_height_draggable: 0,
+    start_resize_x: 0,
+    start_resize_y: 0,
+    dashboard: {
+        charts: [],
+    },
  });
 const project = computed(() => {
     return projectsStore.getSelectedProject();
@@ -62,17 +61,20 @@ const showQueryDialogButton = computed(() => {
 const showPieChart = computed(() => {
     return state.visualizations_data_model && state.visualizations_data_model.columns && state.visualizations_data_model.columns.length && state.visualizations_data_model.columns.length === 2 && state.pie_chart_data && state.pie_chart_data.length
 })
-async function changeDataModel(event) {
-    console.log('changeDataModel', state.charts);
-    // state.visualizations_data_model.columns = state.visualizations_data_model.columns.filter((column) => {
-    //     if (state.visualizations_data_model.columns.filter((c) => c.column_name === column.column_name && c.table_name === column.table_name).length > 1) {
-    //         return false;
-    //     } else {
-    //         return true;
-    //     }
-    // });
-    // visualizationsStore.setColumnsAdded(state.visualizations_data_model.columns);
-    // await executeQueryOnDataModels();
+async function changeDataModel(event, chartId) {
+    const chart = state.dashboard.charts.find((chart) => {
+        return chart.chart_id === chartId;
+    });
+    chart.columns = chart.columns.filter((column) => {
+        if (chart.columns.filter((c) => c.column_name === column.column_name && c.table_name === column.table_name).length > 1) {
+            return false;
+        } else {
+            return true;
+        }
+    });
+    
+    // visualizationsStore.setColumnsAdded(chart.columns);
+    await executeQueryOnDataModels(chartId);
 }
 async function removeColumn(column) {
     const index = state.visualizations_data_model.columns.findIndex((header) => header.column_name === column.column_name);
@@ -83,62 +85,87 @@ async function removeColumn(column) {
         await executeQueryOnDataModels();
     }
 }
-function buildSQLQuery() {
+function selectChartType(chartType) {
+    //table, pie, vertical_bar, horizontal_bar, vertical_bar_line, stacked_bar, multiline, heatmap, bubble, stacked_area, map
+    state.chart_mode = chartType;
+    state.dashboard.charts.push({
+        chart_type: chartType,
+        chart_id: state.dashboard.charts.length + 1,
+        columns: [],
+        table_name: '',
+        data: [[{label: 'label1', value: 10,},{label: 'label2', value: 30,}]],
+        config: {
+            drag_enabled: false,
+            resize_enabled: false,
+        }
+    });
+}
+function buildSQLQuery(chart) {
     let sqlQuery = '';
     let fromJoinClause = [];
-    let dataTables = state.visualizations_data_model.columns.map((column) => `${column.schema}.${column.table_name}`);
+    let dataTables = chart.columns.map((column) => `${column.schema}.${column.table_name}`);
     dataTables = _.uniq(dataTables);
     fromJoinClause.push(`FROM ${dataTables[0]}`);
-    sqlQuery = `SELECT ${state.visualizations_data_model.columns.map((column) => {
+    sqlQuery = `SELECT ${chart.columns.map((column) => {
         return `${column.column_name}`;
     }).join(', ')}`;
     
     sqlQuery += ` ${fromJoinClause.join(' ')}`;    
     return sqlQuery;
 }
-async function executeQueryOnDataModels() {
+async function executeQueryOnDataModels(chartId) {
     state.pie_chart_data = [];
     state.response_from_data_models_columns = [];
     state.response_from_data_models_rows = [];
-    state.sql_query = buildSQLQuery();
-    const token = getAuthToken();
-    const url = `${baseUrl()}/data-model/execute-query-on-data-model`;
-    const response = await fetch(url, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`,
-            "Authorization-Type": "auth",
-        },
-        body: JSON.stringify({
-            query: state.sql_query
-        })
-    });
-    const data = await response.json();
-    state.response_from_data_models_rows = data;
-    const labelValues = [];
-    const numericValues = [];
-    state.response_from_data_models_rows.forEach((row) =>{
-        const columns_data_types = state.visualizations_data_model.columns.filter((column) => Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
-        columns_data_types.forEach((column) => {
-            if (column.data_type === 'character varying') {
-                labelValues.push(row[column.column_name]); 
-            } else if (column.data_type === 'bigint') {
-                numericValues.push(parseInt(row[column.column_name]));
-            }
+    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId)
+    if (chart) {
+        //remove existing sql query
+        state.sql_queries = state.sql_queries.filter((query) => query.chart_id !== chartId);
+        state.sql_queries.push({
+            chart_id: chartId,
+            sql_query: buildSQLQuery(chart)
         });
-    });
-    labelValues.forEach((label, index) => {
-        state.pie_chart_data.push({
-             label: label,
-             value: numericValues[index],
-         });
-    });
-    console.log('state.pie_chart_data', state.pie_chart_data);
+    }
+    
+    console.log('state.sql_queries', state.sql_queries);
+    // const token = getAuthToken();
+    // const url = `${baseUrl()}/data-model/execute-query-on-data-model`;
+    // const response = await fetch(url, {
+    //     method: "POST",
+    //     headers: {
+    //         "Content-Type": "application/json",
+    //         "Authorization": `Bearer ${token}`,
+    //         "Authorization-Type": "auth",
+    //     },
+    //     body: JSON.stringify({
+    //         query: state.sql_query
+    //     })
+    // });
+    // const data = await response.json();
+    // state.response_from_data_models_rows = data;
+    // const labelValues = [];
+    // const numericValues = [];
+    // state.response_from_data_models_rows.forEach((row) =>{
+    //     const columns_data_types = state.visualizations_data_model.columns.filter((column) => Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
+    //     columns_data_types.forEach((column) => {
+    //         if (column.data_type === 'character varying') {
+    //             labelValues.push(row[column.column_name]); 
+    //         } else if (column.data_type === 'bigint') {
+    //             numericValues.push(parseInt(row[column.column_name]));
+    //         }
+    //     });
+    // });
+    // labelValues.forEach((label, index) => {
+    //     state.pie_chart_data.push({
+    //          label: label,
+    //          value: numericValues[index],
+    //      });
+    // });
+    // console.log('state.pie_chart_data', state.pie_chart_data);
 }
 async function saveDashboard() {
-    let sqlQuery = buildSQLQuery();
-    state.sql_query = sqlQuery;
+    // let sqlQuery = buildSQLQuery();
+    // state.sql_query = sqlQuery;
     // // build the data model
     // const token = getAuthToken();
     // let url = `${baseUrl()}/data-source/build-data-model-on-query`;
@@ -170,171 +197,162 @@ async function saveDashboard() {
     //     });
     // }
 }
-function initializeResizeParams(event) {
-    state.isResizing = true;
-    state.isDragging = false;
-    state.startResizeX = event.clientX;
-    state.startResizeY = event.clientY;
-    state.selectedDiv = event.target.parentNode.parentNode;
-    state.initialWidth = state.selectedDiv.offsetWidth;
-    state.initialHeight = state.selectedDiv.offsetHeight;
-}
-function draggableDivMouseDown(event) {
-    stopResize();
-    const div = event.target;
-    state.isDragging = true;
-    state.isResizing = false;
-    if (div.classList.contains('draggable-model-columns') || div.classList.contains('top-corners') || div.classList.contains('bottom-corners')) {
-        state.selectedDiv = div.parentNode.parentNode;
-        state.selectedDiv.style.cursor = 'move';
-        state.offsetX = event.clientX - div.getBoundingClientRect().left;
-        state.offsetY = event.clientY - div.getBoundingClientRect().top;
-        state.initialX = state.offsetX;
-        state.initialY = state.offsetY;
-        document.addEventListener('mousemove', onDrag);
-    }
-}
-function draggableDivMouseMove(event) {
-    const div = event.target;
-    if (div.classList.contains('draggable-model-columns')) {
-        div.parentNode.parentNode.style.cursor = 'move';
-    } else if(div.classList.contains('top-corners') || div.classList.contains('bottom-corners')) {
-        div.parentNode.style.cursor = 'move';
-    } else if (div.classList.contains('draggable-div')) {
-        div.style.cursor = 'move';
-    }
-}
-function draggableDivMouseUp(event) {
-    if (state.isDragging) {
-        stopDrag()
-    } else {
-        if (state.isResizing) {
-            stopResize()
+function toggleDragging(event, chartId) {
+    //disable all charts
+    state.selected_chart = null;
+    state.selected_div = null;
+    state.is_dragging = false;
+    state.is_resizing = false;
+    state.dashboard.charts.forEach((chart) => {
+        if (chart.chart_id !== chartId) {
+            chart.config.drag_enabled = false;
+            chart.config.resize_enabled = false;
+        }
+    });
+    //enable target chart
+    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
+    if (chart) {
+        chart.config.drag_enabled = !chart.config.drag_enabled;
+        chart.config.resize_enabled = false;
+        if (chart.config.drag_enabled) {
+            state.selected_chart = chart;
+        } else {
+            state.selected_chart = null;
+            state.selected_div = null;
         }
     }
 }
-function draggableDivMouseLeave(event) {
-    const div = event.target;
-    if (div.classList.contains('draggable-div')) {
-        div.style.cursor = 'pointer';
+function toggleResizing(chartId) {
+    //disable all charts
+    state.selected_chart = null;
+    state.selected_div = null;
+    state.is_dragging = false;
+    state.is_resizing = false;
+    state.dashboard.charts.forEach((chart) => {
+        if (chart.chart_id !== chartId) {
+            chart.config.drag_enabled = false;
+            chart.config.resize_enabled = false;
+        }
+    });
+    //enable target chart
+    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
+    if (chart) {
+        chart.config.resize_enabled = !chart.config.resize_enabled;
+        chart.config.drag_enabled = false;
+        if (chart.config.resize_enabled) {
+            state.selected_chart = chart;
+        } else {
+            state.selected_chart = null;
+            state.selected_div = null;
+        }
     }
 }
-function topLeftCornerMouseDown(event) {
+function initializeResizeParams(event) {
+    state.is_resizing = true;
+    state.is_dragging = false;
+    state.start_resize_x = event.clientX;
+    state.start_resize_y = event.clientY;
+    state.selected_div = event.target.parentNode.parentNode;
+    const draggableDiv = document.getElementById(`draggable-${state.selected_chart.chart_id}`);
+    state.initial_width = state.selected_div.offsetWidth;
+    state.initial_height = state.selected_div.offsetHeight;
+    state.initial_width_draggable = draggableDiv.offsetWidth;
+    state.initial_height_draggable = draggableDiv.offsetHeight;
+}
+function draggableDivMouseDown(event, chartId) {
+    stopDragAndResize();
+    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
+    if (chart) {
+        if (chart.config.drag_enabled) {
+            const div = event.target;
+            state.is_dragging = true;
+            state.is_resizing = false;
+            state.selected_div = div.parentNode.parentNode;
+            state.selected_div.style.cursor = 'move';
+            state.offsetX = event.clientX - div.getBoundingClientRect().left;
+            state.offsetY = event.clientY - div.getBoundingClientRect().top;
+            document.addEventListener('mousemove', onDrag);
+        }
+    }
+}
+function stopDragAndResize() {
     stopDrag();
     stopResize();
 }
 function topLeftCornerMouseMove(event) {
     initializeResizeParams(event);
-    state.activeHandle = 'TL';
+    state.active_handle = 'TL';
     let draggableDivContainer = document.getElementsByClassName('draggable-div-container')[0];
     const containerRect = draggableDivContainer.getBoundingClientRect();
-    const boxRect = state.selectedDiv.getBoundingClientRect();
+    const boxRect = state.selected_div.getBoundingClientRect();
     const fixedBottom = containerRect.bottom - boxRect.bottom;
     const fixedRight = containerRect.width - (boxRect.left - containerRect.left + boxRect.width);
-    state.selectedDiv.style.bottom = `${fixedBottom}px`;
-    state.selectedDiv.style.right = `${fixedRight}px`;
-    state.selectedDiv.style.left = 'auto';
-    state.selectedDiv.style.top = 'auto';
-    state.selectedDiv.style.cursor = 'nw-resize';
+    state.selected_div.style.bottom = `${fixedBottom}px`;
+    state.selected_div.style.right = `${fixedRight}px`;
+    state.selected_div.style.left = 'auto';
+    state.selected_div.style.top = 'auto';
+    state.selected_div.style.cursor = 'nw-resize';
     document.addEventListener('mousemove', onResize);
     document.addEventListener('mouseup', stopResize);
-}
-function topLeftCornerMouseUp(event) {
-    stopDrag();
-    stopResize();
-}
-function topRightCornerMouseDown(event) {
-    stopDrag();
-    stopResize();
 }
 function topRightCornerMouseMove(event) {
     initializeResizeParams(event);
-    state.activeHandle = 'TR';
+    state.active_handle = 'TR';
     let draggableDivContainer = document.getElementsByClassName('draggable-div-container')[0];
     const containerRect = draggableDivContainer.getBoundingClientRect();
-    const boxRect = state.selectedDiv.getBoundingClientRect();
+    const boxRect = state.selected_div.getBoundingClientRect();
     const fixedBottom = containerRect.bottom - boxRect.bottom;
     const fixedLeft = boxRect.left - containerRect.left;
-    state.selectedDiv.style.bottom = `${fixedBottom}px`;
-    state.selectedDiv.style.left = `${fixedLeft}px`;
-    state.selectedDiv.style.right = 'auto';
-    state.selectedDiv.style.top = 'auto';
-    state.selectedDiv.style.cursor = 'nesw-resize';
+    state.selected_div.style.bottom = `${fixedBottom}px`;
+    state.selected_div.style.left = `${fixedLeft}px`;
+    state.selected_div.style.right = 'auto';
+    state.selected_div.style.top = 'auto';
+    state.selected_div.style.cursor = 'nesw-resize';
     document.addEventListener('mousemove', onResize);
     document.addEventListener('mouseup', stopResize);
-}
-function topRightCornerMouseUp(event) {
-    stopDrag();
-    stopResize();
-}
-function bottomLeftCornerMouseDown(event) {
-    stopDrag();
-    stopResize();
 }
 function bottomLeftCornerMouseMove(event) {
     initializeResizeParams(event);
-    state.activeHandle = 'BL';
+    state.active_handle = 'BL';
     let draggableDivContainer = document.getElementsByClassName('draggable-div-container')[0];
     const containerRect = draggableDivContainer.getBoundingClientRect();
-    const boxRect = state.selectedDiv.getBoundingClientRect();
+    const boxRect = state.selected_div.getBoundingClientRect();
     const fixedTop = boxRect.top - containerRect.top;
     const fixedRight = containerRect.width - (boxRect.left - containerRect.left + boxRect.width);
-    state.selectedDiv.style.top = `${fixedTop}px`;
-    state.selectedDiv.style.right = `${fixedRight}px`;
-    state.selectedDiv.style.left = 'auto';
-    state.selectedDiv.style.bottom = 'auto';
-    state.selectedDiv.style.cursor = 'nesw-resize';
+    state.selected_div.style.top = `${fixedTop}px`;
+    state.selected_div.style.right = `${fixedRight}px`;
+    state.selected_div.style.left = 'auto';
+    state.selected_div.style.bottom = 'auto';
+    state.selected_div.style.cursor = 'nesw-resize';
     document.addEventListener('mousemove', onResize);
     document.addEventListener('mouseup', stopResize);
-}
-function bottomLeftCornerMouseUp(event) {
-    stopDrag();
-    stopResize();
-}
-function bottomRightCornerMouseDown(event) {
-    stopDrag();
-    stopResize();
 }
 function bottomRightCornerMouseMove(event) {
     initializeResizeParams(event);
-    state.activeHandle = 'BR';
+    state.active_handle = 'BR';
     let draggableDivContainer = document.getElementsByClassName('draggable-div-container')[0];
     const containerRect = draggableDivContainer.getBoundingClientRect();
-    const boxRect = state.selectedDiv.getBoundingClientRect();
+    const boxRect = state.selected_div.getBoundingClientRect();
     const fixedTop = boxRect.top - containerRect.top;
     const fixedLeft = boxRect.left - containerRect.left;
-    state.selectedDiv.style.top = `${fixedTop}px`;
-    state.selectedDiv.style.left = `${fixedLeft}px`;
-    state.selectedDiv.style.right = 'auto';
-    state.selectedDiv.style.bottom = 'auto';
-    state.selectedDiv.style.cursor = 'nwse-resize';
+    state.selected_div.style.top = `${fixedTop}px`;
+    state.selected_div.style.left = `${fixedLeft}px`;
+    state.selected_div.style.right = 'auto';
+    state.selected_div.style.bottom = 'auto';
+    state.selected_div.style.cursor = 'nwse-resize';
     document.addEventListener('mousemove', onResize);
     document.addEventListener('mouseup', stopResize);
-}
-function bottomRightCornerMouseUp(event) {
-    stopDrag();
-    stopResize();
-}
-function selectChartType(chartType) {
-    //table, pie, vertical_bar, horizontal_bar, vertical_bar_line, stacked_bar, multiline, heatmap, bubble, stacked_area, map
-    state.chart_mode = chartType;
-    state.charts.push({
-        chart_type: chartType,
-        chart_id: state.charts.length + 1,
-        columns: [],
-        table_name: '',
-        data: [[{label: 'label1', value: 10,},{label: 'label2', value: 30,}]],
-    });
+
 }
 function onDrag(event) {
-    if (state.isDragging && state.selectedDiv) {
+    if (state.is_dragging && state.selected_chart?.config?.drag_enabled && state.selected_div) {
         let draggableDivContainer = document.getElementsByClassName('draggable-div-container')[0];
         let newX = event.clientX - draggableDivContainer.getBoundingClientRect().left - state.offsetX;
         let newY = event.clientY - draggableDivContainer.getBoundingClientRect().top - state.offsetY;       
         const windowWidth = draggableDivContainer.clientWidth;
         const windowHeight = draggableDivContainer.clientHeight;
-        const draggableWidth = state.selectedDiv.clientWidth;
-        const draggableHeight = state.selectedDiv.clientHeight;
+        const draggableWidth = state.selected_div.clientWidth;
+        const draggableHeight = state.selected_div.clientHeight;
         if (newX < 0) {
             newX = 0
         } else if (newX + draggableWidth > windowWidth) {
@@ -343,57 +361,64 @@ function onDrag(event) {
         if (newY < 0) {
             newY = 0
         } else if (newY + draggableHeight > windowHeight) {
-            newY = windowWidth - draggableHeight;
+            newY = windowHeight - draggableHeight - 50;
         }
-        state.selectedDiv.style.left = `${newX}px`;
-        state.selectedDiv.style.top = `${newY}px`;
+        state.selected_div.style.left = `${newX}px`;
+        state.selected_div.style.top = `${newY}px`;
     }
 }
-function stopDrag(event) {
-    if (state.selectedDiv) {
-        state.selectedDiv.style.cursor = 'pointer';
-    }
-    state.selectedDiv = null;
-    state.isDragging = false;
+function stopDrag() {
+    state.is_dragging = false;
     document.removeEventListener('mousemove', onDrag);
     document.removeEventListener('mouseup', stopDrag);
 }
 function onResize(event) {
-    if (state.isResizing && state.selectedDiv) {
-        const deltaX = event.clientX - state.startResizeX;
-        const deltaY = event.clientY - state.startResizeY;
+    const draggableDiv = document.getElementById(`draggable-${state.selected_chart.chart_id}`);
+    if (state.is_resizing && state.selected_div && draggableDiv) {
+        const deltaX = event.clientX - state.start_resize_x;
+        const deltaY = event.clientY - state.start_resize_y;
         let newWidth;
         let newHeight;
+        let newWidthDraggable;
+        let newHeightDraggable;
 
-        if (state.activeHandle === 'TL') {
-            newWidth = state.initialWidth - deltaX;
-            newHeight = state.initialHeight - deltaY;
+        if (state.active_handle === 'TL') {
+            newWidth = state.initial_width - deltaX;
+            newHeight = state.initial_height - deltaY;
+            newWidthDraggable = state.initial_width_draggable - deltaX;
+            newHeightDraggable = state.initial_height_draggable - deltaY;
 
-        } else if (state.activeHandle === 'TR') {
-            newWidth = state.initialWidth + deltaX;
-            newHeight = state.initialHeight - deltaY;
+        } else if (state.active_handle === 'TR') {
+            newWidth = state.initial_width + deltaX;
+            newHeight = state.initial_height - deltaY;
+            newWidthDraggable = state.initial_width_draggable + deltaX;
+            newHeightDraggable = state.initial_height_draggable - deltaY;
 
-        } else if (state.activeHandle === 'BL') {
-            newWidth = state.initialWidth - deltaX;
-            newHeight = state.initialHeight + deltaY;
-
-        } else if (state.activeHandle === 'BR') {
-            newWidth = state.initialWidth + deltaX;
-            newHeight = state.initialHeight + deltaY;
+        } else if (state.active_handle === 'BL') {
+            newWidth = state.initial_width - deltaX;
+            newHeight = state.initial_height + deltaY;
+            newWidthDraggable = state.initial_width_draggable - deltaX;
+            newHeightDraggable = state.initial_height_draggable + deltaY;
+        } else if (state.active_handle === 'BR') {
+            newWidth = state.initial_width + deltaX;
+            newHeight = state.initial_height + deltaY;
+            newWidthDraggable = state.initial_width_draggable + deltaX;
+            newHeightDraggable = state.initial_height_draggable + deltaY;
         }
         // Ensure minimum width and height
-        newWidth = Math.max(50, newWidth);
-        newHeight = Math.max(50, newHeight);
-        state.selectedDiv.style.width = `${newWidth}px`;
-        state.selectedDiv.style.height = `${newHeight}px`;
+        newWidth = Math.max(100, newWidth > 350 ? 350 : newWidth);
+        newHeight = Math.max(100, newHeight > 350 ? 350 : newHeight);
+        newWidthDraggable = Math.max(100, newWidthDraggable > 350 ? 350 : newWidthDraggable);
+        newHeightDraggable = Math.max(100, newHeightDraggable > 350 ? 350 : newHeightDraggable);
+
+        state.selected_div.style.width = `${newWidth}px`;
+        state.selected_div.style.height = `${newHeight}px`;
+        draggableDiv.style.width = `${newWidthDraggable}px`;
+        draggableDiv.style.height = `${newHeightDraggable}px`;
     }
 }
-function stopResize(event) {
-    if (state.selectedDiv) {
-        state.selectedDiv.style.cursor = 'pointer';
-    }
-    state.selectedDiv = null;
-    state.isResizing = false;
+function stopResize() {
+    state.is_resizing = false;
     document.removeEventListener('mousemove', onResize);
     document.removeEventListener('mouseup', stopResize);
 }
@@ -423,47 +448,75 @@ onMounted(async () => {
                         </div>
                     </div>
                 </div>
-                <div class="flex flex-col min-h-200 overflow-x-auto ml-10 mr-2 mb-10 border border-primary-blue-100 border-solid bg-gray-200">
-                    <component :is="pie" chart-id="1" :data="[{label: 'label1', value: 10,},{label: 'label2', value: 30,}]" :width="400" :height="400" class="mt-5"/>
-                    <div class="w-full border border-gray-400 border-dashed h-10 flex flex-row justify-center items-center text-center font-bold text-gray-500">
+                <div class="flex flex-col min-h-200 max-h-200 h-200 overflow-hidden ml-10 mr-2 mb-10 border border-primary-blue-100 border-solid bg-gray-200">
+                    <!-- <component :is="pie" chart-id="1" :data="[{label: 'label1', value: 10,},{label: 'label2', value: 30,}]" :width="400" :height="400" class="mt-5"/> -->
+                    <div class="w-full border border-gray-400 border-dashed h-10 flex flex-row justify-center items-center text-center font-bold text-gray-500 select-none">
                         Drag columns from the side bar given in the left into the blue area below to build your visualization.
                     </div>
                     <div class="w-full h-full bg-gray-300 draggable-div-container relative">
-                        <div v-for="(chart, index) in state.charts"
-                            class="w-50 h-50 flex flex-col justify-between bg-gray-400 cursor-pointer draggable-div absolute top-0 left-0"
-                            @mousedown="draggableDivMouseDown"
-                            @mousemove="draggableDivMouseMove"
-                            @mouseup="draggableDivMouseUp"
-                            @mouseleave="draggableDivMouseLeave"                       
+                        <div v-for="(chart, index) in state.dashboard.charts"
+                            class="w-50 flex flex-col justify-between cursor-pointer draggable-div absolute top-0 left-0"
+                            :id="`draggable-div-${chart.chart_id}`"
                         >
-                            <div class="flex flex-row justify-between bg-gray-400 top-corners">
+                            <div class="flex flex-row justify-between top-corners">
                                 <img
+                                    v-if="chart.config.resize_enabled"
+                                    :id="`top-left-corner-${chart.chart_id}`"
                                     src="/assets/images/resize-corner.svg"
-                                    class="w-[12px] rotate-180 select-none top-left-corner"
+                                    class="w-[12px] rotate-180 select-none top-left-corner translate-y-2"
                                     alt="Resize Visualization"
-                                    @mousedown="topLeftCornerMouseDown"
-                                    @mousemove="topLeftCornerMouseMove"
-                                    @mouseup="topLeftCornerMouseUp"
+                                    @mousedown="stopDragAndResize"
+                                    @mousemove="topLeftCornerMouseMove($event, chart.chart_id)"
+                                    @mouseup="stopDragAndResize"
                                 />
                                 <img
+                                    v-if="chart.config.resize_enabled"
+                                    :id="`top-right-corner-${chart.chart_id}`"
                                     src="/assets/images/resize-corner.svg"
-                                    class="w-[12px] rotate-270 select-none top-right-corner"
+                                    class="w-[12px] rotate-270 select-none top-right-corner translate-y-2"
                                     alt="Resize Visualization"
-                                    @mousedown="topRightCornerMouseDown"
-                                    @mousemove="topRightCornerMouseMove"
-                                    @mouseup="topRightCornerMouseUp"
+                                    @mousedown="stopDragAndResize"
+                                    @mousemove="topRightCornerMouseMove($event, chart.chart_id)"
+                                    @mouseup="stopDragAndResize"
                                 />
                             </div>
-                            <div class="flex flex-col">
+                            <div
+                                class="flex flex-col"
+                                @mousedown="draggableDivMouseDown($event, chart.chart_id)"
+                                @mouseup="stopDragAndResize"
+                            >
+                                <div class="flex flex-row bg-gray-500 border border-3 border-gray-600 border-b-0 p-2">
+                                    <font-awesome 
+                                        icon="fas fa-up-down-left-right"
+                                        class="text-xl hover:text-gray-300"
+                                        :class="{
+                                            'text-black': chart.config.drag_enabled,
+                                            'text-white': !chart.config.drag_enabled,
+                                        }"
+                                        :v-tippy-content="chart.config.drag_enabled ? 'Disable Dragging' : 'Enable Dragging'"
+                                        @click="toggleDragging($event, chart.chart_id)"
+                                    />
+                                    <font-awesome 
+                                        icon="fas fa-up-right-and-down-left-from-center"
+                                        class="text-xl ml-2 hover:text-gray-300"
+                                        :class="{
+                                            'text-black': chart.config.resize_enabled,
+                                            'text-white': !chart.config.resize_enabled,
+                                        }"
+                                        :v-tippy-content="chart.config.resize_enabled ? 'Disable Resizing' : 'Enable Resizing'"
+                                        @click="toggleResizing(chart.chart_id)"
+                                    />
+                                </div>
                                 <draggable
-                                    :id="`${chart.chart_id}`"
+                                    :id="`draggable-${chart.chart_id}`"
                                     v-model="chart.columns"
                                     group="data_model_columns"
                                     itemKey="column_name"
-                                    class="flex flex-row w-full h-40 bg-gray-400 draggable-model-columns"
+                                    class="flex flex-row w-full h-50 bg-gray-500 border border-3 border-gray-600 border-t-0 draggable-model-columns"
                                     tag="tr"
-                                    @mousedown="draggableDivMouseDown"
-                                    @change="changeDataModel"
+                                    @mousedown="draggableDivMouseDown($event, chart.chart_id)"
+                                    @mouseup="stopDragAndResize"
+                                    @change="changeDataModel($event, chart.chart_id)"
                                 >
                                     <template #item="{ element, index }">
                                         <div v-if="index === 0" class="text-left font-bold text-white px-4 py-2 border-r-1 border-gray-200">
@@ -482,29 +535,33 @@ onMounted(async () => {
                                     </template>
                                 </draggable>
                             </div>
-                            <div class="flex flex-row justify-between bg-gray-400 bottom-corners">
+                            <div class="flex flex-row justify-between bottom-corners">
                                 <img 
+                                    v-if="chart.config.resize_enabled"
+                                    :id="`bottom-left-corner-${chart.chart_id}`"
                                     src="/assets/images/resize-corner.svg"
-                                    class="w-[12px] rotate-90 select-none bottom-left-corner"
+                                    class="w-[12px] rotate-90 select-none bottom-left-corner -translate-y-2"
                                     alt="Resize Visualization"
-                                    @mousedown="bottomLeftCornerMouseDown"
-                                    @mousemove="bottomLeftCornerMouseMove"
-                                    @mouseup="bottomLeftCornerMouseUp"
+                                    @mousedown="stopDragAndResize"
+                                    @mousemove="bottomLeftCornerMouseMove($event, chart.chart_id)"
+                                    @mouseup="stopDragAndResize"
                                 />
                                 <img
+                                    v-if="chart.config.resize_enabled"
+                                    :id="`bottom-right-corner-${chart.chart_id}`"
                                     src="/assets/images/resize-corner.svg"
-                                    class="w-[12px] select-none bottom-right-corner"
+                                    class="w-[12px] select-none bottom-right-corner -translate-y-2"
                                     alt="Resize Visualization"
-                                    @mousedown="bottomRightCornerMouseDown"
-                                    @mousemove="bottomRightCornerMouseMove"
-                                    @mouseup="bottomRightCornerMouseUp"
+                                    @mousedown="stopDragAndResize"
+                                    @mousemove="bottomRightCornerMouseMove($event, chart.chart_id)"
+                                    @mouseup="stopDragAndResize"
                                 />
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-            <div class="flex flex-col w-1/6 mt-17 mb-10">
+            <div class="flex flex-col w-1/6 mt-17 mb-10 select-none">
                 <div class="flex flex-row mb-2">
                     <div class="mr-2" @click="selectChartType('table')" v-tippy="{ content: 'Render Data in Table', placement: 'top' }">
                         <img src="/assets/images/table_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Table Chart" />
