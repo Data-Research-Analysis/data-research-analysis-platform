@@ -32,6 +32,7 @@ const state = reactive({
     offsetY: 0,
     is_dragging: false,
     is_resizing: false,
+    is_mouse_down: false,
     active_handle: '',
     initial_width: 0,
     initial_height: 0,
@@ -42,6 +43,10 @@ const state = reactive({
     dashboard: {
         charts: [],
     },
+    previous_deltax: 0,
+    previous_deltay: 0,
+    scaleWidth: 1,
+    scaleHeight: 1,
  });
 const project = computed(() => {
     return projectsStore.getSelectedProject();
@@ -57,9 +62,6 @@ const dataModelTables = computed(() => {
 })
 const showQueryDialogButton = computed(() => {
     return showWhereClause.value || showOrderByClause.value || showGroupByClause.value
-})
-const showPieChart = computed(() => {
-    return state.visualizations_data_model && state.visualizations_data_model.columns && state.visualizations_data_model.columns.length && state.visualizations_data_model.columns.length === 2 && state.pie_chart_data && state.pie_chart_data.length
 })
 async function changeDataModel(event, chartId) {
     const chart = state.dashboard.charts.find((chart) => {
@@ -87,16 +89,26 @@ async function removeColumn(column) {
 }
 function selectChartType(chartType) {
     //table, pie, vertical_bar, horizontal_bar, vertical_bar_line, stacked_bar, multiline, heatmap, bubble, stacked_area, map
+    state.selected_chart = null;
+    state.selected_div = null;
+    state.is_dragging = false;
+    state.is_resizing = false;
+    state.dashboard.charts.forEach((chart) => {
+        chart.config.drag_enabled = false;
+        chart.config.resize_enabled = false;
+        chart.config.add_columns_enabled = false;
+    });
     state.chart_mode = chartType;
     state.dashboard.charts.push({
         chart_type: chartType,
         chart_id: state.dashboard.charts.length + 1,
         columns: [],
         table_name: '',
-        data: [[{label: 'label1', value: 10,},{label: 'label2', value: 30,}]],
+        data: [],//[[{label: 'label1', value: 10,},{label: 'label2', value: 30,}]],
         config: {
             drag_enabled: false,
             resize_enabled: false,
+            add_columns_enabled: false,
         }
     });
 }
@@ -114,54 +126,58 @@ function buildSQLQuery(chart) {
     return sqlQuery;
 }
 async function executeQueryOnDataModels(chartId) {
-    state.pie_chart_data = [];
     state.response_from_data_models_columns = [];
     state.response_from_data_models_rows = [];
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId)
     if (chart) {
         //remove existing sql query
+        chart.data = [];
         state.sql_queries = state.sql_queries.filter((query) => query.chart_id !== chartId);
         state.sql_queries.push({
             chart_id: chartId,
             sql_query: buildSQLQuery(chart)
         });
+        console.log('state.sql_queries', state.sql_queries);
+        for (let i=0; i< state.sql_queries.length; i++) {
+            const sqlQuery = state.sql_queries[i].sql_query;
+            const token = getAuthToken();
+            const url = `${baseUrl()}/data-model/execute-query-on-data-model`;
+            const response = await fetch(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+                body: JSON.stringify({
+                    query: sqlQuery
+                })
+            });
+            const data = await response.json();
+            console.log('executeQueryOnDataModels data ', data);
+            state.response_from_data_models_rows = data;
+            const labelValues = [];
+            const numericValues = [];
+            state.response_from_data_models_rows.forEach((row) =>{
+                const columns_data_types = chart.columns.filter((column) => Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
+                columns_data_types.forEach((column) => {
+                    if (column.data_type === 'character varying') {
+                        labelValues.push(row[column.column_name]); 
+                    } else if (column.data_type === 'bigint') {
+                        numericValues.push(parseInt(row[column.column_name]));
+                    }
+                });
+            });
+            labelValues.forEach((label, index) => {
+                chart.data.push({
+                     label: label,
+                     value: numericValues[index],
+                 });
+            });
+            console.log('executeQueryOnDataModels chart.data', chart.data);
+        }
     }
     
-    console.log('state.sql_queries', state.sql_queries);
-    // const token = getAuthToken();
-    // const url = `${baseUrl()}/data-model/execute-query-on-data-model`;
-    // const response = await fetch(url, {
-    //     method: "POST",
-    //     headers: {
-    //         "Content-Type": "application/json",
-    //         "Authorization": `Bearer ${token}`,
-    //         "Authorization-Type": "auth",
-    //     },
-    //     body: JSON.stringify({
-    //         query: state.sql_query
-    //     })
-    // });
-    // const data = await response.json();
-    // state.response_from_data_models_rows = data;
-    // const labelValues = [];
-    // const numericValues = [];
-    // state.response_from_data_models_rows.forEach((row) =>{
-    //     const columns_data_types = state.visualizations_data_model.columns.filter((column) => Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
-    //     columns_data_types.forEach((column) => {
-    //         if (column.data_type === 'character varying') {
-    //             labelValues.push(row[column.column_name]); 
-    //         } else if (column.data_type === 'bigint') {
-    //             numericValues.push(parseInt(row[column.column_name]));
-    //         }
-    //     });
-    // });
-    // labelValues.forEach((label, index) => {
-    //     state.pie_chart_data.push({
-    //          label: label,
-    //          value: numericValues[index],
-    //      });
-    // });
-    // console.log('state.pie_chart_data', state.pie_chart_data);
 }
 async function saveDashboard() {
     // let sqlQuery = buildSQLQuery();
@@ -199,14 +215,13 @@ async function saveDashboard() {
 }
 function toggleDragging(event, chartId) {
     //disable all charts
-    state.selected_chart = null;
-    state.selected_div = null;
     state.is_dragging = false;
     state.is_resizing = false;
     state.dashboard.charts.forEach((chart) => {
         if (chart.chart_id !== chartId) {
             chart.config.drag_enabled = false;
             chart.config.resize_enabled = false;
+            chart.config.add_columns_enabled = false;
         }
     });
     //enable target chart
@@ -214,6 +229,7 @@ function toggleDragging(event, chartId) {
     if (chart) {
         chart.config.drag_enabled = !chart.config.drag_enabled;
         chart.config.resize_enabled = false;
+        chart.config.add_columns_enabled = false;
         if (chart.config.drag_enabled) {
             state.selected_chart = chart;
         } else {
@@ -224,14 +240,13 @@ function toggleDragging(event, chartId) {
 }
 function toggleResizing(chartId) {
     //disable all charts
-    state.selected_chart = null;
-    state.selected_div = null;
     state.is_dragging = false;
     state.is_resizing = false;
     state.dashboard.charts.forEach((chart) => {
         if (chart.chart_id !== chartId) {
             chart.config.drag_enabled = false;
             chart.config.resize_enabled = false;
+            chart.config.add_columns_enabled = false;
         }
     });
     //enable target chart
@@ -239,7 +254,32 @@ function toggleResizing(chartId) {
     if (chart) {
         chart.config.resize_enabled = !chart.config.resize_enabled;
         chart.config.drag_enabled = false;
+        chart.config.add_columns_enabled = false;
         if (chart.config.resize_enabled) {
+            state.selected_chart = chart;
+        } else {
+            state.selected_chart = null;
+            state.selected_div = null;
+        }
+    }
+}
+function toggleAddColumns(chartId) {
+    //enable target chart
+    state.is_dragging = false;
+    state.is_resizing = false;
+    state.dashboard.charts.forEach((chart) => {
+        if (chart.chart_id !== chartId) {
+            chart.config.drag_enabled = false;
+            chart.config.resize_enabled = false;
+            chart.config.add_columns_enabled = false;
+        }
+    });
+    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
+    if (chart) {
+        chart.config.add_columns_enabled = !chart.config.add_columns_enabled;
+        chart.config.drag_enabled = false;
+        chart.config.resize_enabled = false;
+        if (chart.config.add_columns_enabled) {
             state.selected_chart = chart;
         } else {
             state.selected_chart = null;
@@ -374,26 +414,31 @@ function stopDrag() {
 }
 function onResize(event) {
     const draggableDiv = document.getElementById(`draggable-${state.selected_chart.chart_id}`);
-    if (state.is_resizing && state.selected_div && draggableDiv) {
+    const chartDiv = document.getElementById(`chart-${state.selected_chart.chart_id}`);
+    if (state.is_mouse_down && state.is_resizing && state.selected_div && draggableDiv) {
         const deltaX = event.clientX - state.start_resize_x;
         const deltaY = event.clientY - state.start_resize_y;
+
+        console.log('state.previous_deltax', state.previous_deltax, 'state.previous_deltay', state.previous_deltay);
+        console.log('deltaX', deltaX, 'deltaY', deltaY);
+       
         let newWidth;
         let newHeight;
         let newWidthDraggable;
         let newHeightDraggable;
+
+        // console.log('onResize deltaX', deltaX, 'deltaY', deltaY);
 
         if (state.active_handle === 'TL') {
             newWidth = state.initial_width - deltaX;
             newHeight = state.initial_height - deltaY;
             newWidthDraggable = state.initial_width_draggable - deltaX;
             newHeightDraggable = state.initial_height_draggable - deltaY;
-
         } else if (state.active_handle === 'TR') {
             newWidth = state.initial_width + deltaX;
             newHeight = state.initial_height - deltaY;
             newWidthDraggable = state.initial_width_draggable + deltaX;
             newHeightDraggable = state.initial_height_draggable - deltaY;
-
         } else if (state.active_handle === 'BL') {
             newWidth = state.initial_width - deltaX;
             newHeight = state.initial_height + deltaY;
@@ -410,17 +455,37 @@ function onResize(event) {
         newHeight = Math.max(100, newHeight > 350 ? 350 : newHeight);
         newWidthDraggable = Math.max(100, newWidthDraggable > 350 ? 350 : newWidthDraggable);
         newHeightDraggable = Math.max(100, newHeightDraggable > 350 ? 350 : newHeightDraggable);
+        
+        //add a 100px margin to both the heights
+        //do not allow the height of the div to be less than the height of the chart
+        newHeight = Math.max(chartDiv.offsetHeight, newHeight) + 50;
+        newHeightDraggable = Math.max(chartDiv.offsetHeight, newHeightDraggable) + 50;
 
         state.selected_div.style.width = `${newWidth}px`;
         state.selected_div.style.height = `${newHeight}px`;
-        draggableDiv.style.width = `${newWidthDraggable}px`;
-        draggableDiv.style.height = `${newHeightDraggable}px`;
+        draggableDiv.style.width = `${newWidthDraggable}px`;//set the width of the draggable
+        draggableDiv.style.height = `${newHeightDraggable}px`;//set the height of the draggable
+        
+        state.previous_deltax = deltaX;
+        state.previous_deltay = deltaY;
     }
 }
 function stopResize() {
     state.is_resizing = false;
     document.removeEventListener('mousemove', onResize);
     document.removeEventListener('mouseup', stopResize);
+}
+function mouseDown() {
+    state.is_mouse_down = true;
+}
+function mouseUp() {
+    state.is_mouse_down = false;
+    stopDragAndResize();
+}
+function deleteChart(chartId) {
+    console.log(document.getElementById(`draggable-div-${chartId}`))//.remove();
+    document.getElementById(`draggable-div-${chartId}`).remove();
+    // state.dashboard.charts = state.dashboard.charts.filter((chart) => chart.chart_id !== chartId);
 }
 onMounted(async () => {
     state.data_model_tables = []
@@ -433,6 +498,8 @@ onMounted(async () => {
             columns: dataModelTable.columns,
         })
     })
+    document.addEventListener('mousedown', mouseDown);
+    document.addEventListener('mouseup', mouseUp);
 });
 </script>
 <template>
@@ -448,7 +515,7 @@ onMounted(async () => {
                         </div>
                     </div>
                 </div>
-                <div class="flex flex-col min-h-200 max-h-200 h-200 overflow-hidden ml-10 mr-2 mb-10 border border-primary-blue-100 border-solid bg-gray-200">
+                <div class="flex flex-col min-h-200 max-h-200 h-200 overflow-hidden ml-10 mr-2 mb-10 border border-primary-blue-100 border-solid bg-gray-300">
                     <!-- <component :is="pie" chart-id="1" :data="[{label: 'label1', value: 10,},{label: 'label2', value: 30,}]" :width="400" :height="400" class="mt-5"/> -->
                     <div class="w-full border border-gray-400 border-dashed h-10 flex flex-row justify-center items-center text-center font-bold text-gray-500 select-none">
                         Drag columns from the side bar given in the left into the blue area below to build your visualization.
@@ -464,20 +531,20 @@ onMounted(async () => {
                                     :id="`top-left-corner-${chart.chart_id}`"
                                     src="/assets/images/resize-corner.svg"
                                     class="w-[12px] rotate-180 select-none top-left-corner translate-y-2"
+                                    :class="{ 'animate-pulse': chart.config.resize_enabled }"
                                     alt="Resize Visualization"
-                                    @mousedown="stopDragAndResize"
                                     @mousemove="topLeftCornerMouseMove($event, chart.chart_id)"
-                                    @mouseup="stopDragAndResize"
+                                    @mouseup="mouseUp"
                                 />
                                 <img
                                     v-if="chart.config.resize_enabled"
                                     :id="`top-right-corner-${chart.chart_id}`"
                                     src="/assets/images/resize-corner.svg"
                                     class="w-[12px] rotate-270 select-none top-right-corner translate-y-2"
+                                    :class="{ 'animate-pulse': chart.config.resize_enabled }"
                                     alt="Resize Visualization"
-                                    @mousedown="stopDragAndResize"
                                     @mousemove="topRightCornerMouseMove($event, chart.chart_id)"
-                                    @mouseup="stopDragAndResize"
+                                    @mouseup="mouseUp"
                                 />
                             </div>
                             <div
@@ -485,26 +552,42 @@ onMounted(async () => {
                                 @mousedown="draggableDivMouseDown($event, chart.chart_id)"
                                 @mouseup="stopDragAndResize"
                             >
-                                <div class="flex flex-row bg-gray-500 border border-3 border-gray-600 border-b-0 p-2">
+                                <div class="flex flex-row bg-gray-200 border border-3 border-gray-600 border-b-0 p-2">
                                     <font-awesome 
                                         icon="fas fa-up-down-left-right"
-                                        class="text-xl hover:text-gray-300"
+                                        class="text-xl hover:text-gray-400 cursor-pointer"
                                         :class="{
                                             'text-black': chart.config.drag_enabled,
-                                            'text-white': !chart.config.drag_enabled,
+                                            'text-gray-500': !chart.config.drag_enabled,
                                         }"
                                         :v-tippy-content="chart.config.drag_enabled ? 'Disable Dragging' : 'Enable Dragging'"
                                         @click="toggleDragging($event, chart.chart_id)"
                                     />
                                     <font-awesome 
-                                        icon="fas fa-up-right-and-down-left-from-center"
-                                        class="text-xl ml-2 hover:text-gray-300"
+                                        icon="fas fa-up-right-and-down-left-from-center cursor-pointer"
+                                        class="text-xl ml-2 hover:text-gray-400"
                                         :class="{
                                             'text-black': chart.config.resize_enabled,
-                                            'text-white': !chart.config.resize_enabled,
+                                            'text-gray-500': !chart.config.resize_enabled,
                                         }"
                                         :v-tippy-content="chart.config.resize_enabled ? 'Disable Resizing' : 'Enable Resizing'"
                                         @click="toggleResizing(chart.chart_id)"
+                                    />
+                                    <font-awesome 
+                                        icon="fas fa-plus"
+                                        class="text-xl ml-2 hover:text-gray-400 cursor-pointer"
+                                        :class="{
+                                            'text-black': chart.config.add_columns_enabled,
+                                            'text-gray-500': !chart.config.add_columns_enabled,
+                                        }"
+                                        :v-tippy-content="chart.config.add_columns_enabled ? 'Disable Add Columns' : 'Enable Add Columns'"
+                                        @click="toggleAddColumns(chart.chart_id)"
+                                    />
+                                    <font-awesome 
+                                        icon="fas fa-trash"
+                                        class="text-xl ml-2 text-gray-400 hover:text-red-500 cursor-pointer"
+                                        :v-tippy-content="'Delete Chart'"
+                                        @click="deleteChart(chart.chart_id)"
                                     />
                                 </div>
                                 <draggable
@@ -512,24 +595,24 @@ onMounted(async () => {
                                     v-model="chart.columns"
                                     group="data_model_columns"
                                     itemKey="column_name"
-                                    class="flex flex-row w-full h-50 bg-gray-500 border border-3 border-gray-600 border-t-0 draggable-model-columns"
+                                    class="flex flex-row w-full h-50 bg-gray-200 border border-3 border-gray-600 border-t-0 draggable-model-columns"
                                     tag="tr"
+                                    :disabled="!chart.config.add_columns_enabled"
                                     @mousedown="draggableDivMouseDown($event, chart.chart_id)"
                                     @mouseup="stopDragAndResize"
                                     @change="changeDataModel($event, chart.chart_id)"
                                 >
                                     <template #item="{ element, index }">
                                         <div v-if="index === 0" class="text-left font-bold text-white px-4 py-2 border-r-1 border-gray-200">
-                                            <div v-if="showPieChart" class="flex flex-col">
-                                                <div class="flex flex-col justify-center">
-                                                    <pie-chart
-                                                        chart-id="1"
-                                                        :data="chart.data"
-                                                        :width="1200"
-                                                        :height="1200"
-                                                        class="mt-5"
-                                                    />
-                                                </div>
+                                            <div v-if="chart && chart.data && chart.data.length" class="flex flex-col justify-center">
+                                                <pie-chart
+                                                    :id="`chart-${chart.chart_id}`"   
+                                                    :chart-id="chart.chart_id"
+                                                    :data="chart.data"
+                                                    :width="1200"
+                                                    :height="1200"
+                                                    class="mt-5"
+                                                />
                                             </div>
                                         </div>
                                     </template>
@@ -541,20 +624,20 @@ onMounted(async () => {
                                     :id="`bottom-left-corner-${chart.chart_id}`"
                                     src="/assets/images/resize-corner.svg"
                                     class="w-[12px] rotate-90 select-none bottom-left-corner -translate-y-2"
+                                    :class="{ 'animate-pulse': chart.config.resize_enabled }"
                                     alt="Resize Visualization"
-                                    @mousedown="stopDragAndResize"
                                     @mousemove="bottomLeftCornerMouseMove($event, chart.chart_id)"
-                                    @mouseup="stopDragAndResize"
+                                    @mouseup="mouseUp"
                                 />
                                 <img
                                     v-if="chart.config.resize_enabled"
                                     :id="`bottom-right-corner-${chart.chart_id}`"
                                     src="/assets/images/resize-corner.svg"
                                     class="w-[12px] select-none bottom-right-corner -translate-y-2"
+                                    :class="{ 'animate-pulse': chart.config.resize_enabled }"
                                     alt="Resize Visualization"
-                                    @mousedown="stopDragAndResize"
                                     @mousemove="bottomRightCornerMouseMove($event, chart.chart_id)"
-                                    @mouseup="stopDragAndResize"
+                                    @mouseup="mouseUp"
                                 />
                             </div>
                         </div>
