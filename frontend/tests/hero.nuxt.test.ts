@@ -1,5 +1,5 @@
 import { mountSuspended } from '@nuxt/test-utils/runtime'
-import { describe, it, expect, test } from 'vitest';
+import { describe,expect, test } from 'vitest';
 import { nextTick } from 'vue'
 import hero from '../components/hero.vue'
 

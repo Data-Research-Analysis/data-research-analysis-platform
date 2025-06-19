@@ -123,6 +123,11 @@ async function createAccount() {
 
 onMounted(async () => {
     await getToken();
+    window.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+            createAccount();
+        }
+    });
 })
 </script>
 <template>
@@ -150,6 +155,7 @@ onMounted(async () => {
                 :class="!state.firstNameError ? '' : 'bg-red-300 text-black'"
                 placeholder="First Name"
                 :disabled="state.loading"
+                @keydown.enter="createAccount"
             />
             <input
                 v-model="state.lastName"
@@ -158,6 +164,7 @@ onMounted(async () => {
                 :class="!state.lastNameError ? '' : 'bg-red-300 text-black'"
                 placeholder="Last Name"
                 :disabled="state.loading"
+                @keydown.enter="createAccount"
             />
             <input
                 v-model="state.email"
@@ -166,6 +173,7 @@ onMounted(async () => {
                 :class="!state.emailError ? '' : 'bg-red-300 text-black'"
                 placeholder="Email"
                 :disabled="state.loading"
+                @keydown.enter="createAccount"
             />
             <input
                 v-model="state.password"
@@ -175,6 +183,7 @@ onMounted(async () => {
                 placeholder="Password"
                 v-tippy="{ content: 'Password should be atleast 8 characters in length, have aleast one lowercase character, atleast one upper case character, atleast a number between 0 and 9 and atleast one special character (#?!@$%^&*-).' }"
                 :disabled="state.loading"
+                @keydown.enter="createAccount"
             />
             <input
                 v-model="state.rePassword"
@@ -184,12 +193,14 @@ onMounted(async () => {
                 placeholder="Repeat Password"
                 v-tippy="{ content: 'Repeast Password should be the same as the Password given above.' }"
                 :disabled="state.loading"
+                @keydown.enter="createAccount"
             />
             <spinner v-if="state.loading"/>
             <div
                 v-else
                 class="w-1/4 text-center self-center mb-5 p-2 m-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md"
                 @click="createAccount"
+                @keydown.enter="createAccount"
             >
                 Create Account
             </div>

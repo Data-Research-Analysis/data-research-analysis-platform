@@ -20,7 +20,6 @@ async function getDataModels() {
         },
     });
     const data = await response.json();
-    console.log(data);
     state.data_models = data.map((dataSource) => {
         return {
             id: dataSource.id,
@@ -29,7 +28,6 @@ async function getDataModels() {
             dataModels: 0,
         }
     });
-    console.log('getDataModels', state.data_models);
 }
 async function deleteDataModel(dataModelId) {
     

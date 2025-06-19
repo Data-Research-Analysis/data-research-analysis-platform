@@ -5,7 +5,7 @@ import { DRADataSource } from "../models/DRADataSource";
 import { DRAVerificationCode } from "../models/DRAVerificationCode";
 import { DRAUsersPlatform } from "../models/DRAUsersPlatform";
 import { DRAProject } from "../models/DRAProject";
-import { DRAVisualization } from "../models/DRAVisualization";
+import { DRADashboard } from "../models/DRADashboard";
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -29,7 +29,7 @@ export class PostgresDataSource {
             database: database,
             synchronize: false,
             logging: true,
-            entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRAUser, DRAVisualization],
+            entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRAUser, DRADashboard],
             subscribers: [],
             migrations: ['./src/migrations/*.ts'],
         })

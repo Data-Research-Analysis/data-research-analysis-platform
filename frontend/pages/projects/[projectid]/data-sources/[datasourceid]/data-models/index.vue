@@ -28,11 +28,8 @@ const dataModel = computed(() => {
     return dataModelsStore.getSelectedDataModel();
 });
 async function getDataModels() {
-    console.log('getDataModels dataModelsStore.getDataModels()', dataModelsStore.getDataModels());
-    console.log('dataSource.value.id', dataSource.value.id);
     state.data_models = [];
     state.data_models = dataModelsStore.getDataModels().filter((dataModel) => dataModel.data_source.id === dataSource.value.id).map((dataModel) => {
-        console.log('getDataModels dataModel', dataModel);
         return {
             id: dataModel.id,
             schema: dataModel.schema,
@@ -42,7 +39,6 @@ async function getDataModels() {
             user_id: dataModel.users_platform.id,
         }
     });
-    console.log('getDataModels', state.data_models);
 }
 async function deleteDataModel(dataModelId) {
     const { value: confirmDelete } = await $swal.fire({
@@ -86,45 +82,48 @@ onMounted(async () => {
 })
 </script>
 <template>
-    <div class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md">
-        <div class="font-bold text-2xl mb-5">
-            Data Models
-        </div>
-        <div class="text-md">
-            Data Models are part of the semantic data layer and will be the basis of the analysis that you will perform.
-        </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5">
-            <notched-card class="justify-self-center mt-10">
-                <template #body="{ onClick }">
-                    <NuxtLink :to="`/projects/${project.id}/data-sources/${dataSource.id}/data-models/create`">
-                        <div class="flex flex-col justify-center text-lg font-bold cursor-pointer items-center">
-                            <div class="bg-gray-300 border border-gray-300 border-solid rounded-full w-20 h-20 flex items-center justify-center mb-5">
-                                <font-awesome icon="fas fa-plus" class="text-4xl text-gray-500" />
-                            </div>
-                            Create New Data Model
-                        </div>
-                    </NuxtLink>
-                </template>
-            </notched-card>
-            <div v-for="dataModel in state.data_models" class="relative">
+    <div class="flex flex-col">
+        <tabs :project-id="project.id"/>
+        <div class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 mb-10 border border-primary-blue-100 border-solid p-10 shadow-md">
+            <div class="font-bold text-2xl mb-5">
+                Data Models
+            </div>
+            <div class="text-md">
+                Data Models are part of the semantic data layer and will be the basis of the analysis that you will perform.
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5">
                 <notched-card class="justify-self-center mt-10">
                     <template #body="{ onClick }">
-                        <NuxtLink :to="`/projects/${project.id}/data-sources/${dataSource.id}/data-models/${dataModel.id}/edit`" class="hover:text-gray-500 cursor-pointer">
-                            <div class="flex flex-col justify-start h-full">
-                                <div class="text-md font-bold">
-                                    {{cleanDataModelName(dataModel.name)}}
+                        <NuxtLink :to="`/projects/${project.id}/data-sources/${dataSource.id}/data-models/create`">
+                            <div class="flex flex-col justify-center text-lg font-bold cursor-pointer items-center">
+                                <div class="bg-gray-300 border border-gray-300 border-solid rounded-full w-20 h-20 flex items-center justify-center mb-5">
+                                    <font-awesome icon="fas fa-plus" class="text-4xl text-gray-500" />
                                 </div>
-                                <div class="flex flex-row justify-between mt-4 mb-10">
-                                    <ul class="text-xs">
-                                        <li>Data Models</li>
-                                    </ul>
-                                </div>
+                                Create New Data Model
                             </div>
                         </NuxtLink>
                     </template>
                 </notched-card>
-                <div class="absolute top-5 -right-2 z-10 bg-gray-200 hover:bg-gray-300 border border-gray-200 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer" @click="deleteDataModel(dataModel.id)">
-                    <font-awesome icon="fas fa-xmark" class="text-xl text-red-500 hover:text-red-400 select-none" />
+                <div v-for="dataModel in state.data_models" class="relative">
+                    <notched-card class="justify-self-center mt-10">
+                        <template #body="{ onClick }">
+                            <NuxtLink :to="`/projects/${project.id}/data-sources/${dataSource.id}/data-models/${dataModel.id}/edit`" class="hover:text-gray-500 cursor-pointer">
+                                <div class="flex flex-col justify-start h-full">
+                                    <div class="text-md font-bold">
+                                        {{cleanDataModelName(dataModel.name)}}
+                                    </div>
+                                    <div class="flex flex-row justify-between mt-4 mb-10">
+                                        <ul class="text-xs">
+                                            <li>Data Models</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </NuxtLink>
+                        </template>
+                    </notched-card>
+                    <div class="absolute top-5 -right-2 z-10 bg-gray-200 hover:bg-gray-300 border border-gray-200 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer" @click="deleteDataModel(dataModel.id)">
+                        <font-awesome icon="fas fa-xmark" class="text-xl text-red-500 hover:text-red-400 select-none" />
+                    </div>
                 </div>
             </div>
         </div>

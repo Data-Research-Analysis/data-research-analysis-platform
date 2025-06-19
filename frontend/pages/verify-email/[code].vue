@@ -84,7 +84,6 @@ async function resendCode() {
 onMounted(async () => {
     await getToken();
     state.code = route.params.code;
-    console.log(state.code);
     await verifyToken();
 })
 </script>

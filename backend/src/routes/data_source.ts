@@ -112,5 +112,4 @@ async (req: Request, res: Response) => {
         res.status(400).send({message: 'The data model could not be built.'});
     }
 });
-
 export default router;

@@ -1,135 +1,145 @@
 <script setup>
+import { useVisualizationsStore } from '@/stores/visualizations';
+
+const visualizationsStore = useVisualizationsStore();
 const route = useRoute();
+const emits = defineEmits(['add:selectedColumns', 'remove:selectedColumns']);
 const state = reactive({
-    dataSourcesStatus: false,
-    dataModelsStatus: false,
-    dataSourcesOpened: false,
-    dataModelsOpened: false,
-    dataSources: [],
+    dataModelsOpened: true,
     dataModels: [],
 })
+const props = defineProps({
+    dataModels: {
+        type: Array,
+        default: () => [],
+    },
+    selectedChart: {
+        type: Object,
+        default: () => null,
+    },
+});
 watch(
   route,
   (value, oldValue) => {
     updateStatus();
   },
 );
-function toggleProjects() {
-    state.projectsOpened = !state.projectsOpened;
+watch( props, (value) => {
+    console.log('sidebar watch props selectedChart', value.selectedChart);
+    console.log('sidebar watch props dataModels', value.dataModels);
+});
+// watch( visualizationsStore, (value) => {
+// });
+const columnsAdded = computed(() => {
+    return visualizationsStore.getColumnsAdded();
+});
+function isDataModelEnabled(dataModel) {
+    if (columnsAdded.value.length) {
+        const tableName = columnsAdded.value[0].table_name;
+        if (dataModel.model_name === tableName) {
+            return true;
+        }
+        return false;
+    }
+    return true;
 }
-function toggleDataSources() {
-    state.dataSourcesOpened = !state.dataSourcesOpened;
-}
-function toggleSheets() {
-    state.sheetsOpened = !state.sheetsOpened;
-}
-function toggleVisualizations() {
-    state.visualizationsOpened = !state.visualizationsOpened;
-}
-async function getDataSources() {
-    state.dataSources = [];
-    // const token = getAuthToken();
-    // const url = `${baseUrl()}/project/list`;
-    // const response = await fetch(url, {
-    //     method: "GET",
-    //     headers: {
-    //         "Content-Type": "application/json",
-    //         "Authorization": `Bearer ${token}`,
-    //         "Authorization-Type": "auth",
-    //     },
-    // });
-    // const data = await response.json();
-    // state.projects = data.map((project) => {
-    //     return {
-    //         id: project.id,
-    //         user_id: project.user_platform_id,
-    //         name: project.name,
-    //         dataSources: 0,
-    //         sheets: 0,
-    //         visualizations: 0,
-    //         dashboards: 0,
-    //         stories: 0,
-    //     }
-    // });
+function toggleDataModels(dataModel) {
+    dataModel.show_model = !dataModel.show_model;
 }
 function updateStatus() {
     if (route.name === 'projects-projectname-data-sources') {
-        state.dataSourcesStatus = true;
         state.dataModelsStatus = false;
     }
 }
+function isColumnSelected(modelName, columnName) {
+    return props?.selectedChart?.columns?.find((column) => column.table_name === modelName && column.column_name === columnName) ? true : false;
+}
+function toggleSelectedColumn(event, modelName, columnName) {
+    console.log('toggleSelectedColumn', modelName, columnName, event.target.checked);
+    if (event.target.checked) {
+        emits('add:selectedColumns', {
+            chart_id: props.selectedChart.chart_id,
+            table_name: modelName,
+            column_name: columnName,
+        });
+    } else {
+        emits('remove:selectedColumns', {
+            chart_id: props.selectedChart.chart_id,
+            table_name: modelName,
+            column_name: columnName,
+        });
+    }
+}
 onMounted(async () => {
-    await getDataSources();
-    console.log('route', route);
-    updateStatus();
+    console.log('sidebar mounted columns', props.columns);
 })
 </script>
 <template>
     <div class="flex flex-col min-h-150 bg-gray-300 shadow-md">
-        <div v-if="state.dataSourcesStatus" class="flex flex-row items-center mt-10 ml-2 mr-2 p-2 hover:bg-gray-200 hover:text-gray-500 text-lg font-bold cursor-pointer select-none" @click="toggleDataSources">
-            <!-- <font-awesome icon="fas fa-plus" /> -->
-            <font-awesome v-if="!state.dataSourcesOpened" icon="fas fa-angle-right"/>
-            <font-awesome v-else icon="fas fa-angle-down"/>
-            <span class="hover:text-gray-500 ml-2 mr-2">Data Sources</span>
-            <menu-dropdown direction="right">
-                <template #menuItem="{ onClick }">
-                    <font-awesome @click="onClick" icon="fas fa-ellipsis" class="transform translate-y-0.5 hover:text-gray-500" />
-                </template>
-                <template #dropdownMenu="{ onClick }">
-                    <div class="flex flex-col w-40 text-center">
-                        <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer border-b-1 border-primary-blue-100 border-solid pt-1 pb-1">
-                            <NuxtLink to="/register">Register</NuxtLink>
-                        </div>
-                        <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer pt-1 pb-1">
-                            <NuxtLink to="/login">Login</NuxtLink>
-                        </div>
-                    </div>
-                </template>
-            </menu-dropdown>
+        <div class="flex flex-row items-center ml-2 mr-2 p-2 text-lg font-bold cursor-pointer select-none">
+            <h3 class="ml-2 mr-2">Data Models</h3>
         </div>
-        <div v-else class="flex flex-row items-center mt-10 ml-2 mr-2 p-2 text-lg text-gray-400 select-none">
-            <!-- <font-awesome icon="fas fa-plus" /> -->
-            <font-awesome icon="fas fa-angle-right" />
-            <span class="ml-2 mr-2">Data Sources</span>
-        </div>
-        <div v-if="state.dataSourcesOpened"
-            class="flex flex-col ml-5 mr-2 p-2 transition-all duration-500"
+        <div v-if="state.dataModelsOpened"
+            class="flex flex-col ml-5 mr-2 transition-all duration-500"
             :class="{
-                'opacity-0': !state.dataSourcesOpened,
-                'opacity-100': state.dataSourcesOpened,
-                'h-0': !state.dataSourcesOpened,
-                'h-auto': state.dataSourcesOpened
+                'opacity-0': !state.dataModelsOpened,
+                'opacity-100': state.dataModelsOpened,
+                'h-0': !state.dataModelsOpened,
+                'h-auto': state.dataModelsOpened
             }"
         >
-            <div 
-                class="hover:bg-gray-200 text-md cursor-pointer"
+            <div
+                v-for="dataModel in props.dataModels"
+                :key="dataModel.id"
+                class="text-mdw-full h-10 flex items-center justify-start mb-2"
                 :class="{
-                    'opacity-0': !state.dataSourcesOpened,
-                    'opacity-100': state.dataSourcesOpened,
-                    'h-0': !state.dataSourcesOpened,
-                    'h-auto': state.dataSourcesOpened
+                    'opacity-0': !state.dataModelsOpened,
+                    'opacity-100': state.dataModelsOpened,
+                    'h-0': !state.dataModelsOpened,
+                    'h-auto': state.dataModelsOpened
                 }"
             >
-                People
+                <div v-if="isDataModelEnabled(dataModel)" class="flex flex-col ml-4 select-none cursor-pointer ">
+                    <div class="flex flex-row" @click="toggleDataModels(dataModel)">
+                        <font-awesome v-if="!dataModel.show_model" icon="fas fa-angle-right" class="mt-1 mr-1" />
+                        <font-awesome v-else="dataModel.show_model" icon="fas fa-angle-down" class="mt-1 mr-1" />
+                        <h5 class="w-full"
+                            v-tippy="{ content: `${dataModel.cleaned_model_name}`, placement: 'right' }"
+                        >
+                            {{ dataModel.cleaned_model_name.length > 20 ? `${dataModel.cleaned_model_name.substring(0, 20)}...`: dataModel.cleaned_model_name }}
+                        </h5>
+                    </div>
+                    <div v-if="dataModel.show_model">
+                        <!-- <div v-for="column in dataModel.columns" :key="column.id" class="cursor-pointer ml-5"> -->
+                            <draggable
+                                class="ml-6"
+                                :list="dataModel.columns"
+                                :group="{ name: 'data_model_columns', pull: 'clone', put: false }"
+                                itemKey="column_name"
+                            >
+                                <template #item="{ element, index }">
+                                    <div class="flex flex-row items-center">
+                                        <div v-if="props.selectedChart && props.selectedChart.chart_id && props.selectedChart.config.add_columns_enabled" class="h-10 flex flex-col justify-center" @click="toggleSelectedColumn($event, dataModel.model_name, element.column_name)">
+                                            <input type="checkbox" class="cursor-pointer mt-1 scale-150" :checked="isColumnSelected(dataModel.model_name, element.column_name)" @change="toggleSelectedColumn($event, dataModel.model_name, element.column_name)"/>
+                                        </div>
+                                        <div class="h-10 flex flex-col justify-center">
+                                            <h6 v-tippy="{content:`Column Name: ${element.column_name}<br />Column Data Type: ${element.data_type}`}" class="text-sm font-bold hover:text-gray-500 p-1 m-1">
+                                                {{ element.column_name.length > 20 ? `${element.column_name.substring(0, 20)}...`: element.column_name }}
+                                            </h6>
+                                        </div>
+                                    </div>
+                                </template>
+                            </draggable>
+                        <!-- </div> -->
+                    </div>
+                </div>
+                <div v-else class="flex flex-row items-center text-gray-500 ml-4 select-none"
+                    v-tippy="{ content: 'Delete all of the columns from the selected data model to add columns from this data model.', placement: 'right' }"
+                >
+                    <font-awesome icon="fas fa-angle-right" class="mt-1 mr-1" />
+                    {{ dataModel.cleaned_model_name.length > 20 ? `${dataModel.cleaned_model_name.substring(0, 20)}...`: dataModel.cleaned_model_name }}
+                </div>
             </div>
-            <div 
-                class="mt-1 hover:bg-gray-200 text-md cursor-pointer"
-                :class="{
-                    'opacity-0': !state.dataSourcesOpened,
-                    'opacity-100': state.dataSourcesOpened,
-                    'h-0': !state.dataSourcesOpened,
-                    'h-auto': state.dataSourcesOpened
-                }"    
-            >
-                People
-            </div>
-        </div>
-
-        <div class="flex flex-row items-center ml-2 mr-2 p-2 text-lg text-gray-400 select-none">
-            <font-awesome v-if="!state.sheetsOpened" icon="fas fa-angle-right" />
-            <font-awesome v-else icon="fas fa-angle-down" />
-            <span class="ml-2 mr-2">Data Models</span>
-        </div>
-        
+        </div>        
     </div>
 </template>

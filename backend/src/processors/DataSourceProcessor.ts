@@ -132,16 +132,16 @@ export class DataSourceProcessor {
             if (!project) {
                 return resolve(false);
             }
-            const dataSources = await manager.find(DRADataSource, {where: {project: project, users_platform: user}});
-            if (!dataSources) {
+            const dataSource = await manager.find(DRADataSource, {where: {project: project, users_platform: user}});
+            if (!dataSource) {
                 return resolve(false);
             }
-            const dataModels = await manager.find(DRADataModel, {where: {data_source: dataSources}});
+            const dataModels = await manager.find(DRADataModel, {where: {data_source: dataSource}});
             if (!dataModels) {
                 return resolve(false);
             }
             manager.remove(dataModels);
-            manager.remove(dataSources);
+            manager.remove(dataSource);
             return resolve(true);
         });
     }
@@ -173,17 +173,30 @@ export class DataSourceProcessor {
             const externalDriver = await DBDriver.getInstance().getDriver(dataSourceType);
             if (!externalDriver) {
                 return resolve(null);
-            }  
+            }
+            const dataModels = await manager.find(DRADataModel, {where: {data_source: dataSource}});
+            if (!dataModels) {
+                return resolve(false);
+            }
+            console.log('dataModels', dataModels);
+            const dataModelTables = dataModels.map((dataModel: DRADataModel) => {
+                return `'${dataModel.name}'`;
+            });
+            console.log('dataModelTables', dataModelTables);
             const dbConnector: DataSource =  await externalDriver.connectExternalDB(connection);
             if (!dbConnector) {
                 return resolve(null);
             }
-            let tablesSchema = await dbConnector.query(`SELECT tb.table_catalog, tb.table_schema, tb.table_name, co.column_name, co.data_type, co.character_maximum_length
+            let query = `SELECT tb.table_catalog, tb.table_schema, tb.table_name, co.column_name, co.data_type, co.character_maximum_length
 					FROM information_schema.tables AS tb
 					JOIN information_schema.columns AS co
 					ON tb.table_name = co.table_name
 					WHERE tb.table_schema = '${connection.schema}'
-					AND tb.table_type = 'BASE TABLE';`);
+					AND tb.table_type = 'BASE TABLE'`;
+            if (dataModelTables?.length) {
+                query += ` AND tb.table_name NOT IN (${dataModelTables.join(',')})`;
+            }
+            let tablesSchema = await dbConnector.query(query);
             let tables = tablesSchema.map((table: any) => {
                 return {
                     table_name: table.table_name,
@@ -193,6 +206,7 @@ export class DataSourceProcessor {
                 }
             });
             tables = _.uniqBy(tables, 'table_name');
+            console.log('tables', tables);
             tables.forEach((table: any) => {
                 tablesSchema.forEach((result: any) => {
                     if (table.table_name === result.table_name) {
@@ -268,44 +282,7 @@ export class DataSourceProcessor {
             }
             const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
             if (!user) {
-                return resolve(false);
-            }
-            const dataSource: DRADataSource = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}});
-            if (!dataSource) {
                 return resolve(null);
-            }
-            const connection: IDBConnectionDetails = dataSource.connection_details;
-            const dataSourceType = UtilityService.getInstance().getDataSourceType(connection.data_source_type);
-            if (!dataSourceType) {
-                return resolve(null);
-            }
-            const externalDriver = await DBDriver.getInstance().getDriver(dataSourceType);
-            if (!externalDriver) {
-                return resolve(null);
-            }
-            const dbConnector: DataSource =  await externalDriver.connectExternalDB(connection);
-            if (!dbConnector) {
-                return resolve(null);
-            }
-            const results = await dbConnector.query(query);
-            return resolve(results);
-        });
-    }
-
-    public async buildDataModelOnQuery(dataSourceId: number, query: string, queryJSON: string, dataModelName: string, tokenDetails: ITokenDetails): Promise<boolean> {
-        return new Promise<boolean>(async (resolve, reject) => {
-            const { user_id } = tokenDetails;
-            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-            if (!driver) {
-                return resolve(null);
-            }
-            const manager = (await driver.getConcreteDriver()).manager;
-            if (!manager) {
-                return resolve(null);
-            }
-            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
-            if (!user) {
-                return resolve(false);
             }
             const dataSource: DRADataSource = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}});
             if (!dataSource) {
@@ -325,6 +302,47 @@ export class DataSourceProcessor {
                 return resolve(null);
             }
             try {
+                const results = await dbConnector.query(query);
+                return resolve(results);
+            } catch (error) {
+                return resolve(null);
+            }
+        });
+    }
+
+    public async buildDataModelOnQuery(dataSourceId: number, query: string, queryJSON: string, dataModelName: string, tokenDetails: ITokenDetails): Promise<boolean> {
+        return new Promise<boolean>(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve(false);
+            }
+            const manager = (await driver.getConcreteDriver()).manager;
+            if (!manager) {
+                return resolve(false);
+            }
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!user) {
+                return resolve(false);
+            }
+            const dataSource: DRADataSource = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}});
+            if (!dataSource) {
+                return resolve(false);
+            }
+            const connection: IDBConnectionDetails = dataSource.connection_details;
+            const dataSourceType = UtilityService.getInstance().getDataSourceType(connection.data_source_type);
+            if (!dataSourceType) {
+                return resolve(false);
+            }
+            const externalDriver = await DBDriver.getInstance().getDriver(dataSourceType);
+            if (!externalDriver) {
+                return resolve(false);
+            }
+            const dbConnector: DataSource =  await externalDriver.connectExternalDB(connection);
+            if (!dbConnector) {
+                return resolve(false);
+            }
+            try {
                 dataModelName = UtilityService.getInstance().uniquiseName(dataModelName);
                 const createTableQuery = `CREATE TABLE ${dataModelName} AS ${query}`;
                 await dbConnector.query(createTableQuery);
@@ -339,7 +357,7 @@ export class DataSourceProcessor {
                 return resolve(true);
             } catch (error) {
                 console.log('error', error);
-                return resolve(null);
+                return resolve(false);
             }
         });
     }

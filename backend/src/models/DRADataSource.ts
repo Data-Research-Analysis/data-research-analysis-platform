@@ -1,9 +1,8 @@
-import { Column, Entity, JoinTable, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, JoinColumn, JoinTable, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { DRAUsersPlatform } from './DRAUsersPlatform';
 import { DRADataModel } from './DRADataModel';
 import { DRAProject } from './DRAProject';
 import { EDataSourceType } from '../types/EDataSourceType';
-import { Json } from 'sequelize/types/utils';
 import { IDBConnectionDetails } from '../types/IDBConnectionDetails';
 @Entity('dra_data_sources')
 export class DRADataSource {
@@ -19,13 +18,14 @@ export class DRADataSource {
     created_at: Date
 
     @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.data_sources)
-    @JoinTable()
-    users_platform: DRAUsersPlatform
+    @JoinColumn({ name: 'users_platform_id', referencedColumnName: 'id' })
+    users_platform!: DRAUsersPlatform
+    
     @OneToMany(() => DRADataModel, (dataModel) => dataModel.data_source, { cascade: ["remove", "update"] })
-    @JoinTable()
-    data_models: DRADataModel[]
+    data_models!: DRADataModel[]
+    
     @ManyToOne(() => DRAProject, (project) => project.data_sources)
-    @JoinTable()
-    project: DRAProject
+    @JoinColumn({ name: 'project_id', referencedColumnName: 'id' })
+    project!: DRAProject
     
 }

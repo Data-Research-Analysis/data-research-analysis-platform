@@ -35,4 +35,20 @@ async (req: Request, res: Response) => {
         res.status(400).send({message: 'The data model could not be rebuilt.'});
     }
 });
+router.get('/tables/project/:project_id', async (req: Request, res: Response, next: any) => {
+    next();
+},validateJWT, validate([param('project_id').notEmpty().trim()]), async (req: Request, res: Response) => {
+    const { project_id } = matchedData(req);
+    console.log('project_id', project_id);
+    const data_models_tables_list = await DataModelProcessor.getInstance().getTablesFromDataModels(project_id, req.body.tokenDetails);    
+    res.status(200).send(data_models_tables_list);
+});
+router.post('/execute-query-on-data-model', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([body('query').notEmpty().trim()]),
+async (req: Request, res: Response) => {
+    const { data_source_id, query } = matchedData(req);
+    const response = await DataModelProcessor.getInstance().executeQueryOnDataModel(query, req.body.tokenDetails);
+    res.status(200).send(response); 
+});
 export default router;

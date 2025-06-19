@@ -3,7 +3,7 @@ import { DRAProject } from './DRAProject';
 import { DRADataSource } from './DRADataSource';
 import { DRADataModel } from './DRADataModel';
 import { DRAVerificationCode } from './DRAVerificationCode';
-import { DRAVisualization } from './DRAVisualization';
+import { DRADashboard } from './DRADashboard';
 
 @Entity('dra_users_platform')
 export class DRAUsersPlatform {
@@ -21,15 +21,20 @@ export class DRAUsersPlatform {
     email_verified_at: Date
     @Column({ type: 'timestamp', nullable: true })
     unsubscribe_from_emails_at: Date
-
+    
     @OneToMany(() => DRAProject, (project) => project.users_platform, { cascade: ["remove", "update"] })
-    projects: DRAProject[]
+    projects!: DRAProject[]
+    
     @OneToMany(() => DRADataSource, (dataSource) => dataSource.users_platform, { cascade: ["remove", "update"] })
-    data_sources: DRADataSource[]
+    data_sources!: DRADataSource[]
+    
     @OneToMany(() => DRADataModel, (dataModel) => dataModel.users_platform, { cascade: ["remove", "update"] })
-    data_models: DRADataModel[]
+    data_models!: DRADataModel[]
+    
     @OneToMany(() => DRAVerificationCode, (verificationCodes) => verificationCodes.users_platform, { cascade: ["remove", "update"] })
-    verification_codes: DRAVerificationCode[]
-    @OneToMany(() => DRAVisualization, (visualizations) => visualizations.users_platform, { cascade: ["remove", "update"] })
-    visualizations: DRAVisualization[]
+    verification_codes!: DRAVerificationCode[]
+    
+    @OneToMany(() => DRADashboard, (dashboards) => dashboards.users_platform, { cascade: ["remove", "update"] })
+    dashboards!: DRADashboard[]
+
 }

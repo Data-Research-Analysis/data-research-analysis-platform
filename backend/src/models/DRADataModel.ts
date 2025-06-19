@@ -1,4 +1,4 @@
-import { Column, Entity, JoinTable, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { DRAUsersPlatform } from './DRAUsersPlatform';
 import { DRADataSource } from './DRADataSource';
 @Entity('dra_data_models')
@@ -13,11 +13,12 @@ export class DRADataModel {
     sql_query: string
     @Column({ type: 'jsonb' })
     query: JSON
+        
+    @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.data_models)
+    @JoinColumn({ name: 'users_platform_id', referencedColumnName: 'id' })
+    users_platform!: DRAUsersPlatform
     
-    @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.data_sources)
-    @JoinTable()
-    users_platform: DRAUsersPlatform
     @ManyToOne(() => DRADataSource, (dataSource) => dataSource.data_models)
-    @JoinTable()
-    data_source: DRADataSource
+    @JoinColumn({ name: 'data_source_id', referencedColumnName: 'id' })
+    data_source!: DRADataSource
 }

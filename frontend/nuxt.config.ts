@@ -1,7 +1,6 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import tailwindcss from "@tailwindcss/vite";
 
-console.log("process.env.NUXT_PORT", process.env.NUXT_PORT ? parseInt(process.env.NUXT_PORT, 10) : 3000);
 export default defineNuxtConfig({
   compatibilityDate: '2024-11-01',
   ssr: false,

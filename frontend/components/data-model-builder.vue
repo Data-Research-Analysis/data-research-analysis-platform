@@ -5,8 +5,7 @@ const route = useRoute();
 const router = useRouter();
 const state = reactive({
     show_dialog: false,
-    tables: [
-    ],
+    tables: [],
     data_table: {
         table_name: 'Data Model Table',
         columns: [],
@@ -152,14 +151,14 @@ function closeDialog() {
 async function changeDataModel(event) {
     state.data_table.columns = state.data_table.columns.filter((column) => {
          //Remove the foreign key column. Do not allow to columns that are foreign keys in the referenced table
-        if (event?.added?.element?.reference?.foreign_table_schema && event?.added?.element?.reference?.local_table_name === column?.table_name && event?.added?.element?.reference?.local_column_name === column?.column_name) {
-            $swal.fire({
-                icon: 'error',
-                title: `Error!`,
-                text: `The column can not be added to the data model.`,
-            });
-            return false
-        }
+        // if (event?.added?.element?.reference?.foreign_table_schema && event?.added?.element?.reference?.local_table_name === column?.table_name && event?.added?.element?.reference?.local_column_name === column?.column_name) {
+        //     $swal.fire({
+        //         icon: 'error',
+        //         title: `Error!`,
+        //         text: `The column can not be added to the data model.`,
+        //     });
+        //     return false
+        // }
         //remove duplicate columns
         if (state.data_table.columns.filter((c) => c.column_name === column.column_name && c.table_name === column.table_name).length > 1) {
             return false;
@@ -265,7 +264,7 @@ function buildSQLQuery() {
     let fromJoinClause = [];
     let dataTables = state.data_table.columns.map((column) => `${column.schema}.${column.table_name}`);
   
-    const fromJoinClauses = [];
+    let fromJoinClauses = [];
     const tableCombinations = [];
     dataTables = _.uniq(dataTables);
     if (dataTables.length === 1) {
@@ -293,6 +292,27 @@ function buildSQLQuery() {
                 }
             });
         });
+
+        /**
+         * Reordering the fromJoinClauses so that any table that is seen as a foreign table seen earlier on in the list 
+         * is then seen as local table, then to add this particular table join object to the begining of the array
+         * so that the ordering of the tables being joined are correctly joined and their ON statements are correctly
+         * ordered as well.
+         */
+        let modified_tables = [];
+        for (let i=0; i<fromJoinClauses.length;i++) {
+            for (let j=0;j<fromJoinClauses.length;j++) {
+                if (fromJoinClauses[i].foreign_table_name === fromJoinClauses[j].local_table_name) {
+                    modified_tables.push(fromJoinClauses[j]);
+                }
+            }
+        }
+        for (let i=0; i<fromJoinClauses.length;i++) {
+            if (!modified_tables.find((table) => table.local_table_name === fromJoinClauses[i].local_table_name && table.foreign_table_name === fromJoinClauses[i].foreign_table_name)) {
+                modified_tables.push(fromJoinClauses[i]);
+            }
+        }
+        fromJoinClauses = modified_tables;
         fromJoinClauses.forEach((clause, index) => {
             if (index === 0) {
                 fromJoinClause.push(`FROM ${clause.local_table_schema}.${clause.local_table_name}`)
@@ -459,12 +479,23 @@ async function executeQueryOnExternalDataSource() {
     }
 }
 onMounted(async () => {
-    const elements = document.getElementsByClassName('draggable')
-    elements.forEach((elemen) => {
-        elemen.addEventListener('drag', (event) => {
-            window.scrollTo({ top: 400, behavior: 'smooth'});
-        })
+
+    document.addEventListener("scroll", () => {
+        if (window.scrollY > 1500) {
+            const elements = document.getElementsByClassName('draggable');
+            elements.forEach((elemen) => {
+                // elemen.addEventListener('drag', (event) => {
+                    // window.scrollTo({ top: 400, behavior: 'smooth'});
+                // })
+            })
+        } else {
+            const elements = document.getElementsByClassName('draggable');
+            elements.forEach((elemen) => {
+                elemen.removeEventListener('drag', () => {})
+            })
+        }
     })
+
     if (props.dataModel && props.dataModel.query) {
         state.data_table = props.dataModel.query;
     }
@@ -472,7 +503,7 @@ onMounted(async () => {
 })
 </script>
 <template>
-   <div class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md">
+   <div class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 border border-primary-blue-100 border-solid p-10 shadow-md">
         <div class="font-bold text-2xl mb-5">
             Create A Data Model from the Connected Data Source
         </div>
@@ -502,9 +533,12 @@ onMounted(async () => {
                 <h2 class="font-bold text-center mb-5">Tables</h2>
                 <div class="grid grid-cols-1 sm:grid-cols-2 md:Grid-cols-3 md:gap-2">
                     <div v-for="table in state.tables" class="flex flex-col border border-primary-blue-100 border-solid p-1">
-                        <h4 class="bg-gray-300 text-center font-bold p-1 mb-2">{{ table.schema }}.{{ table.table_name }}</h4>
+                        <h4 class="bg-gray-300 text-center font-bold p-1 mb-2 overflow-clip text-ellipsis" 
+                            v-tippy="{ content: `${table.schema}.${table.table_name}`, placement: 'bottom' }"
+                        >
+                            {{ table.schema }}.{{ table.table_name }}
+                        </h4>
                         <draggable
-                            class="list-group draggable"
                             :list="table.columns"
                             :group="{
                                 name: 'tables',
@@ -514,12 +548,11 @@ onMounted(async () => {
                             itemKey="name"
                         >
                             <template #item="{ element, index }">
-                                <div class="list-group-item cursor-pointer p-1 ml-2 mr-2"
+                                <div class="cursor-pointer p-1 ml-2 mr-2"
                                     :class="{
                                         'bg-gray-200': !element.reference.foreign_table_schema ? index % 2 === 0 : false,
                                         'bg-red-100 border-t-1 border-b-1 border-red-300': isColumnInDataModel(element.column_name, table.table_name),
                                         'hover:bg-green-100': !isColumnInDataModel(element.column_name, table.table_name),
-                                        'hover:bg-red-300': element.reference && element.reference.foreign_table_schema,
                                     }"
                                 >
                                     Column: <strong>{{ element.column_name }}</strong><br />
@@ -539,7 +572,7 @@ onMounted(async () => {
             </div>
             <div class="w-1/2 flex h-full flex-col">
                 <h2 class="font-bold text-center mb-5">Data Model</h2>
-                <div class="w-full border border-primary-blue-100 border-solid" id="data-model-container">
+                <div class="w-full border border-primary-blue-100 border-solid draggable" id="data-model-container">
                     <div class="flex flex-col p-5">
                         <div class="flex flex-row justify-center bg-gray-300 text-center font-bold p-1 mb-2">
                             <h4 class="w-full font-bold">
@@ -547,7 +580,7 @@ onMounted(async () => {
                             </h4>
                         </div>
                         <draggable
-                            class="list-group min-h-100 bg-gray-100"
+                            class="min-h-1000 bg-gray-100"
                             :list="state.data_table.columns"
                             group="tables"
                             @change="changeDataModel"
@@ -559,7 +592,7 @@ onMounted(async () => {
                                 </div>
                             </template>
                             <template #item="{ element, index }">
-                                <div class="list-group-item cursor-pointer p-1 ml-2 mr-2"
+                                <div class="cursor-pointer p-1 ml-2 mr-2"
                                     :class="{
                                         'bg-gray-200': index % 2 === 0,
                                     }"
@@ -739,7 +772,7 @@ onMounted(async () => {
                                         class="w-full justify-center text-center items-center self-center mb-5 p-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md"
                                         @click="saveDataModel"
                                     >
-                                        <template v-if="props.isEditDataModel">Edit</template><template v-else>Save</template> Data Model
+                                        <template v-if="props.isEditDataModel">Update</template><template v-else>Save</template> Data Model
                                     </div>
                                 </div>
                             </template>
