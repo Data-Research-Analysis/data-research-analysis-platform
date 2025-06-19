@@ -3,6 +3,7 @@ import { useVisualizationsStore } from '@/stores/visualizations';
 
 const visualizationsStore = useVisualizationsStore();
 const route = useRoute();
+const emits = defineEmits(['add:selectedColumns', 'remove:selectedColumns']);
 const state = reactive({
     dataModelsOpened: true,
     dataModels: [],
@@ -12,6 +13,10 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    selectedChart: {
+        type: Object,
+        default: () => null,
+    },
 });
 watch(
   route,
@@ -19,6 +24,10 @@ watch(
     updateStatus();
   },
 );
+watch( props, (value) => {
+    console.log('sidebar watch props selectedChart', value.selectedChart);
+    console.log('sidebar watch props dataModels', value.dataModels);
+});
 // watch( visualizationsStore, (value) => {
 // });
 const columnsAdded = computed(() => {
@@ -42,7 +51,27 @@ function updateStatus() {
         state.dataModelsStatus = false;
     }
 }
+function isColumnSelected(modelName, columnName) {
+    return props?.selectedChart?.columns?.find((column) => column.table_name === modelName && column.column_name === columnName) ? true : false;
+}
+function toggleSelectedColumn(event, modelName, columnName) {
+    console.log('toggleSelectedColumn', modelName, columnName, event.target.checked);
+    if (event.target.checked) {
+        emits('add:selectedColumns', {
+            chart_id: props.selectedChart.chart_id,
+            table_name: modelName,
+            column_name: columnName,
+        });
+    } else {
+        emits('remove:selectedColumns', {
+            chart_id: props.selectedChart.chart_id,
+            table_name: modelName,
+            column_name: columnName,
+        });
+    }
+}
 onMounted(async () => {
+    console.log('sidebar mounted columns', props.columns);
 })
 </script>
 <template>
@@ -90,8 +119,8 @@ onMounted(async () => {
                             >
                                 <template #item="{ element, index }">
                                     <div class="flex flex-row items-center">
-                                        <div class="h-10 flex flex-col justify-center">
-                                            <input type="checkbox" class="cursor-pointer mt-1" />
+                                        <div v-if="props.selectedChart && props.selectedChart.chart_id && props.selectedChart.config.add_columns_enabled" class="h-10 flex flex-col justify-center" @click="toggleSelectedColumn($event, dataModel.model_name, element.column_name)">
+                                            <input type="checkbox" class="cursor-pointer mt-1 scale-150" :checked="isColumnSelected(dataModel.model_name, element.column_name)" @change="toggleSelectedColumn($event, dataModel.model_name, element.column_name)"/>
                                         </div>
                                         <div class="h-10 flex flex-col justify-center">
                                             <h6 v-tippy="{content:`Column Name: ${element.column_name}<br />Column Data Type: ${element.data_type}`}" class="text-sm font-bold hover:text-gray-500 p-1 m-1">

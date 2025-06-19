@@ -3,7 +3,6 @@ import { DRAUsersPlatform } from './DRAUsersPlatform';
 import { DRADataModel } from './DRADataModel';
 import { DRAProject } from './DRAProject';
 import { EDataSourceType } from '../types/EDataSourceType';
-import { Json } from 'sequelize/types/utils';
 import { IDBConnectionDetails } from '../types/IDBConnectionDetails';
 @Entity('dra_data_sources')
 export class DRADataSource {

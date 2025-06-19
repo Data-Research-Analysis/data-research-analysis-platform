@@ -282,7 +282,7 @@ export class DataSourceProcessor {
             }
             const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
             if (!user) {
-                return resolve(false);
+                return resolve(null);
             }
             const dataSource: DRADataSource = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}});
             if (!dataSource) {
@@ -315,11 +315,11 @@ export class DataSourceProcessor {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             if (!driver) {
-                return resolve(null);
+                return resolve(false);
             }
             const manager = (await driver.getConcreteDriver()).manager;
             if (!manager) {
-                return resolve(null);
+                return resolve(false);
             }
             const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
             if (!user) {
@@ -327,20 +327,20 @@ export class DataSourceProcessor {
             }
             const dataSource: DRADataSource = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}});
             if (!dataSource) {
-                return resolve(null);
+                return resolve(false);
             }
             const connection: IDBConnectionDetails = dataSource.connection_details;
             const dataSourceType = UtilityService.getInstance().getDataSourceType(connection.data_source_type);
             if (!dataSourceType) {
-                return resolve(null);
+                return resolve(false);
             }
             const externalDriver = await DBDriver.getInstance().getDriver(dataSourceType);
             if (!externalDriver) {
-                return resolve(null);
+                return resolve(false);
             }
             const dbConnector: DataSource =  await externalDriver.connectExternalDB(connection);
             if (!dbConnector) {
-                return resolve(null);
+                return resolve(false);
             }
             try {
                 dataModelName = UtilityService.getInstance().uniquiseName(dataModelName);
@@ -357,7 +357,7 @@ export class DataSourceProcessor {
                 return resolve(true);
             } catch (error) {
                 console.log('error', error);
-                return resolve(null);
+                return resolve(false);
             }
         });
     }

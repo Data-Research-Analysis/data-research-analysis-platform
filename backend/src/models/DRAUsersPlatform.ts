@@ -3,8 +3,7 @@ import { DRAProject } from './DRAProject';
 import { DRADataSource } from './DRADataSource';
 import { DRADataModel } from './DRADataModel';
 import { DRAVerificationCode } from './DRAVerificationCode';
-import { DRAVisualization } from './DRAVisualization';
-import { DRAVisualizationModel } from './DRAVisualizationModel';
+import { DRADashboard } from './DRADashboard';
 
 @Entity('dra_users_platform')
 export class DRAUsersPlatform {
@@ -35,9 +34,7 @@ export class DRAUsersPlatform {
     @OneToMany(() => DRAVerificationCode, (verificationCodes) => verificationCodes.users_platform, { cascade: ["remove", "update"] })
     verification_codes!: DRAVerificationCode[]
     
-    @OneToMany(() => DRAVisualization, (visualizations) => visualizations.users_platform, { cascade: ["remove", "update"] })
-    visualizations!: DRAVisualization[]
-    
-    @OneToMany(() => DRAVisualizationModel, (visualizationModels) => visualizationModels.users_platform, { cascade: ["remove", "update"] })
-    visualization_models!: DRAVisualizationModel[]
+    @OneToMany(() => DRADashboard, (dashboards) => dashboards.users_platform, { cascade: ["remove", "update"] })
+    dashboards!: DRADashboard[]
+
 }

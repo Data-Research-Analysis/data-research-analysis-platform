@@ -4,11 +4,9 @@ import { DRADataModel } from "../models/DRADataModel";
 import { DRADataSource } from "../models/DRADataSource";
 import { DRAVerificationCode } from "../models/DRAVerificationCode";
 import { DRAUsersPlatform } from "../models/DRAUsersPlatform";
-import { UtilityService } from "../services/UtilityService";
 import { DRAProject } from "../models/DRAProject";
-import { DRAVisualization } from "../models/DRAVisualization";
+import { DRADashboard } from "../models/DRADashboard";
 import dotenv from 'dotenv';
-import { DRAVisualizationModel } from "../models/DRAVisualizationModel";
 dotenv.config();
 
 const host = process.env.POSTGRESQL_HOST_MIGRATIONS;
@@ -25,7 +23,7 @@ export const PostgresDSMigrations = new DataSource({
     database: database,
     synchronize: false,
     logging: true,
-    entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRAUser, DRAVisualization, DRAVisualizationModel],
+    entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRAUser, DRADashboard],
     subscribers: [],
     migrations: ['./src/migrations/*.ts'],
 })

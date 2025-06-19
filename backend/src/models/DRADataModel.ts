@@ -1,7 +1,6 @@
-import { Column, Entity, JoinColumn, JoinTable, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { DRAUsersPlatform } from './DRAUsersPlatform';
 import { DRADataSource } from './DRADataSource';
-import { DRAVisualizationModel } from './DRAVisualizationModel';
 @Entity('dra_data_models')
 export class DRADataModel {
     @PrimaryGeneratedColumn()
@@ -14,10 +13,7 @@ export class DRADataModel {
     sql_query: string
     @Column({ type: 'jsonb' })
     query: JSON
-    
-    @OneToMany(() => DRAVisualizationModel, (visualizationModel) => visualizationModel.data_model)
-    visualization_models!: DRAVisualizationModel[]
-    
+        
     @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.data_models)
     @JoinColumn({ name: 'users_platform_id', referencedColumnName: 'id' })
     users_platform!: DRAUsersPlatform

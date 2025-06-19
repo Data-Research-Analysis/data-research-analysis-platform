@@ -7,7 +7,6 @@ import { DRADataSource } from "../models/DRADataSource";
 import { DataSource } from "typeorm";
 import { EDataSourceType } from "../types/EDataSourceType";
 import { DRAUsersPlatform } from "../models/DRAUsersPlatform";
-import { DRAVisualization } from "../models/DRAVisualization";
 import _ from "lodash";
 import { DRAProject } from "../models/DRAProject";
 

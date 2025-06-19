@@ -1,25 +1,16 @@
 <script setup>
-import { createVNode, render } from 'vue';
 import { useProjectsStore } from '@/stores/projects';
 import { useDataSourceStore } from '@/stores/data_sources';
 import { useDataModelsStore } from '@/stores/data_models';
-import { useVisualizationsStore } from '@/stores/visualizations';
 import _ from 'lodash';
-import pie from '@/components/charts/pie-chart.vue';
 const projectsStore = useProjectsStore();
 const dataSourceStore = useDataSourceStore();
 const dataModelsStore = useDataModelsStore();
-const visualizationsStore = useVisualizationsStore();
 const { $swal } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
 const state = reactive({
     data_model_tables: [],
-    tables: [],
-    visualizations_data_model: {
-        table_name: '',
-        columns: [],
-    },
     sql_queries: [],
     chart_mode: 'table',//table, pie, vertical_bar, horizontal_bar, vertical_bar_line, stacked_bar, multiline, heatmap, bubble, map
     response_from_data_models_columns: [],
@@ -53,16 +44,16 @@ const project = computed(() => {
 });
 const dataSources = computed(() => {
     return dataSourceStore.getDataSources();
-})
+});
 const dataModels = computed(() => {
     return dataModelsStore.getDataModels();
-})
+});
 const dataModelTables = computed(() => {
     return dataModelsStore.getDataModelTables();
-})
+});
 const showQueryDialogButton = computed(() => {
-    return showWhereClause.value || showOrderByClause.value || showGroupByClause.value
-})
+    return showWhereClause.value || showOrderByClause.value || showGroupByClause.value;
+});
 async function changeDataModel(event, chartId) {
     const chart = state.dashboard.charts.find((chart) => {
         return chart.chart_id === chartId;
@@ -73,26 +64,32 @@ async function changeDataModel(event, chartId) {
         } else {
             return true;
         }
-    });
-    
-    // visualizationsStore.setColumnsAdded(chart.columns);
+    });    
     await executeQueryOnDataModels(chartId);
 }
-async function removeColumn(column) {
-    const index = state.visualizations_data_model.columns.findIndex((header) => header.column_name === column.column_name);
-    if (index !== -1) {
-        state.visualizations_data_model.columns.splice(index, 1);
-    }
-    if (state.visualizations_data_model?.columns?.length) {
-        await executeQueryOnDataModels();
-    }
-}
-function selectChartType(chartType) {
+// async function removeColumn(column) {
+//     const index = state.visualizations_data_model.columns.findIndex((header) => header.column_name === column.column_name);
+//     if (index !== -1) {
+//         state.visualizations_data_model.columns.splice(index, 1);
+//     }
+//     if (state.visualizations_data_model?.columns?.length) {
+//         await executeQueryOnDataModels();
+//     }
+// }
+function addChartToDashboard(chartType) {
     //table, pie, vertical_bar, horizontal_bar, vertical_bar_line, stacked_bar, multiline, heatmap, bubble, stacked_area, map
     state.selected_chart = null;
     state.selected_div = null;
     state.is_dragging = false;
     state.is_resizing = false;
+    if (state.dashboard.charts.length > 4) {
+        $swal.fire({
+            icon: 'error',
+            title: 'Error!',
+            text: 'You can only add a maximum of 5 charts to the dashboard.',
+        });
+        return;
+    }
     state.dashboard.charts.forEach((chart) => {
         chart.config.drag_enabled = false;
         chart.config.resize_enabled = false;
@@ -111,6 +108,16 @@ function selectChartType(chartType) {
             add_columns_enabled: false,
         }
     });
+    console.log('state.dashboard.charts', state.dashboard.charts);
+
+}
+function deleteChartFromDashboard(chartId) {
+    console.log('chartId', chartId, 'deleting', `draggable-div-${chartId}`);
+    // document.getElementById(`draggable-div-${chartId}`).remove();
+    state.dashboard.charts = state.dashboard.charts.filter((chart) => chart.chart_id !== chartId);
+    // state.dashboard.charts = [];
+    state.selected_chart = null;
+    console.log('state.dashboard.charts', state.dashboard.charts);
 }
 function buildSQLQuery(chart) {
     let sqlQuery = '';
@@ -137,7 +144,7 @@ async function executeQueryOnDataModels(chartId) {
             chart_id: chartId,
             sql_query: buildSQLQuery(chart)
         });
-        console.log('state.sql_queries', state.sql_queries);
+        // console.log('state.sql_queries', state.sql_queries);
         for (let i=0; i< state.sql_queries.length; i++) {
             const sqlQuery = state.sql_queries[i].sql_query;
             const token = getAuthToken();
@@ -154,7 +161,7 @@ async function executeQueryOnDataModels(chartId) {
                 })
             });
             const data = await response.json();
-            console.log('executeQueryOnDataModels data ', data);
+            // console.log('executeQueryOnDataModels data ', data);
             state.response_from_data_models_rows = data;
             const labelValues = [];
             const numericValues = [];
@@ -174,44 +181,40 @@ async function executeQueryOnDataModels(chartId) {
                      value: numericValues[index],
                  });
             });
-            console.log('executeQueryOnDataModels chart.data', chart.data);
+            // console.log('executeQueryOnDataModels chart.data', chart.data);
         }
     }
     
 }
 async function saveDashboard() {
-    // let sqlQuery = buildSQLQuery();
-    // state.sql_query = sqlQuery;
-    // // build the data model
-    // const token = getAuthToken();
-    // let url = `${baseUrl()}/data-source/build-data-model-on-query`;
-    // if (props.isEditDataModel) {
-    //     url = `${baseUrl()}/data-model/update-data-model-on-query`;
-    // }
-    // const response = await fetch(url, {
-    //     method: "POST",
-    //     headers: {
-    //         "Content-Type": "application/json",
-    //         "Authorization": `Bearer ${token}`,
-    //         "Authorization-Type": "auth",
-    //     },
-    //     body: JSON.stringify({
-    //         data_source_id: route.params.datasourceid,
-    //         query: state.sql_query,
-    //         query_json: JSON.stringify(state.visualizations_data_model),
-    //         data_model_name: state.visualizations_data_model.table_name,
-    //         data_model_id: props.isEditDataModel ? props.dataModel.id : null,
-    //     })
-    // });
-    // if (response.status === 200) {
-    //     router.push(`/projects/${route.params.projectid}/data-sources/${route.params.datasourceid}/data-models`);
-    // } else {
-    //     $swal.fire({
-    //         icon: 'error',
-    //         title: `Error! `,
-    //         text: 'Unfortunately, we encountered an error! Please refresh the page and try again.',
-    //     });
-    // }
+    const token = getAuthToken();
+    let url = `${baseUrl()}/dashboards/add`;
+    const response = await fetch(url, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "Authorization-Type": "auth",
+        },
+        body: JSON.stringify({
+            project_id: project.value.id,
+            data: state.dashboard,
+        })
+    });
+    if (response.status === 200) {
+        $swal.fire({
+            icon: 'success',
+            title: `Success! `,
+            text: 'The dashboard has been sucessfully saved.',
+        });
+        router.push(`/projects/${route.params.projectid}/dashboards`);
+    } else {
+        $swal.fire({
+            icon: 'error',
+            title: `Error! `,
+            text: 'Unfortunately, we encountered an error! Please refresh the page and try again.',
+        });
+    }
 }
 function toggleDragging(event, chartId) {
     //disable all charts
@@ -300,6 +303,7 @@ function initializeResizeParams(event) {
     state.initial_height_draggable = draggableDiv.offsetHeight;
 }
 function draggableDivMouseDown(event, chartId) {
+    console.log('state.dashboard.charts', state.dashboard.charts);
     stopDragAndResize();
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
     if (chart) {
@@ -308,7 +312,7 @@ function draggableDivMouseDown(event, chartId) {
             state.is_dragging = true;
             state.is_resizing = false;
             state.selected_div = div.parentNode.parentNode;
-            state.selected_div.style.cursor = 'move';
+            // state.selected_div.style.cursor = 'move';
             state.offsetX = event.clientX - div.getBoundingClientRect().left;
             state.offsetY = event.clientY - div.getBoundingClientRect().top;
             document.addEventListener('mousemove', onDrag);
@@ -482,10 +486,31 @@ function mouseUp() {
     state.is_mouse_down = false;
     stopDragAndResize();
 }
-function deleteChart(chartId) {
-    console.log(document.getElementById(`draggable-div-${chartId}`))//.remove();
-    document.getElementById(`draggable-div-${chartId}`).remove();
-    // state.dashboard.charts = state.dashboard.charts.filter((chart) => chart.chart_id !== chartId);
+
+async function updateDataModel(action, data) {
+    console.log('updateDateModel action', action, 'data', data, state.selected_chart.chart_id);
+    if (action === 'add') {
+        console.log('updateDataModel add state.data_model_tables', state.data_model_tables);
+        const dataModel = state.data_model_tables.find((dataModelTable) => dataModelTable.model_name === data.table_name);
+        if (dataModel){
+            const column = dataModel.columns.find((column) => column.column_name === data.column_name);
+            if (column) {
+                if (!state.selected_chart.columns.find((c) => c.column_name === column.column_name && c.table_name === column.table_name)) {
+                    state.selected_chart.columns.push({...column});
+                }
+            }
+        }
+        console.log('updateDataModel state.selected_chart.columns', state.selected_chart.columns);
+
+    } else if (action === 'remove') {
+        state.selected_chart.columns = state.selected_chart.columns.filter((column) => {
+            return !(column.table_name === data.table_name && column.column_name === data.column_name);
+        })
+    }
+    if (state.selected_chart && state.selected_chart.columns.length) {
+        await executeQueryOnDataModels(state.selected_chart.chart_id);
+    }
+
 }
 onMounted(async () => {
     state.data_model_tables = []
@@ -504,7 +529,13 @@ onMounted(async () => {
 </script>
 <template>
     <div class="flex flex-row">
-        <sidebar class="w-1/6" :data-models="state.data_model_tables" />
+        <sidebar
+            class="w-1/6"
+            :data-models="state.data_model_tables"
+            :selected-chart="state.selected_chart"
+            @add:selectedColumns="(data) => updateDataModel('add', data)"
+            @remove:selectedColumns="(data) => updateDataModel('remove', data)"
+        />
         <div class="flex flex-row w-5/6">
             <div class="flex flex-col w-5/6 ml-2 mr-2">
                 <div class="flex flex-row justify-between">
@@ -547,12 +578,13 @@ onMounted(async () => {
                                     @mouseup="mouseUp"
                                 />
                             </div>
-                            <div
-                                class="flex flex-col"
-                                @mousedown="draggableDivMouseDown($event, chart.chart_id)"
-                                @mouseup="stopDragAndResize"
-                            >
-                                <div class="flex flex-row bg-gray-200 border border-3 border-gray-600 border-b-0 p-2">
+                            <div class="flex flex-col">
+                                <div
+                                    class="flex flex-row border border-3 border-gray-600 border-b-0 p-2"
+                                    :class="{ 'bg-gray-300 cursor-move': chart.config.drag_enabled, 'bg-gray-200': !chart.config.drag_enabled }"
+                                    @mousedown="draggableDivMouseDown($event, chart.chart_id)"
+                                    @mouseup="stopDragAndResize"
+                                >
                                     <font-awesome 
                                         icon="fas fa-up-down-left-right"
                                         class="text-xl hover:text-gray-400 cursor-pointer"
@@ -587,7 +619,7 @@ onMounted(async () => {
                                         icon="fas fa-trash"
                                         class="text-xl ml-2 text-gray-400 hover:text-red-500 cursor-pointer"
                                         :v-tippy-content="'Delete Chart'"
-                                        @click="deleteChart(chart.chart_id)"
+                                        @click="deleteChartFromDashboard(chart.chart_id)"
                                     />
                                 </div>
                                 <draggable
@@ -598,8 +630,6 @@ onMounted(async () => {
                                     class="flex flex-row w-full h-50 bg-gray-200 border border-3 border-gray-600 border-t-0 draggable-model-columns"
                                     tag="tr"
                                     :disabled="!chart.config.add_columns_enabled"
-                                    @mousedown="draggableDivMouseDown($event, chart.chart_id)"
-                                    @mouseup="stopDragAndResize"
                                     @change="changeDataModel($event, chart.chart_id)"
                                 >
                                     <template #item="{ element, index }">
@@ -607,7 +637,7 @@ onMounted(async () => {
                                             <div v-if="chart && chart.data && chart.data.length" class="flex flex-col justify-center">
                                                 <pie-chart
                                                     :id="`chart-${chart.chart_id}`"   
-                                                    :chart-id="chart.chart_id"
+                                                    :chart-id="`${chart.chart_id}`"
                                                     :data="chart.data"
                                                     :width="1200"
                                                     :height="1200"
@@ -646,50 +676,50 @@ onMounted(async () => {
             </div>
             <div class="flex flex-col w-1/6 mt-17 mb-10 select-none">
                 <div class="flex flex-row mb-2">
-                    <div class="mr-2" @click="selectChartType('table')" v-tippy="{ content: 'Render Data in Table', placement: 'top' }">
+                    <div class="mr-2" @click="addChartToDashboard('table')" v-tippy="{ content: 'Render Data in Table', placement: 'top' }">
                         <img src="/assets/images/table_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Table Chart" />
                     </div>
-                    <div @click="selectChartType('pie')" v-tippy="{ content: 'Render Data in a Pie Chart', placement: 'top' }">
+                    <div @click="addChartToDashboard('pie')" v-tippy="{ content: 'Render Data in a Pie Chart', placement: 'top' }">
                         <img src="/assets/images/pie_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Pie Chart" />
                     </div>
                 </div>
                 <div class="flex flex-row mb-2">
-                    <div class="mr-2" @click="selectChartType('donut')" v-tippy="{ content: 'Render Data in a Donut Chart', placement: 'top' }">
+                    <div class="mr-2" @click="addChartToDashboard('donut')" v-tippy="{ content: 'Render Data in a Donut Chart', placement: 'top' }">
                         <img src="/assets/images/donut_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Donut Chart" />
                     </div>
-                    <div @click="selectChartType('vertical_bar')" v-tippy="{ content: 'Render Data in a Vertical Bar Chart', placement: 'top' }">
+                    <div @click="addChartToDashboard('vertical_bar')" v-tippy="{ content: 'Render Data in a Vertical Bar Chart', placement: 'top' }">
                         <img src="/assets/images/vertical_bar_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Vertical Bar Chart" />
                     </div>
                 </div>
                 <div class="flex flex-row mb-2">
-                    <div class="mr-2" @click="selectChartType('horizontal_bar')" v-tippy="{ content: 'Render Data in a Horizontal Bar Chart', placement: 'top' }">
+                    <div class="mr-2" @click="addChartToDashboard('horizontal_bar')" v-tippy="{ content: 'Render Data in a Horizontal Bar Chart', placement: 'top' }">
                         <img src="/assets/images/horizontal_bar_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Horizontal Bar Chart" />
                     </div>
-                    <div @click="selectChartType('vertical_bar_line')" v-tippy="{ content: 'Render Data in a Vertical Bar Line Chart', placement: 'top' }">
+                    <div @click="addChartToDashboard('vertical_bar_line')" v-tippy="{ content: 'Render Data in a Vertical Bar Line Chart', placement: 'top' }">
                         <img src="/assets/images/vertical_bar_chart_line.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Vertical Bar Line Chart" />
                     </div>
                 </div>
                 <div class="flex flex-row mb-2">
-                    <div class="mr-2" @click="selectChartType('stacked_bar')" v-tippy="{ content: 'Render Data in a Stacked Bar Chart', placement: 'top' }">
+                    <div class="mr-2" @click="addChartToDashboard('stacked_bar')" v-tippy="{ content: 'Render Data in a Stacked Bar Chart', placement: 'top' }">
                         <img src="/assets/images/stacked_bar_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Stacked Bar Chart" />
                     </div>    
-                    <div @click="selectChartType('multiline')" v-tippy="{ content: 'Render Data in a Multiline Chart', placement: 'top' }">
+                    <div @click="addChartToDashboard('multiline')" v-tippy="{ content: 'Render Data in a Multiline Chart', placement: 'top' }">
                         <img src="/assets/images/multi_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Multiline Chart" />
                     </div>
                 </div>
                 <div class="flex flex-row mb-2">
-                    <div class="mr-2" @click="selectChartType('heatmap')" v-tippy="{ content: 'Render Data in a Heatmap Chart', placement: 'top' }">
+                    <div class="mr-2" @click="addChartToDashboard('heatmap')" v-tippy="{ content: 'Render Data in a Heatmap Chart', placement: 'top' }">
                         <img src="/assets/images/heatmap_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Heatmap Chart" />
                     </div>
-                    <div @click="selectChartType('bubble')" v-tippy="{ content: 'Render Data in a Bubble Chart', placement: 'top' }">
+                    <div @click="addChartToDashboard('bubble')" v-tippy="{ content: 'Render Data in a Bubble Chart', placement: 'top' }">
                         <img src="/assets/images/bubble_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Bubble Chart" />
                     </div>
                 </div>
                 <div class="flex flex-row">
-                    <div class="mr-2" @click="selectChartType('stacked_area')" v-tippy="{ content: 'Render Data in a Stacked Area Chart', placement: 'top' }">
+                    <div class="mr-2" @click="addChartToDashboard('stacked_area')" v-tippy="{ content: 'Render Data in a Stacked Area Chart', placement: 'top' }">
                         <img src="/assets/images/stacked_area_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Stacked Area Chart" />
                     </div>
-                    <div @click="selectChartType('map')" v-tippy="{ content: 'Render Data in a Map', placement: 'top' }">
+                    <div @click="addChartToDashboard('map')" v-tippy="{ content: 'Render Data in a Map', placement: 'top' }">
                         <img src="/assets/images/map_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Map Chart" />
                     </div>
                 </div>

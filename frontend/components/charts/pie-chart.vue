@@ -24,7 +24,6 @@ const props = defineProps({
 });
 watch(props, (prop, oldProp) => {
   nextTick(() => {
-    console.log('props changed', prop, oldProp);
     renderChart(prop.data);
   });
 });
@@ -32,7 +31,6 @@ function deleteSVGs() {
   $d3.select(`#pie-chart-${props.chartId}`).selectAll("svg").remove();
 }
 function renderSVG(chartData) {
-  console.log('renderSVG chartData', chartData, chartData.length);
  const margin = {
     top: 50,
     right: 50,
@@ -44,8 +42,6 @@ function renderSVG(chartData) {
   const svgHeight = height + margin.top + margin.bottom;
   const svgWidth = width + margin.left + margin.right;
   const color = $d3.scaleOrdinal(chartData.map((d) => d.label), $d3.schemeCategory10);
-  
-  console.log('renderSVG props.width', props.width, 'props.height', props.height, 'width', width, 'height', height, 'svgWidth', svgWidth, 'svgHeight', svgHeight); 
   const total = chartData.reduce((total, item) => total + item.value, 0)
   const data = chartData.map((d) => {
     return {
@@ -53,7 +49,6 @@ function renderSVG(chartData) {
       percent_value: Math.round((d.value / total) * 100),
     };
   });
-  console.log('renderSVG data', data, 'total', total);
   if (data?.length > 0) {
     const pie = $d3.pie()
           .sort(null)
@@ -115,7 +110,6 @@ function renderChart(chartData) {
   renderSVG(chartData);
 }
 onMounted(async () => {
-  console.log('pie chart mounted props.data', props.data);
   renderChart(props.data);
 });
 </script>

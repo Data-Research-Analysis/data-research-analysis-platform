@@ -1,7 +1,7 @@
 import { Column, Entity, JoinColumn, JoinTable, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { DRAUsersPlatform } from './DRAUsersPlatform';
 import { DRADataSource } from './DRADataSource';
-import { DRAVisualization } from './DRAVisualization';
+import { DRADashboard } from './DRADashboard';
 @Entity('dra_projects')
 export class DRAProject {
     @PrimaryGeneratedColumn()
@@ -18,7 +18,7 @@ export class DRAProject {
     @OneToMany(() => DRADataSource, (dataSource) => dataSource.project, { cascade: ["remove", "update"] })
     data_sources!: DRADataSource[]
 
-    @OneToMany(() => DRAVisualization, (visualization) => visualization.project, { cascade: ["remove", "update"] })
-    visualizations!: DRAVisualization[]
+    @OneToMany(() => DRADashboard, (visualization) => visualization.project, { cascade: ["remove", "update"] })
+    dashboards!: DRADashboard[]
 
 }
