@@ -1,7 +1,7 @@
 <script setup>
-import { useVisualizationsStore } from '@/stores/visualizations';
+import { useDashboardsStore } from '~/stores/dashboards';
 
-const visualizationsStore = useVisualizationsStore();
+const dashboardsStore = useDashboardsStore();
 const route = useRoute();
 const emits = defineEmits(['add:selectedColumns', 'remove:selectedColumns']);
 const state = reactive({
@@ -24,14 +24,8 @@ watch(
     updateStatus();
   },
 );
-watch( props, (value) => {
-    console.log('sidebar watch props selectedChart', value.selectedChart);
-    console.log('sidebar watch props dataModels', value.dataModels);
-});
-// watch( visualizationsStore, (value) => {
-// });
 const columnsAdded = computed(() => {
-    return visualizationsStore.getColumnsAdded();
+    return dashboardsStore.getColumnsAdded();
 });
 function isDataModelEnabled(dataModel) {
     if (columnsAdded.value.length) {
@@ -55,7 +49,6 @@ function isColumnSelected(modelName, columnName) {
     return props?.selectedChart?.columns?.find((column) => column.table_name === modelName && column.column_name === columnName) ? true : false;
 }
 function toggleSelectedColumn(event, modelName, columnName) {
-    console.log('toggleSelectedColumn', modelName, columnName, event.target.checked);
     if (event.target.checked) {
         emits('add:selectedColumns', {
             chart_id: props.selectedChart.chart_id,
@@ -70,9 +63,6 @@ function toggleSelectedColumn(event, modelName, columnName) {
         });
     }
 }
-onMounted(async () => {
-    console.log('sidebar mounted columns', props.columns);
-})
 </script>
 <template>
     <div class="flex flex-col min-h-150 bg-gray-300 shadow-md">
@@ -110,27 +100,25 @@ onMounted(async () => {
                         </h5>
                     </div>
                     <div v-if="dataModel.show_model">
-                        <!-- <div v-for="column in dataModel.columns" :key="column.id" class="cursor-pointer ml-5"> -->
-                            <draggable
-                                class="ml-6"
-                                :list="dataModel.columns"
-                                :group="{ name: 'data_model_columns', pull: 'clone', put: false }"
-                                itemKey="column_name"
-                            >
-                                <template #item="{ element, index }">
-                                    <div class="flex flex-row items-center">
-                                        <div v-if="props.selectedChart && props.selectedChart.chart_id && props.selectedChart.config.add_columns_enabled" class="h-10 flex flex-col justify-center" @click="toggleSelectedColumn($event, dataModel.model_name, element.column_name)">
-                                            <input type="checkbox" class="cursor-pointer mt-1 scale-150" :checked="isColumnSelected(dataModel.model_name, element.column_name)" @change="toggleSelectedColumn($event, dataModel.model_name, element.column_name)"/>
-                                        </div>
-                                        <div class="h-10 flex flex-col justify-center">
-                                            <h6 v-tippy="{content:`Column Name: ${element.column_name}<br />Column Data Type: ${element.data_type}`}" class="text-sm font-bold hover:text-gray-500 p-1 m-1">
-                                                {{ element.column_name.length > 20 ? `${element.column_name.substring(0, 20)}...`: element.column_name }}
-                                            </h6>
-                                        </div>
+                        <draggable
+                            class="ml-6"
+                            :list="dataModel.columns"
+                            :group="{ name: 'data_model_columns', pull: 'clone', put: false }"
+                            itemKey="column_name"
+                        >
+                            <template #item="{ element, index }">
+                                <div class="flex flex-row items-center">
+                                    <div v-if="props.selectedChart && props.selectedChart.chart_id && props.selectedChart.config.add_columns_enabled" class="h-10 flex flex-col justify-center">
+                                        <input type="checkbox" class="cursor-pointer mt-1 scale-150" :checked="isColumnSelected(dataModel.model_name, element.column_name)" @change="toggleSelectedColumn($event, dataModel.model_name, element.column_name)"/>
                                     </div>
-                                </template>
-                            </draggable>
-                        <!-- </div> -->
+                                    <div class="h-10 flex flex-col justify-center">
+                                        <h6 v-tippy="{content:`Column Name: ${element.column_name}<br />Column Data Type: ${element.data_type}`}" class="text-sm font-bold hover:text-gray-500 p-1 m-1">
+                                            {{ element.column_name.length > 20 ? `${element.column_name.substring(0, 20)}...`: element.column_name }}
+                                        </h6>
+                                    </div>
+                                </div>
+                            </template>
+                        </draggable>
                     </div>
                 </div>
                 <div v-else class="flex flex-row items-center text-gray-500 ml-4 select-none"

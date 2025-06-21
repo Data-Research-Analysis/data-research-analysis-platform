@@ -1,48 +1,41 @@
 <script setup>
 import { useProjectsStore } from '@/stores/projects';
-import { useDataSourceStore } from '@/stores/data_sources';
-import { useDataModelsStore } from '@/stores/data_models';
-import { useVisualizationsStore } from '@/stores/visualizations';
+import { useDashboardsStore } from '~/stores/dashboards';
 const projectsStore = useProjectsStore();
-const dataSourceStore = useDataSourceStore();
-const dataModelsStore = useDataModelsStore();
-const visualizationsStore = useVisualizationsStore();
+const dashboardsStore = useDashboardsStore();
 const { $swal } = useNuxtApp();
 const state = reactive({
-    data_models: [],
+    dashboards: [],
 
 })
 watch(
-    visualizationsStore,
+    dashboardsStore,
     (value, oldValue) => {
-        getVisualizations();
+        getDashboards();
     },
 )
 const project = computed(() => {
     return projectsStore.getSelectedProject();
 });
-const dataSource = computed(() => {
-    return visualizationsStore.getSelectedDataSource();
+const dashboard = computed(() => {
+    return dashboardsStore.getSelectedDashboard();
 });
-const dataModel = computed(() => {
-    return dataModelsStore.getSelectedDataModel();
-});
-async function getVisualizations() {
-    state.data_models = [];
-    state.data_models = visualizationsStore.getVisualizations().filter((dataModel) => dataModel?.data_source_id === dataSource?.value?.id).map((dataModel) => {
+async function getDashboards() {
+    state.dashboards = [];
+    state.dashboards = dashboardsStore.getDashboards().filter((dashboardObj) => dashboardObj?.project?.id === project?.value?.id).map((dashboardObj) => {
         return {
-            id: dataModel.id,
-            schema: dataModel.schema,
-            name: dataModel.name,
-            sql_query: dataModel.sql_query,
-            data_source_id: dataModel.data_source_id,
-            user_id: dataModel.user_platform_id,
+            id: dashboardObj.id,
+            dashboard: dashboardObj.data,
+            project_id: dashboardObj.project_id,
+            user_id: dashboardObj.user_platform_id,
         }
     });
+    console.log("state.dashboards", state.dashboards);
+    console.log("dashboardsStore.getDashboards()", dashboardsStore.getDashboards());
 }
-async function de(dataModelId) {
+async function deleteDashboard(dashboardId) {
     const { value: confirmDelete } = await $swal.fire({
-        title: "Are you sure you want to delete the data model?",
+        title: "Are you sure you want to delete the dashboard?",
         text: "You won't be able to revert this!",
         icon: "warning",
         showCancelButton: true,
@@ -62,23 +55,18 @@ async function de(dataModelId) {
             "Authorization-Type": "auth",
         },
     };
-    const response = await fetch(`${baseUrl()}/data-model/delete/${dataModelId}`, requestOptions);
+    const response = await fetch(`${baseUrl()}/dashboards/delete/${dashboardId}`, requestOptions);
     if (response && response.status === 200) {
         const data = await response.json();
-        $swal.fire(`The data model has been deleted successfully.`);
+        $swal.fire(`The dashboard has been deleted successfully.`);
     } else {
-        $swal.fire(`There was an error deleting the data model.`);
+        $swal.fire(`There was an error deleting the dashboard.`);
     }
-    await dataModelsStore.retrieveDataModels();
-    getVisualizations();
+    await dashboardsStore.retrieveDashboards();
+    getDashboards();
 }
-
-function cleanDataModelName(name) {
-    return name.replace(/_dra_[a-zA-Z0-9_]+/g, "");
-}
-
 onMounted(async () => {
-    getVisualizations();
+    getDashboards();
 })
 </script>
 <template>
@@ -104,13 +92,13 @@ onMounted(async () => {
                         </NuxtLink>
                     </template>
                 </notched-card>
-                <div v-for="dataModel in state.data_models" class="relative">
+                <div v-for="dashboard in state.dashboards" class="relative">
                     <notched-card class="justify-self-center mt-10">
                         <template #body="{ onClick }">
-                            <!-- <NuxtLink :to="`/projects/${project.id}/edit`" class="hover:text-gray-500 cursor-pointer">
+                            <NuxtLink :to="`/projects/${project.id}/dashboards/${dashboard.id}`" class="hover:text-gray-500 cursor-pointer">
                                 <div class="flex flex-col justify-start h-full">
                                     <div class="text-md font-bold">
-                                        {{cleanDataModelName(dataModel.name)}}
+                                        Dashboard {{ dashboard.id }}
                                     </div>
                                     <div class="flex flex-row justify-between mt-4 mb-10">
                                         <ul class="text-xs">
@@ -118,10 +106,10 @@ onMounted(async () => {
                                         </ul>
                                     </div>
                                 </div>
-                            </NuxtLink> -->
+                            </NuxtLink>
                         </template>
                     </notched-card>
-                    <div class="absolute top-5 -right-2 z-10 bg-gray-200 hover:bg-gray-300 border border-gray-200 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer" @click="de(dataModel.id)">
+                    <div class="absolute top-5 -right-2 z-10 bg-gray-200 hover:bg-gray-300 border border-gray-200 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer" @click="deleteDashboard(dashboard.id)">
                         <font-awesome icon="fas fa-xmark" class="text-xl text-red-500 hover:text-red-400 select-none" />
                     </div>
                 </div>

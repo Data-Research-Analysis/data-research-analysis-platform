@@ -5,7 +5,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
   const projectsStore = useProjectsStore();
   const dataSourceStore = useDataSourceStore();
   const dataModelsStore = useDataModelsStore();
-  if (to.name === 'projects-projectid-visualizations-create') {
+  if (to.name === 'projects-projectid-dashboards-create') {
     if (!dataModelsStore.getDataModelTables()?.length) {
       return navigateTo('/projects');
     }

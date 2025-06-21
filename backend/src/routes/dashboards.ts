@@ -28,12 +28,12 @@ router.delete('/delete/:dashboard_id', async (req: Request, res: Response, next:
     next();
 }, validateJWT, validate([param('dashboard_id').notEmpty().trim().escape().toInt()]),
 async (req: Request, res: Response) => {
-    const { visualization_id } = matchedData(req);
-    const result = await DataModelProcessor.getInstance().deleteDataModel(visualization_id,  req.body.tokenDetails);            
+    const { dashboard_id } = matchedData(req);
+    const result = await DashboardProcessor.getInstance().deleteDashboard(dashboard_id,  req.body.tokenDetails);            
     if (result) {
-        res.status(200).send({message: 'The data model has been deleted.'});        
+        res.status(200).send({message: 'The dashboard has been deleted.'});        
     } else {
-        res.status(400).send({message: 'The data model could not be deleted.'});
+        res.status(400).send({message: 'The dashboard could not be deleted.'});
     }
 });
 
