@@ -42,17 +42,8 @@ const state = reactive({
 const project = computed(() => {
     return projectsStore.getSelectedProject();
 });
-const dataSources = computed(() => {
-    return dataSourceStore.getDataSources();
-});
-const dataModels = computed(() => {
-    return dataModelsStore.getDataModels();
-});
 const dataModelTables = computed(() => {
     return dataModelsStore.getDataModelTables();
-});
-const showQueryDialogButton = computed(() => {
-    return showWhereClause.value || showOrderByClause.value || showGroupByClause.value;
 });
 async function changeDataModel(event, chartId) {
     const chart = state.dashboard.charts.find((chart) => {
@@ -67,15 +58,26 @@ async function changeDataModel(event, chartId) {
     });    
     await executeQueryOnDataModels(chartId);
 }
-// async function removeColumn(column) {
-//     const index = state.visualizations_data_model.columns.findIndex((header) => header.column_name === column.column_name);
-//     if (index !== -1) {
-//         state.visualizations_data_model.columns.splice(index, 1);
-//     }
-//     if (state.visualizations_data_model?.columns?.length) {
-//         await executeQueryOnDataModels();
-//     }
-// }
+async function updateDataModel(action, data) {
+    if (action === 'add') {
+        const dataModel = state.data_model_tables.find((dataModelTable) => dataModelTable.model_name === data.table_name);
+        if (dataModel){
+            const column = dataModel.columns.find((column) => column.column_name === data.column_name);
+            if (column) {
+                if (!state.selected_chart.columns.find((c) => c.column_name === column.column_name && c.table_name === column.table_name)) {
+                    state.selected_chart.columns.push({...column});
+                }
+            }
+        }
+    } else if (action === 'remove') {
+        state.selected_chart.columns = state.selected_chart.columns.filter((column) => {
+            return !(column.table_name === data.table_name && column.column_name === data.column_name);
+        })
+    }
+    if (state.selected_chart && state.selected_chart.columns.length) {
+        await executeQueryOnDataModels(state.selected_chart.chart_id);
+    }
+}
 function addChartToDashboard(chartType) {
     //table, pie, vertical_bar, horizontal_bar, vertical_bar_line, stacked_bar, multiline, heatmap, bubble, stacked_area, map
     state.selected_chart = null;
@@ -101,23 +103,17 @@ function addChartToDashboard(chartType) {
         chart_id: state.dashboard.charts.length + 1,
         columns: [],
         table_name: '',
-        data: [],//[[{label: 'label1', value: 10,},{label: 'label2', value: 30,}]],
+        data: [],
         config: {
             drag_enabled: false,
             resize_enabled: false,
             add_columns_enabled: false,
         }
     });
-    console.log('state.dashboard.charts', state.dashboard.charts);
-
 }
 function deleteChartFromDashboard(chartId) {
-    console.log('chartId', chartId, 'deleting', `draggable-div-${chartId}`);
-    // document.getElementById(`draggable-div-${chartId}`).remove();
     state.dashboard.charts = state.dashboard.charts.filter((chart) => chart.chart_id !== chartId);
-    // state.dashboard.charts = [];
     state.selected_chart = null;
-    console.log('state.dashboard.charts', state.dashboard.charts);
 }
 function buildSQLQuery(chart) {
     let sqlQuery = '';
@@ -144,7 +140,6 @@ async function executeQueryOnDataModels(chartId) {
             chart_id: chartId,
             sql_query: buildSQLQuery(chart)
         });
-        // console.log('state.sql_queries', state.sql_queries);
         for (let i=0; i< state.sql_queries.length; i++) {
             const sqlQuery = state.sql_queries[i].sql_query;
             const token = getAuthToken();
@@ -161,7 +156,6 @@ async function executeQueryOnDataModels(chartId) {
                 })
             });
             const data = await response.json();
-            // console.log('executeQueryOnDataModels data ', data);
             state.response_from_data_models_rows = data;
             const labelValues = [];
             const numericValues = [];
@@ -181,14 +175,18 @@ async function executeQueryOnDataModels(chartId) {
                      value: numericValues[index],
                  });
             });
-            // console.log('executeQueryOnDataModels chart.data', chart.data);
         }
-    }
-    
+    }    
 }
 async function saveDashboard() {
     const token = getAuthToken();
     let url = `${baseUrl()}/dashboards/add`;
+    for (let i=0; i <state.dashboard.charts.length; i++) {
+        const chart = state.dashboard.charts[i];
+        chart.config.drag_enabled = false;
+        chart.config.resize_enabled = false;
+        chart.config.add_columns_enabled = false;
+    }
     const response = await fetch(url, {
         method: "POST",
         headers: {
@@ -303,7 +301,6 @@ function initializeResizeParams(event) {
     state.initial_height_draggable = draggableDiv.offsetHeight;
 }
 function draggableDivMouseDown(event, chartId) {
-    console.log('state.dashboard.charts', state.dashboard.charts);
     stopDragAndResize();
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
     if (chart) {
@@ -422,9 +419,6 @@ function onResize(event) {
     if (state.is_mouse_down && state.is_resizing && state.selected_div && draggableDiv) {
         const deltaX = event.clientX - state.start_resize_x;
         const deltaY = event.clientY - state.start_resize_y;
-
-        console.log('state.previous_deltax', state.previous_deltax, 'state.previous_deltay', state.previous_deltay);
-        console.log('deltaX', deltaX, 'deltaY', deltaY);
        
         let newWidth;
         let newHeight;
@@ -485,32 +479,6 @@ function mouseDown() {
 function mouseUp() {
     state.is_mouse_down = false;
     stopDragAndResize();
-}
-
-async function updateDataModel(action, data) {
-    console.log('updateDateModel action', action, 'data', data, state.selected_chart.chart_id);
-    if (action === 'add') {
-        console.log('updateDataModel add state.data_model_tables', state.data_model_tables);
-        const dataModel = state.data_model_tables.find((dataModelTable) => dataModelTable.model_name === data.table_name);
-        if (dataModel){
-            const column = dataModel.columns.find((column) => column.column_name === data.column_name);
-            if (column) {
-                if (!state.selected_chart.columns.find((c) => c.column_name === column.column_name && c.table_name === column.table_name)) {
-                    state.selected_chart.columns.push({...column});
-                }
-            }
-        }
-        console.log('updateDataModel state.selected_chart.columns', state.selected_chart.columns);
-
-    } else if (action === 'remove') {
-        state.selected_chart.columns = state.selected_chart.columns.filter((column) => {
-            return !(column.table_name === data.table_name && column.column_name === data.column_name);
-        })
-    }
-    if (state.selected_chart && state.selected_chart.columns.length) {
-        await executeQueryOnDataModels(state.selected_chart.chart_id);
-    }
-
 }
 onMounted(async () => {
     state.data_model_tables = []

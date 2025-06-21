@@ -2,11 +2,11 @@
 import {useProjectsStore} from '@/stores/projects';
 import { useDataSourceStore } from '@/stores/data_sources';
 import { useDataModelsStore } from '@/stores/data_models';
-import { useVisualizationsStore } from '@/stores/visualizations';
+import { useDashboardsStore } from '@/stores/dashboards';
 const projectsStore = useProjectsStore();
 const dataSourceStore = useDataSourceStore();
 const dataModelsStore = useDataModelsStore();
-const visualizationsStore = useVisualizationsStore();
+const dashboardsStore = useDashboardsStore();
 const route = useRoute();
 const state = reactive({
     authenticated: false,
@@ -18,15 +18,23 @@ watch(
     await projectsStore.retrieveProjects();
     await dataSourceStore.retrieveDataSources();
     await dataModelsStore.retrieveDataModels();
+    await dashboardsStore.retrieveDashboards();
 
     if (projectsStore?.getSelectedProject()?.id) {
         await dataModelsStore.retrieveDataModelTables(projectsStore?.getSelectedProject()?.id);
     }
-    // await visualizationsStore.retrieveVisualizations();
     if (value?.params?.projectid) {
         const projectId = parseInt(value.params.projectid);
         const project = projectsStore.getProjects().find((project) => project.id === projectId);
         projectsStore.setSelectedProject(project);
+        console.log("default params", value);
+        if (value?.params?.dashboardid) {
+            const dashboardId = parseInt(value.params.dashboardid);
+            console.log("default dashboard id", dashboardId);
+            const dashboard = dashboardsStore.getDashboards().find((dashboard) => dashboard.id === dashboardId);
+            console.log("default dashboard", dashboard);
+            dashboardsStore.setSelectedDashboard(dashboard);
+        }
     }
   },
 );
@@ -35,10 +43,10 @@ onMounted(async () => {
     await projectsStore.retrieveProjects();
     await dataSourceStore.retrieveDataSources();
     await dataModelsStore.retrieveDataModels();
+    await dashboardsStore.retrieveDashboards();
     if (projectsStore?.getSelectedProject()?.id) {
         await dataModelsStore.retrieveDataModelTables(projectsStore?.getSelectedProject()?.id);
     }
-    // await visualizationsStore.retrieveVisualizations();
 })
 </script>
 <template>
