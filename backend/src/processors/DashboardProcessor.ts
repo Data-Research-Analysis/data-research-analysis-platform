@@ -75,6 +75,44 @@ export class DashboardProcessor {
             }
         });
     }
+    async updateDashboard(dashboardId: number, projectId: number, data: IDashboard, tokenDetails: ITokenDetails): Promise<boolean> {
+        return new Promise<boolean>(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve(null);
+            }
+            const manager = (await driver.getConcreteDriver()).manager;
+            if (!manager) {
+                return resolve(null);
+            }
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!user) {
+                return resolve(false);
+            }
+            const project = await manager.findOne(DRAProject, {where: {id: projectId, users_platform: {id: user_id}}});
+            if (!project) {
+                return resolve(false);
+            }
+            const dashboard = await manager.findOne(DRADashboard, {where: {id: dashboardId, users_platform: user}});
+            if (!dashboard) {
+                return resolve(false);
+            }
+            try {
+                // const dashboard = new DRADashboard();
+                // dashboard.project = project;
+                // dashboard.users_platform = user;
+                // dashboard.data = data;
+                // await manager.save(dashboard);
+
+                await manager.update(DRADashboard, {id: dashboardId}, {data: data});
+                return resolve(true);
+            } catch (error) {
+                console.log('error', error);
+                return reject(error);
+            }
+        });
+    }
 
     /**
      * Delete a dashboard

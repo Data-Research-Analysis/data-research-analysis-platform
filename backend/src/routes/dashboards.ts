@@ -24,6 +24,18 @@ async (req: Request, res: Response) => {
         res.status(400).send({message: 'The dashboard could not be added.'});
     }
 });
+router.post('/update/:dashboard_id', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([param('dashboard_id').notEmpty().trim().escape().toInt(), body('project_id').notEmpty().trim().escape().toInt(), body('data').notEmpty()]),
+async (req: Request, res: Response) => {
+    const { dashboard_id, project_id, data } = matchedData(req);
+    const result = await DashboardProcessor.getInstance().updateDashboard(dashboard_id, project_id, data, req.body.tokenDetails);
+    if (result) {
+        res.status(200).send({message: 'The dashboard has been updated.'});
+    } else {
+        res.status(400).send({message: 'The dashboard could not be updated.'});
+    }
+});
 router.delete('/delete/:dashboard_id', async (req: Request, res: Response, next: any) => {
     next();
 }, validateJWT, validate([param('dashboard_id').notEmpty().trim().escape().toInt()]),

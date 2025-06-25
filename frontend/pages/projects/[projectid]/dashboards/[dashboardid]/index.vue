@@ -1,11 +1,9 @@
 <script setup>
 import { useProjectsStore } from '@/stores/projects';
-import { useDataSourceStore } from '@/stores/data_sources';
 import { useDataModelsStore } from '@/stores/data_models';
 import { useDashboardsStore } from '@/stores/dashboards';
 import _ from 'lodash';
 const projectsStore = useProjectsStore();
-const dataSourceStore = useDataSourceStore();
 const dataModelsStore = useDataModelsStore();
 const dashboardsStore = useDashboardsStore();
 
@@ -45,21 +43,40 @@ const state = reactive({
 const project = computed(() => {
     return projectsStore.getSelectedProject();
 });
-const dataSources = computed(() => {
-    return dataSourceStore.getDataSources();
-});
-const dataModels = computed(() => {
-    return dataModelsStore.getDataModels();
-});
 const dashboard = computed(() => {
     return dashboardsStore.getSelectedDashboard();
 });
 const dataModelTables = computed(() => {
     return dataModelsStore.getDataModelTables();
 });
-const showQueryDialogButton = computed(() => {
-    return showWhereClause.value || showOrderByClause.value || showGroupByClause.value;
+const charts = computed(() => {
+    // state.dashboard.charts = dashboard.value?.data?.charts.map((chart) => {
+    //     return {
+    //         ...chart,
+    //         config: {
+    //             drag_enabled: false,
+    //             resize_enabled: false,
+    //             add_columns_enabled: false,
+    //         },
+    //     };
+    // });
+    return state.dashboard.charts;
 });
+watch(
+    dashboardsStore,
+    (value, oldValue) => {
+        state.dashboard.charts = dashboardsStore.getSelectedDashboard()?.data?.charts.map((chart) => {
+            return {
+                ...chart,
+                config: {
+                    drag_enabled: false,
+                    resize_enabled: false,
+                    add_columns_enabled: false,
+                },
+            };
+        }) || [];
+    },
+)
 async function changeDataModel(event, chartId) {
     const chart = state.dashboard.charts.find((chart) => {
         return chart.chart_id === chartId;
@@ -103,7 +120,17 @@ function addChartToDashboard(chartType) {
             drag_enabled: false,
             resize_enabled: false,
             add_columns_enabled: false,
-        }
+        },
+        dimensions: {
+            width: '200px',
+            height: '200px',
+            widthDraggable: '200px',
+            heightDraggable: '200px',
+        },
+        location: {
+            top: '0px',
+            left: '0px',
+        },
     });
 
 }
@@ -178,9 +205,9 @@ async function executeQueryOnDataModels(chartId) {
     }
     
 }
-async function saveDashboard() {
+async function updateDashboard() {
     const token = getAuthToken();
-    let url = `${baseUrl()}/dashboards/add`;
+    let url = `${baseUrl()}/dashboards/update/${dashboard.value.id}`;
     const response = await fetch(url, {
         method: "POST",
         headers: {
@@ -197,9 +224,9 @@ async function saveDashboard() {
         $swal.fire({
             icon: 'success',
             title: `Success! `,
-            text: 'The dashboard has been sucessfully saved.',
+            text: 'The dashboard has been sucessfully updated.',
         });
-        router.push(`/projects/${route.params.projectid}/dashboards`);
+        // router.push(`/projects/${route.params.projectid}/dashboards`);
     } else {
         $swal.fire({
             icon: 'error',
@@ -295,7 +322,6 @@ function initializeResizeParams(event) {
     state.initial_height_draggable = draggableDiv.offsetHeight;
 }
 function draggableDivMouseDown(event, chartId) {
-    console.log('state.dashboard.charts', state.dashboard.charts);
     stopDragAndResize();
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
     if (chart) {
@@ -304,10 +330,11 @@ function draggableDivMouseDown(event, chartId) {
             state.is_dragging = true;
             state.is_resizing = false;
             state.selected_div = div.parentNode.parentNode;
-            // state.selected_div.style.cursor = 'move';
             state.offsetX = event.clientX - div.getBoundingClientRect().left;
             state.offsetY = event.clientY - div.getBoundingClientRect().top;
+            console.log('draggableDivMouseDown state.offsetX', state.offsetX, 'state.offsetY', state.offsetY);
             document.addEventListener('mousemove', onDrag);
+            console.log('draggableDivMouseDown state', state);
         }
     }
 }
@@ -401,6 +428,10 @@ function onDrag(event) {
         }
         state.selected_div.style.left = `${newX}px`;
         state.selected_div.style.top = `${newY}px`;
+        state.selected_chart.location = {
+            left: `${newX}px`,
+            top: `${newY}px`,
+        };
     }
 }
 function stopDrag() {
@@ -462,6 +493,12 @@ function onResize(event) {
         draggableDiv.style.width = `${newWidthDraggable}px`;//set the width of the draggable
         draggableDiv.style.height = `${newHeightDraggable}px`;//set the height of the draggable
         
+        state.selected_chart.dimensions = {
+            width: `${newWidth}px`,
+            height: `${newHeight}px`,
+            widthDraggable: `${newWidthDraggable}px`,
+            heightDraggable: `${newHeightDraggable}px`,
+        };
         state.previous_deltax = deltaX;
         state.previous_deltay = deltaY;
     }
@@ -478,11 +515,8 @@ function mouseUp() {
     state.is_mouse_down = false;
     stopDragAndResize();
 }
-
 async function updateDataModel(action, data) {
-    console.log('updateDateModel action', action, 'data', data, state.selected_chart.chart_id);
     if (action === 'add') {
-        console.log('updateDataModel add state.data_model_tables', state.data_model_tables);
         const dataModel = state.data_model_tables.find((dataModelTable) => dataModelTable.model_name === data.table_name);
         if (dataModel){
             const column = dataModel.columns.find((column) => column.column_name === data.column_name);
@@ -492,8 +526,6 @@ async function updateDataModel(action, data) {
                 }
             }
         }
-        console.log('updateDataModel state.selected_chart.columns', state.selected_chart.columns);
-
     } else if (action === 'remove') {
         state.selected_chart.columns = state.selected_chart.columns.filter((column) => {
             return !(column.table_name === data.table_name && column.column_name === data.column_name);
@@ -505,6 +537,8 @@ async function updateDataModel(action, data) {
 
 }
 onMounted(async () => {
+    //clear the selected dashboard
+    dashboardsStore.clearSelectedDashboard();
     state.data_model_tables = []
     dataModelTables?.value?.forEach((dataModelTable) => {
         state.data_model_tables.push({
@@ -527,9 +561,6 @@ onMounted(async () => {
             },
         };
     });
-    
-    console.log('mounted state.dashboard', state.dashboard);
-    console.log('mounted dashboard.value', dashboard.value);
 });
 </script>
 <template>
@@ -546,8 +577,8 @@ onMounted(async () => {
                 <div class="flex flex-row justify-between">
                     <tabs :project-id="project.id"/>
                     <div class="flex flex-row">
-                        <div @click="saveDashboard" class="flex flex-row items-center mr-2 mt-5 p-2 text-md text-white font-bold border border-white border-solid cursor-pointer select-none bg-primary-blue-100 hover:bg-primary-blue-400">
-                            <h3 class="ml-2 mr-2">Save Dashboard</h3>
+                        <div @click="updateDashboard" class="flex flex-row items-center mr-2 mt-5 p-2 text-md text-white font-bold border border-white border-solid cursor-pointer select-none bg-primary-blue-100 hover:bg-primary-blue-400">
+                            <h3 class="ml-2 mr-2">Update Dashboard</h3>
                         </div>
                     </div>
                 </div>
@@ -556,9 +587,10 @@ onMounted(async () => {
                         Drag columns from the side bar given in the left into the blue area below to build your visualization.
                     </div>
                     <div class="w-full h-full bg-gray-300 draggable-div-container relative">
-                        <div v-for="(chart, index) in state.dashboard.charts"
+                        <div v-for="(chart, index) in charts"
                             class="w-50 flex flex-col justify-between cursor-pointer draggable-div absolute top-0 left-0"
                             :id="`draggable-div-${chart.chart_id}`"
+                            :style="`width: ${chart.dimensions.width}; height: ${chart.dimensions.height}; top: ${chart.location.top}; left: ${chart.location.left};`"
                         >
                             <div class="flex flex-row justify-between top-corners">
                                 <img
@@ -634,6 +666,7 @@ onMounted(async () => {
                                     class="flex flex-row w-full h-50 bg-gray-200 border border-3 border-gray-600 border-t-0 draggable-model-columns"
                                     tag="tr"
                                     :disabled="!chart.config.add_columns_enabled"
+                                    :style="`width: ${chart.dimensions.widthDraggable}; height: ${chart.dimensions.heightDraggable};`"
                                     @change="changeDataModel($event, chart.chart_id)"
                                 >
                                     <template #item="{ element, index }">

@@ -108,7 +108,17 @@ function addChartToDashboard(chartType) {
             drag_enabled: false,
             resize_enabled: false,
             add_columns_enabled: false,
-        }
+        },
+        dimensions: {
+            width: '200px',
+            height: '200px',
+            widthDraggable: '200px',
+            heightDraggable: '200px',
+        },
+        location: {
+            top: '0px',
+            left: '0px',
+        },
     });
 }
 function deleteChartFromDashboard(chartId) {
@@ -406,6 +416,11 @@ function onDrag(event) {
         }
         state.selected_div.style.left = `${newX}px`;
         state.selected_div.style.top = `${newY}px`;
+
+        state.selected_chart.location = {
+            left: `${newX}px`,
+            top: `${newY}px`,
+        };
     }
 }
 function stopDrag() {
@@ -464,6 +479,12 @@ function onResize(event) {
         draggableDiv.style.width = `${newWidthDraggable}px`;//set the width of the draggable
         draggableDiv.style.height = `${newHeightDraggable}px`;//set the height of the draggable
         
+        state.selected_chart.dimensions = {
+            width: `${newWidth}px`,
+            height: `${newHeight}px`,
+            widthDraggable: `${newWidthDraggable}px`,
+            heightDraggable: `${newHeightDraggable}px`,
+        };
         state.previous_deltax = deltaX;
         state.previous_deltay = deltaY;
     }
