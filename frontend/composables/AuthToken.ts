@@ -17,6 +17,7 @@ export function getAuthToken() {
 }
 export function deleteAuthToken() {
     document.cookie = "dra_auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    localStorage.clear();
 }
 export function isAuthenticated() {
     return getAuthToken() ? true : false;

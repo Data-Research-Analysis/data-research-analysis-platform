@@ -27,12 +27,10 @@ watch(
         const projectId = parseInt(value.params.projectid);
         const project = projectsStore.getProjects().find((project) => project.id === projectId);
         projectsStore.setSelectedProject(project);
-        console.log("default params", value);
         if (value?.params?.dashboardid) {
             const dashboardId = parseInt(value.params.dashboardid);
-            console.log("default dashboard id", dashboardId);
             const dashboard = dashboardsStore.getDashboards().find((dashboard) => dashboard.id === dashboardId);
-            console.log("default dashboard", dashboard);
+            dashboardsStore.clearSelectedDashboard();
             dashboardsStore.setSelectedDashboard(dashboard);
         }
     }
@@ -46,6 +44,17 @@ onMounted(async () => {
     await dashboardsStore.retrieveDashboards();
     if (projectsStore?.getSelectedProject()?.id) {
         await dataModelsStore.retrieveDataModelTables(projectsStore?.getSelectedProject()?.id);
+    }
+    if (route?.params?.projectid) {
+        const projectId = parseInt(route.params.projectid);
+        const project = projectsStore.getProjects().find((project) => project.id === projectId);
+        projectsStore.setSelectedProject(project);
+        if (route?.params?.dashboardid) {
+            const dashboardId = parseInt(route.params.dashboardid);
+            const dashboard = dashboardsStore.getDashboards().find((dashboard) => dashboard.id === dashboardId);
+            dashboardsStore.clearSelectedDashboard();
+            dashboardsStore.setSelectedDashboard(dashboard);
+        }
     }
 })
 </script>
