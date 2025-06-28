@@ -2,7 +2,8 @@ networks:
   docker_test_network:
 
 volumes:
-  postgres_data:
+  data_research_analysis_postgres_data:
+    name: data_research_analysis_postgres_data
 
 services:
   frontend.dataresearchanalysis.test:
@@ -42,7 +43,7 @@ services:
       context: .
       dockerfile: ./docker/database/Dockerfile
     volumes:
-      - postgres_data:/var/lib/postgres/data
+      - data_research_analysis_postgres_data:/var/lib/postgres/data
     ports:
       - "$POSTGRESDB_LOCAL_PORT:$POSTGRESDB_DOCKER_PORT"
     networks:
@@ -61,7 +62,7 @@ services:
       context: .
       dockerfile: ./docker/database/Dockerfile
     volumes:
-      - postgres_data:/var/lib/postgres/data
+      - data_research_analysis_postgres_data:/var/lib/postgres/data
     ports:
       - "5435:5436"
     networks:

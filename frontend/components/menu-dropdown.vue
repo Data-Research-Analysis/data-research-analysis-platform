@@ -28,7 +28,7 @@ function toggleDropdown() {
                 'right-5': isDirectionLeft,
             }"
         >
-            <slot name="dropdownMenu" :onClick="toggleDropdown"></slot>
+            <slot v-if="state.dropdownOpen" name="dropdownMenu" :onClick="toggleDropdown"></slot>
         </div>
     </div>
 </template>
