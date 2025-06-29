@@ -104,6 +104,9 @@ function addChartToDashboard(chartType) {
         columns: [],
         table_name: '',
         data: [],
+        text_editor: {
+            content: '',
+        },
         config: {
             drag_enabled: false,
             resize_enabled: false,
@@ -222,6 +225,12 @@ async function saveDashboard() {
             title: `Error! `,
             text: 'Unfortunately, we encountered an error! Please refresh the page and try again.',
         });
+    }
+}
+function updateContent(content, chartId) {
+    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
+    if (chart) {
+        chart.text_editor.content = content;
     }
 }
 function toggleDragging(event, chartId) {
@@ -431,7 +440,7 @@ function stopDrag() {
 function onResize(event) {
     const draggableDiv = document.getElementById(`draggable-${state.selected_chart.chart_id}`);
     const chartDiv = document.getElementById(`chart-${state.selected_chart.chart_id}`);
-    if (state.is_mouse_down && state.is_resizing && state.selected_div && draggableDiv) {
+    if (state.is_mouse_down && state.is_resizing && state.selected_div && draggableDiv && chartDiv) {
         const deltaX = event.clientX - state.start_resize_x;
         const deltaY = event.clientY - state.start_resize_y;
        
@@ -536,7 +545,6 @@ onMounted(async () => {
                     </div>
                 </div>
                 <div class="flex flex-col min-h-200 max-h-200 h-200 overflow-hidden ml-10 mr-2 mb-10 border border-primary-blue-100 border-solid bg-gray-300">
-                    <!-- <component :is="pie" chart-id="1" :data="[{label: 'label1', value: 10,},{label: 'label2', value: 30,}]" :width="400" :height="400" class="mt-5"/> -->
                     <div class="w-full border border-gray-400 border-dashed h-10 flex flex-row justify-center items-center text-center font-bold text-gray-500 select-none">
                         Drag columns from the side bar given in the left into the blue area below to build your visualization.
                     </div>
@@ -594,7 +602,8 @@ onMounted(async () => {
                                         :v-tippy-content="chart.config.resize_enabled ? 'Disable Resizing' : 'Enable Resizing'"
                                         @click="toggleResizing(chart.chart_id)"
                                     />
-                                    <font-awesome 
+                                    <font-awesome
+                                        v-if="chart.chart_type !== 'text_block'"
                                         icon="fas fa-plus"
                                         class="text-xl ml-2 hover:text-gray-400 cursor-pointer"
                                         :class="{
@@ -612,6 +621,7 @@ onMounted(async () => {
                                     />
                                 </div>
                                 <draggable
+                                    v-if="chart.chart_type !== 'text_block'"
                                     :id="`draggable-${chart.chart_id}`"
                                     v-model="chart.columns"
                                     group="data_model_columns"
@@ -625,6 +635,7 @@ onMounted(async () => {
                                         <div v-if="index === 0" class="text-left font-bold text-white px-4 py-2 border-r-1 border-gray-200">
                                             <div v-if="chart && chart.data && chart.data.length" class="flex flex-col justify-center">
                                                 <pie-chart
+                                                    v-if="chart.chart_type === 'pie'"
                                                     :id="`chart-${chart.chart_id}`"   
                                                     :chart-id="`${chart.chart_id}`"
                                                     :data="chart.data"
@@ -636,6 +647,9 @@ onMounted(async () => {
                                         </div>
                                     </template>
                                 </draggable>
+                                <div v-else :id="`draggable-${chart.chart_id}`" class="bg-gray-200 border border-3 border-gray-600 border-t-0">
+                                    <text-editor :id="`chart-${chart.chart_id}`" :buttons="['bold', 'italic', 'heading', 'strike', 'underline']" minHeight="10" @update:content="(content) => { updateContent(content, chart.chart_id) }"/>
+                                </div>
                             </div>
                             <div class="flex flex-row justify-between bottom-corners">
                                 <img 
@@ -663,52 +677,57 @@ onMounted(async () => {
                     </div>
                 </div>
             </div>
-            <div class="flex flex-col w-1/6 mt-17 mb-10 select-none">
+            <div class="flex flex-col w-1/6 mt-17 mb-10 mr-2 select-none">
+                <div class="" @click="addChartToDashboard('text_block')" v-tippy="{ content: 'Add Text Block To Dashboard', placement: 'top' }">
+                     <div class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto mb-2 text-center font-bold text-lg cursor-pointer hover:bg-gray-300" >
+                        Text Block
+                     </div>
+                </div>
                 <div class="flex flex-row mb-2">
-                    <div class="mr-2" @click="addChartToDashboard('table')" v-tippy="{ content: 'Render Data in Table', placement: 'top' }">
+                    <div class="mr-2" @click="addChartToDashboard('table')" v-tippy="{ content: 'Add Table To Dashboard', placement: 'top' }">
                         <img src="/assets/images/table_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Table Chart" />
                     </div>
-                    <div @click="addChartToDashboard('pie')" v-tippy="{ content: 'Render Data in a Pie Chart', placement: 'top' }">
+                    <div @click="addChartToDashboard('pie')" v-tippy="{ content: 'Add Pie Chart To Dashboard', placement: 'top' }">
                         <img src="/assets/images/pie_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Pie Chart" />
                     </div>
                 </div>
                 <div class="flex flex-row mb-2">
-                    <div class="mr-2" @click="addChartToDashboard('donut')" v-tippy="{ content: 'Render Data in a Donut Chart', placement: 'top' }">
+                    <div class="mr-2" @click="addChartToDashboard('donut')" v-tippy="{ content: 'Add Donut Chart To Dashboard', placement: 'top' }">
                         <img src="/assets/images/donut_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Donut Chart" />
                     </div>
-                    <div @click="addChartToDashboard('vertical_bar')" v-tippy="{ content: 'Render Data in a Vertical Bar Chart', placement: 'top' }">
+                    <div @click="addChartToDashboard('vertical_bar')" v-tippy="{ content: 'Add Vertical Bar Chart To Dashboard', placement: 'top' }">
                         <img src="/assets/images/vertical_bar_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Vertical Bar Chart" />
                     </div>
                 </div>
                 <div class="flex flex-row mb-2">
-                    <div class="mr-2" @click="addChartToDashboard('horizontal_bar')" v-tippy="{ content: 'Render Data in a Horizontal Bar Chart', placement: 'top' }">
+                    <div class="mr-2" @click="addChartToDashboard('horizontal_bar')" v-tippy="{ content: 'Add Horizontal Bar Chart To Dashboard', placement: 'top' }">
                         <img src="/assets/images/horizontal_bar_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Horizontal Bar Chart" />
                     </div>
-                    <div @click="addChartToDashboard('vertical_bar_line')" v-tippy="{ content: 'Render Data in a Vertical Bar Line Chart', placement: 'top' }">
+                    <div @click="addChartToDashboard('vertical_bar_line')" v-tippy="{ content: 'Add Vertical Bar Line Chart To Dashboard', placement: 'top' }">
                         <img src="/assets/images/vertical_bar_chart_line.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Vertical Bar Line Chart" />
                     </div>
                 </div>
                 <div class="flex flex-row mb-2">
-                    <div class="mr-2" @click="addChartToDashboard('stacked_bar')" v-tippy="{ content: 'Render Data in a Stacked Bar Chart', placement: 'top' }">
+                    <div class="mr-2" @click="addChartToDashboard('stacked_bar')" v-tippy="{ content: 'Add Stacked Bar Chart To Dashboard', placement: 'top' }">
                         <img src="/assets/images/stacked_bar_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Stacked Bar Chart" />
                     </div>    
-                    <div @click="addChartToDashboard('multiline')" v-tippy="{ content: 'Render Data in a Multiline Chart', placement: 'top' }">
+                    <div @click="addChartToDashboard('multiline')" v-tippy="{ content: 'Add Multiline Chart To Dashboard', placement: 'top' }">
                         <img src="/assets/images/multi_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Multiline Chart" />
                     </div>
                 </div>
                 <div class="flex flex-row mb-2">
-                    <div class="mr-2" @click="addChartToDashboard('heatmap')" v-tippy="{ content: 'Render Data in a Heatmap Chart', placement: 'top' }">
+                    <div class="mr-2" @click="addChartToDashboard('heatmap')" v-tippy="{ content: 'Add Heatmap Chart To Dashboard', placement: 'top' }">
                         <img src="/assets/images/heatmap_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Heatmap Chart" />
                     </div>
-                    <div @click="addChartToDashboard('bubble')" v-tippy="{ content: 'Render Data in a Bubble Chart', placement: 'top' }">
+                    <div @click="addChartToDashboard('bubble')" v-tippy="{ content: 'Add Bubble Chart To Dashboard', placement: 'top' }">
                         <img src="/assets/images/bubble_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Bubble Chart" />
                     </div>
                 </div>
                 <div class="flex flex-row">
-                    <div class="mr-2" @click="addChartToDashboard('stacked_area')" v-tippy="{ content: 'Render Data in a Stacked Area Chart', placement: 'top' }">
+                    <div class="mr-2" @click="addChartToDashboard('stacked_area')" v-tippy="{ content: 'Add Stacked Area Chart To Dashboard', placement: 'top' }">
                         <img src="/assets/images/stacked_area_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Stacked Area Chart" />
                     </div>
-                    <div @click="addChartToDashboard('map')" v-tippy="{ content: 'Render Data in a Map', placement: 'top' }">
+                    <div @click="addChartToDashboard('map')" v-tippy="{ content: 'Add Map To Dashboard', placement: 'top' }">
                         <img src="/assets/images/map_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Map Chart" />
                     </div>
                 </div>

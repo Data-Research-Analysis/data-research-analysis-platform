@@ -50,16 +50,6 @@ const dataModelTables = computed(() => {
     return dataModelsStore.getDataModelTables();
 });
 const charts = computed(() => {
-    // state.dashboard.charts = dashboard.value?.data?.charts.map((chart) => {
-    //     return {
-    //         ...chart,
-    //         config: {
-    //             drag_enabled: false,
-    //             resize_enabled: false,
-    //             add_columns_enabled: false,
-    //         },
-    //     };
-    // });
     return state.dashboard.charts;
 });
 watch(
@@ -115,7 +105,10 @@ function addChartToDashboard(chartType) {
         chart_id: state.dashboard.charts.length + 1,
         columns: [],
         table_name: '',
-        data: [],//[[{label: 'label1', value: 10,},{label: 'label2', value: 30,}]],
+        data: [],
+        text_editor: {
+            content: '',
+        },
         config: {
             drag_enabled: false,
             resize_enabled: false,
@@ -203,7 +196,6 @@ async function executeQueryOnDataModels(chartId) {
             // console.log('executeQueryOnDataModels chart.data', chart.data);
         }
     }
-    
 }
 async function updateDashboard() {
     const token = getAuthToken();
@@ -233,6 +225,13 @@ async function updateDashboard() {
             title: `Error! `,
             text: 'Unfortunately, we encountered an error! Please refresh the page and try again.',
         });
+    }
+}
+function updateContent(content, chartId) {
+    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
+    if (chart) {
+        console.log('updateContent content', content);
+        chart.text_editor.content = content;
     }
 }
 function toggleDragging(event, chartId) {
@@ -489,9 +488,9 @@ function onResize(event) {
         newHeightDraggable = Math.max(chartDiv.offsetHeight, newHeightDraggable) + 50;
 
         state.selected_div.style.width = `${newWidth}px`;
-        state.selected_div.style.height = `${newHeight}px`;
+        state.selected_div.style.minHeight = `${newHeight}px`;
         draggableDiv.style.width = `${newWidthDraggable}px`;//set the width of the draggable
-        draggableDiv.style.height = `${newHeightDraggable}px`;//set the height of the draggable
+        draggableDiv.style.minHeight = `${newHeightDraggable}px`;//set the height of the draggable
         
         state.selected_chart.dimensions = {
             width: `${newWidth}px`,
@@ -588,7 +587,7 @@ onMounted(async () => {
                     </div>
                     <div class="w-full h-full bg-gray-300 draggable-div-container relative">
                         <div v-for="(chart, index) in charts"
-                            class="w-50 flex flex-col justify-between cursor-pointer draggable-div absolute top-0 left-0"
+                            class="w-50 flex flex-col justify-between cursor-pointer draggable-div absolute top-0 left-0 z-12"
                             :id="`draggable-div-${chart.chart_id}`"
                             :style="`width: ${chart.dimensions.width}; height: ${chart.dimensions.height}; top: ${chart.location.top}; left: ${chart.location.left};`"
                         >
@@ -641,7 +640,8 @@ onMounted(async () => {
                                         :v-tippy-content="chart.config.resize_enabled ? 'Disable Resizing' : 'Enable Resizing'"
                                         @click="toggleResizing(chart.chart_id)"
                                     />
-                                    <font-awesome 
+                                    <font-awesome
+                                        v-if="chart.chart_type !== 'text_block'"
                                         icon="fas fa-plus"
                                         class="text-xl ml-2 hover:text-gray-400 cursor-pointer"
                                         :class="{
@@ -659,6 +659,7 @@ onMounted(async () => {
                                     />
                                 </div>
                                 <draggable
+                                    v-if="chart.chart_type !== 'text_block'"
                                     :id="`draggable-${chart.chart_id}`"
                                     v-model="chart.columns"
                                     group="data_model_columns"
@@ -684,6 +685,9 @@ onMounted(async () => {
                                         </div>
                                     </template>
                                 </draggable>
+                                <div v-else :id="`draggable-${chart.chart_id}`" class="bg-gray-200 border border-3 border-gray-600 border-t-0">
+                                    <text-editor :id="`chart-${chart.chart_id}`" :buttons="['bold', 'italic', 'heading', 'strike', 'underline']" minHeight="10" :content="chart.text_editor.content" @update:content="(content) => { updateContent(content, chart.chart_id); }" />
+                                </div>
                             </div>
                             <div class="flex flex-row justify-between bottom-corners">
                                 <img 
@@ -712,6 +716,11 @@ onMounted(async () => {
                 </div>
             </div>
             <div class="flex flex-col w-1/6 mt-17 mb-10 select-none">
+                <div class="" @click="addChartToDashboard('text_block')" v-tippy="{ content: 'Add Text Block To Dashboard', placement: 'top' }">
+                     <div class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto mb-2 text-center font-bold text-lg cursor-pointer hover:bg-gray-300" >
+                        Text Block
+                     </div>
+                </div>
                 <div class="flex flex-row mb-2">
                     <div class="mr-2" @click="addChartToDashboard('table')" v-tippy="{ content: 'Render Data in Table', placement: 'top' }">
                         <img src="/assets/images/table_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Table Chart" />
