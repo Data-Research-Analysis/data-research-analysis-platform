@@ -1,6 +1,6 @@
 <script setup>
     import { useEditor, EditorContent } from '@tiptap/vue-3'
-    import StarterKit from '@tiptap/starter-kit'
+    import Document from '@tiptap/extension-document'
     import Bold from '@tiptap/extension-bold'
     import Italic from '@tiptap/extension-italic'
     import Heading from '@tiptap/extension-heading'
@@ -10,17 +10,24 @@
     import Code from '@tiptap/extension-code'
     import Image from '@tiptap/extension-image'
     import FileHandler from '@tiptap/extension-file-handler'
+    import ListItem from '@tiptap/extension-list-item'
     import OrderedList from '@tiptap/extension-ordered-list'
     import BulletList from '@tiptap/extension-bullet-list'
     import Dropcursor from '@tiptap/extension-dropcursor'
     import Placeholder from '@tiptap/extension-placeholder'
+    import Text from '@tiptap/extension-text'
+    import Paragraph from '@tiptap/extension-paragraph'
+    import History from '@tiptap/extension-history'
+    import TextAlign from '@tiptap/extension-text-align'
+    import Blockquote from '@tiptap/extension-blockquote'
 
     
     // Initialize the editor
     const editor = useEditor({
         content: '',
         extensions: [ 
-            StarterKit, Bold,
+            Document,
+            Bold,
             Italic, Heading,
             Strike, Underline,
             Link.configure({
@@ -73,6 +80,7 @@
                     })
                 },
             }),
+            ListItem,
             OrderedList.configure({
                 HTMLAttributes: {
                     class: 'list-decimal pl-5',
@@ -86,6 +94,17 @@
             Dropcursor.configure({
                 color: '#3c8dbc',
                 width: 3,
+            }),
+            Text,
+            Paragraph,
+            History,
+            Blockquote.configure({
+                HTMLAttributes: {
+                    class: 'border-l-2 border-gray-300 pl-4 italic text-gray-600',
+                },
+            }),
+            TextAlign.configure({
+                types: ['heading', 'paragraph'],
             }),
         ],
         editorProps: {
@@ -160,6 +179,13 @@
             editor.value.chain().focus().setImage({ src: imageUrl }).run();
         }
     }
+    function setTextAlign(align) {
+        if (editor.value.isActive({ textAlign: align })) {
+            editor.value.chain().focus().unsetTextAlign().run();
+        } else {
+            editor.value.chain().focus().setTextAlign(align).run();
+        }
+    }
     onMounted(() => {
         //set the minimum height of the editor
         const editorPropsAttributesClass = editor.value.extensionManager.editor.options.editorProps.attributes.class;
@@ -180,16 +206,16 @@
             <div class="bg-white border border-gray-300 mb-2">
                 <span v-for="button in props.buttons">
                     <button v-if="button === 'bold'" @click="editor.chain().focus().toggleBold().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :class="{ 'bg-gray-200': editor.isActive('bold') }">
-                        <font-awesome icon="fas fa-bold"/>
+                        <font-awesome icon="fas fa-bold" :v-tippy-content="'Bold'"/>
                     </button>
                     <button v-if="button === 'italic'" @click="editor.chain().focus().toggleItalic().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :class="{ 'bg-gray-200': editor.isActive('italic') }">
-                        <font-awesome icon="fas fa-italic"/>
+                        <font-awesome icon="fas fa-italic" :v-tippy-content="'Italic'"/>
                     </button>
                     <button v-if="button === 'heading'" >
                         <menu-dropdown class="z-10" direction="right">
                             <template #menuItem="{ onClick }">
                                 <div @click="onClick" class="p-2 m-1 hover:bg-gray-200 cursor-pointer">
-                                    <font-awesome icon="fas fa-heading" />
+                                    <font-awesome icon="fas fa-heading" :v-tippy-content="'Heading'"/>
                                 </div>
                             </template>
                             <template #dropdownMenu="{ onClick }">
@@ -205,31 +231,48 @@
                         </menu-dropdown>
                     </button>
                     <button v-if="button === 'strike'" @click="editor.chain().focus().toggleStrike().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :class="{ 'bg-gray-200': editor.isActive('strike') }">
-                        <font-awesome icon="fas fa-strikethrough"/>
+                        <font-awesome icon="fas fa-strikethrough" :v-tippy-content="'Strike'"/>
                     </button>
                     <button v-if="button === 'underline'" @click="editor.chain().focus().toggleUnderline().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :class="{ 'bg-gray-200': editor.isActive('underline') }">
-                        <font-awesome icon="fas fa-underline"/>
+                        <font-awesome icon="fas fa-underline" :v-tippy-content="'Underline'"/>
                     </button>
                     <button v-if="button === 'link'" @click="setLink" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :class="{ 'bg-gray-200': editor.isActive('link') }">
-                        <font-awesome icon="fas fa-link"/>
+                        <font-awesome icon="fas fa-link" :v-tippy-content="'Link'"/>
                     </button>
                     <button v-if="button === 'code'" @click="editor.chain().focus().toggleCode().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :class="{ 'bg-gray-200': editor.isActive('code') }">
-                        <font-awesome icon="fas fa-code"/>
+                        <font-awesome icon="fas fa-code" :v-tippy-content="'Code'"/>
                     </button>
                     <button v-if="button === 'image'" @click="setImage" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :class="{ 'bg-gray-200': editor.isActive('image') }">
-                        <font-awesome icon="fas fa-image"/>
+                        <font-awesome icon="fas fa-image" :v-tippy-content="'Image Link'"/>
                     </button>
                     <button v-if="button === 'ordered-list'" @click="editor.chain().focus().toggleOrderedList().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :class="{ 'bg-gray-200': editor.isActive('orderedList') }">
-                        <font-awesome icon="fas fa-list-ol"/>
+                        <font-awesome icon="fas fa-list-ol" :v-tippy-content="'Ordered List'"/>
                     </button>
                     <button v-if="button === 'bullet-list'" @click="editor.chain().focus().toggleBulletList().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :class="{ 'bg-gray-200': editor.isActive('bulletList') }">
-                        <font-awesome icon="fas fa-list"/>
+                        <font-awesome icon="fas fa-list" :v-tippy-content="'Bullet List'"/>
                     </button>
                     <button v-if="button === 'undo'" @click="editor.chain().focus().undo().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :disabled="!editor.can().undo()">
-                        <font-awesome icon="fas fa-rotate-left"/>
+                        <font-awesome icon="fas fa-rotate-left" :v-tippy-content="'Undo'"/>
                     </button>
                     <button v-if="button === 'redo'" @click="editor.chain().focus().redo().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :disabled="!editor.can().redo()">
-                        <font-awesome icon="fas fa-rotate-right"/>
+                        <font-awesome icon="fas fa-rotate-right" :v-tippy-content="'Redo'"/>
+                    </button>
+                    <button v-if="button === 'block-quote'" @click="editor.chain().focus().toggleBlockquote().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :class="{ 'bg-gray-200': editor.isActive('blockquote') }">
+                        <font-awesome icon="fas fa-quote-left" :v-tippy-content="'Quote'"/>
+                    </button>
+                </span>
+                <span class="border-l border-gray-300 pl-1">
+                    <button @click="setTextAlign('left')" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :class="{ 'bg-gray-200': editor.isActive({ textAlign: 'left' }) }">
+                        <font-awesome icon="fas fa-align-left" :v-tippy-content="'Left Align'"/>
+                    </button>
+                    <button @click="setTextAlign('center')" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :class="{ 'bg-gray-200': editor.isActive({ textAlign: 'center' }) }">
+                        <font-awesome icon="fas fa-align-center" :v-tippy-content="'Center Align'"/>
+                    </button>
+                    <button @click="setTextAlign('right')" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :class="{ 'bg-gray-200': editor.isActive({ textAlign: 'right' }) }">
+                        <font-awesome icon="fas fa-align-right" :v-tippy-content="'Right Align'"/>
+                    </button>
+                    <button @click="setTextAlign('justify')" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :class="{ 'bg-gray-200': editor.isActive({ textAlign: 'justify' }) }">
+                        <font-awesome icon="fas fa-align-justify" :v-tippy-content="'Justify Align'"/>
                     </button>
                 </span>
             </div>
