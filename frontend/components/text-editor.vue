@@ -111,11 +111,15 @@
             attributes: {
                 class: 'prose prose-sm sm:prose-base lg:prose-lg xl:prose-2xl m-2 focus:outline-none',
             },
-        }
+        },
+        onUpdate: ({ editor }) => {
+            // Update the content state whenever the editor content changes
+            state.content = editor.getHTML();
+            emits('update:content', state.content);
+        },
     });
-
+    const emits = defineEmits(['update:content']);
     const state = reactive({
-        editor: null,
         content: null
     });
     const props = defineProps({
@@ -191,6 +195,7 @@
         const editorPropsAttributesClass = editor.value.extensionManager.editor.options.editorProps.attributes.class;
         editor.value.extensionManager.editor.options.editorProps.attributes.class = `min-h-${props.minHeight} ${editorPropsAttributesClass}`;
         editor.value.commands.setContent(props.content);
+        state.content = "asdasd"
 
     });
     onBeforeUnmount(() => {
@@ -277,6 +282,6 @@
                 </span>
             </div>
         </div>
-        <editor-content v-model="state.content" :editor="editor" class="text-block-editor-content bg-white p-2 cursor-text border border-2 solid border-gray-200" />
+        <editor-content :editor="editor" class="text-block-editor-content bg-white p-2 cursor-text border border-2 solid border-gray-200" />
     </div>
 </template>
