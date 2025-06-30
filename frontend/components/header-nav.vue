@@ -1,5 +1,7 @@
 <script setup>
+import { useLoggedInUserStore } from "@/stores/logged_in_user";
 const route = useRoute();
+const loggedInUserStore = useLoggedInUserStore();
 const state = reactive({
     drawerOpen: false,
     authenticated: false,
@@ -11,7 +13,12 @@ watch(
     state.authenticated = isAuthenticated();
   },
 );
-
+const loggedInUser = computed(() => {
+    return loggedInUserStore.getLoggedInUser();
+});
+const isUserAdmin = computed(() => {
+    return loggedInUser.value?.user_type === 'admin';
+});
 function openDrawer() {
  state.drawerOpen = true;
 }
@@ -69,7 +76,15 @@ onMounted(() => {
                     <font-awesome icon="fab fa-linkedin" class="ml-5 text-4xl hover:text-gray-300 cursor-pointer" @click="openLinkedin()"/>
                 </div>
             </div>
-            <div v-else class="flex flex-row justify-end items-center h-full">
+            <div v-else class="flex flex-row items-center h-full" :class="{'justify-between': isUserAdmin, 'justify-end': !isUserAdmin}">
+                <div v-if="isUserAdmin" class="flex flex-row justify-start">
+                    <div class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">
+                        <NuxtLink to="/admin">Admin</NuxtLink>
+                    </div>
+                    <div class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">
+                        <NuxtLink to="/projects">Projects</NuxtLink>
+                    </div>
+                </div>
                 <menu-dropdown>
                     <template #menuItem="{ onClick }">
                         <div @click="onClick" class="flex flex-col justify-center items-center w-10 h-10 bg-gray-200 border border-primary-blue-100 border-solid p-1 rounded-full cursor-pointer hover:bg-gray-300 font-bold text-center text-black text-none">

@@ -4,6 +4,7 @@ import { DRADataSource } from './DRADataSource';
 import { DRADataModel } from './DRADataModel';
 import { DRAVerificationCode } from './DRAVerificationCode';
 import { DRADashboard } from './DRADashboard';
+import { EUserType } from '../types/EUserType';
 
 @Entity('dra_users_platform')
 export class DRAUsersPlatform {
@@ -17,6 +18,8 @@ export class DRAUsersPlatform {
     last_name: string
     @Column({ type: 'varchar', length: 255 })
     password: string
+    @Column({ type: 'enum', enum: [EUserType.ADMIN, EUserType.NORMAL] })
+    user_type: EUserType;
     @Column({ type: 'timestamp', nullable: true })
     email_verified_at: Date
     @Column({ type: 'timestamp', nullable: true })

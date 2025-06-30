@@ -1,7 +1,9 @@
 <script setup>
 import { useReCaptcha } from "vue-recaptcha-v3";
+import { useLoggedInUserStore } from "@/stores/logged_in_user";
 const router = useRouter();
 const recaptcha = useReCaptcha();
+const loggedInUserStore = useLoggedInUserStore();
 const state = reactive({
     email: "",
     password: "",
@@ -66,6 +68,8 @@ async function loginUser() {
                 state.loginSuccess = true;
                 state.showAlert = true;
                 const data = await response.json();
+                console.log("Login Response: ", data);
+                loggedInUserStore.setLoggedInUser(data);
                 // state.errorMessages.push(data.message);
                 setAuthToken(data.token);
                 router.push('/projects');
