@@ -1,5 +1,7 @@
+import { useLoggedInUserStore } from "@/stores/logged_in_user";
 export default defineNuxtRouteMiddleware(async (to, from) => {
   const token = getAuthToken();
+  const loggedInUserStore = useLoggedInUserStore();
   if (token) {
     if (to.path === "/logout") {
       //logout the user
@@ -27,11 +29,18 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
         isAuthorized = false;
       }
       if (isAuthorized) {
-        if (to.path === "/login" || to.path === "/register"
-            || to.path === "/" || to.path === "/privacy-policy"
-            || to.path === "/terms-conditions") {
-          return navigateTo("/projects");
+        if (to.path.startsWith("/admin")) {
+          if (loggedInUserStore.getLoggedInUser()?.user_type === "admin") {
+            return;
+          } else {
+            return navigateTo("/projects");
+          }
         } else {
+          if (to.path === "/login" || to.path === "/register"
+              || to.path === "/" || to.path === "/privacy-policy"
+              || to.path === "/terms-conditions") {
+            return navigateTo("/projects");
+          }
           return;
         }
       } else {
