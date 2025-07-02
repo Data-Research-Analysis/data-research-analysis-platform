@@ -47,7 +47,7 @@ async function publishArticle() {
         $swal.fire({
             icon: 'success',
             title: `Success! `,
-            text: 'The article has been sucessfully published.',
+            text: 'The article has been successfully published.',
         });
         router.push(`/admin/articles`);
     } else {
