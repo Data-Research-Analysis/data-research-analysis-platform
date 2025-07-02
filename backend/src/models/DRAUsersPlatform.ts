@@ -5,6 +5,9 @@ import { DRADataModel } from './DRADataModel';
 import { DRAVerificationCode } from './DRAVerificationCode';
 import { DRADashboard } from './DRADashboard';
 import { EUserType } from '../types/EUserType';
+import { DRAArticle } from './DRAArticle';
+import { DRACategory } from './DRACategory';
+import { DRAArticleCategory } from './DRAArticleCategory';
 
 @Entity('dra_users_platform')
 export class DRAUsersPlatform {
@@ -39,5 +42,15 @@ export class DRAUsersPlatform {
     
     @OneToMany(() => DRADashboard, (dashboards) => dashboards.users_platform, { cascade: ["remove", "update"] })
     dashboards!: DRADashboard[]
+
+    @OneToMany(() => DRAArticle, (articles) => articles.users_platform, { cascade: ["remove", "update"] })
+    articles!: DRAArticle[]
+
+    @OneToMany(() => DRACategory, (categories) => categories.users_platform, { cascade: ["remove", "update"] })
+    categories!: DRACategory[]
+
+    @OneToMany(() => DRAArticleCategory, (articleCategory) => articleCategory.users_platform, { cascade: ["remove", "update"] })
+    articles_categories!: DRAArticleCategory[]
+
 
 }

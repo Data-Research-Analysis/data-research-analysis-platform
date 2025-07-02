@@ -32,7 +32,7 @@ export const useDashboardsStore = defineStore('dashboardsDRA', () => {
             dashboards.value = [];
             return;
         }
-        const url = `${baseUrl()}/dashboards/list`;
+        const url = `${baseUrl()}/dashboard/list`;
         const response = await fetch(url, {
             method: "GET",
             headers: {

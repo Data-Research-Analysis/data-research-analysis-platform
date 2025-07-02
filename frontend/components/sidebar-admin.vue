@@ -2,7 +2,18 @@
 const route = useRoute();
 const router = useRouter();
 const state = reactive({
-    menu_items: [],
+    menu_items: [
+        {
+            id: 2,
+            menu_name: 'Articles Management',
+            show_menu: true,
+            sub_menus: [
+                { id: 1, name: 'Add Article', path: '/admin/articles/create' },
+                { id: 2, name: 'View Articles', path: '/admin/articles' },
+                { id: 3, name: 'List Categories', path: '/admin/articles/categories/view' },
+            ],
+        },
+    ],
 })
 const props = defineProps({
 });
@@ -30,12 +41,14 @@ function toggleMenuItem(menuItem) {
                             {{ menu.menu_name.length > 20 ? `${menu.menu_name.substring(0, 20)}...`: menu.menu_name }}
                         </h5>
                     </div>
-                    <div>
+                    <div v-if="menu.show_menu">
                         <div class="flex flex-col">
                             <div v-for="subMenu in menu.sub_menus" class="ml-2">
-                                <h6 v-tippy="{content:`${subMenu.name}`}" class="text-left text-sm font-bold hover:text-gray-500 p-1 m-1">
-                                    {{ subMenu.name > 20 ? `${subMenu.name.substring(0, 20)}...`: subMenu.name }}
-                                </h6>
+                                <NuxtLink :to="subMenu.path">
+                                    <h6 v-tippy="{content:`${subMenu.name}`}" class="text-left text-sm font-bold hover:text-gray-500 p-1 m-1">
+                                        {{ subMenu.name > 20 ? `${subMenu.name.substring(0, 20)}...`: subMenu.name }}
+                                    </h6>    
+                                </NuxtLink>
                             </div>
                         </div>                        
                     </div>

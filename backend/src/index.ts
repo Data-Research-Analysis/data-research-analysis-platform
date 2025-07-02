@@ -7,7 +7,10 @@ import auth from './routes/auth';
 import project from './routes/project';
 import data_source from './routes/data_source';
 import data_model from './routes/data_model';
-import dashboards from './routes/dashboards';
+import dashboard from './routes/dashboard';
+import article from './routes/admin/article';
+import category from './routes/admin/category';
+
 import "reflect-metadata";
 
 console.log('Starting up Data Research Analysis API Server');
@@ -29,7 +32,9 @@ app.use('/auth', auth);
 app.use('/project', project);
 app.use('/data-source', data_source);
 app.use('/data-model', data_model);
-app.use('/dashboards', dashboards);
+app.use('/dashboard', dashboard);
+app.use('/admin/article', article);
+app.use('/admin/category', category);
 
 app.listen(port, () => {
   return console.log(`Express is listening at http://localhost:${port}`);

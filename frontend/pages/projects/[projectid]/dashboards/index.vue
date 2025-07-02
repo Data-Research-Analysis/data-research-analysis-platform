@@ -55,7 +55,7 @@ async function deleteDashboard(dashboardId) {
             "Authorization-Type": "auth",
         },
     };
-    const response = await fetch(`${baseUrl()}/dashboards/delete/${dashboardId}`, requestOptions);
+    const response = await fetch(`${baseUrl()}/dashboard/delete/${dashboardId}`, requestOptions);
     if (response && response.status === 200) {
         const data = await response.json();
         $swal.fire(`The dashboard has been deleted successfully.`);

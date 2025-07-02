@@ -199,7 +199,7 @@ async function executeQueryOnDataModels(chartId) {
 }
 async function updateDashboard() {
     const token = getAuthToken();
-    let url = `${baseUrl()}/dashboards/update/${dashboard.value.id}`;
+    let url = `${baseUrl()}/dashboard/update/${dashboard.value.id}`;
     const response = await fetch(url, {
         method: "POST",
         headers: {
