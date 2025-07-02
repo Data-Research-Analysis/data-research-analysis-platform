@@ -38,8 +38,6 @@ const props = defineProps({
 watch(
   () => state.value,
   (value, oldValue) => {
-    console.log("watch value", value);
-    console.log("filteredOptions", filteredOptions.value);
     openFilter();
   },
 );
@@ -53,7 +51,6 @@ function closeFilter() {
   state.filterSelectorOpened = false;
 }
 function selectOption(option) {
-  console.log("selectOption", option);
   if (!state.selectedFilterItems.includes(option.label)) {
     state.selectedFilterItems.push(option.label);
     state.selectedFilterItemsObjects.push(option);

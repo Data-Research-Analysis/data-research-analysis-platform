@@ -6,10 +6,10 @@ export const useArticlesStore = defineStore('articlesDRA', () => {
     const categories = ref<ICategory[]>([]);
 
     if (localStorage.getItem('articles')) {
-        articles.value = JSON.parse(localStorage.getItem('articles') || 'null');
+        articles.value = JSON.parse(localStorage.getItem('articles') || 'null') || [];
     }
     if (localStorage.getItem('categories')) {
-        categories.value = JSON.parse(localStorage.getItem('categories') || 'null');
+        categories.value = JSON.parse(localStorage.getItem('categories') || 'null') || [];
     }
 
     function setArticles(articlesList: IArticle[]) {

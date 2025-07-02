@@ -46,7 +46,7 @@ function toggleMenuItem(menuItem) {
                             <div v-for="subMenu in menu.sub_menus" class="ml-2">
                                 <NuxtLink :to="subMenu.path">
                                     <h6 v-tippy="{content:`${subMenu.name}`}" class="text-left text-sm font-bold hover:text-gray-500 p-1 m-1">
-                                        {{ subMenu.name > 20 ? `${subMenu.name.substring(0, 20)}...`: subMenu.name }}
+                                        {{ subMenu.name.length > 20 ? `${subMenu.name.substring(0, 20)}...`: subMenu.name }}
                                     </h6>    
                                 </NuxtLink>
                             </div>
