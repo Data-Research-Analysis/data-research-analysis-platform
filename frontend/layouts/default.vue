@@ -3,14 +3,25 @@ import {useProjectsStore} from '@/stores/projects';
 import { useDataSourceStore } from '@/stores/data_sources';
 import { useDataModelsStore } from '@/stores/data_models';
 import { useDashboardsStore } from '@/stores/dashboards';
+import { useArticlesStore } from '@/stores/articles';
+import { useLoggedInUserStore } from "@/stores/logged_in_user";
+
 const projectsStore = useProjectsStore();
 const dataSourceStore = useDataSourceStore();
 const dataModelsStore = useDataModelsStore();
 const dashboardsStore = useDashboardsStore();
+const articlesStore = useArticlesStore();
+const loggedInUserStore = useLoggedInUserStore();
 const route = useRoute();
 const state = reactive({
     authenticated: false,
 })
+const loggedInUser = computed(() => {
+    return loggedInUserStore.getLoggedInUser();
+});
+const isUserAdmin = computed(() => {
+    return loggedInUser.value?.user_type === 'admin';
+});
 watch(
   route,
   async (value, oldValue) => {
@@ -34,6 +45,10 @@ watch(
             dashboardsStore.setSelectedDashboard(dashboard);
         }
     }
+    if (route.path.startsWith('/admin') && isUserAdmin.value) {
+        // await articlesStore.retrieveArticles();
+        await articlesStore.retrieveCategories();
+    }
   },
 );
 onMounted(async () => {
@@ -55,6 +70,10 @@ onMounted(async () => {
             dashboardsStore.clearSelectedDashboard();
             dashboardsStore.setSelectedDashboard(dashboard);
         }
+    }
+    if (route.path.startsWith('/admin') && isUserAdmin.value) {
+        // await articlesStore.retrieveArticles();
+        await articlesStore.retrieveCategories();
     }
 })
 </script>

@@ -19,17 +19,13 @@ const emits = defineEmits(['update:selectedTab']);
 function setSelectedTab(tab) {
     if (tab === 'data_sources') {
         router.push(`/projects/${props.projectId}`);
-    } else if (tab === 'visualizations') {
-        router.push(`/projects/${props.projectId}/visualizations`);
     } else if (tab === 'dashboards') {
         router.push(`/projects/${props.projectId}/dashboards`);
     }
 }
 onMounted(() => {
     const path = window.location.pathname;
-    if (path.includes('visualizations')) {
-        state.selectedTab = 'visualizations';
-    } else if (path.includes('dashboards')) {
+    if (path.includes('dashboards')) {
         state.selectedTab = 'dashboards';
     } else {
         state.selectedTab = 'data_sources';

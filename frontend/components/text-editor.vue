@@ -282,6 +282,6 @@
                 </span>
             </div>
         </div>
-        <editor-content :editor="editor" class="text-block-editor-content bg-white p-2 cursor-text border border-2 solid border-gray-200" />
+        <editor-content :editor="editor" class="text-block-editor-content bg-white p-2 cursor-text border border-1 solid border-gray-300" />
     </div>
 </template>

@@ -193,7 +193,7 @@ async function executeQueryOnDataModels(chartId) {
 }
 async function saveDashboard() {
     const token = getAuthToken();
-    let url = `${baseUrl()}/dashboards/add`;
+    let url = `${baseUrl()}/dashboard/add`;
     for (let i=0; i <state.dashboard.charts.length; i++) {
         const chart = state.dashboard.charts[i];
         chart.config.drag_enabled = false;
