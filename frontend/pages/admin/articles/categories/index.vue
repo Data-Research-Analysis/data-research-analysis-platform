@@ -2,8 +2,46 @@
 import { useArticlesStore } from '@/stores/articles';
 const { $swal } = useNuxtApp();
 const articlesStore = useArticlesStore();
-const categories = computed(() => articlesStore.categories);
-function editCategory(categoryId) {
+const state = reactive({
+    is_editing: false,
+    category_id_editing: null,
+    category_title_editing: "",
+});
+const categories = computed(() => articlesStore.categories.sort((a, b) => a.id - b.id));
+async function submitEditingChanges() {
+    const token = getAuthToken();
+    const requestOptions = {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "Authorization-Type": "auth",
+        },
+        body: JSON.stringify({
+            category_id: state.category_id_editing,
+            title: state.category_title_editing,
+        }),
+    };
+    const response = await fetch(`${baseUrl()}/admin/category/edit`, requestOptions);
+    if (response && response.status === 200) {
+        $swal.fire({
+            title: `The category title has been changed successfully.`,
+            confirmButtonColor: "#3C8DBC",
+        });
+    } else {
+        $swal.fire({
+            title: `There was an error change the category title.`,
+            confirmButtonColor: "#3C8DBC",
+        });
+    }
+    await articlesStore.retrieveCategories();
+    state.is_editing = false;
+    state.category_id_editing = null;
+}
+function beginEditCategory(categoryId) {
+    state.is_editing = true;
+    state.category_id_editing = categoryId;
+    state.category_title_editing = categories.value.find(category => category.id === categoryId).title;
 }
 async function deleteCategory(categoryId) {
  const { value: confirmDelete } = await $swal.fire({
@@ -115,11 +153,21 @@ async function addCategory() {
                         </thead>
                         <tbody>
                             <tr v-for="category in categories" :key="category.id">
-                                <td class="border px-4 py-2 text-center">{{ category.id }}</td>
-                                <td class="border px-4 py-2">{{ category.title }}</td>
+                                <td class="border px-4 py-2 text-center">
+                                    {{ category.id }}
+                                </td>
+                                <td class="border px-4 py-2">
+                                    <input v-if="state.is_editing && state.category_id_editing === category.id" type="text" v-model="state.category_title_editing" class="text-left outline p-1" />
+                                    <span v-else>{{ category.title }}</span>
+                                </td>
                                 <td class="border px-4 py-2">
                                     <div class="flex flex-row justify-center">
-                                        <button class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md">Edit</button>
+                                        <button v-if="state.is_editing && state.category_id_editing === category.id" @click="submitEditingChanges" class="w-35 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md">
+                                            Submit Changes
+                                        </button>
+                                        <button v-else @click="beginEditCategory(category.id)" class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md">
+                                            Edit
+                                        </button>
                                         <button @click="deleteCategory(category.id)" class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-red-600 text-white hover:bg-red-700 cursor-pointer font-bold shadow-md">Delete</button>
                                     </div>
                                 </td>

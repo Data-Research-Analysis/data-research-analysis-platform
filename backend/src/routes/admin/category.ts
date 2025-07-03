@@ -42,4 +42,17 @@ router.delete('/delete/:category_id', async (req: Request, res: Response, next: 
     }
 });
 
+router.post('/edit', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([body('title').notEmpty().trim().escape(), body('category_id').notEmpty().trim().toInt()]),
+async (req: Request, res: Response) => {
+    const { title, category_id } = matchedData(req);
+    const result = await CategoryProcessor.getInstance().editCategory(title, category_id, req.body.tokenDetails);
+    if (result) {
+        res.status(200).send({message: 'The category has been edited.'});
+    } else {
+        res.status(400).send({message: 'The category could not be edited.'});
+    }
+});
+
 export default router;
