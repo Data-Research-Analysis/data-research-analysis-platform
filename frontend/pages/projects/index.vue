@@ -26,18 +26,18 @@ watch(
 async function addProject() {
     const inputValue = "";
     const { value: projectName } = await $swal.fire({
-    title: "Enter Project Name",
-    input: "text",
-    inputLabel: "Project Name",
-    inputValue,
-    showCancelButton: true,
-    confirmButtonColor: "#3C8DBC",
-    cancelButtonColor: "#DD4B39",
-    inputValidator: (value) => {
-        if (!value) {
-            return "Please enter in a name for the project!";
+        title: "Enter Project Name",
+        input: "text",
+        inputLabel: "Project Name",
+        inputValue,
+        showCancelButton: true,
+        confirmButtonColor: "#3C8DBC",
+        cancelButtonColor: "#DD4B39",
+        inputValidator: (value) => {
+            if (!value) {
+                return "Please enter in a name for the project!";
+            }
         }
-    }
     });
     if (projectName) {
         state.project_name = projectName;

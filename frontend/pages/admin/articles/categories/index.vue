@@ -1,5 +1,6 @@
 <script setup>
 import { useArticlesStore } from '@/stores/articles';
+const { $swal } = useNuxtApp();
 const articlesStore = useArticlesStore();
 const categories = computed(() => articlesStore.categories);
 function editCategory(categoryId) {
@@ -7,8 +8,50 @@ function editCategory(categoryId) {
 function deleteCategory(categoryId) {
  
 }
-function addCategory() {
-    
+async function addCategory() {
+    const inputValue = "";
+    const { value: categoryTitle } = await $swal.fire({
+        title: "Enter Category Title",
+        input: "text",
+        inputLabel: "Category Title",
+        inputValue,
+        showCancelButton: true,
+        confirmButtonColor: "#3C8DBC",
+        cancelButtonColor: "#DD4B39",
+        inputValidator: (value) => {
+            if (!value) {
+                return "Please enter in a title for the category!";
+            }
+        }
+    });
+    if (categoryTitle) {
+        const token = getAuthToken();
+        const requestOptions = {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`,
+                "Authorization-Type": "auth",
+            },
+            body: JSON.stringify({
+                title: categoryTitle,
+            }),
+        };
+        const response = await fetch(`${baseUrl()}/admin/category/add`, requestOptions);
+        if (response && response.status === 200) {
+            const data = await response.json();
+            $swal.fire({
+                title: `The category ${categoryTitle} has been created successfully.`,
+                confirmButtonColor: "#3C8DBC",
+            });
+            await articlesStore.retrieveCategories();
+        } else {
+            $swal.fire({
+                title: `There was an error creating the category ${categoryTitle}.`,
+                confirmButtonColor: "#3C8DBC",
+            });
+        }
+    }
 }
 </script>
 <template>
@@ -24,7 +67,7 @@ function addCategory() {
                     </div>
                     <div
                         class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md"
-                        @click="saveAsDraft"
+                        @click="addCategory"
                     >
                         Add Category
                     </div>
