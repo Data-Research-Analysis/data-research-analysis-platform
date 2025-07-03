@@ -16,4 +16,17 @@ router.get('/list', async (req: Request, res: Response, next: any) => {
     }
 });
 
+router.post('/add', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([body('title').notEmpty().trim().escape()]),
+async (req: Request, res: Response) => {
+    const { title } = matchedData(req);
+    const result = await CategoryProcessor.getInstance().addCategory(title, req.body.tokenDetails);
+    if (result) {
+        res.status(200).send({message: 'The category has been added.'});
+    } else {
+        res.status(400).send({message: 'The category could not be added.'});
+    }
+});
+
 export default router;
