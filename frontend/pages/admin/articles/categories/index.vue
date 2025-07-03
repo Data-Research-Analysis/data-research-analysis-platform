@@ -27,12 +27,16 @@ async function deleteCategory(categoryId) {
             "Authorization-Type": "auth",
         },
     };
-    const response = await fetch(`${baseUrl()}/admin/category/delete/${categoryId}`, requestOptions);
-    if (response && response.status === 200) {
-        const data = await response.json();
-        $swal.fire(`The category has been deleted successfully.`);
-    } else {
-        $swal.fire(`There was an error deleting the category.`);
+    try {
+        const response = await fetch(`${baseUrl()}/admin/category/delete/${categoryId}`, requestOptions);
+        if (response && response.status === 200) {
+            const data = await response.json();
+            $swal.fire(`The category has been deleted successfully.`);
+        } else {
+            $swal.fire(`There was an error deleting the category.`);
+        }
+    } catch (error) {
+        $swal.fire(`A network error occurred while deleting the category.`);
     }
     await articlesStore.retrieveCategories();
 }
