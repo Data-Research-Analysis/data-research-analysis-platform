@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import { validateJWT } from '../../middleware/authenticate';
 import { validate } from '../../middleware/validator';
-import { body, matchedData } from 'express-validator';
+import { body, matchedData, param } from 'express-validator';
 import { CategoryProcessor } from '../../processors/CategoryProcessor';
 const router = express.Router();
 
@@ -26,6 +26,19 @@ async (req: Request, res: Response) => {
         res.status(200).send({message: 'The category has been added.'});
     } else {
         res.status(400).send({message: 'The category could not be added.'});
+    }
+});
+
+router.delete('/delete/:category_id', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([param('category_id').notEmpty().trim().toInt().escape().toInt()]), async (req: Request, res: Response) => {
+    const { category_id } = matchedData(req);
+    //delete the category
+    const response: boolean = await CategoryProcessor.getInstance().deleteCategory(category_id, req.body.tokenDetails);
+    if (response) {
+        res.status(200).send({message: 'The category has been deleted.'});
+    } else {
+        res.status(400).send({message: 'The category could not be deleted.'});
     }
 });
 

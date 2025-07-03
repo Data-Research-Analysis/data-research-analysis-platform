@@ -5,8 +5,36 @@ const articlesStore = useArticlesStore();
 const categories = computed(() => articlesStore.categories);
 function editCategory(categoryId) {
 }
-function deleteCategory(categoryId) {
- 
+async function deleteCategory(categoryId) {
+ const { value: confirmDelete } = await $swal.fire({
+        title: "Are you sure you want to delete the category?",
+        text: "You won't be able to revert this!",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#3C8DBC",
+        cancelButtonColor: "#DD4B39",
+        confirmButtonText: "Yes, delete it!",
+    });
+    if (!confirmDelete) {
+        return;
+    }
+    const token = getAuthToken();
+    const requestOptions = {
+        method: "DELETE",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "Authorization-Type": "auth",
+        },
+    };
+    const response = await fetch(`${baseUrl()}/admin/category/delete/${categoryId}`, requestOptions);
+    if (response && response.status === 200) {
+        const data = await response.json();
+        $swal.fire(`The category has been deleted successfully.`);
+    } else {
+        $swal.fire(`There was an error deleting the category.`);
+    }
+    await articlesStore.retrieveCategories();
 }
 async function addCategory() {
     const inputValue = "";
@@ -88,7 +116,7 @@ async function addCategory() {
                                 <td class="border px-4 py-2">
                                     <div class="flex flex-row justify-center">
                                         <button class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md">Edit</button>
-                                        <button @click="articlesStore.deleteCategory(category.id)" class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-red-600 text-white hover:bg-red-700 cursor-pointer font-bold shadow-md">Delete</button>
+                                        <button @click="deleteCategory(category.id)" class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-red-600 text-white hover:bg-red-700 cursor-pointer font-bold shadow-md">Delete</button>
                                     </div>
                                 </td>
                             </tr>

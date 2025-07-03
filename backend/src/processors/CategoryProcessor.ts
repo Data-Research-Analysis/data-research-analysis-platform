@@ -4,6 +4,7 @@ import _ from "lodash";
 import { EDataSourceType } from "../types/EDataSourceType";
 import { DRAUsersPlatform } from "../models/DRAUsersPlatform";
 import { DRACategory } from "../models/DRACategory";
+import { DRAArticleCategory } from "../models/DRAArticleCategory";
 
 export class CategoryProcessor {
     private static instance: CategoryProcessor;
@@ -61,6 +62,26 @@ export class CategoryProcessor {
                 console.log('error', error);
                 return reject(error);
             }
+        });
+    }
+
+    async deleteCategory(categoryId: number, tokenDetails: ITokenDetails): Promise<boolean> {
+        return new Promise<boolean>(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            const manager = (await driver.getConcreteDriver()).manager;
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!user) {
+                return resolve(false);
+            }
+            const category = await manager.findOne(DRACategory, {where: {id: categoryId}});
+            if (!category) {
+                return resolve(false);
+            }
+            const articleCategories = await manager.find(DRAArticleCategory, {where: {category: category}});
+            await manager.remove(articleCategories);
+            await manager.remove(category);
+            return resolve(true);
         });
     }
 }
