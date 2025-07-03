@@ -7,7 +7,7 @@ const state = reactive({
     category_id_editing: null,
     category_title_editing: "",
 });
-const categories = computed(() => articlesStore.categories.sort((a, b) => a.id - b.id));
+const categories = computed(() => [...articlesStore.categories].sort((a, b) => a.id - b.id));
 async function submitEditingChanges() {
     const token = getAuthToken();
     const requestOptions = {
