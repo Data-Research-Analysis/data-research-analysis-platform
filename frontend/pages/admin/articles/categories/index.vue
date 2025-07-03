@@ -30,7 +30,7 @@ async function submitEditingChanges() {
         });
     } else {
         $swal.fire({
-            title: `There was an error change the category title.`,
+            title: `There was an error changing the category title.`,
             confirmButtonColor: "#3C8DBC",
         });
     }
