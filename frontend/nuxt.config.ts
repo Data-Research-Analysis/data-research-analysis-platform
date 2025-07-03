@@ -11,7 +11,7 @@ export default defineNuxtConfig({
     }
   },
   devtools: {
-    enabled: true
+    enabled: false
   },
   devServer: {
     port: process.env.NUXT_PORT ? parseInt(process.env.NUXT_PORT, 10) : 3000,

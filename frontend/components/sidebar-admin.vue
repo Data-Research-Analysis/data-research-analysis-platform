@@ -9,8 +9,8 @@ const state = reactive({
             show_menu: true,
             sub_menus: [
                 { id: 1, name: 'Add Article', path: '/admin/articles/create' },
-                { id: 2, name: 'View Articles', path: '/admin/articles' },
-                { id: 3, name: 'List Categories', path: '/admin/articles/categories/view' },
+                { id: 2, name: 'List Articles', path: '/admin/articles' },
+                { id: 3, name: 'List Categories', path: '/admin/articles/categories' },
             ],
         },
     ],
