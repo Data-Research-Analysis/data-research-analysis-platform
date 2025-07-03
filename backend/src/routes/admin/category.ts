@@ -31,7 +31,7 @@ async (req: Request, res: Response) => {
 
 router.delete('/delete/:category_id', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([param('category_id').notEmpty().trim().toInt().escape().toInt()]), async (req: Request, res: Response) => {
+}, validateJWT, validate([param('category_id').notEmpty().trim().toInt()]), async (req: Request, res: Response) => {
     const { category_id } = matchedData(req);
     //delete the category
     const response: boolean = await CategoryProcessor.getInstance().deleteCategory(category_id, req.body.tokenDetails);
