@@ -8,6 +8,51 @@ const state = reactive({
     category_title_editing: "",
 });
 const categories = computed(() => [...articlesStore.categories].sort((a, b) => a.id - b.id));
+async function addCategory() {
+    const inputValue = "";
+    const { value: categoryTitle } = await $swal.fire({
+        title: "Enter Category Title",
+        input: "text",
+        inputLabel: "Category Title",
+        inputValue,
+        showCancelButton: true,
+        confirmButtonColor: "#3C8DBC",
+        cancelButtonColor: "#DD4B39",
+        inputValidator: (value) => {
+            if (!value) {
+                return "Please enter in a title for the category!";
+            }
+        }
+    });
+    if (categoryTitle) {
+        const token = getAuthToken();
+        const requestOptions = {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`,
+                "Authorization-Type": "auth",
+            },
+            body: JSON.stringify({
+                title: categoryTitle,
+            }),
+        };
+        const response = await fetch(`${baseUrl()}/admin/category/add`, requestOptions);
+        if (response && response.status === 200) {
+            const data = await response.json();
+            $swal.fire({
+                title: `The category ${categoryTitle} has been created successfully.`,
+                confirmButtonColor: "#3C8DBC",
+            });
+            await articlesStore.retrieveCategories();
+        } else {
+            $swal.fire({
+                title: `There was an error creating the category ${categoryTitle}.`,
+                confirmButtonColor: "#3C8DBC",
+            });
+        }
+    }
+}
 async function submitEditingChanges() {
     const token = getAuthToken();
     const requestOptions = {
@@ -78,51 +123,7 @@ async function deleteCategory(categoryId) {
     }
     await articlesStore.retrieveCategories();
 }
-async function addCategory() {
-    const inputValue = "";
-    const { value: categoryTitle } = await $swal.fire({
-        title: "Enter Category Title",
-        input: "text",
-        inputLabel: "Category Title",
-        inputValue,
-        showCancelButton: true,
-        confirmButtonColor: "#3C8DBC",
-        cancelButtonColor: "#DD4B39",
-        inputValidator: (value) => {
-            if (!value) {
-                return "Please enter in a title for the category!";
-            }
-        }
-    });
-    if (categoryTitle) {
-        const token = getAuthToken();
-        const requestOptions = {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`,
-                "Authorization-Type": "auth",
-            },
-            body: JSON.stringify({
-                title: categoryTitle,
-            }),
-        };
-        const response = await fetch(`${baseUrl()}/admin/category/add`, requestOptions);
-        if (response && response.status === 200) {
-            const data = await response.json();
-            $swal.fire({
-                title: `The category ${categoryTitle} has been created successfully.`,
-                confirmButtonColor: "#3C8DBC",
-            });
-            await articlesStore.retrieveCategories();
-        } else {
-            $swal.fire({
-                title: `There was an error creating the category ${categoryTitle}.`,
-                confirmButtonColor: "#3C8DBC",
-            });
-        }
-    }
-}
+
 </script>
 <template>
     <div class="flex flex-row">

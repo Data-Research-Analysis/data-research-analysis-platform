@@ -45,10 +45,8 @@ watch(
             dashboardsStore.setSelectedDashboard(dashboard);
         }
     }
-    if (route.path.startsWith('/admin') && isUserAdmin.value) {
-        // await articlesStore.retrieveArticles();
-        await articlesStore.retrieveCategories();
-    }
+    await articlesStore.retrieveArticles();
+    await articlesStore.retrieveCategories();
   },
 );
 onMounted(async () => {
@@ -71,10 +69,8 @@ onMounted(async () => {
             dashboardsStore.setSelectedDashboard(dashboard);
         }
     }
-    if (route.path.startsWith('/admin') && isUserAdmin.value) {
-        // await articlesStore.retrieveArticles();
-        await articlesStore.retrieveCategories();
-    }
+    await articlesStore.retrieveArticles();
+    await articlesStore.retrieveCategories();    
 })
 </script>
 <template>
