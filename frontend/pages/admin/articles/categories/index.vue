@@ -7,7 +7,52 @@ const state = reactive({
     category_id_editing: null,
     category_title_editing: "",
 });
-const categories = computed(() => [...articlesStore.categories].sort((a, b) => a.id - b.id));
+const categories = computed(() => articlesStore.categories.sort((a, b) => a.id - b.id));
+async function addCategory() {
+    const inputValue = "";
+    const { value: categoryTitle } = await $swal.fire({
+        title: "Enter Category Title",
+        input: "text",
+        inputLabel: "Category Title",
+        inputValue,
+        showCancelButton: true,
+        confirmButtonColor: "#3C8DBC",
+        cancelButtonColor: "#DD4B39",
+        inputValidator: (value) => {
+            if (!value) {
+                return "Please enter in a title for the category!";
+            }
+        }
+    });
+    if (categoryTitle) {
+        const token = getAuthToken();
+        const requestOptions = {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`,
+                "Authorization-Type": "auth",
+            },
+            body: JSON.stringify({
+                title: categoryTitle,
+            }),
+        };
+        const response = await fetch(`${baseUrl()}/admin/category/add`, requestOptions);
+        if (response && response.status === 200) {
+            const data = await response.json();
+            $swal.fire({
+                title: `The category ${categoryTitle} has been created successfully.`,
+                confirmButtonColor: "#3C8DBC",
+            });
+            await articlesStore.retrieveCategories();
+        } else {
+            $swal.fire({
+                title: `There was an error creating the category ${categoryTitle}.`,
+                confirmButtonColor: "#3C8DBC",
+            });
+        }
+    }
+}
 async function submitEditingChanges() {
     const token = getAuthToken();
     const requestOptions = {
@@ -30,7 +75,7 @@ async function submitEditingChanges() {
         });
     } else {
         $swal.fire({
-            title: `There was an error changing the category title.`,
+            title: `There was an error change the category title.`,
             confirmButtonColor: "#3C8DBC",
         });
     }
@@ -78,51 +123,7 @@ async function deleteCategory(categoryId) {
     }
     await articlesStore.retrieveCategories();
 }
-async function addCategory() {
-    const inputValue = "";
-    const { value: categoryTitle } = await $swal.fire({
-        title: "Enter Category Title",
-        input: "text",
-        inputLabel: "Category Title",
-        inputValue,
-        showCancelButton: true,
-        confirmButtonColor: "#3C8DBC",
-        cancelButtonColor: "#DD4B39",
-        inputValidator: (value) => {
-            if (!value) {
-                return "Please enter in a title for the category!";
-            }
-        }
-    });
-    if (categoryTitle) {
-        const token = getAuthToken();
-        const requestOptions = {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`,
-                "Authorization-Type": "auth",
-            },
-            body: JSON.stringify({
-                title: categoryTitle,
-            }),
-        };
-        const response = await fetch(`${baseUrl()}/admin/category/add`, requestOptions);
-        if (response && response.status === 200) {
-            const data = await response.json();
-            $swal.fire({
-                title: `The category ${categoryTitle} has been created successfully.`,
-                confirmButtonColor: "#3C8DBC",
-            });
-            await articlesStore.retrieveCategories();
-        } else {
-            $swal.fire({
-                title: `There was an error creating the category ${categoryTitle}.`,
-                confirmButtonColor: "#3C8DBC",
-            });
-        }
-    }
-}
+
 </script>
 <template>
     <div class="flex flex-row">
@@ -162,7 +163,7 @@ async function addCategory() {
                                 </td>
                                 <td class="border px-4 py-2">
                                     <div class="flex flex-row justify-center">
-                                        <button v-if="state.is_editing && state.category_id_editing === category.id" @click="submitEditingChanges" class="w-36 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md">
+                                        <button v-if="state.is_editing && state.category_id_editing === category.id" @click="submitEditingChanges" class="w-35 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md">
                                             Submit Changes
                                         </button>
                                         <button v-else @click="beginEditCategory(category.id)" class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md">

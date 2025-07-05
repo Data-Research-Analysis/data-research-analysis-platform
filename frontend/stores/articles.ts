@@ -50,8 +50,25 @@ export const useArticlesStore = defineStore('articlesDRA', () => {
             },
         });
         const data = await response.json();
-        console.log('Retrieved categories:', data);
         setCategories(data);
+    }
+    async function retrieveArticles() {
+        const token = getAuthToken();
+        if (!token) {
+            setArticles([]);
+            return;
+        }
+        const url = `${baseUrl()}/admin/article/list`;
+        const response = await fetch(url, {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`,
+                "Authorization-Type": "auth",
+            },
+        });
+        const data = await response.json();
+        setArticles(data);
     }
     return {
         articles,
@@ -63,5 +80,6 @@ export const useArticlesStore = defineStore('articlesDRA', () => {
         clearArticles,
         clearCategories,
         retrieveCategories,
+        retrieveArticles,
     }
 });

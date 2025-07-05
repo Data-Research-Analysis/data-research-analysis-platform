@@ -1,5 +1,7 @@
+import type { IArticleData } from "./IArticleData";
+import type { ICategory } from "./ICategory";
+
 export interface IArticle {
-    id: number;
-    title: string;
-    content: string;
+    article: IArticleData
+    categories: ICategory[];
 }
