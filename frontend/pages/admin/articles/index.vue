@@ -102,7 +102,7 @@ async function publishArticle(articleId) {
                                 <th class="px-4 py-2 border border-solid border-black text-white">Title</th>
                                 <th class="px-4 py-2 border border-solid border-black text-white">Publish Status</th>
                                 <th class="px-4 py-2 border border-solid border-black text-white">Categories</th>
-                                <th class="px-4 py-2 boder border-solid border-black text-white">Actions</th>
+                                <th class="px-4 py-2 border border-solid border-black text-white">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
