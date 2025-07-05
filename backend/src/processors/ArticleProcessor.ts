@@ -125,4 +125,24 @@ export class ArticleProcessor {
             }
         });
     }
+
+    async deleteArticle(articleId: number, tokenDetails: ITokenDetails): Promise<boolean> {
+        return new Promise<boolean>(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            const manager = (await driver.getConcreteDriver()).manager;
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!user) {
+                return resolve(false);
+            }
+            const article = await manager.findOne(DRAArticle, {where: {id: articleId}});
+            if (!article) {
+                return resolve(false);
+            }
+            const articleCategories = await manager.find(DRAArticleCategory, {where: {article: article}});
+            await manager.remove(articleCategories);
+            await manager.remove(article);
+            return resolve(true);
+        });
+    }
 }
