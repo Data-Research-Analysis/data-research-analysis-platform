@@ -48,7 +48,6 @@ export class ArticleProcessor {
             for (let i = 0; i < articles.length; i++) {
                 const article = articles[i];
                 const categories = await manager.find(DRACategory, {where: {id: In(article.dra_articles_categories.map(cat => cat.category_id))}});
-                categories.push(...categories);
                 articlesList.push({
                     article: article,
                     categories: categories
