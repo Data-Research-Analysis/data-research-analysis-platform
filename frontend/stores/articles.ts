@@ -4,6 +4,7 @@ import type { ICategory } from '~/types/ICategory';
 export const useArticlesStore = defineStore('articlesDRA', () => {
     const articles = ref<IArticle[]>([]);
     const categories = ref<ICategory[]>([]);
+    const selectedArticle = ref<IArticle>();
 
     if (localStorage.getItem('articles')) {
         articles.value = JSON.parse(localStorage.getItem('articles') || 'null') || [];
@@ -11,7 +12,9 @@ export const useArticlesStore = defineStore('articlesDRA', () => {
     if (localStorage.getItem('categories')) {
         categories.value = JSON.parse(localStorage.getItem('categories') || 'null') || [];
     }
-
+    if (localStorage.getItem('selectedArticle')) {
+        selectedArticle.value = JSON.parse(localStorage.getItem('selectedArticle') || 'null')
+    }
     function setArticles(articlesList: IArticle[]) {
         articles.value = articlesList;
         localStorage.setItem('articles', JSON.stringify(articlesList));
@@ -20,11 +23,18 @@ export const useArticlesStore = defineStore('articlesDRA', () => {
         categories.value = categoriesList;
         localStorage.setItem('categories', JSON.stringify(categoriesList));
     }
+    function setSelectedArticle(article: IArticle) {
+            selectedArticle.value = article
+            localStorage.setItem('selectedArticle', JSON.stringify(article))
+        }
     function getArticles() {
         return articles.value;
     }
     function getCategories() {
         return categories.value;
+    }
+    function getSelectedArticle() {
+        return selectedArticle.value;
     }
     function clearArticles() {
         articles.value = [];
@@ -33,6 +43,10 @@ export const useArticlesStore = defineStore('articlesDRA', () => {
     function clearCategories() {
         categories.value = [];
         localStorage.removeItem('categories');
+    }
+    function clearSelectedArticle() {
+        selectedArticle.value = undefined;
+        localStorage.removeItem('selectedArticle');
     }
     async function retrieveCategories() {
         const token = getAuthToken();
@@ -73,13 +87,17 @@ export const useArticlesStore = defineStore('articlesDRA', () => {
     return {
         articles,
         categories,
+        selectedArticle,
         setArticles,
         setCategories,
+        setSelectedArticle,
         getArticles,
         getCategories,
+        getSelectedArticle,
         clearArticles,
         clearCategories,
         retrieveCategories,
         retrieveArticles,
+        clearSelectedArticle
     }
 });

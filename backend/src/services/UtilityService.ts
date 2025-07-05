@@ -57,7 +57,8 @@ export class UtilityService {
 
     public getConstants(key: string): any {
         return {
-            PORT: process.env.PORT || 3003,
+            PUBLIC_BACKEND_URL: process.env.PUBLIC_BACKEND_URL || 'http://localhost:3002',
+            PORT: process.env.PORT || 3002,
             RECAPTCHA_SECRET: process.env.RECAPTCHA_SECRET || '',
             JWT_SECRET: process.env.JWT_SECRET || '',
             PASSWORD_SALT: process.env.PASSWORD_SALT || 10,
