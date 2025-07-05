@@ -78,9 +78,11 @@ export class CategoryProcessor {
             if (!category) {
                 return resolve(false);
             }
-            const articleCategories = await manager.find(DRAArticleCategory, {where: {category: category}});
-            await manager.remove(articleCategories);
-            await manager.remove(category);
+            const articleCategories = await manager.find(DRAArticleCategory, {where: {category: category, users_platform: user}});
+            await manager.transaction(async transactionalEntityManager => {
+                await transactionalEntityManager.remove(articleCategories);
+                await transactionalEntityManager.remove(category);
+            });
             return resolve(true);
         });
     }

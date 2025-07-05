@@ -8,7 +8,7 @@ const state = reactive({
 const articles = computed(() => [...articlesStore.getArticles()].sort((a, b) => a.id - b.id));
 async function deleteArticle(articleId) {
  const { value: confirmDelete } = await $swal.fire({
-        title: "Are you sure you want to delete the category?",
+        title: "Are you sure you want to delete the article?",
         text: "You won't be able to revert this!",
         icon: "warning",
         showCancelButton: true,
@@ -32,12 +32,12 @@ async function deleteArticle(articleId) {
         const response = await fetch(`${baseUrl()}/admin/article/delete/${articleId}`, requestOptions);
         if (response && response.status === 200) {
             const data = await response.json();
-            $swal.fire(`The category has been deleted successfully.`);
+            $swal.fire(`The article has been deleted successfully.`);
         } else {
-            $swal.fire(`There was an error deleting the category.`);
+            $swal.fire(`There was an error deleting the article.`);
         }
     } catch (error) {
-        $swal.fire(`A network error occurred while deleting the category.`);
+        $swal.fire(`A network error occurred while deleting the article.`);
     }
     await articlesStore.retrieveArticles();
 }

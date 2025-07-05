@@ -1,21 +1,14 @@
 import { DBDriver } from "../drivers/DBDriver";
-import { DRADataModel } from "../models/DRADataModel";
 import { ITokenDetails } from "../types/ITokenDetails";
-import _ from "lodash";
-import { IDBConnectionDetails } from "../types/IDBConnectionDetails";
-import { UtilityService } from "../services/UtilityService";
-import { DRADataSource } from "../models/DRADataSource";
-import { DRADashboard } from "../models/DRADashboard";
-import { IDashboard } from "../types/IDashboard";
 import { EDataSourceType } from "../types/EDataSourceType";
 import { DRAUsersPlatform } from "../models/DRAUsersPlatform";
-import { DRAProject } from "../models/DRAProject";
 import { DRAArticle } from "../models/DRAArticle";
 import { EPublishStatus } from "../types/EPublishStatus";
 import { DRAArticleCategory } from "../models/DRAArticleCategory";
 import { DRACategory } from "../models/DRACategory";
 import { In } from "typeorm";
 import { IArticle } from "../types/IArticle";
+import _ from "lodash";
 
 export class ArticleProcessor {
     private static instance: ArticleProcessor;
@@ -123,6 +116,28 @@ export class ArticleProcessor {
                 console.log('error', error);
                 return reject(error);
             }
+        });
+    }
+
+    async deleteArticle(articleId: number, tokenDetails: ITokenDetails): Promise<boolean> {
+        return new Promise<boolean>(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            const manager = (await driver.getConcreteDriver()).manager;
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!user) {
+                return resolve(false);
+            }
+            const article = await manager.findOne(DRAArticle, {where: {id: articleId, users_platform: user}});
+            if (!article) {
+                return resolve(false);
+            }
+            const articleCategories = await manager.find(DRAArticleCategory, {where: {article: article}});
+            await manager.transaction(async transactionalEntityManager => {
+                await transactionalEntityManager.remove(articleCategories);
+                await transactionalEntityManager.remove(article);
+            });
+            return resolve(true);
         });
     }
 }

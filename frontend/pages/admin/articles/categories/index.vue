@@ -89,7 +89,7 @@ function beginEditCategory(categoryId) {
     state.category_title_editing = categories.value.find(category => category.id === categoryId).title;
 }
 async function deleteCategory(categoryId) {
- const { value: confirmDelete } = await $swal.fire({
+    const { value: confirmDelete } = await $swal.fire({
         title: "Are you sure you want to delete the category?",
         text: "You won't be able to revert this!",
         icon: "warning",

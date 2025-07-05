@@ -42,4 +42,17 @@ async (req: Request, res: Response) => {
     }
 });
 
+router.delete('/delete/:article_id', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([param('article_id').notEmpty().trim().toInt()]), async (req: Request, res: Response) => {
+    const { article_id } = matchedData(req);
+    //delete the article
+    const response: boolean = await ArticleProcessor.getInstance().deleteArticle(article_id, req.body.tokenDetails);
+    if (response) {
+        res.status(200).send({message: 'The article has been deleted.'});
+    } else {
+        res.status(400).send({message: 'The article could not be deleted.'});
+    }
+});
+
 export default router;
