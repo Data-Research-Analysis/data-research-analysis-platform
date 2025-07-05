@@ -6,6 +6,7 @@ export interface IArticleData {
         id: number;
         title: string;
         content: string;
+        publish_status: string; // Added field to match UI usage
     };
     categories: DRACategory[];
 }
