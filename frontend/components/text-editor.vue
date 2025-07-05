@@ -116,9 +116,7 @@
         },
         onUpdate: ({ editor }) => {
             // Update the content state whenever the editor content changes
-            // state.content = editor.getHTML();
             emits('update:content', editor.getHTML());
-            console.log('Editor content updated:', editor.getHTML());
         },
     });
     const emits = defineEmits(['update:content']);
