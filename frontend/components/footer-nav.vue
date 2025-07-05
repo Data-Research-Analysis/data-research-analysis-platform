@@ -43,7 +43,7 @@ onMounted(() => {
             <div class="flex flex-col justify-between h-full p-5">
                 <div class="flex flex-row">
                     <div class="w-1/2">
-                        <NuxtLink to="/" class="hover:text-gray-300 lg:ml-8">Data Reasearch Analysis</NuxtLink>
+                        <NuxtLink to="/" class="hover:text-gray-300 lg:ml-8">Data Research Analysis</NuxtLink>
                     </div>
                     <div class="w-1/2 flex flex-row justify-end mr-8">
                         <div class="w-1/4 flex flex-col">

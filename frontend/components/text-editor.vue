@@ -46,37 +46,39 @@
                 placeholder: 'Type your text here...',
                 emptyEditorClass: "before:content-[attr(data-placeholder)] before:float-left before:text-[#adb5bd] before:h-0 before:pointer-events-none",
             }),
-            Image,
+            Image.configure({
+                inline: true,
+                allowBase64: false,
+            }),
             FileHandler.configure({
                 allowedMimeTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/webp'],
-                onDrop: (currentEditor, files, pos) => {
-                    files.forEach(file => {
-                    const fileReader = new FileReader()
-
-                    fileReader.readAsDataURL(file)
-                    fileReader.onload = () => {
-                        currentEditor.chain().insertContentAt(pos, {
-                        type: 'image',
-                        attrs: {
-                            src: fileReader.result,
-                        },
-                        }).focus().run()
-                    }
+                onDrop: (currentEditor, files, pos) =>  {
+                    files.forEach(async file => {
+                        if (file && file.type.startsWith('image/')) {
+                            try {
+                                const imageUrl = await handleImageUpload(file);
+                                currentEditor.chain().focus().insertContentAt(pos, {
+                                    type: 'image',
+                                    attrs: {
+                                        src: imageUrl,
+                                    }
+                                }).run();
+                            } catch (error) {
+                                console.error('Error uploading image:', error);
+                            }
+                        }
                     })
                 },
                 onPaste: (currentEditor, files) => {
-                    files.forEach(file => {
-                    const fileReader = new FileReader()
-
-                    fileReader.readAsDataURL(file)
-                    fileReader.onload = () => {
-                        currentEditor.chain().insertContentAt(currentEditor.state.selection.anchor, {
-                        type: 'image',
-                        attrs: {
-                            src: fileReader.result,
-                        },
-                        }).focus().run()
-                    }
+                    files.forEach(async file => {
+                    if (file && file.type.startsWith('image/')) {
+                            try {
+                                const imageUrl = await handleImageUpload(file);
+                                currentEditor.chain().focus().setImage({src: imageUrl}).run();
+                            } catch (error) {
+                                console.error('Error uploading image:', error);
+                            }
+                        }
                     })
                 },
             }),
@@ -114,13 +116,15 @@
         },
         onUpdate: ({ editor }) => {
             // Update the content state whenever the editor content changes
-            state.content = editor.getHTML();
-            emits('update:content', state.content);
+            // state.content = editor.getHTML();
+            emits('update:content', editor.getHTML());
+            console.log('Editor content updated:', editor.getHTML());
         },
     });
     const emits = defineEmits(['update:content']);
     const state = reactive({
-        content: null
+        content: null,
+        counter: 0,
     });
     const props = defineProps({
         buttons: {
@@ -138,8 +142,9 @@
     });
     const buttons = computed(() => props.buttons);
     watch(() => props.content, (newContent) => {
-        if (editor.value) {
+        if (editor.value && state.counter === 0) {
             editor.value.commands.setContent(newContent);
+            state.counter++;
         }
     }, { immediate: true });
     function setLink() {
@@ -190,12 +195,36 @@
             editor.value.chain().focus().setTextAlign(align).run();
         }
     }
+    async function handleImageUpload(file) {
+        const token = getAuthToken();
+        const formData = new FormData();
+        formData.append('image', file);
+        try {
+            let url = `${baseUrl()}/admin/image/upload`;
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+                body: formData,
+            });
+            if (!response.ok) {
+                throw new Error('Image upload failed');
+            }
+            const data = await response.json();
+            return data.url;
+        } catch (error) {
+            console.error('Error uploading image:', error);
+            throw error;
+        }
+    }
     onMounted(() => {
         //set the minimum height of the editor
         const editorPropsAttributesClass = editor.value.extensionManager.editor.options.editorProps.attributes.class;
         editor.value.extensionManager.editor.options.editorProps.attributes.class = `min-h-${props.minHeight} ${editorPropsAttributesClass}`;
-        editor.value.commands.setContent(props.content);
-        state.content = "asdasd"
+        // editor.value.commands.setContent(props.content);
+        // state.content = props.content
 
     });
     onBeforeUnmount(() => {

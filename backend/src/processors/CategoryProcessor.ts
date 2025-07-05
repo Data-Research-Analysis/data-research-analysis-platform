@@ -102,7 +102,7 @@ export class CategoryProcessor {
             if (!user) {
                 return resolve(false);
             }
-            const category = await manager.findOne(DRACategory, {where: {id: categoryId}});
+            const category = await manager.findOne(DRACategory, {where: {id: categoryId, users_platform: user}});
             if (!category) {
                 return resolve(false);
             }
@@ -111,7 +111,7 @@ export class CategoryProcessor {
                 return resolve(true);
             } catch (error) {
                 console.log('error', error);
-                return reject(error);
+                return resolve(false);
             }
         });
     }

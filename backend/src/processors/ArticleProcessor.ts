@@ -140,4 +140,47 @@ export class ArticleProcessor {
             return resolve(true);
         });
     }
+
+    async editArticle(articleId: number, title: string, content: string, categories: any[], tokenDetails: ITokenDetails): Promise<boolean> {
+        return new Promise<boolean>(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve(false);
+            }
+            const manager = (await driver.getConcreteDriver()).manager;
+            if (!manager) {
+                return resolve(false);
+            }
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!user) {
+                return resolve(false);
+            }
+            const article = await manager.findOne(DRAArticle, {where: {id: articleId, users_platform: user}});
+            if (!article) {
+                return resolve(false);
+            }
+            try {
+                // delete the existing categories for the article
+                let articleCategories: DRAArticleCategory[] = await manager.find(DRAArticleCategory, {where: {article: article}});
+                await manager.remove(articleCategories);
+
+                const categoriesList = await manager.findBy(DRACategory, {id: In(categories)});
+                articleCategories = [];
+                for (let i=0; i< categoriesList.length; i++) {
+                    const articleCategory = new DRAArticleCategory();
+                    articleCategory.article = article;
+                    articleCategory.category = categoriesList[i];
+                    articleCategory.users_platform = user;
+                    articleCategories.push(articleCategory);
+                }
+                await manager.save(articleCategories);
+                await manager.update(DRAArticle, {id: articleId}, {title: title, content: content});
+                return resolve(true);
+            } catch (error) {
+                console.log('error', error);
+                return resolve(false);
+            }
+        });
+    }
 }

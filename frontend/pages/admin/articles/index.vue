@@ -127,7 +127,7 @@ async function publishArticle(articleId) {
                                 <td class="border px-4 py-2">
                                     <div class="flex flex-row justify-center">
                                         <button v-if="article.article.publish_status === 'draft'" @click="publishArticle(article.article.id)" class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-green-600 text-white hover:bg-green-700 cursor-pointer font-bold shadow-md">Publish Article</button>
-                                        <NuxtLink :to="`/admin/article/edit/${article.article.id}`" class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md">
+                                        <NuxtLink :to="`/admin/articles/${article.article.id}`" class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md">
                                             Edit
                                         </NuxtLink>
                                         <button @click="deleteArticle(article.article.id)" class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-red-600 text-white hover:bg-red-700 cursor-pointer font-bold shadow-md">Delete</button>
