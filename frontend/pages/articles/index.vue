@@ -9,7 +9,7 @@ function formatDate(dateString) {
 }
 </script>
 <template>
-    <div class="min-h-100 flex flex-col ml-4 mr-4 mt-10 mb-10 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md">
+    <div class="min-h-100 flex flex-col ml-4 mr-4 mb-10 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md">
         <h1 class="mb-5 ml-2">Articles</h1>
         <div v-if="articles && articles.length" class="flex flex-wrap">
             <div v-for="article in articles" :key="article.article.id" class="w-full lg:w-1/3 xl:w-1/4">
