@@ -9,6 +9,7 @@ import { ITemplateRenderer } from '../interfaces/ITemplateRenderer';
 import { DRAVerificationCode } from '../models/DRAVerificationCode';
 import { DBDriver } from '../drivers/DBDriver';
 import { EDataSourceType } from '../types/EDataSourceType';
+import { EUserType } from '../types/EUserType';
 
 export class AuthProcessor {
     private static instance: AuthProcessor;
@@ -68,6 +69,7 @@ export class AuthProcessor {
                 newUser.first_name = firstName;
                 newUser.last_name = lastName;
                 newUser.password = encryptedPassword;
+                newUser.user_type = EUserType.NORMAL;
                 await manager.save(newUser);
                 
                 const expiredAt = new Date();
