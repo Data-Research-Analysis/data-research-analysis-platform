@@ -3,6 +3,7 @@ import { validateJWT } from '../../middleware/authenticate';
 import multer from 'multer';
 import path from 'path';
 import { UtilityService } from '../../services/UtilityService';
+import { IMulterRequest } from '../../types/IMulterRequest';
 const router = express.Router();
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -19,9 +20,9 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
-router.post('/upload', async (req: Request, res: Response, next: any) => {
+router.post('/upload', async (req: IMulterRequest, res: Response, next: any) => {
     next();
-}, validateJWT, upload.single('image'), async (req: Request, res: Response) => {
+}, validateJWT, upload.single('image'), async (req: IMulterRequest, res: Response) => {
     const file = req.file;
     if (!file) {
         return res.status(400).json({ message: 'No file uploaded.' });
