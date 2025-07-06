@@ -30,6 +30,9 @@ function closeDrawer() {
                 <div class="text-xl font-bold hover:text-gray-300 cursor-pointer" @click="closeDrawer">
                     <NuxtLink to="/">Home</NuxtLink>
                 </div>
+                <div class="text-xl font-bold hover:text-gray-300 cursor-pointer" @click="closeDrawer">
+                    <NuxtLink to="/articles">Blog</NuxtLink>
+                </div>
                 <div class="text-xl font-bold mt-2 hover:text-gray-300 cursor-pointer" @click="closeDrawer">
                     <NuxtLink to="/#about">About</NuxtLink>
                 </div>
