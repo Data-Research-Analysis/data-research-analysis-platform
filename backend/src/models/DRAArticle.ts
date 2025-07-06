@@ -12,6 +12,11 @@ export class DRAArticle {
   content: string;
   @Column({ type: 'enum', enum: [EPublishStatus.PUBLISHED, EPublishStatus.DRAFT] })
   publish_status: EPublishStatus;
+  @Column({ type: 'varchar', length: 255 })
+  slug: string;
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  created_at: Date;
+  
   
   @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.articles)
   @JoinColumn({ name: 'users_platform_id', referencedColumnName: 'id' })

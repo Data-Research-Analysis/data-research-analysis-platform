@@ -70,6 +70,7 @@ export class ArticleProcessor {
                 article.title = title;
                 article.content = content;
                 article.publish_status = publishStatus;
+                article.slug = _.kebabCase(title).substring(0,100); // Generate a slug from the title
                 article.users_platform = user;
                 const savedArticle = await manager.save(article);
                 const categoriesList = await manager.findBy(DRACategory, {id: In(categories)});
@@ -181,6 +182,30 @@ export class ArticleProcessor {
                 console.log('error', error);
                 return resolve(false);
             }
+        });
+    }
+
+    async getPublicArticles(): Promise<IArticle[]> {
+        return new Promise<IArticle[]>(async (resolve, reject) => {
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve([]);
+            }
+            const manager = (await driver.getConcreteDriver()).manager;
+            if (!manager) {
+                return resolve([]);
+            }
+            const articlesList: IArticle[] = [];
+            const articles = await manager.find(DRAArticle, { relations: ['dra_articles_categories']});
+            for (let i = 0; i < articles.length; i++) {
+                const article = articles[i];
+                const categories = await manager.find(DRACategory, {where: {id: In(article.dra_articles_categories.map(cat => cat.category_id))}});
+                articlesList.push({
+                    article: article,
+                    categories: categories
+                });
+            }
+            return resolve(articlesList);
         });
     }
 }

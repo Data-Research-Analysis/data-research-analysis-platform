@@ -11,6 +11,7 @@ import dashboard from './routes/dashboard';
 import article from './routes/admin/article';
 import category from './routes/admin/category';
 import image from './routes/admin/image';
+import public_article from './routes/article';
 import path from 'path';
 import "reflect-metadata";
 
@@ -37,6 +38,7 @@ app.use('/dashboard', dashboard);
 app.use('/admin/article', article);
 app.use('/admin/category', category);
 app.use('/admin/image', image);
+app.use('/article', public_article);
 
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 

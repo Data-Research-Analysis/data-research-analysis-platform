@@ -96,7 +96,7 @@ onMounted(() => {
             <div class="min-h-100 flex flex-col ml-4 mr-4 mb-10 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md">
                 <div class="flex flex-row">
                     <div class="font-bold text-2xl mb-5">
-                        Create New Blog Article
+                        Edit Article
                     </div>
                     <div
                         class="w-18 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md"
