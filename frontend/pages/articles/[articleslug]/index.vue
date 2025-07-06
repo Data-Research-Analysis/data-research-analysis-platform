@@ -7,14 +7,12 @@ const article = computed(() => {
 });
 const articles = computed(() => {
         const articles = articlesStore.getArticles().filter(article => article.article.publish_status === 'published' && article.article.id !== articlesStore.getSelectedArticle().article.id);
-        const randomFewArticles = [];
-        //get only 6 random articles
-        while (randomFewArticles.length < 6 && articles.length > 0) {
-            const randomIndex = Math.floor(Math.random() * articles.length);
-            randomFewArticles.push(articles[randomIndex]);
-            articles.splice(randomIndex, 1); // Remove the selected article to avoid duplicates
-        }
-        return randomFewArticles;
+        // Shuffle the articles array and select the first 6 elements
+        const shuffledArticles = articles
+            .map(value => ({ value, sort: Math.random() }))
+            .sort((a, b) => a.sort - b.sort)
+            .map(({ value }) => value);
+        return shuffledArticles.slice(0, 6);
     }
 );
 function formatDate(dateString) {
