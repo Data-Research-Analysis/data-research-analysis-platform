@@ -84,6 +84,22 @@ export const useArticlesStore = defineStore('articlesDRA', () => {
         const data = await response.json();
         setArticles(data);
     }
+    async function retrievePublicArticles() {
+        const responseToken = await getGeneratedToken();
+        const token = responseToken.token;
+
+        const url = `${baseUrl()}/article/list`;
+        const response = await fetch(url, {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`,
+                "Authorization-Type": "non-auth",
+            },
+        });
+        const data = await response.json();
+        setArticles(data);
+    }
     return {
         articles,
         categories,
@@ -98,6 +114,7 @@ export const useArticlesStore = defineStore('articlesDRA', () => {
         clearCategories,
         retrieveCategories,
         retrieveArticles,
+        retrievePublicArticles,
         clearSelectedArticle
     }
 });

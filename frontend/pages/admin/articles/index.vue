@@ -118,7 +118,7 @@ async function publishArticle(articleId) {
                                 </td>
                                 <td class="border px-4 py-2">
                                     <div v-if="article.categories && article.categories.length" class="flex flex-wrap">
-                                        <span v-for="category in article.categories" :key="category.id" class="bg-gray-200 text-gray-700 px-2 py-1 rounded-full mr-2 mb-2">
+                                        <span v-for="category in article.categories" :key="category.id" class="bg-gray-200 text-gray-700 text-center px-2 py-1 mr-2 mb-2">
                                             {{ category.title }}
                                         </span>
                                     </div>

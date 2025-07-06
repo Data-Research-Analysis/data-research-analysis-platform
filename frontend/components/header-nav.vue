@@ -43,6 +43,9 @@ onMounted(() => {
                         <NuxtLink to="/">Home</NuxtLink>
                     </div>
                     <div class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">
+                        <NuxtLink to="/articles">Blog</NuxtLink>
+                    </div>
+                    <div class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">
                         <NuxtLink to="/#about">About</NuxtLink>
                     </div>
                     <div class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">

@@ -57,7 +57,13 @@ watch(
             }
         }
     }
-    await articlesStore.retrieveArticles();
+    console.log('route change', isUserAdmin.value);
+    if (isUserAdmin.value) {
+        await articlesStore.retrieveArticles();
+
+    } else {
+        await articlesStore.retrievePublicArticles();
+    }
     await articlesStore.retrieveCategories();
     if (value?.params?.articleid) {
         const articleId = parseInt(value.params.articleid);
@@ -67,6 +73,20 @@ watch(
             articlesStore.setSelectedArticle(article);
         } else {
             router.push(`/admin/articles`);
+            return;
+        }
+    }
+    if (value?.params?.articleslug) {
+        const articleSlug = value.params.articleslug;
+        articlesStore.clearSelectedArticle();
+        console.log('default articleSlug', articleSlug);
+        const article = articlesStore.getArticles().find((article) => article.article.slug === articleSlug);
+        console.log('default article', article);
+        console.log('default articleId', article?.article?.id);
+        if (article) {
+            articlesStore.setSelectedArticle(article);
+        } else {
+            // router.push(`/articles`);
             return;
         }
     }
@@ -103,8 +123,13 @@ onMounted(async () => {
             }
         }
     }
-    await articlesStore.retrieveArticles();
+    if (isUserAdmin.value) {
+        await articlesStore.retrieveArticles();
+    } else {
+        await articlesStore.retrievePublicArticles();
+    }
     await articlesStore.retrieveCategories();
+    console.log('articlesStore.getArticles()', articlesStore.getArticles());
     if (route?.params?.articleid) {
         const articleId = parseInt(route.params.articleid);
         articlesStore.clearSelectedArticle();
@@ -115,7 +140,22 @@ onMounted(async () => {
             router.push(`/admin/articles`);
             return;
         }
-    }  
+    }
+    if (route?.params?.articleslug) {
+        const articleSlug = route.params.articleslug;
+        console.log('default articleSlug', articleSlug);
+
+        articlesStore.clearSelectedArticle();
+        const article = articlesStore.getArticles().find((article) => article.article.slug === articleSlug);
+        console.log('default article', article);
+        console.log('default articleId', article?.article?.id);
+        if (article) {
+            articlesStore.setSelectedArticle(article);
+        } else {
+            // router.push(`/articles`);
+            return;
+        }
+    }
 })
 </script>
 <template>
