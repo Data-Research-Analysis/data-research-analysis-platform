@@ -674,7 +674,17 @@ onMounted(async () => {
                                         <div v-if="index === 0" class="text-left font-bold text-white px-4 py-2 border-r-1 border-gray-200">
                                             <div v-if="chart && chart.data && chart.data.length" class="flex flex-col justify-center">
                                                 <pie-chart
+                                                    v-if="chart.chart_type === 'pie'"
                                                     :id="`chart-${chart.chart_id}`"   
+                                                    :chart-id="`${chart.chart_id}`"
+                                                    :data="chart.data"
+                                                    :width="1200"
+                                                    :height="1200"
+                                                    class="mt-5"
+                                                />
+                                                <donut-chart
+                                                    v-if="chart.chart_type === 'donut'"
+                                                    :id="`chart-${chart.chart_id}`"
                                                     :chart-id="`${chart.chart_id}`"
                                                     :data="chart.data"
                                                     :width="1200"
