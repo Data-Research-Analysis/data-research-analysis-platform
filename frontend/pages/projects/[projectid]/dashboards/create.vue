@@ -1,10 +1,8 @@
 <script setup>
 import { useProjectsStore } from '@/stores/projects';
-import { useDataSourceStore } from '@/stores/data_sources';
 import { useDataModelsStore } from '@/stores/data_models';
 import _ from 'lodash';
 const projectsStore = useProjectsStore();
-const dataSourceStore = useDataSourceStore();
 const dataModelsStore = useDataModelsStore();
 const { $swal } = useNuxtApp();
 const route = useRoute();
@@ -637,6 +635,15 @@ onMounted(async () => {
                                                 <pie-chart
                                                     v-if="chart.chart_type === 'pie'"
                                                     :id="`chart-${chart.chart_id}`"   
+                                                    :chart-id="`${chart.chart_id}`"
+                                                    :data="chart.data"
+                                                    :width="1200"
+                                                    :height="1200"
+                                                    class="mt-5"
+                                                />
+                                                <donut-chart
+                                                    v-if="chart.chart_type === 'donut'"
+                                                    :id="`chart-${chart.chart_id}`"
                                                     :chart-id="`${chart.chart_id}`"
                                                     :data="chart.data"
                                                     :width="1200"
