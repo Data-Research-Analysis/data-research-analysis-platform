@@ -630,7 +630,7 @@ onMounted(async () => {
                                     @change="changeDataModel($event, chart.chart_id)"
                                 >
                                     <template #item="{ element, index }">
-                                        <div v-if="index === 0" class="text-left font-bold text-white px-4 py-2 border-r-1 border-gray-200">
+                                        <div v-if="index === 0" class="text-left bg-blue-200 font-bold text-white px-4 py-2">
                                             <div v-if="chart && chart.data && chart.data.length" class="flex flex-col justify-center">
                                                 <pie-chart
                                                     v-if="chart.chart_type === 'pie'"
@@ -648,6 +648,15 @@ onMounted(async () => {
                                                     :data="chart.data"
                                                     :width="1200"
                                                     :height="1200"
+                                                    class="mt-5"
+                                                />
+                                                <vertical-bar-chart
+                                                    v-if="chart.chart_type === 'vertical_bar'"
+                                                    :id="`chart-${chart.chart_id}`"
+                                                    :chart-id="`${chart.chart_id}`"
+                                                    :data="chart.data"
+                                                    :x-axis-label="'X Axis'"
+                                                    :y-axis-label="'Y Axis'"
                                                     class="mt-5"
                                                 />
                                             </div>
