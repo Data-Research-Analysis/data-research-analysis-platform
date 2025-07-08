@@ -691,6 +691,15 @@ onMounted(async () => {
                                                     :height="1200"
                                                     class="mt-5"
                                                 />
+                                                <vertical-bar-chart
+                                                    v-if="chart.chart_type === 'vertical_bar'"
+                                                    :id="`chart-${chart.chart_id}`"
+                                                    :chart-id="`${chart.chart_id}`"
+                                                    :data="chart.data"
+                                                    :x-axis-label="'X Axis'"
+                                                    :y-axis-label="'Y Axis'"
+                                                    class="mt-5"
+                                                />
                                             </div>
                                         </div>
                                     </template>
