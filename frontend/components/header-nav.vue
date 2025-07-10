@@ -58,17 +58,21 @@ onMounted(() => {
                         <menu-dropdown>
                             <template #menuItem="{ onClick }">
                                 <div @click="onClick" class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">
-                                    Products
+                                    Platform
                                 </div>
                             </template>
                             <template #dropdownMenu="{ onClick }">
                                 <div class="flex flex-col w-40 text-center">
-                                    <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer border-b-1 border-primary-blue-100 border-solid pt-1 pb-1">
-                                        <NuxtLink to="/register">Platform Register</NuxtLink>
-                                    </div>
-                                    <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer pt-1 pb-1">
-                                        <NuxtLink to="/login">Platform Login</NuxtLink>
-                                    </div>
+                                    <NuxtLink to="/register">
+                                        <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer border-b-1 border-primary-blue-100 border-solid pt-1 pb-1">
+                                            Register
+                                        </div>
+                                    </NuxtLink>
+                                    <NuxtLink to="/login">
+                                        <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer pt-1 pb-1">
+                                            Login
+                                        </div>
+                                    </NuxtLink>
                                 </div>
                             </template>
                         </menu-dropdown>
@@ -96,9 +100,11 @@ onMounted(() => {
                     </template>
                     <template #dropdownMenu="{ onClick }">
                         <div class="flex flex-col w-40 text-center">
-                            <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer pt-1 pb-1">
-                                <NuxtLink to="/logout">Logout</NuxtLink>
-                            </div>
+                            <NuxtLink to="/logout">
+                                <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer pt-1 pb-1">
+                                    Logout
+                                </div>
+                            </NuxtLink>
                         </div>
                     </template>
                 </menu-dropdown>
