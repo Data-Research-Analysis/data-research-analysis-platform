@@ -6,7 +6,11 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     if (to.path === "/logout") {
       //logout the user
       deleteAuthToken();
-      return navigateTo("/login");
+      if (isPlatformEnabled()) {
+        return navigateTo("/login");
+      } else {
+        return navigateTo("/");
+      }
     } else {
       let isAuthorized = false;
       const requestOptions = {
@@ -44,21 +48,29 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
           return;
         }
       } else {
-        if (to.path === "/login" || to.path === "/register"
+        if (to.path === "/login"// || to.path === "/register"
             || to.path === "/privacy-policy" || to.path === "/terms-conditions") {
           return;
         }
-        return navigateTo("/login");
+        if (isPlatformEnabled()) {
+          return navigateTo("/login");
+        } else {
+          return navigateTo("/");
+        }
       }
     }
   } else {
-    if (to.path === "/login" || to.path === "/register"
+    if (to.path === "/login" //|| to.path === "/register"
         || to.path === "/" || to.path === "/privacy-policy"
         || to.path === "/terms-conditions" || to.name === "verify-email-code"
         || to.name === "unsubscribe-code" || to.name === "articles" || to.name === "articles-articleslug") {
       return;
     }
-    return navigateTo("/login");
+    if (isPlatformEnabled()) {
+      return navigateTo("/login");
+    } else {
+      return navigateTo("/");
+    }
   }
   
 });
