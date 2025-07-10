@@ -4,6 +4,7 @@ networks:
 volumes:
   data_research_analysis_postgres_data:
     name: data_research_analysis_postgres_data
+    external: true
 
 services:
   frontend.dataresearchanalysis.test:
