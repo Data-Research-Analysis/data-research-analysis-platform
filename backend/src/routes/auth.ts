@@ -1,7 +1,7 @@
 import express, { Express, Request, Response } from 'express';
-import { AuthProcessor } from '../processors/AuthProcessor';
-import { validateJWT } from '../middleware/authenticate';
-import { validate, validatePasswordStrength } from '../middleware/validator';
+import { AuthProcessor } from '../processors/AuthProcessor.js';
+import { validateJWT } from '../middleware/authenticate.js';
+import { validate, validatePasswordStrength } from '../middleware/validator.js';
 import { body, param, matchedData } from 'express-validator';
 
 const router = express.Router();

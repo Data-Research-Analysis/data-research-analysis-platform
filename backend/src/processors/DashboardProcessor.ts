@@ -1,15 +1,11 @@
-import { DBDriver } from "../drivers/DBDriver";
-import { DRADataModel } from "../models/DRADataModel";
-import { ITokenDetails } from "../types/ITokenDetails";
 import _ from "lodash";
-import { IDBConnectionDetails } from "../types/IDBConnectionDetails";
-import { UtilityService } from "../services/UtilityService";
-import { DRADataSource } from "../models/DRADataSource";
-import { DRADashboard } from "../models/DRADashboard";
-import { IDashboard } from "../types/IDashboard";
-import { EDataSourceType } from "../types/EDataSourceType";
-import { DRAUsersPlatform } from "../models/DRAUsersPlatform";
-import { DRAProject } from "../models/DRAProject";
+import { DBDriver } from "../drivers/DBDriver.js";
+import { ITokenDetails } from "../types/ITokenDetails.js";
+import { DRADashboard } from "../models/DRADashboard.js";
+import { IDashboard } from "../types/IDashboard.js";
+import { EDataSourceType } from "../types/EDataSourceType.js";
+import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
+import { DRAProject } from "../models/DRAProject.js";
 
 export class DashboardProcessor {
     private static instance: DashboardProcessor;
@@ -47,11 +43,11 @@ export class DashboardProcessor {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             if (!driver) {
-                return resolve(null);
+                return resolve(false);
             }
             const manager = (await driver.getConcreteDriver()).manager;
             if (!manager) {
-                return resolve(null);
+                return resolve(false);
             }
             const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
             if (!user) {
@@ -80,11 +76,11 @@ export class DashboardProcessor {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             if (!driver) {
-                return resolve(null);
+                return resolve(false);
             }
             const manager = (await driver.getConcreteDriver()).manager;
             if (!manager) {
-                return resolve(null);
+                return resolve(false);
             }
             const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
             if (!user) {

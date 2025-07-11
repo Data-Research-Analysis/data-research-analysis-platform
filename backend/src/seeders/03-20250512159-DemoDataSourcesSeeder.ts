@@ -1,9 +1,9 @@
 import { Seeder } from "@jorgebodega/typeorm-seeding";
 import { DataSource } from "typeorm";
-import { DRAProject } from '../models/DRAProject';
-import { DRAUsersPlatform } from "../models/DRAUsersPlatform";
-import { DRADataSource } from "../models/DRADataSource";
-import { EDataSourceType } from "../types/EDataSourceType";
+import { DRAProject } from '../models/DRAProject.js';
+import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
+import { DRADataSource } from "../models/DRADataSource.js";
+import { EDataSourceType } from "../types/EDataSourceType.js";
 
 export class DemoDataSourcesSeeder extends Seeder {
     async run(dataSource: DataSource) {

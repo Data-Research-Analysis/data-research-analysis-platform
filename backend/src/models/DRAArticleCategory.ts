@@ -1,7 +1,7 @@
 import { Entity, JoinColumn, ManyToOne, OneToMany, PrimaryColumn } from 'typeorm';
-import { DRAUsersPlatform } from './DRAUsersPlatform';
-import { DRAArticle } from './DRAArticle';
-import { DRACategory } from './DRACategory';
+import { DRAUsersPlatform } from './DRAUsersPlatform.js';
+import { DRAArticle } from './DRAArticle.js';
+import { DRACategory } from './DRACategory.js';
 @Entity('dra_articles_categories')
 export class DRAArticleCategory {
   

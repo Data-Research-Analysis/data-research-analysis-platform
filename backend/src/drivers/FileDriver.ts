@@ -1,5 +1,5 @@
-import { IFileDriver } from "../interfaces/IFileDriver";
-import { HTMLFileDriver } from "./HTMLFileDriver";
+import { IFileDriver } from "../interfaces/IFileDriver.js";
+import { HTMLFileDriver } from "./HTMLFileDriver.js";
 
 export class FileDriver {
     private static instance: FileDriver;
@@ -13,7 +13,7 @@ export class FileDriver {
     }
 
     //This is a factory method to get the relevant driver
-    public getDriver(driver: string): IFileDriver {
+    public getDriver(driver: string): IFileDriver | null {
         if (driver === 'html') {
             return HTMLFileDriver.getInstance();
         }

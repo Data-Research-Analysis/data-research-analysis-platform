@@ -1,18 +1,18 @@
 import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
-import { DRAUsersPlatform } from './DRAUsersPlatform';
-import { DRADataSource } from './DRADataSource';
+import { DRAUsersPlatform } from './DRAUsersPlatform.js';
+import { DRADataSource } from './DRADataSource.js';
 @Entity('dra_data_models')
 export class DRADataModel {
     @PrimaryGeneratedColumn()
-    id: number
+    id!: number
     @Column({ type: 'varchar', length: 255 })
-    schema: string
+    schema!: string
     @Column({ type: 'varchar', length: 255 })
-    name: string
+    name!: string
     @Column({ type: 'text' })
-    sql_query: string
+    sql_query!: string
     @Column({ type: 'jsonb' })
-    query: JSON
+    query!: JSON
         
     @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.data_models)
     @JoinColumn({ name: 'users_platform_id', referencedColumnName: 'id' })

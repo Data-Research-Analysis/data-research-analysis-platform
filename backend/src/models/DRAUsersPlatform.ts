@@ -1,32 +1,32 @@
 import { Column, DataSource, Entity, JoinTable, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
-import { DRAProject } from './DRAProject';
-import { DRADataSource } from './DRADataSource';
-import { DRADataModel } from './DRADataModel';
-import { DRAVerificationCode } from './DRAVerificationCode';
-import { DRADashboard } from './DRADashboard';
-import { EUserType } from '../types/EUserType';
-import { DRAArticle } from './DRAArticle';
-import { DRACategory } from './DRACategory';
-import { DRAArticleCategory } from './DRAArticleCategory';
+import { DRAProject } from './DRAProject.js';
+import { DRADataSource } from './DRADataSource.js';
+import { DRADataModel } from './DRADataModel.js';
+import { DRAVerificationCode } from './DRAVerificationCode.js';
+import { DRADashboard } from './DRADashboard.js';
+import { EUserType } from '../types/EUserType.js';
+import { DRAArticle } from './DRAArticle.js';
+import { DRACategory } from './DRACategory.js';
+import { DRAArticleCategory } from './DRAArticleCategory.js';
 
 @Entity('dra_users_platform')
 export class DRAUsersPlatform {
     @PrimaryGeneratedColumn()
-    id: number
+    id!: number
     @Column({ type: 'varchar', length: 255 })
-    email: string
+    email!: string
     @Column({ type: 'varchar', length: 255 })
-    first_name: string
+    first_name!: string
     @Column({ type: 'varchar', length: 255 })
-    last_name: string
+    last_name!: string
     @Column({ type: 'varchar', length: 255 })
-    password: string
+    password!: string
     @Column({ type: 'enum', enum: [EUserType.ADMIN, EUserType.NORMAL] })
-    user_type: EUserType;
+    user_type!: EUserType;
     @Column({ type: 'timestamp', nullable: true })
-    email_verified_at: Date
+    email_verified_at!: Date
     @Column({ type: 'timestamp', nullable: true })
-    unsubscribe_from_emails_at: Date
+    unsubscribe_from_emails_at!: Date
     
     @OneToMany(() => DRAProject, (project) => project.users_platform, { cascade: ["remove", "update"] })
     projects!: DRAProject[]

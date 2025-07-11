@@ -1,8 +1,8 @@
 import express, { Request, Response } from 'express';
-import { validateJWT } from '../../middleware/authenticate';
-import { validate } from '../../middleware/validator';
+import { validateJWT } from '../../middleware/authenticate.js';
+import { validate } from '../../middleware/validator.js';
 import { body, matchedData, param } from 'express-validator';
-import { CategoryProcessor } from '../../processors/CategoryProcessor';
+import { CategoryProcessor } from '../../processors/CategoryProcessor.js';
 const router = express.Router();
 
 router.get('/list', async (req: Request, res: Response, next: any) => {

@@ -1,12 +1,12 @@
 import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
-import { DRAUsersPlatform } from './DRAUsersPlatform';
-import { DRAArticleCategory } from './DRAArticleCategory';
+import { DRAUsersPlatform } from './DRAUsersPlatform.js';
+import { DRAArticleCategory } from './DRAArticleCategory.js';
 @Entity('dra_categories')
 export class DRACategory {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
   @Column({ type: 'varchar', length: 512 })
-  title: string;
+  title!: string;
   
   @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.categories)
   @JoinColumn({ name: 'users_platform_id', referencedColumnName: 'id' })

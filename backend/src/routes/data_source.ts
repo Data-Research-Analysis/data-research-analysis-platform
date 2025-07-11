@@ -1,9 +1,9 @@
 import express, { Request, Response } from 'express';
-import { validateJWT } from '../middleware/authenticate';
-import { validate } from '../middleware/validator';
+import { validateJWT } from '../middleware/authenticate.js';
+import { validate } from '../middleware/validator.js';
 import { body, param, matchedData } from 'express-validator';
-import { DataSourceProcessor } from '../processors/DataSourceProcessor';
-import { IDBConnectionDetails } from '../types/IDBConnectionDetails';
+import { DataSourceProcessor } from '../processors/DataSourceProcessor.js';
+import { IDBConnectionDetails } from '../types/IDBConnectionDetails.js';
 const router = express.Router();
 
 
@@ -31,10 +31,14 @@ async (req: Request, res: Response) => {
         username: username,
         password: password,
     };
-    const response = await DataSourceProcessor.getInstance().connectToDataSource(connection);
-    if (response) {
-        res.status(200).send({message: 'The data source has been connected.'});        
-    } else {
+    try {
+        const response = await DataSourceProcessor.getInstance().connectToDataSource(connection);
+        if (response) {
+            res.status(200).send({message: 'The data source has been connected.'});        
+        } else {
+            res.status(400).send({message: 'The data source could not be connected.'});
+        }
+    } catch (error) {
         res.status(400).send({message: 'The data source could not be connected.'});
     }
 });
@@ -56,11 +60,15 @@ async (req: Request, res: Response) => {
         username: username,
         password: password,
     };
-    const response = await DataSourceProcessor.getInstance().connectToDataSource(connection);
-    if (response) {
-        await DataSourceProcessor.getInstance().addDataSource(connection,  req.body.tokenDetails, project_id);            
-        res.status(200).send({message: 'The data source has been connected.'});        
-    } else {
+    try {
+        const response = await DataSourceProcessor.getInstance().connectToDataSource(connection);
+        if (response) {
+            await DataSourceProcessor.getInstance().addDataSource(connection,  req.body.tokenDetails, project_id);            
+            res.status(200).send({message: 'The data source has been connected.'});        
+        } else {
+            res.status(400).send({message: 'The data source could not be connected.'});
+        }
+    } catch (error) {
         res.status(400).send({message: 'The data source could not be connected.'});
     }
 });

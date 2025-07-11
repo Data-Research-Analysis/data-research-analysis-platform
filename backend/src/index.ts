@@ -1,17 +1,17 @@
 import express from 'express';
 import bodyParser from 'body-parser';
 import cors from 'cors';
-import { UtilityService } from './services/UtilityService';
-import home from './routes/home';
-import auth from './routes/auth';
-import project from './routes/project';
-import data_source from './routes/data_source';
-import data_model from './routes/data_model';
-import dashboard from './routes/dashboard';
-import article from './routes/admin/article';
-import category from './routes/admin/category';
-import image from './routes/admin/image';
-import public_article from './routes/article';
+import { UtilityService } from './services/UtilityService.js';
+import home from './routes/home.js';
+import auth from './routes/auth.js';
+import project from './routes/project.js';
+import data_source from './routes/data_source.js';
+import data_model from './routes/data_model.js';
+import dashboard from './routes/dashboard.js';
+import article from './routes/admin/article.js';
+import category from './routes/admin/category.js';
+import image from './routes/admin/image.js';
+import public_article from './routes/article.js';
 import path from 'path';
 import "reflect-metadata";
 

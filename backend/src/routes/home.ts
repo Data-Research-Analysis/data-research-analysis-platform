@@ -1,10 +1,10 @@
 import express, { Express, Request, Response } from 'express';
-import { UtilityService } from '../services/UtilityService';
-import { TokenProcessor } from '../processors/TokenProcessor';
-import { validateJWT } from '../middleware/authenticate';
-import { DRAUser } from '../models/DRAUser';
-import { DBDriver } from '../drivers/DBDriver';
-import { EDataSourceType } from '../types/EDataSourceType';
+import { UtilityService } from '../services/UtilityService.js';
+import { TokenProcessor } from '../processors/TokenProcessor.js';
+import { validateJWT } from '../middleware/authenticate.js';
+import { DRAUser } from '../models/DRAUser.js';
+import { DBDriver } from '../drivers/DBDriver.js';
+import { EDataSourceType } from '../types/EDataSourceType.js';
 const router = express.Router();
 
 router.get('/generate-token', async (req: Request, res: Response, next: any) => {

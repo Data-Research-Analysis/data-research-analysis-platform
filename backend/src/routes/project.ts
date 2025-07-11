@@ -1,9 +1,9 @@
 import express, { Express, Request, Response } from 'express';
-import { validateJWT } from '../middleware/authenticate';
-import { validate } from '../middleware/validator';
+import { validateJWT } from '../middleware/authenticate.js';
+import { validate } from '../middleware/validator.js';
 import { body, param, matchedData } from 'express-validator';
-import { ProjectProcessor } from '../processors/ProjectProcessor';
-import { DataSourceProcessor } from '../processors/DataSourceProcessor';
+import { ProjectProcessor } from '../processors/ProjectProcessor.js';
+import { DataSourceProcessor } from '../processors/DataSourceProcessor.js';
 const router = express.Router();
 
 /**

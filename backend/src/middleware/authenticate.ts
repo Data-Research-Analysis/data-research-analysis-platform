@@ -1,5 +1,5 @@
-import { UtilityService } from "../services/UtilityService";
-import { TokenProcessor } from "../processors/TokenProcessor";
+import { UtilityService } from "../services/UtilityService.js";
+import { TokenProcessor } from "../processors/TokenProcessor.js";
 
 export async function validateJWT (req: any, res: any, next: any) {    
     const secret = UtilityService.getInstance().getConstants('JWT_SECRET');

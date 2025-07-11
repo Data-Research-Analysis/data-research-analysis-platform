@@ -1,5 +1,5 @@
-import { DRAArticle } from "../models/DRAArticle";
-import { DRACategory } from "../models/DRACategory";
+import { DRAArticle } from "../models/DRAArticle.js";
+import { DRACategory } from "../models/DRACategory.js";
 
 export interface IArticle {
     article: DRAArticle;

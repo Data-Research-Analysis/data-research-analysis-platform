@@ -1,7 +1,7 @@
-import { IColumn } from "./IColumn";
-import { IDashboardData } from "./IDashboardData";
-import { IDimension } from "./IDimension";
-import { ILocation } from "./ILocation";
+import { IColumn } from "./IColumn.js";
+import { IDashboardData } from "./IDashboardData.js";
+import { IDimension } from "./IDimension.js";
+import { ILocation } from "./ILocation.js";
 
 export interface IDashboard {
     chartId: number;

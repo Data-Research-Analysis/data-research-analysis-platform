@@ -1,4 +1,4 @@
-import { UtilityService } from "../services/UtilityService";
+import { UtilityService } from "../services/UtilityService.js";
 import jwt, { JwtPayload } from "jsonwebtoken";
 
 export class TokenProcessor {

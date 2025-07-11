@@ -1,6 +1,6 @@
-import { INodeMailerDriver } from "../interfaces/INodeMailerDriver";
-import { UtilityService } from "../services/UtilityService";
-import { NodeMailerDriver } from "./NodeMailerDriver";
+import { INodeMailerDriver } from "../interfaces/INodeMailerDriver.js";
+import { UtilityService } from "../services/UtilityService.js";
+import { NodeMailerDriver } from "./NodeMailerDriver.js";
 
 export class MailDriver {
     private static instance: MailDriver;

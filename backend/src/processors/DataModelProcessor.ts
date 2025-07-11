@@ -1,14 +1,14 @@
-import { DBDriver } from "../drivers/DBDriver";
-import { DRADataModel } from "../models/DRADataModel";
-import { ITokenDetails } from "../types/ITokenDetails";
-import { IDBConnectionDetails } from "../types/IDBConnectionDetails";
-import { UtilityService } from "../services/UtilityService";
-import { DRADataSource } from "../models/DRADataSource";
-import { DataSource } from "typeorm";
-import { EDataSourceType } from "../types/EDataSourceType";
-import { DRAUsersPlatform } from "../models/DRAUsersPlatform";
 import _ from "lodash";
-import { DRAProject } from "../models/DRAProject";
+import { DBDriver } from "../drivers/DBDriver.js";
+import { DRADataModel } from "../models/DRADataModel.js";
+import { ITokenDetails } from "../types/ITokenDetails.js";
+import { IDBConnectionDetails } from "../types/IDBConnectionDetails.js";
+import { UtilityService } from "../services/UtilityService.js";
+import { DRADataSource } from "../models/DRADataSource.js";
+import { DataSource } from "typeorm";
+import { EDataSourceType } from "../types/EDataSourceType.js";
+import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
+import { DRAProject } from "../models/DRAProject.js";
 
 export class DataModelProcessor {
     private static instance: DataModelProcessor;
@@ -104,7 +104,7 @@ export class DataModelProcessor {
             if (!user) {
                 return resolve(false);
             }
-            const dataSource: DRADataSource = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}});
+            const dataSource: DRADataSource|null = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}});
             if (!dataSource) {
                 return resolve(false);
             }
@@ -117,8 +117,14 @@ export class DataModelProcessor {
             if (!externalDriver) {
                 return resolve(false);
             }
-            const dbConnector: DataSource =  await externalDriver.connectExternalDB(connection);
-            if (!dbConnector) {
+            let dbConnector: DataSource;
+            try {
+                dbConnector =  await externalDriver.connectExternalDB(connection);
+                if (!dbConnector) {
+                    return resolve(false);
+                }
+            } catch (error) {
+                console.log('Error connecting to external DB', error);
                 return resolve(false);
             }
             const existingDataModel = await manager.findOne(DRADataModel, {where: {id: dataModelId, data_source: dataSource, users_platform: user}});
@@ -164,12 +170,12 @@ export class DataModelProcessor {
             if (!user) {
                 return resolve([]);
             }
-            const project: DRAProject = await manager.findOne(DRAProject, {where: {id: projectId, users_platform: user}, relations: ['data_sources']});
+            const project: DRAProject|null = await manager.findOne(DRAProject, {where: {id: projectId, users_platform: user}, relations: ['data_sources']});
             if (!project) {
                 return resolve([]);
             }
             const dataSources: DRADataSource[] = project.data_sources;
-            let tables = [];
+            let tables:any[] = [];
             for (let i=0; i<dataSources.length; i++) {
                 const dataSource = dataSources[i];
                 const dataModels = await manager.find(DRADataModel, {where: {data_source: dataSource, users_platform: user}});

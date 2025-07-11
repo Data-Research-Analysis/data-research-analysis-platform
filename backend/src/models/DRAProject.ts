@@ -1,15 +1,15 @@
 import { Column, Entity, JoinColumn, JoinTable, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
-import { DRAUsersPlatform } from './DRAUsersPlatform';
-import { DRADataSource } from './DRADataSource';
-import { DRADashboard } from './DRADashboard';
+import { DRAUsersPlatform } from './DRAUsersPlatform.js';
+import { DRADataSource } from './DRADataSource.js';
+import { DRADashboard } from './DRADashboard.js';
 @Entity('dra_projects')
 export class DRAProject {
     @PrimaryGeneratedColumn()
-    id: number
+    id!: number
     @Column({ type: 'varchar', length: 255 })
-    name: string
+    name!: string
     @Column({ type: 'timestamp', nullable: true })
-    created_at: Date
+    created_at!: Date
 
     @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.projects)
     @JoinColumn({ name: 'users_platform_id', referencedColumnName: 'id' })

@@ -1,9 +1,9 @@
 import bcrypt  from 'bcryptjs';
-import { Seeder } from "@jorgebodega/typeorm-seeding";
-import { DataSource } from "typeorm";
-import { DRAUsersPlatform } from "../models/DRAUsersPlatform";
-import { UtilityService } from '../services/UtilityService';
-import { EUserType } from '../types/EUserType';
+import { Seeder } from '@jorgebodega/typeorm-seeding';
+import { DataSource } from 'typeorm';
+import { DRAUsersPlatform } from '../models/DRAUsersPlatform.js';
+import { UtilityService } from '../services/UtilityService.js';
+import { EUserType } from '../types/EUserType.js';
 
 export class DemoUsersPlatformSeeder extends Seeder {
     async run(dataSource: DataSource) {

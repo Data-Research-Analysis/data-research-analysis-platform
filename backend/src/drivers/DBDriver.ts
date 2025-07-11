@@ -1,7 +1,7 @@
-import { IDBDriver } from "../interfaces/IDBDriver";
-import { UtilityService } from "../services/UtilityService";
-import { EDataSourceType } from "../types/EDataSourceType";
-import { PostgresDriver } from "./PostgresDriver";
+import { IDBDriver } from "../interfaces/IDBDriver.js";
+import { UtilityService } from "../services/UtilityService.js";
+import { EDataSourceType } from "../types/EDataSourceType.js";
+import { PostgresDriver } from "./PostgresDriver.js";
 import dotenv from 'dotenv';
 
 export class DBDriver {
@@ -34,7 +34,7 @@ export class DBDriver {
 
             }
 
-            return resolve(null);
+            return resolve(PostgresDriver.getInstance());
         });
     }
    

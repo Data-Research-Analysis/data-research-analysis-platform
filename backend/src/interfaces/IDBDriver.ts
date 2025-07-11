@@ -1,4 +1,4 @@
-import { IDBConnectionDetails } from "../types/IDBConnectionDetails";
+import { IDBConnectionDetails } from "../types/IDBConnectionDetails.js";
 import { DataSource } from "typeorm";
 
 export interface IDBDriver {

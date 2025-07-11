@@ -1,13 +1,13 @@
 import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
-import { DRAUsersPlatform } from './DRAUsersPlatform';
-import { DRAProject } from './DRAProject';
-import { IDashboard } from '../types/IDashboard';
+import { DRAUsersPlatform } from './DRAUsersPlatform.js';
+import { DRAProject } from './DRAProject.js';
+import { IDashboard } from '../types/IDashboard.js';
 @Entity('dra_dashboards')
 export class DRADashboard {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
   @Column({ type: 'jsonb' })
-  data: IDashboard;
+  data!: IDashboard;
   
   @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.dashboards)
   @JoinColumn({ name: 'users_platform_id', referencedColumnName: 'id' })
