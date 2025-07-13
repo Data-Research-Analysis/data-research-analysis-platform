@@ -33,10 +33,17 @@ router.post('/login', async (req: Request, res: Response, next: any) => {
 }, validateJWT, validate([body('email').notEmpty(), body('password').notEmpty()]), async (req: Request, res: Response) => {
     const { email, password } = matchedData(req);
     const response: any = await AuthProcessor.getInstance().login(email, password);
-    if (response) {
-        res.status(200).send(response);
-    }
-    else {
+    try {
+        const response: any = await AuthProcessor.getInstance().login(email, password);
+        console.log('login response', response);
+        if (response) {
+            console.log('sending response');
+            res.status(200).send(response);
+        }
+        else {
+            res.status(400).send({message: 'User not found for the provided email and password.'});
+        }
+    } catch (error) {
         res.status(400).send({message: 'User not found for the provided email and password.'});
     }
 });
