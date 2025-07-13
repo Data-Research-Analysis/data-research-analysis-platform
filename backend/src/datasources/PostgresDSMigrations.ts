@@ -13,7 +13,7 @@ import { DRACategory } from "../models/DRACategory.js";
 dotenv.config();
 
 const host = process.env.POSTGRESQL_HOST_MIGRATIONS;
-const port = parseInt(process?.env?.POSTGRESQL_PORT_MIGRATIONS || '5432');
+const port = parseInt(process?.env?.POSTGRESQL_PORT_MIGRATIONS || '5434');
 const database = process.env.POSTGRESQL_DB_NAME;
 const username = process.env.POSTGRESQL_USERNAME;
 const password = process.env.POSTGRESQL_PASSWORD;

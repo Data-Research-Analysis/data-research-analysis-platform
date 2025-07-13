@@ -1,4 +1,4 @@
-import { Column, DataSource, Entity, JoinTable, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, DataSource, Entity, JoinTable, OneToMany, PrimaryGeneratedColumn, Relation } from 'typeorm';
 import { DRAProject } from './DRAProject.js';
 import { DRADataSource } from './DRADataSource.js';
 import { DRADataModel } from './DRADataModel.js';
@@ -29,28 +29,28 @@ export class DRAUsersPlatform {
     unsubscribe_from_emails_at!: Date
     
     @OneToMany(() => DRAProject, (project) => project.users_platform, { cascade: ["remove", "update"] })
-    projects!: DRAProject[]
+    projects!: Relation<DRAProject>[]
     
     @OneToMany(() => DRADataSource, (dataSource) => dataSource.users_platform, { cascade: ["remove", "update"] })
-    data_sources!: DRADataSource[]
+    data_sources!: Relation<DRADataSource>[]
     
     @OneToMany(() => DRADataModel, (dataModel) => dataModel.users_platform, { cascade: ["remove", "update"] })
-    data_models!: DRADataModel[]
+    data_models!: Relation<DRADataModel>[]
     
     @OneToMany(() => DRAVerificationCode, (verificationCodes) => verificationCodes.users_platform, { cascade: ["remove", "update"] })
-    verification_codes!: DRAVerificationCode[]
+    verification_codes!: Relation<DRAVerificationCode>[]
     
     @OneToMany(() => DRADashboard, (dashboards) => dashboards.users_platform, { cascade: ["remove", "update"] })
-    dashboards!: DRADashboard[]
+    dashboards!: Relation<DRADashboard>[]
 
     @OneToMany(() => DRAArticle, (articles) => articles.users_platform, { cascade: ["remove", "update"] })
-    articles!: DRAArticle[]
+    articles!: Relation<DRAArticle>[]
 
     @OneToMany(() => DRACategory, (categories) => categories.users_platform, { cascade: ["remove", "update"] })
-    categories!: DRACategory[]
+    categories!: Relation<DRACategory>[]
 
     @OneToMany(() => DRAArticleCategory, (articleCategory) => articleCategory.users_platform, { cascade: ["remove", "update"] })
-    articles_categories!: DRAArticleCategory[]
+    articles_categories!: Relation<DRAArticleCategory>[]
 
 
 }

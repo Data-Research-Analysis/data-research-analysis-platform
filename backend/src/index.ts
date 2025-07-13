@@ -1,3 +1,4 @@
+import "reflect-metadata";
 import express from 'express';
 import bodyParser from 'body-parser';
 import cors from 'cors';
@@ -13,12 +14,15 @@ import category from './routes/admin/category.js';
 import image from './routes/admin/image.js';
 import public_article from './routes/article.js';
 import path from 'path';
-import "reflect-metadata";
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 
 console.log('Starting up Data Research Analysis API Server');
 const app = express();
 UtilityService.getInstance().initialize();
 const port = parseInt(UtilityService.getInstance().getConstants('PORT'));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 app.use(express.json());
 app.use(cors());
 app.use(bodyParser.urlencoded({ limit: '1000mb', extended: true }));

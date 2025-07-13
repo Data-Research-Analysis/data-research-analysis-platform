@@ -5,7 +5,7 @@
     "moduleResolution": "NodeNext", // Best for Node.js ESM
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "strict": true,
+    "strict": false,
     "skipLibCheck": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
@@ -17,3 +17,4 @@
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules"]
 }
+

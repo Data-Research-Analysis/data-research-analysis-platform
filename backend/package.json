@@ -3,12 +3,16 @@
   "version": "1.0.0",
   "description": "Backend server for the marketing website.",
   "scripts": {
-    "dev": "node --loader ts-node/esm src/index.ts",
+    "dev": "node --import tsx src/index.ts",
     "start": "node dist/index.js",
     "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "typeorm": "typeorm-ts-node-esm",
-    "seed:run": "ts-node ./node_modules/@jorgebodega/typeorm-seeding/dist/cli.js seed"
+    "typeorm": "tsx ./node_modules/typeorm/cli.js",
+    "migration:run": "npm run typeorm migration:run -- -d ./src/datasources/PostgresDSMigrations.ts",
+    "migration:generate": "npm run typeorm migration:generate -- -d ./src/datasources/PostgresDSMigrations.ts ./src/migrations/$npm_config_name",
+    "migration:create": "npm run typeorm migration:create -- -d ./src/datasources/PostgresDSMigrations.ts ./src/migrations/$npm_config_name",
+    "migration:revert": "npm run typeorm migration:revert -- -d ./src/datasources/PostgresDSMigrations.ts",
+    "seed:run": "tsx ./node_modules/@jorgebodega/typeorm-seeding/dist/cli.js seed"
   },
   "keywords": [],
   "author": "",
@@ -26,6 +30,7 @@
     "node-pg-migrate": "^7.9.1",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
+    "tsx": "^4.20.3",
     "typescript": "^5.7.3"
   },
   "dependencies": {
