@@ -1,9 +1,14 @@
 import express, { Request, Response } from 'express';
 import { validateJWT } from '../../middleware/authenticate.js';
 import multer from 'multer';
-import path from 'path';
 import { UtilityService } from '../../services/UtilityService.js';
 import { IMulterRequest } from '../../types/IMulterRequest.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 const router = express.Router();
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
