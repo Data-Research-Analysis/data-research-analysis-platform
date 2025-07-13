@@ -45,27 +45,27 @@ export class DataSourceProcessor {
             console.log('Connecting to external DB', connection);
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             if (!driver) {
-                return reject(null);
+                return resolve(null);
             }
             const dataSourceType = UtilityService.getInstance().getDataSourceType(connection.data_source_type);
             if (!dataSourceType) {
-                return reject(null);
+                return resolve(null);
             }
             const externalDriver = await DBDriver.getInstance().getDriver(dataSourceType);
             if (!externalDriver) {
-                return reject(null);
+                return resolve(null);
             }
             let dbConnector: DataSource;
             try {
                 dbConnector =  await externalDriver.connectExternalDB(connection);
                 if (!dbConnector) {
-                    return reject(null);
+                    return resolve(null);
                 }
             } catch (error) {
                 console.log('Error connecting to external DB', error);
-                return reject(null);
+                return resolve(null);
             }
-            return reject(null);
+            return resolve(null);
         });
     }
 

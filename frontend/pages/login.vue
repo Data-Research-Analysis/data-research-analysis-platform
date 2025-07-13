@@ -68,7 +68,6 @@ async function loginUser() {
                 state.loginSuccess = true;
                 state.showAlert = true;
                 const data = await response.json();
-                console.log("Login Response: ", data);
                 loggedInUserStore.setLoggedInUser(data);
                 // state.errorMessages.push(data.message);
                 setAuthToken(data.token);
@@ -78,19 +77,21 @@ async function loginUser() {
                 state.showAlert = true;
                 const data = await response.json();
                 state.errorMessages.push(data.message);
+                state.loading = false;
               }
             } else {
                 state.loginSuccess = false;
                 state.showAlert = true;
                 state.errorMessages.push("Recaptcha verification failed. Please refresh the page and try again.");
+                state.loading = false;
             }         
         } else {
             state.loginSuccess = false;
             state.showAlert = true;
             state.errorMessages.push("Recaptcha verification failed. Please refresh the page and try again.");
+            state.loading = false;
         }
     }
-    state.loading = false;
 }
 
 onMounted(async () => {
