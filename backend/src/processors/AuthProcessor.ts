@@ -1,15 +1,15 @@
 import bcrypt  from 'bcryptjs';
 import jwt, { JwtPayload } from "jsonwebtoken";
-import { DRAUsersPlatform } from '../models/DRAUsersPlatform';
-import { UtilityService } from '../services/UtilityService';
-import { IUsersPlatform } from '../types/IUsersPlatform';
-import { MailDriver } from '../drivers/MailDriver';
-import { TemplateEngineService } from '../services/TemplateEngineService';
-import { ITemplateRenderer } from '../interfaces/ITemplateRenderer';
-import { DRAVerificationCode } from '../models/DRAVerificationCode';
-import { DBDriver } from '../drivers/DBDriver';
-import { EDataSourceType } from '../types/EDataSourceType';
-import { EUserType } from '../types/EUserType';
+import { DRAUsersPlatform } from '../models/DRAUsersPlatform.js';
+import { UtilityService } from '../services/UtilityService.js';
+import { IUsersPlatform } from '../types/IUsersPlatform.js';
+import { MailDriver } from '../drivers/MailDriver.js';
+import { TemplateEngineService } from '../services/TemplateEngineService.js';
+import { ITemplateRenderer } from '../interfaces/ITemplateRenderer.js';
+import { DRAVerificationCode } from '../models/DRAVerificationCode.js';
+import { DBDriver } from '../drivers/DBDriver.js';
+import { EDataSourceType } from '../types/EDataSourceType.js';
+import { EUserType } from '../types/EUserType.js';
 
 export class AuthProcessor {
     private static instance: AuthProcessor;
@@ -28,10 +28,10 @@ export class AuthProcessor {
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             const concreteDriver = await driver.getConcreteDriver();
             if (!concreteDriver) {
-                return resolve(null);
+                return reject(null);
             }
             const manager = concreteDriver.manager;
-            const user: DRAUsersPlatform = await manager.findOne(DRAUsersPlatform, {where: {email: email}});
+            const user: DRAUsersPlatform|null = await manager.findOne(DRAUsersPlatform, {where: {email: email}});
             if (user) {
                 const passwordMatch = await bcrypt.compare(password, user.password);
                 if (passwordMatch) {
@@ -40,10 +40,10 @@ export class AuthProcessor {
                     const userPlatform:IUsersPlatform = {id: user.id, email: email, first_name: user.first_name, last_name: user.last_name, user_type: user.user_type, token: token};
                     return resolve(userPlatform);
                 } else {
-                    return resolve(null);
+                    return reject(null);
                 }
             } else {
-                return resolve(null);
+                return reject(null);
             }
         });
     }
@@ -53,10 +53,10 @@ export class AuthProcessor {
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             const concreteDriver = await driver.getConcreteDriver();
             if (!concreteDriver) {
-                return resolve(null);
+                return resolve(false);
             }
             const manager = concreteDriver.manager;
-            const user: DRAUsersPlatform = await manager.findOne(DRAUsersPlatform, {where: {email: email}});
+            const user: DRAUsersPlatform|null = await manager.findOne(DRAUsersPlatform, {where: {email: email}});
             const salt = parseInt(UtilityService.getInstance().getConstants('PASSWORD_SALT'));
             if (!user) {
                 console.log("User does not exist for the given email, so creating a new user");
@@ -108,7 +108,7 @@ export class AuthProcessor {
             const manager = (await driver.getConcreteDriver()).manager;
             const verificationCode = await manager.findOne(DRAVerificationCode, {where: {code: encodeURIComponent(code)}, relations: {users_platform: true}});
             if (verificationCode && verificationCode.expired_at > new Date()) {
-                const user: DRAUsersPlatform = await manager.findOne(DRAUsersPlatform, {where: {id: verificationCode.users_platform.id}});
+                const user: DRAUsersPlatform|null = await manager.findOne(DRAUsersPlatform, {where: {id: verificationCode.users_platform.id}});
                 if (user) {
                     if (user.email_verified_at) {
                         return resolve(true);
@@ -129,7 +129,7 @@ export class AuthProcessor {
             const manager = (await driver.getConcreteDriver()).manager;
             const verificationCode = await manager.findOne(DRAVerificationCode, {where: {code: encodeURIComponent(code)}, relations: {users_platform: true}});
             if (verificationCode) {
-                const user: DRAUsersPlatform = await manager.findOne(DRAUsersPlatform, {where: {id: verificationCode.users_platform.id}});
+                const user: DRAUsersPlatform|null = await manager.findOne(DRAUsersPlatform, {where: {id: verificationCode.users_platform.id}});
                 if (user) {
                     if (user.unsubscribe_from_emails_at) {
                         return resolve(true);
@@ -150,7 +150,7 @@ export class AuthProcessor {
             const manager = (await driver.getConcreteDriver()).manager;
             const verificationCode = await manager.findOne(DRAVerificationCode, {where: {code: encodeURIComponent(code)}, relations: {users_platform: true}});
             if (verificationCode) {
-                const user: DRAUsersPlatform = await manager.findOne(DRAUsersPlatform, {where: {id: verificationCode.users_platform.id}});
+                const user: DRAUsersPlatform|null = await manager.findOne(DRAUsersPlatform, {where: {id: verificationCode.users_platform.id}});
                 if (user) {
                     const emailVerificationCode = encodeURIComponent(await bcrypt.hash(`${user.email}${user.password}`, 10));
                     const unsubscribeCode = encodeURIComponent(await bcrypt.hash(`${user.email}${user.password}`, 10));

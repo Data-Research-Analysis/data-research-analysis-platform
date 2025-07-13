@@ -1,5 +1,4 @@
-import { EUserType } from "./EUserType";
-
+import { EUserType } from "./EUserType.js";
 export interface IUsersPlatform {
     id: number;
     email: string;

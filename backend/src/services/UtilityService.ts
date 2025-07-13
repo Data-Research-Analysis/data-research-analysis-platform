@@ -1,9 +1,9 @@
 import dotenv from 'dotenv';
 import _ from 'lodash';
 import { v4 as uuidv4 } from 'uuid';
-import { DBDriver } from '../drivers/DBDriver';
-import { PostgresDataSource } from '../datasources/PostgresDataSource';
-import { EDataSourceType } from '../types/EDataSourceType';
+import { DBDriver } from '../drivers/DBDriver.js';
+import { PostgresDataSource } from '../datasources/PostgresDataSource.js';
+import { EDataSourceType } from '../types/EDataSourceType.js';
 
 export class UtilityService {
     private static instance: UtilityService;
@@ -21,14 +21,13 @@ export class UtilityService {
         const driver = await DBDriver.getInstance().getDriver('postgresql');
         console.log('Driver initialized', driver);
         
-        const host = process.env.POSTGRESQL_HOST;
-        const port = parseInt(process.env.POSTGRESQL_PORT);
-        const database = process.env.POSTGRESQL_DB_NAME;
-        const username = process.env.POSTGRESQL_USERNAME;
-        const password = process.env.POSTGRESQL_PASSWORD;
+        const host = process?.env?.POSTGRESQL_HOST || 'localhost';
+        const port = parseInt(process?.env?.POSTGRESQL_PORT || '5432');
+        const database = process?.env?.POSTGRESQL_DB_NAME || 'dra_db';
+        const username = process?.env?.POSTGRESQL_USERNAME || 'dra_user';
+        const password = process?.env?.POSTGRESQL_PASSWORD || 'dra_password';
         const postgresDataSource = PostgresDataSource.getInstance().getDataSource(host, port, database, username, password);
         await driver.initialize(postgresDataSource);
-
     }
 
     public getDataSourceType(dataSourceType: string): EDataSourceType {
@@ -46,7 +45,7 @@ export class UtilityService {
             case 'excel':
                 return EDataSourceType.EXCEL;
             default:
-                return null;
+                return EDataSourceType.POSTGRESQL;
         }
     }
 

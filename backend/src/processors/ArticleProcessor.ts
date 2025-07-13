@@ -1,13 +1,13 @@
-import { DBDriver } from "../drivers/DBDriver";
-import { ITokenDetails } from "../types/ITokenDetails";
-import { EDataSourceType } from "../types/EDataSourceType";
-import { DRAUsersPlatform } from "../models/DRAUsersPlatform";
-import { DRAArticle } from "../models/DRAArticle";
-import { EPublishStatus } from "../types/EPublishStatus";
-import { DRAArticleCategory } from "../models/DRAArticleCategory";
-import { DRACategory } from "../models/DRACategory";
+import { DBDriver } from "../drivers/DBDriver.js";
+import { ITokenDetails } from "../types/ITokenDetails.js";
+import { EDataSourceType } from "../types/EDataSourceType.js";
+import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
+import { DRAArticle } from "../models/DRAArticle.js";
+import { EPublishStatus } from "../types/EPublishStatus.js";
+import { DRAArticleCategory } from "../models/DRAArticleCategory.js";
+import { DRACategory } from "../models/DRACategory.js";
+import { IArticle } from "../types/IArticle.js";
 import { In } from "typeorm";
-import { IArticle } from "../types/IArticle";
 import _ from "lodash";
 
 export class ArticleProcessor {

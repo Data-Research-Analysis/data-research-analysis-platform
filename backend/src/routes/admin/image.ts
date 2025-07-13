@@ -1,9 +1,9 @@
 import express, { Request, Response } from 'express';
-import { validateJWT } from '../../middleware/authenticate';
+import { validateJWT } from '../../middleware/authenticate.js';
 import multer from 'multer';
 import path from 'path';
-import { UtilityService } from '../../services/UtilityService';
-import { IMulterRequest } from '../../types/IMulterRequest';
+import { UtilityService } from '../../services/UtilityService.js';
+import { IMulterRequest } from '../../types/IMulterRequest.js';
 const router = express.Router();
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -20,7 +20,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
-router.post('/upload', async (req: IMulterRequest, res: Response, next: any) => {
+router.post('/upload', async (req: Request, res: Response, next: any) => {
     next();
 }, validateJWT, upload.single('image'), async (req: IMulterRequest, res: Response) => {
     const file = req.file;
@@ -28,8 +28,12 @@ router.post('/upload', async (req: IMulterRequest, res: Response, next: any) => 
         return res.status(400).json({ message: 'No file uploaded.' });
     }
     const publicUrl = UtilityService.getInstance().getConstants('PUBLIC_BACKEND_URL');
-    const fileUrl = `${publicUrl}/uploads/${req.file.filename}`;
-    res.status(200).json({ url: fileUrl });
+    if (req?.file?.filename) {
+      const fileUrl = `${publicUrl}/uploads/${req.file.filename}`;
+      res.status(200).json({ url: fileUrl });
+    } else {
+      res.status(400).json({ message: 'File upload failed.' });
+    }
 });
 
 export default router;

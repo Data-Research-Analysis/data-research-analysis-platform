@@ -1,10 +1,10 @@
-import { DBDriver } from "../drivers/DBDriver";
-import { ITokenDetails } from "../types/ITokenDetails";
 import _ from "lodash";
-import { EDataSourceType } from "../types/EDataSourceType";
-import { DRAUsersPlatform } from "../models/DRAUsersPlatform";
-import { DRACategory } from "../models/DRACategory";
-import { DRAArticleCategory } from "../models/DRAArticleCategory";
+import { DBDriver } from "../drivers/DBDriver.js";
+import { ITokenDetails } from "../types/ITokenDetails.js";
+import { EDataSourceType } from "../types/EDataSourceType.js";
+import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
+import { DRACategory } from "../models/DRACategory.js";
+import { DRAArticleCategory } from "../models/DRAArticleCategory.js";
 
 export class CategoryProcessor {
     private static instance: CategoryProcessor;

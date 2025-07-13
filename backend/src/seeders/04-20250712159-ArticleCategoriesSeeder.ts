@@ -1,7 +1,7 @@
 import { Seeder } from "@jorgebodega/typeorm-seeding";
 import { DataSource } from "typeorm";
-import { DRAUsersPlatform } from "../models/DRAUsersPlatform";
-import { DRACategory } from "../models/DRACategory";
+import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
+import { DRACategory } from "../models/DRACategory.js";
 
 export class ArticleCategoriesSeeder extends Seeder {
     async run(dataSource: DataSource) {

@@ -1,14 +1,14 @@
-import { DBDriver } from "../drivers/DBDriver";
-import { IDBConnectionDetails } from "../types/IDBConnectionDetails";
-import { DRADataSource } from "../models/DRADataSource";
-import { ITokenDetails } from "../types/ITokenDetails";
-import { DRAProject } from "../models/DRAProject";
-import { DRADataModel } from "../models/DRADataModel";
-import { DataSource } from "typeorm";
-import { DRAUsersPlatform } from "../models/DRAUsersPlatform";
-import { EDataSourceType } from "../types/EDataSourceType";
-import { UtilityService } from "../services/UtilityService";
 import _ from "lodash";
+import { DBDriver } from "../drivers/DBDriver.js";
+import { IDBConnectionDetails } from "../types/IDBConnectionDetails.js";
+import { DRADataSource } from "../models/DRADataSource.js";
+import { ITokenDetails } from "../types/ITokenDetails.js";
+import { DRAProject } from "../models/DRAProject.js";
+import { DRADataModel } from "../models/DRADataModel.js";
+import { DataSource } from "typeorm";
+import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
+import { EDataSourceType } from "../types/EDataSourceType.js";
+import { UtilityService } from "../services/UtilityService.js";
 export class DataSourceProcessor {
     private static instance: DataSourceProcessor;
     private constructor() {}
@@ -45,21 +45,27 @@ export class DataSourceProcessor {
             console.log('Connecting to external DB', connection);
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             if (!driver) {
-                return resolve(null);
+                return reject(null);
             }
             const dataSourceType = UtilityService.getInstance().getDataSourceType(connection.data_source_type);
             if (!dataSourceType) {
-                return resolve(null);
+                return reject(null);
             }
             const externalDriver = await DBDriver.getInstance().getDriver(dataSourceType);
             if (!externalDriver) {
-                return resolve(null);
+                return reject(null);
             }
-            const dataSource: DataSource =  await externalDriver.connectExternalDB(connection);
-            if (dataSource) {
-                return resolve(dataSource);
+            let dbConnector: DataSource;
+            try {
+                dbConnector =  await externalDriver.connectExternalDB(connection);
+                if (!dbConnector) {
+                    return reject(null);
+                }
+            } catch (error) {
+                console.log('Error connecting to external DB', error);
+                return reject(null);
             }
-            return resolve(null);
+            return reject(null);
         });
     }
 
@@ -78,7 +84,7 @@ export class DataSourceProcessor {
             if (!user) {
                 return resolve(false);
             }
-            const project:DRAProject = await manager.findOne(DRAProject, {where: {id: projectId, users_platform: user}});
+            const project:DRAProject|null = await manager.findOne(DRAProject, {where: {id: projectId, users_platform: user}});
             if (project) {
                 const dataSource = new DRADataSource();
                 dataSource.name = connection.database;
@@ -105,7 +111,7 @@ export class DataSourceProcessor {
             if (!user) {
                 return resolve(false);
             }
-            const dataSource: DRADataSource = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}});
+            const dataSource: DRADataSource|null = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}});
             if (!dataSource) {
                 return resolve(false);
             }
@@ -161,7 +167,7 @@ export class DataSourceProcessor {
             if (!user) {
                 return resolve(false);
             }
-            const dataSource: DRADataSource = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}});
+            const dataSource: DRADataSource|null = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}});
             if (!dataSource) {
                 return resolve(null);
             }
@@ -183,9 +189,15 @@ export class DataSourceProcessor {
                 return `'${dataModel.name}'`;
             });
             console.log('dataModelTables', dataModelTables);
-            const dbConnector: DataSource =  await externalDriver.connectExternalDB(connection);
-            if (!dbConnector) {
-                return resolve(null);
+            let dbConnector: DataSource;
+            try {
+                dbConnector =  await externalDriver.connectExternalDB(connection);
+                if (!dbConnector) {
+                    return resolve(false);
+                }
+            } catch (error) {
+                console.log('Error connecting to external DB', error);
+                return resolve(false);
             }
             let query = `SELECT tb.table_catalog, tb.table_schema, tb.table_name, co.column_name, co.data_type, co.character_maximum_length
 					FROM information_schema.tables AS tb
@@ -284,7 +296,7 @@ export class DataSourceProcessor {
             if (!user) {
                 return resolve(null);
             }
-            const dataSource: DRADataSource = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}});
+            const dataSource: DRADataSource|null = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}});
             if (!dataSource) {
                 return resolve(null);
             }
@@ -297,9 +309,15 @@ export class DataSourceProcessor {
             if (!externalDriver) {
                 return resolve(null);
             }
-            const dbConnector: DataSource =  await externalDriver.connectExternalDB(connection);
-            if (!dbConnector) {
-                return resolve(null);
+            let dbConnector: DataSource;
+            try {
+                dbConnector =  await externalDriver.connectExternalDB(connection);
+                if (!dbConnector) {
+                    return resolve(false);
+                }
+            } catch (error) {
+                console.log('Error connecting to external DB', error);
+                return resolve(false);
             }
             try {
                 const results = await dbConnector.query(query);
@@ -325,7 +343,7 @@ export class DataSourceProcessor {
             if (!user) {
                 return resolve(false);
             }
-            const dataSource: DRADataSource = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}});
+            const dataSource: DRADataSource|null = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}});
             if (!dataSource) {
                 return resolve(false);
             }

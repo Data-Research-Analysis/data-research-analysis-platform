@@ -1,6 +1,6 @@
 import dotenv from 'dotenv';
-import { FileDriver } from '../drivers/FileDriver';
-import { ITemplateRenderer } from '../interfaces/ITemplateRenderer';
+import { FileDriver } from '../drivers/FileDriver.js';
+import { ITemplateRenderer } from '../interfaces/ITemplateRenderer.js';
 
 export class TemplateEngineService {
     private static instance: TemplateEngineService;
@@ -22,6 +22,9 @@ export class TemplateEngineService {
         return new Promise(async (resolve, reject) => {
             console.log('Rendering template');
             const fileDriver = FileDriver.getInstance().getDriver('html');
+            if (!fileDriver) {
+                return reject(new Error('File driver not found'));
+            }
             await fileDriver.initialize();
             let content = await fileDriver.read(template_name);
             options.forEach((option) => {

@@ -1,4 +1,4 @@
-import { IFileDriver } from "../interfaces/IFileDriver";
+import { IFileDriver } from "../interfaces/IFileDriver.js";
 import fs from 'fs';
 import path from 'path';
 

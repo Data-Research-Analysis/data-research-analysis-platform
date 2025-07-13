@@ -1,4 +1,4 @@
-import { EDataSourceType } from "./EDataSourceType";
+import { EDataSourceType } from "./EDataSourceType.js";
 
 export interface IDBConnectionDetails {
     data_source_type: EDataSourceType;

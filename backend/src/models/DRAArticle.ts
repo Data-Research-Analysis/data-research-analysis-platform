@@ -1,28 +1,28 @@
-import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
-import { DRAUsersPlatform } from './DRAUsersPlatform';
-import { DRAArticleCategory } from './DRAArticleCategory';
-import { EPublishStatus } from '../types/EPublishStatus';
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, Relation } from 'typeorm';
+import { DRAUsersPlatform } from './DRAUsersPlatform.js';
+import { DRAArticleCategory } from './DRAArticleCategory.js';
+import { EPublishStatus } from '../types/EPublishStatus.js';
 @Entity('dra_articles')
 export class DRAArticle {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
   @Column({ type: 'varchar', length: 512 })
-  title: string;
+  title!: string;
   @Column({ type: 'text' })
-  content: string;
+  content!: string;
   @Column({ type: 'enum', enum: [EPublishStatus.PUBLISHED, EPublishStatus.DRAFT] })
-  publish_status: EPublishStatus;
+  publish_status!: EPublishStatus;
   @Column({ type: 'varchar', length: 255 })
-  slug: string;
+  slug!: string;
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
-  created_at: Date;
-  
+  created_at!: Date;
+
   
   @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.articles)
   @JoinColumn({ name: 'users_platform_id', referencedColumnName: 'id' })
-  users_platform!: DRAUsersPlatform
+  users_platform!: Relation<DRAUsersPlatform>
   
   @OneToMany(() => DRAArticleCategory, (dataArticleCategory) => dataArticleCategory.article)
-  dra_articles_categories!: DRAArticleCategory[]
+  dra_articles_categories!: Relation<DRAArticleCategory>[]
 
 }

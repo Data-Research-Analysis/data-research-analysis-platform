@@ -1,24 +1,24 @@
-import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
-import { DRAUsersPlatform } from './DRAUsersPlatform';
-import { DRADataSource } from './DRADataSource';
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, Relation } from 'typeorm';
+import { DRAUsersPlatform } from './DRAUsersPlatform.js';
+import { DRADataSource } from './DRADataSource.js';
 @Entity('dra_data_models')
 export class DRADataModel {
     @PrimaryGeneratedColumn()
-    id: number
+    id!: number
     @Column({ type: 'varchar', length: 255 })
-    schema: string
+    schema!: string
     @Column({ type: 'varchar', length: 255 })
-    name: string
+    name!: string
     @Column({ type: 'text' })
-    sql_query: string
+    sql_query!: string
     @Column({ type: 'jsonb' })
-    query: JSON
+    query!: JSON
         
     @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.data_models)
     @JoinColumn({ name: 'users_platform_id', referencedColumnName: 'id' })
-    users_platform!: DRAUsersPlatform
+    users_platform!: Relation<DRAUsersPlatform>
     
     @ManyToOne(() => DRADataSource, (dataSource) => dataSource.data_models)
     @JoinColumn({ name: 'data_source_id', referencedColumnName: 'id' })
-    data_source!: DRADataSource
+    data_source!: Relation<DRADataSource>
 }

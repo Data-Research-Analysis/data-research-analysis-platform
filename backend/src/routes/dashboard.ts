@@ -1,9 +1,9 @@
 import express, { Request, Response } from 'express';
-import { validateJWT } from '../middleware/authenticate';
-import { validate } from '../middleware/validator';
+import { validateJWT } from '../middleware/authenticate.js';
+import { validate } from '../middleware/validator.js';
 import { body, param, matchedData } from 'express-validator';
-import { DataModelProcessor } from '../processors/DataModelProcessor';
-import { DashboardProcessor } from '../processors/DashboardProcessor';
+import { DataModelProcessor } from '../processors/DataModelProcessor.js';
+import { DashboardProcessor } from '../processors/DashboardProcessor.js';
 const router = express.Router();
 
 router.get('/list', async (req: Request, res: Response, next: any) => {

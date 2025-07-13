@@ -1,9 +1,9 @@
-import { ITokenDetails } from "../types/ITokenDetails";
-import { DRAProject } from "../models/DRAProject";
-import { DBDriver } from "../drivers/DBDriver";
-import { DRAUsersPlatform } from "../models/DRAUsersPlatform";
-import { DRADataSource } from "../models/DRADataSource";
-import { EDataSourceType } from "../types/EDataSourceType";
+import { ITokenDetails } from "../types/ITokenDetails.js";
+import { DRAProject } from "../models/DRAProject.js";
+import { DBDriver } from "../drivers/DBDriver.js";
+import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
+import { DRADataSource } from "../models/DRADataSource.js";
+import { EDataSourceType } from "../types/EDataSourceType.js";
 export class ProjectProcessor {
     private static instance: ProjectProcessor;
     private constructor() {}

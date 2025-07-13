@@ -1,13 +1,14 @@
 import { DataSource } from "typeorm";
 import dotenv from 'dotenv';
-import { IDBDriver } from "../interfaces/IDBDriver";
-import { IDBConnectionDetails } from "../types/IDBConnectionDetails";
-import { PostgresDataSource } from "../datasources/PostgresDataSource";
+import { IDBDriver } from "../interfaces/IDBDriver.js";
+import { IDBConnectionDetails } from "../types/IDBConnectionDetails.js";
+import { PostgresDataSource } from "../datasources/PostgresDataSource.js";
 
 export class PostgresDriver implements IDBDriver{
     private static instance: PostgresDriver;
-    private dataSource: DataSource;
-    private externalDataSource: DataSource;
+    private dataSource!: DataSource;
+    private externalDataSource!
+    : DataSource;
     private constructor() {
     }
     public static getInstance(): PostgresDriver {
@@ -75,10 +76,10 @@ export class PostgresDriver implements IDBDriver{
                     return resolve(this.externalDataSource);
                 }
                 console.error('Unable to connect to the database');
-                return resolve(null);
+                return reject(null);
             } catch (error) {
                 console.error('Unable to connect to the database:', error);
-                return resolve(null);
+                return reject(null);
             }
         });
     }

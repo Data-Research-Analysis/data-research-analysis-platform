@@ -1,11 +1,11 @@
-import { INodeMailerDriver } from "../interfaces/INodeMailerDriver";
-import nodemailer, { Transporter } from 'nodemailer';
-import { UtilityService } from "../services/UtilityService";
-import SMTPTransport from "nodemailer/lib/smtp-transport";
+import { INodeMailerDriver } from "../interfaces/INodeMailerDriver.js";
+import nodemailer, { SentMessageInfo, Transporter } from 'nodemailer';
+import { UtilityService } from "../services/UtilityService.js";
+import { Options } from "nodemailer/lib/smtp-transport/index.js";
 
 export class NodeMailerDriver implements INodeMailerDriver {
     private static instance: NodeMailerDriver;
-    private transport: Transporter<SMTPTransport.SentMessageInfo, SMTPTransport.Options>;
+    private transport!: Transporter<SentMessageInfo, Options>;
     private constructor() {
     }
     public static getInstance(): NodeMailerDriver {

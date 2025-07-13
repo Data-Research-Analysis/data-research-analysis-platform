@@ -1,15 +1,15 @@
 import { DataSource, DataSourceOptions } from "typeorm";
-import { DRAUser } from "../models/DRAUser";
-import { DRADataModel } from "../models/DRADataModel";
-import { DRADataSource } from "../models/DRADataSource";
-import { DRAVerificationCode } from "../models/DRAVerificationCode";
-import { DRAUsersPlatform } from "../models/DRAUsersPlatform";
-import { DRAProject } from "../models/DRAProject";
-import { DRADashboard } from "../models/DRADashboard";
+import { DRAUser } from "../models/DRAUser.js";
+import { DRADataModel } from "../models/DRADataModel.js";
+import { DRADataSource } from "../models/DRADataSource.js";
+import { DRAVerificationCode } from "../models/DRAVerificationCode.js";
+import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
+import { DRAProject } from "../models/DRAProject.js";
+import { DRADashboard } from "../models/DRADashboard.js";
 import dotenv from 'dotenv';
-import { DRAArticle } from "../models/DRAArticle";
-import { DRAArticleCategory } from "../models/DRAArticleCategory";
-import { DRACategory } from "../models/DRACategory";
+import { DRAArticle } from "../models/DRAArticle.js";
+import { DRAArticleCategory } from "../models/DRAArticleCategory.js";
+import { DRACategory } from "../models/DRACategory.js";
 dotenv.config();
 
 export class PostgresDataSource {
