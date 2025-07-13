@@ -86,7 +86,7 @@ export class ArticleProcessor {
                 return resolve(true);
             } catch (error) {
                 console.log('error', error);
-                return reject(error);
+                return resolve(error);
             }
         });
     }
@@ -115,7 +115,7 @@ export class ArticleProcessor {
                 return resolve(true);
             } catch (error) {
                 console.log('error', error);
-                return reject(error);
+                return resolve(error);
             }
         });
     }

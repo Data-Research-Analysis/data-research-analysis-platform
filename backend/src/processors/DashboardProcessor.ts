@@ -67,7 +67,7 @@ export class DashboardProcessor {
                 return resolve(true);
             } catch (error) {
                 console.log('error', error);
-                return reject(error);
+                return resolve(error);
             }
         });
     }
@@ -105,7 +105,7 @@ export class DashboardProcessor {
                 return resolve(true);
             } catch (error) {
                 console.log('error', error);
-                return reject(error);
+                return resolve(error);
             }
         });
     }

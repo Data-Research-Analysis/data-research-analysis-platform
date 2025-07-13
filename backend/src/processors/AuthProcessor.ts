@@ -28,7 +28,7 @@ export class AuthProcessor {
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             const concreteDriver = await driver.getConcreteDriver();
             if (!concreteDriver) {
-                return reject(null);
+                return resolve(null);
             }
             const manager = concreteDriver.manager;
             const user: DRAUsersPlatform|null = await manager.findOne(DRAUsersPlatform, {where: {email: email}});
@@ -40,10 +40,10 @@ export class AuthProcessor {
                     const userPlatform:IUsersPlatform = {id: user.id, email: email, first_name: user.first_name, last_name: user.last_name, user_type: user.user_type, token: token};
                     return resolve(userPlatform);
                 } else {
-                    return reject(null);
+                    return resolve(null);
                 }
             } else {
-                return reject(null);
+                return resolve(null);
             }
         });
     }
