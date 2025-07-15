@@ -2,7 +2,11 @@
 import { x } from 'happy-dom/lib/PropertySymbol.js';
 import { onMounted, watch, nextTick } from 'vue';
 const { $d3 } = useNuxtApp();
-
+const emit = defineEmits(['update:yAxisLabel', 'update:xAxisLabel']);
+const state = reactive({
+  xAxisLabelLocal: '',
+  yAxisLabelLocal: ''
+});
 const props = defineProps({
   chartId: {
     type: String,
@@ -105,26 +109,47 @@ function renderSVG(chartData) {
       $d3.select(this).attr('fill', color(d.label));
     });
 
-    svg.append("text")
-        .attr("transform", "rotate(-90)")
-        .attr("y", 0 - margin.left + 0)
-        .attr("x", 0 - (height / 2) - 10)
-        .attr("dy", "1em")
-        .style("text-anchor", "middle")
-        .style("fill", "#475569")
-        .style("font-size", "20px")
-        .style("font-weight", "600")
-        .text(`${props.yAxisLabel}`);
+  // Y axis title as input
+    svg.append('foreignObject')
+      .attr('transform', 'rotate(-90)')
+      .attr('y', 0 - margin.left - 10)
+      .attr('x', 0 - (height / 2) - 100)
+      .attr('width', height - 100)
+      .attr('height', 30)
+      .append('xhtml:input')
+        .attr('type', 'text')
+        .style('width', '100%')
+        .style('font-size', '20px')
+        .style('font-weight', '600')
+        .style('color', '#000000')
+        .style('background-color', '#ffffff')
+        .style('text-align', 'center')
+        .property('value', state.yAxisLabelLocal)
+        .on('input', function(event) {
+          state.yAxisLabelLocal = event.target.value;
+          emit('update:yAxisLabel', state.yAxisLabelLocal);
+        });
 
-    svg.append("text")
-        .attr("y", height + margin.top - 20)
-        .attr("x", width / 2)
-        .attr("dy", "1em")
-        .style("text-anchor", "middle")
-        .style("fill", "#475569")
-        .style("font-size", "20px")
-        .style("font-weight", "600")
-        .text(`${props.xAxisLabel}`);
+    // X axis title as input
+    svg.append('foreignObject')
+      .attr('y', height + margin.top - 20)
+      .attr('x', width / 2 - 110)
+      .attr('width', 200)
+      .attr('height', 30)
+      .append('xhtml:input')
+        .attr('type', 'text')
+        .style('width', '100%')
+        .style('font-size', '20px')
+        .style('font-weight', '600')
+        .style('color', '#000000')
+        .style('background-color', '#ffffff')
+        .style('text-align', 'center')
+        .property('value', state.xAxisLabelLocal)
+        .on('input', function(event) {
+          state.xAxisLabelLocal = event.target.value;
+          emit('update:xAxisLabel', state.xAxisLabelLocal);
+        });
+
 }
 
 function renderChart(chartData) {
@@ -133,6 +158,8 @@ function renderChart(chartData) {
 }
 
 onMounted(() => {
+  state.xAxisLabelLocal = props.xAxisLabel;
+  state.yAxisLabelLocal = props.yAxisLabel;
   renderChart(props.data);
 });
 
