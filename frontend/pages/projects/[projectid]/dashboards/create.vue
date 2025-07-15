@@ -97,6 +97,8 @@ function addChartToDashboard(chartType) {
     });
     state.chart_mode = chartType;
     state.dashboard.charts.push({
+        x_axis_label: 'X Axis',
+        y_axis_label: 'Y Axis',
         chart_type: chartType,
         chart_id: state.dashboard.charts.length + 1,
         columns: [],
@@ -471,10 +473,10 @@ function onResize(event) {
             newHeightDraggable = state.initial_height_draggable + deltaY;
         }
         // Ensure minimum width and height
-        newWidth = Math.max(100, newWidth > 350 ? 350 : newWidth);
-        newHeight = Math.max(100, newHeight > 350 ? 350 : newHeight);
-        newWidthDraggable = Math.max(100, newWidthDraggable > 350 ? 350 : newWidthDraggable);
-        newHeightDraggable = Math.max(100, newHeightDraggable > 350 ? 350 : newHeightDraggable);
+        // newWidth = Math.max(100, newWidth > 500 ? 500 : newWidth);
+        // newHeight = Math.max(100, newHeight > 500 ? 500 : newHeight);
+        // newWidthDraggable = Math.max(100, newWidthDraggable > 500 ? 500 : newWidthDraggable);
+        // newHeightDraggable = Math.max(100, newHeightDraggable > 500 ? 500 : newHeightDraggable);
         
         //add a 100px margin to both the heights
         //do not allow the height of the div to be less than the height of the chart
@@ -630,7 +632,7 @@ onMounted(async () => {
                                     @change="changeDataModel($event, chart.chart_id)"
                                 >
                                     <template #item="{ element, index }">
-                                        <div v-if="index === 0" class="text-left bg-blue-200 font-bold text-white px-4 py-2">
+                                        <div v-if="index === 0" class="text-left font-bold text-white px-4 py-2">
                                             <div v-if="chart && chart.data && chart.data.length" class="flex flex-col justify-center">
                                                 <pie-chart
                                                     v-if="chart.chart_type === 'pie'"
@@ -655,9 +657,11 @@ onMounted(async () => {
                                                     :id="`chart-${chart.chart_id}`"
                                                     :chart-id="`${chart.chart_id}`"
                                                     :data="chart.data"
-                                                    :x-axis-label="'X Axis'"
-                                                    :y-axis-label="'Y Axis'"
+                                                    :x-axis-label="chart.x_axis_label"
+                                                    :y-axis-label="chart.y_axis_label"
                                                     class="mt-5"
+                                                    @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
+                                                    @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
                                                 />
                                             </div>
                                         </div>
