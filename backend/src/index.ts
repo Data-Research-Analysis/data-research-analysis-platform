@@ -45,6 +45,8 @@ app.use('/admin/image', image);
 app.use('/article', public_article);
 
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
+app.use('/', express.static(path.join(__dirname, '../public')));
+
 
 app.listen(port, () => {
   return console.log(`Express is listening at http://localhost:${port}`);
