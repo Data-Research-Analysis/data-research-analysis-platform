@@ -175,9 +175,27 @@ async function executeQueryOnDataModels(chartId) {
             state.response_from_data_models_rows.forEach((row) =>{
                 const columns_data_types = chart.columns.filter((column) => Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
                 columns_data_types.forEach((column) => {
-                    if (column.data_type === 'character varying') {
+                    if (column.data_type.includes('character varying') ||
+                        column.data_type.includes('varchar') ||
+                        column.data_type.includes('character') ||
+                        column.data_type.includes('char') ||
+                        column.data_type.includes('bpchar') ||
+                        column.data_type.includes('text')
+
+                    ) {
                         labelValues.push(row[column.column_name]); 
-                    } else if (column.data_type === 'bigint') {
+                    } else if (
+                            column.data_type === 'smallint' ||
+                            column.data_type === 'bigint'  ||
+                            column.data_type === 'integer' ||
+                            column.data_type === 'numeric' ||
+                            column.data_type === 'decimal' || 
+                            column.data_type === 'real' ||
+                            column.data_types === 'double precision' ||
+                            column.data_types === 'small serial' ||
+                            column.data_types === 'serial' ||
+                            column.data_types === 'bigserial'
+                        ) {
                         numericValues.push(parseInt(row[column.column_name]));
                     }
                 });
@@ -448,8 +466,6 @@ function onResize(event) {
         let newHeight;
         let newWidthDraggable;
         let newHeightDraggable;
-
-        // console.log('onResize deltaX', deltaX, 'deltaY', deltaY);
 
         if (state.active_handle === 'TL') {
             newWidth = state.initial_width - deltaX;

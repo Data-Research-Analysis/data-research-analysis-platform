@@ -41,9 +41,9 @@ export async function verifyRecaptchaToken (authToken: string, recaptchaToken: s
     return await captchaResponse.json();
 }
 export function getDataType(dataType: string) {
-    if (dataType === "text" || dataType === "varchar" || dataType === "char" || dataType === "character varying") {
+    if (dataType === "text" || dataType === "bpchar" || dataType === "char" || dataType === "varchar" || dataType === "character varying" || dataType === "character") {
         return "TEXT";
-    } else if (dataType === "int" || dataType === "integer" || dataType === "bigint" || dataType === "float" || dataType === "double") {
+    } else if (dataType === "int" || dataType === "integer" || dataType === "bigint" || dataType === "float" || dataType === "double" || dataType === "decimal" || dataType === "numeric" || dataType === "real" || dataType === "smallint" || dataType === "double precision" || dataType === "bigserial" || dataType === "serial") {
         return "NUMBER";
     } else if (dataType === "date" || dataType.match(/^timestamp/) || dataType === "datetime") {
         return "DATE";
@@ -54,4 +54,7 @@ export function getDataType(dataType: string) {
 export function isPlatformEnabled() {
     const config = useRuntimeConfig();
     return config.public.PLATFORM_ENABLED === "true";
+}
+export function cleanString(str: string) {
+    return str.replace(/[^a-zA-Z0-9]/g, "");
 }

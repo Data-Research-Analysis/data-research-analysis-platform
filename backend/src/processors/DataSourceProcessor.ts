@@ -184,11 +184,9 @@ export class DataSourceProcessor {
             if (!dataModels) {
                 return resolve(false);
             }
-            console.log('dataModels', dataModels);
             const dataModelTables = dataModels.map((dataModel: DRADataModel) => {
                 return `'${dataModel.name}'`;
             });
-            console.log('dataModelTables', dataModelTables);
             let dbConnector: DataSource;
             try {
                 dbConnector =  await externalDriver.connectExternalDB(connection);
@@ -218,7 +216,6 @@ export class DataSourceProcessor {
                 }
             });
             tables = _.uniqBy(tables, 'table_name');
-            console.log('tables', tables);
             tables.forEach((table: any) => {
                 tablesSchema.forEach((result: any) => {
                     if (table.table_name === result.table_name) {
@@ -229,6 +226,7 @@ export class DataSourceProcessor {
                             table_name: table.table_name,
                             schema: table.schema,
                             alias_name: '',
+                            is_selected_column: true,
                             reference: {
                                 local_table_schema: null,
                                 local_table_name: null,
