@@ -158,7 +158,6 @@ async function executeQueryOnDataModels(chartId) {
             chart_id: chartId,
             sql_query: buildSQLQuery(chart)
         });
-        // console.log('state.sql_queries', state.sql_queries);
         for (let i=0; i< state.sql_queries.length; i++) {
             const sqlQuery = state.sql_queries[i].sql_query;
             const token = getAuthToken();
@@ -175,16 +174,34 @@ async function executeQueryOnDataModels(chartId) {
                 })
             });
             const data = await response.json();
-            // console.log('executeQueryOnDataModels data ', data);
             state.response_from_data_models_rows = data;
             const labelValues = [];
             const numericValues = [];
             state.response_from_data_models_rows.forEach((row) =>{
                 const columns_data_types = chart.columns.filter((column) => Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
                 columns_data_types.forEach((column) => {
-                    if (column.data_type === 'character varying') {
+                    if (column.data_type.includes('character varying') ||
+                        column.data_type.includes('varchar') ||
+                        column.data_type.includes('character') ||
+                        column.data_type.includes('char') ||
+                        column.data_type.includes('bpchar') ||
+                        column.data_type.includes('text')
+
+                    ) {
                         labelValues.push(row[column.column_name]); 
-                    } else if (column.data_type === 'bigint') {
+                    } else if (
+                            column.data_type === 'smallint' ||
+                            column.data_type === 'bigint'  ||
+                            column.data_type === 'integer' ||
+                            column.data_type === 'numeric' ||
+                            column.data_type === 'decimal' || 
+                            column.data_type === 'real' ||
+                            column.data_types === 'double precision' ||
+                            column.data_types === 'small serial' ||
+                            column.data_types === 'serial' ||
+                            column.data_types === 'bigserial'
+
+                        ) {
                         numericValues.push(parseInt(row[column.column_name]));
                     }
                 });
@@ -195,7 +212,6 @@ async function executeQueryOnDataModels(chartId) {
                      value: numericValues[index],
                  });
             });
-            // console.log('executeQueryOnDataModels chart.data', chart.data);
         }
     }
 }
@@ -232,7 +248,6 @@ async function updateDashboard() {
 function updateContent(content, chartId) {
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
     if (chart) {
-        console.log('updateContent content', content);
         chart.text_editor.content = content;
     }
 }
@@ -333,9 +348,7 @@ function draggableDivMouseDown(event, chartId) {
             state.selected_div = div.parentNode.parentNode;
             state.offsetX = event.clientX - div.getBoundingClientRect().left;
             state.offsetY = event.clientY - div.getBoundingClientRect().top;
-            console.log('draggableDivMouseDown state.offsetX', state.offsetX, 'state.offsetY', state.offsetY);
             document.addEventListener('mousemove', onDrag);
-            console.log('draggableDivMouseDown state', state);
         }
     }
 }
@@ -447,15 +460,11 @@ function onResize(event) {
         const deltaX = event.clientX - state.start_resize_x;
         const deltaY = event.clientY - state.start_resize_y;
 
-        console.log('state.previous_deltax', state.previous_deltax, 'state.previous_deltay', state.previous_deltay);
-        console.log('deltaX', deltaX, 'deltaY', deltaY);
        
         let newWidth;
         let newHeight;
         let newWidthDraggable;
         let newHeightDraggable;
-
-        // console.log('onResize deltaX', deltaX, 'deltaY', deltaY);
 
         if (state.active_handle === 'TL') {
             newWidth = state.initial_width - deltaX;

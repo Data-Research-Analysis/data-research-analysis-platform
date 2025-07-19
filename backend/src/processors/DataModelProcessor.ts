@@ -232,6 +232,7 @@ export class DataModelProcessor {
                                 table_name: table.table_name,
                                 schema: table.schema,
                                 alias_name: '',
+                                is_selected_column: true,
                             });
                         }
                     });
@@ -261,7 +262,6 @@ export class DataModelProcessor {
                 return resolve(false);
             }
             let results = await dbConnector.query(query);
-            console.log('results', results);
             try {
                 const results = await dbConnector.query(query);
                 return resolve(results);
