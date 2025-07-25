@@ -3,14 +3,14 @@
 <template>
     <div class="flex flex-col">
         <div class="w-full h-full mt-10">
-            <h1 class="text-black text-center font-bold">
+            <h1 class="text-primary-blue-100 text-center font-bold">
                 Connect With Multiple Data Sources
             </h1>
         </div>
         <div class="flex flex-col mb-10 lg:hidden">
             <div class="flex flex-row justify-center">
                 <div class="w-3/4 flex flex-col p-5">
-                    <h3>
+                    <h3 class="text-primary-blue-100 font-bold">
                         Data Research Analysis will alllow you connect to multiple data sources and build your own data model. Following are
                         just a few of the many of the data sources that will be available in the platform.
                     </h3>
@@ -31,7 +31,7 @@
         </div>
         <div class="hidden lg:flex lg:flex-row lg:justify-center lg:mb-10">
             <div class="w-1/2 flex flex-col mt-10 p-5 mr-10">
-                <h3>
+                <h3 class="text-primary-blue-100 font-bold">
                     Data Research Analysis will alllow you connect to multiple data sources and build your own data model. Following are
                     just a few of the many of the data sources that will be available in the platform.
                 </h3>

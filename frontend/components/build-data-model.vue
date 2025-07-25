@@ -2,10 +2,9 @@
 </script>
 <template>
     <div>
-        <img src="/blue-background-top.svg" class="w-full" />
-        <div class="bg-primary-blue-100 w-full h-full">
+        <div class="bg-primary-blue-100 w-full h-full fancy-top-bottom pt-10 pb-10">
             <div class="flex flex-col">
-                <div class="w-full h-full mt-10">
+                <div class="w-full h-full mt-10 mb-10">
                     <h1 class="text-white text-center font-bold">
                         Build Data Models With Ease
                     </h1>
@@ -18,7 +17,7 @@
                     </div>
                     <div class="flex flex-row justify-center">
                         <div class="w-3/4 flex flex-col p-5">
-                            <div class="text-lg text-white">
+                            <div class="text-lg text-white font-bold">
                                 You will be able to build your data models using our easy to use and understand drag-and-drop data model builder.
                                 The data build model can also do the following and more:
                                 <ul class="list-disc">
@@ -36,7 +35,7 @@
                         <img src="/assets/images/build-data-model.gif" class="w-full border-5 border-white shadow-lg" />
                     </div>
                     <div class="w-1/2 flex flex-col justify-center p-5 mr-10 text-white">
-                        <div class="text-lg">
+                        <div class="text-lg font-bold">
                             You will be able to build your data models using our easy to use and understand drag-and-drop data model builder.
                             The data build model can also do the following and more:
                             <ul class="list-disc">
@@ -50,6 +49,5 @@
                 </div>
             </div>
         </div>
-        <img src="/blue-background-bottom.svg" class="w-full" />
     </div>
 </template>

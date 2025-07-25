@@ -7,14 +7,3 @@
         </div>
     </div>
 </template>
-<style scoped>
-.notched-corner {
-    clip-path: polygon(
-        0 0,
-        100% 0,
-        100% 70%,
-        60% 100%,
-        0% 100%
-  );
-}
-</style>

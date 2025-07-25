@@ -32,25 +32,27 @@ const props = defineProps({
 
 const classes = computed(() => {
   if (props.color.toLowerCase() === "primary") {
-  return `bg-primary-blue-100 hover:bg-primary-blue-300 ${props.class}`;
+  return `bg-primary-blue-100 hover:bg-primary-blue-300 text-white ${props.class}`;
   } else if (props.color.toLowerCase() === "success") {
-    return `bg-green-500 hover:bg-green-700 ${props.class}`;
+    return `bg-green-500 hover:bg-green-700 text-white ${props.class}`;
   } else if (props.color.toLowerCase() === "danger") {
-    return `bg-red-500 hover:bg-red-700 ${props.class}`;
+    return `bg-red-500 hover:bg-red-700 text-white ${props.class}`;
   } else if (props.color.toLowerCase() === "warning") {
-    return `bg-orange-500 hover:bg-orange-700 ${props.class}`;
+    return `bg-orange-500 hover:bg-orange-700 text-white ${props.class}`;
   } else if (props.color.toLowerCase() === "info") {
-    return `bg-sky-500 hover:bg-sky-700 ${props.class}`;
+    return `bg-sky-500 hover:bg-sky-700 text-white ${props.class}`;
   } else if (props.color.toLowerCase() === "green-blue") {
-    return `bg-green-blue-100 hover:bg-green-blue-300 ${props.class}`;
+    return `bg-green-blue-100 hover:bg-green-blue-300 text-white ${props.class}`;
+  } else if (props.color.toLowerCase() === "white") {
+    return `bg-white hover:bg-gray-200 text-primary-blue-200 ${props.class}`;
   } else {
-    return `bg-blue-500 hover:bg-blue-700 ${props.class}`;
+    return `bg-blue-500 hover:bg-blue-700 text-white ${props.class}`;
   }
 });
 </script>
 <template>
   <button
-    :class="`${classes} text-white font-bold px-2`"
+    :class="`${classes}  font-bold px-2`"
     :disabled="props.disabled"
     @click="props.onClick"
   >

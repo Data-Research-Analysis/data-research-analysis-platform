@@ -23,24 +23,12 @@ function closeDrawer() {
                 '-translate-x-full': !props.drawerOpen
             }">
             <div class="">
-                <img src="/logo.svg" class="absolute -top-1 -left-1 h-18 lg:h-20 z-10" />      
+                <img src="/logo-words.svg" class="absolute top-0 -left-1 h-18 lg:h-22 bg-black p-2 pl-5 pr-[130px] logo-fancy"/>     
                 <font-awesome icon="fas fa-times" class="absolute top-18 right-2 text-4xl hover:text-gray-300 cursor-pointer" @click="closeDrawer" />
             </div>
             <div class="flex flex-col mt-20 ml-2">
                 <div class="text-xl font-bold hover:text-gray-300 cursor-pointer" @click="closeDrawer">
-                    <NuxtLink to="/">Home</NuxtLink>
-                </div>
-                <div class="text-xl font-bold hover:text-gray-300 cursor-pointer" @click="closeDrawer">
                     <NuxtLink to="/articles">Blog</NuxtLink>
-                </div>
-                <div class="text-xl font-bold mt-2 hover:text-gray-300 cursor-pointer" @click="closeDrawer">
-                    <NuxtLink to="/#about">About</NuxtLink>
-                </div>
-                <div class="text-xl font-bold mt-2 hover:text-gray-300 cursor-pointer" @click="closeDrawer">
-                    <NuxtLink to="/#features">Features</NuxtLink>
-                </div>
-                <div class="text-xl font-bold mt-2 hover:text-gray-300 cursor-pointer" @click="closeDrawer">
-                    <NuxtLink to="/#community">Community</NuxtLink>
                 </div>
                 <div v-if="isPlatformEnabled()">
                     <menu-dropdown>
@@ -65,6 +53,11 @@ function closeDrawer() {
                 <div class="flex flex-row mt-5">
                     <font-awesome icon="fab fa-github-square" class="text-4xl hover:text-gray-300 cursor-pointer" @click="openGithub()"/>
                     <font-awesome icon="fab fa-linkedin" class="ml-5 text-4xl hover:text-gray-300 cursor-pointer" @click="openLinkedin()"/>
+                </div>
+                <div class="flex flex-row mr-5 mt-5">
+                    <NuxtLink to="/#join-wait-list" @click="closeDrawer">
+                        <combo-button label="Join Our Wait List" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" />
+                    </NuxtLink>
                 </div>
             </div>
         </div>
