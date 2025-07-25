@@ -9,11 +9,11 @@
 
 @layer base {
     h1 {
-        font-size: var(--text-3xl);
+        font-size: var(--text-4xl);
         font-weight: 600;
     }
     h2 {
-        font-size: var(--text-2xl);
+        font-size: var(--text-3xl);
         font-weight: 500;
     }
     h3 {
@@ -36,4 +36,45 @@
         margin-top: 16px;
         margin-bottom: 16px;
     }
+}
+.logo-fancy {
+    clip-path: polygon(
+        0 0,
+        100% 0,
+        70% 100%,
+        0 100%
+    );
+}
+.fancy-top-bottom {
+    clip-path: polygon(
+        0 2vw,
+        100% 0,
+        100% calc(100% - 2vw),
+        0 100%
+  );
+}
+.fancy-top {
+    clip-path: polygon(
+        0 4vw,
+        100% 0,
+        100% 100%,
+        0 100%
+  );
+}
+.fancy-bottom {
+    clip-path: polygon(
+        0 0,
+        100% 0,
+        100% calc(100% - 4vw),
+        0 100%
+  );
+}
+.notched-corner {
+    clip-path: polygon(
+        0 0,
+        100% 0,
+        100% calc(100% - 6vw),
+        calc(100% - 8vw) 100%,
+        0% 100%
+  );
 }

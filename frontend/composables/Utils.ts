@@ -58,3 +58,6 @@ export function isPlatformEnabled() {
 export function cleanString(str: string) {
     return str.replace(/[^a-zA-Z0-9]/g, "");
 }
+export function joinWaitList() {
+ 
+}

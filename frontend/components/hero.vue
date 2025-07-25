@@ -74,80 +74,44 @@ onMounted(async () => {
 </script>
 <template>
     <div>
-        <div class="bg-primary-blue-100 w-full h-full">
+        <div class="bg-primary-blue-100 w-full h-full fancy-bottom">
             <div class="flex flex-col h-full p-5 lg:hidden">
-                <div class="text-3xl font-bold text-white text-center mt-20">
-                    The one stop solution to your data analysis needs
-                </div>
+                <h1 class="font-bold text-white text-center mt-20">
+                    Tired of complex data analysis platforms slowing you down?
+                </h1>
                 <div class="text-xl font-bold text-white text-center mt-10">
-                    Subscribe with us today so that you can get the front seat to the development of Data Research Analysis.
-                </div>
-                <spinner v-if="state.loading" :show="true" class="mt-10" data-cy="Loading..."/>
-                <div v-else class="flex flex-col">
-                    <div v-if="state.subscriptionStep && state.subscriptionStep === 1" class="flex flex-col mt-5">
-                        <div class="h-[60px] text-white mt-10 bg-white items-center flex flex-row shadow-lg">
-                            <input type="text" v-model="state.email" class="w-3/4 h-10 bg-white focus:border-white focus:outline-none border-white text-black font-bold ml-4" placeholder="Enter your email address" data-cy="subscribe-email-input" />
-                            <combo-button @click="subscribeMe" label="Subscribe Me" color="primary" class="w-1/4 h-13 mr-2 shadow-lg cursor-pointer" data-cy="Subscribe Me" />
-                        </div>
-                        <div v-if="state.subscriptionError" class="text-red-500 text-md font-bold bg-red-100 p-2">
-                            {{ state.subscriptionErrorMessage }}
-                        </div>
-                        <div class="text-md font-bold text-white mt-5">
-                            * We promise that we will not spam you.
-                        </div>
-                    </div>
-                    <div v-else-if="state.subscriptionStep && state.subscriptionStep === 2">
-                        <div class="text-3xl font-bold text-white text-center mt-10">
-                            Thank you for subscribing with us.
-                        </div>
-                        <div class="text-xl font-bold text-white text-center mt-5">
-                            We will keep you updated with the latest news and updates.
-                        </div>
-                    </div>
+                    Data Research Analysis makes the process of getting data insights easy  and simple, so you can make confident, lightning-fast decisions.
                 </div>
                 <div class="flex flex-row justify-center">
-                    <img src="/assets/images/platform.gif" class="w-3/4 border-2 border-primary-blue-300 shadow-lg mt-5" />
+                    <img src="/assets/images/data-cloud-analytics.png" class="w-3/4 border-5 border-white shadow-lg shadow-lg mt-5" />
+                </div>
+                <div class="flex flex-col w-3/5 m-auto mt-10 pb-20">
+                    <NuxtLink to="/#join-wait-list">
+                        <combo-button label="Join Our Wait List" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" />
+                    </NuxtLink>
                 </div>
             </div>
+            
             <div class="hidden lg:flex lg:flex-row justify-between">
-                <div class="w-1/2 flex flex-col">
-                    <div class="text-4xl font-bold text-white ml-20 mt-20">
-                        The one stop solution to your data analysis needs
-                    </div>
+                <div class="w-1/2 flex flex-col mt-10">
+                    <h1 class="font-bold text-white ml-20 mt-20">
+                        Tired of complex data analysis platforms slowing you down?
+                    </h1>
                     <div class="text-xl font-bold text-white ml-20 mt-10">
-                        Subscribe with us today so that you can get the front seat to the development of Data Research Analysis.
-                    </div>
-                    <spinner v-if="state.loading" :show="true" class="mt-10"/>
-                    <div v-else class="flex flex-row justify-center">
-                        <div v-if="state.subscriptionStep && state.subscriptionStep === 1" class="w-3/4 flex flex-col mt-10">
-                            <div class="h-[60px] text-white bg-white items-center flex flex-row shadow-lg">
-                                <input type="text" v-model="state.email" class="w-3/4 h-10 bg-white focus:border-white focus:outline-none border-white text-black font-bold ml-4" placeholder="Enter your email address" />
-                                <combo-button @click="subscribeMe" label="Subscribe Me" color="primary" class="w-1/4 h-13 mr-2 shadow-lg cursor-pointer" />
-                            </div>
-                            <div v-if="state.subscriptionError" class="text-red-500 text-md font-bold bg-red-100 p-2">
-                                {{ state.subscriptionErrorMessage }}
-                            </div>
-                            <div class="text-md font-bold text-white mt-5">
-                                *We promise that we will not spam you.
-                            </div>
-                        </div>
-                        <div v-else-if="state.subscriptionStep && state.subscriptionStep === 2">
-                            <div class="text-3xl font-bold text-white text-center mt-10">
-                                Thank you for subscribing with us.
-                            </div>
-                            <div class="text-xl font-bold text-white text-center mt-5">
-                                We will keep you updated with the latest news and updates.
-                            </div>
-                        </div>
+                        Data Research Analysis makes the process of getting data insights easy  and simple, so you can make confident, lightning-fast decisions.
                     </div>
                 </div>
-                <div class="w-1/2 flex flex-col justify-center items-center">
+                <div class="w-1/2 flex flex-col justify-center items-center pb-10">
                     <div>
-                        <img src="/assets/images/platform.gif" class="w-3/4 border-5 border-white shadow-lg mt-10" />
+                        <img src="/assets/images/data-cloud-analytics.png" class="h-80 border-5 border-white shadow-lg mt-10" />
                     </div>                    
                 </div>
             </div>
+            <div class="hidden lg:flex lg:flex-col w-1/5 m-auto mt-10 pb-20">
+                 <NuxtLink to="/#join-wait-list">
+                    <combo-button label="Join Our Wait List" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" />
+                </NuxtLink>
+            </div>
         </div>
-        <img src="/blue-background-bottom.svg" class="w-full" />
     </div>
 </template>

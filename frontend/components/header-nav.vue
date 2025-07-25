@@ -32,32 +32,20 @@ onMounted(() => {
 </script>
 <template>
     <div class="relative bg-primary-blue-100 text-white h-10 lg:h-15 shadow-lg z-10" id="top">
-        <img src="/logo.svg" class="absolute top-0 -left-1 h-18 lg:h-20" />      
+        <img src="/logo-words.svg" class="absolute top-0 -left-1 h-18 lg:h-22 bg-black p-2 pl-5 pr-[130px] logo-fancy"/>
         <div class="absolute top-[5px] right-5 w-3/5 flex flex-row justify-end flex lg:hidden">
             <font-awesome icon="fas fa-bars" class="text-2xl cursor-pointer hover:text-gray-300" @click="openDrawer" />
         </div>
-        <div class="absolute lg:top-2 lg:right-10 lg:h-10 w-3/4 hidden lg:block">
+        <div class="absolute lg:top-2 lg:right-10 lg:h-10 hidden lg:block">
             <div v-if="!state.authenticated" class="flex flex-row justify-between items-center h-full">
-                <div class="flex flex-row items-center">
+                <div class="flex flex-row items-center -mt-2">
                     <div class="text-xl font-bold hover:text-gray-300 cursor-pointer">
-                        <NuxtLink to="/">Home</NuxtLink>
-                    </div>
-                    <div class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">
                         <NuxtLink to="/articles">Blog</NuxtLink>
-                    </div>
-                    <div class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">
-                        <NuxtLink to="/#about">About</NuxtLink>
-                    </div>
-                    <div class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">
-                        <NuxtLink to="/#features">Features</NuxtLink>
-                    </div>
-                    <div class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">
-                        <NuxtLink to="/#community">Community</NuxtLink>
                     </div>
                     <div v-if="isPlatformEnabled()">
                         <menu-dropdown>
                             <template #menuItem="{ onClick }">
-                                <div @click="onClick" class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">
+                                <div @click="onClick" class="text-xl font-bold ml-5 hover:text-gray-300 cursor-pointer">
                                     Platform
                                 </div>
                             </template>
@@ -67,6 +55,7 @@ onMounted(() => {
                                         <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer border-b-1 border-primary-blue-100 border-solid pt-1 pb-1">
                                             Register
                                         </div>
+                                        
                                     </NuxtLink>
                                     <NuxtLink to="/login">
                                         <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer pt-1 pb-1">
@@ -78,9 +67,16 @@ onMounted(() => {
                         </menu-dropdown>
                     </div>
                 </div>
-                <div class="flex flex-row mr-5">
-                    <font-awesome icon="fab fa-github-square" class="ml-5 text-4xl hover:text-gray-300 cursor-pointer" @click="openGithub()"/>
-                    <font-awesome icon="fab fa-linkedin" class="ml-5 text-4xl hover:text-gray-300 cursor-pointer" @click="openLinkedin()"/>
+                <div class="flex flex-row">
+                    <div class="flex flex-row mr-5">
+                        <font-awesome icon="fab fa-github-square" class="ml-5 text-4xl hover:text-gray-300 cursor-pointer" @click="openGithub()"/>
+                        <font-awesome icon="fab fa-linkedin" class="ml-5 text-4xl hover:text-gray-300 cursor-pointer" @click="openLinkedin()"/>
+                    </div>
+                    <div class="flex flex-row mr-5 hidden lg:block">
+                        <NuxtLink to="/#join-wait-list">
+                            <combo-button label="Join Our Wait List" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" />
+                        </NuxtLink>
+                    </div>
                 </div>
             </div>
             <div v-else class="flex flex-row items-center h-full" :class="{'justify-between': isUserAdmin, 'justify-end': !isUserAdmin}">

@@ -38,12 +38,12 @@ onMounted(() => {
 </script>
 <template>
     <div>
-        <img v-if="isHomePage" src="/blue-background-top.svg" class="w-full" />
         <div class="bg-primary-blue-100 w-full h-full text-white text-xl font-bold">
             <div class="flex flex-col justify-between h-full p-5">
+                <div class="w-full h-1 bg-white mb-5"></div>
                 <div class="flex flex-row">
                     <div class="w-1/2">
-                        <NuxtLink to="/" class="hover:text-gray-300 lg:ml-8">Data Research Analysis</NuxtLink>
+                        <div class="hover:text-gray-300 cursor-pointer" @click="openGithub()">Data Research Analysis is an open source data analysis platform developed under the MIT Open Source License.</div>
                     </div>
                     <div class="w-1/2 flex flex-row justify-end mr-8">
                         <div class="w-1/4 flex flex-col">
@@ -63,9 +63,7 @@ onMounted(() => {
                         </div>
                         
                     </div>
-                </div>
-                
-                <div class="w-full h-1 bg-white mb-5"></div>
+                </div>                
                 <div class="">
                     COPYRIGHT 2024 - 2025 Data Research Analysis (SMC-Private) Limited
                 </div>

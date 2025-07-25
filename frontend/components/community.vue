@@ -1,11 +1,11 @@
 <script setup>
 </script>
 <template>
-    <div class="flex flex-col">
+    <div class="flex flex-col pb-10">
         <div class="w-full h-full mt-10">
-            <div class="text-4xl text-black text-center font-bold">
+            <h1 class="text-primary-blue-100 text-center font-bold">
                 Join Our Community
-            </div>
+            </h1>
         </div>
         <div class="flex flex-col mb-10 lg:hidden">
             <div class="flex flex-row justify-center mt-10 cursor-pointer" @click="openGithub()">
