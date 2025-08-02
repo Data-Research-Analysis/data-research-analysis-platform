@@ -136,7 +136,7 @@ export class DataModelProcessor {
                 dataModelName = UtilityService.getInstance().uniquiseName(dataModelName);
                 const createTableQuery = `CREATE TABLE ${dataModelName} AS ${query}`;
                 await dbConnector.query(createTableQuery);
-                await manager.update(DRADataModel, {id: existingDataModel.id}, {schema: connection.schema, name: dataModelName, sql_query: query, query: JSON.parse(queryJSON)});
+                await manager.update(DRADataModel, {id: existingDataModel.id}, {schema: 'public', name: dataModelName, sql_query: query, query: JSON.parse(queryJSON)});
                 return resolve(true);
             } catch (error) {
                 console.log('error', error);
@@ -261,7 +261,6 @@ export class DataModelProcessor {
             if (!user) {
                 return resolve(false);
             }
-            let results = await dbConnector.query(query);
             try {
                 const results = await dbConnector.query(query);
                 return resolve(results);

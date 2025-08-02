@@ -3,16 +3,25 @@ const overlayRef = useTemplateRef('overlayRef');
 const state = reactive({
     top: '200px',
 });
+const props = defineProps({
+    enableScrolling: {
+        type: Boolean,
+        required: false,
+        default: true,
+    },
+});
 const emit = defineEmits(['close']);
 function close() {
     emit('close');
 }
 onMounted(() => {
     state.top = `${window.scrollY + 200}px`;
-    //keep the overlay in the same position when the user scrolls
-    document.addEventListener("scroll", () => {
-        state.top = `${window.scrollY + 200}px`;
-    })
+    if (props.enableScrolling) {
+        //keep the overlay in the same position when the user scrolls
+        document.addEventListener("scroll", () => {
+            state.top = `${window.scrollY + 200}px`;
+        })
+    }
 });
 </script>
 <template>

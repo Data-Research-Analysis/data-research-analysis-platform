@@ -724,6 +724,20 @@ onMounted(async () => {
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
                                                 />
+                                                <vertical-bar-chart
+                                                    v-if="chart.chart_type === 'vertical_bar_line'"
+                                                    :id="`chart-${chart.chart_id}`"
+                                                    :chart-id="`${chart.chart_id}`"
+                                                    :data="chart.data"
+                                                    :x-axis-label="chart.x_axis_label"
+                                                    :y-axis-label="chart.y_axis_label"
+                                                    :show-line-chart="true"
+                                                    :line-data="chart.data"
+                                                    line-color="#FF5733"
+                                                    class="mt-5"
+                                                    @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
+                                                    @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
+                                                />
                                             </div>
                                         </div>
                                     </template>

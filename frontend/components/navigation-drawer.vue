@@ -28,6 +28,9 @@ function closeDrawer() {
             </div>
             <div class="flex flex-col mt-20 ml-2">
                 <div class="text-xl font-bold hover:text-gray-300 cursor-pointer" @click="closeDrawer">
+                    <NuxtLink to="/">Home</NuxtLink>
+                </div>
+                <div class="text-xl font-bold mt-2 hover:text-gray-300 cursor-pointer" @click="closeDrawer">
                     <NuxtLink to="/articles">Blog</NuxtLink>
                 </div>
                 <div v-if="isPlatformEnabled()">
@@ -51,13 +54,11 @@ function closeDrawer() {
                 </div>
                 <div class="w-3/4 h-1 bg-white m-auto mt-5"></div>
                 <div class="flex flex-row mt-5">
-                    <font-awesome icon="fab fa-github-square" class="text-4xl hover:text-gray-300 cursor-pointer" @click="openGithub()"/>
-                    <font-awesome icon="fab fa-linkedin" class="ml-5 text-4xl hover:text-gray-300 cursor-pointer" @click="openLinkedin()"/>
+                    <font-awesome icon="fab fa-github-square" class="text-4xl hover:text-gray-300 cursor-pointer" @click="openGithub();closeDrawer();"/>
+                    <font-awesome icon="fab fa-linkedin" class="ml-5 text-4xl hover:text-gray-300 cursor-pointer" @click="openLinkedin();closeDrawer();"/>
                 </div>
                 <div class="flex flex-row mr-5 mt-5">
-                    <NuxtLink to="/#join-wait-list" @click="closeDrawer">
-                        <combo-button label="Join Our Wait List" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" />
-                    </NuxtLink>
+                    <combo-button label="Join Our Wait List" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" @click="gotoJoinWaitList();closeDrawer();"/>
                 </div>
             </div>
         </div>

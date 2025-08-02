@@ -1,10 +1,13 @@
 import type { IReCaptchaComposition } from "vue-recaptcha-v3";
-
 export function openGithub() {
     window.open("https://github.com/Data-Research-Analysis/data-research-analysis-platform", "_blank");
 }
 export function openLinkedin() {
     window.open("https://www.linkedin.com/company/data-research-analysis-smc-private-limited", "_blank");
+}
+export function gotoJoinWaitList() {
+    const router = useRouter();
+    router.push("/#join-wait-list");
 }
 export function baseUrl() {
     const config = useRuntimeConfig();
