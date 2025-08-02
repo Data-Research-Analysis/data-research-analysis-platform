@@ -111,9 +111,7 @@
                     <div class="flex flex-col lg:w-1/4 lg:pr-10 mb-10 lg:mb-0"></div>
                 </div>
                  <div class="flex flex-col w-3/5 lg:w-1/5 m-auto mb-10 lg:mt-20 pb-20">
-                    <NuxtLink to="/#join-wait-list">
-                        <combo-button label="Join Our Wait List" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" />
-                    </NuxtLink>
+                    <combo-button label="Join Our Wait List" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" @click="gotoJoinWaitList()"/>
                 </div>
             </div>
         </div>

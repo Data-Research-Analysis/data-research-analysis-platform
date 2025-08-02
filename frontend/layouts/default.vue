@@ -27,133 +27,126 @@ watch(
   route,
   async (value, oldValue) => {
     state.authenticated = isAuthenticated();
-    await projectsStore.retrieveProjects();
-    await dataSourceStore.retrieveDataSources();
-    await dataModelsStore.retrieveDataModels();
-    await dashboardsStore.retrieveDashboards();
-
-    if (projectsStore?.getSelectedProject()?.id) {
-        await dataModelsStore.retrieveDataModelTables(projectsStore?.getSelectedProject()?.id);
-    }
-    if (value?.params?.projectid) {
-        const projectId = parseInt(value.params.projectid);
-        projectsStore.clearSelectedProject();
-        const project = projectsStore.getProjects().find((project) => project.id === projectId);
-        if (project) {
-            projectsStore.setSelectedProject(project);
-        } else {
-            router.push(`/projects`);
-            return;
+    if (state.authenticated) {
+        await projectsStore.retrieveProjects();
+        await dataSourceStore.retrieveDataSources();
+        await dataModelsStore.retrieveDataModels();
+        await dashboardsStore.retrieveDashboards();
+        if (projectsStore?.getSelectedProject()?.id) {
+            await dataModelsStore.retrieveDataModelTables(projectsStore?.getSelectedProject()?.id);
         }
-        if (value?.params?.dashboardid) {
-            const dashboardId = parseInt(value.params.dashboardid);
-            const dashboard = dashboardsStore.getDashboards().find((dashboard) => dashboard.id === dashboardId);
-            dashboardsStore.clearSelectedDashboard();
-            if (dashboard) {
-                dashboardsStore.setSelectedDashboard(dashboard);
+        if (value?.params?.projectid) {
+            const projectId = parseInt(route.params.projectid);
+            projectsStore.clearSelectedProject();
+            const project = projectsStore.getProjects().find((project) => project.id === projectId);
+            if (project) {
+                projectsStore.setSelectedProject(project);
             } else {
-                router.push(`/dashboards`);
+                router.push(`/projects`);
                 return;
             }
+            if (value?.params?.dashboardid) {
+                const dashboardId = parseInt(route.params.dashboardid);
+                const dashboard = dashboardsStore.getDashboards().find((dashboard) => dashboard.id === dashboardId);
+                dashboardsStore.clearSelectedDashboard();
+                if (dashboard) {
+                    dashboardsStore.setSelectedDashboard(dashboard);
+                } else {
+                    router.push(`/dashboards`);
+                    return;
+                }
+            }
         }
-    }
-    console.log('route change', isUserAdmin.value);
-    if (isUserAdmin.value) {
-        await articlesStore.retrieveArticles();
-
+        if (isUserAdmin.value) {
+            await articlesStore.retrieveCategories();
+            await articlesStore.retrieveArticles();
+            if (route?.params?.articleid) {
+                const articleId = parseInt(route.params.articleid);
+                articlesStore.clearSelectedArticle();
+                const article = articlesStore.getArticles().find((article) => article.article.id === articleId);
+                if (article) {
+                    articlesStore.setSelectedArticle(article);
+                } else {
+                    router.push(`/admin/articles`);
+                    return;
+                }
+            }
+        }
     } else {
+        await articlesStore.retrieveCategories();
         await articlesStore.retrievePublicArticles();
-    }
-    await articlesStore.retrieveCategories();
-    if (value?.params?.articleid) {
-        const articleId = parseInt(value.params.articleid);
-        articlesStore.clearSelectedArticle();
-        const article = articlesStore.getArticles().find((article) => article.article.id === articleId);
-        if (article) {
-            articlesStore.setSelectedArticle(article);
-        } else {
-            router.push(`/admin/articles`);
-            return;
-        }
-    }
-    if (value?.params?.articleslug) {
-        const articleSlug = value.params.articleslug;
-        articlesStore.clearSelectedArticle();
-        console.log('default articleSlug', articleSlug);
-        const article = articlesStore.getArticles().find((article) => article.article.slug === articleSlug);
-        console.log('default article', article);
-        console.log('default articleId', article?.article?.id);
-        if (article) {
-            articlesStore.setSelectedArticle(article);
-        } else {
-            // router.push(`/articles`);
-            return;
+        if (value?.params?.articleslug) {
+            const articleSlug = route.params.articleslug;
+            articlesStore.clearSelectedArticle();
+            const article = articlesStore.getArticles().find((article) => article.article.slug === articleSlug);
+            if (article) {
+                articlesStore.setSelectedArticle(article);
+            } else {
+                return;
+            }
         }
     }
   },
 );
 onMounted(async () => {
     state.authenticated = isAuthenticated();
-    await projectsStore.retrieveProjects();
-    await dataSourceStore.retrieveDataSources();
-    await dataModelsStore.retrieveDataModels();
-    await dashboardsStore.retrieveDashboards();
-    if (projectsStore?.getSelectedProject()?.id) {
-        await dataModelsStore.retrieveDataModelTables(projectsStore?.getSelectedProject()?.id);
-    }
-    if (route?.params?.projectid) {
-        const projectId = parseInt(route.params.projectid);
-        projectsStore.clearSelectedProject();
-        const project = projectsStore.getProjects().find((project) => project.id === projectId);
-        if (project) {
-            projectsStore.setSelectedProject(project);
-        } else {
-            router.push(`/projects`);
-            return;
+    if (state.authenticated) {
+        await projectsStore.retrieveProjects();
+        await dataSourceStore.retrieveDataSources();
+        await dataModelsStore.retrieveDataModels();
+        await dashboardsStore.retrieveDashboards();
+        if (projectsStore?.getSelectedProject()?.id) {
+            await dataModelsStore.retrieveDataModelTables(projectsStore?.getSelectedProject()?.id);
         }
-        if (route?.params?.dashboardid) {
-            const dashboardId = parseInt(route.params.dashboardid);
-            const dashboard = dashboardsStore.getDashboards().find((dashboard) => dashboard.id === dashboardId);
-            dashboardsStore.clearSelectedDashboard();
-            if (dashboard) {
-                dashboardsStore.setSelectedDashboard(dashboard);
+        if (route?.params?.projectid) {
+            const projectId = parseInt(route.params.projectid);
+            projectsStore.clearSelectedProject();
+            const project = projectsStore.getProjects().find((project) => project.id === projectId);
+            if (project) {
+                projectsStore.setSelectedProject(project);
             } else {
-                router.push(`/dashboards`);
+                router.push(`/projects`);
                 return;
             }
+            if (route?.params?.dashboardid) {
+                const dashboardId = parseInt(route.params.dashboardid);
+                const dashboard = dashboardsStore.getDashboards().find((dashboard) => dashboard.id === dashboardId);
+                dashboardsStore.clearSelectedDashboard();
+                if (dashboard) {
+                    dashboardsStore.setSelectedDashboard(dashboard);
+                } else {
+                    router.push(`/dashboards`);
+                    return;
+                }
+            }
         }
-    }
-    if (isUserAdmin.value) {
-        await articlesStore.retrieveArticles();
+        if (isUserAdmin.value) {
+            await articlesStore.retrieveCategories();
+            await articlesStore.retrieveArticles();
+            if (route?.params?.articleid) {
+                const articleId = parseInt(route.params.articleid);
+                articlesStore.clearSelectedArticle();
+                const article = articlesStore.getArticles().find((article) => article.article.id === articleId);
+                if (article) {
+                    articlesStore.setSelectedArticle(article);
+                } else {
+                    router.push(`/admin/articles`);
+                    return;
+                }
+            }
+        }
     } else {
+        await articlesStore.retrieveCategories();
         await articlesStore.retrievePublicArticles();
-    }
-    await articlesStore.retrieveCategories();
-    console.log('articlesStore.getArticles()', articlesStore.getArticles());
-    if (route?.params?.articleid) {
-        const articleId = parseInt(route.params.articleid);
-        articlesStore.clearSelectedArticle();
-        const article = articlesStore.getArticles().find((article) => article.article.id === articleId);
-        if (article) {
-            articlesStore.setSelectedArticle(article);
-        } else {
-            router.push(`/admin/articles`);
-            return;
-        }
-    }
-    if (route?.params?.articleslug) {
-        const articleSlug = route.params.articleslug;
-        console.log('default articleSlug', articleSlug);
-
-        articlesStore.clearSelectedArticle();
-        const article = articlesStore.getArticles().find((article) => article.article.slug === articleSlug);
-        console.log('default article', article);
-        console.log('default articleId', article?.article?.id);
-        if (article) {
-            articlesStore.setSelectedArticle(article);
-        } else {
-            // router.push(`/articles`);
-            return;
+        if (route?.params?.articleslug) {
+            const articleSlug = route.params.articleslug;
+            articlesStore.clearSelectedArticle();
+            const article = articlesStore.getArticles().find((article) => article.article.slug === articleSlug);
+            if (article) {
+                articlesStore.setSelectedArticle(article);
+            } else {
+                return;
+            }
         }
     }
 })

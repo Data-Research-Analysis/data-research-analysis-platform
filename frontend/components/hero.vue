@@ -86,9 +86,7 @@ onMounted(async () => {
                     <img src="/assets/images/data-cloud-analytics.png" class="w-3/4 border-5 border-white shadow-lg shadow-lg mt-5" />
                 </div>
                 <div class="flex flex-col w-3/5 m-auto mt-10 pb-20">
-                    <NuxtLink to="/#join-wait-list">
-                        <combo-button label="Join Our Wait List" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" />
-                    </NuxtLink>
+                    <combo-button label="Join Our Wait List" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" @click="gotoJoinWaitList()"/>
                 </div>
             </div>
             
@@ -108,9 +106,7 @@ onMounted(async () => {
                 </div>
             </div>
             <div class="hidden lg:flex lg:flex-col w-1/5 m-auto mt-10 pb-20">
-                 <NuxtLink to="/#join-wait-list">
-                    <combo-button label="Join Our Wait List" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" />
-                </NuxtLink>
+                <combo-button label="Join Our Wait List" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" @click="gotoJoinWaitList()"/>
             </div>
         </div>
     </div>

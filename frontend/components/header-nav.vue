@@ -40,6 +40,9 @@ onMounted(() => {
             <div v-if="!state.authenticated" class="flex flex-row justify-between items-center h-full">
                 <div class="flex flex-row items-center -mt-2">
                     <div class="text-xl font-bold hover:text-gray-300 cursor-pointer">
+                        <NuxtLink to="/">Home</NuxtLink>
+                    </div>
+                    <div class="text-xl font-bold hover:text-gray-300 cursor-pointer ml-5">
                         <NuxtLink to="/articles">Blog</NuxtLink>
                     </div>
                     <div v-if="isPlatformEnabled()">
@@ -73,18 +76,16 @@ onMounted(() => {
                         <font-awesome icon="fab fa-linkedin" class="ml-5 text-4xl hover:text-gray-300 cursor-pointer" @click="openLinkedin()"/>
                     </div>
                     <div class="flex flex-row mr-5 hidden lg:block">
-                        <NuxtLink to="/#join-wait-list">
-                            <combo-button label="Join Our Wait List" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" />
-                        </NuxtLink>
+                        <combo-button label="Join Our Wait List" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" @click="gotoJoinWaitList()"/>
                     </div>
                 </div>
             </div>
             <div v-else class="flex flex-row items-center h-full" :class="{'justify-between': isUserAdmin, 'justify-end': !isUserAdmin}">
                 <div v-if="isUserAdmin" class="flex flex-row justify-start">
-                    <div class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">
+                    <div class="text-xl font-bold hover:text-gray-300 cursor-pointer">
                         <NuxtLink to="/admin">Admin</NuxtLink>
                     </div>
-                    <div class="text-xl font-bold ml-12 hover:text-gray-300 cursor-pointer">
+                    <div class="text-xl font-bold ml-5 mr-5 hover:text-gray-300 cursor-pointer">
                         <NuxtLink to="/projects">Projects</NuxtLink>
                     </div>
                 </div>

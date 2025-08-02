@@ -137,7 +137,6 @@ function buildSQLQuery(chart) {
     sqlQuery = `SELECT ${chart.columns.map((column) => {
         return `${column.column_name}`;
     }).join(', ')}`;
-    
     sqlQuery += ` ${fromJoinClause.join(' ')}`;    
     return sqlQuery;
 }
@@ -153,6 +152,7 @@ async function executeQueryOnDataModels(chartId) {
             chart_id: chartId,
             sql_query: buildSQLQuery(chart)
         });
+        console.log('executeQueryOnDataModels state.sql_queries', state.sql_queries);
         for (let i=0; i< state.sql_queries.length; i++) {
             const sqlQuery = state.sql_queries[i].sql_query;
             const token = getAuthToken();
@@ -169,6 +169,7 @@ async function executeQueryOnDataModels(chartId) {
                 })
             });
             const data = await response.json();
+            console.log('executeQueryOnDataModels data', data);   
             state.response_from_data_models_rows = data;
             const labelValues = [];
             const numericValues = [];
@@ -180,7 +181,8 @@ async function executeQueryOnDataModels(chartId) {
                         column.data_type.includes('character') ||
                         column.data_type.includes('char') ||
                         column.data_type.includes('bpchar') ||
-                        column.data_type.includes('text')
+                        column.data_type.includes('text') ||
+                        column.data_type.includes('USER-DEFINED')
 
                     ) {
                         labelValues.push(row[column.column_name]); 
@@ -200,14 +202,17 @@ async function executeQueryOnDataModels(chartId) {
                     }
                 });
             });
+            console.log('executeQueryOnDataModels labelValues', labelValues, 'numericValues', numericValues);
             labelValues.forEach((label, index) => {
+                console.log('executeQueryOnDataModels labelValues', label, 'value', numericValues[index]);
                 chart.data.push({
                      label: label,
                      value: numericValues[index],
                  });
             });
         }
-    }    
+    }
+    console.log('executeQueryOnDataModels state.dashboard.charts', state.dashboard.charts);
 }
 async function saveDashboard() {
     const token = getAuthToken();
@@ -686,6 +691,20 @@ onMounted(async () => {
                                                     :data="chart.data"
                                                     :x-axis-label="chart.x_axis_label"
                                                     :y-axis-label="chart.y_axis_label"
+                                                    class="mt-5"
+                                                    @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
+                                                    @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
+                                                />
+                                                <vertical-bar-chart
+                                                    v-if="chart.chart_type === 'vertical_bar_line'"
+                                                    :id="`chart-${chart.chart_id}`"
+                                                    :chart-id="`${chart.chart_id}`"
+                                                    :data="chart.data"
+                                                    :x-axis-label="chart.x_axis_label"
+                                                    :y-axis-label="chart.y_axis_label"
+                                                    :show-line-chart="true"
+                                                    :line-data="chart.data"
+                                                    line-color="#FF5733"
                                                     class="mt-5"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"

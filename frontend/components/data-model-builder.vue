@@ -5,6 +5,7 @@ const route = useRoute();
 const router = useRouter();
 const state = reactive({
     show_dialog: false,
+    show_calculated_column_dialog: false,
     tables: [],
     data_table: {
         table_name: 'data_model_table',
@@ -15,7 +16,8 @@ const state = reactive({
             order_by: [],
             offset: -1,
             limit: -1,
-        }
+        },
+        calculated_columns: [],
     },
     loading: false,
     query_options: [
@@ -39,9 +41,11 @@ const state = reactive({
     condition: ['AND', 'OR'],
     order: ['ASC', 'DESC'],
     aggregate_functions: ['SUM', 'AVG', 'COUNT', 'MIN', 'MAX'],
+    add_column_operators: ['ADD', 'SUBTRACT', 'MULTIPLY', 'DIVIDE','MODULO'],
     sql_query: '',
     response_from_external_data_source_columns: [],
     response_from_external_data_source_rows: [],
+    calculated_column: {},
 });
 const props = defineProps({
     dataModel: {
@@ -75,11 +79,21 @@ const showDataModelControls = computed(() => {
 const saveButtonEnabled = computed(() => {
     return state && state.data_table && state.data_table.columns && state.data_table.columns.filter((column) => column.is_selected_column).length > 0;
 })
+const numericColumns = computed(() => {
+    console.log('numericColumns state.data_table.query_options.group_by.aggregate_functions', state.data_table.query_options.group_by.aggregate_functions);
+    return [...state.data_table.columns.filter((column) => getDataType(column.data_type) === 'NUMBER').map((column) => {
+        return {
+            schema: column.schema,
+            table_name: column.table_name,
+            column_name: column.column_name,
+        }
+    })];
+})
 watch(() => state.data_table.query_options, async (value) => {
     await executeQueryOnExternalDataSource();
 }, { deep: true });
 watch(() => state.data_table.query_options.group_by, async (value) => {
-    state.data_table.query_options.group_by.aggregate_functions.forEach((aggregate_function) => {
+    state?.data_table?.query_options?.group_by?.aggregate_functions?.forEach((aggregate_function) => {
         aggregate_function.column_alias_name = aggregate_function.column_alias_name.replace(/\s/g,'_').toLowerCase();
     });
     await executeQueryOnExternalDataSource();
@@ -94,6 +108,13 @@ watch(() => state.data_table.columns, async (value) => {
         column.alias_name = column.alias_name.replace(/\s/g,'_').toLowerCase();
     });
     await executeQueryOnExternalDataSource();
+}, { deep: true });
+watch(() => state.calculated_column.column_name, (value) => {
+    //keep the calculated column name to maximum length of 20 characters
+    state.calculated_column.column_name = value.substring(0, 20).replace(/\s/g,'_').toLowerCase();
+}, { deep: true });
+watch(() => state.data_table.calculated_columns, async (value) => {
+    // buildCalculatedColumn();
 }, { deep: true });
 function getColumValue(value, dataType) {
     if (getDataType(dataType) === 'NUMBER' || getDataType(dataType) === 'BOOLEAN') {
@@ -164,17 +185,33 @@ function openDialog() {
 function closeDialog() {
     state.show_dialog = false;
 }
+function openCalculatedColumnDialog() {
+    state.show_calculated_column_dialog = true;
+    state.calculated_column = {
+        column_name: '',
+        columns: [
+            {
+                column_name: '',
+                operator: null, //the first operator will always be null
+            },
+        ],
+        column_data_type: 'Number', // The calculated field will only have a number data type. The actual data type will be determined by the expression used and the data types of the columns used in the expression.
+    };
+}
+function closeCalculatedColumnDialog() {
+    state.show_calculated_column_dialog = false;
+}
 async function changeDataModel(event) {
     state.data_table.columns = state.data_table.columns.filter((column) => {
          //Remove the foreign key column. Do not allow to columns that are foreign keys in the referenced table
-        // if (event?.added?.element?.reference?.foreign_table_schema && event?.added?.element?.reference?.local_table_name === column?.table_name && event?.added?.element?.reference?.local_column_name === column?.column_name) {
-        //     $swal.fire({
-        //         icon: 'error',
-        //         title: `Error!`,
-        //         text: `The column can not be added to the data model.`,
-        //     });
-        //     return false
-        // }
+        if (event?.added?.element?.reference?.foreign_table_schema && event?.added?.element?.reference?.local_table_name === column?.table_name && event?.added?.element?.reference?.local_column_name === column?.column_name) {
+            $swal.fire({
+                icon: 'error',
+                title: `Error!`,
+                text: `The column can not be added to the data model.`,
+            });
+            return false
+        }
         //remove duplicate columns
         if (state.data_table.columns.filter((c) => c.column_name === column.column_name && c.table_name === column.table_name).length > 1) {
             return false;
@@ -278,6 +315,80 @@ function removeQueryOption(queryOption, index) {
         state.data_table.query_options.limit = -1;
     }
 }
+function addCalculatedColumnOperation() {
+    state.calculated_column.columns.push({
+        column_name: '',
+        operator: null, //the first operator will always be null
+    });
+}
+function deleteCalculatedColumnOperation(index) {
+    if (state.calculated_column.columns.length > 1) {
+        state.calculated_column.columns.splice(index, 1);
+    } else {
+        $swal.fire({
+            icon: 'error',
+            title: `Error!`,
+            text: `You must have at least one calculated column operation.`,
+        });
+    }
+}
+async function addCalculatedColumn() {
+    if (state.calculated_column.column_name === '') {
+        $swal.fire({
+            icon: 'error',
+            title: `Error!`,
+            text: `Please enter a name for the calculated column.`,
+        });
+        return;
+    }
+    if (state.calculated_column.columns.length === 0 || state.calculated_column.columns.filter((column) => column.column_name === '').length > 0) {
+        $swal.fire({
+            icon: 'error',
+            title: `Error!`,
+            text: `Please select at least one column to the calculated column.`,
+        });
+        return;
+    }
+    if (state.calculated_column.columns.length === 0 || state.calculated_column.columns.filter((column, index) => index > 0 && column.operator === null).length > 0) {
+        $swal.fire({
+            icon: 'error',
+            title: `Error!`,
+            text: `Please select at least one operator to the calculated column.`,
+        });
+        return;
+    }
+    let expression = "";
+    for (let i=0; i<state.calculated_column.columns.length; i++) {
+        const column = state.calculated_column.columns[i];
+        const operator = column.operator;
+        if (i === 0) {
+            //the first operator will always be null, so we skip it
+            expression += `${column.column_name}`;
+        } else {
+            if (operator === 'ADD') {
+                expression += ` + ${column.column_name}`;
+            } else if (operator === 'SUBTRACT') {
+                expression += ` - ${column.column_name}`;
+            } else if (operator === 'MULTIPLY') {
+                expression += ` * ${column.column_name}`;
+            } else if (operator === 'DIVIDE') {
+                expression += ` / ${column.column_name}`;
+            } else if (operator === 'MODULO') {
+                expression += ` % ${column.column_name}`;
+            }
+        }
+    }
+    state.data_table.calculated_columns.push({
+        column_name: state.calculated_column.column_name,
+        expression: `ROUND(${expression}, 2)`,
+    });
+    state.show_calculated_column_dialog = false;
+    await executeQueryOnExternalDataSource();
+}
+async function deleteCalculatedColumn(index) {
+    state.data_table.calculated_columns.splice(index, 1);
+    await executeQueryOnExternalDataSource();
+}
 function buildSQLQuery() {
     let sqlQuery = '';
     let fromJoinClause = [];
@@ -340,6 +451,8 @@ function buildSQLQuery() {
             } else {
                 if (!fromJoinClause.includes(`FROM ${clause.local_table_schema}.${clause.local_table_name}`) && !fromJoinClause.includes(`JOIN ${clause.local_table_schema}.${clause.local_table_name}`)) {
                     fromJoinClause.push(`JOIN ${clause.local_table_schema}.${clause.local_table_name}`)
+                } else if (!fromJoinClause.includes(`FROM ${clause.foreign_table_schema}.${clause.foreign_table_name}`) && !fromJoinClause.includes(`JOIN ${clause.foreign_table_schema}.${clause.foreign_table_name}`)) {
+                    fromJoinClause.push(`JOIN ${clause.foreign_table_schema}.${clause.foreign_table_name}`)
                 }
                 if (index > 0 && fromJoinClause[fromJoinClause.length - 1].includes(`ON ${clause.local_table_schema}.${clause.local_table_name}`)) {
                     if (!fromJoinClause.includes(`ON ${clause.local_table_schema}.${clause.local_table_name}.${clause.local_column_name} = ${clause.foreign_table_schema}.${clause.foreign_table_name}.${clause.foreign_column_name}`)) {
@@ -357,6 +470,12 @@ function buildSQLQuery() {
             const aliasName = column?.alias_name !== '' ? column.alias_name : `${column.schema}_${column.table_name}_${column.column_name}`;
             return `${column.schema}.${column.table_name}.${column.column_name} AS ${aliasName}`;
         }).join(', ')}`;
+    
+        if (state?.data_table?.calculated_columns?.length) {
+            state.data_table.calculated_columns.forEach((column) => {
+                sqlQuery += `, ${column.expression} AS ${column.column_name}`;
+            })
+        }
     }
 
     state?.data_table?.query_options?.group_by?.aggregate_functions?.forEach((aggregate_function) => {
@@ -473,6 +592,7 @@ async function saveDataModel() {
     }
 }
 async function executeQueryOnExternalDataSource() {
+    console.log('data_table', state.data_table);
     state.response_from_external_data_source_columns = [];
     state.response_from_external_data_source_rows = [];
     state.sql_query = buildSQLQuery();
@@ -573,6 +693,8 @@ onMounted(async () => {
                                         'bg-gray-200': !element.reference.foreign_table_schema ? index % 2 === 0 : false,
                                         'bg-red-100 border-t-1 border-b-1 border-red-300': isColumnInDataModel(element.column_name, table.table_name),
                                         'hover:bg-green-100': !isColumnInDataModel(element.column_name, table.table_name),
+                                        'bg-red-200': element.reference.foreign_table_schema,
+
                                     }"
                                 >
                                     Column: <strong>{{ element.column_name }}</strong><br />
@@ -638,6 +760,21 @@ onMounted(async () => {
                             </template>
                             <template #footer>
                                 <div class="p-5">
+                                    <h2 v-if="state.data_table.calculated_columns.length">Calculated Fields</h2>
+                                    <div v-for="(calculated_column, index) in state.data_table.calculated_columns" class="flex flex-row justify-between">
+                                        <div class="flex flex-col w-full mr-2">
+                                            <h5 class="font-bold mb-2">Calculated Column Name</h5>
+                                            <input type="text" class="w-full border border-primary-blue-100 border-solid p-2" placeholder="Enter Calculated Column Name" v-model="calculated_column.column_name" disabled/>
+                                            <div class="flex flex-col mt-2">
+                                                <h5 class="font-bold mb-2">Expression</h5>
+                                                <input type="text" class="w-full border border-primary-blue-100 border-solid p-2" placeholder="Enter Expression" v-model="calculated_column.expression" disabled/>
+                                            </div>
+                                        </div>
+                                        <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 mt-8 p-5 cursor-pointer text-white font-bold" @click="deleteCalculatedColumn(index)">
+                                            Delete
+                                        </div>
+
+                                    </div>
                                     <div v-if="showWhereClause" class="w-full flex flex-col mt-5">
                                         <h3 class="font-bold mb-2">Where</h3>
                                         <div class="flex flex-col bg-gray-100 p-5">
@@ -664,11 +801,11 @@ onMounted(async () => {
                                                     <h5 class="font-bold mb-2">Value</h5>
                                                     <input type="text" class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="clause.value" />
                                                 </div>
-                                                <div class="items-center self-center text-2xl text-red-500 hover:text-red-200 cursor-pointer mt-5 select-none" @click="removeQueryOption('WHERE', index)">
-                                                    <font-awesome icon="fas fa-minus"/>
+                                                <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold mt-8" @click="removeQueryOption('WHERE', index)">
+                                                    Delete
                                                 </div>
-                                                <div v-if="index === state.data_table.query_options.where.length - 1" class="items-center self-center text-2xl text-blue-500 hover:text-blue-200 cursor-pointer mt-5 select-none" @click="addQueryOption('WHERE')">
-                                                    <font-awesome icon="fas fa-plus"/>
+                                                <div v-if="index === state.data_table.query_options.where.length - 1" class="bg-blue-500 hover:bg-blue-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold mt-8" @click="addQueryOption('WHERE')">
+                                                    Add
                                                 </div>
                                             </div>
                                         </div>
@@ -700,7 +837,7 @@ onMounted(async () => {
                                                         <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold" @click="removeQueryOption('GROUP BY', index)">
                                                             Delete
                                                         </div>
-                                                        <div  v-if="index === state.data_table.query_options.group_by.aggregate_functions.length - 1" class="bg-blue-500 hover:bg-blue-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold" @click="addQueryOption('GROUP BY')">
+                                                        <div v-if="index === state.data_table.query_options.group_by.aggregate_functions.length - 1" class="bg-blue-500 hover:bg-blue-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold" @click="addQueryOption('GROUP BY')">
                                                             Add
                                                         </div>
                                                     </div>
@@ -711,7 +848,7 @@ onMounted(async () => {
                                             <div v-for="(clause, index) in state.data_table.query_options.group_by.having_conditions">
                                                 <div class="flex flex-col">
                                                     <div class="flex flex-row justify-between">
-                                                        <div class="flex flex-col w-full mr-2">
+                                                        <div v-if="index > 0" class="flex flex-col w-full mr-2">
                                                             <h5 class="font-bold mb-2">Condition</h5>
                                                             <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="clause.condition">
                                                                 <option v-for="(condition, index) in state.condition" :key="index" :value="index">{{ condition }}</option>
@@ -762,11 +899,11 @@ onMounted(async () => {
                                                         <option v-for="(order, index) in state.order" :key="index" :value="index">{{ order }}</option>
                                                     </select>
                                                 </div>
-                                                <div class="items-center self-center text-2xl text-red-500 hover:text-red-200 cursor-pointer mt-5 select-none" @click="removeQueryOption('ORDER BY', index)">
-                                                    <font-awesome icon="fas fa-minus"/>
+                                                <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold mt-8" @click="removeQueryOption('ORDER BY', index)">
+                                                    Delete
                                                 </div>
-                                                <div v-if="index === state.data_table.query_options.order_by.length - 1" class="items-center self-center text-2xl text-blue-500 hover:text-blue-200 cursor-pointer mt-5 select-none" @click="addQueryOption('ORDER BY')">
-                                                    <font-awesome icon="fas fa-plus"/>
+                                                <div v-if="index === state.data_table.query_options.order_by.length - 1" class="bg-blue-500 hover:bg-blue-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold mt-8" @click="addQueryOption('ORDER BY')">
+                                                    Add
                                                 </div>
                                             </div>
                                         </div>
@@ -779,8 +916,8 @@ onMounted(async () => {
                                                     <h5 class="font-bold mb-2">Value</h5>
                                                     <div class="flex flex-row justify-between">
                                                         <input type="number" class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="state.data_table.query_options.offset" min="0" />
-                                                        <div class="items-center self-center text-2xl text-red-500 hover:text-red-200 cursor-pointer ml-2 select-none" @click="removeQueryOption('OFFSET', 0)">
-                                                            <font-awesome icon="fas fa-minus"/>
+                                                        <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center ml-2 mr-2 p-5 cursor-pointer text-white font-bold" @click="removeQueryOption('OFFSET', 0)">
+                                                            Delete
                                                         </div>
                                                     </div>
                                                 </div>
@@ -795,8 +932,8 @@ onMounted(async () => {
                                                     <h5 class="font-bold mb-2">Value</h5>
                                                     <div class="flex flex-row justify-between">
                                                         <input type="number" class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="state.data_table.query_options.limit" min="0" />
-                                                        <div class="items-center self-center text-2xl text-red-500 hover:text-red-200 cursor-pointer ml-2 select-none" @click="removeQueryOption('LIMIT', 0)">
-                                                            <font-awesome icon="fas fa-minus"/>
+                                                        <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center ml-2 mr-2 p-5 cursor-pointer text-white font-bold" @click="removeQueryOption('LIMIT', 0)">
+                                                            Delete
                                                         </div>
                                                     </div>
                                                 </div>
@@ -806,7 +943,9 @@ onMounted(async () => {
                                     <div v-if="showDataModelControls" class="w-full border border-gray-400 border-dashed h-15 flex items-center justify-center mb-5 cursor-pointer mt-5 hover:bg-gray-100 font-bold" @click="openDialog">
                                         + Add Query Clause (for example: where, group by, order by)
                                     </div>
-                                    
+                                    <div v-if="showDataModelControls" class="w-full border border-gray-400 border-dashed h-15 flex items-center justify-center mb-5 cursor-pointer mt-5 hover:bg-gray-100 font-bold" @click="openCalculatedColumnDialog">
+                                        + Add Calculated Column/Field
+                                    </div>
                                     <template v-if="showDataModelControls && saveButtonEnabled">
                                         <div
                                             v-if="showDataModelControls"
@@ -836,6 +975,42 @@ onMounted(async () => {
                             {{ queryOption.name }}
                         </div>
                     </template>
+                </div>
+            </template>
+        </overlay-dialog>
+        <overlay-dialog v-if="state.show_calculated_column_dialog" :enable-scrolling="false" @close="closeCalculatedColumnDialog">
+            <template #overlay>
+                <div class="flex flex-col w-150 border border-primary-blue-100 border-solid p-5">
+                    <h5 class="font-bold mb-2">Column Name</h5>
+                    <input type="text" class="w-full border border-primary-blue-100 border-solid p-2" v-model="state.calculated_column.column_name" />
+                    <h5 class="font-bold mb-2 mt-2">Operations<font-awesome icon="fas fa-circle-info" class="text-lg text-black cursor-pointer ml-1" :v-tippy-content="'You can only select columns from the data model and not any other table.'"/></h5>
+                    <div v-for="(column, index) in state.calculated_column.columns">
+                        <div v-if="index > 0" class="flex flex-col w-full mr-2">
+                            <h5 class="font-bold mb-2">Operator</h5>
+                            <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="column.operator">
+                                <option v-for="(operator, index) in state.add_column_operators" :key="index" :value="operator">{{ operator }}</option>
+                            </select>
+                        </div>
+                        <div class="flex flex-col w-full mr-2">
+                            <h5 class="font-bold mb-2">Column</h5>
+                            <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="column.column_name">
+                                <option v-for="(column, index) in numericColumns" :key="index" :value="`${column.schema}.${column.table_name}.${column.column_name}`">{{column.schema}}.{{column.table_name}}.{{ column.column_name }} {{ column.data_type }}</option>
+                            </select>
+                        </div>
+                        
+                        <div class="flex flex-row">
+                            <div v-if="index > 0" class="flex flex-row justify-center w-full bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white text-center font-bold mt-8" @click="deleteCalculatedColumnOperation(index)">
+                                Delete Column
+                            </div>
+                            <div v-if="index === state.calculated_column.columns.length - 1" class="flex flex-row justify-center w-full bg-blue-500 hover:bg-blue-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white text-center font-bold mt-8" @click="addCalculatedColumnOperation">
+                                Add Column
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-row justify-center w-50 h-10 bg-primary-blue-100 hover:bg-primary-blue-300 items-center self-center mt-2 p-5 cursor-pointer text-white text-sm text-center font-bold select-none" @click="addCalculatedColumn">
+                        Add Calulated Column
+                    </div>
                 </div>
             </template>
         </overlay-dialog>

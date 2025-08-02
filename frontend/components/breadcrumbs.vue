@@ -52,8 +52,8 @@ onMounted(() => {
 })
 </script>
 <template>
-    <div class="grid grid-cols-3 md:flex md:flex-row bg-primary-blue-100 p-1">
-        <span v-for="(path, index) in state.paths" class="text-md lg:text-lg text-white capitalize mt-5" :key="path.path">
+    <div class="grid grid-cols-3 md:flex md:flex-row bg-primary-blue-100 p-1 h-20">
+        <span v-for="(path, index) in state.paths" class="text-md lg:text-lg text-white capitalize mt-10" :key="path.path">
              &nbsp; <NuxtLink :to="path.url" class="font-bold hover:text-gray-300">{{ path.breadCrumbText }}</NuxtLink> &nbsp; <template v-if="index < state.paths.length - 1">/</template>
         </span>
 

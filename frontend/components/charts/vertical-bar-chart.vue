@@ -32,6 +32,18 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  showLineChart: {
+    type: Boolean,
+    default: false,
+  },
+  lineData: {
+    type: Array,
+    default: () => [],
+  },
+  lineColor: {
+    type: String,
+    default: '#ff6b6b',
+  },
 });
 
 function deleteSVGs() {
@@ -109,6 +121,43 @@ function renderSVG(chartData) {
       $d3.select(this).attr('fill', color(d.label));
     });
 
+  // Line chart overlay (conditional)
+  if (props.showLineChart) {
+    const lineData = props.lineData.length > 0 ? props.lineData : chartData;
+    
+    // Create line generator
+    const line = $d3.line()
+      .x(d => x(d.label) + x.bandwidth() / 2) // Center line on bars
+      .y(d => y(d.value))
+      .curve($d3.curveMonotoneX);
+
+    // Add line path
+    svg.append('path')
+      .datum(lineData)
+      .attr('fill', 'none')
+      .attr('stroke', props.lineColor)
+      .attr('stroke-width', 3)
+      .attr('d', line);
+
+    // Add data points
+    svg.selectAll('.line-point')
+      .data(lineData)
+      .join('circle')
+      .attr('class', 'line-point')
+      .attr('cx', d => x(d.label) + x.bandwidth() / 2)
+      .attr('cy', d => y(d.value))
+      .attr('r', 4)
+      .attr('fill', props.lineColor)
+      .attr('stroke', '#fff')
+      .attr('stroke-width', 2)
+      .on('mouseover', function (event, d) {
+        $d3.select(this).attr('r', 6);
+      })
+      .on('mouseout', function (event, d) {
+        $d3.select(this).attr('r', 4);
+      });
+  }
+
   // Y axis title as input
     svg.append('foreignObject')
       .attr('transform', 'rotate(-90)')
@@ -163,7 +212,7 @@ onMounted(() => {
   renderChart(props.data);
 });
 
-watch(() => [props.data, props.width, props.height], () => {
+watch(() => [props.data, props.width, props.height, props.showLineChart, props.lineData], () => {
   nextTick(() => renderChart(props.data));
 });
 </script>

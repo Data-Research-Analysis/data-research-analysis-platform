@@ -61,6 +61,7 @@ export class DataSourceProcessor {
                 if (!dbConnector) {
                     return resolve(null);
                 }
+                return resolve(dbConnector);
             } catch (error) {
                 console.log('Error connecting to external DB', error);
                 return resolve(null);
@@ -363,7 +364,7 @@ export class DataSourceProcessor {
                 const createTableQuery = `CREATE TABLE ${dataModelName} AS ${query}`;
                 await dbConnector.query(createTableQuery);
                 const dataModel = new DRADataModel();
-                dataModel.schema = connection.schema;
+                dataModel.schema = 'public';
                 dataModel.name = dataModelName;
                 dataModel.sql_query = query;
                 dataModel.query = JSON.parse(queryJSON);
