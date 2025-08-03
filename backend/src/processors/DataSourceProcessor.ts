@@ -116,8 +116,12 @@ export class DataSourceProcessor {
             if (!dataSource) {
                 return resolve(false);
             }
-            //TODO: delete all of the data models contained in the data source
+            const dataModel = await manager.findOne(DRADataModel, {where: {data_source: dataSource, users_platform: user}});
+            if (!dataModel) {
+                return resolve(false);
+            }
             //TODO: delete all of the visualizations contained in all of the related data models
+            await manager.remove(dataModel);
             await manager.remove(dataSource);
             return resolve(true);
         });

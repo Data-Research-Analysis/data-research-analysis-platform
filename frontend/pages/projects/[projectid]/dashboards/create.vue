@@ -9,7 +9,6 @@ const route = useRoute();
 const router = useRouter();
 const state = reactive({
     data_model_tables: [],
-    sql_queries: [],
     chart_mode: 'table',//table, pie, vertical_bar, horizontal_bar, vertical_bar_line, stacked_bar, multiline, heatmap, bubble, map
     response_from_data_models_columns: [],
     response_from_data_models_rows: [],
@@ -36,6 +35,7 @@ const state = reactive({
     previous_deltay: 0,
     scaleWidth: 1,
     scaleHeight: 1,
+    show_table_dialog: false,
  });
 const project = computed(() => {
     return projectsStore.getSelectedProject();
@@ -53,8 +53,9 @@ async function changeDataModel(event, chartId) {
         } else {
             return true;
         }
-    });    
+    });
     await executeQueryOnDataModels(chartId);
+    console.log('changeDataModel state.dashboard', state.dashboard);
 }
 async function updateDataModel(action, data) {
     if (action === 'add') {
@@ -141,78 +142,78 @@ function buildSQLQuery(chart) {
     return sqlQuery;
 }
 async function executeQueryOnDataModels(chartId) {
+    console.log('executeQueryOnDataModels chartId', chartId);
     state.response_from_data_models_columns = [];
     state.response_from_data_models_rows = [];
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId)
+    console.log('executeQueryOnDataModels chart', chart);
     if (chart) {
-        //remove existing sql query
         chart.data = [];
-        state.sql_queries = state.sql_queries.filter((query) => query.chart_id !== chartId);
-        state.sql_queries.push({
-            chart_id: chartId,
-            sql_query: buildSQLQuery(chart)
+        chart.sql_query = buildSQLQuery(chart);
+        const sqlQuery = chart.sql_query;
+        const token = getAuthToken();
+        const url = `${baseUrl()}/data-model/execute-query-on-data-model`;
+        const response = await fetch(url, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`,
+                "Authorization-Type": "auth",
+            },
+            body: JSON.stringify({
+                query: sqlQuery
+            })
         });
-        console.log('executeQueryOnDataModels state.sql_queries', state.sql_queries);
-        for (let i=0; i< state.sql_queries.length; i++) {
-            const sqlQuery = state.sql_queries[i].sql_query;
-            const token = getAuthToken();
-            const url = `${baseUrl()}/data-model/execute-query-on-data-model`;
-            const response = await fetch(url, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${token}`,
-                    "Authorization-Type": "auth",
-                },
-                body: JSON.stringify({
-                    query: sqlQuery
-                })
-            });
-            const data = await response.json();
-            console.log('executeQueryOnDataModels data', data);   
-            state.response_from_data_models_rows = data;
-            const labelValues = [];
-            const numericValues = [];
-            state.response_from_data_models_rows.forEach((row) =>{
-                const columns_data_types = chart.columns.filter((column) => Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
-                columns_data_types.forEach((column) => {
-                    if (column.data_type.includes('character varying') ||
-                        column.data_type.includes('varchar') ||
-                        column.data_type.includes('character') ||
-                        column.data_type.includes('char') ||
-                        column.data_type.includes('bpchar') ||
-                        column.data_type.includes('text') ||
-                        column.data_type.includes('USER-DEFINED')
+        const data = await response.json();
+        state.response_from_data_models_rows = data;
+        const labelValues = [];
+        const numericValues = [];
+        state.response_from_data_models_rows.forEach((row) =>{
+            console.log('row', row);
+            const columns_data_types = chart.columns.filter((column) => Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
+            columns_data_types.forEach((column) => {
+                console.log('column', column);
+                console.log('row[column.column_name]', row[column.column_name]);
+                if (column.data_type.includes('character varying') ||
+                    column.data_type.includes('varchar') ||
+                    column.data_type.includes('character') ||
+                    column.data_type.includes('char') ||
+                    column.data_type.includes('bpchar') ||
+                    column.data_type.includes('text') ||
+                    column.data_type.includes('USER-DEFINED')
 
+                ) {
+                    labelValues.push(row[column.column_name]); 
+                } else if (
+                        column.data_type === 'smallint' ||
+                        column.data_type === 'bigint'  ||
+                        column.data_type === 'integer' ||
+                        column.data_type === 'numeric' ||
+                        column.data_type === 'decimal' || 
+                        column.data_type === 'real' ||
+                        column.data_types === 'double precision' ||
+                        column.data_types === 'small serial' ||
+                        column.data_types === 'serial' ||
+                        column.data_types === 'bigserial'
                     ) {
-                        labelValues.push(row[column.column_name]); 
-                    } else if (
-                            column.data_type === 'smallint' ||
-                            column.data_type === 'bigint'  ||
-                            column.data_type === 'integer' ||
-                            column.data_type === 'numeric' ||
-                            column.data_type === 'decimal' || 
-                            column.data_type === 'real' ||
-                            column.data_types === 'double precision' ||
-                            column.data_types === 'small serial' ||
-                            column.data_types === 'serial' ||
-                            column.data_types === 'bigserial'
-                        ) {
-                        numericValues.push(parseInt(row[column.column_name]));
-                    }
+                    numericValues.push(parseInt(row[column.column_name]));
+                }
+            });
+        });
+        console.log('labelValues', labelValues);
+        console.log('numericValues', numericValues);
+        labelValues.forEach((label, index) => {
+            chart.data.push({
+                    label: label,
+                    value: numericValues[index],
                 });
-            });
-            console.log('executeQueryOnDataModels labelValues', labelValues, 'numericValues', numericValues);
-            labelValues.forEach((label, index) => {
-                console.log('executeQueryOnDataModels labelValues', label, 'value', numericValues[index]);
-                chart.data.push({
-                     label: label,
-                     value: numericValues[index],
-                 });
-            });
-        }
+                console.log('data', {
+                    label: label,
+                    value: numericValues[index],
+                });
+                console.log('chart.data', chart.data);
+        });
     }
-    console.log('executeQueryOnDataModels state.dashboard.charts', state.dashboard.charts);
 }
 async function saveDashboard() {
     const token = getAuthToken();
@@ -531,6 +532,31 @@ function mouseUp() {
     state.is_mouse_down = false;
     stopDragAndResize();
 }
+async function openTableDialog(chartId) {
+    state.show_table_dialog = true;
+    state.selected_chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
+    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId)
+    const sqlQuery = buildSQLQuery(chart);
+    state.response_from_data_models_columns = state.selected_chart.columns.map((column) => column.column_name);
+    const token = getAuthToken();
+    const url = `${baseUrl()}/data-model/execute-query-on-data-model`;
+    const response = await fetch(url, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "Authorization-Type": "auth",
+        },
+        body: JSON.stringify({
+            query: sqlQuery
+        })
+    });
+    const data = await response.json();
+    state.response_from_data_models_rows = data;
+}
+function closeTableDialog() {
+    state.show_table_dialog = false
+}
 onMounted(async () => {
     state.data_model_tables = []
     dataModelTables?.value?.forEach((dataModelTable) => {
@@ -566,9 +592,6 @@ onMounted(async () => {
                     </div>
                 </div>
                 <div class="flex flex-col min-h-200 max-h-200 h-200 overflow-hidden ml-10 mr-2 mb-10 border border-primary-blue-100 border-solid bg-gray-300">
-                    <div class="w-full border border-gray-400 border-dashed h-10 flex flex-row justify-center items-center text-center font-bold text-gray-500 select-none">
-                        Drag columns from the side bar given in the left into the blue area below to build your visualization.
-                    </div>
                     <div class="w-full h-full bg-gray-300 draggable-div-container relative">
                         <div v-for="(chart, index) in state.dashboard.charts"
                             class="w-50 flex flex-col justify-between cursor-pointer draggable-div absolute top-0 left-0"
@@ -636,9 +659,15 @@ onMounted(async () => {
                                     />
                                     <font-awesome 
                                         icon="fas fa-trash"
-                                        class="text-xl ml-2 text-gray-400 hover:text-red-500 cursor-pointer"
+                                        class="text-xl ml-2 text-gray-500 hover:text-red-500 cursor-pointer"
                                         :v-tippy-content="'Delete Chart'"
                                         @click="deleteChartFromDashboard(chart.chart_id)"
+                                    />
+                                    <font-awesome 
+                                        icon="fas fa-table"
+                                        class="text-xl ml-2 text-gray-500 hover:text-gray-400 cursor-pointer"
+                                        :v-tippy-content="'View Data In Table'"
+                                        @click="openTableDialog(chart.chart_id)"
                                     />
                                 </div>
                                 <draggable
@@ -801,4 +830,24 @@ onMounted(async () => {
         </div>
         <img src="/assets/images/resize-corner.svg" id="corner-image" class="bottom-right-corner-resize w-[15px] select-none hidden" alt="Resize Visualization" />
     </div>
+    <overlay-dialog v-if="state.show_table_dialog" :enable-scrolling="false" @close="closeTableDialog">
+        <template #overlay>
+            <div class="flex flex-col w-200 border border-primary-blue-100 border-solid p-5">
+                <table class="w-full border border-primary-blue-100 border-solid">
+                    <thead>
+                        <tr>
+                            <th v-for="column in state.response_from_data_models_columns" class="bg-blue-100 border border-primary-blue-100 border-solid p-2 text-center font-bold">
+                                {{ column }}
+                            </th>
+                        </tr>
+                        <tr v-for="row in state.response_from_data_models_rows" class="border border-primary-blue-100 border-solid p-2 text-center font-bold">
+                            <td v-for="column in state.response_from_data_models_columns" class="border border-primary-blue-100 border-solid p-2 text-center">
+                                {{ row[column] }}
+                            </td>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
+        </template>
+    </overlay-dialog>
 </template>
