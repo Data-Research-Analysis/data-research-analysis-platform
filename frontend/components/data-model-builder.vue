@@ -470,13 +470,13 @@ function buildSQLQuery() {
             const aliasName = column?.alias_name !== '' ? column.alias_name : `${column.schema}_${column.table_name}_${column.column_name}`;
             return `${column.schema}.${column.table_name}.${column.column_name} AS ${aliasName}`;
         }).join(', ')}`;
-    
-        if (state?.data_table?.calculated_columns?.length) {
-            state.data_table.calculated_columns.forEach((column) => {
-                sqlQuery += `, ${column.expression} AS ${column.column_name}`;
-            })
-        }
     }
+    if (state?.data_table?.calculated_columns?.length) {
+        state.data_table.calculated_columns.forEach((column) => {
+            sqlQuery += `, ${column.expression} AS ${column.column_name}`;
+        })
+    }
+    console.log('sqlQuery', sqlQuery);
 
     state?.data_table?.query_options?.group_by?.aggregate_functions?.forEach((aggregate_function) => {
         if (aggregate_function.aggregate_function !== '' && aggregate_function.column !== '') {
