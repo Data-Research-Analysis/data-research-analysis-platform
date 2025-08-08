@@ -192,10 +192,10 @@ async function executeQueryOnDataModels(chartId) {
                                 column.data_type === 'numeric' ||
                                 column.data_type === 'decimal' || 
                                 column.data_type === 'real' ||
-                                column.data_types === 'double precision' ||
-                                column.data_types === 'small serial' ||
-                                column.data_types === 'serial' ||
-                                column.data_types === 'bigserial'
+                                column.data_type === 'double precision' ||
+                                column.data_type === 'small serial' ||
+                                column.data_type === 'serial' ||
+                                column.data_type === 'bigserial'
                             )
                         ) {
                         numericValues.push(parseInt(row[column.column_name]));
@@ -207,10 +207,10 @@ async function executeQueryOnDataModels(chartId) {
                                 column.data_type === 'numeric' ||
                                 column.data_type === 'decimal' || 
                                 column.data_type === 'real' ||
-                                column.data_types === 'double precision' ||
-                                column.data_types === 'small serial' ||
-                                column.data_types === 'serial' ||
-                                column.data_types === 'bigserial'
+                                column.data_type === 'double precision' ||
+                                column.data_type === 'small serial' ||
+                                column.data_type === 'serial' ||
+                                column.data_type === 'bigserial'
                             )
                         ) {
                         numericLineValues.push(parseInt(row[column.column_name]));
@@ -245,10 +245,10 @@ async function executeQueryOnDataModels(chartId) {
                                 column.data_type === 'numeric' ||
                                 column.data_type === 'decimal' || 
                                 column.data_type === 'real' ||
-                                column.data_types === 'double precision' ||
-                                column.data_types === 'small serial' ||
-                                column.data_types === 'serial' ||
-                                column.data_types === 'bigserial'
+                                column.data_type === 'double precision' ||
+                                column.data_type === 'small serial' ||
+                                column.data_type === 'serial' ||
+                                column.data_type === 'bigserial'
                             )
                         ) {
                         numericValues.push(parseInt(row[column.column_name]));
@@ -260,10 +260,10 @@ async function executeQueryOnDataModels(chartId) {
                                 column.data_type === 'numeric' ||
                                 column.data_type === 'decimal' || 
                                 column.data_type === 'real' ||
-                                column.data_types === 'double precision' ||
-                                column.data_types === 'small serial' ||
-                                column.data_types === 'serial' ||
-                                column.data_types === 'bigserial'
+                                column.data_type === 'double precision' ||
+                                column.data_type === 'small serial' ||
+                                column.data_type === 'serial' ||
+                                column.data_type === 'bigserial'
                             )
                         ) {
                         numericLineValues.push(parseInt(row[column.column_name]));

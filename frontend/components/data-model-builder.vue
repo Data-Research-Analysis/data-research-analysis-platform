@@ -80,7 +80,6 @@ const saveButtonEnabled = computed(() => {
     return state && state.data_table && state.data_table.columns && state.data_table.columns.filter((column) => column.is_selected_column).length > 0;
 })
 const numericColumns = computed(() => {
-    console.log('numericColumns state.data_table.query_options.group_by.aggregate_functions', state.data_table.query_options.group_by.aggregate_functions);
     return [...state.data_table.columns.filter((column) => getDataType(column.data_type) === 'NUMBER').map((column) => {
         return {
             schema: column.schema,
@@ -193,6 +192,8 @@ function openCalculatedColumnDialog() {
             {
                 column_name: '',
                 operator: null, //the first operator will always be null
+                type: 'column',
+                numeric_value: 0,
             },
         ],
         column_data_type: 'Number', // The calculated field will only have a number data type. The actual data type will be determined by the expression used and the data types of the columns used in the expression.
@@ -315,10 +316,12 @@ function removeQueryOption(queryOption, index) {
         state.data_table.query_options.limit = -1;
     }
 }
-function addCalculatedColumnOperation() {
+function addCalculatedColumnOperation(type) {
     state.calculated_column.columns.push({
         column_name: '',
         operator: null, //the first operator will always be null
+        type: type,
+        numeric_value: 0,
     });
 }
 function deleteCalculatedColumnOperation(index) {
@@ -341,7 +344,7 @@ async function addCalculatedColumn() {
         });
         return;
     }
-    if (state.calculated_column.columns.length === 0 || state.calculated_column.columns.filter((column) => column.column_name === '').length > 0) {
+    if (state.calculated_column.columns.length === 0 || state.calculated_column.columns.filter((column) => column.column_name === '' && column.type === 'column').length > 0) {
         $swal.fire({
             icon: 'error',
             title: `Error!`,
@@ -361,20 +364,22 @@ async function addCalculatedColumn() {
     for (let i=0; i<state.calculated_column.columns.length; i++) {
         const column = state.calculated_column.columns[i];
         const operator = column.operator;
+        const type = column.type;
         if (i === 0) {
             //the first operator will always be null, so we skip it
             expression += `${column.column_name}`;
         } else {
+            let value = type === 'column' ? column.column_name : column.numeric_value;
             if (operator === 'ADD') {
-                expression += ` + ${column.column_name}`;
+                expression += ` + ${value}`;
             } else if (operator === 'SUBTRACT') {
-                expression += ` - ${column.column_name}`;
+                expression += ` - ${value}`;
             } else if (operator === 'MULTIPLY') {
-                expression += ` * ${column.column_name}`;
+                expression += ` * ${value}`;
             } else if (operator === 'DIVIDE') {
-                expression += ` / ${column.column_name}`;
+                expression += ` / ${value}`;
             } else if (operator === 'MODULO') {
-                expression += ` % ${column.column_name}`;
+                expression += ` % ${value}`;
             }
         }
     }
@@ -476,8 +481,6 @@ function buildSQLQuery() {
             sqlQuery += `, ${column.expression} AS ${column.column_name}`;
         })
     }
-    console.log('sqlQuery', sqlQuery);
-
     state?.data_table?.query_options?.group_by?.aggregate_functions?.forEach((aggregate_function) => {
         if (aggregate_function.aggregate_function !== '' && aggregate_function.column !== '') {
             const aliasName = aggregate_function?.column_alias_name !== '' ? ` AS ${aggregate_function.column_alias_name}` : '';
@@ -592,7 +595,6 @@ async function saveDataModel() {
     }
 }
 async function executeQueryOnExternalDataSource() {
-    console.log('data_table', state.data_table);
     state.response_from_external_data_source_columns = [];
     state.response_from_external_data_source_rows = [];
     state.sql_query = buildSQLQuery();
@@ -619,23 +621,6 @@ async function executeQueryOnExternalDataSource() {
     }
 }
 onMounted(async () => {
-
-    document.addEventListener("scroll", () => {
-        if (window.scrollY > 1500) {
-            const elements = document.getElementsByClassName('draggable');
-            elements.forEach((elemen) => {
-                // elemen.addEventListener('drag', (event) => {
-                    // window.scrollTo({ top: 400, behavior: 'smooth'});
-                // })
-            })
-        } else {
-            const elements = document.getElementsByClassName('draggable');
-            elements.forEach((elemen) => {
-                elemen.removeEventListener('drag', () => {})
-            })
-        }
-    })
-
     if (props.dataModel && props.dataModel.query) {
         state.data_table = props.dataModel.query;
     }
@@ -991,19 +976,26 @@ onMounted(async () => {
                                 <option v-for="(operator, index) in state.add_column_operators" :key="index" :value="operator">{{ operator }}</option>
                             </select>
                         </div>
-                        <div class="flex flex-col w-full mr-2">
+                        <div v-if="column.type === 'column'" class="flex flex-col w-full mr-2">
                             <h5 class="font-bold mb-2">Column</h5>
                             <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="column.column_name">
                                 <option v-for="(column, index) in numericColumns" :key="index" :value="`${column.schema}.${column.table_name}.${column.column_name}`">{{column.schema}}.{{column.table_name}}.{{ column.column_name }} {{ column.data_type }}</option>
                             </select>
+                        </div>
+                        <div v-else-if="column.type === 'numeric-value'" class="flex flex-col w-full mr-2">
+                            <h5 class="font-bold mb-2">Numeric Value</h5>
+                            <input class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" type="number" v-model="column.numeric_value" />
                         </div>
                         
                         <div class="flex flex-row">
                             <div v-if="index > 0" class="flex flex-row justify-center w-full bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white text-center font-bold mt-8" @click="deleteCalculatedColumnOperation(index)">
                                 Delete Column
                             </div>
-                            <div v-if="index === state.calculated_column.columns.length - 1" class="flex flex-row justify-center w-full bg-blue-500 hover:bg-blue-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white text-center font-bold mt-8" @click="addCalculatedColumnOperation">
+                            <div v-if="index === state.calculated_column.columns.length - 1" class="flex flex-row justify-center w-full bg-blue-500 hover:bg-blue-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white text-center font-bold mt-8" @click="addCalculatedColumnOperation('column')">
                                 Add Column
+                            </div>
+                            <div v-if="index === state.calculated_column.columns.length - 1" class="flex flex-row justify-center w-full bg-blue-500 hover:bg-blue-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-sm text-white text-center font-bold mt-8" @click="addCalculatedColumnOperation('numeric-value')">
+                                Add Numeric Value
                             </div>
                         </div>
                     </div>
