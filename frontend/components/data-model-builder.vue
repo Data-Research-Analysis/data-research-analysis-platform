@@ -621,23 +621,6 @@ async function executeQueryOnExternalDataSource() {
     }
 }
 onMounted(async () => {
-
-    // document.addEventListener("scroll", () => {
-    //     if (window.scrollY > 1500) {
-    //         const elements = document.getElementsByClassName('draggable');
-    //         elements.forEach((elemen) => {
-    //             // elemen.addEventListener('drag', (event) => {
-    //                 // window.scrollTo({ top: 400, behavior: 'smooth'});
-    //             // })
-    //         })
-    //     } else {
-    //         const elements = document.getElementsByClassName('draggable');
-    //         elements.forEach((elemen) => {
-    //             elemen.removeEventListener('drag', () => {})
-    //         })
-    //     }
-    // })
-
     if (props.dataModel && props.dataModel.query) {
         state.data_table = props.dataModel.query;
     }
