@@ -108,6 +108,7 @@ function addChartToDashboard(chartType) {
         columns: [],
         table_name: '',
         data: [],
+        line_data: [],
         text_editor: {
             content: '',
         },
@@ -152,6 +153,7 @@ async function executeQueryOnDataModels(chartId) {
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId)
     if (chart) {
         chart.data = [];
+        chart.line_data = [];
         chart.sql_query = buildSQLQuery(chart);
         const sqlQuery = chart.sql_query;
         const token = getAuthToken();
@@ -172,41 +174,118 @@ async function executeQueryOnDataModels(chartId) {
         state.response_from_data_models_columns = chart.columns.map((column) => column.column_name);
         const labelValues = [];
         const numericValues = [];
-        state.response_from_data_models_rows.forEach((row) =>{
-            const columns_data_types = chart.columns.filter((column) => Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
-            columns_data_types.forEach((column) => {
-                if (column.data_type.includes('character varying') ||
-                    column.data_type.includes('varchar') ||
-                    column.data_type.includes('character') ||
-                    column.data_type.includes('char') ||
-                    column.data_type.includes('bpchar') ||
-                    column.data_type.includes('text')
-
-                ) {
-                    labelValues.push(row[column.column_name]); 
-                } else if (
-                        column.data_type === 'smallint' ||
-                        column.data_type === 'bigint'  ||
-                        column.data_type === 'integer' ||
-                        column.data_type === 'numeric' ||
-                        column.data_type === 'decimal' || 
-                        column.data_type === 'real' ||
-                        column.data_types === 'double precision' ||
-                        column.data_types === 'small serial' ||
-                        column.data_types === 'serial' ||
-                        column.data_types === 'bigserial'
-
+        const numericLineValues = [];
+        state.selected_chart.result_from_query = state.response_from_data_models_rows;
+        if (['pie', 'donut', 'vertical_bar', 'horizontal_bar'].includes(chart.chart_type)) {
+            state.response_from_data_models_rows.forEach((row) =>{
+                const columns_data_types = chart.columns.filter((column, index) => index < 2 && Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
+                columns_data_types.forEach((column, index) => {
+                    if (column.data_type.includes('character varying') ||
+                        column.data_type.includes('varchar') ||
+                        column.data_type.includes('character') ||
+                        column.data_type.includes('char') ||
+                        column.data_type.includes('bpchar') ||
+                        column.data_type.includes('text') ||
+                        column.data_type.includes('USER-DEFINED')
                     ) {
-                    numericValues.push(parseInt(row[column.column_name]));
-                }
+                        labelValues.push(row[column.column_name]); 
+                    } else if (
+                            index === 1 && (
+                                column.data_type === 'smallint' ||
+                                column.data_type === 'bigint'  ||
+                                column.data_type === 'integer' ||
+                                column.data_type === 'numeric' ||
+                                column.data_type === 'decimal' || 
+                                column.data_type === 'real' ||
+                                column.data_types === 'double precision' ||
+                                column.data_types === 'small serial' ||
+                                column.data_types === 'serial' ||
+                                column.data_types === 'bigserial'
+                            )
+                        ) {
+                        numericValues.push(parseInt(row[column.column_name]));
+                    } else if (
+                            index === 2 && (
+                                column.data_type === 'smallint' ||
+                                column.data_type === 'bigint'  ||
+                                column.data_type === 'integer' ||
+                                column.data_type === 'numeric' ||
+                                column.data_type === 'decimal' || 
+                                column.data_type === 'real' ||
+                                column.data_types === 'double precision' ||
+                                column.data_types === 'small serial' ||
+                                column.data_types === 'serial' ||
+                                column.data_types === 'bigserial'
+                            )
+                        ) {
+                        numericLineValues.push(parseInt(row[column.column_name]));
+                    }
+                });
             });
-        });
-        labelValues.forEach((label, index) => {
-            chart.data.push({
+            labelValues.forEach((label, index) => {
+                chart.data.push({
                     label: label,
                     value: numericValues[index],
                 });
-        });
+            });
+
+        } else if (['vertical_bar_line'].includes(chart.chart_type)) {
+            state.response_from_data_models_rows.forEach((row) =>{
+                const columns_data_types = chart.columns.filter((column, index) => index < 3 && Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
+                columns_data_types.forEach((column, index) => {
+                    if (column.data_type.includes('character varying') ||
+                        column.data_type.includes('varchar') ||
+                        column.data_type.includes('character') ||
+                        column.data_type.includes('char') ||
+                        column.data_type.includes('bpchar') ||
+                        column.data_type.includes('text') ||
+                        column.data_type.includes('USER-DEFINED')
+                    ) {
+                        labelValues.push(row[column.column_name]); 
+                    } else if (
+                            index === 1 && (
+                                column.data_type === 'smallint' ||
+                                column.data_type === 'bigint'  ||
+                                column.data_type === 'integer' ||
+                                column.data_type === 'numeric' ||
+                                column.data_type === 'decimal' || 
+                                column.data_type === 'real' ||
+                                column.data_types === 'double precision' ||
+                                column.data_types === 'small serial' ||
+                                column.data_types === 'serial' ||
+                                column.data_types === 'bigserial'
+                            )
+                        ) {
+                        numericValues.push(parseInt(row[column.column_name]));
+                    } else if (
+                            index === 2 && (
+                                column.data_type === 'smallint' ||
+                                column.data_type === 'bigint'  ||
+                                column.data_type === 'integer' ||
+                                column.data_type === 'numeric' ||
+                                column.data_type === 'decimal' || 
+                                column.data_type === 'real' ||
+                                column.data_types === 'double precision' ||
+                                column.data_types === 'small serial' ||
+                                column.data_types === 'serial' ||
+                                column.data_types === 'bigserial'
+                            )
+                        ) {
+                        numericLineValues.push(parseInt(row[column.column_name]));
+                    }
+                });
+            });
+            labelValues.forEach((label, index) => {
+                chart.data.push({
+                    label: label,
+                    value: numericValues[index],
+                });
+                chart.line_data.push({
+                    label: label,
+                    value: numericLineValues[index],
+                });
+            });
+        }
     }
 }
 async function updateDashboard() {
@@ -754,7 +833,7 @@ onMounted(async () => {
                                                     :x-axis-label="chart.x_axis_label"
                                                     :y-axis-label="chart.y_axis_label"
                                                     :show-line-chart="true"
-                                                    :line-data="chart.data"
+                                                    :line-data="chart.line_data"
                                                     line-color="#FF5733"
                                                     class="mt-5"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
