@@ -36,20 +36,7 @@ const state = reactive({
     scaleWidth: 1,
     scaleHeight: 1,
     show_table_dialog: false,
-    show_settings_dialog: false,
-    chart_settings: {
-        category_x_axis_column: null,
-        numeric_value_y_axis_column: null,
-        line_column: null
-    }
  });
-watch(() => state.chart_settings, async (value) => {
-    console.log('Chart settings changed:', value);
-    console.log('state.selected_chart', state.selected_chart);
-    if (state.selected_chart.chart_type === 'vertical_bar_line') {
-        
-    }
-}, { deep: true });
 const project = computed(() => {
     return projectsStore.getSelectedProject();
 });
@@ -156,11 +143,9 @@ function buildSQLQuery(chart) {
     return sqlQuery;
 }
 async function executeQueryOnDataModels(chartId) {
-    console.log('executeQueryOnDataModels chartId', chartId);
     state.response_from_data_models_columns = [];
     state.response_from_data_models_rows = [];
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId)
-    console.log('executeQueryOnDataModels chart', chart);
     if (chart) {
         chart.data = [];
         chart.line_data = [];
@@ -181,6 +166,7 @@ async function executeQueryOnDataModels(chartId) {
         });
         const data = await response.json();
         state.response_from_data_models_rows = data;
+        state.response_from_data_models_columns = chart.columns.map((column) => column.column_name);
         const labelValues = [];
         const numericValues = [];
         const numericLineValues = [];
@@ -643,17 +629,6 @@ function isDataModelDataEnabled(chartId) {
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
     return chart?.columns?.length && chart?.data?.length;
 }
-function isSettingEnabled(chartType, chartId) {
-    const settings = ['vertical_bar_line', 'stacked_bar', 'multiline'];
-    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
-    return settings.includes(chartType) && chart.columns?.length;
-}
-function openSettingsDialog() {
-    state.show_settings_dialog = true;
-}
-function closeSettingsDialog() {
-    state.show_settings_dialog = false;
-}
 onMounted(async () => {
     state.data_model_tables = []
     dataModelTables?.value?.forEach((dataModelTable) => {
@@ -766,13 +741,6 @@ onMounted(async () => {
                                         class="text-xl ml-2 text-gray-500 hover:text-gray-400 cursor-pointer"
                                         :v-tippy-content="'View Data In Table'"
                                         @click="openTableDialog(chart.chart_id)"
-                                    />
-                                    <font-awesome
-                                        v-if="isSettingEnabled(chart.chart_type, chart.chart_id)"
-                                        icon="fas fa-gear"
-                                        class="text-xl ml-2 text-gray-500 hover:text-gray-400 cursor-pointer"
-                                        :v-tippy-content="'Open Settings For The Chart'"
-                                        @click="openSettingsDialog(chart.chart_id)"
                                     />
                                 </div>
                                 <draggable
@@ -953,39 +921,6 @@ onMounted(async () => {
                         </tr>
                     </thead>
                 </table>
-            </div>
-        </template>
-    </overlay-dialog>
-    <overlay-dialog v-if="state.show_settings_dialog" :enable-scrolling="false" @close="closeSettingsDialog">
-        <template #overlay>
-            <div class="flex flex-col w-200 border border-primary-blue-100 border-solid p-5">
-                <h2 class="mb-2">Chart Settings</h2>
-
-                <h3 class="mb-2">Assign Columns</h3>
-                <div class="flex flex-row justify-between mt-2">
-                    <span class="w-full">Category (x-axis)</span>
-                    <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="state.chart_settings.category_x_axis_column">
-                        <option v-for="column in state.selected_chart.columns" :key="column.column_name" :value="column.column_name">
-                            {{ column.column_name }}
-                        </option>
-                    </select>
-                </div>
-                <div class="flex flex-row justify-between mt-2">
-                    <span class="w-full">Numeric Value (y-axis)</span>
-                    <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="state.chart_settings.numeric_value_y_axis_column">
-                        <option v-for="column in state.selected_chart.columns" :key="column.column_name" :value="column.column_name">
-                            {{ column.column_name }}
-                        </option>
-                    </select>
-                </div>
-                <div class="flex flex-row justify-between mt-2">
-                    <span class="w-full">Line</span>
-                    <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="state.chart_settings.line_column">
-                        <option v-for="column in state.selected_chart.columns" :key="column.column_name" :value="column.column_name">
-                            {{ column.column_name }}
-                        </option>
-                    </select>
-                </div>
             </div>
         </template>
     </overlay-dialog>
