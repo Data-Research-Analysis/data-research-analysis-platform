@@ -50,7 +50,7 @@ function deleteSVGs() {
   $d3.select(`#vertical-bar-chart-1-${props.chartId}`).selectAll('svg').remove();
 }
 
-function renderSVG(chartData) {
+function renderSVG(chartData, lineData) {
   const margin = { top: 40, right: 30, bottom: 60, left: 60 };
   const svgWidth = props.width;
   const svgHeight = props.height;
@@ -83,10 +83,21 @@ function renderSVG(chartData) {
     .style('fill', '#475569') // Darker gray for axis text
     .style('font-weight', 'bold');
 
+  let maxY = 0;
+  if (props.showLineChart && lineData?.length) {
+    if ($d3.max(lineData, d => d.value) > $d3.max(chartData, d => d.value)) {
+      maxY = $d3.max(lineData, d => d.value);
+    } else {
+      maxY = $d3.max(chartData, d => d.value);
+    }
+  } else {
+    maxY = $d3.max(chartData, d => d.value);
+  }
+
   // Y axis
   const y = $d3.scaleLinear()
-    .domain([0, $d3.max(chartData, d => d.value) || 1])
-    .range([height, 0]);
+    .domain([0, maxY || 1])
+    .range([height, 20]);
   svg.append('g')
     .call($d3.axisLeft(y))
     .selectAll('text')
@@ -122,9 +133,7 @@ function renderSVG(chartData) {
     });
 
   // Line chart overlay (conditional)
-  if (props.showLineChart) {
-    const lineData = props.lineData.length > 0 ? props.lineData : chartData;
-    
+  if (props.showLineChart && lineData?.length) {
     // Create line generator
     const line = $d3.line()
       .x(d => x(d.label) + x.bandwidth() / 2) // Center line on bars
@@ -201,15 +210,15 @@ function renderSVG(chartData) {
 
 }
 
-function renderChart(chartData) {
+function renderChart(chartData, lineData) {
   deleteSVGs();
-  renderSVG(chartData);
+  renderSVG(chartData, lineData);
 }
 
 onMounted(() => {
   state.xAxisLabelLocal = props.xAxisLabel;
   state.yAxisLabelLocal = props.yAxisLabel;
-  renderChart(props.data);
+  renderChart(props.data, props.lineData);
 });
 
 watch(() => [props.data, props.width, props.height, props.showLineChart, props.lineData], () => {
