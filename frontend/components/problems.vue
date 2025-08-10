@@ -7,7 +7,7 @@
                 <h1 class="font-bold text-primary-blue-100 text-center">
                     Are you experiencing the following problems?
                 </h1>
-                <div class="flex flex-col lg:flex-row w-3/4 justify-center text-lg font-bold text-primary-blue-100 mt-10 m-auto">
+                <div class="flex flex-col lg:flex-row w-3/4 justify-center text-lg  text-primary-blue-100 mt-10 m-auto">
                     <div class="lg:w-1/4 lg:pr-10">
                         Are you constantly scratching your head, confused by your current data analysis tools?
                     </div>
@@ -15,7 +15,7 @@
                         Is your team spending days, not hours, trying to get you insights you needed yesterday?
                     </div>
                 </div>
-                <div class="flex flex-col lg:flex-row w-3/4 justify-center text-lg font-bold text-primary-blue-100 mt-10 m-auto">
+                <div class="flex flex-col lg:flex-row w-3/4 justify-center text-lg  text-primary-blue-100 mt-10 m-auto">
                     <div class="lg:w-1/4 lg:pr-10">
                         Is your decision-making being delayed due to a slow data analysis pipeline?
                     </div>
@@ -23,7 +23,7 @@
                         Is your company's growth hampered by a platform that's costing you too much time and money?
                     </div>
                 </div>
-                <div class="flex flex-col lg:flex-row w-3/4 justify-center m-auto text-lg font-bold text-primary-blue-100 mt-10">
+                <div class="flex flex-col lg:flex-row w-3/4 justify-center m-auto text-lg  text-primary-blue-100 mt-10">
                     If you answered yes to any of the above questions then you need to change your data analysis platform! Data Research Analysis can save you from all of the above and more headaches!
                 </div>
                 <div class="lg:flex lg:flex-col w-3/5 lg:w-1/5 m-auto mt-10">

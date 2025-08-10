@@ -9,7 +9,7 @@
                         We understand your problems and have you covered
                     </h1>
                 </div>
-                <div class="flex flex-col w-3/4 mb-10 m-auto text-lg text-white font-bold">
+                <div class="flex flex-col w-3/4 mb-10 m-auto text-lg text-white">
                     <p class="-mt-1">
                         At Data Research Analysis we know that you want to become a quick and responsive decision maker armed
                         with the best of data insights at your fingertips. In order to be one you need to adopt Data Research Analysis
