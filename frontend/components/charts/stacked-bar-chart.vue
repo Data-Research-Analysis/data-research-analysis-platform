@@ -47,6 +47,18 @@ const props = defineProps({
     type: Boolean,
     default: true,
   },
+  maxLegendWidth: {
+    type: Number,
+    default: 400,
+  },
+  legendItemSpacing: {
+    type: Number,
+    default: 25,
+  },
+  legendLineHeight: {
+    type: Number,
+    default: 25,
+  },
 });
 
 function deleteSVGs() {
@@ -66,11 +78,36 @@ function processData(rawData) {
 }
 
 function renderSVG(chartData) {
-  const margin = { top: 100, right: props.showLegend ? 150 : 30, bottom: 80, left: 60 };
+  const margin = { top: 60, right: 30, bottom: 100, left: 80 };
+  
+  // Calculate legend lines first to adjust margin
+  let legendLines = 1;
+  if (props.showLegend) {
+    let currentX = 0;
+    legendLines = 1;
+    
+    props.stackKeys.forEach((key) => {
+      const estimatedTextWidth = key.length * 8 + 50; // Rough estimation
+      if (currentX + estimatedTextWidth > props.maxLegendWidth && currentX > 0) {
+        legendLines++;
+        currentX = estimatedTextWidth;
+      } else {
+        currentX += estimatedTextWidth;
+      }
+    });
+    
+    // Adjust top margin based on legend lines
+    margin.top = 60 + (legendLines - 1) * props.legendLineHeight;
+  }
+
+  // Ensure minimum margins for axis inputs
+  margin.bottom = Math.max(margin.bottom, 100);
+  margin.left = Math.max(margin.left, 80);
+
   const svgWidth = props.width;
   const svgHeight = props.height;
-  const width = svgWidth - margin.left - margin.right + 50;
-  const height = svgHeight - margin.top - margin.bottom + 30;
+  const width = svgWidth - margin.left - margin.right;
+  const height = svgHeight - margin.top - margin.bottom;
   
   // Process data for stacking
   const processedData = processData(chartData);
@@ -87,11 +124,12 @@ function renderSVG(chartData) {
 
   const svg = $d3.select(`#stacked-bar-chart-${props.chartId}`)
     .append('svg')
-    .attr('width', width)
-    .attr('height', height)
-    .attr("viewBox", [0, 0, width, height + 80])
+    .attr('width', svgWidth)
+    .attr('height', svgHeight)
+    .attr("viewBox", [0, 0, svgWidth, svgHeight])
     .attr("style", "max-width: 100%; height: auto;")
-    .attr('transform', `translate(${margin.left - 40}, ${margin.top - 30})`);
+    .append('g')
+    .attr('transform', `translate(${margin.left}, ${margin.top})`);
 
 
   // X axis
@@ -150,11 +188,12 @@ function renderSVG(chartData) {
     .attr('height', d => y(d[0]) - y(d[1]))
     .attr('width', x.bandwidth())
     .on('mouseover', function (event, d) {
+      console.log('mouseover');
       // Get the stack key from parent group
       const stackKey = $d3.select(this.parentNode).datum().key;
       const value = d.data[stackKey];
       const total = props.stackKeys.reduce((sum, key) => sum + (d.data[key] || 0), 0);
-      
+      console.log('total', total);
       // Create tooltip
       const tooltip = $d3.select('body').append('div')
         .attr('class', 'chart-tooltip')
@@ -182,64 +221,110 @@ function renderSVG(chartData) {
       $d3.select(this).style('opacity', 1);
     });
 
-  // Legend
+  // Legend with dynamic positioning and line wrapping
   if (props.showLegend) {
-    const legend = svg.selectAll('.legend')
-      .data(props.stackKeys)
-      .join('g')
+    let currentX = 0;
+    let currentLine = 0;
+    
+    const legendContainer = svg.append('g')
       .attr('class', 'legend')
-      .attr('transform', (d, i) => `translate(${i * 100 + width / 4}, 0)`);
+      .attr('transform', `translate(${width / 4}, ${-margin.top + 20})`);
 
-    legend.append('rect')
-      .attr('x', 0)
-      .attr('width', 15)
-      .attr('height', 15)
-      .attr('fill', color);
+    props.stackKeys.forEach((key, i) => {
+      // Create temporary text to measure width
+      const tempText = svg.append('text')
+        .text(key)
+        .style('font-size', '12px')
+        .style('opacity', 0);
+      
+      const textWidth = tempText.node().getComputedTextLength();
+      tempText.remove();
+      
+      const itemWidth = textWidth + 20 + props.legendItemSpacing; // 20 for rectangle + spacing
+      
+      // Check if we need to wrap to next line
+      if (currentX + itemWidth > props.maxLegendWidth && currentX > 0) {
+        currentLine++;
+        currentX = 0;
+      }
+      
+      const legendItem = legendContainer.append('g')
+        .attr('class', 'legend-item')
+        .attr('transform', `translate(${currentX}, ${currentLine * props.legendLineHeight})`);
 
-    legend.append('text')
-      .attr('x', 20)
-      .attr('y', 9)
-      .attr('dy', '0.35em')
-      .style('font-size', '12px')
-      .style('fill', '#475569')
-      .text(d => d);
+      legendItem.append('rect')
+        .attr('width', 15)
+        .attr('height', 15)
+        .attr('fill', color(key));
+
+      legendItem.append('text')
+        .attr('x', 20)
+        .attr('y', 12)
+        .text(key)
+        .style('font-size', '12px')
+        .style('fill', 'black');
+      
+      currentX += itemWidth;
+    });
   }
 
-  // Y axis title as input
+  // Y axis title as input with improved positioning
+  const yInputWidth = Math.min(150, height * 0.4);
+  const yInputHeight = 35;
+  
   svg.append('foreignObject')
-    .attr('transform', 'rotate(-90)')
-    .attr('y', 0 - margin.left - 10)
-    .attr('x', 0 - (height / 2) - 80)
-    .attr('width', height - 100)
-    .attr('height', 30)
-    .append('xhtml:input')
-      .attr('type', 'text')
+    .attr('x', -margin.left + 10)
+    .attr('y', height / 2 - yInputHeight / 2)
+    .attr('width', yInputHeight) // rotated, so height becomes width
+    .attr('height', yInputWidth) // rotated, so width becomes height
+    .append('xhtml:div')
       .style('width', '100%')
-      .style('font-size', '20px')
-      .style('font-weight', '600')
-      .style('color', '#000000')
-      .style('background-color', '#ffffff')
-      .style('text-align', 'center')
-      .property('value', state.yAxisLabelLocal)
-      .on('input', function(event) {
-        state.yAxisLabelLocal = event.target.value;
-        emit('update:yAxisLabel', state.yAxisLabelLocal);
-      });
+      .style('height', '100%')
+      .style('display', 'flex')
+      .style('align-items', 'center')
+      .style('justify-content', 'center')
+      .style('transform', 'rotate(-90deg)')
+      .style('transform-origin', 'center')
+      .append('xhtml:input')
+        .attr('type', 'text')
+        .style('width', `${yInputWidth - 20}px`)
+        .style('height', `${yInputHeight - 10}px`)
+        .style('font-size', '16px')
+        .style('font-weight', '600')
+        .style('color', '#000000')
+        .style('background-color', 'rgba(255,255,255,0.9)')
+        .style('border', '1px solid #ccc')
+        .style('border-radius', '4px')
+        .style('padding', '5px')
+        .style('text-align', 'center')
+        .property('value', state.yAxisLabelLocal)
+        .on('input', function(event) {
+          state.yAxisLabelLocal = event.target.value;
+          emit('update:yAxisLabel', state.yAxisLabelLocal);
+        });
 
-  // X axis title as input
+  // X axis title as input with improved positioning
+  const xInputWidth = Math.min(250, width * 0.5);
+  const xInputHeight = 35;
+  
   svg.append('foreignObject')
-    .attr('y', height + margin.top - 80)
-    .attr('x', width / 2 - 110)
-    .attr('width', 200)
-    .attr('height', 30)
+    .attr('x', width / 2 - xInputWidth / 2)
+    .attr('y', height + margin.bottom / 2 - xInputHeight / 2)
+    .attr('width', xInputWidth)
+    .attr('height', xInputHeight)
     .append('xhtml:input')
       .attr('type', 'text')
       .style('width', '100%')
-      .style('font-size', '20px')
+      .style('height', '100%')
+      .style('font-size', '16px')
       .style('font-weight', '600')
       .style('color', '#000000')
-      .style('background-color', '#ffffff')
+      .style('background-color', 'rgba(255,255,255,0.9)')
+      .style('border', '1px solid #ccc')
+      .style('border-radius', '4px')
+      .style('padding', '5px')
       .style('text-align', 'center')
+      .style('box-sizing', 'border-box')
       .property('value', state.xAxisLabelLocal)
       .on('input', function(event) {
         state.xAxisLabelLocal = event.target.value;
@@ -258,7 +343,7 @@ onMounted(() => {
   renderChart(props.data);
 });
 
-watch(() => [props.data, props.width, props.height, props.stackKeys, props.colorScheme, props.showLegend], () => {
+watch(() => [props.data, props.width, props.height, props.stackKeys, props.colorScheme, props.showLegend, props.maxLegendWidth, props.legendItemSpacing, props.legendLineHeight], () => {
   nextTick(() => renderChart(props.data));
 });
 </script>
@@ -271,6 +356,6 @@ watch(() => [props.data, props.width, props.height, props.stackKeys, props.color
 
 <style scoped>
 .chart-tooltip {
-  z-index: 1000;
+  z-index: 10000;
 }
 </style>

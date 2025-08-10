@@ -6,10 +6,7 @@ import _ from 'lodash';
 const projectsStore = useProjectsStore();
 const dataModelsStore = useDataModelsStore();
 const dashboardsStore = useDashboardsStore();
-
 const { $swal } = useNuxtApp();
-const route = useRoute();
-const router = useRouter();
 const state = reactive({
     data_model_tables: [],
     chart_mode: 'table',//table, pie, vertical_bar, horizontal_bar, vertical_bar_line, stacked_bar, multiline, heatmap, bubble, map
@@ -108,6 +105,7 @@ function addChartToDashboard(chartType) {
         columns: [],
         table_name: '',
         data: [],
+        stack_keys: [],
         line_data: [],
         text_editor: {
             content: '',
@@ -154,6 +152,7 @@ async function executeQueryOnDataModels(chartId) {
     if (chart) {
         chart.data = [];
         chart.line_data = [];
+        chart.stack_keys = [];
         chart.sql_query = buildSQLQuery(chart);
         const sqlQuery = chart.sql_query;
         const token = getAuthToken();
@@ -285,7 +284,51 @@ async function executeQueryOnDataModels(chartId) {
                     value: numericLineValues[index],
                 });
             });
+        } else if (['stacked_bar'].includes(chart.chart_type)) {
+            state.response_from_data_models_rows.forEach((row) =>{
+                stackedValues = [];
+                const columns_data_types = chart.columns.filter((column) => Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
+                let labelValue = '';
+                columns_data_types.forEach((column) => {
+                    if (column.data_type.includes('character varying') ||
+                        column.data_type.includes('varchar') ||
+                        column.data_type.includes('character') ||
+                        column.data_type.includes('char') ||
+                        column.data_type.includes('bpchar') ||
+                        column.data_type.includes('text') ||
+                        column.data_type.includes('USER-DEFINED')
+                    ) {
+                        if (labelValue === '') {
+                            labelValue = row[column.column_name];
+                        }
+                    } else if (
+                            column.data_type === 'smallint' ||
+                            column.data_type === 'bigint'  ||
+                            column.data_type === 'integer' ||
+                            column.data_type === 'numeric' ||
+                            column.data_type === 'decimal' || 
+                            column.data_type === 'real' ||
+                            column.data_type === 'double precision' ||
+                            column.data_type === 'small serial' ||
+                            column.data_type === 'serial' ||
+                            column.data_type === 'bigserial'                       
+                        ) {
+                        const stackData = {};
+                        chart.stack_keys.push(column.column_name.replace(/\_/g, ' '));
+                        stackData.key = column.column_name.replace(/\_/g, ' ');
+                        stackData.value = parseFloat(row[column.column_name]);
+                        stackedValues.push(stackData);
+                    }
+                    if (labelValue !== '') {
+                        chart.data.push({
+                            label: labelValue,
+                            values: stackedValues
+                        });
+                    }
+                });
+            });
         }
+        chart.stack_keys = _.uniq(chart.stack_keys);
     }
 }
 async function updateDashboard() {
@@ -309,7 +352,6 @@ async function updateDashboard() {
             title: `Success! `,
             text: 'The dashboard has been sucessfully updated.',
         });
-        // router.push(`/projects/${route.params.projectid}/dashboards`);
     } else {
         $swal.fire({
             icon: 'error',
@@ -693,7 +735,7 @@ onMounted(async () => {
                 <div class="flex flex-col min-h-200 max-h-200 h-200 overflow-hidden ml-10 mr-2 mb-10 border border-primary-blue-100 border-solid bg-gray-300">
                     <div class="w-full h-full bg-gray-300 draggable-div-container relative">
                         <div v-for="(chart, index) in charts"
-                            class="w-50 flex flex-col justify-between cursor-pointer draggable-div absolute top-0 left-0 z-12"
+                            class="w-50 flex flex-col justify-between cursor-pointer draggable-div absolute top-0 left-0"
                             :id="`draggable-div-${chart.chart_id}`"
                             :style="`width: ${chart.dimensions.width}; height: ${chart.dimensions.height}; top: ${chart.location.top}; left: ${chart.location.left};`"
                         >
@@ -836,6 +878,20 @@ onMounted(async () => {
                                                     :line-data="chart.line_data"
                                                     line-color="#FF5733"
                                                     class="mt-5"
+                                                    @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
+                                                    @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
+                                                />
+                                                <stacked-bar-chart
+                                                    v-if="chart.chart_type === 'stacked_bar'"
+                                                    :id="`chart-${chart.chart_id}`"
+                                                    :chart-id="`${chart.chart_id}`"
+                                                    :data="chart.data"
+                                                    :stack-keys="chart.stack_keys"
+                                                    :color-scheme="['#1f77b4', '#ff7f0e', '#2ca02c']"
+                                                    :show-legend="true"
+                                                    :x-axis-label="chart.x_axis_label"
+                                                    :y-axis-label="chart.y_axis_label"
+                                                    :max-legend-width="350"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
                                                 />

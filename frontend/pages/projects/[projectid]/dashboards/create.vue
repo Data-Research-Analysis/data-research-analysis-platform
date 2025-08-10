@@ -2,7 +2,6 @@
 import { useProjectsStore } from '@/stores/projects';
 import { useDataModelsStore } from '@/stores/data_models';
 import _ from 'lodash';
-import { label } from 'happy-dom/lib/PropertySymbol.js';
 const projectsStore = useProjectsStore();
 const dataModelsStore = useDataModelsStore();
 const { $swal } = useNuxtApp();
@@ -150,6 +149,7 @@ async function executeQueryOnDataModels(chartId) {
     if (chart) {
         chart.data = [];
         chart.line_data = [];
+        chart.stack_keys = [];
         chart.sql_query = buildSQLQuery(chart);
         const sqlQuery = chart.sql_query;
         const token = getAuthToken();
@@ -225,7 +225,6 @@ async function executeQueryOnDataModels(chartId) {
                     value: numericValues[index],
                 });
             });
-
         } else if (['vertical_bar_line'].includes(chart.chart_type)) {
             state.response_from_data_models_rows.forEach((row) =>{
                 const columns_data_types = chart.columns.filter((column, index) => index < 3 && Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
@@ -285,21 +284,44 @@ async function executeQueryOnDataModels(chartId) {
         } else if (['stacked_bar'].includes(chart.chart_type)) {
             state.response_from_data_models_rows.forEach((row) =>{
                 stackedValues = [];
-                const columns_data_types = chart.columns.filter((column, index) => index < 1 && Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
-                const stacked_data_types = chart.columns.filter((column, index) => index > 0 && Object.keys(row).includes(column.column_name) && (column.data_type === 'smallint' || column.data_type === 'bigint'  ||  column.data_type === 'integer' || column.data_type === 'numeric' || column.data_type === 'decimal' || column.data_type === 'real' || column.data_type === 'double precision' || column.data_type === 'small serial' || column.data_type === 'serial' || column.data_type === 'bigserial')).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
+                const columns_data_types = chart.columns.filter((column) => Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
+                let labelValue = '';
                 columns_data_types.forEach((column) => {
-                    labelValues.push(row[column.column_name]);
-                    stacked_data_types.forEach((column) => {
+                    if (column.data_type.includes('character varying') ||
+                        column.data_type.includes('varchar') ||
+                        column.data_type.includes('character') ||
+                        column.data_type.includes('char') ||
+                        column.data_type.includes('bpchar') ||
+                        column.data_type.includes('text') ||
+                        column.data_type.includes('USER-DEFINED')
+                    ) {
+                        if (labelValue === '') {
+                            labelValue = row[column.column_name];
+                        }
+                    } else if (
+                            column.data_type === 'smallint' ||
+                            column.data_type === 'bigint'  ||
+                            column.data_type === 'integer' ||
+                            column.data_type === 'numeric' ||
+                            column.data_type === 'decimal' || 
+                            column.data_type === 'real' ||
+                            column.data_type === 'double precision' ||
+                            column.data_type === 'small serial' ||
+                            column.data_type === 'serial' ||
+                            column.data_type === 'bigserial'                       
+                        ) {
                         const stackData = {};
-                        chart.stack_keys.push(column.column_name);
-                        stackData.key = column.column_name;
+                        chart.stack_keys.push(column.column_name.replace(/\_/g, ' '));
+                        stackData.key = column.column_name.replace(/\_/g, ' ');
                         stackData.value = parseFloat(row[column.column_name]);
                         stackedValues.push(stackData);
-                    });
-                    chart.data.push({
-                        label: row[column.column_name],
-                        values: stackedValues
-                    });
+                    }
+                    if (labelValue !== '') {
+                        chart.data.push({
+                            label: labelValue,
+                            values: stackedValues
+                        });
+                    }
                 });
             });
         }
@@ -844,6 +866,7 @@ onMounted(async () => {
                                                     :show-legend="true"
                                                     :x-axis-label="chart.x_axis_label"
                                                     :y-axis-label="chart.y_axis_label"
+                                                    :max-legend-width="350"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
                                                 />
