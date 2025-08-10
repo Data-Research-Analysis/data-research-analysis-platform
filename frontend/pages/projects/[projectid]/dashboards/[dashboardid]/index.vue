@@ -314,8 +314,11 @@ async function executeQueryOnDataModels(chartId) {
                             column.data_type === 'bigserial'                       
                         ) {
                         const stackData = {};
-                        chart.stack_keys.push(column.column_name.replace(/\_/g, ' '));
-                        stackData.key = column.column_name.replace(/\_/g, ' ');
+                        const stackKey = column.column_name.replace(/\_/g, ' ');
+                        if (!chart.stack_keys.includes(stackKey)) {
+                            chart.stack_keys.push(stackKey);
+                        }
+                        stackData.key = stackKey;
                         stackData.value = parseFloat(row[column.column_name]);
                         stackedValues.push(stackData);
                     }
