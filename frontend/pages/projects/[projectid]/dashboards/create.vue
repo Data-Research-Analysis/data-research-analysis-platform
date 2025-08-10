@@ -2,6 +2,7 @@
 import { useProjectsStore } from '@/stores/projects';
 import { useDataModelsStore } from '@/stores/data_models';
 import _ from 'lodash';
+import { label } from 'happy-dom/lib/PropertySymbol.js';
 const projectsStore = useProjectsStore();
 const dataModelsStore = useDataModelsStore();
 const { $swal } = useNuxtApp();
@@ -55,7 +56,6 @@ async function changeDataModel(event, chartId) {
         }
     });
     await executeQueryOnDataModels(chartId);
-    console.log('changeDataModel state.dashboard', state.dashboard);
 }
 async function updateDataModel(action, data) {
     if (action === 'add') {
@@ -105,6 +105,7 @@ function addChartToDashboard(chartType) {
         columns: [],
         table_name: '',
         data: [],
+        stack_keys: [],
         line_data: [],
         text_editor: {
             content: '',
@@ -170,6 +171,7 @@ async function executeQueryOnDataModels(chartId) {
         const labelValues = [];
         const numericValues = [];
         const numericLineValues = [];
+        let stackedValues = [];
         state.selected_chart.result_from_query = state.response_from_data_models_rows;
         if (['pie', 'donut', 'vertical_bar', 'horizontal_bar'].includes(chart.chart_type)) {
             state.response_from_data_models_rows.forEach((row) =>{
@@ -280,7 +282,28 @@ async function executeQueryOnDataModels(chartId) {
                     value: numericLineValues[index],
                 });
             });
+        } else if (['stacked_bar'].includes(chart.chart_type)) {
+            state.response_from_data_models_rows.forEach((row) =>{
+                stackedValues = [];
+                const columns_data_types = chart.columns.filter((column, index) => index < 1 && Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
+                const stacked_data_types = chart.columns.filter((column, index) => index > 0 && Object.keys(row).includes(column.column_name) && (column.data_type === 'smallint' || column.data_type === 'bigint'  ||  column.data_type === 'integer' || column.data_type === 'numeric' || column.data_type === 'decimal' || column.data_type === 'real' || column.data_type === 'double precision' || column.data_type === 'small serial' || column.data_type === 'serial' || column.data_type === 'bigserial')).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
+                columns_data_types.forEach((column) => {
+                    labelValues.push(row[column.column_name]);
+                    stacked_data_types.forEach((column) => {
+                        const stackData = {};
+                        chart.stack_keys.push(column.column_name);
+                        stackData.key = column.column_name;
+                        stackData.value = parseFloat(row[column.column_name]);
+                        stackedValues.push(stackData);
+                    });
+                    chart.data.push({
+                        label: row[column.column_name],
+                        values: stackedValues
+                    });
+                });
+            });
         }
+        chart.stack_keys = _.uniq(chart.stack_keys);
     }
 }
 async function saveDashboard() {
@@ -808,6 +831,19 @@ onMounted(async () => {
                                                     :line-data="chart.line_data"
                                                     line-color="#FF5733"
                                                     class="mt-5"
+                                                    @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
+                                                    @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
+                                                />
+                                                <stacked-bar-chart
+                                                    v-if="chart.chart_type === 'stacked_bar'"
+                                                    :id="`chart-${chart.chart_id}`"
+                                                    :chart-id="`${chart.chart_id}`"
+                                                    :data="chart.data"
+                                                    :stack-keys="chart.stack_keys"
+                                                    :color-scheme="['#1f77b4', '#ff7f0e', '#2ca02c']"
+                                                    :show-legend="true"
+                                                    :x-axis-label="chart.x_axis_label"
+                                                    :y-axis-label="chart.y_axis_label"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
                                                 />
