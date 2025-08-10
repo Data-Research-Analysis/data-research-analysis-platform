@@ -1,5 +1,4 @@
 <script setup>
-import { x } from 'happy-dom/lib/PropertySymbol.js';
 import { onMounted, watch, nextTick } from 'vue';
 const { $d3 } = useNuxtApp();
 const emit = defineEmits(['update:yAxisLabel', 'update:xAxisLabel']);
