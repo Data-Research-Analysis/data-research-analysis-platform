@@ -319,13 +319,13 @@ async function executeQueryOnDataModels(chartId) {
                         stackData.value = parseFloat(row[column.column_name]);
                         stackedValues.push(stackData);
                     }
-                    if (labelValue !== '') {
-                        chart.data.push({
-                            label: labelValue,
-                            values: stackedValues
-                        });
-                    }
                 });
+                if (labelValue !== '') {
+                    chart.data.push({
+                        label: labelValue,
+                        values: stackedValues
+                    });
+                }
             });
         }
         chart.stack_keys = _.uniq(chart.stack_keys);
