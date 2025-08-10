@@ -55,7 +55,6 @@ async function changeDataModel(event, chartId) {
         }
     });
     await executeQueryOnDataModels(chartId);
-    console.log('changeDataModel state.dashboard', state.dashboard);
 }
 async function updateDataModel(action, data) {
     if (action === 'add') {
@@ -105,6 +104,7 @@ function addChartToDashboard(chartType) {
         columns: [],
         table_name: '',
         data: [],
+        stack_keys: [],
         line_data: [],
         text_editor: {
             content: '',
@@ -149,6 +149,7 @@ async function executeQueryOnDataModels(chartId) {
     if (chart) {
         chart.data = [];
         chart.line_data = [];
+        chart.stack_keys = [];
         chart.sql_query = buildSQLQuery(chart);
         const sqlQuery = chart.sql_query;
         const token = getAuthToken();
@@ -170,6 +171,7 @@ async function executeQueryOnDataModels(chartId) {
         const labelValues = [];
         const numericValues = [];
         const numericLineValues = [];
+        let stackedValues = [];
         state.selected_chart.result_from_query = state.response_from_data_models_rows;
         if (['pie', 'donut', 'vertical_bar', 'horizontal_bar'].includes(chart.chart_type)) {
             state.response_from_data_models_rows.forEach((row) =>{
@@ -223,7 +225,6 @@ async function executeQueryOnDataModels(chartId) {
                     value: numericValues[index],
                 });
             });
-
         } else if (['vertical_bar_line'].includes(chart.chart_type)) {
             state.response_from_data_models_rows.forEach((row) =>{
                 const columns_data_types = chart.columns.filter((column, index) => index < 3 && Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
@@ -280,7 +281,54 @@ async function executeQueryOnDataModels(chartId) {
                     value: numericLineValues[index],
                 });
             });
+        } else if (['stacked_bar'].includes(chart.chart_type)) {
+            state.response_from_data_models_rows.forEach((row) =>{
+                stackedValues = [];
+                const columns_data_types = chart.columns.filter((column) => Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
+                let labelValue = '';
+                columns_data_types.forEach((column) => {
+                    if (column.data_type.includes('character varying') ||
+                        column.data_type.includes('varchar') ||
+                        column.data_type.includes('character') ||
+                        column.data_type.includes('char') ||
+                        column.data_type.includes('bpchar') ||
+                        column.data_type.includes('text') ||
+                        column.data_type.includes('USER-DEFINED')
+                    ) {
+                        if (labelValue === '') {
+                            labelValue = row[column.column_name];
+                        }
+                    } else if (
+                            column.data_type === 'smallint' ||
+                            column.data_type === 'bigint'  ||
+                            column.data_type === 'integer' ||
+                            column.data_type === 'numeric' ||
+                            column.data_type === 'decimal' || 
+                            column.data_type === 'real' ||
+                            column.data_type === 'double precision' ||
+                            column.data_type === 'small serial' ||
+                            column.data_type === 'serial' ||
+                            column.data_type === 'bigserial'                       
+                        ) {
+                        const stackData = {};
+                        const stackKey = column.column_name.replace(/\_/g, ' ');
+                        if (!chart.stack_keys.includes(stackKey)) {
+                            chart.stack_keys.push(stackKey);
+                        }
+                        stackData.key = column.column_name.replace(/\_/g, ' ');
+                        stackData.value = parseFloat(row[column.column_name]);
+                        stackedValues.push(stackData);
+                    }
+                });
+                if (labelValue !== '') {
+                    chart.data.push({
+                        label: labelValue,
+                        values: stackedValues
+                    });
+                }
+            });
         }
+        chart.stack_keys = _.uniq(chart.stack_keys);
     }
 }
 async function saveDashboard() {
@@ -808,6 +856,20 @@ onMounted(async () => {
                                                     :line-data="chart.line_data"
                                                     line-color="#FF5733"
                                                     class="mt-5"
+                                                    @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
+                                                    @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
+                                                />
+                                                <stacked-bar-chart
+                                                    v-if="chart.chart_type === 'stacked_bar'"
+                                                    :id="`chart-${chart.chart_id}`"
+                                                    :chart-id="`${chart.chart_id}`"
+                                                    :data="chart.data"
+                                                    :stack-keys="chart.stack_keys"
+                                                    :color-scheme="['#1f77b4', '#ff7f0e', '#2ca02c']"
+                                                    :show-legend="true"
+                                                    :x-axis-label="chart.x_axis_label"
+                                                    :y-axis-label="chart.y_axis_label"
+                                                    :max-legend-width="350"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
                                                 />
