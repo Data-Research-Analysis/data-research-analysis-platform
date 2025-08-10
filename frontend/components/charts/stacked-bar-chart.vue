@@ -192,7 +192,6 @@ function renderSVG(chartData) {
       const stackKey = $d3.select(this.parentNode).datum().key;
       const value = d.data[stackKey];
       const total = props.stackKeys.reduce((sum, key) => sum + (d.data[key] || 0), 0);
-      console.log('total', total);
       // Create tooltip
       const tooltip = $d3.select('body').append('div')
         .attr('class', 'chart-tooltip')
