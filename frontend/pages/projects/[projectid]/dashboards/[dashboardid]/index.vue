@@ -330,6 +330,81 @@ async function executeQueryOnDataModels(chartId) {
                     });
                 }
             });
+        } else if (['multiline'].includes(chart.chart_type)) {
+            // Multi-line chart data preparation
+            const categories = [];
+            const seriesMap = new Map();
+            const numericColumns = [];
+            let categoryColumn = null;
+
+            // Identify category column (first text column) and numeric columns
+            chart.columns.forEach((column, index) => {
+                if (column.data_type.includes('character varying') ||
+                    column.data_type.includes('varchar') ||
+                    column.data_type.includes('character') ||
+                    column.data_type.includes('char') ||
+                    column.data_type.includes('bpchar') ||
+                    column.data_type.includes('text') ||
+                    column.data_type.includes('USER-DEFINED')
+                ) {
+                    if (!categoryColumn) {
+                        categoryColumn = column;
+                    }
+                } else if (
+                    column.data_type === 'smallint' ||
+                    column.data_type === 'bigint' ||
+                    column.data_type === 'integer' ||
+                    column.data_type === 'numeric' ||
+                    column.data_type === 'decimal' ||
+                    column.data_type === 'real' ||
+                    column.data_type === 'double precision' ||
+                    column.data_type === 'small serial' ||
+                    column.data_type === 'serial' ||
+                    column.data_type === 'bigserial'
+                ) {
+                    numericColumns.push(column);
+                }
+            });
+
+            // Process rows to extract categories and series data
+            state.response_from_data_models_rows.forEach((row) => {
+                if (categoryColumn && row[categoryColumn.column_name] !== undefined) {
+                    const categoryValue = row[categoryColumn.column_name];
+                    if (!categories.includes(categoryValue)) {
+                        categories.push(categoryValue);
+                    }
+
+                    // Initialize series data for each numeric column
+                    numericColumns.forEach((column) => {
+                        const seriesName = column.column_name.replace(/\_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                        if (!seriesMap.has(seriesName)) {
+                            seriesMap.set(seriesName, []);
+                        }
+                        
+                        const value = parseFloat(row[column.column_name]) || 0;
+                        seriesMap.get(seriesName).push(value);
+                    });
+                }
+            });
+
+            // Convert to chart data format
+            const series = [];
+            const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#FFA07A'];
+            let colorIndex = 0;
+
+            seriesMap.forEach((data, seriesName) => {
+                series.push({
+                    name: seriesName,
+                    data: data,
+                    color: colors[colorIndex % colors.length]
+                });
+                colorIndex++;
+            });
+
+            chart.data = [{
+                categories: categories,
+                series: series
+            }];
         }
         chart.stack_keys = _.uniq(chart.stack_keys);
     }
@@ -895,6 +970,25 @@ onMounted(async () => {
                                                     :x-axis-label="chart.x_axis_label"
                                                     :y-axis-label="chart.y_axis_label"
                                                     :max-legend-width="350"
+                                                    @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
+                                                    @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
+                                                />
+                                                <multi-line-chart
+                                                    v-if="chart.chart_type === 'multiline'"
+                                                    :id="`chart-${chart.chart_id}`"
+                                                    :chart-id="`${chart.chart_id}`"
+                                                    :data="chart.data[0]"
+                                                    :width="chart.config.width"
+                                                    :height="chart.config.height"
+                                                    :x-axis-label="chart.x_axis_label"
+                                                    :y-axis-label="chart.y_axis_label"
+                                                    :show-data-points="true"
+                                                    :enable-tooltips="true"
+                                                    :show-grid="true"
+                                                    legend-position="top"
+                                                    :max-legend-width="400"
+                                                    :legend-line-height="25"
+                                                    :legend-item-spacing="25"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
                                                 />
