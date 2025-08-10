@@ -187,7 +187,6 @@ function renderSVG(chartData) {
     .attr('height', d => y(d[0]) - y(d[1]))
     .attr('width', x.bandwidth())
     .on('mouseover', function (event, d) {
-      console.log('mouseover');
       // Get the stack key from parent group
       const stackKey = $d3.select(this.parentNode).datum().key;
       const value = d.data[stackKey];
