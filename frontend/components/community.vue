@@ -14,7 +14,7 @@
                     <div class="text-3xl font-bold text-white text-center mt-5">
                         Github
                     </div>
-                    <div class="text-xl font-bold text-white text-center mt-5">
+                    <div class="text-xl text-white text-center mt-5">
                         Report bugs, request features and contribute to the project.
                     </div>
                 </div>
@@ -26,7 +26,7 @@
                     <div class="text-3xl font-bold text-white text-center mt-5">
                         Linkedin
                     </div>
-                    <div class="text-xl font-bold text-white text-center mt-5">
+                    <div class="text-xl text-white text-center mt-5">
                         Stay updated with tips, announcements, and general information.
                     </div>
                 </div>
@@ -38,7 +38,7 @@
                 <div class="text-3xl font-bold text-white text-center mt-5">
                     Github
                 </div>
-                <div class="text-xl font-bold text-white text-center mt-5">
+                <div class="text-xl text-white text-center mt-5">
                     Report bugs, request features and contribute to the project.
                 </div>
             </div>
@@ -47,7 +47,7 @@
                 <div class="text-3xl font-bold text-white text-center mt-5">
                     Linkedin
                 </div>
-                <div class="text-xl font-bold text-white text-center mt-5">
+                <div class="text-xl text-white text-center mt-5">
                     Stay updated with tips, announcements, and general information.
                 </div>
             </div>

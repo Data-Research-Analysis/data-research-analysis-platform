@@ -17,7 +17,7 @@
                     </div>
                     <div class="flex flex-row justify-center">
                         <div class="w-3/4 flex flex-col p-5">
-                            <div class="text-lg text-white font-bold">
+                            <div class="text-lg text-white">
                                 You will be able to build your data models using our easy to use and understand drag-and-drop data model builder.
                                 The data build model can also do the following and more:
                                 <ul class="list-disc">
@@ -35,7 +35,7 @@
                         <img src="/assets/images/build-data-model.gif" class="w-full border-5 border-white shadow-lg" />
                     </div>
                     <div class="w-1/2 flex flex-col justify-center p-5 mr-10 text-white">
-                        <div class="text-lg font-bold">
+                        <div class="text-lg">
                             You will be able to build your data models using our easy to use and understand drag-and-drop data model builder.
                             The data build model can also do the following and more:
                             <ul class="list-disc">

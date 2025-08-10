@@ -79,7 +79,7 @@ onMounted(async () => {
                 <div class="text-3xl font-bold text-white text-center">
                     Join Our Wait List
                 </div>
-                <div class="text-xl font-bold text-white text-center mt-10">
+                <div class="text-xl text-white text-center mt-10">
                     Join our wait list today so that you can get the front seat to the laumch of Data Research Analysis.
                 </div>
                 <spinner v-if="state.loading" :show="true" class="mt-10" data-cy="Loading..."/>
@@ -89,18 +89,18 @@ onMounted(async () => {
                             <input type="text" v-model="state.email" class="w-3/4 h-10 bg-white focus:border-white focus:outline-none border-white text-black font-bold ml-4" placeholder="Enter your email address" data-cy="subscribe-email-input" />
                             <combo-button @click="addMe" label="Subscribe Me" color="primary" class="w-1/4 h-13 mr-2 shadow-lg cursor-pointer" data-cy="Subscribe Me" />
                         </div>
-                        <div v-if="state.subscriptionError" class="text-red-500 text-md font-bold bg-red-100 p-2">
+                        <div v-if="state.subscriptionError" class="text-red-500 text-md bg-red-100 p-2">
                             {{ state.subscriptionErrorMessage }}
                         </div>
-                        <div class="text-md font-bold text-white mt-5">
+                        <div class="text-md text-white mt-5">
                             * We promise that we will not spam you.
                         </div>
                     </div>
                     <div v-else-if="state.subscriptionStep && state.subscriptionStep === 2">
-                        <div class="text-3xl font-bold text-white text-center mt-10">
+                        <div class="text-3xl text-white text-center mt-10">
                             Thank you for subscribing with us.
                         </div>
-                        <div class="text-xl font-bold text-white text-center mt-5">
+                        <div class="text-xl text-white text-center mt-5">
                             We will keep you updated with the latest news and updates.
                         </div>
                     </div>
@@ -111,7 +111,7 @@ onMounted(async () => {
                     <div class="text-4xl font-bold text-white text-center mt-15">
                         Join Our Wait List
                     </div>
-                    <div class="text-xl font-bold text-white mt-10">
+                    <div class="text-xl text-white mt-10">
                         Join our wait list today so that you can get the front seat to the launch of Data Research Analysis.
                     </div>
                     <spinner v-if="state.loading" :show="true" class="mt-10"/>
@@ -121,18 +121,18 @@ onMounted(async () => {
                                 <input type="text" v-model="state.email" class="w-3/4 h-10 bg-white focus:border-white focus:outline-none border-white text-black font-bold ml-4" placeholder="Enter your email address" />
                                 <combo-button @click="addMe" label="Add Me" color="primary" class="w-1/4 h-13 mr-2 shadow-lg cursor-pointer" />
                             </div>
-                            <div v-if="state.subscriptionError" class="text-red-500 text-md font-bold bg-red-100 p-2">
+                            <div v-if="state.subscriptionError" class="text-red-500 text-md bg-red-100 p-2">
                                 {{ state.subscriptionErrorMessage }}
                             </div>
-                            <div class="text-md font-bold text-white mt-5">
+                            <div class="text-md text-white mt-5">
                                 *We promise that we will not spam you.
                             </div>
                         </div>
                         <div v-else-if="state.subscriptionStep && state.subscriptionStep === 2">
-                            <div class="text-3xl font-bold text-white text-center mt-10">
+                            <div class="text-3xl text-white text-center mt-10">
                                 Thank you for subscribing with us.
                             </div>
-                            <div class="text-xl font-bold text-white text-center mt-5">
+                            <div class="text-xl text-white text-center mt-5">
                                 We will keep you updated with the latest news and updates.
                             </div>
                         </div>

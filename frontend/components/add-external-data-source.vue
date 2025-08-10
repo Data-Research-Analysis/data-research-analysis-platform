@@ -10,7 +10,7 @@
         <div class="flex flex-col mb-10 lg:hidden">
             <div class="flex flex-row justify-center">
                 <div class="w-3/4 flex flex-col p-5">
-                    <h3 class="text-primary-blue-100 font-bold">
+                    <h3 class="text-primary-blue-100">
                         Data Research Analysis will alllow you connect to multiple data sources and build your own data model. Following are
                         just a few of the many of the data sources that will be available in the platform.
                     </h3>
@@ -31,7 +31,7 @@
         </div>
         <div class="hidden lg:flex lg:flex-row lg:justify-center lg:mb-10">
             <div class="w-1/2 flex flex-col mt-10 p-5 mr-10">
-                <h3 class="text-primary-blue-100 font-bold">
+                <h3 class="text-primary-blue-100">
                     Data Research Analysis will alllow you connect to multiple data sources and build your own data model. Following are
                     just a few of the many of the data sources that will be available in the platform.
                 </h3>
