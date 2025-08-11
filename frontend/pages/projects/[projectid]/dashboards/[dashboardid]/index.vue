@@ -1002,7 +1002,7 @@ onMounted(async () => {
                                                     :show-row-numbers="true"
                                                     :sticky-header="true"
                                                     :max-column-width="'200px'"
-                                                    :min-column-width="'200px'"
+                                                    :min-column-width="'120px'"
                                                     :use-container-sizing="true"
                                                     :virtual-scrolling="chart.data[0]?.rows?.length > 100"
                                                     :virtual-scroll-item-height="35"
@@ -1190,21 +1190,32 @@ onMounted(async () => {
     </div>
     <overlay-dialog v-if="state.show_table_dialog" :enable-scrolling="false" @close="closeTableDialog">
         <template #overlay>
-            <div class="flex flex-col w-200 border border-primary-blue-100 border-solid p-5">
-                <table class="w-full border border-primary-blue-100 border-solid">
-                    <thead>
-                        <tr>
-                            <th v-for="column in state.response_from_data_models_columns" class="bg-blue-100 border border-primary-blue-100 border-solid p-2 text-center font-bold">
-                                {{ column }}
-                            </th>
-                        </tr>
-                        <tr v-for="row in state.response_from_data_models_rows" class="border border-primary-blue-100 border-solid p-2 text-center font-bold">
-                            <td v-for="column in state.response_from_data_models_columns" class="border border-primary-blue-100 border-solid p-2 text-center">
-                                {{ row[column] }}
-                            </td>
-                        </tr>
-                    </thead>
-                </table>
+            <div class="flex flex-col w-full max-w-7xl h-full max-h-[85vh] p-5 overflow-hidden">
+                <h2 class="mb-4 text-xl font-bold text-gray-800">Data Model Table Data</h2>
+                <div class="overflow-x-auto overflow-y-auto max-h-[65vh] border border-primary-blue-100 border-solid rounded-lg shadow-inner bg-white">
+                    <div class="inline-block min-w-full">
+                        <table class="w-auto min-w-full border-collapse bg-white text-sm divide-y divide-gray-200">
+                            <thead class="bg-blue-100 sticky top-0 z-10 shadow-sm">
+                                <tr>
+                                    <th v-for="column in state.response_from_data_models_columns" 
+                                        class="border border-primary-blue-100 p-3 text-center font-bold whitespace-nowrap min-w-[150px] max-w-[250px] bg-blue-100">
+                                        {{ column }}
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <tr v-for="row in state.response_from_data_models_rows" 
+                                    class="hover:bg-gray-50 even:bg-gray-25 transition-colors duration-150">
+                                    <td v-for="column in state.response_from_data_models_columns" 
+                                        class="border border-primary-blue-100 p-3 text-center whitespace-nowrap min-w-[150px] max-w-[250px] overflow-hidden text-ellipsis"
+                                        :title="row[column]">
+                                        {{ row[column] }}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </template>
     </overlay-dialog>
