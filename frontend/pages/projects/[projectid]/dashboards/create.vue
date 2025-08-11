@@ -160,7 +160,6 @@ function autoResizeTableContainer(chartId) {
                 // Update chart dimensions
                 chart.dimensions.width = `${newWidth}px`;
                 chart.dimensions.widthDraggable = `${newWidth}px`;
-                // draggableDiv.style.width = `${newWidth}px`;
                 state.selected_div.style.width = `${newWidth}px`;
             }
         }
