@@ -76,6 +76,11 @@ async function changeDataModel(event, chartId) {
         }
     });    
     await executeQueryOnDataModels(chartId);
+    
+    // Auto-resize table containers when columns change
+    if (chart && chart.chart_type === 'table') {
+        autoResizeTableContainer(chartId);
+    }
 }
 function addChartToDashboard(chartType) {
     //table, pie, vertical_bar, horizontal_bar, vertical_bar_line, stacked_bar, multiline, heatmap, bubble, stacked_area, map
@@ -128,6 +133,64 @@ function addChartToDashboard(chartType) {
     });
 
 }
+function autoResizeTableContainer(chartId) {
+    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
+    if (!chart || chart.chart_type !== 'table') return;
+    
+    nextTick(() => {
+        // Calculate required width based on columns
+        const columnCount = chart.columns?.length || 0;
+        const minColumnWidth = 120; // From component prop
+        const rowNumberWidth = 60; // Row numbers width
+        const padding = 80; // Container padding and borders
+        const scrollbarWidth = 20; // Account for scrollbar
+        
+        const requiredWidth = (columnCount * minColumnWidth) + rowNumberWidth + padding + scrollbarWidth;
+        const currentWidth = parseInt(chart.dimensions.widthDraggable.replace('px', ''));
+        
+        // Only resize if current width is too small
+        if (requiredWidth > currentWidth) {
+            const draggableDiv = document.getElementById(`draggable-div-${chartId}`);
+            const newWidth = Math.min(requiredWidth, 1000); // Cap at reasonable max width
+            
+            if (draggableDiv) {
+                draggableDiv.style.width = `${newWidth}px`;
+                
+                // Update chart dimensions
+                chart.dimensions.width = `${newWidth}px`;
+                chart.dimensions.widthDraggable = `${newWidth}px`;
+            }
+        }
+    });
+}
+
+function handleTableResize(chartId, resizeData) {
+    const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
+    if (!chart || chart.chart_type !== 'table') return;
+    
+    const draggableDiv = document.getElementById(`draggable-div-${chartId}`);
+    
+    // Calculate optimal width based on column count and content
+    const minWidth = 300; // Minimum container width
+    const maxWidth = 1200; // Maximum container width
+    const optimalWidth = Math.max(minWidth, Math.min(maxWidth, resizeData.requiredWidth + 40));
+    
+    if (draggableDiv) {
+        // Animate the resize for smooth UX
+        draggableDiv.style.transition = 'width 0.3s ease';
+        draggableDiv.style.width = `${optimalWidth}px`;
+        
+        // Update chart dimensions
+        chart.dimensions.width = `${optimalWidth}px`;
+        chart.dimensions.widthDraggable = `${optimalWidth}px`;
+        
+        // Remove transition after animation
+        setTimeout(() => {
+            draggableDiv.style.transition = '';
+        }, 300);
+    }
+}
+
 function deleteChartFromDashboard(chartId) {
     state.dashboard.charts = state.dashboard.charts.filter((chart) => chart.chart_id !== chartId);
     state.selected_chart = null;
@@ -405,6 +468,24 @@ async function executeQueryOnDataModels(chartId) {
                 categories: categories,
                 series: series
             }];
+        } else if (chart.chart_type === 'table') {
+            // Process table data
+            const columns = chart.columns
+                .map((column) => column.column_name)
+                .filter(col => col && col.trim() !== ''); // Filter out empty columns
+            
+            const rows = state.response_from_data_models_rows
+                .filter(row => row && typeof row === 'object' && Object.keys(row).length > 0); // Filter out invalid rows
+            
+            chart.data = [{
+                columns: columns,
+                rows: rows
+            }];
+            
+            // Auto-resize table container after data is loaded
+            nextTick(() => {
+                autoResizeTableContainer(chart.chart_id);
+            });
         }
         chart.stack_keys = _.uniq(chart.stack_keys);
     }
@@ -736,6 +817,11 @@ async function updateDataModel(action, data) {
     }
     if (state.selected_chart && state.selected_chart.columns.length) {
         await executeQueryOnDataModels(state.selected_chart.chart_id);
+        
+        // Auto-resize table containers when columns change
+        if (state.selected_chart.chart_type === 'table') {
+            autoResizeTableContainer(state.selected_chart.chart_id);
+        }
     }
 
 }
@@ -905,6 +991,24 @@ onMounted(async () => {
                                     <template #item="{ element, index }">
                                         <div v-if="index === 0" class="text-left font-bold text-white px-4 py-2 border-r-1 border-gray-200">
                                             <div v-if="chart && chart.data && chart.data.length" class="flex flex-col justify-center">
+                                                <table-chart 
+                                                    v-if="chart.chart_type === 'table'"
+                                                    :id="`chart-${chart.chart_id}`"   
+                                                    :chart-id="`${chart.chart_id}`"
+                                                    :data="chart.data[0]"
+                                                    :width="parseInt(chart.dimensions.widthDraggable.replace('px', '')) - 40"
+                                                    :height="parseInt(chart.dimensions.heightDraggable.replace('px', '')) - 80"
+                                                    :enable-scroll-bars="true"
+                                                    :show-row-numbers="true"
+                                                    :sticky-header="true"
+                                                    :max-column-width="'200px'"
+                                                    :min-column-width="'200px'"
+                                                    :use-container-sizing="true"
+                                                    :virtual-scrolling="chart.data[0]?.rows?.length > 100"
+                                                    :virtual-scroll-item-height="35"
+                                                    @resize-needed="(data) => handleTableResize(chart.chart_id, data)"
+                                                    class="mt-2"
+                                                />
                                                 <pie-chart
                                                     v-if="chart.chart_type === 'pie'"
                                                     :id="`chart-${chart.chart_id}`"   
