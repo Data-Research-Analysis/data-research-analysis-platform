@@ -153,7 +153,6 @@ function autoResizeTableContainer(chartId) {
         const currentWidth = parseInt(chart.dimensions.widthDraggable.replace('px', ''));
         // Only resize if current width is too small
         if (requiredWidth > currentWidth) {
-            // const draggableDiv = document.getElementById(`draggable-div-${chartId}`);
             const newWidth = Math.min(requiredWidth, 1000); // Cap at reasonable max width
             if (draggableDiv && draggable) {
                 draggableDiv.style.width = `${newWidth}px`;
@@ -161,7 +160,6 @@ function autoResizeTableContainer(chartId) {
                 // Update chart dimensions
                 chart.dimensions.width = `${newWidth}px`;
                 chart.dimensions.widthDraggable = `${newWidth}px`;
-                // draggableDiv.style.width = `${newWidth}px`;
                 state.selected_div.style.width = `${newWidth}px`;
             }
         }

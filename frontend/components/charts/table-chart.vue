@@ -303,7 +303,6 @@ onUnmounted(() => {
     class="border border-gray-300 overflow-hidden bg-white shadow-sm flex flex-col"
     :style="containerStyle"
   >
-  width: {{ props.width }}px, height: {{ props.height }}px
     <!-- Table Container with Scroll -->
     <div 
       class="flex-1 scroll-container"
