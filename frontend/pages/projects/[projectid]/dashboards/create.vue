@@ -88,7 +88,7 @@ async function updateDataModel(action, data) {
     }
 }
 function addChartToDashboard(chartType) {
-    //table, pie, vertical_bar, horizontal_bar, vertical_bar_line, stacked_bar, multiline, heatmap, bubble, stacked_area, map
+    //table, pie, vertical_bar, horizontal_bar, vertical_bar_line, stacked_bar, multiline, heatmap, bubble, stacked_area, treemap, map
     state.selected_chart = null;
     state.selected_div = null;
     state.is_dragging = false;
@@ -496,6 +496,27 @@ async function executeQueryOnDataModels(chartId) {
             nextTick(() => {
                 autoResizeTableContainer(chart.chart_id);
             });
+        } else if (['treemap'].includes(chart.chart_type)) {
+            // Treemap requires at least 2 columns: category + value
+            // Or 3 columns: category + subcategory + value
+            const columns = chart.columns.map(col => col.column_name);
+            const validRows = state.response_from_data_models_rows.filter(row => 
+                row && typeof row === 'object' && Object.keys(row).length > 0
+            );
+            if (columns.length >= 2 && validRows.length > 0) {
+                chart.data = [{
+                    name: columns.length >= 3 ? `${columns[0]} by ${columns[1]}` : `${columns[0]} Analysis`,
+                    columns: columns,
+                    rows: validRows
+                }];
+            } else {
+                // Fallback for insufficient data
+                chart.data = [{
+                    name: "Insufficient Data", 
+                    columns: [], 
+                    rows: []
+                }];
+            }
         }
     }
 }
@@ -1095,6 +1116,22 @@ onMounted(async () => {
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
                                                 />
+                                                <treemap-chart
+                                                    v-if="chart.chart_type === 'treemap'"
+                                                    :id="`chart-${chart.chart_id}`"
+                                                    :chart-id="`${chart.chart_id}`"
+                                                    :data="chart.data[0]"
+                                                    :width="parseInt(chart.dimensions.widthDraggable.replace('px', '')) - 40"
+                                                    :height="parseInt(chart.dimensions.heightDraggable.replace('px', '')) - 80"
+                                                    :color-scheme="'schemeCategory10'"
+                                                    :show-labels="true"
+                                                    :show-values="true"
+                                                    :enable-tooltips="true"
+                                                    :label-font-size="12"
+                                                    :value-font-size="10"
+                                                    :min-tile-size="30"
+                                                    class="mt-2"
+                                                />
                                             </div>
                                         </div>
                                     </template>
@@ -1168,18 +1205,18 @@ onMounted(async () => {
                     </div>
                 </div>
                 <div class="flex flex-row mb-2">
-                    <div class="mr-2" @click="addChartToDashboard('heatmap')" v-tippy="{ content: 'Add Heatmap Chart To Dashboard', placement: 'top' }">
-                        <img src="/assets/images/heatmap_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Heatmap Chart" />
+                    <div class="mr-2" @click="addChartToDashboard('treemap')" v-tippy="{ content: 'Add Treemap Chart To Dashboard', placement: 'top' }">
+                        <img src="/assets/images/treemap_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Treemap Chart" />
                     </div>
                     <div @click="addChartToDashboard('bubble')" v-tippy="{ content: 'Add Bubble Chart To Dashboard', placement: 'top' }">
                         <img src="/assets/images/bubble_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Bubble Chart" />
                     </div>
                 </div>
-                <div class="flex flex-row">
+                <div class="flex flex-row mb-2">
                     <div class="mr-2" @click="addChartToDashboard('stacked_area')" v-tippy="{ content: 'Add Stacked Area Chart To Dashboard', placement: 'top' }">
                         <img src="/assets/images/stacked_area_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Stacked Area Chart" />
                     </div>
-                    <div @click="addChartToDashboard('map')" v-tippy="{ content: 'Add Map To Dashboard', placement: 'top' }">
+                    <div class="mr-2" @click="addChartToDashboard('map')" v-tippy="{ content: 'Add Map To Dashboard', placement: 'top' }">
                         <img src="/assets/images/map_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Map Chart" />
                     </div>
                 </div>
