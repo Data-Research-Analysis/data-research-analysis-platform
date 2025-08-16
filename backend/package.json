@@ -43,12 +43,13 @@
     "jsonwebtoken": "^9.0.2",
     "lodash": "^4.17.21",
     "multer": "^2.0.1",
+    "mysql2": "^3.14.3",
     "nodemailer": "^6.10.0",
     "nodemailer-smtp-transport": "^2.7.4",
     "pg": "^8.15.6",
     "pg-hstore": "^2.3.4",
     "reflect-metadata": "^0.2.2",
-    "typeorm": "^0.3.23",
+    "typeorm": "^0.3.25",
     "uuid": "^11.1.0",
     "winston": "^3.17.0"
   }
