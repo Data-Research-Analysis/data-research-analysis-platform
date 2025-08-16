@@ -170,7 +170,7 @@ export class DataModelProcessor {
             if (!user) {
                 return resolve([]);
             }
-            const project: DRAProject|null = await manager.findOne(DRAProject, {where: {id: projectId, users_platform: user}, relations: ['data_sources']});
+            const project: DRAProject|null = await manager.findOne(DRAProject, {where: {id: projectId, users_platform: user}, relations: ['data_sources', 'data_sources.data_models', 'data_sources.project', 'users_platform']});
             if (!project) {
                 return resolve([]);
             }
@@ -178,9 +178,9 @@ export class DataModelProcessor {
             let tables:any[] = [];
             for (let i=0; i<dataSources.length; i++) {
                 const dataSource = dataSources[i];
-                const dataModels = await manager.find(DRADataModel, {where: {data_source: dataSource, users_platform: user}});
+                const dataModels = dataSource?.data_models || [];
                 if (!dataModels) {
-                    return resolve([]);
+                    continue;
                 }
                 const dataModelsTableNames = dataModels.map((dataModel) => {
                     return {
@@ -189,7 +189,7 @@ export class DataModelProcessor {
                     }
                 })
                 if (dataModelsTableNames?.length === 0) {
-                    return resolve([]);
+                    continue;
                 }
                 let query = `SELECT tb.table_catalog, tb.table_schema, tb.table_name, co.column_name, co.data_type, co.character_maximum_length
                     FROM information_schema.tables AS tb
@@ -200,7 +200,6 @@ export class DataModelProcessor {
                     query += ` AND tb.table_name IN (${dataModelsTableNames.map((model) => `'${model.table_name}'`).join(',')})`;
                     query += ` AND tb.table_schema IN (${dataModelsTableNames.map((model) => `'${model.schema}'`).join(',')})`;
                 }
-                
                 let tablesSchema = await dbConnector.query(query);
                 for (let i=0; i < dataModelsTableNames.length; i++) {
                     const dataModelTableName = dataModelsTableNames[i];
