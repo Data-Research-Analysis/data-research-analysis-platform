@@ -70,6 +70,16 @@ export class UtilityService {
             POSTGRESQL_USERNAME: process.env.POSTGRESQL_USERNAME || '',
             POSTGRESQL_PASSWORD: process.env.POSTGRESQL_PASSWORD || '',
             POSTGRESQL_DB_NAME: process.env.POSTGRESQL_DB_NAME || '',
+            MYSQLDB_USER: process.env.MYSQLDB_USER || '',
+            MYSQLDB_ROOT_PASSWORD: process.env.MYSQLDB_ROOT_PASSWORD || '',
+            MYSQLDB_DATABASE: process.env.MYSQLDB_DATABASE || '',
+            MYSQLDB_LOCAL_PORT: process.env.MYSQLDB_LOCAL_PORT || '',
+            MYSQLDB_DOCKER_PORT: process.env.MYSQLDB_DOCKER_PORT || '',
+            MARIADB_USER: process.env.MARIADB_USER || '',
+            MARIADB_ROOT_PASSWORD: process.env.MARIADB_ROOT_PASSWORD || '',
+            MARIADB_DATABASE: process.env.MARIADB_DATABASE || '',
+            MARIADB_LOCAL_PORT: process.env.MARIADB_LOCAL_PORT || '',
+            MARIADB_DOCKER_PORT: process.env.MARIADB_DOCKER_PORT || '',
             NODE_ENV: process.env.NODE_ENV || 'development',
             MAIL_DRIVER: process.env.MAIL_DRIVER || '',
             MAIL_HOST: process.env.MAIL_HOST || '',
@@ -82,12 +92,13 @@ export class UtilityService {
     }
 
     public convertDataTypeToPostgresDataType(database: string, dataType: string): { type: string; size?: string | number } {
-        // Early return for non-MySQL databases
-        if (database.toLowerCase() !== 'mysql') {
+        // Early return for non-MySQL/MariaDB databases
+        const dbLower = database.toLowerCase();
+        if (dbLower !== 'mysql' && dbLower !== 'mariadb') {
             return { type: dataType }; // Pass through unchanged
         }
 
-        // Parse MySQL data type
+        // Parse MySQL/MariaDB data type (MariaDB is MySQL-compatible)
         const parsedType = this.parseMySQLDataType(dataType);
         
         // Map to PostgreSQL equivalent

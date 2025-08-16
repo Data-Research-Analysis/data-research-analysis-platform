@@ -18,13 +18,13 @@ const state = reactive({
             name: 'PostgreSQL',
             url: `${route.fullPath}/data-sources/connect/postgres`,
         },
-        // {
-        //     name: 'MariaDB',
-        //     url: `${route.fullPath}/data-sources/connect/mariadb`,
-        // },
         {
             name: 'MySQL',
             url: `${route.fullPath}/data-sources/connect/mysql`,
+        },
+        {
+            name: 'MariaDB',
+            url: `${route.fullPath}/data-sources/connect/mariadb`,
         },
         // {
         //     name: 'MongoDB',
