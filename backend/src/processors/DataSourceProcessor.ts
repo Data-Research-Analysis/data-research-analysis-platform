@@ -42,7 +42,6 @@ export class DataSourceProcessor {
 
     public async connectToDataSource(connection: IDBConnectionDetails): Promise<DataSource> {
         return new Promise<DataSource>(async (resolve, reject) => {
-            console.log('Connecting to external DB', connection);
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             if (!driver) {
                 return resolve(null);
@@ -66,7 +65,6 @@ export class DataSourceProcessor {
                 console.log('Error connecting to external DB', error);
                 return resolve(null);
             }
-            return resolve(null);
         });
     }
 
@@ -189,9 +187,6 @@ export class DataSourceProcessor {
             if (!dataModels) {
                 return resolve(false);
             }
-            const dataModelTables = dataModels.map((dataModel: DRADataModel) => {
-                return `'${dataModel.name}'`;
-            });
             let dbConnector: DataSource;
             try {
                 dbConnector =  await externalDriver.connectExternalDB(connection);
@@ -202,20 +197,12 @@ export class DataSourceProcessor {
                 console.log('Error connecting to external DB', error);
                 return resolve(false);
             }
-            let query = `SELECT tb.table_catalog, tb.table_schema, tb.table_name, co.column_name, co.data_type, co.character_maximum_length
-					FROM information_schema.tables AS tb
-					JOIN information_schema.columns AS co
-					ON tb.table_name = co.table_name
-					WHERE tb.table_schema = '${connection.schema}'
-					AND tb.table_type = 'BASE TABLE'`;
-            if (dataModelTables?.length) {
-                query += ` AND tb.table_name NOT IN (${dataModelTables.join(',')})`;
-            }
+            let query = await externalDriver.getTablesColumnDetails(connection.schema);
             let tablesSchema = await dbConnector.query(query);
             let tables = tablesSchema.map((table: any) => {
                 return {
-                    table_name: table.table_name,
-                    schema: table.table_schema,
+                    table_name: table?.table_name || table?.TABLE_NAME,
+                    schema: table.table_schema || table?.TABLE_SCHEMA,
                     columns: [],
                     references: [],
                 }
@@ -223,13 +210,13 @@ export class DataSourceProcessor {
             tables = _.uniqBy(tables, 'table_name');
             tables.forEach((table: any) => {
                 tablesSchema.forEach((result: any) => {
-                    if (table.table_name === result.table_name) {
+                    if (table?.table_name === result?.table_name || table?.table_name === result?.TABLE_NAME) {
                         table.columns.push({
-                            column_name: result.column_name,
-                            data_type: result.data_type,
-                            character_maximum_length: result.character_maximum_length,
-                            table_name: table.table_name,
-                            schema: table.schema,
+                            column_name: result?.column_name || result?.COLUMN_NAME,
+                            data_type: result?.data_type || result?.DATA_TYPE,
+                            character_maximum_length: result?.character_maximum_length || result?.CHARACTER_MAXIMUM_LENGTH,
+                            table_name: table?.table_name || table?.TABLE_NAME,
+                            schema: table?.schema || table?.TABLE_SCHEMA,
                             alias_name: '',
                             is_selected_column: true,
                             reference: {
@@ -245,35 +232,20 @@ export class DataSourceProcessor {
                     }
                 });
             });
-            tablesSchema = await dbConnector.query(`SELECT
-						tc.table_schema AS local_table_schema, 
-						tc.constraint_name, 
-						tc.table_name AS local_table_name, 
-						kcu.column_name AS local_column_name, 
-						ccu.table_schema AS foreign_table_schema,
-						ccu.table_name AS foreign_table_name,
-						ccu.column_name AS foreign_column_name 
-					FROM information_schema.table_constraints AS tc 
-					JOIN information_schema.key_column_usage AS kcu
-						ON tc.constraint_name = kcu.constraint_name
-						AND tc.table_schema = kcu.table_schema
-					JOIN information_schema.constraint_column_usage AS ccu
-						ON ccu.constraint_name = tc.constraint_name
-					WHERE tc.constraint_type = 'FOREIGN KEY'
-						AND tc.table_schema='${connection.schema}';
-            `);
+            query = await externalDriver.getTablesRelationships(connection.schema);
+            tablesSchema = await dbConnector.query(query);
             tablesSchema.forEach((result: any) => {
                 tables.forEach((table: any) => {
-                    if (table.table_name === result.local_table_name) {
+                    if (table?.table_name === result?.local_table_name || table?.table_name === result?.LOCAL_TABLE_NAME) {
                         table.columns.forEach((column: any) => {
-                            if (column.column_name === result.local_column_name) {
-                                column.reference.local_table_schema = result.local_table_schema;
-                                column.reference.local_table_name = result.local_table_name;
-                                column.reference.local_column_name = result.local_column_name;
+                            if (column?.column_name === result?.local_column_name || column?.column_name === result?.LOCAL_COLUMN_NAME) {
+                                column.reference.local_table_schema = result?.local_table_schema || result?.LOCAL_TABLE_SCHEMA;
+                                column.reference.local_table_name = result?.local_table_name || result?.LOCAL_TABLE_NAME;
+                                column.reference.local_column_name = result?.local_column_name || result?.LOCAL_COLUMN_NAME;
 
-                                column.reference.foreign_table_schema = result.foreign_table_schema;
-                                column.reference.foreign_table_name = result.foreign_table_name;
-                                column.reference.foreign_column_name = result.foreign_column_name;
+                                column.reference.foreign_table_schema = result?.foreign_table_schema || result?.FOREIGN_TABLE_SCHEMA;
+                                column.reference.foreign_table_name = result?.foreign_table_name || result?.FOREIGN_TABLE_NAME;
+                                column.reference.foreign_column_name = result?.foreign_column_name || result?.FOREIGN_COLUMN_NAME;
                                 table.references.push(column.reference);
                             }
                         });
@@ -338,6 +310,11 @@ export class DataSourceProcessor {
             if (!driver) {
                 return resolve(false);
             }
+
+            const internalDbConnector = await driver.getConcreteDriver();
+            if (!internalDbConnector) {
+                return resolve(false);
+            }
             const manager = (await driver.getConcreteDriver()).manager;
             if (!manager) {
                 return resolve(false);
@@ -365,8 +342,51 @@ export class DataSourceProcessor {
             }
             try {
                 dataModelName = UtilityService.getInstance().uniquiseName(dataModelName);
-                const createTableQuery = `CREATE TABLE ${dataModelName} AS ${query}`;
-                await dbConnector.query(createTableQuery);
+                const selectTableQuery = `${query}`;
+                const rowsFromDataSource = await dbConnector.query(selectTableQuery);
+                let createTableQuery = `CREATE TABLE ${dataModelName} `;
+                const sourceTable = JSON.parse(queryJSON);
+                let columns = '';
+                let insertQueryColumns = '';
+                sourceTable.columns.forEach((column: any, index: number) => {
+                    const columnSize = column?.character_maximum_length ? `(${column?.character_maximum_length})` : '';
+                    const columnType = `${column.data_type}${columnSize}`;
+
+                    const dataType = UtilityService.getInstance().convertDataTypeToPostgresDataType(dataSourceType, columnType);
+                    let dataTypeString = '';
+                    if (dataType.size) {
+                        dataTypeString = `${dataType.type}(${dataType.size})`;
+                    } else {
+                        dataTypeString = `${dataType.type}`;
+                    }
+                    if (index < sourceTable.columns.length - 1) {
+                        columns += `${column.column_name} ${dataTypeString}, `;
+                    } else {
+                        columns += `${column.column_name} ${dataTypeString} `;
+                    }
+                    if (index < sourceTable.columns.length - 1) {
+                        insertQueryColumns += `${column.column_name},`;
+                    } else {
+                        insertQueryColumns += `${column.column_name}`;
+                    }
+                });
+                createTableQuery += `(${columns})`;
+                await internalDbConnector.query(createTableQuery);
+                insertQueryColumns = `(${insertQueryColumns})`;
+                rowsFromDataSource.forEach((row: any, index: number) => {
+                    let insertQuery = `INSERT INTO ${dataModelName} `;
+                    let values = '';
+                    sourceTable.columns.forEach((column: any, columnIndex: number) => {
+                        const columnName = `${column.schema}_${column.table_name}_${column.column_name}`;
+                        if (columnIndex < sourceTable.columns.length - 1) {
+                            values += `'${row[columnName] || ''}',`;
+                        } else {
+                            values += `'${row[columnName] || ''}'`;
+                        }
+                    });
+                    insertQuery += `${insertQueryColumns} VALUES(${values});`;
+                    internalDbConnector.query(insertQuery);
+                });
                 const dataModel = new DRADataModel();
                 dataModel.schema = 'public';
                 dataModel.name = dataModelName;

@@ -22,10 +22,10 @@ const state = reactive({
         //     name: 'MariaDB',
         //     url: `${route.fullPath}/data-sources/connect/mariadb`,
         // },
-        // {
-        //     name: 'MySQL',
-        //     url: `${route.fullPath}/data-sources/connect/mysql`,
-        // },
+        {
+            name: 'MySQL',
+            url: `${route.fullPath}/data-sources/connect/mysql`,
+        },
         // {
         //     name: 'MongoDB',
         //     url: `${route.fullPath}/data-sources/connect/mongodb`,

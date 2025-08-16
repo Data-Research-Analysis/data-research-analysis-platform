@@ -8,4 +8,6 @@ export interface IDBDriver {
     close(): Promise<void>;
     connectExternalDB(connection: IDBConnectionDetails): Promise<DataSource>;
     getExternalConnection(): Promise<any>;
+    getTablesColumnDetails(schema: string): Promise<string>;
+    getTablesRelationships(schema: string): Promise<string>;
 }

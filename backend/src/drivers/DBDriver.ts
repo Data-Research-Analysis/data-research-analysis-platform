@@ -1,6 +1,7 @@
 import { IDBDriver } from "../interfaces/IDBDriver.js";
 import { UtilityService } from "../services/UtilityService.js";
 import { EDataSourceType } from "../types/EDataSourceType.js";
+import { MySQLDriver } from "./MySQLDriver.js";
 import { PostgresDriver } from "./PostgresDriver.js";
 import dotenv from 'dotenv';
 
@@ -23,7 +24,7 @@ export class DBDriver {
             if (driverName === EDataSourceType.POSTGRESQL) {
                 return resolve(PostgresDriver.getInstance());
             } else if (driverName === EDataSourceType.MYSQL) {
-
+                return resolve(MySQLDriver.getInstance());
             } else if (driverName === EDataSourceType.MARIADB) {
 
             } else if (driverName === EDataSourceType.MONGODB) {
@@ -37,5 +38,4 @@ export class DBDriver {
             return resolve(PostgresDriver.getInstance());
         });
     }
-   
 }

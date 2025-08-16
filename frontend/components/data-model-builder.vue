@@ -544,7 +544,7 @@ async function saveDataModel() {
     } else {
         limitStr = 'LIMIT 1000';
     }
-    sqlQuery += ` ${offsetStr} ${limitStr}`;
+    sqlQuery += ` ${limitStr} ${offsetStr}`;
     state.sql_query = sqlQuery;
     $swal.fire({
         icon: 'success',
@@ -598,7 +598,7 @@ async function executeQueryOnExternalDataSource() {
     state.response_from_external_data_source_columns = [];
     state.response_from_external_data_source_rows = [];
     state.sql_query = buildSQLQuery();
-    state.sql_query += ` OFFSET 0 LIMIT 5`;
+    state.sql_query += ` LIMIT 5 OFFSET 0`;
     const token = getAuthToken();
     const url = `${baseUrl()}/data-source/execute-query-on-external-data-source`;
     const response = await fetch(url, {
