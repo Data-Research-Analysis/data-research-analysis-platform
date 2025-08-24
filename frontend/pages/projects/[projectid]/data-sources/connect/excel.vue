@@ -32,12 +32,6 @@ function openTableDialog(fileId) {
     console.log('state.columns', state.columns);
     console.log('state.rows', state.rows);
 }
-function closeTableDialog() {
-    state.columns = [];
-    state.rows = [];
-    state.show_table_dialog = false;
-
-}
 function removeFile() {
 
 }
@@ -58,6 +52,136 @@ function isValidFile(file) {
   const hasValidType = validTypes.includes(file.type)
   
   return hasValidExtension || hasValidType
+}
+
+// Type detection helper functions
+function isBooleanType(values) {
+  const booleanPatterns = /^(true|false|yes|no|y|n|1|0|on|off|active|inactive|enabled|disabled)$/i
+  const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '')
+  if (nonEmptyValues.length === 0) return false
+  
+  return nonEmptyValues.every(value => 
+    booleanPatterns.test(String(value).trim())
+  )
+}
+
+function isNumberType(values) {
+  const numberPattern = /^-?\$?[\d,]+\.?\d*%?$/
+  const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '')
+  if (nonEmptyValues.length === 0) return false
+  
+  return nonEmptyValues.every(value => {
+    const str = String(value).trim().replace(/[$,%]/g, '')
+    return !isNaN(str) && !isNaN(parseFloat(str)) && str !== ''
+  })
+}
+
+function isDateType(values) {
+  const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '')
+  if (nonEmptyValues.length === 0) return false
+  
+  return nonEmptyValues.every(value => {
+    const str = String(value).trim()
+    if (!str) return false
+    
+    // Try parsing as date
+    const date = new Date(str)
+    if (isNaN(date.getTime())) return false
+    
+    // Check for common date patterns
+    const datePatterns = [
+      /^\d{4}-\d{2}-\d{2}$/, // YYYY-MM-DD
+      /^\d{2}\/\d{2}\/\d{4}$/, // MM/DD/YYYY or DD/MM/YYYY
+      /^\d{2}-\d{2}-\d{4}$/, // MM-DD-YYYY or DD-MM-YYYY
+      /^\w{3}\s+\d{1,2},?\s+\d{4}$/, // Mon DD, YYYY
+      /^\d{1,2}\/\d{1,2}\/\d{2,4}$/ // M/D/YY or MM/DD/YYYY
+    ]
+    
+    return datePatterns.some(pattern => pattern.test(str))
+  })
+}
+
+function isEmailType(values) {
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '')
+  if (nonEmptyValues.length === 0) return false
+  
+  return nonEmptyValues.every(value => 
+    emailPattern.test(String(value).trim())
+  )
+}
+
+function isUrlType(values) {
+  const urlPattern = /^https?:\/\/.+\..+/
+  const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '')
+  if (nonEmptyValues.length === 0) return false
+  
+  return nonEmptyValues.every(value => 
+    urlPattern.test(String(value).trim())
+  )
+}
+
+function inferColumnType(values) {
+  // Priority order: boolean > number > date > email > url > text
+  if (isBooleanType(values)) return 'boolean'
+  if (isNumberType(values)) return 'number'
+  if (isDateType(values)) return 'date'
+  if (isEmailType(values)) return 'email'
+  if (isUrlType(values)) return 'url'
+  return 'text'
+}
+
+function calculateColumnWidth(columnName, values, type) {
+  // Calculate header width (8px per character + padding)
+  const headerWidth = columnName.length * 8 + 24
+  
+  // Calculate max content width (6px per character + padding)
+  const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '')
+  const maxContentLength = nonEmptyValues.length > 0 
+    ? Math.max(...nonEmptyValues.map(v => String(v).length))
+    : 0
+  const contentWidth = maxContentLength * 6 + 24
+  
+  // Type-specific minimum widths
+  const typeMinWidths = {
+    boolean: 80,
+    number: 100,
+    date: 120,
+    email: 200,
+    url: 200,
+    text: 100
+  }
+  
+  const minWidth = typeMinWidths[type] || 100
+  const calculatedWidth = Math.max(headerWidth, contentWidth, minWidth)
+  
+  // Cap maximum width at 300px for readability
+  return Math.min(calculatedWidth, 300)
+}
+
+function analyzeColumns(jsonData) {
+  if (!jsonData || jsonData.length === 0) return []
+  
+  const columnKeys = Object.keys(jsonData[0])
+  
+  return columnKeys.map(key => {
+    // Extract all values for this column
+    const columnValues = jsonData.map(row => row[key])
+    
+    // Infer type and calculate width
+    const type = inferColumnType(columnValues)
+    const width = calculateColumnWidth(key, columnValues, type)
+    
+    return {
+      key,
+      title: key,
+      type,
+      width,
+      sortable: true,
+      editable: true,
+      visible: true
+    }
+  })
 }
 async function parseFile(file) {
   return new Promise((resolve, reject) => {
@@ -91,6 +215,9 @@ async function parseFile(file) {
           jsonData = XLSX.utils.sheet_to_json(worksheet)
         }
         
+        // Analyze columns for type and width after parsing data
+        const analyzedColumns = analyzeColumns(jsonData)
+        
         const fileData = {
           id: `file_${Date.now()}_${Math.random()}`,
           name: file.name,
@@ -98,7 +225,7 @@ async function parseFile(file) {
           type: file.type || 'application/octet-stream',
           num_rows: jsonData.length,
           num_columns: jsonData.length > 0 ? Object.keys(jsonData[0]).length : 0,
-          columns: jsonData.length > 0 ? Object.keys(jsonData[0]).map(key => ({ key, title: key })) : [],
+          columns: analyzedColumns,
           jsonData,
           workbook,
           uploadedAt: new Date()
@@ -143,6 +270,32 @@ async function handleFiles(files) {
     }
     console.log('state.files', state.files);
 }
+function handleCellUpdate(event) {
+    console.log('Cell Updated', event);
+    console.log('Cell Updated', `${event.columnKey}: "${event.oldValue}" → "${event.newValue}" for row ${event.rowId}`);
+}
+function handleRowSelection(event) {
+    if (event.allSelected !== undefined) {
+        console.log('Row Selection', event.allSelected ? 'All rows selected' : 'All rows deselected');
+    } else {
+        console.log('Row Selection', `Row ${event.rowId} ${event.selected ? 'selected' : 'deselected'}. Total: ${event.selectedCount}`);
+    }
+}
+function handleRowsRemoved(event) {
+    if (event.allRemoved) {
+        console.log('Rows Removed', `All ${event.removedRows.length} rows removed`);
+    } else {
+        console.log('Rows Removed', `${event.removedRows.length} rows removed. ${event.remainingCount} remaining`);
+    }
+}
+function handleColumnRemoved(event) {
+    const columnNames = event.removedColumns.map(col => col.title).join(', ');
+    console.log('Column Removed', `Removed columns: ${columnNames}. ${event.remainingColumns.length} remaining`);
+}
+function handleDataChanged(event) {
+    console.log('Data Changed', `Type: ${event.type}. Total rows: ${event.data.length}`);
+}
+
 onMounted(async () => {
     const token = getAuthToken();
     const url = `${baseUrl()}/data-source/upload/file`;
@@ -209,14 +362,18 @@ onMounted(async () => {
             <div v-if="state.files && state.files.length" class="flex flex-row w-full justify-center mt-10">
                 <div v-if="state.columns && state.columns.length" class="flex flex-col w-3/4 justify-center overflow-hidden mb-10">
                     <h2 class="mb-4 text-xl font-bold text-gray-800">Data From The Selected Excel File</h2>
-                    <div class="overflow-x-auto overflow-y-auto max-h-[65vh] border border-primary-blue-100 border-solid shadow-inner bg-white">
+                    <!-- <div class="overflow-x-auto overflow-y-auto max-h-[65vh] border border-primary-blue-100 border-solid shadow-inner bg-white">
                         <div class="inline-block min-w-full">
                             <table class="w-auto min-w-full border-collapse bg-white text-sm divide-y divide-gray-200">
                                 <thead class="bg-blue-100 sticky top-0 z-10 shadow-sm">
                                     <tr>
                                         <th v-for="column in state.columns" 
-                                            class="border border-primary-blue-100 p-3 text-center font-bold whitespace-nowrap min-w-[150px] max-w-[250px] bg-blue-100">
-                                            {{ column.key }}
+                                            class="border border-primary-blue-100 p-3 text-center font-bold whitespace-nowrap bg-blue-100"
+                                            :style="{ minWidth: column.width + 'px', maxWidth: column.width + 'px', width: column.width + 'px' }">
+                                            <div class="flex flex-col">
+                                                <span class="text-sm font-bold">{{ column.title }}</span>
+                                                <span class="text-xs text-blue-600 mt-1 capitalize">{{ column.type }}</span>
+                                            </div>
                                         </th>
                                     </tr>
                                 </thead>
@@ -224,7 +381,8 @@ onMounted(async () => {
                                     <tr v-for="row in state.rows" 
                                         class="hover:bg-gray-50 even:bg-gray-25 transition-colors duration-150">
                                         <td v-for="column in state.columns" 
-                                            class="border border-primary-blue-100 p-3 text-center whitespace-nowrap min-w-[150px] max-w-[250px] overflow-hidden text-ellipsis"
+                                            class="border border-primary-blue-100 p-3 text-center whitespace-nowrap overflow-hidden text-ellipsis"
+                                            :style="{ minWidth: column.width + 'px', maxWidth: column.width + 'px', width: column.width + 'px' }"
                                             :title="row[column.key]">
                                             {{ row[column.key] }}
                                         </td>
@@ -232,7 +390,18 @@ onMounted(async () => {
                                 </tbody>
                             </table>
                         </div>
-                    </div>
+                    </div> -->
+                    <CustomDataTable
+                        :initial-data="state.rows"
+                        :columns="state.columns"
+                        :editable="true"
+                        @cell-updated="handleCellUpdate"
+                        @row-selected="handleRowSelection"
+                        @rows-removed="handleRowsRemoved"
+                        @column-removed="handleColumnRemoved"
+                        @data-changed="handleDataChanged"
+                        ref="dataTable"
+                    />
                 </div>
                 <div v-else class="flex flex-row justify-center">
                     <p>No data available</p>
