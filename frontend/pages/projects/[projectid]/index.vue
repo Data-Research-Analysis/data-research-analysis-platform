@@ -10,10 +10,10 @@ const state = reactive({
     show_dialog: false,
     data_sources: [],
     available_data_sources: [
-        // {
-        //     name: 'Excel File',
-        //     url: `${route.fullPath}/data-sources/connect/excel`,
-        // },
+        {
+            name: 'Excel File',
+            url: `${route.fullPath}/data-sources/connect/excel`,
+        },
         {
             name: 'PostgreSQL',
             url: `${route.fullPath}/data-sources/connect/postgres`,

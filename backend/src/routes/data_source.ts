@@ -4,8 +4,14 @@ import { validate } from '../middleware/validator.js';
 import { body, param, matchedData } from 'express-validator';
 import { DataSourceProcessor } from '../processors/DataSourceProcessor.js';
 import { IDBConnectionDetails } from '../types/IDBConnectionDetails.js';
+import multer from 'multer';
+import { IMulterRequest } from '../types/IMulterRequest.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import { UtilityService } from '../services/UtilityService.js';
+import { ExcelFileService } from '../services/ExcelFileService.js';
 const router = express.Router();
-
 
 router.get('/list', async (req: Request, res: Response, next: any) => {
     next();
@@ -118,6 +124,40 @@ async (req: Request, res: Response) => {
         res.status(200).send({message: 'The data model has been built.'}); 
     } else {
         res.status(400).send({message: 'The data model could not be built.'});
+    }
+});
+
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    // Set the destination directory for uploaded files
+    // Ensure this directory exists in your backend project
+    cb(null, path.join(__dirname, '../../public/uploads'));
+  },
+  filename: (req, file, cb) => {
+    // Generate a unique filename to prevent overwrites
+    // e.g., image-16789012345.jpg
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+const upload = multer({ storage: storage });
+router.post('/upload/file', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, upload.single('file'), async (req: IMulterRequest, res: Response) => {
+    const file = req.file;
+    if (!file) {
+        return res.status(400).json({ message: 'No file uploaded.' });
+    }
+    const publicUrl = UtilityService.getInstance().getConstants('PUBLIC_BACKEND_URL');
+    if (req?.file?.filename) {
+      const fileUrl = `${publicUrl}/uploads/${req.file.filename}`;
+      const data = await ExcelFileService.getInstance().readExcelFile(req.file.filename);
+      res.status(200).json({ url: fileUrl, data });
+    } else {
+      res.status(400).json({ message: 'File upload failed.' });
     }
 });
 export default router;

@@ -27,18 +27,15 @@ const upload = multer({ storage: storage });
 
 router.post('/upload', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, upload.single('image'), async (req: IMulterRequest, res: Response) => {
-    const file = req.file;
-    if (!file) {
-        return res.status(400).json({ message: 'No file uploaded.' });
+}, validateJWT, upload.array('image'), async (req: IMulterRequest, res: Response) => {
+    const files = req.files;
+    if (!files || files.length === 0) {
+        return res.status(400).json({ message: 'No files uploaded.' });
     }
     const publicUrl = UtilityService.getInstance().getConstants('PUBLIC_BACKEND_URL');
-    if (req?.file?.filename) {
-      const fileUrl = `${publicUrl}/uploads/${req.file.filename}`;
-      res.status(200).json({ url: fileUrl });
-    } else {
-      res.status(400).json({ message: 'File upload failed.' });
-    }
+    const fileUrls = files//?.map(file => `${publicUrl}/uploads/${file.filename}`);
+    res.status(200).json({ urls: fileUrls });
+
 });
 
 export default router;

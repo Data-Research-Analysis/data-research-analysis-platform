@@ -1,4 +1,243 @@
 <script setup>
+import * as XLSX from 'xlsx';
+const { $swal } = useNuxtApp();
+
+let dropZone = null;
+const state = reactive({
+    files: [],
+    show_table_dialog: false,
+    columns: [],
+    rows: []
+});
+
+function handleDrop(e) {
+    preventDefaults(e);
+    const dt = e.dataTransfer;
+    const files = dt.files;
+    handleFiles(files);
+}
+function preventDefaults(e) {
+    e.preventDefault();
+    e.stopPropagation();
+}
+function openTableDialog(fileId) {
+    state.show_table_dialog = true;
+    const file = state.files.find((file) => file.id === fileId);
+    if (file && file.id) {
+        if (file.jsonData) {
+            state.columns = file.columns;
+            state.rows = file.jsonData;
+        }
+    }
+    console.log('state.columns', state.columns);
+    console.log('state.rows', state.rows);
+}
+function closeTableDialog() {
+    state.columns = [];
+    state.rows = [];
+    state.show_table_dialog = false;
+
+}
+function removeFile() {
+
+}
+function uploadFiles() {
+
+}
+function isValidFile(file) {
+  const validExtensions = ['.xlsx', '.xls', '.csv']
+  const validTypes = [
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-excel',
+    'text/csv'
+  ]
+  
+  const hasValidExtension = validExtensions.some(ext => 
+    file.name.toLowerCase().endsWith(ext)
+  )
+  const hasValidType = validTypes.includes(file.type)
+  
+  return hasValidExtension || hasValidType
+}
+async function parseFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    
+    reader.onload = (e) => {
+      try {
+        let jsonData = []
+        let workbook = null
+        
+        if (file.name.toLowerCase().endsWith('.csv')) {
+          // Parse CSV
+          const text = e.target.result
+          const lines = text.split('\n').filter(line => line.trim())
+          const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''))
+          
+          jsonData = lines.slice(1).map(line => {
+            const values = line.split(',').map(v => v.trim().replace(/"/g, ''))
+            const obj = {}
+            headers.forEach((header, index) => {
+              obj[header] = values[index] || ''
+            })
+            return obj
+          })
+        } else {
+          // Parse Excel
+          const data = new Uint8Array(e.target.result)
+          workbook = XLSX.read(data, { type: 'array' })
+          const firstSheetName = workbook.SheetNames[0]
+          const worksheet = workbook.Sheets[firstSheetName]
+          jsonData = XLSX.utils.sheet_to_json(worksheet)
+        }
+        
+        const fileData = {
+          id: `file_${Date.now()}_${Math.random()}`,
+          name: file.name,
+          size: file.size,
+          type: file.type || 'application/octet-stream',
+          num_rows: jsonData.length,
+          num_columns: jsonData.length > 0 ? Object.keys(jsonData[0]).length : 0,
+          columns: jsonData.length > 0 ? Object.keys(jsonData[0]).map(key => ({ key, title: key })) : [],
+          jsonData,
+          workbook,
+          uploadedAt: new Date()
+        }
+        
+        resolve(fileData)
+      } catch (error) {
+        reject(error)
+      }
+    }
+    
+    reader.onerror = () => reject(new Error('Failed to read file'))
+    
+    if (file.name.toLowerCase().endsWith('.csv')) {
+      reader.readAsText(file)
+    } else {
+      reader.readAsArrayBuffer(file)
+    }
+  })
+}
+async function handleFiles(files) {
+    const rejectedFiles = [];
+    for (const file of files) {
+        if (isValidFile(file)) {
+            try {
+                const parsedFile = await parseFile(file);
+                console.log('parsed parsedFile', parsedFile);
+                state.files.push(parsedFile);
+            } catch (error) {
+                rejectedFiles.push(`${file.name}`)
+            }
+        } else {
+            rejectedFiles.push(`${file.name}`)
+        }
+    }
+    if (rejectedFiles.length > 0) {
+        $swal.fire({
+            icon: 'error',
+            title: `Error!`,
+            text: `The following files could not be processed: ${rejectedFiles.join(', ')} as either there is an error in them or are not a valid excel file.`,
+        });
+    }
+    console.log('state.files', state.files);
+}
+onMounted(async () => {
+    const token = getAuthToken();
+    const url = `${baseUrl()}/data-source/upload/file`;
+    dropZone = document.getElementById('drop-zone');
+    const fileElem = document.getElementById('file-elem');
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+    });
+    dropZone.addEventListener('drop', handleDrop, false);
+    fileElem.addEventListener('change', (e) => {
+        handleFiles(e.target.files);
+    });
+    dropZone.addEventListener('click', () => {
+        fileElem.click();
+    })
+});
 </script>
 <template>
+    <div>
+        <div class="flex flex-col justify-center">
+            <div class="flex flex-row justify-center">
+                <input type="text" class="w-3/4 border border-primary-blue-100 border-solid p-2 cursor-pointer margin-auto mt-10" placeholder="Data Source Name"/>
+            </div>
+            <div class="flex flex-col justify-center w-3/4 min-h-100 bg-gray-200 m-auto mt-5 text-center cursor-pointer" id="drop-zone">
+                <h3 class="text-lg font-semibold">Drop files here or click to upload</h3>
+                <p class="text-sm text-gray-600">Supported formats: .xlsx, .xls, .csv</p>
+                <input type="file" id="file-elem" multiple class="hidden">
+            </div>
+            <div class="grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5 mx-auto mt-5">
+                <div v-for="file in state.files" class="w-full relative">
+                    <notched-card  class="justify-self-center mt-5">
+                        <template #body="{ onClick }">
+                            <NuxtLink class="text-gray-500">
+                                <div class="flex flex-row justify-end">
+                                    <font-awesome
+                                        icon="fas fa-table"
+                                        class="text-xl ml-2 text-gray-500 hover:text-gray-400 cursor-pointer"
+                                        :v-tippy-content="'View Data In Table'"
+                                        @click="openTableDialog(file.id)"
+                                    />
+                                </div>
+                                <div class="flex flex-col justify-center">
+                                    <div class="text-md">
+                                        {{ file.name }}
+                                    </div>
+                                </div>
+                                <div class="flex flex-row justify-center items-center mt-5 mr-10">
+                                    <font-awesome
+                                        icon="fas fa-file-excel"
+                                        class="text-5xl ml-2 text-green-300"
+                                    />
+                                </div>
+                            </NuxtLink>
+                        </template>
+                    </notched-card>
+                    <div class="absolute top-px -right-2 z-10 bg-gray-200 hover:bg-gray-300 border border-gray-200 border-solid rounded-full w-10 h-10 flex items-center justify-center cursor-pointer">
+                        <font-awesome icon="fas fa-xmark" class="text-xl text-red-500 hover:text-red-400" />
+                    </div>
+                </div>
+            </div>
+            <div v-if="state.files && state.files.length" class="h-10 text-center items-center self-center mt-5 mb-5 p-2 font-bold shadow-md select-none bg-primary-blue-100 cursor-pointer text-white">
+                Create Excel Data Source &amp; Upload Excel Files
+            </div>
+            <div v-if="state.files && state.files.length" class="flex flex-row w-full justify-center mt-10">
+                <div v-if="state.columns && state.columns.length" class="flex flex-col w-3/4 justify-center overflow-hidden mb-10">
+                    <h2 class="mb-4 text-xl font-bold text-gray-800">Data From The Selected Excel File</h2>
+                    <div class="overflow-x-auto overflow-y-auto max-h-[65vh] border border-primary-blue-100 border-solid shadow-inner bg-white">
+                        <div class="inline-block min-w-full">
+                            <table class="w-auto min-w-full border-collapse bg-white text-sm divide-y divide-gray-200">
+                                <thead class="bg-blue-100 sticky top-0 z-10 shadow-sm">
+                                    <tr>
+                                        <th v-for="column in state.columns" 
+                                            class="border border-primary-blue-100 p-3 text-center font-bold whitespace-nowrap min-w-[150px] max-w-[250px] bg-blue-100">
+                                            {{ column.key }}
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    <tr v-for="row in state.rows" 
+                                        class="hover:bg-gray-50 even:bg-gray-25 transition-colors duration-150">
+                                        <td v-for="column in state.columns" 
+                                            class="border border-primary-blue-100 p-3 text-center whitespace-nowrap min-w-[150px] max-w-[250px] overflow-hidden text-ellipsis"
+                                            :title="row[column.key]">
+                                            {{ row[column.key] }}
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div v-else class="flex flex-row justify-center">
+                    <p>No data available</p>
+                </div>
+            </div>
+        </div>
+    </div>
 </template>
