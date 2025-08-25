@@ -67,6 +67,24 @@ const allColumnsSelected = computed(() =>
   tableState.selectedColumns.size === visibleColumns.value.length && visibleColumns.value.length > 0
 );
 
+const hasSelectionGaps = computed(() => {
+  if (tableState.selectedColumns.size < 2) return false;
+  
+  const columnIds = visibleColumns.value.map(col => col.id);
+  const selectedIds = Array.from(tableState.selectedColumns);
+  
+  const startIndex = Math.min(...selectedIds.map(id => columnIds.indexOf(id)));
+  const endIndex = Math.max(...selectedIds.map(id => columnIds.indexOf(id)));
+  
+  // Check if there are any unselected columns between start and end
+  for (let i = startIndex; i <= endIndex; i++) {
+    if (!tableState.selectedColumns.has(columnIds[i])) {
+      return true;
+    }
+  }
+  return false;
+});
+
 const selectedRows = computed(() => tableState.selectedRows);
 const selectedColumns = computed(() => tableState.selectedColumns);
 const allRowsSelected = computed(() => tableState.allRowsSelected);
@@ -113,8 +131,10 @@ function updateAllRowsSelectedState() {
 function toggleAllColumns() {
   if (allColumnsSelected.value) {
     tableState.selectedColumns.clear();
+    showSelectionFeedback('All columns deselected');
   } else {
     visibleColumns.value.forEach(column => tableState.selectedColumns.add(column.id));
+    showSelectionFeedback(`Selected all ${visibleColumns.value.length} columns`);
   }
 }
 
@@ -255,16 +275,40 @@ function selectAllColumns() {
 }
 
   function showSelectionFeedback(message) {
-    // Simple feedback - you could enhance this with a toast notification
+    // Console log for debugging
     console.log(message);
+    
+    // Create a toast-like notification
+    const toast = document.createElement('div');
+    toast.className = 'fixed top-4 right-4 bg-blue-500 text-white px-4 py-2 shadow-lg z-50 text-sm font-medium transform transition-all duration-300';
+    toast.textContent = message;
+    toast.style.transform = 'translateX(100%)';
+    
+    document.body.appendChild(toast);
+    
+    // Animate in
+    setTimeout(() => {
+      toast.style.transform = 'translateX(0)';
+    }, 10);
+    
+    // Animate out and remove
+    setTimeout(() => {
+      toast.style.transform = 'translateX(100%)';
+      setTimeout(() => {
+        if (document.body.contains(toast)) {
+          document.body.removeChild(toast);
+        }
+      }, 300);
+    }, 2000);
     
     // Add visual feedback to selected elements (optional)
     setTimeout(() => {
-      const selectedHeaders = document.querySelectorAll('.column-selected');
+      const selectedHeaders = document.querySelectorAll('.bg-blue-100');
       selectedHeaders.forEach(header => {
+        const originalBg = header.style.backgroundColor;
         header.style.backgroundColor = '#dbeafe';
         setTimeout(() => {
-          header.style.backgroundColor = '';
+          header.style.backgroundColor = originalBg;
         }, 200);
       });
     }, 10);
@@ -495,6 +539,40 @@ function handleEscapeKey(e) {
     }
 }
 
+function handleKeyboardShortcuts(e) {
+  // Only handle shortcuts when not editing a cell
+  if (tableState.editingCell) return;
+  
+  // Ctrl+A or Cmd+A: Select all columns
+  if ((e.ctrlKey || e.metaKey) && e.key === 'a' && e.shiftKey) {
+    e.preventDefault();
+    selectAllColumns();
+    return;
+  }
+  
+  // Ctrl+F or Cmd+F: Fill selection gaps
+  if ((e.ctrlKey || e.metaKey) && e.key === 'f' && tableState.selectedColumns.size >= 2) {
+    e.preventDefault();
+    fillSelectionGaps();
+    return;
+  }
+  
+  // Ctrl+Shift+A or Cmd+Shift+A: Toggle all columns
+  if ((e.ctrlKey || e.metaKey) && e.key === 'A' && e.shiftKey) {
+    e.preventDefault();
+    toggleAllColumns();
+    return;
+  }
+  
+  // Escape: Clear all selections
+  if (e.key === 'Escape') {
+    tableState.selectedColumns.clear();
+    tableState.selectedRows.clear();
+    tableState.allRowsSelected = false;
+    tableState.showColumnMenu = null;
+  }
+}
+
 function handleClickOutside(e) {
   if (!e.target.closest('.column-menu') && !e.target.closest('.column-menu-trigger')) {
     tableState.showColumnMenu = null;
@@ -504,8 +582,8 @@ function handleClickOutside(e) {
 onMounted(() => {
     console.log('CustomDataTable tableState', tableState);
     tableState.columns = props.columns.map(col => ({
-        id: `col_${Date.now()}_${Math.random()}`,
         ...col,
+        id: col?.id ? col.id : `col_${Date.now()}_${Math.random()}`,
         width: col.width || 150,
         visible: col.visible !== false,
         sortable: col.sortable !== false,
@@ -513,17 +591,19 @@ onMounted(() => {
     }));
 
     tableState.rows = props.initialData.map((rowData, index) => ({
-        id: `row_${Date.now()}_${index}`,
+        id: rowData?.id ? rowData.id : `row_${Date.now()}_${index}`,
         selected: false,
         data: { ...rowData }
     }));
     document.addEventListener('click', handleClickOutside);
     document.addEventListener('keydown', handleEscapeKey);
+    document.addEventListener('keydown', handleKeyboardShortcuts);
 });
 
 onUnmounted(() => {
     document.removeEventListener('click', handleClickOutside);
     document.removeEventListener('keydown', handleEscapeKey);
+    document.removeEventListener('keydown', handleKeyboardShortcuts);
 });  
 </script>
 <template>
@@ -534,10 +614,10 @@ onUnmounted(() => {
       <div class="flex flex-wrap gap-2 items-center">
         <!-- Selection Info -->
         <div class="flex items-center gap-4 text-sm text-gray-600">
-          <span v-if="selectedRows.size > 0" class="px-2 py-1 bg-blue-100 text-blue-700 rounded">
+          <span v-if="selectedRows.size > 0" class="px-2 py-1 bg-blue-100 text-blue-700">
             {{ selectedRows.size }} row{{ selectedRows.size !== 1 ? 's' : '' }} selected
           </span>
-          <span v-if="selectedColumns.size > 0" class="px-2 py-1 bg-purple-100 text-purple-700 rounded">
+          <span v-if="selectedColumns.size > 0" class="px-2 py-1 bg-purple-100 text-purple-700">
             {{ selectedColumns.size }} column{{ selectedColumns.size !== 1 ? 's' : '' }} selected
           </span>
         </div>
@@ -546,7 +626,7 @@ onUnmounted(() => {
         <button 
           v-if="selectedRows.size > 0"
           @click="removeSelectedRows"
-          class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center gap-2"
+          class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 text-sm font-medium transition-colors duration-200 flex items-center gap-2"
         >
           <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
             <path fill-rule="evenodd" d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" clip-rule="evenodd"/>
@@ -556,7 +636,7 @@ onUnmounted(() => {
         </button>
         <button 
           @click="removeAllRows"
-          class="border border-red-500 text-red-500 hover:bg-red-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
+          class="border border-red-500 text-red-500 hover:bg-red-50 px-4 py-2 text-sm font-medium transition-colors duration-200"
         >
           Clear All Rows
         </button>
@@ -567,13 +647,21 @@ onUnmounted(() => {
         <button 
           v-if="selectedColumns.size > 0"
           @click="removeSelectedColumns"
-          class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
+          class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 text-sm font-medium transition-colors duration-200"
         >
           Remove Columns ({{ selectedColumns.size }})
         </button>
         <button 
+          v-if="selectedColumns.size >= 2 && hasSelectionGaps"
+          @click="fillSelectionGaps"
+          class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 text-sm font-medium transition-colors duration-200"
+          title="Fill gaps between selected columns"
+        >
+          Fill Selection Gaps
+        </button>
+        <button 
           @click="selectAllColumns" 
-          class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
+          class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 text-sm font-medium transition-colors duration-200"
           :disabled="allColumnsSelected"
           :class="{ 'opacity-50 cursor-not-allowed': allColumnsSelected }"
         >
@@ -582,7 +670,7 @@ onUnmounted(() => {
         <button 
           v-if="selectedColumns.size > 0"
           @click="selectedColumns.clear()"
-          class="border border-purple-500 text-purple-500 hover:bg-purple-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
+          class="border border-purple-500 text-purple-500 hover:bg-purple-50 px-4 py-2 text-sm font-medium transition-colors duration-200"
         >
           Clear Column Selection
         </button>
@@ -590,14 +678,21 @@ onUnmounted(() => {
     </div>
 
     <!-- Main Table Container -->
-    <div class="overflow-auto border border-gray-300 rounded-lg shadow-sm max-h-screen">
+    <div class="overflow-auto border border-gray-300 shadow-sm max-h-screen">
       <table class="w-full border-collapse bg-white">
         <!-- Column Headers -->
         <thead class="sticky top-0 bg-gray-50 z-10">
           <!-- Column Selection Row -->
           <tr class="border-b border-gray-200 bg-gray-100">
             <th class="w-12 p-2 border-r border-gray-200 text-center">
-              <span class="text-xs text-gray-500">Select</span>
+              <input 
+                type="checkbox"
+                :checked="allColumnsSelected"
+                :indeterminate="someColumnsSelected"
+                @change="toggleAllColumns"
+                class="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500 focus:ring-2"
+                title="Select/Deselect all columns"
+              />
             </th>
             <th 
               v-for="column in visibleColumns" 
@@ -789,7 +884,7 @@ onUnmounted(() => {
     >
       <div 
         v-if="showColumnMenu"
-        class="fixed bg-white border border-gray-300 rounded-lg shadow-lg z-50 py-1 min-w-[150px] column-menu"
+        class="fixed bg-white border border-gray-300 shadow-lg z-50 py-1 min-w-[150px] column-menu"
         :style="columnMenuPosition"
       >
         <button 
@@ -812,6 +907,16 @@ onUnmounted(() => {
         </button>
         <hr class="my-1 border-gray-200">
         <button 
+          v-if="selectedColumns.size >= 2 && hasSelectionGaps"
+          @click="fillSelectionGaps(); tableState.showColumnMenu = null;" 
+          class="w-full text-left px-4 py-2 hover:bg-orange-50 text-orange-600 text-sm flex items-center gap-2 transition-colors duration-150"
+        >
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/>
+          </svg>
+          Fill Selection Gaps
+        </button>
+        <button 
           @click="removeColumn(showColumnMenu)" 
           class="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 text-sm flex items-center gap-2 transition-colors duration-150"
         >
@@ -825,13 +930,21 @@ onUnmounted(() => {
     </Transition>
 
     <!-- Help Section -->
-    <div class="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-      <div class="text-xs text-gray-600">
-        <strong>Column Selection:</strong> 
-        Click column headers to select • 
-        <kbd class="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">Ctrl</kbd> + Click for multi-select • 
-        <kbd class="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">Shift</kbd> + Click for range select • 
-        <kbd class="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">Alt</kbd> + Click for single select
+    <div class="mt-4 p-3 bg-gray-50 border border-gray-200">
+      <div class="text-xs text-gray-600 space-y-1">
+        <div>
+          <strong>Column Selection:</strong> 
+          Click column headers to select • 
+          <kbd class="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">Ctrl</kbd> + Click for multi-select • 
+          <kbd class="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">Shift</kbd> + Click for range select • 
+          <kbd class="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">Alt</kbd> + Click for single select
+        </div>
+        <div>
+          <strong>Keyboard Shortcuts:</strong> 
+          <kbd class="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">Ctrl+Shift+A</kbd> Select all columns • 
+          <kbd class="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">Ctrl+F</kbd> Fill selection gaps • 
+          <kbd class="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">Esc</kbd> Clear selections
+        </div>
       </div>
     </div>
   </div>

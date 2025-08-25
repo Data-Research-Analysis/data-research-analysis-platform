@@ -8,6 +8,7 @@ const state = reactive({
     show_table_dialog: false,
     columns: [],
     rows: [],
+    selected_file: null,
 });
 
 function handleDrop(e) {
@@ -20,13 +21,14 @@ function preventDefaults(e) {
     e.preventDefault();
     e.stopPropagation();
 }
-function openTableDialog(fileId) {
+function showTable(fileId) {
     nextTick(() => {
         state.show_table_dialog = false;
         setTimeout(() => {
             state.rows = [];
             state.columns = [];
             const file = state.files.find((file) => file.id === fileId);
+            state.selected_file = file;
             if (file && file.id) {
                 if (file.rows) {
                     state.columns = file.columns;
@@ -61,7 +63,6 @@ function isValidFile(file) {
   
   return hasValidExtension || hasValidType
 }
-
 // Type detection helper functions
 function isBooleanType(values) {
   const booleanPatterns = /^(true|false|yes|no|y|n|1|0|on|off|active|inactive|enabled|disabled)$/i
@@ -72,7 +73,6 @@ function isBooleanType(values) {
     booleanPatterns.test(String(value).trim())
   )
 }
-
 function isNumberType(values) {
   const numberPattern = /^-?\$?[\d,]+\.?\d*%?$/
   const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '')
@@ -83,7 +83,6 @@ function isNumberType(values) {
     return !isNaN(str) && !isNaN(parseFloat(str)) && str !== ''
   })
 }
-
 function isDateType(values) {
   const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '')
   if (nonEmptyValues.length === 0) return false
@@ -108,7 +107,6 @@ function isDateType(values) {
     return datePatterns.some(pattern => pattern.test(str))
   })
 }
-
 function isEmailType(values) {
   const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '')
@@ -118,7 +116,6 @@ function isEmailType(values) {
     emailPattern.test(String(value).trim())
   )
 }
-
 function isUrlType(values) {
   const urlPattern = /^https?:\/\/.+\..+/
   const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '')
@@ -128,7 +125,6 @@ function isUrlType(values) {
     urlPattern.test(String(value).trim())
   )
 }
-
 function inferColumnType(values) {
   // Priority order: boolean > number > date > email > url > text
   if (isBooleanType(values)) return 'boolean'
@@ -138,7 +134,6 @@ function inferColumnType(values) {
   if (isUrlType(values)) return 'url'
   return 'text'
 }
-
 function calculateColumnWidth(columnName, values, type) {
   // Calculate header width (8px per character + padding)
   const headerWidth = columnName.length * 8 + 24
@@ -166,7 +161,6 @@ function calculateColumnWidth(columnName, values, type) {
   // Cap maximum width at 300px for readability
   return Math.min(calculatedWidth, 300)
 }
-
 function analyzeColumns(rows) {
   if (!rows || rows.length === 0) return []
   
@@ -181,6 +175,7 @@ function analyzeColumns(rows) {
     const width = calculateColumnWidth(key, columnValues, type)
     
     return {
+      id: `col_${Date.now()}_${Math.random()}`,
       key,
       title: key,
       type,
@@ -234,10 +229,16 @@ async function parseFile(file) {
           num_rows: rows.length,
           num_columns: rows.length > 0 ? Object.keys(rows[0]).length : 0,
           columns: analyzedColumns,
-          rows,
+          rows: rows.map((row) => {
+              return {
+                id: `row_${Date.now()}_${Math.random()}`,
+                ...row,
+              };
+          }),
           workbook,
           uploadedAt: new Date()
         }
+        console.log('parseFile fileData', fileData);
         
         resolve(fileData)
       } catch (error) {
@@ -279,32 +280,35 @@ async function handleFiles(files) {
     console.log('state.files', state.files);
 }
 function handleCellUpdate(event) {
-    console.log('Cell Updated event', event);
-    console.log('Cell Updated', `${event.columnKey}: "${event.oldValue}" → "${event.newValue}" for row ${event.rowId}`);
-}
-function handleRowSelection(event) {
-    if (event.allSelected !== undefined) {
-        console.log('Row Selection', event.allSelected ? 'All rows selected' : 'All rows deselected');
-    } else {
-        console.log('Row Selection', `Row ${event.rowId} ${event.selected ? 'selected' : 'deselected'}. Total: ${event.selectedCount}`);
+    const row = state.selected_file.rows.find((row) => {
+      if (row.id === event.rowId) {
+        return row
+      }
+    });
+    if (row[event.columnKey]) {
+      row[event.columnKey] = event.newValue;
     }
 }
 function handleRowsRemoved(event) {
-    if (event.allRemoved) {
-        console.log('Rows Removed', `All ${event.removedRows.length} rows removed`);
-    } else {
-        console.log('Rows Removed', `${event.removedRows.length} rows removed. ${event.remainingCount} remaining`);
-    }
+  if (event.allRemoved) {
+    state.selected_file.rows = []
+  } else {
+    state.selected_file.rows = state.selected_file.rows.filter(row => event.removedRows.filter((removedRow) => removedRow.id  === row.id).length === 0);
+    state.selected_file.num_rows = state.selected_file.rows.length;
+  }
 }
 function handleColumnRemoved(event) {
-    const columnNames = event.removedColumns.map(col => col.title).join(', ');
-    console.log('Column Removed', `Removed columns: ${columnNames}. ${event.remainingColumns.length} remaining`);
+  const columnNames = event.removedColumns.map(col => col.title).join(', ');
+  state.selected_file.columns = state.selected_file.columns.filter(col => {
+    return event.removedColumns.filter((removedCol) => removedCol.id === col.id).length === 0
+  });
+  state.selected_file.num_columns = state.selected_file.columns.length;
+  state.selected_file.rows.forEach((row) => {
+    event.removedColumns.forEach((col) => {
+      delete row[col.key];
+    });
+  });
 }
-function handleDataChanged(event) {
-    console.log('Data Changed', `Type: ${event.type}. Total rows: ${event.data.length}`);
-    console.log('handleDataChanged event', event);
-}
-
 onMounted(async () => {
     const token = getAuthToken();
     const url = `${baseUrl()}/data-source/upload/file`;
@@ -343,7 +347,7 @@ onMounted(async () => {
                                         icon="fas fa-table"
                                         class="text-xl ml-2 text-gray-500 hover:text-gray-400 cursor-pointer"
                                         :v-tippy-content="'View Data In Table'"
-                                        @click="openTableDialog(file.id)"
+                                        @click="showTable(file.id)"
                                     />
                                 </div>
                                 <div class="flex flex-col justify-center">
@@ -373,10 +377,8 @@ onMounted(async () => {
                         :columns="state.columns"
                         :editable="true"
                         @cell-updated="handleCellUpdate"
-                        @row-selected="handleRowSelection"
                         @rows-removed="handleRowsRemoved"
                         @column-removed="handleColumnRemoved"
-                        @data-changed="handleDataChanged"
                         ref="dataTable"
                     />
                 </div>
