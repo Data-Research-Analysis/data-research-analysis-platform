@@ -59,6 +59,14 @@ const someRowsSelected = computed(() =>
   tableState.selectedRows.size > 0 && tableState.selectedRows.size < tableState.rows.length
 );
 
+const someColumnsSelected = computed(() => 
+  tableState.selectedColumns.size > 0 && tableState.selectedColumns.size < visibleColumns.value.length
+);
+
+const allColumnsSelected = computed(() => 
+  tableState.selectedColumns.size === visibleColumns.value.length && visibleColumns.value.length > 0
+);
+
 const selectedRows = computed(() => tableState.selectedRows);
 const selectedColumns = computed(() => tableState.selectedColumns);
 const allRowsSelected = computed(() => tableState.allRowsSelected);
@@ -102,6 +110,25 @@ function updateAllRowsSelectedState() {
   tableState.allRowsSelected = tableState.selectedRows.size === tableState.rows.length;
 }
 
+function toggleAllColumns() {
+  if (allColumnsSelected.value) {
+    tableState.selectedColumns.clear();
+  } else {
+    visibleColumns.value.forEach(column => tableState.selectedColumns.add(column.id));
+  }
+}
+
+function toggleColumnSelection(columnId, event) {
+  // Prevent event from bubbling to header click handler
+  event.stopPropagation();
+  
+  if (tableState.selectedColumns.has(columnId)) {
+    tableState.selectedColumns.delete(columnId);
+  } else {
+    tableState.selectedColumns.add(columnId);
+  }
+}
+
 function removeSelectedRows() {
   const removedRows = tableState.rows.filter(row => tableState.selectedRows.has(row.id));
   tableState.rows = tableState.rows.filter(row => !tableState.selectedRows.has(row.id));
@@ -131,17 +158,24 @@ function removeAllRows() {
 function handleColumnHeaderClick(column, event) {
   if (event.ctrlKey || event.metaKey) {
     // Multi-select with Ctrl/Cmd
-    if (tableState.selectedColumns.has(column.id)) {
-      tableState.selectedColumns.delete(column.id);
-    } else {
-      tableState.selectedColumns.add(column.id);
-    }
-  } else if (event.shiftKey && tableState.selectedColumns.size > 0) {
+    toggleColumnSelection(column.id, event);
+    showSelectionFeedback(`Column "${column.title}" ${selectedColumns.value.has(column.id) ? 'selected' : 'deselected'}`);
+  } else if (event.shiftKey && selectedColumns.value.size > 0) {
     // Range selection with Shift
     expandColumnSelection(column.id);
+    showSelectionFeedback(`Range selection extended to "${column.title}"`);
+  } else if (event.altKey) {
+    // Alt+click for single column selection
+    selectedColumns.value.clear();
+    selectedColumns.value.add(column.id);
+    showSelectionFeedback(`Single column "${column.title}" selected`);
   } else if (column.sortable) {
     // Single click for sorting
     handleColumnSort(column.key);
+  } else {
+    // If not sortable, allow simple column selection
+    toggleColumnSelection(column.id, event);
+    showSelectionFeedback(`Column "${column.title}" ${selectedColumns.value.has(column.id) ? 'selected' : 'deselected'}`);
   }
 }
 
@@ -173,15 +207,73 @@ function expandColumnSelection(targetColumnId = null) {
   if (targetColumnId) {
     const targetIndex = columnIds.indexOf(targetColumnId);
     endIndex = Math.max(endIndex, targetIndex);
+    startIndex = Math.min(startIndex, targetIndex);
   }
   
   // Select all columns in range
   for (let i = startIndex; i <= endIndex; i++) {
-    tableState.selectedColumns.add(columnIds[i]);
+    if (columnIds[i] && tableState.columns.find(col => col.id === columnIds[i])?.visible) {
+      tableState.selectedColumns.add(columnIds[i]);
+    }
   }
 }
 
+function fillSelectionGaps() {
+  if (tableState.selectedColumns.size < 2) return;
+  
+  const columnIds = visibleColumns.value.map(col => col.id);
+  const selectedIds = Array.from(tableState.selectedColumns);
+  
+  const startIndex = Math.min(...selectedIds.map(id => columnIds.indexOf(id)));
+  const endIndex = Math.max(...selectedIds.map(id => columnIds.indexOf(id)));
+  
+  let addedCount = 0;
+  for (let i = startIndex; i <= endIndex; i++) {
+    if (!tableState.selectedColumns.has(columnIds[i])) {
+      tableState.selectedColumns.add(columnIds[i]);
+      addedCount++;
+    }
+  }
+  
+  if (addedCount > 0) {
+    showSelectionFeedback(`Added ${addedCount} columns to selection`);
+  } else {
+    showSelectionFeedback('No gaps to fill in selection');
+  }
+}
+
+function selectAllColumns() {
+  const initialCount = tableState.selectedColumns.size;
+  visibleColumns.value.forEach(column => tableState.selectedColumns.add(column.id));
+  const addedCount = tableState.selectedColumns.size - initialCount;
+  
+  if (addedCount > 0) {
+    showSelectionFeedback(`Selected ${addedCount} additional columns`);
+  } else {
+    showSelectionFeedback('All columns already selected');
+  }
+}
+
+  function showSelectionFeedback(message) {
+    // Simple feedback - you could enhance this with a toast notification
+    console.log(message);
+    
+    // Add visual feedback to selected elements (optional)
+    setTimeout(() => {
+      const selectedHeaders = document.querySelectorAll('.column-selected');
+      selectedHeaders.forEach(header => {
+        header.style.backgroundColor = '#dbeafe';
+        setTimeout(() => {
+          header.style.backgroundColor = '';
+        }, 200);
+      });
+    }, 10);
+  }
+
 function removeSelectedColumns() {
+  if (tableState.selectedColumns.size === 0) {
+    return;
+  }
   const removedColumns = tableState.columns.filter(col => tableState.selectedColumns.has(col.id));
   tableState.columns = tableState.columns.filter(col => !tableState.selectedColumns.has(col.id));
   
@@ -217,14 +309,6 @@ function removeColumn(columnId) {
     removedColumns: [column],
     remainingColumns: tableState.columns
   });
-}
-
-function hideColumn(columnId) {
-  const column = tableState.columns.find(col => col.id === columnId);
-  if (column) {
-    column.visible = false;
-  }
-  tableState.showColumnMenu = null;
 }
 
 function sortColumnByDirection(columnId, direction) {
@@ -344,45 +428,46 @@ function formatCellValue(value, columnType) {
   }
 }
 
-// Column resizing
-function startColumnResize(column, event) {
-  event.preventDefault();
-  event.stopPropagation();
-  
-  const startX = event.clientX;
-  const startWidth = column.width;
-  
-  const handleMouseMove = (e) => {
-    const diff = e.clientX - startX;
-    const newWidth = Math.max(50, startWidth + diff);
-    column.width = newWidth;
-  };
-  
-  const handleMouseUp = () => {
-    document.removeEventListener('mousemove', handleMouseMove);
-    document.removeEventListener('mouseup', handleMouseUp);
-    document.body.style.cursor = '';
-  };
-  
-  document.addEventListener('mousemove', handleMouseMove);
-  document.addEventListener('mouseup', handleMouseUp);
-  document.body.style.cursor = 'col-resize';
-}
-
 // Context menu
 function toggleColumnMenu(columnId, event) {
+  console.log('Toggle column menu called for column:', columnId);
+  
   if (tableState.showColumnMenu === columnId) {
     tableState.showColumnMenu = null;
+    console.log('Menu closed');
     return;
   }
   
   tableState.showColumnMenu = columnId;
   
-  const rect = event.target.getBoundingClientRect();
-  tableState.columnMenuPosition = {
-    left: rect.left + 'px',
-    top: (rect.bottom + 5) + 'px'
+  // Get the position relative to the viewport
+  const rect = event.currentTarget.getBoundingClientRect();
+  const menuWidth = 150; // min-w-[150px]
+  const menuHeight = 120; // approximate height
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  
+  // Calculate optimal position
+  let left = rect.left;
+  let top = rect.bottom + 5;
+  
+  // Adjust if menu would go off-screen horizontally
+  if (left + menuWidth > viewportWidth) {
+    left = rect.right - menuWidth;
+  }
+  
+  // Adjust if menu would go off-screen vertically
+  if (top + menuHeight > viewportHeight) {
+    top = rect.top - menuHeight - 5;
+  }
+  
+  const menuPosition = {
+    left: Math.max(5, left) + 'px',
+    top: Math.max(5, top) + 'px'
   };
+  
+  tableState.columnMenuPosition = menuPosition;
+  console.log('Menu opened at position:', menuPosition);
 }
 
 // Watch for prop changes
@@ -397,14 +482,6 @@ watch(() => props.initialData, (newData) => {
 // Expose methods for parent component
 defineExpose({
   getTableData: () => tableState.rows.map(row => row.data),
-  addRow: (rowData) => {
-    const newRow = {
-      id: `row_${Date.now()}_${Math.random()}`,
-      selected: false,
-      data: { ...rowData }
-    };
-    tableState.rows.push(newRow);
-  },
   clearSelection: () => {
     tableState.selectedRows.clear();
     tableState.selectedColumns.clear();
@@ -412,35 +489,60 @@ defineExpose({
   }
 });
 
-onMounted(() => {
-  tableState.columns = props.columns.map(col => ({
-    id: `col_${Date.now()}_${Math.random()}`,
-    ...col,
-    width: col.width || 150,
-    visible: col.visible !== false,
-    sortable: col.sortable !== false,
-    editable: col.editable !== false
-  }));
-  
-  tableState.rows = props.initialData.map((rowData, index) => ({
-    id: `row_${Date.now()}_${index}`,
-    selected: false,
-    data: { ...rowData }
-  }));
-
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest('.column-menu') && !e.target.closest('.column-menu-trigger')) {
-      tableState.showColumnMenu = null;
+function handleEscapeKey(e) {
+    if (e.key === 'Escape') {
+        tableState.showColumnMenu = null;
     }
-  });
+}
+
+function handleClickOutside(e) {
+  if (!e.target.closest('.column-menu') && !e.target.closest('.column-menu-trigger')) {
+    tableState.showColumnMenu = null;
+  }
+}
+
+onMounted(() => {
+    console.log('CustomDataTable tableState', tableState);
+    tableState.columns = props.columns.map(col => ({
+        id: `col_${Date.now()}_${Math.random()}`,
+        ...col,
+        width: col.width || 150,
+        visible: col.visible !== false,
+        sortable: col.sortable !== false,
+        editable: col.editable !== false
+    }));
+
+    tableState.rows = props.initialData.map((rowData, index) => ({
+        id: `row_${Date.now()}_${index}`,
+        selected: false,
+        data: { ...rowData }
+    }));
+    document.addEventListener('click', handleClickOutside);
+    document.addEventListener('keydown', handleEscapeKey);
 });
+
+onUnmounted(() => {
+    document.removeEventListener('click', handleClickOutside);
+    document.removeEventListener('keydown', handleEscapeKey);
+});  
 </script>
 <template>
   <div class="w-full">
     <!-- Table Toolbar -->
     <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-4 gap-4">
-      <!-- Selection Actions -->
-      <div class="flex flex-wrap gap-2">
+      <!-- Selection Info & Actions -->
+      <div class="flex flex-wrap gap-2 items-center">
+        <!-- Selection Info -->
+        <div class="flex items-center gap-4 text-sm text-gray-600">
+          <span v-if="selectedRows.size > 0" class="px-2 py-1 bg-blue-100 text-blue-700 rounded">
+            {{ selectedRows.size }} row{{ selectedRows.size !== 1 ? 's' : '' }} selected
+          </span>
+          <span v-if="selectedColumns.size > 0" class="px-2 py-1 bg-purple-100 text-purple-700 rounded">
+            {{ selectedColumns.size }} column{{ selectedColumns.size !== 1 ? 's' : '' }} selected
+          </span>
+        </div>
+        
+        <!-- Row Actions -->
         <button 
           v-if="selectedRows.size > 0"
           @click="removeSelectedRows"
@@ -465,15 +567,24 @@ onMounted(() => {
         <button 
           v-if="selectedColumns.size > 0"
           @click="removeSelectedColumns"
-          class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
+          class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
         >
           Remove Columns ({{ selectedColumns.size }})
         </button>
         <button 
-          @click="expandColumnSelection" 
-          class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
+          @click="selectAllColumns" 
+          class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
+          :disabled="allColumnsSelected"
+          :class="{ 'opacity-50 cursor-not-allowed': allColumnsSelected }"
         >
-          Expand Selection
+          Select All Columns
+        </button>
+        <button 
+          v-if="selectedColumns.size > 0"
+          @click="selectedColumns.clear()"
+          class="border border-purple-500 text-purple-500 hover:bg-purple-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
+        >
+          Clear Column Selection
         </button>
       </div>
     </div>
@@ -483,6 +594,27 @@ onMounted(() => {
       <table class="w-full border-collapse bg-white">
         <!-- Column Headers -->
         <thead class="sticky top-0 bg-gray-50 z-10">
+          <!-- Column Selection Row -->
+          <tr class="border-b border-gray-200 bg-gray-100">
+            <th class="w-12 p-2 border-r border-gray-200 text-center">
+              <span class="text-xs text-gray-500">Select</span>
+            </th>
+            <th 
+              v-for="column in visibleColumns" 
+              :key="`select-${column.id}`"
+              class="border-r border-gray-200 p-2 text-center"
+            >
+              <input 
+                type="checkbox"
+                :checked="selectedColumns.has(column.id)"
+                @change="toggleColumnSelection(column.id, $event)"
+                class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                :title="`Select column: ${column.title}`"
+              />
+            </th>
+          </tr>
+          
+          <!-- Main Header Row -->
           <tr class="border-b border-gray-200">
             <!-- Row Selection Header -->
             <th class="w-12 p-3 border-r border-gray-200 text-center">
@@ -502,17 +634,22 @@ onMounted(() => {
               class="relative border-r border-gray-200 p-3 text-left font-semibold text-gray-900 select-none group"
               :class="[
                 selectedColumns.has(column.id) ? 'bg-blue-100 border-blue-300' : 'bg-gray-50',
-                column.sortable ? 'cursor-pointer hover:bg-gray-100' : ''
+                column.sortable ? 'cursor-pointer hover:bg-gray-100' : 'cursor-pointer hover:bg-gray-100'
               ]"
               :style="{ width: column.width + 'px', minWidth: column.width + 'px' }"
+              :title="`Click to ${column.sortable ? 'sort' : 'select'}, Ctrl+Click for multi-select, Shift+Click for range select, Alt+Click for single select`"
               @click="handleColumnHeaderClick(column, $event)"
             >
               <!-- Column Title and Sort Indicator -->
               <div class="flex items-center justify-between">
-                <span class="truncate">{{ column.title }}</span>
+                <div class="flex items-center space-x-2">
+                  <span class="truncate">{{ column.title }}</span>
+                  <!-- Selection indicator -->
+                  <div v-if="selectedColumns.has(column.id)" class="w-2 h-2 bg-blue-500 rounded-full" title="Selected"></div>
+                </div>
                 
                 <!-- Sort Indicator -->
-                <div v-if="column.sortable" class="ml-2 flex-shrink-0">
+                <div v-if="column.sortable" class="mr-2 flex-shrink-0">
                   <svg 
                     v-if="sortColumn === column.key && sortDirection === 'asc'"
                     class="w-4 h-4 text-blue-500"
@@ -541,16 +678,11 @@ onMounted(() => {
                 </div>
               </div>
               
-              <!-- Column Resize Handle -->
-              <div 
-                class="absolute right-0 top-0 w-2 h-full cursor-col-resize bg-transparent hover:bg-blue-300 transition-colors duration-200 opacity-0 group-hover:opacity-100"
-                @mousedown="startColumnResize(column, $event)"
-              ></div>
-              
               <!-- Column Menu Trigger -->
               <div 
-                class="absolute top-1 right-1 w-6 h-6 rounded hover:bg-gray-200 opacity-0 group-hover:opacity-100 cursor-pointer flex items-center justify-center transition-all duration-200"
+                class="absolute top-1 right-1 w-6 h-6 rounded hover:bg-gray-200 opacity-0 group-hover:opacity-100 cursor-pointer flex items-center justify-center transition-all duration-200 column-menu-trigger"
                 @click.stop="toggleColumnMenu(column.id, $event)"
+                :class="{ 'bg-blue-200 opacity-100': showColumnMenu === column.id }"
               >
                 <svg class="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/>
@@ -657,7 +789,7 @@ onMounted(() => {
     >
       <div 
         v-if="showColumnMenu"
-        class="absolute bg-white border border-gray-300 rounded-lg shadow-lg z-20 py-1 min-w-[150px]"
+        class="fixed bg-white border border-gray-300 rounded-lg shadow-lg z-50 py-1 min-w-[150px] column-menu"
         :style="columnMenuPosition"
       >
         <button 
@@ -688,17 +820,19 @@ onMounted(() => {
             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v4a1 1 0 102 0V5z" clip-rule="evenodd"/>
           </svg>
           Remove Column
-        </button>
-        <button 
-          @click="hideColumn(showColumnMenu)" 
-          class="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm flex items-center gap-2 transition-colors duration-150"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L12 12m3.878-3.878L21 21"/>
-          </svg>
-          Hide Column
-        </button>
+        </button>        
       </div>
     </Transition>
+
+    <!-- Help Section -->
+    <div class="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+      <div class="text-xs text-gray-600">
+        <strong>Column Selection:</strong> 
+        Click column headers to select • 
+        <kbd class="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">Ctrl</kbd> + Click for multi-select • 
+        <kbd class="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">Shift</kbd> + Click for range select • 
+        <kbd class="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">Alt</kbd> + Click for single select
+      </div>
+    </div>
   </div>
 </template>

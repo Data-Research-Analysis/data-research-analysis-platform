@@ -7,7 +7,7 @@ const state = reactive({
     files: [],
     show_table_dialog: false,
     columns: [],
-    rows: []
+    rows: [],
 });
 
 function handleDrop(e) {
@@ -21,22 +21,30 @@ function preventDefaults(e) {
     e.stopPropagation();
 }
 function openTableDialog(fileId) {
-    state.show_table_dialog = true;
-    const file = state.files.find((file) => file.id === fileId);
-    if (file && file.id) {
-        if (file.jsonData) {
-            state.columns = file.columns;
-            state.rows = file.jsonData;
-        }
-    }
-    console.log('state.columns', state.columns);
-    console.log('state.rows', state.rows);
+    nextTick(() => {
+        state.show_table_dialog = false;
+        setTimeout(() => {
+            state.rows = [];
+            state.columns = [];
+            const file = state.files.find((file) => file.id === fileId);
+            if (file && file.id) {
+                if (file.rows) {
+                    state.columns = file.columns;
+                    state.rows = file.rows;
+                }
+            }
+            state.show_table_dialog = true;
+            console.log('file', file);
+        }, 500);
+        console.log('state.columns', state.columns);
+        console.log('state.rows', state.rows);
+    });
 }
-function removeFile() {
-
+function removeFile(fileId) {
+    state.files = state.files.filter((file) => file.id !== fileId);
 }
-function uploadFiles() {
-
+function createDataSource() {
+    console.log('createDataSource state.files', state.files);
 }
 function isValidFile(file) {
   const validExtensions = ['.xlsx', '.xls', '.csv']
@@ -159,14 +167,14 @@ function calculateColumnWidth(columnName, values, type) {
   return Math.min(calculatedWidth, 300)
 }
 
-function analyzeColumns(jsonData) {
-  if (!jsonData || jsonData.length === 0) return []
+function analyzeColumns(rows) {
+  if (!rows || rows.length === 0) return []
   
-  const columnKeys = Object.keys(jsonData[0])
+  const columnKeys = Object.keys(rows[0])
   
   return columnKeys.map(key => {
     // Extract all values for this column
-    const columnValues = jsonData.map(row => row[key])
+    const columnValues = rows.map(row => row[key])
     
     // Infer type and calculate width
     const type = inferColumnType(columnValues)
@@ -189,7 +197,7 @@ async function parseFile(file) {
     
     reader.onload = (e) => {
       try {
-        let jsonData = []
+        let rows = []
         let workbook = null
         
         if (file.name.toLowerCase().endsWith('.csv')) {
@@ -198,35 +206,35 @@ async function parseFile(file) {
           const lines = text.split('\n').filter(line => line.trim())
           const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''))
           
-          jsonData = lines.slice(1).map(line => {
+          rows = lines.slice(1).map(line => {
             const values = line.split(',').map(v => v.trim().replace(/"/g, ''))
             const obj = {}
             headers.forEach((header, index) => {
-              obj[header] = values[index] || ''
+                obj[header] = values[index] || ''
             })
             return obj
           })
         } else {
-          // Parse Excel
-          const data = new Uint8Array(e.target.result)
-          workbook = XLSX.read(data, { type: 'array' })
-          const firstSheetName = workbook.SheetNames[0]
-          const worksheet = workbook.Sheets[firstSheetName]
-          jsonData = XLSX.utils.sheet_to_json(worksheet)
+            // Parse Excel
+            const data = new Uint8Array(e.target.result)
+            workbook = XLSX.read(data, { type: 'array', cellDates: true })
+            const firstSheetName = workbook.SheetNames[0]
+            const worksheet = workbook.Sheets[firstSheetName]
+            rows = XLSX.utils.sheet_to_json(worksheet)
         }
         
         // Analyze columns for type and width after parsing data
-        const analyzedColumns = analyzeColumns(jsonData)
+        const analyzedColumns = analyzeColumns(rows)
         
         const fileData = {
           id: `file_${Date.now()}_${Math.random()}`,
           name: file.name,
           size: file.size,
           type: file.type || 'application/octet-stream',
-          num_rows: jsonData.length,
-          num_columns: jsonData.length > 0 ? Object.keys(jsonData[0]).length : 0,
+          num_rows: rows.length,
+          num_columns: rows.length > 0 ? Object.keys(rows[0]).length : 0,
           columns: analyzedColumns,
-          jsonData,
+          rows,
           workbook,
           uploadedAt: new Date()
         }
@@ -271,7 +279,7 @@ async function handleFiles(files) {
     console.log('state.files', state.files);
 }
 function handleCellUpdate(event) {
-    console.log('Cell Updated', event);
+    console.log('Cell Updated event', event);
     console.log('Cell Updated', `${event.columnKey}: "${event.oldValue}" → "${event.newValue}" for row ${event.rowId}`);
 }
 function handleRowSelection(event) {
@@ -294,6 +302,7 @@ function handleColumnRemoved(event) {
 }
 function handleDataChanged(event) {
     console.log('Data Changed', `Type: ${event.type}. Total rows: ${event.data.length}`);
+    console.log('handleDataChanged event', event);
 }
 
 onMounted(async () => {
@@ -351,46 +360,14 @@ onMounted(async () => {
                             </NuxtLink>
                         </template>
                     </notched-card>
-                    <div class="absolute top-px -right-2 z-10 bg-gray-200 hover:bg-gray-300 border border-gray-200 border-solid rounded-full w-10 h-10 flex items-center justify-center cursor-pointer">
+                    <div class="absolute top-px -right-2 z-10 bg-gray-200 hover:bg-gray-300 border border-gray-200 border-solid rounded-full w-10 h-10 flex items-center justify-center cursor-pointer" @click="removeFile(file.id)" v-tippy="{ content: 'Remove File', placement: 'top' }">
                         <font-awesome icon="fas fa-xmark" class="text-xl text-red-500 hover:text-red-400" />
                     </div>
                 </div>
-            </div>
-            <div v-if="state.files && state.files.length" class="h-10 text-center items-center self-center mt-5 mb-5 p-2 font-bold shadow-md select-none bg-primary-blue-100 cursor-pointer text-white">
-                Create Excel Data Source &amp; Upload Excel Files
-            </div>
+            </div>            
             <div v-if="state.files && state.files.length" class="flex flex-row w-full justify-center mt-10">
-                <div v-if="state.columns && state.columns.length" class="flex flex-col w-3/4 justify-center overflow-hidden mb-10">
+                <div v-if="state.columns && state.columns.length && state.show_table_dialog" class="flex flex-col w-3/4 justify-center overflow-hidden mb-10">
                     <h2 class="mb-4 text-xl font-bold text-gray-800">Data From The Selected Excel File</h2>
-                    <!-- <div class="overflow-x-auto overflow-y-auto max-h-[65vh] border border-primary-blue-100 border-solid shadow-inner bg-white">
-                        <div class="inline-block min-w-full">
-                            <table class="w-auto min-w-full border-collapse bg-white text-sm divide-y divide-gray-200">
-                                <thead class="bg-blue-100 sticky top-0 z-10 shadow-sm">
-                                    <tr>
-                                        <th v-for="column in state.columns" 
-                                            class="border border-primary-blue-100 p-3 text-center font-bold whitespace-nowrap bg-blue-100"
-                                            :style="{ minWidth: column.width + 'px', maxWidth: column.width + 'px', width: column.width + 'px' }">
-                                            <div class="flex flex-col">
-                                                <span class="text-sm font-bold">{{ column.title }}</span>
-                                                <span class="text-xs text-blue-600 mt-1 capitalize">{{ column.type }}</span>
-                                            </div>
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody class="bg-white divide-y divide-gray-200">
-                                    <tr v-for="row in state.rows" 
-                                        class="hover:bg-gray-50 even:bg-gray-25 transition-colors duration-150">
-                                        <td v-for="column in state.columns" 
-                                            class="border border-primary-blue-100 p-3 text-center whitespace-nowrap overflow-hidden text-ellipsis"
-                                            :style="{ minWidth: column.width + 'px', maxWidth: column.width + 'px', width: column.width + 'px' }"
-                                            :title="row[column.key]">
-                                            {{ row[column.key] }}
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div> -->
                     <CustomDataTable
                         :initial-data="state.rows"
                         :columns="state.columns"
@@ -403,9 +380,9 @@ onMounted(async () => {
                         ref="dataTable"
                     />
                 </div>
-                <div v-else class="flex flex-row justify-center">
-                    <p>No data available</p>
-                </div>
+            </div>
+            <div v-if="state.files && state.files.length" class="h-10 text-center items-center self-center mt-5 mb-5 p-2 font-bold shadow-md select-none bg-primary-blue-100 hover:bg-primary-blue-200 cursor-pointer text-white" @click="createDataSource">
+                Create Excel Data Source &amp; Upload Excel Files
             </div>
         </div>
     </div>
