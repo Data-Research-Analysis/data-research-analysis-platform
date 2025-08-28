@@ -32,7 +32,9 @@ const tableState = reactive({
   sortDirection: null,
   editingCell: null,
   showColumnMenu: null,
-  columnMenuPosition: { left: '0px', top: '0px' }
+  columnMenuPosition: { left: '0px', top: '0px' },
+  editingValue: '', // Local state for input value during editing
+  updateTimeout: null // For debouncing updates
 });
 
 // Computed properties
@@ -374,6 +376,34 @@ function startEditing(rowId, columnKey) {
   const column = tableState.columns.find(col => col.key === columnKey);
   if (!column?.editable) return;
   
+  // If already editing another cell, save and exit that one first
+  if (tableState.editingCell && 
+     (tableState.editingCell.rowId !== rowId || 
+      tableState.editingCell.columnKey !== columnKey)) {
+    
+    const { rowId: oldRowId, columnKey: oldColumnKey } = tableState.editingCell;
+    
+    // Save any pending changes from the previous cell
+    if (tableState.updateTimeout) {
+      clearTimeout(tableState.updateTimeout);
+      tableState.updateTimeout = null;
+    }
+    updateCellValue(oldRowId, oldColumnKey, tableState.editingValue);
+  }
+  
+  // If clicking the same cell that's already being edited, just maintain focus
+  if (tableState.editingCell?.rowId === rowId && 
+      tableState.editingCell?.columnKey === columnKey) {
+    // Re-focus the input if it lost focus
+    nextTick(() => {
+      const input = document.querySelector('.cell-input');
+      if (input && document.activeElement !== input) {
+        input.focus();
+      }
+    });
+    return;
+  }
+  
   // Store original value for potential cancellation
   const row = tableState.rows.find(r => r.id === rowId);
   const originalValue = row?.data[columnKey];
@@ -384,21 +414,36 @@ function startEditing(rowId, columnKey) {
     originalValue 
   };
   
+  // Initialize editing value with current cell value
+  tableState.editingValue = String(originalValue || '');
+  
   // Focus input in next tick
   nextTick(() => {
     const input = document.querySelector('.cell-input');
     if (input) {
       input.focus();
-      input.select();
     }
   });
 }
 
 function stopEditing() {
+  // Clear any pending debounced updates
+  if (tableState.updateTimeout) {
+    clearTimeout(tableState.updateTimeout);
+    tableState.updateTimeout = null;
+  }
+  
   tableState.editingCell = null;
+  tableState.editingValue = '';
 }
 
 function cancelEditing(){
+  // Clear any pending debounced updates
+  if (tableState.updateTimeout) {
+    clearTimeout(tableState.updateTimeout);
+    tableState.updateTimeout = null;
+  }
+  
   if (tableState.editingCell) {
     // Restore original value
     const { rowId, columnKey, originalValue } = tableState.editingCell;
@@ -408,6 +453,7 @@ function cancelEditing(){
     }
   }
   tableState.editingCell = null;
+  tableState.editingValue = '';
 }
 
 function updateCellValue(rowId, columnKey, newValue) {
@@ -431,11 +477,16 @@ function updateCellValue(rowId, columnKey, newValue) {
     case 'date':
       processedValue = new Date(newValue);
       break;
+    case 'email':
+    case 'url':
+    case 'text':
+      processedValue = String(newValue).trim();
+      break;
     default:
       processedValue = String(newValue);
   }
   
-  // Update the data immediately
+  // Update the data immediately for UI responsiveness
   row.data[columnKey] = processedValue;
   
   // Emit change event
@@ -453,8 +504,156 @@ function updateCellValue(rowId, columnKey, newValue) {
   });
 }
 
+function debouncedUpdateCellValue(rowId, columnKey, newValue) {
+  // Clear any existing timeout
+  if (tableState.updateTimeout) {
+    clearTimeout(tableState.updateTimeout);
+  }
+  
+  // Update local editing value immediately for UI responsiveness
+  tableState.editingValue = newValue;
+  
+  // Debounce the actual data update
+  tableState.updateTimeout = setTimeout(() => {
+    updateCellValue(rowId, columnKey, newValue);
+    tableState.updateTimeout = null;
+  }, 300);
+}
+
+function handleInputChange(rowId, columnKey, event) {
+  const newValue = event.target.value;
+  debouncedUpdateCellValue(rowId, columnKey, newValue);
+}
+
+function handleInputBlur(rowId, columnKey, event) {
+  const relatedTarget = event.relatedTarget;
+  
+  // Save data immediately on blur
+  if (tableState.updateTimeout) {
+    clearTimeout(tableState.updateTimeout);
+    tableState.updateTimeout = null;
+    updateCellValue(rowId, columnKey, tableState.editingValue);
+  }
+  
+  // Only exit edit mode if focus is going elsewhere
+  if (shouldExitEditMode(relatedTarget)) {
+    stopEditing();
+  }
+}
+
+function handleInputEnter(rowId, columnKey) {
+  // Save data immediately on enter but DON'T exit edit mode
+  if (tableState.updateTimeout) {
+    clearTimeout(tableState.updateTimeout);
+    tableState.updateTimeout = null;
+    updateCellValue(rowId, columnKey, tableState.editingValue);
+  }
+  // Keep focus - don't call stopEditing()
+}
+
+function shouldExitEditMode(relatedTarget) {
+  // If no related target, user clicked outside - exit
+  if (!relatedTarget) return true;
+  
+  // If focusing another cell (but not the current input), exit
+  const isOtherCell = relatedTarget.closest('td') && 
+                     !relatedTarget.closest('.cell-input');
+  if (isOtherCell) return true;
+  
+  // If focus is going outside the table container, exit
+  if (!relatedTarget.closest('.data-table-container')) return true;
+  
+  // Otherwise, keep edit mode active
+  return false;
+}
+
+function handleTabNavigation(rowId, columnKey, event) {
+  // Save current cell data
+  if (tableState.updateTimeout) {
+    clearTimeout(tableState.updateTimeout);
+    tableState.updateTimeout = null;
+    updateCellValue(rowId, columnKey, tableState.editingValue);
+  }
+  
+  // Find current cell position
+  const currentRowIndex = tableState.rows.findIndex(row => row.id === rowId);
+  const currentColIndex = visibleColumns.value.findIndex(col => col.key === columnKey);
+  
+  if (event.shiftKey) {
+    // Shift+Tab: Move to previous editable cell
+    moveToPreviousEditableCell(currentRowIndex, currentColIndex);
+  } else {
+    // Tab: Move to next editable cell
+    moveToNextEditableCell(currentRowIndex, currentColIndex);
+  }
+  
+  event.preventDefault();
+}
+
+function moveToNextEditableCell(rowIndex, colIndex) {
+  const rows = tableState.rows;
+  const columns = visibleColumns.value;
+  
+  // Try next column in same row first
+  for (let c = colIndex + 1; c < columns.length; c++) {
+    if (columns[c].editable !== false) {
+      startEditing(rows[rowIndex].id, columns[c].key);
+      return;
+    }
+  }
+  
+  // Move to next row, first editable column
+  for (let r = rowIndex + 1; r < rows.length; r++) {
+    for (let c = 0; c < columns.length; c++) {
+      if (columns[c].editable !== false) {
+        startEditing(rows[r].id, columns[c].key);
+        return;
+      }
+    }
+  }
+  
+  // If we reach here, no more editable cells - exit edit mode
+  stopEditing();
+}
+
+function moveToPreviousEditableCell(rowIndex, colIndex) {
+  const rows = tableState.rows;
+  const columns = visibleColumns.value;
+  
+  // Try previous column in same row first
+  for (let c = colIndex - 1; c >= 0; c--) {
+    if (columns[c].editable !== false) {
+      startEditing(rows[rowIndex].id, columns[c].key);
+      return;
+    }
+  }
+  
+  // Move to previous row, last editable column
+  for (let r = rowIndex - 1; r >= 0; r--) {
+    for (let c = columns.length - 1; c >= 0; c--) {
+      if (columns[c].editable !== false) {
+        startEditing(rows[r].id, columns[c].key);
+        return;
+      }
+    }
+  }
+  
+  // If we reach here, no more editable cells - exit edit mode
+  stopEditing();
+}
+
 function getCellValue(row, columnKey) {
   return row.data[columnKey] ?? '';
+}
+
+function getEditingValue(row, columnKey) {
+  // If this cell is being edited, return the local editing value
+  if (tableState.editingCell?.rowId === row.id && 
+      tableState.editingCell?.columnKey === columnKey) {
+    return tableState.editingValue;
+  }
+  // Otherwise return the actual cell value
+  return getCellValue(row, columnKey);
 }
 
 function formatCellValue(value, columnType) {
@@ -467,8 +666,29 @@ function formatCellValue(value, columnType) {
       return value ? 'Yes' : 'No';
     case 'number':
       return typeof value === 'number' ? value.toLocaleString() : value;
+    case 'email':
+    case 'url':
+      // For email and URL, just return the string value as-is
+      return String(value);
+    case 'text':
     default:
       return String(value);
+  }
+}
+
+function getInputType(columnType) {
+  switch (columnType) {
+    case 'number':
+      return 'number';
+    case 'email':
+      return 'email';
+    case 'url':
+      return 'url';
+    case 'date':
+      return 'date';
+    case 'text':
+    default:
+      return 'text';
   }
 }
 
@@ -601,9 +821,16 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+    // Clean up event listeners
     document.removeEventListener('click', handleClickOutside);
     document.removeEventListener('keydown', handleEscapeKey);
     document.removeEventListener('keydown', handleKeyboardShortcuts);
+    
+    // Clean up any pending debounced updates
+    if (tableState.updateTimeout) {
+        clearTimeout(tableState.updateTimeout);
+        tableState.updateTimeout = null;
+    }
 });  
 </script>
 <template>
@@ -678,7 +905,8 @@ onUnmounted(() => {
     </div>
 
     <!-- Main Table Container -->
-    <div class="overflow-auto border border-gray-300 shadow-sm max-h-screen">
+        <!-- Main Table Container -->
+    <div class="overflow-auto border border-gray-300 rounded-lg shadow-sm max-h-screen data-table-container">
       <table class="w-full border-collapse bg-white">
         <!-- Column Headers -->
         <thead class="sticky top-0 bg-gray-50 z-10">
@@ -713,7 +941,7 @@ onUnmounted(() => {
           <tr class="border-b border-gray-200">
             <!-- Row Selection Header -->
             <th class="w-12 p-3 border-r border-gray-200 text-center">
-              <input 
+              <input
                 type="checkbox"
                 :checked="allRowsSelected"
                 :indeterminate="someRowsSelected"
@@ -816,22 +1044,28 @@ onUnmounted(() => {
               <!-- Edit Mode -->
               <div v-if="isEditing(row.id, column.key)" class="w-full">
                 <input 
-                  v-if="column.type === 'text' || column.type === 'number'"
-                  :type="column.type === 'number' ? 'number' : 'text'"
-                  :value="getCellValue(row, column.key)"
-                  @input="updateCellValue(row.id, column.key, $event.target.value)"
-                  @blur="stopEditing"
-                  @keydown.enter="stopEditing"
+                  v-if="['text', 'number', 'email', 'url'].includes(column.type)"
+                  :type="getInputType(column.type)"
+                  :value="getEditingValue(row, column.key)"
+                  @input="handleInputChange(row.id, column.key, $event)"
+                  @blur="handleInputBlur(row.id, column.key, $event)"
+                  @keydown.enter="handleInputEnter(row.id, column.key)"
                   @keydown.escape="cancelEditing"
-                  class="w-full h-full p-2 border-0 outline-none bg-white focus:ring-2 focus:ring-blue-500 focus:ring-inset"
+                  @keydown.tab="handleTabNavigation(row.id, column.key, $event)"
+                  @dblclick="$event.target.select()"
+                  @keydown.ctrl.a.prevent="$event.target.select()"
+                  @keydown.meta.a.prevent="$event.target.select()"
+                  @click.stop
+                  class="w-full h-full p-2 border-0 outline-none bg-white focus:ring-2 focus:ring-blue-500 focus:ring-inset cell-input"
                   ref="cellInput"
                 />
                 
                 <select 
                   v-else-if="column.type === 'boolean'"
                   :value="getCellValue(row, column.key)"
-                  @change="updateCellValue(row.id, column.key, $event.target.value === 'true')"
+                  @change="updateCellValue(row.id, column.key, $event.target.value === 'true'); stopEditing();"
                   @blur="stopEditing"
+                  @click.stop
                   class="w-full h-full p-2 border-0 outline-none bg-white focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="true">True</option>
@@ -844,7 +1078,26 @@ onUnmounted(() => {
                   :value="getCellValue(row, column.key)"
                   @input="updateCellValue(row.id, column.key, $event.target.value)"
                   @blur="stopEditing"
+                  @click.stop
                   class="w-full h-full p-2 border-0 outline-none bg-white focus:ring-2 focus:ring-blue-500"
+                />
+                
+                <!-- Fallback input for any unhandled column types -->
+                <input 
+                  v-else
+                  type="text"
+                  :value="getEditingValue(row, column.key)"
+                  @input="handleInputChange(row.id, column.key, $event)"
+                  @blur="handleInputBlur(row.id, column.key, $event)"
+                  @keydown.enter="handleInputEnter(row.id, column.key)"
+                  @keydown.escape="cancelEditing"
+                  @keydown.tab="handleTabNavigation(row.id, column.key, $event)"
+                  @dblclick="$event.target.select()"
+                  @keydown.ctrl.a.prevent="$event.target.select()"
+                  @keydown.meta.a.prevent="$event.target.select()"
+                  @click.stop
+                  class="w-full h-full p-2 border-0 outline-none bg-white focus:ring-2 focus:ring-blue-500 focus:ring-inset cell-input"
+                  ref="cellInput"
                 />
               </div>
               
@@ -930,7 +1183,8 @@ onUnmounted(() => {
     </Transition>
 
     <!-- Help Section -->
-    <div class="mt-4 p-3 bg-gray-50 border border-gray-200">
+        <!-- Help Section -->
+    <div class="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
       <div class="text-xs text-gray-600 space-y-1">
         <div>
           <strong>Column Selection:</strong> 
@@ -938,6 +1192,16 @@ onUnmounted(() => {
           <kbd class="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">Ctrl</kbd> + Click for multi-select • 
           <kbd class="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">Shift</kbd> + Click for range select • 
           <kbd class="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">Alt</kbd> + Click for single select
+        </div>
+        <div>
+          <strong>Cell Editing:</strong> 
+          Single click to position cursor • 
+          Double-click to select all text • 
+          <kbd class="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">Enter</kbd> to save (keeps focus) • 
+          <kbd class="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">Tab</kbd> to save and move to next cell • 
+          <kbd class="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">Shift+Tab</kbd> to save and move to previous cell • 
+          <kbd class="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">Esc</kbd> to cancel • 
+          <kbd class="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">Ctrl+A</kbd> to select all text
         </div>
         <div>
           <strong>Keyboard Shortcuts:</strong> 

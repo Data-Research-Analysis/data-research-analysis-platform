@@ -281,7 +281,7 @@ async function handleFiles(files) {
 }
 function handleCellUpdate(event) {
     const row = state.selected_file.rows.find((row) => {
-      if (row.id === event.rowId) {
+      if (row.id === event.row.id) {
         return row
       }
     });
