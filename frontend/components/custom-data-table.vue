@@ -19,7 +19,6 @@ const emit = defineEmits([
   'row-selected',
   'rows-removed',
   'column-removed',
-  'data-changed'
 ]);
 
 const tableState = reactive({
@@ -32,9 +31,7 @@ const tableState = reactive({
   sortDirection: null,
   editingCell: null,
   showColumnMenu: null,
-  columnMenuPosition: { left: '0px', top: '0px' },
-  editingValue: '', // Local state for input value during editing
-  updateTimeout: null // For debouncing updates
+  columnMenuPosition: { left: '0px', top: '0px' }
 });
 
 // Computed properties
@@ -376,34 +373,6 @@ function startEditing(rowId, columnKey) {
   const column = tableState.columns.find(col => col.key === columnKey);
   if (!column?.editable) return;
   
-  // If already editing another cell, save and exit that one first
-  if (tableState.editingCell && 
-     (tableState.editingCell.rowId !== rowId || 
-      tableState.editingCell.columnKey !== columnKey)) {
-    
-    const { rowId: oldRowId, columnKey: oldColumnKey } = tableState.editingCell;
-    
-    // Save any pending changes from the previous cell
-    if (tableState.updateTimeout) {
-      clearTimeout(tableState.updateTimeout);
-      tableState.updateTimeout = null;
-    }
-    updateCellValue(oldRowId, oldColumnKey, tableState.editingValue);
-  }
-  
-  // If clicking the same cell that's already being edited, just maintain focus
-  if (tableState.editingCell?.rowId === rowId && 
-      tableState.editingCell?.columnKey === columnKey) {
-    // Re-focus the input if it lost focus
-    nextTick(() => {
-      const input = document.querySelector('.cell-input');
-      if (input && document.activeElement !== input) {
-        input.focus();
-      }
-    });
-    return;
-  }
-  
   // Store original value for potential cancellation
   const row = tableState.rows.find(r => r.id === rowId);
   const originalValue = row?.data[columnKey];
@@ -413,9 +382,6 @@ function startEditing(rowId, columnKey) {
     columnKey, 
     originalValue 
   };
-  
-  // Initialize editing value with current cell value
-  tableState.editingValue = String(originalValue || '');
   
   // Focus input in next tick
   nextTick(() => {
@@ -427,23 +393,10 @@ function startEditing(rowId, columnKey) {
 }
 
 function stopEditing() {
-  // Clear any pending debounced updates
-  if (tableState.updateTimeout) {
-    clearTimeout(tableState.updateTimeout);
-    tableState.updateTimeout = null;
-  }
-  
   tableState.editingCell = null;
-  tableState.editingValue = '';
 }
 
 function cancelEditing(){
-  // Clear any pending debounced updates
-  if (tableState.updateTimeout) {
-    clearTimeout(tableState.updateTimeout);
-    tableState.updateTimeout = null;
-  }
-  
   if (tableState.editingCell) {
     // Restore original value
     const { rowId, columnKey, originalValue } = tableState.editingCell;
@@ -453,7 +406,6 @@ function cancelEditing(){
     }
   }
   tableState.editingCell = null;
-  tableState.editingValue = '';
 }
 
 function updateCellValue(rowId, columnKey, newValue) {
@@ -497,163 +449,22 @@ function updateCellValue(rowId, columnKey, newValue) {
     newValue: processedValue,
     row: row.data
   });
-  
-  emit('data-changed', {
-    type: 'cell-update',
-    data: tableState.rows
-  });
 }
 
-function debouncedUpdateCellValue(rowId, columnKey, newValue) {
-  // Clear any existing timeout
-  if (tableState.updateTimeout) {
-    clearTimeout(tableState.updateTimeout);
-  }
-  
-  // Update local editing value immediately for UI responsiveness
-  tableState.editingValue = newValue;
-  
-  // Debounce the actual data update
-  tableState.updateTimeout = setTimeout(() => {
-    updateCellValue(rowId, columnKey, newValue);
-    tableState.updateTimeout = null;
-  }, 300);
+function handleInputUpdate(rowId, columnKey, event) {
+  updateCellValue(rowId, columnKey, event.target.value);
 }
 
-function handleInputChange(rowId, columnKey, event) {
-  const newValue = event.target.value;
-  debouncedUpdateCellValue(rowId, columnKey, newValue);
-}
-
-function handleInputBlur(rowId, columnKey, event) {
-  const relatedTarget = event.relatedTarget;
-  
-  // Save data immediately on blur
-  if (tableState.updateTimeout) {
-    clearTimeout(tableState.updateTimeout);
-    tableState.updateTimeout = null;
-    updateCellValue(rowId, columnKey, tableState.editingValue);
-  }
-  
-  // Only exit edit mode if focus is going elsewhere
-  if (shouldExitEditMode(relatedTarget)) {
+function handleInputKeydown(rowId, columnKey, event) {
+  if (event.key === 'Enter') {
     stopEditing();
+  } else if (event.key === 'Escape') {
+    cancelEditing();
   }
-}
-
-function handleInputEnter(rowId, columnKey) {
-  // Save data immediately on enter but DON'T exit edit mode
-  if (tableState.updateTimeout) {
-    clearTimeout(tableState.updateTimeout);
-    tableState.updateTimeout = null;
-    updateCellValue(rowId, columnKey, tableState.editingValue);
-  }
-  // Keep focus - don't call stopEditing()
-}
-
-function shouldExitEditMode(relatedTarget) {
-  // If no related target, user clicked outside - exit
-  if (!relatedTarget) return true;
-  
-  // If focusing another cell (but not the current input), exit
-  const isOtherCell = relatedTarget.closest('td') && 
-                     !relatedTarget.closest('.cell-input');
-  if (isOtherCell) return true;
-  
-  // If focus is going outside the table container, exit
-  if (!relatedTarget.closest('.data-table-container')) return true;
-  
-  // Otherwise, keep edit mode active
-  return false;
-}
-
-function handleTabNavigation(rowId, columnKey, event) {
-  // Save current cell data
-  if (tableState.updateTimeout) {
-    clearTimeout(tableState.updateTimeout);
-    tableState.updateTimeout = null;
-    updateCellValue(rowId, columnKey, tableState.editingValue);
-  }
-  
-  // Find current cell position
-  const currentRowIndex = tableState.rows.findIndex(row => row.id === rowId);
-  const currentColIndex = visibleColumns.value.findIndex(col => col.key === columnKey);
-  
-  if (event.shiftKey) {
-    // Shift+Tab: Move to previous editable cell
-    moveToPreviousEditableCell(currentRowIndex, currentColIndex);
-  } else {
-    // Tab: Move to next editable cell
-    moveToNextEditableCell(currentRowIndex, currentColIndex);
-  }
-  
-  event.preventDefault();
-}
-
-function moveToNextEditableCell(rowIndex, colIndex) {
-  const rows = tableState.rows;
-  const columns = visibleColumns.value;
-  
-  // Try next column in same row first
-  for (let c = colIndex + 1; c < columns.length; c++) {
-    if (columns[c].editable !== false) {
-      startEditing(rows[rowIndex].id, columns[c].key);
-      return;
-    }
-  }
-  
-  // Move to next row, first editable column
-  for (let r = rowIndex + 1; r < rows.length; r++) {
-    for (let c = 0; c < columns.length; c++) {
-      if (columns[c].editable !== false) {
-        startEditing(rows[r].id, columns[c].key);
-        return;
-      }
-    }
-  }
-  
-  // If we reach here, no more editable cells - exit edit mode
-  stopEditing();
-}
-
-function moveToPreviousEditableCell(rowIndex, colIndex) {
-  const rows = tableState.rows;
-  const columns = visibleColumns.value;
-  
-  // Try previous column in same row first
-  for (let c = colIndex - 1; c >= 0; c--) {
-    if (columns[c].editable !== false) {
-      startEditing(rows[rowIndex].id, columns[c].key);
-      return;
-    }
-  }
-  
-  // Move to previous row, last editable column
-  for (let r = rowIndex - 1; r >= 0; r--) {
-    for (let c = columns.length - 1; c >= 0; c--) {
-      if (columns[c].editable !== false) {
-        startEditing(rows[r].id, columns[c].key);
-        return;
-      }
-    }
-  }
-  
-  // If we reach here, no more editable cells - exit edit mode
-  stopEditing();
 }
 
 function getCellValue(row, columnKey) {
   return row.data[columnKey] ?? '';
-}
-
-function getEditingValue(row, columnKey) {
-  // If this cell is being edited, return the local editing value
-  if (tableState.editingCell?.rowId === row.id && 
-      tableState.editingCell?.columnKey === columnKey) {
-    return tableState.editingValue;
-  }
-  // Otherwise return the actual cell value
-  return getCellValue(row, columnKey);
 }
 
 function formatCellValue(value, columnType) {
@@ -734,15 +545,6 @@ function toggleColumnMenu(columnId, event) {
   console.log('Menu opened at position:', menuPosition);
 }
 
-// Watch for prop changes
-watch(() => props.initialData, (newData) => {
-  tableState.rows = newData.map((rowData, index) => ({
-    id: `row_${Date.now()}_${index}`,
-    selected: false,
-    data: { ...rowData }
-  }));
-}, { deep: true });
-
 // Expose methods for parent component
 defineExpose({
   getTableData: () => tableState.rows.map(row => row.data),
@@ -800,7 +602,6 @@ function handleClickOutside(e) {
 }
 
 onMounted(() => {
-    console.log('CustomDataTable tableState', tableState);
     tableState.columns = props.columns.map(col => ({
         ...col,
         id: col?.id ? col.id : `col_${Date.now()}_${Math.random()}`,
@@ -825,12 +626,6 @@ onUnmounted(() => {
     document.removeEventListener('click', handleClickOutside);
     document.removeEventListener('keydown', handleEscapeKey);
     document.removeEventListener('keydown', handleKeyboardShortcuts);
-    
-    // Clean up any pending debounced updates
-    if (tableState.updateTimeout) {
-        clearTimeout(tableState.updateTimeout);
-        tableState.updateTimeout = null;
-    }
 });  
 </script>
 <template>
@@ -1046,16 +841,10 @@ onUnmounted(() => {
                 <input 
                   v-if="['text', 'number', 'email', 'url'].includes(column.type)"
                   :type="getInputType(column.type)"
-                  :value="getEditingValue(row, column.key)"
-                  @input="handleInputChange(row.id, column.key, $event)"
-                  @blur="handleInputBlur(row.id, column.key, $event)"
-                  @keydown.enter="handleInputEnter(row.id, column.key)"
-                  @keydown.escape="cancelEditing"
-                  @keydown.tab="handleTabNavigation(row.id, column.key, $event)"
-                  @dblclick="$event.target.select()"
-                  @keydown.ctrl.a.prevent="$event.target.select()"
-                  @keydown.meta.a.prevent="$event.target.select()"
-                  @click.stop
+                  :value="getCellValue(row, column.key)"
+                  @input="handleInputUpdate(row.id, column.key, $event)"
+                  @keydown="handleInputKeydown(row.id, column.key, $event)"
+                  @blur="stopEditing"
                   class="w-full h-full p-2 border-0 outline-none bg-white focus:ring-2 focus:ring-blue-500 focus:ring-inset cell-input"
                   ref="cellInput"
                 />
@@ -1063,9 +852,8 @@ onUnmounted(() => {
                 <select 
                   v-else-if="column.type === 'boolean'"
                   :value="getCellValue(row, column.key)"
-                  @change="updateCellValue(row.id, column.key, $event.target.value === 'true'); stopEditing();"
+                  @change="updateCellValue(row.id, column.key, $event.target.value === 'true'); stopEditing()"
                   @blur="stopEditing"
-                  @click.stop
                   class="w-full h-full p-2 border-0 outline-none bg-white focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="true">True</option>
@@ -1076,9 +864,8 @@ onUnmounted(() => {
                   v-else-if="column.type === 'date'"
                   type="date"
                   :value="getCellValue(row, column.key)"
-                  @input="updateCellValue(row.id, column.key, $event.target.value)"
+                  @input="updateCellValue(row.id, column.key, $event.target.value); stopEditing()"
                   @blur="stopEditing"
-                  @click.stop
                   class="w-full h-full p-2 border-0 outline-none bg-white focus:ring-2 focus:ring-blue-500"
                 />
                 
@@ -1086,16 +873,10 @@ onUnmounted(() => {
                 <input 
                   v-else
                   type="text"
-                  :value="getEditingValue(row, column.key)"
-                  @input="handleInputChange(row.id, column.key, $event)"
-                  @blur="handleInputBlur(row.id, column.key, $event)"
-                  @keydown.enter="handleInputEnter(row.id, column.key)"
-                  @keydown.escape="cancelEditing"
-                  @keydown.tab="handleTabNavigation(row.id, column.key, $event)"
-                  @dblclick="$event.target.select()"
-                  @keydown.ctrl.a.prevent="$event.target.select()"
-                  @keydown.meta.a.prevent="$event.target.select()"
-                  @click.stop
+                  :value="getCellValue(row, column.key)"
+                  @input="handleInputUpdate(row.id, column.key, $event)"
+                  @keydown="handleInputKeydown(row.id, column.key, $event)"
+                  @blur="stopEditing"
                   class="w-full h-full p-2 border-0 outline-none bg-white focus:ring-2 focus:ring-blue-500 focus:ring-inset cell-input"
                   ref="cellInput"
                 />

@@ -285,9 +285,7 @@ function handleCellUpdate(event) {
         return row
       }
     });
-    if (row[event.columnKey]) {
-      row[event.columnKey] = event.newValue;
-    }
+    row[event.columnKey] = event.newValue;
 }
 function handleRowsRemoved(event) {
   if (event.allRemoved) {
@@ -372,7 +370,7 @@ onMounted(async () => {
             <div v-if="state.files && state.files.length" class="flex flex-row w-full justify-center mt-10">
                 <div v-if="state.columns && state.columns.length && state.show_table_dialog" class="flex flex-col w-3/4 justify-center overflow-hidden mb-10">
                     <h2 class="mb-4 text-xl font-bold text-gray-800">Data From The Selected Excel File</h2>
-                    <CustomDataTable
+                    <custom-data-table
                         :initial-data="state.rows"
                         :columns="state.columns"
                         :editable="true"
