@@ -1,5 +1,4 @@
 <script setup>
-import { data } from 'happy-dom/lib/PropertySymbol.js';
 import * as XLSX from 'xlsx';
 const { $swal } = useNuxtApp();
 const route = useRoute();
@@ -41,18 +40,13 @@ function showTable(fileId) {
                 }
             }
             state.show_table_dialog = true;
-            console.log('file', file);
         }, 500);
-        console.log('state.columns', state.columns);
-        console.log('state.rows', state.rows);
     });
 }
 function removeFile(fileId) {
     state.files = state.files.filter((file) => file.id !== fileId);
 }
 async function createDataSource() {
-  
-  console.log('createDataSource state.files', state.files);
   // const results = await Promise.allSettled()
     const token = getAuthToken();
     if (!state.data_source_name || state.data_source_name.trim() === '') {
@@ -73,7 +67,6 @@ async function createDataSource() {
       const rows = file.rows;
       const fileId = file.id;
       file.status = 'processing';
-      console.log('dataSourceId', dataSourceId);
       const response = await fetch(url, {
           method: "POST",
           headers: {
@@ -101,20 +94,16 @@ async function createDataSource() {
               data_source_id: dataSourceId ? dataSourceId : null,
           })
       });
-      console.log('response', response);
       if (response.status === 200) {
         const data = await response.json();
-        console.log('data', data);
         dataSourceId = data.result.data_source_id;
         file.status = 'uploaded';
       } else {
         file.status = 'failed';
       }
       await sleep(1000);
-
     }
     router.push(`/projects/${route.params.projectid}/data-sources`);
-
 }
 function isValidFile(file) {
   const validExtensions = ['.xlsx', '.xls', '.csv']
@@ -195,7 +184,6 @@ function isUrlType(values) {
   )
 }
 function inferColumnType(values) {
-  console.log('inferColumnType values', values);
   // Priority order: boolean > number > date > email > url > text
   if (isBooleanType(values)) return 'boolean'
   if (isNumberType(values)) return 'number'
@@ -242,7 +230,6 @@ function analyzeColumns(rows) {
     
     // Infer type and calculate width
     const type = inferColumnType(columnValues)
-    console.log('analyzeColumn type', type);
     const width = calculateColumnWidth(key, columnValues, type)
     
     return {
@@ -329,7 +316,6 @@ async function handleFiles(files) {
         if (isValidFile(file)) {
             try {
                 const parsedFile = await parseFile(file);
-                console.log('parsed parsedFile', parsedFile);
                 state.files.push(parsedFile);
             } catch (error) {
                 rejectedFiles.push(`${file.name}`)
@@ -345,7 +331,6 @@ async function handleFiles(files) {
             text: `The following files could not be processed: ${rejectedFiles.join(', ')} as either there is an error in them or are not a valid excel file.`,
         });
     }
-    console.log('state.files', state.files);
 }
 function handleCellUpdate(event) {
     const row = state.selected_file.rows.find((row) => {
@@ -364,7 +349,6 @@ function handleRowsRemoved(event) {
   }
 }
 function handleColumnRemoved(event) {
-  const columnNames = event.removedColumns.map(col => col.title).join(', ');
   state.selected_file.columns = state.selected_file.columns.filter(col => {
     return event.removedColumns.filter((removedCol) => removedCol.id === col.id).length === 0
   });
