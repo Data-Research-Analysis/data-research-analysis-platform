@@ -1,14 +1,19 @@
 <script setup>
+import { data } from 'happy-dom/lib/PropertySymbol.js';
 import * as XLSX from 'xlsx';
 const { $swal } = useNuxtApp();
+const route = useRoute();
+const router = useRouter();
 
 let dropZone = null;
 const state = reactive({
+    data_source_name: '',
     files: [],
     show_table_dialog: false,
     columns: [],
     rows: [],
     selected_file: null,
+    loading: false,
 });
 
 function handleDrop(e) {
@@ -45,8 +50,71 @@ function showTable(fileId) {
 function removeFile(fileId) {
     state.files = state.files.filter((file) => file.id !== fileId);
 }
-function createDataSource() {
-    console.log('createDataSource state.files', state.files);
+async function createDataSource() {
+  
+  console.log('createDataSource state.files', state.files);
+  // const results = await Promise.allSettled()
+    const token = getAuthToken();
+    if (!state.data_source_name || state.data_source_name.trim() === '') {
+        $swal.fire({
+            icon: 'error',
+            title: `Error!`,
+            text: `Please provide a name for the data source.`,
+        });
+        return;
+    }
+    state.loading = true;
+    const url = `${baseUrl()}/data-source/add-excel-data-source`;
+    let dataSourceId = null;
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    for (const file of state.files) {
+      const columns = file.columns;
+      const rows = file.rows;
+      const fileId = file.id;
+      file.status = 'processing';
+      console.log('dataSourceId', dataSourceId);
+      const response = await fetch(url, {
+          method: "POST",
+          headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`,
+              "Authorization-Type": "auth",
+          },
+          body: JSON.stringify({
+              file_id: fileId,
+              data: {
+                columns: columns.map((column) => {
+                  return {
+                    title: column.title,
+                    key: column.key,
+                    column_name: column.key.substring(0, 20).replace(/\s/g,'_').toLowerCase(),
+                    type: column.type,
+                  };
+                }),
+                rows,
+                file_name: file.name.replace(/\.(xlsx|xls|csv)$/, "").substring(0, 20).replace(/\s/g,'_').toLowerCase(),
+              },
+              file_name: file.name.replace(/\.(xlsx|xls|csv)$/, "").substring(0, 20).replace(/\s/g,'_').toLowerCase(),
+              data_source_name: state.data_source_name,
+              project_id: route.params.projectid,
+              data_source_id: dataSourceId ? dataSourceId : null,
+          })
+      });
+      console.log('response', response);
+      if (response.status === 200) {
+        const data = await response.json();
+        console.log('data', data);
+        dataSourceId = data.result.data_source_id;
+        file.status = 'uploaded';
+      } else {
+        file.status = 'failed';
+      }
+      await sleep(1000);
+
+    }
+    router.push(`/projects/${route.params.projectid}/data-sources`);
+
 }
 function isValidFile(file) {
   const validExtensions = ['.xlsx', '.xls', '.csv']
@@ -101,7 +169,8 @@ function isDateType(values) {
       /^\d{2}\/\d{2}\/\d{4}$/, // MM/DD/YYYY or DD/MM/YYYY
       /^\d{2}-\d{2}-\d{4}$/, // MM-DD-YYYY or DD-MM-YYYY
       /^\w{3}\s+\d{1,2},?\s+\d{4}$/, // Mon DD, YYYY
-      /^\d{1,2}\/\d{1,2}\/\d{2,4}$/ // M/D/YY or MM/DD/YYYY
+      /^\d{1,2}\/\d{1,2}\/\d{2,4}$/, // M/D/YY or MM/DD/YYYY
+      /^[A-Z][a-z]{2} [A-Z][a-z]{2} \d{2} \d{4} \d{2}:\d{2}:\d{2} GMT[+-]\d{4}( \(.+\))?$/ // JS Date string
     ]
     
     return datePatterns.some(pattern => pattern.test(str))
@@ -126,6 +195,7 @@ function isUrlType(values) {
   )
 }
 function inferColumnType(values) {
+  console.log('inferColumnType values', values);
   // Priority order: boolean > number > date > email > url > text
   if (isBooleanType(values)) return 'boolean'
   if (isNumberType(values)) return 'number'
@@ -172,6 +242,7 @@ function analyzeColumns(rows) {
     
     // Infer type and calculate width
     const type = inferColumnType(columnValues)
+    console.log('analyzeColumn type', type);
     const width = calculateColumnWidth(key, columnValues, type)
     
     return {
@@ -189,7 +260,6 @@ function analyzeColumns(rows) {
 async function parseFile(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
-    
     reader.onload = (e) => {
       try {
         let rows = []
@@ -220,7 +290,6 @@ async function parseFile(file) {
         
         // Analyze columns for type and width after parsing data
         const analyzedColumns = analyzeColumns(rows)
-        
         const fileData = {
           id: `file_${Date.now()}_${Math.random()}`,
           name: file.name,
@@ -235,11 +304,10 @@ async function parseFile(file) {
                 ...row,
               };
           }),
+          status: 'pending',//uploaded, processing, failed
           workbook,
           uploadedAt: new Date()
-        }
-        console.log('parseFile fileData', fileData);
-        
+        }        
         resolve(fileData)
       } catch (error) {
         reject(error)
@@ -308,27 +376,27 @@ function handleColumnRemoved(event) {
   });
 }
 onMounted(async () => {
-    const token = getAuthToken();
-    const url = `${baseUrl()}/data-source/upload/file`;
-    dropZone = document.getElementById('drop-zone');
-    const fileElem = document.getElementById('file-elem');
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        dropZone.addEventListener(eventName, preventDefaults, false);
-    });
-    dropZone.addEventListener('drop', handleDrop, false);
-    fileElem.addEventListener('change', (e) => {
-        handleFiles(e.target.files);
-    });
-    dropZone.addEventListener('click', () => {
-        fileElem.click();
-    })
+  const token = getAuthToken();
+  const url = `${baseUrl()}/data-source/upload/file`;
+  dropZone = document.getElementById('drop-zone');
+  const fileElem = document.getElementById('file-elem');
+  ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, preventDefaults, false);
+  });
+  dropZone.addEventListener('drop', handleDrop, false);
+  fileElem.addEventListener('change', (e) => {
+      handleFiles(e.target.files);
+  });
+  dropZone.addEventListener('click', () => {
+      fileElem.click();
+  });
 });
 </script>
 <template>
     <div>
         <div class="flex flex-col justify-center">
             <div class="flex flex-row justify-center">
-                <input type="text" class="w-3/4 border border-primary-blue-100 border-solid p-2 cursor-pointer margin-auto mt-10" placeholder="Data Source Name"/>
+                <input type="text" class="w-3/4 border border-primary-blue-100 border-solid p-2 cursor-pointer margin-auto mt-10" placeholder="Data Source Name" v-model="state.data_source_name"/>
             </div>
             <div class="flex flex-col justify-center w-3/4 min-h-100 bg-gray-200 m-auto mt-5 text-center cursor-pointer" id="drop-zone">
                 <h3 class="text-lg font-semibold">Drop files here or click to upload</h3>
@@ -342,15 +410,30 @@ onMounted(async () => {
                             <NuxtLink class="text-gray-500">
                                 <div class="flex flex-row justify-end">
                                     <font-awesome
-                                        icon="fas fa-table"
-                                        class="text-xl ml-2 text-gray-500 hover:text-gray-400 cursor-pointer"
-                                        :v-tippy-content="'View Data In Table'"
-                                        @click="showTable(file.id)"
+                                      icon="fas fa-table"
+                                      class="text-xl ml-2 text-gray-500 hover:text-gray-400 cursor-pointer"
+                                      :v-tippy-content="'View Data In Table'"
+                                      @click="showTable(file.id)"
+                                    />
+                                    <font-awesome
+                                      v-if="file.status === 'uploaded'"
+                                      icon="fas fa-check"
+                                      class="text-xl ml-2 text-green-300"
+                                    />
+                                    <font-awesome
+                                      v-else-if="file.status === 'processing'"
+                                      icon="fas fa-hourglass-half"
+                                      class="text-xl ml-2 text-gray-500"
+                                    />
+                                    <font-awesome
+                                      v-else-if="file.status === 'failed'"
+                                      icon="fas fa-exclamation"
+                                      class="text-xl ml-2 text-red-500"
                                     />
                                 </div>
                                 <div class="flex flex-col justify-center">
                                     <div class="text-md">
-                                        {{ file.name }}
+                                      {{ file.name }}
                                     </div>
                                 </div>
                                 <div class="flex flex-row justify-center items-center mt-5 mr-10">
@@ -362,7 +445,7 @@ onMounted(async () => {
                             </NuxtLink>
                         </template>
                     </notched-card>
-                    <div class="absolute top-px -right-2 z-10 bg-gray-200 hover:bg-gray-300 border border-gray-200 border-solid rounded-full w-10 h-10 flex items-center justify-center cursor-pointer" @click="removeFile(file.id)" v-tippy="{ content: 'Remove File', placement: 'top' }">
+                    <div v-if="file.status === 'pending'" class="absolute top-px -right-2 z-10 bg-gray-200 hover:bg-gray-300 border border-gray-200 border-solid rounded-full w-10 h-10 flex items-center justify-center cursor-pointer" @click="removeFile(file.id)" v-tippy="{ content: 'Remove File', placement: 'top' }">
                         <font-awesome icon="fas fa-xmark" class="text-xl text-red-500 hover:text-red-400" />
                     </div>
                 </div>
@@ -381,9 +464,11 @@ onMounted(async () => {
                     />
                 </div>
             </div>
-            <div v-if="state.files && state.files.length" class="h-10 text-center items-center self-center mt-5 mb-5 p-2 font-bold shadow-md select-none bg-primary-blue-100 hover:bg-primary-blue-200 cursor-pointer text-white" @click="createDataSource">
+            <spinner v-if="state.loading"/>
+            <div v-else-if="!state.loading && state.files && state.files.length" class="h-10 text-center items-center self-center mt-5 mb-5 p-2 font-bold shadow-md select-none bg-primary-blue-100 hover:bg-primary-blue-200 cursor-pointer text-white" @click="createDataSource">
                 Create Excel Data Source &amp; Upload Excel Files
             </div>
+
         </div>
     </div>
 </template>

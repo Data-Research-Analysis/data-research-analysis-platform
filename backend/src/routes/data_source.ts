@@ -127,36 +127,17 @@ async (req: Request, res: Response) => {
     }
 });
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    // Set the destination directory for uploaded files
-    // Ensure this directory exists in your backend project
-    cb(null, path.join(__dirname, '../../public/uploads'));
-  },
-  filename: (req, file, cb) => {
-    // Generate a unique filename to prevent overwrites
-    // e.g., image-16789012345.jpg
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-const upload = multer({ storage: storage });
-router.post('/upload/file', async (req: Request, res: Response, next: any) => {
+router.post('/add-excel-data-source', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, upload.single('file'), async (req: IMulterRequest, res: Response) => {
-    const file = req.file;
-    if (!file) {
-        return res.status(400).json({ message: 'No file uploaded.' });
-    }
-    const publicUrl = UtilityService.getInstance().getConstants('PUBLIC_BACKEND_URL');
-    if (req?.file?.filename) {
-      const fileUrl = `${publicUrl}/uploads/${req.file.filename}`;
-      const data = await ExcelFileService.getInstance().readExcelFile(req.file.filename);
-      res.status(200).json({ url: fileUrl, data });
-    } else {
-      res.status(400).json({ message: 'File upload failed.' });
+}, validateJWT, validate([body('file_name').notEmpty().trim().escape(), body('data_source_name').notEmpty().trim().escape(), body('file_id').notEmpty().trim().escape(), body('data').notEmpty(), body('project_id').notEmpty().trim().escape(), body('data_source_id').trim().escape(),
+]),
+async (req: Request, res: Response) => {
+    const { file_name, data_source_name, file_id, data, project_id, data_source_id } = matchedData(req);
+    try {
+        const result = await DataSourceProcessor.getInstance().addExcelDataSource(file_name, data_source_name, file_id, JSON.stringify(data),  req.body.tokenDetails, project_id, data_source_id);
+        res.status(200).send({message: 'The data source has been connected.', result});
+    } catch (error) {
+        res.status(400).send({message: 'The data source could not be connected.'});
     }
 });
 export default router;

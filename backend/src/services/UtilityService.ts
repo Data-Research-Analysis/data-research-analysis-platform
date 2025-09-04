@@ -66,7 +66,6 @@ export class UtilityService {
             POSTGRESQL_HOST_MIGRATIONS: process.env.POSTGRESQL_HOST_MIGRATIONS || '',
             POSTGRESQL_PORT_MIGRATIONS: process.env.POSTGRESQL_PORT_MIGRATIONS || '',
             POSTGRESQL_PORT: process.env.POSTGRESQL_PORT || '',
-            POSTGRESQL_DATABASE: process.env.POSTGRESQL_DATABASE || '',
             POSTGRESQL_USERNAME: process.env.POSTGRESQL_USERNAME || '',
             POSTGRESQL_PASSWORD: process.env.POSTGRESQL_PASSWORD || '',
             POSTGRESQL_DB_NAME: process.env.POSTGRESQL_DB_NAME || '',
@@ -94,15 +93,17 @@ export class UtilityService {
     public convertDataTypeToPostgresDataType(database: string, dataType: string): { type: string; size?: string | number } {
         // Early return for non-MySQL/MariaDB databases
         const dbLower = database.toLowerCase();
-        if (dbLower !== 'mysql' && dbLower !== 'mariadb') {
+        if (dbLower === EDataSourceType.EXCEL) {
+            const parsedType = this.parseExcelDataType(dataType);
+            return this.mapMySQLToPostgreSQL(parsedType);
+        } else if (dbLower === EDataSourceType.MYSQL || dbLower === EDataSourceType.MARIADB) {
+            // Parse MySQL/MariaDB data type (MariaDB is MySQL-compatible)
+            const parsedType = this.parseMySQLDataType(dataType);
+            // Map to PostgreSQL equivalent
+            return this.mapMySQLToPostgreSQL(parsedType);
+        } else {
             return { type: dataType }; // Pass through unchanged
         }
-
-        // Parse MySQL/MariaDB data type (MariaDB is MySQL-compatible)
-        const parsedType = this.parseMySQLDataType(dataType);
-        
-        // Map to PostgreSQL equivalent
-        return this.mapMySQLToPostgreSQL(parsedType);
     }
 
     private parseMySQLDataType(dataType: string): { 
@@ -164,7 +165,7 @@ export class UtilityService {
         return { baseType: normalizedType };
     }
 
-    private mapMySQLToPostgreSQL(parsed: { 
+    private mapMySQLToPostgreSQL(parsed: {
         baseType: string; 
         size?: number; 
         precision?: number; 
@@ -263,6 +264,25 @@ export class UtilityService {
             default:
                 console.warn(`Unknown MySQL data type: ${baseType}. Using original type.`);
                 return { type: baseType };
+        }
+    }
+
+     private parseExcelDataType(dataType: string): { 
+        baseType: string; 
+        size?: number;
+    } {
+        //text, email, url, boolean, number
+        const normalizedType = dataType.trim().toUpperCase();
+        if (normalizedType === 'EMAIL' || normalizedType === 'URL') {
+            return { baseType: 'VARCHAR', size: 512 };
+        } else if (normalizedType === 'TEXT') {
+            return { baseType: 'VARCHAR', size: 1024 };
+        } else if (normalizedType === 'BOOLEAN') {
+            return { baseType: 'BOOLEAN' };
+        } else if (normalizedType === 'NUMBER') {
+            return { baseType: 'FLOAT' };
+        } else if (normalizedType === 'DATE') {
+            return { baseType: 'DATE' };
         }
     }
 }
