@@ -96,6 +96,10 @@ export class DataModelProcessor {
             if (!driver) {
                 return resolve(false);
             }
+            const internalDbConnector = await driver.getConcreteDriver();
+            if (!internalDbConnector) {
+                return resolve(false);
+            }
             const manager = (await driver.getConcreteDriver()).manager;
             if (!manager) {
                 return resolve(false);
@@ -117,10 +121,10 @@ export class DataModelProcessor {
             if (!externalDriver) {
                 return resolve(false);
             }
-            let dbConnector: DataSource;
+            let externalDBConnector: DataSource;
             try {
-                dbConnector =  await externalDriver.connectExternalDB(connection);
-                if (!dbConnector) {
+                externalDBConnector =  await externalDriver.connectExternalDB(connection);
+                if (!externalDBConnector) {
                     return resolve(false);
                 }
             } catch (error) {
@@ -131,11 +135,55 @@ export class DataModelProcessor {
             if (!existingDataModel) {
                 return resolve(false);
             }
-            await dbConnector.query(`DROP TABLE IF EXISTS ${existingDataModel.schema}.${existingDataModel.name}`);
+            await internalDbConnector.query(`DROP TABLE IF EXISTS ${existingDataModel.schema}.${existingDataModel.name}`);
             try {
                 dataModelName = UtilityService.getInstance().uniquiseName(dataModelName);
-                const createTableQuery = `CREATE TABLE ${dataModelName} AS ${query}`;
-                await dbConnector.query(createTableQuery);
+                const selectTableQuery = `${query}`;
+                const rowsFromDataSource = await externalDBConnector.query(selectTableQuery);
+                //Create the table first then insert the data.
+                let createTableQuery = `CREATE TABLE ${dataModelName} `;
+                const sourceTable = JSON.parse(queryJSON);
+                let columns = '';
+                let insertQueryColumns = '';
+                sourceTable.columns.forEach((column: any, index: number) => {
+                    const columnSize = column?.character_maximum_length ? `(${column?.character_maximum_length})` : '';
+                    const columnType = `${column.data_type}${columnSize}`;
+
+                    const dataType = UtilityService.getInstance().convertDataTypeToPostgresDataType(dataSourceType, columnType);
+                    let dataTypeString = '';
+                    if (dataType.size) {
+                        dataTypeString = `${dataType.type}(${dataType.size})`;
+                    } else {
+                        dataTypeString = `${dataType.type}`;
+                    }
+                    if (index < sourceTable.columns.length - 1) {
+                        columns += `${column.column_name} ${dataTypeString}, `;
+                    } else {
+                        columns += `${column.column_name} ${dataTypeString} `;
+                    }
+                    if (index < sourceTable.columns.length - 1) {
+                        insertQueryColumns += `${column.column_name},`;
+                    } else {
+                        insertQueryColumns += `${column.column_name}`;
+                    }
+                });
+                createTableQuery += `(${columns})`;
+                await internalDbConnector.query(createTableQuery);
+                insertQueryColumns = `(${insertQueryColumns})`;
+                rowsFromDataSource.forEach((row: any, index: number) => {
+                    let insertQuery = `INSERT INTO ${dataModelName} `;
+                    let values = '';
+                    sourceTable.columns.forEach((column: any, columnIndex: number) => {
+                        const columnName = `${column.schema}_${column.table_name}_${column.column_name}`;
+                        if (columnIndex < sourceTable.columns.length - 1) {
+                            values += `'${row[columnName] || ''}',`;
+                        } else {
+                            values += `'${row[columnName] || ''}'`;
+                        }
+                    });
+                    insertQuery += `${insertQueryColumns} VALUES(${values});`;
+                    internalDbConnector.query(insertQuery);
+                });
                 await manager.update(DRADataModel, {id: existingDataModel.id}, {schema: 'public', name: dataModelName, sql_query: query, query: JSON.parse(queryJSON)});
                 return resolve(true);
             } catch (error) {

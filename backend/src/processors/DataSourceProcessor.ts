@@ -337,14 +337,14 @@ export class DataSourceProcessor {
             if (!externalDriver) {
                 return resolve(false);
             }
-            const dbConnector: DataSource =  await externalDriver.connectExternalDB(connection);
-            if (!dbConnector) {
+            const externalDBConnector: DataSource =  await externalDriver.connectExternalDB(connection);
+            if (!externalDBConnector) {
                 return resolve(false);
             }
             try {
                 dataModelName = UtilityService.getInstance().uniquiseName(dataModelName);
                 const selectTableQuery = `${query}`;
-                const rowsFromDataSource = await dbConnector.query(selectTableQuery);
+                const rowsFromDataSource = await externalDBConnector.query(selectTableQuery);
                 //Create the table first then insert the data.
                 let createTableQuery = `CREATE TABLE ${dataModelName} `;
                 const sourceTable = JSON.parse(queryJSON);
