@@ -4,8 +4,14 @@ import { validate } from '../middleware/validator.js';
 import { body, param, matchedData } from 'express-validator';
 import { DataSourceProcessor } from '../processors/DataSourceProcessor.js';
 import { IDBConnectionDetails } from '../types/IDBConnectionDetails.js';
+import multer from 'multer';
+import { IMulterRequest } from '../types/IMulterRequest.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import { UtilityService } from '../services/UtilityService.js';
+import { ExcelFileService } from '../services/ExcelFileService.js';
 const router = express.Router();
-
 
 router.get('/list', async (req: Request, res: Response, next: any) => {
     next();
@@ -118,6 +124,20 @@ async (req: Request, res: Response) => {
         res.status(200).send({message: 'The data model has been built.'}); 
     } else {
         res.status(400).send({message: 'The data model could not be built.'});
+    }
+});
+
+router.post('/add-excel-data-source', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([body('file_name').notEmpty().trim().escape(), body('data_source_name').notEmpty().trim().escape(), body('file_id').notEmpty().trim().escape(), body('data').notEmpty(), body('project_id').notEmpty().trim().escape(), body('data_source_id').trim().escape(),
+]),
+async (req: Request, res: Response) => {
+    const { file_name, data_source_name, file_id, data, project_id, data_source_id } = matchedData(req);
+    try {
+        const result = await DataSourceProcessor.getInstance().addExcelDataSource(file_name, data_source_name, file_id, JSON.stringify(data),  req.body.tokenDetails, project_id, data_source_id);
+        res.status(200).send({message: 'The data source has been connected.', result});
+    } catch (error) {
+        res.status(400).send({message: 'The data source could not be connected.'});
     }
 });
 export default router;

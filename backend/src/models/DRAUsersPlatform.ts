@@ -51,6 +51,4 @@ export class DRAUsersPlatform {
 
     @OneToMany(() => DRAArticleCategory, (articleCategory) => articleCategory.users_platform, { cascade: ["remove", "update"] })
     articles_categories!: Relation<DRAArticleCategory>[]
-
-
 }

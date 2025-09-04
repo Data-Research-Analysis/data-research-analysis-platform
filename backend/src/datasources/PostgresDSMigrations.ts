@@ -6,10 +6,10 @@ import { DRAVerificationCode } from "../models/DRAVerificationCode.js";
 import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
 import { DRAProject } from "../models/DRAProject.js";
 import { DRADashboard } from "../models/DRADashboard.js";
-import dotenv from 'dotenv';
 import { DRAArticle } from "../models/DRAArticle.js";
 import { DRAArticleCategory } from "../models/DRAArticleCategory.js";
 import { DRACategory } from "../models/DRACategory.js";
+import dotenv from 'dotenv';
 dotenv.config();
 
 const host = process.env.POSTGRESQL_HOST_MIGRATIONS;
