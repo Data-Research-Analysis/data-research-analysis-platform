@@ -235,7 +235,7 @@ async function executeQueryOnDataModels(chartId) {
         const numericLineValues = [];
         let stackedValues = [];
         state.selected_chart.result_from_query = state.response_from_data_models_rows;
-        if (['pie', 'donut', 'vertical_bar', 'horizontal_bar'].includes(chart.chart_type)) {
+        if (['pie', 'donut', 'vertical_bar', 'horizontal_bar', 'bubble'].includes(chart.chart_type)) {
             state.response_from_data_models_rows.forEach((row) =>{
                 const columns_data_types = chart.columns.filter((column, index) => index < 2 && Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
                 columns_data_types.forEach((column, index) => {
@@ -287,6 +287,7 @@ async function executeQueryOnDataModels(chartId) {
                     value: numericValues[index],
                 });
             });
+            console.log('Chart Data:', chart.data);
         } else if (['vertical_bar_line'].includes(chart.chart_type)) {
             state.response_from_data_models_rows.forEach((row) =>{
                 const columns_data_types = chart.columns.filter((column, index) => index < 3 && Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
@@ -1130,6 +1131,15 @@ onMounted(async () => {
                                                     :label-font-size="12"
                                                     :value-font-size="10"
                                                     :min-tile-size="30"
+                                                    class="mt-2"
+                                                />
+                                                <bubble-chart
+                                                    v-if="chart.chart_type === 'bubble'"
+                                                    :id="`chart-${chart.chart_id}`"
+                                                    :chart-id="`${chart.chart_id}`"
+                                                    :data="chart.data"
+                                                    :width="parseInt(chart.dimensions.widthDraggable.replace('px', '')) - 40"
+                                                    :height="parseInt(chart.dimensions.heightDraggable.replace('px', '')) - 80"
                                                     class="mt-2"
                                                 />
                                             </div>
