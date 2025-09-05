@@ -115,12 +115,26 @@ export class DataSourceProcessor {
             if (!dataSource) {
                 return resolve(false);
             }
-            const dataModel = await manager.findOne(DRADataModel, {where: {data_source: dataSource, users_platform: user}});
-            if (!dataModel) {
-                return resolve(false);
+            if (dataSource.connection_details.schema === 'dra_excel') {
+                //delete the tables that were created for the excel data source
+                const dbConnector = await driver.getConcreteDriver();
+                if (!dbConnector) {
+                    return resolve(false);
+                }
+                //get the list of tables in the dra_excel schema that were created for this data source
+                let query = `SELECT table_name FROM information_schema.tables WHERE table_schema = 'dra_excel' AND table_name LIKE '%_data_source_${dataSource.id}_%'`;
+                const tables = await dbConnector.query(query);
+                for (let i = 0; i < tables.length; i++) {
+                    const tableName = tables[i].table_name;
+                    query = `DROP TABLE IF EXISTS dra_excel.${tableName}`;
+                    await dbConnector.query(query);
+                }
             }
-            //TODO: delete all of the visualizations contained in all of the related data models
-            await manager.remove(dataModel);
+            //TODO: delete all of the dashboards contained in all of the related data models
+            const dataModel = await manager.findOne(DRADataModel, {where: {data_source: dataSource, users_platform: user}});
+            if (dataModel) {
+                await manager.remove(dataModel);
+            }
             await manager.remove(dataSource);
             return resolve(true);
         });
@@ -457,8 +471,7 @@ export class DataSourceProcessor {
                 } else {
                     dataSource = await manager.findOne(DRADataSource, { where: { id: dataSourceId, project: project, users_platform: user } });
                 }
-
-                const tableName = `${fileName}_${new Date().getTime()}`;
+                const tableName = `${fileName}_data_source_${dataSource.id}_${new Date().getTime()}`;
                 let createTableQuery = `CREATE TABLE dra_excel.${tableName} `;
                 let columns = '';
                 let insertQueryColumns = '';
