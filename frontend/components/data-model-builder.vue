@@ -85,6 +85,7 @@ const numericColumns = computed(() => {
             schema: column.schema,
             table_name: column.table_name,
             column_name: column.column_name,
+            data_type: getDataType(column.data_type),
         }
     })];
 })
@@ -386,6 +387,7 @@ async function addCalculatedColumn() {
     state.data_table.calculated_columns.push({
         column_name: state.calculated_column.column_name,
         expression: `ROUND(${expression}, 2)`,
+        column_data_type: state.calculated_column.column_data_type,
     });
     state.show_calculated_column_dialog = false;
     await executeQueryOnExternalDataSource();
@@ -979,7 +981,7 @@ onMounted(async () => {
                         <div v-if="column.type === 'column'" class="flex flex-col w-full mr-2">
                             <h5 class="font-bold mb-2">Column</h5>
                             <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" v-model="column.column_name">
-                                <option v-for="(column, index) in numericColumns" :key="index" :value="`${column.schema}.${column.table_name}.${column.column_name}`">{{column.schema}}.{{column.table_name}}.{{ column.column_name }} {{ column.data_type }}</option>
+                                <option v-for="(column1, index) in numericColumns" :key="index" :value="`${column1.column_name}`">{{ column1.column_name }}</option>
                             </select>
                         </div>
                         <div v-else-if="column.type === 'numeric-value'" class="flex flex-col w-full mr-2">
