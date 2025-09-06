@@ -167,6 +167,19 @@ export class DataModelProcessor {
                         insertQueryColumns += `${column.column_name}`;
                     }
                 });
+                if (sourceTable.calculated_columns && sourceTable.calculated_columns.length > 0) {
+                    columns += ', ';
+                    insertQueryColumns += ', ';
+                }
+                sourceTable.calculated_columns.forEach((column: any, index: number) => {
+                    if (index < sourceTable.calculated_columns.length - 1) {
+                        columns += `${column.column_name} NUMERIC, `;
+                        insertQueryColumns += `${column.column_name}, `;
+                    } else {
+                        columns += `${column.column_name} NUMERIC`;
+                        insertQueryColumns += `${column.column_name}`;
+                    }
+                });
                 createTableQuery += `(${columns})`;
                 await internalDbConnector.query(createTableQuery);
                 insertQueryColumns = `(${insertQueryColumns})`;
@@ -179,6 +192,17 @@ export class DataModelProcessor {
                             values += `'${row[columnName] || ''}',`;
                         } else {
                             values += `'${row[columnName] || ''}'`;
+                        }
+                    });
+                    if (sourceTable.calculated_columns && sourceTable.calculated_columns.length > 0) {
+                        values += ',';
+                    }
+                    sourceTable.calculated_columns.forEach((column: any, columnIndex: number) => {
+                        const columnName = column.column_name;
+                        if (columnIndex < sourceTable.calculated_columns.length - 1) {
+                            values += `'${row[columnName] || 0}',`;
+                        } else {
+                            values += `'${row[columnName] || 0}'`;
                         }
                     });
                     insertQuery += `${insertQueryColumns} VALUES(${values});`;
