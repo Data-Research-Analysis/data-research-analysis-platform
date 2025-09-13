@@ -10,6 +10,7 @@ import { DRAArticle } from "../models/DRAArticle.js";
 import { DRAArticleCategory } from "../models/DRAArticleCategory.js";
 import { DRACategory } from "../models/DRACategory.js";
 import dotenv from 'dotenv';
+import { DRADashboardExportMetaData } from "../models/DRADashboardExportMetaData.js";
 dotenv.config();
 
 const host = process.env.POSTGRESQL_HOST_MIGRATIONS;
@@ -26,7 +27,7 @@ export const PostgresDSMigrations = new DataSource({
     database: database,
     synchronize: false,
     logging: true,
-    entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRAUser, DRADashboard, DRAArticle, DRAArticleCategory, DRACategory],
+    entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRAUser, DRADashboard, DRAArticle, DRAArticleCategory, DRACategory, DRADashboardExportMetaData],
     subscribers: [],
     migrations: ['./src/migrations/*.ts'],
 })

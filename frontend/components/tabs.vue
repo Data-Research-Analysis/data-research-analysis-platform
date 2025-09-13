@@ -2,6 +2,7 @@
 import { useDataModelsStore } from '@/stores/data_models';
 const dataModelsStore = useDataModelsStore();
 const router = useRouter();
+const route = useRoute();
 const state = reactive({
     selectedTab: 'data_sources', // default tab
 });
@@ -10,10 +11,12 @@ const props = defineProps({
         type: Number,
         default: 0,
     },
-
 });
 const dataModelsExist = computed(() => {
     return dataModelsStore.getDataModels().length > 0;
+});
+const isDashboardsRoute = computed(() => {
+    return route.name === 'projects-projectid-dashboards-create' || route.name === 'projects-projectid-dashboards-dashboardid';
 });
 const emits = defineEmits(['update:selectedTab']);
 function setSelectedTab(tab) {
@@ -33,7 +36,7 @@ onMounted(() => {
 })
 </script>
 <template>
-    <div class="flex flex-row mt-5 ml-10">
+    <div class="flex flex-row mt-5" :class="{ 'ml-10': !isDashboardsRoute }">
         <div class="bg-primary-blue-100 hover:bg-primary-blue-400 text-white p-3 border border-white border-solid cursor-pointer font-bold select-none"
             @click="setSelectedTab('data_sources')"
             :class="{ 'bg-primary-blue-400': state.selectedTab === 'data_sources' }"

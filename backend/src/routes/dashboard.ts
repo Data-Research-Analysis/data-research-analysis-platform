@@ -2,7 +2,6 @@ import express, { Request, Response } from 'express';
 import { validateJWT } from '../middleware/authenticate.js';
 import { validate } from '../middleware/validator.js';
 import { body, param, matchedData } from 'express-validator';
-import { DataModelProcessor } from '../processors/DataModelProcessor.js';
 import { DashboardProcessor } from '../processors/DashboardProcessor.js';
 const router = express.Router();
 
@@ -46,6 +45,18 @@ async (req: Request, res: Response) => {
         res.status(200).send({message: 'The dashboard has been deleted.'});        
     } else {
         res.status(400).send({message: 'The dashboard could not be deleted.'});
+    }
+});
+router.get('/generate-public-export-link/:dashboard_id', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([param('dashboard_id').notEmpty().trim().escape().toInt()]),
+async (req: Request, res: Response) => {
+    const { dashboard_id } = matchedData(req);
+    const key = await DashboardProcessor.getInstance().generatePublicExportLink(dashboard_id,  req.body.tokenDetails);            
+    if (key) {
+        res.status(200).send({message: 'The public export link has been generated.', key: key});        
+    } else {
+        res.status(400).send({message: 'The public export link could not be generated.'});
     }
 });
 

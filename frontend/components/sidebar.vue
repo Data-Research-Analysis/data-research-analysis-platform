@@ -3,10 +3,11 @@ import { useDashboardsStore } from '~/stores/dashboards';
 
 const dashboardsStore = useDashboardsStore();
 const route = useRoute();
-const emits = defineEmits(['add:selectedColumns', 'remove:selectedColumns']);
+const emits = defineEmits(['add:selectedColumns', 'remove:selectedColumns', 'toggleSidebar']);
 const state = reactive({
     dataModelsOpened: true,
     dataModels: [],
+    sideBarStatus: true,
 })
 const props = defineProps({
     dataModels: {
@@ -63,14 +64,29 @@ function toggleSelectedColumn(event, modelName, columnName) {
         });
     }
 }
+function toggleSidebar() {
+    state.sideBarStatus = !state.sideBarStatus;
+    emits('toggleSidebar', state.sideBarStatus); 
+}
 </script>
 <template>
-    <div class="flex flex-col min-h-150 bg-gray-300 shadow-md">
+    <div v-if="!state.sideBarStatus" class="relative min-h-150">
+        <div class="absolute top-0 mr-2 bg-gray-100 hover:bg-gray-300 border border-gray-400 hover:border-gray-400 border-1 pl-2 pr-2 shadow-lg cursor-pointer" 
+                v-tippy="{ content: 'Expand Sidebars', placement: 'right' }"
+                @click="toggleSidebar"
+            >
+               <font-awesome 
+                   icon="fas fa-angle-right"
+                   class="text-md text-gray-600"                   
+               />
+           </div>
+    </div>
+    <div v-if="state.sideBarStatus" class="flex flex-col min-h-150 bg-gray-300 shadow-md relative">
         <div class="flex flex-row items-center ml-2 mr-2 p-2 text-lg font-bold cursor-pointer select-none">
-            <h3 class="ml-2 mr-2">Data Models</h3>
+            <h3 class="mr-2">Data Models</h3>
         </div>
         <div v-if="state.dataModelsOpened"
-            class="flex flex-col ml-5 mr-2 transition-all duration-500"
+            class="flex flex-col mr-2 transition-all duration-500"
             :class="{
                 'opacity-0': !state.dataModelsOpened,
                 'opacity-100': state.dataModelsOpened,
@@ -129,5 +145,14 @@ function toggleSelectedColumn(event, modelName, columnName) {
                 </div>
             </div>
         </div>        
+        <div class="absolute top-0 -right-4 mr-2 bg-gray-100 hover:bg-gray-300 border border-gray-400 hover:border-gray-400 border-1 pl-2 pr-2 shadow-lg cursor-pointer" 
+            v-tippy="{ content: 'Collapse Sidebars', placement: 'right' }"
+            @click="toggleSidebar"
+        >
+            <font-awesome 
+                icon="fas fa-angle-left"
+                class="text-md text-gray-600"                   
+            />
+        </div>
     </div>
 </template>
