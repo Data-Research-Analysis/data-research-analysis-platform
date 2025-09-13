@@ -81,7 +81,7 @@ function toggleSidebar() {
                />
            </div>
     </div>
-    <div v-if="state.sideBarStatus" class="flex flex-col min-h-150 bg-gray-300 shadow-md relative">
+    <div v-if="state.sideBarStatus" class="flex flex-col min-h-150 bg-gray-300 shadow-md relative w-70">
         <div class="flex flex-row items-center ml-2 mr-2 p-2 text-lg font-bold cursor-pointer select-none">
             <h3 class="mr-2">Data Models</h3>
         </div>

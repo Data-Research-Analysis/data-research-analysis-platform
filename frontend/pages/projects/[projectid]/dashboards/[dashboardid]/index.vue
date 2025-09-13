@@ -887,7 +887,10 @@ async function exportAsWebPage() {
     });
     if (response.status === 200) {
         const data = await response.json();
-        router.push(`/public-dashboard/${data.key}`);
+        await dashboardsStore.retrieveDashboards();
+        // router.push(`/public-dashboard/${data.key}`);
+        const routeData = router.resolve(`/public-dashboard/${data.key}`);
+        window.open(routeData.href, '_blank');
     } else {
         $swal.fire({
             icon: 'error',
@@ -904,7 +907,7 @@ function toggleSidebars(value) {
 }
 onMounted(async () => {
     //clear the selected dashboard
-    dashboardsStore.clearSelectedDashboard();
+    // dashboardsStore.clearSelectedDashboard();
     state.data_model_tables = []
     dataModelTables?.value?.forEach((dataModelTable) => {
         state.data_model_tables.push({

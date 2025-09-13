@@ -919,23 +919,6 @@ onMounted(async () => {
                         <div @click="saveDashboard" class="flex flex-row items-center h-12 mr-2 mt-7 text-md text-white font-bold border border-white border-solid cursor-pointer select-none bg-primary-blue-100 hover:bg-primary-blue-400">
                             <h3 class="ml-2 mr-2">Save Dashboard</h3>
                         </div>
-                        <menu-dropdown offset-y="15">
-                            <template #menuItem="{ onClick }">
-                                <div @click="onClick" class="flex flex-row items-center h-12 mr-2 mt-7 text-md text-white font-bold border border-white border-solid cursor-pointer select-none bg-primary-blue-100 hover:bg-primary-blue-400">
-                                    <h3 class="ml-2 mr-2">Export Dashboard</h3>
-                                </div>
-                            </template>
-                            <template #dropdownMenu="{ onClick }">
-                                <div class="flex flex-col w-40 text-center">
-                                    <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer border-b-1 border-primary-blue-100 border-solid pt-1 pb-1">
-                                        As Publicly Accessible Web Page
-                                    </div>
-                                    <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer pt-1 pb-1">
-                                        As Downloadable PDF
-                                    </div>
-                                </div>
-                            </template>
-                        </menu-dropdown>
                     </div>
                 </div>
                 <div class="flex flex-col min-h-200 max-h-200 h-200 overflow-hidden overflow-x-auto mr-2 mb-10 border border-primary-blue-100 border-solid bg-gray-300"

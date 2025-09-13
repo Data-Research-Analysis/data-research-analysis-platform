@@ -163,7 +163,10 @@ export class DashboardProcessor {
             if (!dashboard) {
                 return resolve(null);
             }
-
+            const exportMetaDataExisting = await manager.findOne(DRADashboardExportMetaData, {where: {dashboard: {id: dashboardId, users_platform: user}}});
+            if (exportMetaDataExisting && exportMetaDataExisting.expiry_at > new Date()) {
+                return resolve(exportMetaDataExisting.key);
+            }
             const salt = parseInt(UtilityService.getInstance().getConstants('PASSWORD_SALT'));
             const key = encodeURIComponent(await bcrypt.hash(`${dashboardId}`, salt));
             const exportMetaData = new DRADashboardExportMetaData();
@@ -174,7 +177,6 @@ export class DashboardProcessor {
             exportMetaData.expiry_at = new Date(new Date().getTime() + (48 * 60 * 60 * 1000)); // 48 hours from now
             await manager.save(exportMetaData);
             return resolve(key);
-
         });
     }
 }
