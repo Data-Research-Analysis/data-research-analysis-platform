@@ -74,6 +74,10 @@ const props = defineProps({
     type: Boolean,
     default: true,
   },
+  xAxisRotation: {
+    type: Number,
+    default: null,
+  },
 });
 
 // Utility function to format large numbers with shortened suffixes
@@ -99,6 +103,71 @@ function formatTickValue(value) {
   } else {
     return value.toString();
   }
+}
+
+// Function to get text positioning attributes based on rotation angle
+function getTextPositioning(rotationAngle) {
+  if (rotationAngle === null || rotationAngle === 0) {
+    return {
+      textAnchor: 'middle',
+      dy: '12px',
+      dx: '0px'
+    };
+  } else if (rotationAngle < 0) {
+    // Negative rotation (clockwise)
+    return {
+      textAnchor: 'end',
+      dy: '8px',
+      dx: '-5px'
+    };
+  } else {
+    // Positive rotation (counter-clockwise)
+    return {
+      textAnchor: 'start',
+      dy: '8px',
+      dx: '5px'
+    };
+  }
+}
+
+// Function to calculate the vertical extent of rotated tick text
+function calculateRotatedTextExtent(textWidth, textHeight, rotationAngle) {
+  if (rotationAngle === null || rotationAngle === 0) {
+    return textHeight;
+  }
+  
+  // Convert angle to radians
+  const radians = Math.abs(rotationAngle) * Math.PI / 180;
+  
+  // Calculate the vertical projection of rotated text
+  const verticalExtent = textWidth * Math.sin(radians) + textHeight * Math.cos(radians);
+  
+  return Math.abs(verticalExtent);
+}
+
+// Function to measure tick text dimensions and calculate max vertical extent
+function measureTickTextExtent(chartData, rotationAngle) {
+  if (rotationAngle === null || rotationAngle === 0) {
+    return 16; // Default height for horizontal text (12px font + padding)
+  }
+  
+  // Estimate text dimensions based on common label lengths
+  const maxLabelLength = Math.max(...chartData.map(d => d.label.length));
+  const estimatedTextWidth = maxLabelLength * 7; // Approximate 7px per character
+  const estimatedTextHeight = 12; // 12px font size
+  
+  return calculateRotatedTextExtent(estimatedTextWidth, estimatedTextHeight, rotationAngle);
+}
+
+// Function to calculate optimal X-axis label position based on tick rotation
+function calculateXAxisLabelPosition(chartData, rotationAngle, baseMarginBottom) {
+  const tickExtent = measureTickTextExtent(chartData, rotationAngle);
+  const bufferSpace = 20; // Safety buffer between tick text and axis label
+  
+  // Calculate position from bottom of chart area
+  const labelYOffset = Math.max(50, tickExtent + bufferSpace);
+  
+  return labelYOffset;
 }
 
 // Function to measure tick label dimensions for stacked chart
@@ -158,8 +227,8 @@ function measureTickDimensions(svg, processedData, stackKeys, maxY) {
   return measurements;
 }
 
-// Function to calculate dynamic margins for stacked chart (accounting for legend)
-function calculateDynamicMargins(measurements, svgWidth, svgHeight, legendLines) {
+// Function to calculate dynamic margins for stacked chart (accounting for legend and rotation)
+function calculateDynamicMargins(measurements, svgWidth, svgHeight, legendLines, processedData) {
   const minMargins = { top: 60, right: 30, bottom: 60, left: 50 };
   const labelSpace = 50; // Space for axis labels
   const padding = 15; // Padding between ticks and labels
@@ -169,10 +238,15 @@ function calculateDynamicMargins(measurements, svgWidth, svgHeight, legendLines)
   const responsiveLabelSpace = isSmallChart ? 35 : labelSpace;
   const responsivePadding = isSmallChart ? 10 : padding;
   
+  // Calculate dynamic bottom margin based on X-axis rotation
+  const baseBottomMargin = Math.max(minMargins.bottom, measurements.xAxisMaxHeight + responsiveLabelSpace + responsivePadding);
+  const xAxisLabelOffset = calculateXAxisLabelPosition(processedData, props.xAxisRotation, baseBottomMargin);
+  const dynamicBottomMargin = Math.max(baseBottomMargin, xAxisLabelOffset + 40); // Extra space for axis label
+  
   const calculatedMargins = {
     top: Math.max(minMargins.top, 60 + (legendLines - 1) * props.legendLineHeight),
     right: Math.max(minMargins.right, measurements.xAxisMaxWidth / 2 + 10),
-    bottom: Math.max(minMargins.bottom, measurements.xAxisMaxHeight + responsiveLabelSpace + responsivePadding),
+    bottom: dynamicBottomMargin,
     left: Math.max(minMargins.left, measurements.yAxisMaxWidth + responsiveLabelSpace + responsivePadding)
   };
   
@@ -200,8 +274,11 @@ function calculateDynamicMargins(measurements, svgWidth, svgHeight, legendLines)
 }
 
 // Function to calculate optimal label positions for stacked chart
-function calculateLabelPositions(margin, height, width) {
+function calculateLabelPositions(margin, height, width, processedData) {
   const labelPadding = 15;
+  
+  // Calculate dynamic Y position for X-axis label based on rotation
+  const xAxisLabelOffset = calculateXAxisLabelPosition(processedData, props.xAxisRotation, margin.bottom);
   
   return {
     yLabel: {
@@ -210,7 +287,7 @@ function calculateLabelPositions(margin, height, width) {
     },
     xLabel: {
       x: width / 2,
-      y: height + margin.bottom - labelPadding
+      y: height + xAxisLabelOffset
     }
   };
 }
@@ -272,13 +349,13 @@ function renderSVG(chartData) {
 
   // Measure tick dimensions and calculate dynamic margins
   const measurements = measureTickDimensions(svg, processedData, props.stackKeys, maxY);
-  const margin = calculateDynamicMargins(measurements, svgWidth, svgHeight, legendLines);
+  const margin = calculateDynamicMargins(measurements, svgWidth, svgHeight, legendLines, processedData);
   
   const width = svgWidth - margin.left - margin.right;
   const height = svgHeight - margin.top - margin.bottom;
 
   // Calculate label positions for axis labels
-  const labelPositions = calculateLabelPositions(margin, height, width);
+  const labelPositions = calculateLabelPositions(margin, height, width, processedData);
 
   // Clear and recreate SVG with proper structure
   svg.selectAll('*').remove();
@@ -296,15 +373,32 @@ function renderSVG(chartData) {
     .range([0, width])
     .padding(0.2);
   
-  chartGroup.append('g')
+  const xAxis = chartGroup.append('g')
     .attr('transform', `translate(0,${height})`)
-    .call($d3.axisBottom(x))
-    .selectAll('text')
-    .attr('transform', 'rotate(0)')
-    .style('text-anchor', 'middle')
-    .style('font-size', '12px')
-    .style('fill', '#475569')
-    .style('font-weight', 'bold');
+    .call($d3.axisBottom(x));
+  
+  // Apply rotation if xAxisRotation prop is provided
+  if (props.xAxisRotation !== null) {
+    const positioning = getTextPositioning(props.xAxisRotation);
+    
+    xAxis.selectAll('text')
+      .style('text-anchor', positioning.textAnchor)
+      .attr('dx', positioning.dx)
+      .attr('dy', positioning.dy)
+      .style('font-size', '12px')
+      .style('fill', '#475569')
+      .style('font-weight', 'bold')
+      .attr('transform', `rotate(${props.xAxisRotation})`); // Rotate around element's own origin
+  } else {
+    // Default styling when no rotation
+    xAxis.selectAll('text')
+      .attr('transform', 'rotate(0)')
+      .style('text-anchor', 'middle')
+      .attr('dy', '12px')
+      .style('font-size', '12px')
+      .style('fill', '#475569')
+      .style('font-weight', 'bold');
+  }
 
   // Y axis
   const y = $d3.scaleLinear()

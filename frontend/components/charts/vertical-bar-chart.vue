@@ -60,6 +60,10 @@ const props = defineProps({
     type: Object,
     default: () => ({ K: 'k', M: 'M', B: 'B', T: 'T' }),
   },
+  xAxisRotation: {
+    type: Number,
+    default: null,
+  },
 });
 
 // Utility function to format large numbers with shortened suffixes
@@ -100,12 +104,82 @@ function formatXAxisLabel(label) {
   return label;
 }
 
+// Function to get text positioning attributes based on rotation angle
+function getTextPositioning(rotationAngle) {
+  if (rotationAngle === null || rotationAngle === 0) {
+    return {
+      textAnchor: 'middle',
+      dy: '12px',
+      dx: '0px'
+    };
+  } else if (rotationAngle < 0) {
+    // Negative rotation (clockwise)
+    return {
+      textAnchor: 'end',
+      dy: '8px',
+      dx: '-5px'
+    };
+  } else {
+    // Positive rotation (counter-clockwise)
+    return {
+      textAnchor: 'start',
+      dy: '8px',
+      dx: '5px'
+    };
+  }
+}
+
+// Function to calculate the vertical extent of rotated tick text
+function calculateRotatedTextExtent(textWidth, textHeight, rotationAngle) {
+  if (rotationAngle === null || rotationAngle === 0) {
+    return textHeight;
+  }
+  
+  // Convert angle to radians
+  const radians = Math.abs(rotationAngle) * Math.PI / 180;
+  
+  // Calculate the vertical projection of rotated text
+  const verticalExtent = textWidth * Math.sin(radians) + textHeight * Math.cos(radians);
+  
+  return Math.abs(verticalExtent);
+}
+
+// Function to measure tick text dimensions and calculate max vertical extent
+function measureTickTextExtent(chartData, rotationAngle) {
+  if (rotationAngle === null || rotationAngle === 0) {
+    return 16; // Default height for horizontal text (12px font + padding)
+  }
+  
+  // Estimate text dimensions based on common label lengths
+  const maxLabelLength = Math.max(...chartData.map(d => formatXAxisLabel(d.label).length));
+  const estimatedTextWidth = maxLabelLength * 7; // Approximate 7px per character
+  const estimatedTextHeight = 12; // 12px font size
+  
+  return calculateRotatedTextExtent(estimatedTextWidth, estimatedTextHeight, rotationAngle);
+}
+
+// Function to calculate optimal X-axis label position based on tick rotation
+function calculateXAxisLabelPosition(chartData, rotationAngle, baseMarginBottom) {
+  const tickExtent = measureTickTextExtent(chartData, rotationAngle);
+  const bufferSpace = 20; // Safety buffer between tick text and axis label
+  
+  // Calculate position from bottom of chart area
+  const labelYOffset = Math.max(50, tickExtent + bufferSpace);
+  
+  return labelYOffset;
+}
+
 function deleteSVGs() {
   $d3.select(`#vertical-bar-chart-1-${props.chartId}`).selectAll('svg').remove();
 }
 
 function renderSVG(chartData, lineData) {
-  const margin = { top: 40, right: 30, bottom: 100, left: 80 };
+  // Calculate dynamic bottom margin based on rotation
+  const baseBottomMargin = 80;
+  const xAxisLabelOffset = calculateXAxisLabelPosition(chartData, props.xAxisRotation, baseBottomMargin);
+  const dynamicBottomMargin = Math.max(baseBottomMargin, xAxisLabelOffset + 40); // Extra space for axis label
+  
+  const margin = { top: 40, right: 30, bottom: dynamicBottomMargin, left: 80 };
   const svgWidth = props.width;
   const svgHeight = props.height;
   const width = svgWidth - margin.left - margin.right;
@@ -126,15 +200,33 @@ function renderSVG(chartData, lineData) {
     .domain(chartData.map(d => d.label))
     .range([0, width])
     .padding(0.2);
-  svg.append('g')
+  
+  const xAxis = svg.append('g')
     .attr('transform', `translate(0,${height})`)
-    .call($d3.axisBottom(x).tickFormat(formatXAxisLabel))
-    .selectAll('text')
-    .attr('transform', 'rotate(0)')
-    .style('text-anchor', 'middle')
-    .style('font-size', '12px')
-    .style('fill', '#475569') // Darker gray for axis text
-    .style('font-weight', 'bold');
+    .call($d3.axisBottom(x).tickFormat(formatXAxisLabel));
+  
+  // Apply rotation if xAxisRotation prop is provided
+  if (props.xAxisRotation !== null) {
+    const positioning = getTextPositioning(props.xAxisRotation);
+    
+    xAxis.selectAll('text')
+      .style('text-anchor', positioning.textAnchor)
+      .attr('dx', positioning.dx)
+      .attr('dy', positioning.dy)
+      .style('font-size', '12px')
+      .style('fill', '#475569') // Darker gray for axis text
+      .style('font-weight', 'bold')
+      .attr('transform', `rotate(${props.xAxisRotation})`); // Rotate around element's own origin
+  } else {
+    // Default styling when no rotation
+    xAxis.selectAll('text')
+      .attr('transform', 'rotate(0)')
+      .style('text-anchor', 'middle')
+      .attr('dy', '12px')
+      .style('font-size', '12px')
+      .style('fill', '#475569') // Darker gray for axis text
+      .style('font-weight', 'bold');
+  }
 
   let maxY = 0;
   if (props.showLineChart && lineData?.length) {
@@ -337,13 +429,17 @@ function renderSVG(chartData, lineData) {
 
   const xInputWidth = Math.min(250, width * 0.5);
   const xInputHeight = 35;
+  
+  // Calculate dynamic Y position for X-axis label based on rotation
+  const xAxisLabelY = height + xAxisLabelOffset;
+  
   // X axis title - conditional rendering
   if (props.editableAxisLabels) {
     // Editable input
     
     svg.append('foreignObject')
       .attr('x', width / 2 - xInputWidth / 2)
-      .attr('y', height + margin.bottom / 2 - xInputHeight / 2)
+      .attr('y', xAxisLabelY - xInputHeight / 2)
       .attr('width', xInputWidth)
       .attr('height', xInputHeight)
       .append('xhtml:input')
@@ -368,7 +464,7 @@ function renderSVG(chartData, lineData) {
     // Static text
     svg.append('text')
       .attr('x', width / 2)
-      .attr('y', height + margin.bottom - 50)
+      .attr('y', xAxisLabelY)
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'middle')
       .style('font-size', '16px')
