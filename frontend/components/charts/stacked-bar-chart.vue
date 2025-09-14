@@ -70,6 +70,10 @@ const props = defineProps({
     type: Object,
     default: () => ({ K: 'k', M: 'M', B: 'B', T: 'T' }),
   },
+  editableAxisLabels: {
+    type: Boolean,
+    default: true,
+  },
 });
 
 // Utility function to format large numbers with shortened suffixes
@@ -200,11 +204,11 @@ function calculateLabelPositions(margin, height, width) {
   const labelPadding = 15;
   
   return {
-    yAxis: {
+    yLabel: {
       x: -margin.left / 2,
       y: height / 2
     },
-    xAxis: {
+    xLabel: {
       x: width / 2,
       y: height + margin.bottom - labelPadding
     }
@@ -273,6 +277,9 @@ function renderSVG(chartData) {
   const width = svgWidth - margin.left - margin.right;
   const height = svgHeight - margin.top - margin.bottom;
 
+  // Calculate label positions for axis labels
+  const labelPositions = calculateLabelPositions(margin, height, width);
+
   // Clear and recreate SVG with proper structure
   svg.selectAll('*').remove();
   const chartGroup = svg.append('g')
@@ -298,11 +305,6 @@ function renderSVG(chartData) {
     .style('font-size', '12px')
     .style('fill', '#475569')
     .style('font-weight', 'bold');
-
-  // Calculate max value for Y axis (sum of stacked values)
-  const maxValue = $d3.max(processedData, d => 
-    props.stackKeys.reduce((sum, key) => sum + (d[key] || 0), 0)
-  );
 
   // Y axis
   const y = $d3.scaleLinear()
@@ -428,13 +430,15 @@ function renderSVG(chartData) {
     });
   }
 
-  // Y axis title as input with improved positioning
-  const yInputWidth = Math.min(150, height * 0.4);
-  const yInputHeight = 35;
-  
-  svg.append('foreignObject')
-    .attr('x', labelPositions.yLabel.x)
-    .attr('y', labelPositions.yLabel.y)
+  // Y axis title - conditional rendering with dynamic positioning
+  if (props.editableAxisLabels) {
+    // Editable input
+    const yInputWidth = Math.min(150, height * 0.4);
+    const yInputHeight = 35;
+    
+    svg.append('foreignObject')
+      .attr('x', labelPositions.yLabel.x + 50)
+      .attr('y', labelPositions.yLabel.y)
     .attr('width', yInputHeight) // rotated, so height becomes width
     .attr('height', yInputWidth) // rotated, so width becomes height
     .append('xhtml:div')
@@ -462,14 +466,31 @@ function renderSVG(chartData) {
           state.yAxisLabelLocal = event.target.value;
           emit('update:yAxisLabel', state.yAxisLabelLocal);
         });
+  } else {
+    // Static text
+    const textX = labelPositions.yLabel.x;
+    const textY = labelPositions.yLabel.y;
+    svg.append('text')
+      .attr('x', textX - 40)
+      .attr('y', textY + 60)
+      .attr('transform', `rotate(-90, ${textX}, ${textY})`)
+      .attr('text-anchor', 'middle')
+      .attr('dominant-baseline', 'middle')
+      .style('font-size', '14px')
+      .style('font-weight', '600')
+      .style('fill', '#000000')
+      .text(props.yAxisLabel);
+  }
 
-  // X axis title as input with improved positioning
-  const xInputWidth = Math.min(250, width * 0.5);
-  const xInputHeight = 35;
-  
-  svg.append('foreignObject')
-    .attr('x', labelPositions.xLabel.x)
-    .attr('y', labelPositions.xLabel.y)
+  // X axis title - conditional rendering with dynamic positioning
+  if (props.editableAxisLabels) {
+    // Editable input
+    const xInputWidth = Math.min(250, width * 0.5);
+    const xInputHeight = 35;
+    
+    svg.append('foreignObject')
+      .attr('x', labelPositions.xLabel.x - xInputWidth / 6)
+    .attr('y', labelPositions.xLabel.y + 40)
     .attr('width', xInputWidth)
     .attr('height', xInputHeight)
     .append('xhtml:input')
@@ -490,6 +511,20 @@ function renderSVG(chartData) {
         state.xAxisLabelLocal = event.target.value;
         emit('update:xAxisLabel', state.xAxisLabelLocal);
       });
+  } else {
+    // Static text
+    const textX = labelPositions.xLabel.x;
+    const textY = labelPositions.xLabel.y;
+    svg.append('text')
+      .attr('x', textX + 50)
+      .attr('y', textY + 50)
+      .attr('text-anchor', 'middle')
+      .attr('dominant-baseline', 'middle')
+      .style('font-size', '14px')
+      .style('font-weight', '600')
+      .style('fill', '#000000')
+      .text(props.xAxisLabel);
+  }
 }
 
 function renderChart(chartData) {

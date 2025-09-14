@@ -594,6 +594,7 @@ onMounted(async () => {
                                                 :show-legend="true"
                                                 :x-axis-label="chart.x_axis_label"
                                                 :y-axis-label="chart.y_axis_label"
+                                                :editable-axis-labels="false"
                                                 :max-legend-width="350"
                                                 @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                 @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
