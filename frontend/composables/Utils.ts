@@ -44,7 +44,7 @@ export async function verifyRecaptchaToken (authToken: string, recaptchaToken: s
     return await captchaResponse.json();
 }
 export function getDataType(dataType: string) {
-    if (dataType === "text" || dataType === "bpchar" || dataType === "char" || dataType === "varchar" || dataType === "character varying" || dataType === "character") {
+    if (dataType === "text" || dataType === "bpchar" || dataType === "char" || dataType === "varchar" || dataType === "character varying" || dataType === "character" || dataType === "USER-DEFINED") {
         return "TEXT";
     } else if (dataType === "int" || dataType === "integer" || dataType === "bigint" || dataType === "float" || dataType === "double" || dataType === "decimal" || dataType === "numeric" || dataType === "real" || dataType === "smallint" || dataType === "double precision" || dataType === "bigserial" || dataType === "serial") {
         return "NUMBER";

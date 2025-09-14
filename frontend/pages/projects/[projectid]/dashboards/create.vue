@@ -388,6 +388,7 @@ async function executeQueryOnDataModels(chartId) {
                         values: stackedValues
                     });
                 }
+                console.log('chart.data:', chart.data);
             });
         } else if (['multiline'].includes(chart.chart_type)) {
             // Multi-line chart data preparation

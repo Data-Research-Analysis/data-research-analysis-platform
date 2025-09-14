@@ -369,6 +369,7 @@ export class DataSourceProcessor {
                     const columnType = `${column.data_type}${columnSize}`;
 
                     const dataType = UtilityService.getInstance().convertDataTypeToPostgresDataType(dataSourceType, columnType);
+                    console.log('dataType', dataType);
                     let dataTypeString = '';
                     if (dataType.size) {
                         dataTypeString = `${dataType.type}(${dataType.size})`;
