@@ -32,6 +32,10 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  editableAxisLabels: {
+    type: Boolean,
+    default: true,
+  },
 });
 
 function deleteSVGs() {
@@ -107,27 +111,70 @@ function renderSVG(chartData) {
       $d3.select(this).attr('fill', color(d.label));
     });
 
-  // Y axis title as input with improved positioning
-  const yInputWidth = Math.min(150, height * 0.4);
-  const yInputHeight = 35;
-  
-  svg.append('foreignObject')
-    .attr('x', -margin.left + 5)
-    .attr('y', height / 2 - yInputWidth / 2)
-    .attr('width', yInputHeight)
-    .attr('height', yInputWidth)
-    .append('xhtml:div')
-      .style('width', '100%')
-      .style('height', '100%')
-      .style('display', 'flex')
-      .style('align-items', 'center')
-      .style('justify-content', 'center')
-      .style('transform', 'rotate(-90deg)')
-      .style('transform-origin', 'center')
+  // Y axis title - conditional rendering
+  if (props.editableAxisLabels) {
+    // Editable input
+    const yInputWidth = Math.min(150, height * 0.4);
+    const yInputHeight = 35;
+    
+    svg.append('foreignObject')
+      .attr('x', -margin.left + 5)
+      .attr('y', height / 2 - yInputWidth / 2)
+      .attr('width', yInputHeight)
+      .attr('height', yInputWidth)
+      .append('xhtml:div')
+        .style('width', '100%')
+        .style('height', '100%')
+        .style('display', 'flex')
+        .style('align-items', 'center')
+        .style('justify-content', 'center')
+        .style('transform', 'rotate(-90deg)')
+        .style('transform-origin', 'center')
+        .append('xhtml:input')
+          .attr('type', 'text')
+          .style('width', `${yInputWidth - 20}px`)
+          .style('height', `${yInputHeight - 10}px`)
+          .style('font-size', '14px')
+          .style('font-weight', '600')
+          .style('color', '#000000')
+          .style('background-color', 'rgba(255,255,255,0.9)')
+          .style('border', '1px solid #ccc')
+          .style('border-radius', '4px')
+          .style('padding', '4px')
+          .style('text-align', 'center')
+          .property('value', state.yAxisLabelLocal)
+          .on('input', function(event) {
+            state.yAxisLabelLocal = event.target.value;
+            emit('update:yAxisLabel', state.yAxisLabelLocal);
+          });
+  } else {
+    // Static text
+    svg.append('text')
+      .attr('transform', 'rotate(-90)')
+      .attr('y', 15)
+      .attr('x', -(height / 2 + margin.top))
+      .attr('text-anchor', 'middle')
+      .style('font-size', '14px')
+      .style('font-weight', '600')
+      .style('fill', '#000000')
+      .text(props.yAxisLabel);
+  }
+
+  // X axis title - conditional rendering
+  if (props.editableAxisLabels) {
+    // Editable input
+    const xInputWidth = Math.min(200, width * 0.4);
+    const xInputHeight = 30;
+    
+    svg.append('foreignObject')
+      .attr('x', width / 2 - xInputWidth / 2)
+      .attr('y', height + 45)
+      .attr('width', xInputWidth)
+      .attr('height', xInputHeight)
       .append('xhtml:input')
         .attr('type', 'text')
-        .style('width', `${yInputWidth - 20}px`)
-        .style('height', `${yInputHeight - 10}px`)
+        .style('width', '100%')
+        .style('height', '100%')
         .style('font-size', '14px')
         .style('font-weight', '600')
         .style('color', '#000000')
@@ -136,39 +183,23 @@ function renderSVG(chartData) {
         .style('border-radius', '4px')
         .style('padding', '4px')
         .style('text-align', 'center')
-        .property('value', state.yAxisLabelLocal)
+        .style('box-sizing', 'border-box')
+        .property('value', state.xAxisLabelLocal)
         .on('input', function(event) {
-          state.yAxisLabelLocal = event.target.value;
-          emit('update:yAxisLabel', state.yAxisLabelLocal);
+          state.xAxisLabelLocal = event.target.value;
+          emit('update:xAxisLabel', state.xAxisLabelLocal);
         });
-
-  // X axis title as input with improved positioning
-  const xInputWidth = Math.min(200, width * 0.4);
-  const xInputHeight = 30;
-  
-  svg.append('foreignObject')
-    .attr('x', width / 2 - xInputWidth / 2)
-    .attr('y', height + 45)
-    .attr('width', xInputWidth)
-    .attr('height', xInputHeight)
-    .append('xhtml:input')
-      .attr('type', 'text')
-      .style('width', '100%')
-      .style('height', '100%')
+  } else {
+    // Static text
+    svg.append('text')
+      .attr('x', width / 2 + margin.left)
+      .attr('y', svgHeight - 10)
+      .attr('text-anchor', 'middle')
       .style('font-size', '14px')
       .style('font-weight', '600')
-      .style('color', '#000000')
-      .style('background-color', 'rgba(255,255,255,0.9)')
-      .style('border', '1px solid #ccc')
-      .style('border-radius', '4px')
-      .style('padding', '4px')
-      .style('text-align', 'center')
-      .style('box-sizing', 'border-box')
-      .property('value', state.xAxisLabelLocal)
-      .on('input', function(event) {
-        state.xAxisLabelLocal = event.target.value;
-        emit('update:xAxisLabel', state.xAxisLabelLocal);
-      });
+      .style('fill', '#000000')
+      .text(props.xAxisLabel);
+  }
 
 }
 
