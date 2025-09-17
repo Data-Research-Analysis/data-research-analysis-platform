@@ -6,7 +6,7 @@ import _ from 'lodash';
 const projectsStore = useProjectsStore();
 const dataModelsStore = useDataModelsStore();
 const dashboardsStore = useDashboardsStore();
-const { $swal } = useNuxtApp();
+const { $swal, $htmlToImageToPng } = useNuxtApp();
 const router = useRouter();
 const state = reactive({
     data_model_tables: [],
@@ -458,6 +458,20 @@ async function executeQueryOnDataModels(chartId) {
         chart.stack_keys = _.uniq(chart.stack_keys);
     }
 }
+function exportDashboardAsImage() {
+    const dashboardElement = document.querySelector('.export-dashboard');
+    if (dashboardElement) {
+
+        $htmlToImageToPng(dashboardElement).then((dataUrl) => {
+            // const img = new Image();
+            // img.src = dataUrl;
+            const link = document.createElement('a');
+            link.download = `${dashboard.value.name || 'dashboard'}.png`;
+            link.href = dataUrl;
+            link.click();
+        });
+    }
+}
 
 onMounted(async () => {
     //clear the selected dashboard
@@ -486,8 +500,18 @@ onMounted(async () => {
 <template>
     <div class="flex flex-row">
         <div class="flex flex-col w-full mt-10">
-            <div class="flex flex-col min-h-200 max-h-200 h-200 overflow-hidden ml-10 mr-2 mb-10">
+            <div class="flex flex-row justify-end mr-10 mb-5">
+                <font-awesome
+                    icon="fas fa-download"
+                    class="text-3xl ml-2 hover:text-gray-400 cursor-pointer"
+                    :v-tippy-content="'Export Dashboard as Image'"
+                    @click="exportDashboardAsImage()"
+                />
+            </div>
+            <div class="flex flex-col min-h-200 max-h-200 h-200 bg-white overflow-hidden ml-10 mr-2 mb-10 export-dashboard">
+                <img src="/logo-words.svg" class="w-100 h-18 bg-black mb-10 pr-[130px] logo-fancy"/>
                 <div class="w-full h-full draggable-div-container relative">
+
                     <div v-for="(chart, index) in charts"
                         class="w-50 flex flex-col justify-between cursor-pointer draggable-div absolute top-0 left-0"
                         :id="`draggable-div-${chart.chart_id}`"
@@ -651,7 +675,7 @@ onMounted(async () => {
                                 </template>
                             </draggable>
                             <div v-else :id="`draggable-${chart.chart_id}`" class="bg-gray-200 border border-3 border-gray-600 border-t-0">
-                                <text-editor :id="`chart-${chart.chart_id}`" :buttons="['bold', 'italic', 'heading', 'strike', 'underline']" minHeight="10" :content="chart.text_editor.content" />
+                                <text-editor :id="`chart-${chart.chart_id}`" :buttons="['bold', 'italic', 'heading', 'strike', 'underline']" minHeight="10" :content="chart.text_editor.content"  @update:content="(content) => { updateContent(content, chart.chart_id) }" />
                             </div>
                         </div>
                     </div>
