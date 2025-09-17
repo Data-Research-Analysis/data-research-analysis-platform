@@ -19,6 +19,9 @@ const loggedInUser = computed(() => {
 const isUserAdmin = computed(() => {
     return loggedInUser.value?.user_type === 'admin';
 });
+const isPublicDashboard = computed(() => {
+    return route.name === 'public-dashboard-dashboardkey';
+});
 function openDrawer() {
  state.drawerOpen = true;
 }
@@ -36,7 +39,7 @@ onMounted(() => {
         <div class="absolute top-[5px] right-5 w-3/5 flex flex-row justify-end flex lg:hidden">
             <font-awesome icon="fas fa-bars" class="text-2xl cursor-pointer hover:text-gray-300" @click="openDrawer" />
         </div>
-        <div class="absolute lg:top-2 lg:right-10 lg:h-10 hidden lg:block">
+        <div v-if="!isPublicDashboard" class="absolute lg:top-2 lg:right-10 lg:h-10 hidden lg:block">
             <div v-if="!state.authenticated" class="flex flex-row justify-between items-center h-full">
                 <div class="flex flex-row items-center -mt-2">
                     <div class="text-xl font-bold hover:text-gray-300 cursor-pointer">

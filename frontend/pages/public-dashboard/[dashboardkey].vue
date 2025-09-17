@@ -459,7 +459,7 @@ async function executeQueryOnDataModels(chartId) {
     }
 }
 function exportDashboardAsImage() {
-    const dashboardElement = document.querySelector('.export-dashboard');
+    const dashboardElement = document.querySelector('.data-research-analysis');
     if (dashboardElement) {
 
         $htmlToImageToPng(dashboardElement).then((dataUrl) => {
@@ -498,7 +498,7 @@ onMounted(async () => {
 });
 </script>
 <template>
-    <div class="flex flex-row">
+    <div class="flex flex-row bg-white">
         <div class="flex flex-col w-full mt-10">
             <div class="flex flex-row justify-end mr-10 mb-5">
                 <font-awesome
@@ -508,174 +508,176 @@ onMounted(async () => {
                     @click="exportDashboardAsImage()"
                 />
             </div>
-            <div class="flex flex-col min-h-200 max-h-200 h-200 bg-white overflow-hidden ml-10 mr-2 mb-10 export-dashboard">
-                <img src="/logo-words.svg" class="w-100 h-18 bg-black mb-10 pr-[130px] logo-fancy"/>
-                <div class="w-full h-full draggable-div-container relative">
-
-                    <div v-for="(chart, index) in charts"
-                        class="w-50 flex flex-col justify-between cursor-pointer draggable-div absolute top-0 left-0"
-                        :id="`draggable-div-${chart.chart_id}`"
-                        :style="`width: ${chart.dimensions.width}; height: ${chart.dimensions.height}; top: ${chart.location.top}; left: ${chart.location.left};`"
-                    >
-                        <div class="flex flex-col">
-                            <draggable
-                                v-if="chart.chart_type !== 'text_block'"
-                                :id="`draggable-${chart.chart_id}`"
-                                v-model="chart.columns"
-                                group="data_model_columns"
-                                itemKey="column_name"
-                                class="flex flex-row w-full h-50 draggable-model-columns"
-                                tag="tr"
-                                :disabled="!chart.config.add_columns_enabled"
-                                :style="`width: ${chart.dimensions.widthDraggable}; height: ${chart.dimensions.heightDraggable};`"
-                                @change="changeDataModel($event, chart.chart_id)"
-                            >
-                                <template #item="{ element, index }">
-                                    <div v-if="index === 0" class="text-left font-bold text-white px-4 py-2">
-                                        <div v-if="chart && chart.data && chart.data.length" class="flex flex-col justify-center">
-                                            <table-chart 
-                                                v-if="chart.chart_type === 'table'"
-                                                :id="`chart-${chart.chart_id}`"   
-                                                :chart-id="`${chart.chart_id}`"
-                                                :data="chart.data[0]"
-                                                :width="parseInt(chart.dimensions.widthDraggable.replace('px', '')) - 40"
-                                                :height="parseInt(chart.dimensions.heightDraggable.replace('px', '')) - 80"
-                                                :enable-scroll-bars="true"
-                                                :show-row-numbers="true"
-                                                :sticky-header="true"
-                                                :max-column-width="'200px'"
-                                                :min-column-width="'120px'"
-                                                :use-container-sizing="true"
-                                                :virtual-scrolling="chart.data[0]?.rows?.length > 100"
-                                                :virtual-scroll-item-height="35"
-                                                @resize-needed="(data) => handleTableResize(chart.chart_id, data)"
-                                                class="mt-2"
-                                            />
-                                            <pie-chart
-                                                v-if="chart.chart_type === 'pie'"
-                                                :id="`chart-${chart.chart_id}`"   
-                                                :chart-id="`${chart.chart_id}`"
-                                                :data="chart.data"
-                                                :width="1200"
-                                                :height="1200"
-                                                class="mt-5"
-                                            />
-                                            <donut-chart
-                                                v-if="chart.chart_type === 'donut'"
-                                                :id="`chart-${chart.chart_id}`"
-                                                :chart-id="`${chart.chart_id}`"
-                                                :data="chart.data"
-                                                :width="1200"
-                                                :height="1200"
-                                                class="mt-5"
-                                            />
-                                            <vertical-bar-chart
-                                                v-if="chart.chart_type === 'vertical_bar'"
-                                                :id="`chart-${chart.chart_id}`"
-                                                :chart-id="`${chart.chart_id}`"
-                                                :data="chart.data"
-                                                :x-axis-label="chart.x_axis_label"
-                                                :y-axis-label="chart.y_axis_label"
-                                                :editable-axis-labels="false"
-                                                :x-axis-rotation="-45"
-                                                class="mt-5"
-                                                @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
-                                                @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
-                                            />
-                                            <horizontal-bar-chart
-                                                v-if="chart.chart_type === 'horizontal_bar'"
-                                                :id="`chart-${chart.chart_id}`"
-                                                :chart-id="`${chart.chart_id}`"
-                                                :data="chart.data"
-                                                :x-axis-label="chart.x_axis_label"
-                                                :y-axis-label="chart.y_axis_label"
-                                                :editable-axis-labels="false"
-                                                class="mt-5"
-                                                @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
-                                                @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
-                                            />
-                                            <vertical-bar-chart
-                                                v-if="chart.chart_type === 'vertical_bar_line'"
-                                                :id="`chart-${chart.chart_id}`"
-                                                :chart-id="`${chart.chart_id}`"
-                                                :data="chart.data"
-                                                :x-axis-label="chart.x_axis_label"
-                                                :y-axis-label="chart.y_axis_label"
-                                                :show-line-chart="true"
-                                                :line-data="chart.line_data"
-                                                :editable-axis-labels="false"
-                                                :x-axis-rotation="-45"
-                                                line-color="#FF5733"
-                                                class="mt-5"
-                                                @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
-                                                @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
-                                            />
-                                            <stacked-bar-chart
-                                                v-if="chart.chart_type === 'stacked_bar'"
-                                                :id="`chart-${chart.chart_id}`"
-                                                :chart-id="`${chart.chart_id}`"
-                                                :data="chart.data"
-                                                :stack-keys="chart.stack_keys"
-                                                :color-scheme="['#1f77b4', '#ff7f0e', '#2ca02c']"
-                                                :show-legend="true"
-                                                :x-axis-label="chart.x_axis_label"
-                                                :y-axis-label="chart.y_axis_label"
-                                                :x-axis-rotation="-45"
-                                                :editable-axis-labels="false"
-                                                :max-legend-width="350"
-                                                @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
-                                                @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
-                                            />
-                                            <multi-line-chart
-                                                v-if="chart.chart_type === 'multiline'"
-                                                :id="`chart-${chart.chart_id}`"
-                                                :chart-id="`${chart.chart_id}`"
-                                                :data="chart.data[0]"
-                                                :width="chart.config.width"
-                                                :height="chart.config.height"
-                                                :x-axis-label="chart.x_axis_label"
-                                                :y-axis-label="chart.y_axis_label"
-                                                :show-data-points="true"
-                                                :enable-tooltips="true"
-                                                :show-grid="true"
-                                                legend-position="top"
-                                                :max-legend-width="400"
-                                                :legend-line-height="25"
-                                                :legend-item-spacing="25"
-                                                @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
-                                                @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
-                                            />
-                                            <treemap-chart
-                                                v-if="chart.chart_type === 'treemap'"
-                                                :id="`chart-${chart.chart_id}`"
-                                                :chart-id="`${chart.chart_id}`"
-                                                :data="chart.data[0]"
-                                                :width="parseInt(chart.dimensions.widthDraggable.replace('px', '')) - 40"
-                                                :height="parseInt(chart.dimensions.heightDraggable.replace('px', '')) - 80"
-                                                :color-scheme="'schemeCategory10'"
-                                                :show-labels="true"
-                                                :show-values="true"
-                                                :enable-tooltips="true"
-                                                :label-font-size="12"
-                                                :value-font-size="10"
-                                                :min-tile-size="30"
-                                                class="mt-2"
-                                            />
-                                            <bubble-chart
-                                                v-if="chart.chart_type === 'bubble'"
-                                                :id="`chart-${chart.chart_id}`"
-                                                :chart-id="`${chart.chart_id}`"
-                                                :data="chart.data"
-                                                :width="parseInt(chart.dimensions.widthDraggable.replace('px', '')) - 40"
-                                                :height="parseInt(chart.dimensions.heightDraggable.replace('px', '')) - 80"
-                                                class="mt-2"
-                                            />
+            <div class="flex flex-col w-full p-10">
+                <div class="flex flex-col min-h-200 max-h-200 h-200 bg-white overflow-hidden ml-10 mr-2 mb-10">
+                    <div class="w-full h-full draggable-div-container relative">
+                        <div v-for="(chart, index) in charts"
+                            class="w-50 flex flex-col justify-between cursor-pointer draggable-div absolute top-0 left-0"
+                            :id="`draggable-div-${chart.chart_id}`"
+                            :style="`width: ${chart.dimensions.width}; height: ${chart.dimensions.height}; top: ${chart.location.top}; left: ${chart.location.left};`"
+                        >
+                            <div class="flex flex-col">
+                                <draggable
+                                    v-if="chart.chart_type !== 'text_block'"
+                                    :id="`draggable-${chart.chart_id}`"
+                                    v-model="chart.columns"
+                                    group="data_model_columns"
+                                    itemKey="column_name"
+                                    class="flex flex-row w-full h-50 draggable-model-columns"
+                                    tag="tr"
+                                    :disabled="!chart.config.add_columns_enabled"
+                                    :style="`width: ${chart.dimensions.widthDraggable}; height: ${chart.dimensions.heightDraggable};`"
+                                    @change="changeDataModel($event, chart.chart_id)"
+                                >
+                                    <template #item="{ element, index }">
+                                        <div v-if="index === 0" class="text-left font-bold text-white px-4 py-2">
+                                            <div v-if="chart && chart.data && chart.data.length" class="flex flex-col justify-center">
+                                                <table-chart 
+                                                    v-if="chart.chart_type === 'table'"
+                                                    :id="`chart-${chart.chart_id}`"   
+                                                    :chart-id="`${chart.chart_id}`"
+                                                    :data="chart.data[0]"
+                                                    :width="parseInt(chart.dimensions.widthDraggable.replace('px', '')) - 40"
+                                                    :height="parseInt(chart.dimensions.heightDraggable.replace('px', '')) - 80"
+                                                    :enable-scroll-bars="true"
+                                                    :show-row-numbers="true"
+                                                    :sticky-header="true"
+                                                    :max-column-width="'200px'"
+                                                    :min-column-width="'120px'"
+                                                    :use-container-sizing="true"
+                                                    :virtual-scrolling="chart.data[0]?.rows?.length > 100"
+                                                    :virtual-scroll-item-height="35"
+                                                    @resize-needed="(data) => handleTableResize(chart.chart_id, data)"
+                                                    class="mt-2"
+                                                />
+                                                <pie-chart
+                                                    v-if="chart.chart_type === 'pie'"
+                                                    :id="`chart-${chart.chart_id}`"   
+                                                    :chart-id="`${chart.chart_id}`"
+                                                    :data="chart.data"
+                                                    :width="1200"
+                                                    :height="1200"
+                                                    class="mt-5"
+                                                />
+                                                <donut-chart
+                                                    v-if="chart.chart_type === 'donut'"
+                                                    :id="`chart-${chart.chart_id}`"
+                                                    :chart-id="`${chart.chart_id}`"
+                                                    :data="chart.data"
+                                                    :width="1200"
+                                                    :height="1200"
+                                                    class="mt-5"
+                                                />
+                                                <vertical-bar-chart
+                                                    v-if="chart.chart_type === 'vertical_bar'"
+                                                    :id="`chart-${chart.chart_id}`"
+                                                    :chart-id="`${chart.chart_id}`"
+                                                    :data="chart.data"
+                                                    :x-axis-label="chart.x_axis_label"
+                                                    :y-axis-label="chart.y_axis_label"
+                                                    :editable-axis-labels="false"
+                                                    :x-axis-rotation="-45"
+                                                    class="mt-5"
+                                                    @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
+                                                    @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
+                                                />
+                                                <horizontal-bar-chart
+                                                    v-if="chart.chart_type === 'horizontal_bar'"
+                                                    :id="`chart-${chart.chart_id}`"
+                                                    :chart-id="`${chart.chart_id}`"
+                                                    :data="chart.data"
+                                                    :x-axis-label="chart.x_axis_label"
+                                                    :y-axis-label="chart.y_axis_label"
+                                                    :editable-axis-labels="false"
+                                                    class="mt-5"
+                                                    @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
+                                                    @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
+                                                />
+                                                <vertical-bar-chart
+                                                    v-if="chart.chart_type === 'vertical_bar_line'"
+                                                    :id="`chart-${chart.chart_id}`"
+                                                    :chart-id="`${chart.chart_id}`"
+                                                    :data="chart.data"
+                                                    :x-axis-label="chart.x_axis_label"
+                                                    :y-axis-label="chart.y_axis_label"
+                                                    :show-line-chart="true"
+                                                    :line-data="chart.line_data"
+                                                    :editable-axis-labels="false"
+                                                    :x-axis-rotation="-45"
+                                                    line-color="#FF5733"
+                                                    class="mt-5"
+                                                    @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
+                                                    @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
+                                                />
+                                                <stacked-bar-chart
+                                                    v-if="chart.chart_type === 'stacked_bar'"
+                                                    :id="`chart-${chart.chart_id}`"
+                                                    :chart-id="`${chart.chart_id}`"
+                                                    :data="chart.data"
+                                                    :stack-keys="chart.stack_keys"
+                                                    :color-scheme="['#1f77b4', '#ff7f0e', '#2ca02c']"
+                                                    :show-legend="true"
+                                                    :x-axis-label="chart.x_axis_label"
+                                                    :y-axis-label="chart.y_axis_label"
+                                                    :x-axis-rotation="-45"
+                                                    :editable-axis-labels="false"
+                                                    :max-legend-width="350"
+                                                    @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
+                                                    @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
+                                                />
+                                                <multi-line-chart
+                                                    v-if="chart.chart_type === 'multiline'"
+                                                    :id="`chart-${chart.chart_id}`"
+                                                    :chart-id="`${chart.chart_id}`"
+                                                    :data="chart.data[0]"
+                                                    :width="chart.config.width"
+                                                    :height="chart.config.height"
+                                                    :x-axis-label="chart.x_axis_label"
+                                                    :y-axis-label="chart.y_axis_label"
+                                                    :show-data-points="true"
+                                                    :enable-tooltips="true"
+                                                    :show-grid="true"
+                                                    legend-position="top"
+                                                    :max-legend-width="400"
+                                                    :legend-line-height="25"
+                                                    :legend-item-spacing="25"
+                                                    :editable-axis-labels="false"
+                                                    :x-axis-rotation="-45"
+                                                    @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
+                                                    @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
+                                                />
+                                                <treemap-chart
+                                                    v-if="chart.chart_type === 'treemap'"
+                                                    :id="`chart-${chart.chart_id}`"
+                                                    :chart-id="`${chart.chart_id}`"
+                                                    :data="chart.data[0]"
+                                                    :width="parseInt(chart.dimensions.widthDraggable.replace('px', '')) - 40"
+                                                    :height="parseInt(chart.dimensions.heightDraggable.replace('px', '')) - 80"
+                                                    :color-scheme="'schemeCategory10'"
+                                                    :show-labels="true"
+                                                    :show-values="true"
+                                                    :enable-tooltips="true"
+                                                    :label-font-size="12"
+                                                    :value-font-size="10"
+                                                    :min-tile-size="30"
+                                                    class="mt-2"
+                                                />
+                                                <bubble-chart
+                                                    v-if="chart.chart_type === 'bubble'"
+                                                    :id="`chart-${chart.chart_id}`"
+                                                    :chart-id="`${chart.chart_id}`"
+                                                    :data="chart.data"
+                                                    :width="parseInt(chart.dimensions.widthDraggable.replace('px', '')) - 40"
+                                                    :height="parseInt(chart.dimensions.heightDraggable.replace('px', '')) - 80"
+                                                    class="mt-2"
+                                                />
+                                            </div>
                                         </div>
-                                    </div>
-                                </template>
-                            </draggable>
-                            <div v-else :id="`draggable-${chart.chart_id}`" class="bg-gray-200 border border-3 border-gray-600 border-t-0">
-                                <text-editor :id="`chart-${chart.chart_id}`" :buttons="['bold', 'italic', 'heading', 'strike', 'underline']" minHeight="10" :content="chart.text_editor.content"  @update:content="(content) => { updateContent(content, chart.chart_id) }" />
+                                    </template>
+                                </draggable>
+                                <div v-else :id="`draggable-${chart.chart_id}`" class="bg-gray-200 border border-3 border-gray-600 border-t-0">
+                                    <text-editor :id="`chart-${chart.chart_id}`" :buttons="['bold', 'italic', 'heading', 'strike', 'underline']" minHeight="10" :content="chart.text_editor.content"  @update:content="(content) => { updateContent(content, chart.chart_id) }" />
+                                </div>
                             </div>
                         </div>
                     </div>

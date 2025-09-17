@@ -240,6 +240,7 @@ async function executeQueryOnDataModels(chartId) {
         const labelValues = [];
         const numericValues = [];
         const numericLineValues = [];
+        let stackedValues = [];
         state.selected_chart.result_from_query = state.response_from_data_models_rows;
         if (['pie', 'donut', 'vertical_bar', 'horizontal_bar', 'bubble'].includes(chart.chart_type)) {
             state.response_from_data_models_rows.forEach((row) =>{
@@ -899,9 +900,6 @@ async function exportAsWebPage() {
         });
     }
 }
-function exportAsPDF() {
-    console.log('exportAsPDF');
-}
 function toggleSidebars(value) {
     state.sidebar_status = value;
 }
@@ -961,11 +959,6 @@ onMounted(async () => {
                                     <div @click="exportAsWebPage">
                                         <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer border-b-1 border-primary-blue-100 border-solid pt-1 pb-1">
                                             As Publicly Accessible Web Page
-                                        </div>
-                                    </div>
-                                    <div @click="exportAsPDF">
-                                        <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer pt-1 pb-1">
-                                            As Downloadable PDF
                                         </div>
                                     </div>
                                 </div>
@@ -1175,6 +1168,7 @@ onMounted(async () => {
                                                     :max-legend-width="400"
                                                     :legend-line-height="25"
                                                     :legend-item-spacing="25"
+                                                    :x-axis-rotation="-45"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
                                                 />

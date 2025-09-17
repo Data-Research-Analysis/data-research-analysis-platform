@@ -388,7 +388,6 @@ async function executeQueryOnDataModels(chartId) {
                         values: stackedValues
                     });
                 }
-                console.log('chart.data:', chart.data);
             });
         } else if (['multiline'].includes(chart.chart_type)) {
             // Multi-line chart data preparation
@@ -1102,7 +1101,7 @@ onMounted(async () => {
                                                     :show-legend="true"
                                                     :x-axis-label="chart.x_axis_label"
                                                     :y-axis-label="chart.y_axis_label"
-                                                    :x-axis-rotation="-45"                                                    
+                                                    :x-axis-rotation="-45"
                                                     :max-legend-width="350"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
@@ -1123,6 +1122,7 @@ onMounted(async () => {
                                                     :max-legend-width="400"
                                                     :legend-line-height="25"
                                                     :legend-item-spacing="25"
+                                                    :x-axis-rotation="-45"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
                                                 />

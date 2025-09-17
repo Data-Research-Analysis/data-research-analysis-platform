@@ -155,7 +155,7 @@ onMounted(async () => {
 })
 </script>
 <template>
-    <div class="relative">
+    <div class="relative data-research-analysis">
         <header-nav />
         <breadcrumbs v-if="state.authenticated && !isInPublicDashboard" />
         <div class="flex "
