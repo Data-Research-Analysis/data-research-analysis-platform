@@ -7,6 +7,7 @@ const projectsStore = useProjectsStore();
 const dataModelsStore = useDataModelsStore();
 const dashboardsStore = useDashboardsStore();
 const { $swal } = useNuxtApp();
+const router = useRouter();
 const state = reactive({
     data_model_tables: [],
     chart_mode: 'table',//table, pie, vertical_bar, horizontal_bar, vertical_bar_line, stacked_bar, multiline, heatmap, bubble, map
@@ -36,6 +37,8 @@ const state = reactive({
     scaleWidth: 1,
     scaleHeight: 1,
     show_table_dialog: false,
+    sidebar_status: true,
+
  });
 const project = computed(() => {
     return projectsStore.getSelectedProject();
@@ -237,6 +240,7 @@ async function executeQueryOnDataModels(chartId) {
         const labelValues = [];
         const numericValues = [];
         const numericLineValues = [];
+        let stackedValues = [];
         state.selected_chart.result_from_query = state.response_from_data_models_rows;
         if (['pie', 'donut', 'vertical_bar', 'horizontal_bar', 'bubble'].includes(chart.chart_type)) {
             state.response_from_data_models_rows.forEach((row) =>{
@@ -755,7 +759,6 @@ function onResize(event) {
     if (state.is_mouse_down && state.is_resizing && state.selected_div && draggableDiv) {
         const deltaX = event.clientX - state.start_resize_x;
         const deltaY = event.clientY - state.start_resize_y;
-
        
         let newWidth;
         let newHeight;
@@ -845,7 +848,6 @@ async function updateDataModel(action, data) {
             autoResizeTableContainer(state.selected_chart.chart_id);
         }
     }
-
 }
 async function openTableDialog(chartId) {
     state.show_table_dialog = true;
@@ -872,9 +874,38 @@ async function openTableDialog(chartId) {
 function closeTableDialog() {
     state.show_table_dialog = false
 }
+async function exportAsWebPage() {
+    console.log('exportAsWebPage');
+    const token = getAuthToken();
+    let url = `${baseUrl()}/dashboard/generate-public-export-link/${dashboard.value.id}`;
+    const response = await fetch(url, {
+        method: "GET",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "Authorization-Type": "auth",
+        },
+    });
+    if (response.status === 200) {
+        const data = await response.json();
+        await dashboardsStore.retrieveDashboards();
+        // router.push(`/public-dashboard/${data.key}`);
+        const routeData = router.resolve(`/public-dashboard/${data.key}`);
+        window.open(routeData.href, '_blank');
+    } else {
+        $swal.fire({
+            icon: 'error',
+            title: `Error! `,
+            text: 'Unfortunately, we encountered an error! Please refresh the page and try again.',
+        });
+    }
+}
+function toggleSidebars(value) {
+    state.sidebar_status = value;
+}
 onMounted(async () => {
     //clear the selected dashboard
-    dashboardsStore.clearSelectedDashboard();
+    // dashboardsStore.clearSelectedDashboard();
     state.data_model_tables = []
     dataModelTables?.value?.forEach((dataModelTable) => {
         state.data_model_tables.push({
@@ -907,18 +938,37 @@ onMounted(async () => {
             :selected-chart="state.selected_chart"
             @add:selectedColumns="(data) => updateDataModel('add', data)"
             @remove:selectedColumns="(data) => updateDataModel('remove', data)"
+            @toggleSidebar="toggleSidebars"
         />
-        <div class="flex flex-row w-5/6">
-            <div class="flex flex-col w-5/6 ml-2 mr-2">
+        <div class="flex flex-row" :class="{ 'w-5/6': state.sidebar_status, 'w-full': !state.sidebar_status }">
+            <div class="flex flex-col ml-2 mr-2" :class="{ 'w-5/6': state.sidebar_status, 'w-full': !state.sidebar_status }">
                 <div class="flex flex-row justify-between">
-                    <tabs :project-id="project.id"/>
+                    <tabs :project-id="project.id" class="mt-6" :class="{ 'ml-10': state.sidebar_status }"/>
                     <div class="flex flex-row">
-                        <div @click="updateDashboard" class="flex flex-row items-center mr-2 mt-5 p-2 text-md text-white font-bold border border-white border-solid cursor-pointer select-none bg-primary-blue-100 hover:bg-primary-blue-400">
+                        <div @click="updateDashboard" class="flex flex-row items-center h-12 mr-2 mt-7 text-md text-white font-bold border border-white border-solid cursor-pointer select-none bg-primary-blue-100 hover:bg-primary-blue-400">
                             <h3 class="ml-2 mr-2">Update Dashboard</h3>
                         </div>
+                        <menu-dropdown offset-y="15">
+                            <template #menuItem="{ onClick }">
+                                <div @click="onClick" class="flex flex-row items-center h-12 mr-2 mt-7 text-md text-white font-bold border border-white border-solid cursor-pointer select-none bg-primary-blue-100 hover:bg-primary-blue-400">
+                                    <h3 class="ml-2 mr-2">Export Dashboard</h3>
+                                </div>
+                            </template>
+                            <template #dropdownMenu="{ onClick }">
+                                <div class="flex flex-col w-40 text-center">
+                                    <div @click="exportAsWebPage">
+                                        <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer border-b-1 border-primary-blue-100 border-solid pt-1 pb-1">
+                                            As Publicly Accessible Web Page
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </menu-dropdown>
                     </div>
                 </div>
-                <div class="flex flex-col min-h-200 max-h-200 h-200 overflow-hidden ml-10 mr-2 mb-10 border border-primary-blue-100 border-solid bg-gray-300">
+                <div class="flex flex-col min-h-200 max-h-200 h-200 overflow-hidden overflow-x-auto mr-2 mb-10 border border-primary-blue-100 border-solid bg-gray-300"
+                    :class="{'ml-10': state.sidebar_status}"
+                >                    
                     <div class="w-full h-full bg-gray-300 draggable-div-container relative">
                         <div v-for="(chart, index) in charts"
                             class="w-50 flex flex-col justify-between cursor-pointer draggable-div absolute top-0 left-0"
@@ -1056,6 +1106,7 @@ onMounted(async () => {
                                                     :data="chart.data"
                                                     :x-axis-label="chart.x_axis_label"
                                                     :y-axis-label="chart.y_axis_label"
+                                                    :x-axis-rotation="-45"
                                                     class="mt-5"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
@@ -1080,6 +1131,7 @@ onMounted(async () => {
                                                     :y-axis-label="chart.y_axis_label"
                                                     :show-line-chart="true"
                                                     :line-data="chart.line_data"
+                                                    :x-axis-rotation="-45"
                                                     line-color="#FF5733"
                                                     class="mt-5"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
@@ -1095,6 +1147,7 @@ onMounted(async () => {
                                                     :show-legend="true"
                                                     :x-axis-label="chart.x_axis_label"
                                                     :y-axis-label="chart.y_axis_label"
+                                                    :x-axis-rotation="-45"                                                    
                                                     :max-legend-width="350"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
@@ -1115,6 +1168,7 @@ onMounted(async () => {
                                                     :max-legend-width="400"
                                                     :legend-line-height="25"
                                                     :legend-item-spacing="25"
+                                                    :x-axis-rotation="-45"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
                                                 />
@@ -1177,8 +1231,8 @@ onMounted(async () => {
                     </div>
                 </div>
             </div>
-            <div class="flex flex-col w-1/6 mt-17 mb-10 select-none">
-                <div class="" @click="addChartToDashboard('text_block')" v-tippy="{ content: 'Add Text Block To Dashboard', placement: 'top' }">
+            <div v-if="state.sidebar_status" class="flex flex-col w-1/6 mt-17 mb-10 mr-2 select-none">
+                <div @click="addChartToDashboard('text_block')" v-tippy="{ content: 'Add Text Block To Dashboard', placement: 'top' }">
                      <div class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto mb-2 text-center font-bold text-lg cursor-pointer hover:bg-gray-300" >
                         Text Block
                      </div>
@@ -1223,14 +1277,14 @@ onMounted(async () => {
                         <img src="/assets/images/bubble_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Bubble Chart" />
                     </div>
                 </div>
-                <div class="flex flex-row mb-2">
+                <!-- <div class="flex flex-row mb-2">
                     <div class="mr-2" @click="addChartToDashboard('stacked_area')" v-tippy="{ content: 'Add Stacked Area Chart To Dashboard', placement: 'top' }">
                         <img src="/assets/images/stacked_area_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Stacked Area Chart" />
                     </div>
                     <div class="mr-2" @click="addChartToDashboard('map')" v-tippy="{ content: 'Add Map To Dashboard', placement: 'top' }">
                         <img src="/assets/images/map_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Map Chart" />
                     </div>
-                </div>
+                </div> -->
             </div>
         </div>
         <img src="/assets/images/resize-corner.svg" id="corner-image" class="bottom-right-corner-resize w-[15px] select-none hidden" alt="Resize Visualization" />

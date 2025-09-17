@@ -10,6 +10,7 @@ import { DRAArticle } from "../models/DRAArticle.js";
 import { DRAArticleCategory } from "../models/DRAArticleCategory.js";
 import { DRACategory } from "../models/DRACategory.js";
 import dotenv from 'dotenv';
+import { DRADashboardExportMetaData } from "../models/DRADashboardExportMetaData.js";
 dotenv.config();
 
 export class PostgresDataSource {
@@ -32,7 +33,7 @@ export class PostgresDataSource {
             database: database,
             synchronize: false,
             logging: true,
-            entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRAUser, DRADashboard, DRAArticle, DRAArticleCategory, DRACategory],
+            entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRAUser, DRADashboard, DRAArticle, DRAArticleCategory, DRACategory, DRADashboardExportMetaData],
             subscribers: [],
             migrations: ['./src/migrations/*.ts'],
         })

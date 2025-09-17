@@ -2,12 +2,13 @@ import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColum
 import { DRAUsersPlatform } from './DRAUsersPlatform.js';
 import { DRAProject } from './DRAProject.js';
 import { IDashboard } from '../types/IDashboard.js';
+import { DRADashboardExportMetaData } from './DRADashboardExportMetaData.js';
 @Entity('dra_dashboards')
 export class DRADashboard {
   @PrimaryGeneratedColumn()
   id!: number;
   @Column({ type: 'jsonb' })
-  data!: IDashboard;
+  data!: IDashboard; 
   
   @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.dashboards)
   @JoinColumn({ name: 'users_platform_id', referencedColumnName: 'id' })
@@ -16,6 +17,8 @@ export class DRADashboard {
   @ManyToOne(() => DRAProject, (project) => project.dashboards)
   @JoinColumn({ name: 'project_id', referencedColumnName: 'id' })
   project!: Relation<DRAProject>
-  
+
+  @OneToMany(() => DRADashboardExportMetaData, (dashboard) => dashboard.dashboard, { cascade: ["remove", "update"] })
+  export_meta_data!: Relation<DRADashboardExportMetaData>[]
 
 }

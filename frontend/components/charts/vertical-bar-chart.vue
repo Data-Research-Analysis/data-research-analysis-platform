@@ -44,14 +44,142 @@ const props = defineProps({
     type: String,
     default: '#ff6b6b',
   },
+  editableAxisLabels: {
+    type: Boolean,
+    default: true,
+  },
+  enableTickShortening: {
+    type: Boolean,
+    default: true,
+  },
+  tickDecimalPlaces: {
+    type: Number,
+    default: 1,
+  },
+  customTickSuffixes: {
+    type: Object,
+    default: () => ({ K: 'k', M: 'M', B: 'B', T: 'T' }),
+  },
+  xAxisRotation: {
+    type: Number,
+    default: null,
+  },
 });
+
+// Utility function to format large numbers with shortened suffixes
+function formatTickValue(value) {
+  if (!props.enableTickShortening || value === 0) {
+    return value.toString();
+  }
+  
+  const absValue = Math.abs(value);
+  const sign = value < 0 ? '-' : '';
+  
+  const suffixes = props.customTickSuffixes;
+  const decimalPlaces = props.tickDecimalPlaces;
+  
+  if (absValue >= 1000000000000) {
+    return sign + (absValue / 1000000000000).toFixed(decimalPlaces).replace(/\.0+$/, '') + suffixes.T;
+  } else if (absValue >= 1000000000) {
+    return sign + (absValue / 1000000000).toFixed(decimalPlaces).replace(/\.0+$/, '') + suffixes.B;
+  } else if (absValue >= 1000000) {
+    return sign + (absValue / 1000000).toFixed(decimalPlaces).replace(/\.0+$/, '') + suffixes.M;
+  } else if (absValue >= 1000) {
+    return sign + (absValue / 1000).toFixed(decimalPlaces).replace(/\.0+$/, '') + suffixes.K;
+  } else {
+    return value.toString();
+  }
+}
+
+// Function to check if X-axis values are numeric
+function isNumericXAxis(chartData) {
+  return chartData.every(d => !isNaN(parseFloat(d.label)) && isFinite(d.label));
+}
+
+// Function to format X-axis labels if they are numeric
+function formatXAxisLabel(label) {
+  if (isNumericXAxis(props.data)) {
+    return formatTickValue(parseFloat(label));
+  }
+  return label;
+}
+
+// Function to get text positioning attributes based on rotation angle
+function getTextPositioning(rotationAngle) {
+  if (rotationAngle === null || rotationAngle === 0) {
+    return {
+      textAnchor: 'middle',
+      dy: '12px',
+      dx: '0px'
+    };
+  } else if (rotationAngle < 0) {
+    // Negative rotation (clockwise)
+    return {
+      textAnchor: 'end',
+      dy: '8px',
+      dx: '-5px'
+    };
+  } else {
+    // Positive rotation (counter-clockwise)
+    return {
+      textAnchor: 'start',
+      dy: '8px',
+      dx: '5px'
+    };
+  }
+}
+
+// Function to calculate the vertical extent of rotated tick text
+function calculateRotatedTextExtent(textWidth, textHeight, rotationAngle) {
+  if (rotationAngle === null || rotationAngle === 0) {
+    return textHeight;
+  }
+  
+  // Convert angle to radians
+  const radians = Math.abs(rotationAngle) * Math.PI / 180;
+  
+  // Calculate the vertical projection of rotated text
+  const verticalExtent = textWidth * Math.sin(radians) + textHeight * Math.cos(radians);
+  
+  return Math.abs(verticalExtent);
+}
+
+// Function to measure tick text dimensions and calculate max vertical extent
+function measureTickTextExtent(chartData, rotationAngle) {
+  if (rotationAngle === null || rotationAngle === 0) {
+    return 16; // Default height for horizontal text (12px font + padding)
+  }
+  
+  // Estimate text dimensions based on common label lengths
+  const maxLabelLength = Math.max(...chartData.map(d => formatXAxisLabel(d.label).length));
+  const estimatedTextWidth = maxLabelLength * 7; // Approximate 7px per character
+  const estimatedTextHeight = 12; // 12px font size
+  
+  return calculateRotatedTextExtent(estimatedTextWidth, estimatedTextHeight, rotationAngle);
+}
+
+// Function to calculate optimal X-axis label position based on tick rotation
+function calculateXAxisLabelPosition(chartData, rotationAngle, baseMarginBottom) {
+  const tickExtent = measureTickTextExtent(chartData, rotationAngle);
+  const bufferSpace = 20; // Safety buffer between tick text and axis label
+  
+  // Calculate position from bottom of chart area
+  const labelYOffset = Math.max(50, tickExtent + bufferSpace);
+  
+  return labelYOffset;
+}
 
 function deleteSVGs() {
   $d3.select(`#vertical-bar-chart-1-${props.chartId}`).selectAll('svg').remove();
 }
 
 function renderSVG(chartData, lineData) {
-  const margin = { top: 40, right: 30, bottom: 100, left: 80 };
+  // Calculate dynamic bottom margin based on rotation
+  const baseBottomMargin = 80;
+  const xAxisLabelOffset = calculateXAxisLabelPosition(chartData, props.xAxisRotation, baseBottomMargin);
+  const dynamicBottomMargin = Math.max(baseBottomMargin, xAxisLabelOffset + 40); // Extra space for axis label
+  
+  const margin = { top: 40, right: 30, bottom: dynamicBottomMargin, left: 80 };
   const svgWidth = props.width;
   const svgHeight = props.height;
   const width = svgWidth - margin.left - margin.right;
@@ -72,15 +200,33 @@ function renderSVG(chartData, lineData) {
     .domain(chartData.map(d => d.label))
     .range([0, width])
     .padding(0.2);
-  svg.append('g')
+  
+  const xAxis = svg.append('g')
     .attr('transform', `translate(0,${height})`)
-    .call($d3.axisBottom(x))
-    .selectAll('text')
-    .attr('transform', 'rotate(0)')
-    .style('text-anchor', 'middle')
-    .style('font-size', '12px')
-    .style('fill', '#475569') // Darker gray for axis text
-    .style('font-weight', 'bold');
+    .call($d3.axisBottom(x).tickFormat(formatXAxisLabel));
+  
+  // Apply rotation if xAxisRotation prop is provided
+  if (props.xAxisRotation !== null) {
+    const positioning = getTextPositioning(props.xAxisRotation);
+    
+    xAxis.selectAll('text')
+      .style('text-anchor', positioning.textAnchor)
+      .attr('dx', positioning.dx)
+      .attr('dy', positioning.dy)
+      .style('font-size', '12px')
+      .style('fill', '#475569') // Darker gray for axis text
+      .style('font-weight', 'bold')
+      .attr('transform', `rotate(${props.xAxisRotation})`); // Rotate around element's own origin
+  } else {
+    // Default styling when no rotation
+    xAxis.selectAll('text')
+      .attr('transform', 'rotate(0)')
+      .style('text-anchor', 'middle')
+      .attr('dy', '12px')
+      .style('font-size', '12px')
+      .style('fill', '#475569') // Darker gray for axis text
+      .style('font-weight', 'bold');
+  }
 
   let maxY = 0;
   if (props.showLineChart && lineData?.length) {
@@ -98,7 +244,7 @@ function renderSVG(chartData, lineData) {
     .domain([0, maxY || 1])
     .range([height, 0]);
   svg.append('g')
-    .call($d3.axisLeft(y))
+    .call($d3.axisLeft(y).tickFormat(formatTickValue))
     .selectAll('text')
     .style('text-anchor', 'end')
     .style('font-size', '12px')
@@ -122,13 +268,45 @@ function renderSVG(chartData, lineData) {
     .attr('height', d => !isNaN(height - y(d.value)) ?  height - y(d.value) : 0)
     .attr('fill', d => color(d.label));
 
-  // Tooltips (optional)
-    svg.selectAll('rect')
+  // Tooltips with full values
+  svg.selectAll('rect')
     .on('mouseover', function (event, d) {
       $d3.select(this).attr('fill', '#4682b4');
+      
+      // Create tooltip
+      const tooltip = $d3.select('body').append('div')
+        .attr('class', 'chart-tooltip')
+        .style('position', 'absolute')
+        .style('background', 'rgba(0, 0, 0, 0.8)')
+        .style('color', 'white')
+        .style('padding', '8px 12px')
+        .style('border-radius', '4px')
+        .style('font-size', '12px')
+        .style('pointer-events', 'none')
+        .style('z-index', '1000')
+        .style('opacity', 0);
+      
+      tooltip.html(`
+        <div><strong>${d.label}</strong></div>
+        <div>Value: ${d.value.toLocaleString()}</div>
+      `)
+        .style('left', (event.pageX + 10) + 'px')
+        .style('top', (event.pageY - 10) + 'px')
+        .transition()
+        .duration(200)
+        .style('opacity', 1);
     })
     .on('mouseout', function (event, d) {
       $d3.select(this).attr('fill', color(d.label));
+      
+      // Remove tooltip
+      $d3.selectAll('.chart-tooltip').remove();
+    })
+    .on('mousemove', function (event, d) {
+      // Update tooltip position
+      $d3.selectAll('.chart-tooltip')
+        .style('left', (event.pageX + 10) + 'px')
+        .style('top', (event.pageY - 10) + 'px');
     });
 
   // Line chart overlay (conditional)
@@ -147,7 +325,7 @@ function renderSVG(chartData, lineData) {
       .attr('stroke-width', 3)
       .attr('d', line);
 
-    // Add data points
+    // Add data points with enhanced tooltips
     svg.selectAll('.line-point')
       .data(lineData)
       .join('circle')
@@ -160,33 +338,114 @@ function renderSVG(chartData, lineData) {
       .attr('stroke-width', 2)
       .on('mouseover', function (event, d) {
         $d3.select(this).attr('r', 6);
+        
+        // Create tooltip for line points
+        const tooltip = $d3.select('body').append('div')
+          .attr('class', 'chart-tooltip')
+          .style('position', 'absolute')
+          .style('background', 'rgba(0, 0, 0, 0.8)')
+          .style('color', 'white')
+          .style('padding', '8px 12px')
+          .style('border-radius', '4px')
+          .style('font-size', '12px')
+          .style('pointer-events', 'none')
+          .style('z-index', '1000')
+          .style('opacity', 0);
+        
+        tooltip.html(`
+          <div><strong>${d.label}</strong></div>
+          <div>Line Value: ${d.value.toLocaleString()}</div>
+        `)
+          .style('left', (event.pageX + 10) + 'px')
+          .style('top', (event.pageY - 10) + 'px')
+          .transition()
+          .duration(200)
+          .style('opacity', 1);
       })
       .on('mouseout', function (event, d) {
         $d3.select(this).attr('r', 4);
+        $d3.selectAll('.chart-tooltip').remove();
+      })
+      .on('mousemove', function (event, d) {
+        $d3.selectAll('.chart-tooltip')
+          .style('left', (event.pageX + 10) + 'px')
+          .style('top', (event.pageY - 10) + 'px');
       });
   }
 
-  // Y axis title as input with improved positioning
-  const yInputWidth = Math.min(150, height * 0.4);
   const yInputHeight = 35;
+  const yInputWidth = Math.min(150, height * 0.4);
+  // Y axis title - conditional rendering
+  if (props.editableAxisLabels) {
+    // Editable input
+    const inputX = -margin.left / 1.5 - yInputHeight / 2;
+    const inputY = height / 2 - yInputWidth / 2;
+    
+    svg.append('foreignObject')
+      .attr('x', inputX)
+      .attr('y', inputY)
+      .attr('width', yInputHeight) // rotated, so height becomes width
+      .attr('height', yInputWidth) // rotated, so width becomes height
+      .append('xhtml:div')
+        .style('width', '100%')
+        .style('height', '100%')
+        .style('display', 'flex')
+        .style('align-items', 'center')
+        .style('justify-content', 'center')
+        .style('transform', 'rotate(-90deg)')
+        .style('transform-origin', 'center')
+        .append('xhtml:input')
+          .attr('type', 'text')
+          .style('width', `${yInputWidth - 20}px`)
+          .style('height', `${yInputHeight - 10}px`)
+          .style('font-size', '16px')
+          .style('font-weight', '600')
+          .style('color', '#000000')
+          .style('background-color', 'rgba(255,255,255,0.9)')
+          .style('border', '1px solid #ccc')
+          .style('border-radius', '4px')
+          .style('padding', '5px')
+          .style('text-align', 'center')
+          .property('value', state.yAxisLabelLocal)
+          .on('input', function(event) {
+            state.yAxisLabelLocal = event.target.value;
+            emit('update:yAxisLabel', state.yAxisLabelLocal);
+          });
+  } else {
+    // Static text
+    const textX = -margin.left / 1.5;
+    const textY = height / 2;
+    svg.append('text')
+    .attr('x', textX)
+    .attr('y', textY)
+    .attr('transform', `rotate(-90, ${textX}, ${textY})`)
+    .attr('text-anchor', 'middle')
+    .attr('dominant-baseline', 'middle')
+    .style('font-size', '16px')
+    .style('font-weight', '600')
+    .style('fill', '#000000')
+    .text(props.yAxisLabel);
+  }
+
+  const xInputWidth = Math.min(250, width * 0.5);
+  const xInputHeight = 35;
   
-  svg.append('foreignObject')
-    .attr('x', -margin.left + 10)
-    .attr('y', height / 2 - yInputHeight / 2)
-    .attr('width', yInputHeight) // rotated, so height becomes width
-    .attr('height', yInputWidth) // rotated, so width becomes height
-    .append('xhtml:div')
-      .style('width', '100%')
-      .style('height', '100%')
-      .style('display', 'flex')
-      .style('align-items', 'center')
-      .style('justify-content', 'center')
-      .style('transform', 'rotate(-90deg)')
-      .style('transform-origin', 'center')
+  // Calculate dynamic Y position for X-axis label based on rotation
+  const xAxisLabelY = height + xAxisLabelOffset;
+  
+  // X axis title - conditional rendering
+  if (props.editableAxisLabels) {
+    // Editable input
+    
+    svg.append('foreignObject')
+      .attr('x', width / 2 - xInputWidth / 2)
+      .attr('y', xAxisLabelY - xInputHeight / 2)
+      .attr('width', xInputWidth)
+      .attr('height', xInputHeight)
       .append('xhtml:input')
         .attr('type', 'text')
-        .style('width', `${yInputWidth - 20}px`)
-        .style('height', `${yInputHeight - 10}px`)
+        .style('width', '100%')
+        .style('height', '100%')
         .style('font-size', '16px')
         .style('font-weight', '600')
         .style('color', '#000000')
@@ -195,39 +454,24 @@ function renderSVG(chartData, lineData) {
         .style('border-radius', '4px')
         .style('padding', '5px')
         .style('text-align', 'center')
-        .property('value', state.yAxisLabelLocal)
+        .style('box-sizing', 'border-box')
+        .property('value', state.xAxisLabelLocal)
         .on('input', function(event) {
-          state.yAxisLabelLocal = event.target.value;
-          emit('update:yAxisLabel', state.yAxisLabelLocal);
+          state.xAxisLabelLocal = event.target.value;
+          emit('update:xAxisLabel', state.xAxisLabelLocal);
         });
-
-  // X axis title as input with improved positioning
-  const xInputWidth = Math.min(250, width * 0.5);
-  const xInputHeight = 35;
-  
-  svg.append('foreignObject')
-    .attr('x', width / 2 - xInputWidth / 2)
-    .attr('y', height + margin.bottom / 2 - xInputHeight / 2)
-    .attr('width', xInputWidth)
-    .attr('height', xInputHeight)
-    .append('xhtml:input')
-      .attr('type', 'text')
-      .style('width', '100%')
-      .style('height', '100%')
+  } else {
+    // Static text
+    svg.append('text')
+      .attr('x', width / 2)
+      .attr('y', xAxisLabelY)
+      .attr('text-anchor', 'middle')
+      .attr('dominant-baseline', 'middle')
       .style('font-size', '16px')
       .style('font-weight', '600')
-      .style('color', '#000000')
-      .style('background-color', 'rgba(255,255,255,0.9)')
-      .style('border', '1px solid #ccc')
-      .style('border-radius', '4px')
-      .style('padding', '5px')
-      .style('text-align', 'center')
-      .style('box-sizing', 'border-box')
-      .property('value', state.xAxisLabelLocal)
-      .on('input', function(event) {
-        state.xAxisLabelLocal = event.target.value;
-        emit('update:xAxisLabel', state.xAxisLabelLocal);
-      });
+      .style('fill', '#000000')
+      .text(props.xAxisLabel);
+  }
 
 }
 

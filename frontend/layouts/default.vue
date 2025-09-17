@@ -23,6 +23,9 @@ const loggedInUser = computed(() => {
 const isUserAdmin = computed(() => {
     return loggedInUser.value?.user_type === 'admin';
 });
+const isInPublicDashboard = computed(() => {
+    return route.name === 'public-dashboard-dashboardkey';
+});
 watch(
   route,
   async (value, oldValue) => {
@@ -152,9 +155,9 @@ onMounted(async () => {
 })
 </script>
 <template>
-    <div class="relative">
+    <div class="relative data-research-analysis">
         <header-nav />
-        <breadcrumbs v-if="state.authenticated" />
+        <breadcrumbs v-if="state.authenticated && !isInPublicDashboard" />
         <div class="flex "
         :class="{
             'flex-row': state.authenticated,

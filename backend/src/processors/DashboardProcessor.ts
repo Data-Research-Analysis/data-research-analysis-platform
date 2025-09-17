@@ -6,6 +6,9 @@ import { IDashboard } from "../types/IDashboard.js";
 import { EDataSourceType } from "../types/EDataSourceType.js";
 import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
 import { DRAProject } from "../models/DRAProject.js";
+import bcrypt  from 'bcryptjs';
+import { UtilityService } from "../services/UtilityService.js";
+import { DRADashboardExportMetaData } from "../models/DRADashboardExportMetaData.js";
 
 export class DashboardProcessor {
     private static instance: DashboardProcessor;
@@ -33,7 +36,7 @@ export class DashboardProcessor {
             if (!user) {
                 return resolve([]);
             }
-            const dataModels = await manager.find(DRADashboard, {where: {users_platform: user}, relations: ['project', 'users_platform']});
+            const dataModels = await manager.find(DRADashboard, {where: {users_platform: user}, relations: ['project', 'users_platform', 'export_meta_data']});
             return resolve(dataModels);
         });
     }
@@ -138,6 +141,42 @@ export class DashboardProcessor {
 
             await manager.remove(dashboard);
             return resolve(true);
+        });
+    }
+
+    public async generatePublicExportLink(dashboardId: number, tokenDetails: ITokenDetails): Promise<string | null> {
+        return new Promise<string | null>(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve(null);
+            }
+            const manager = (await driver.getConcreteDriver()).manager;
+            if (!manager) {
+                return resolve(null);
+            }
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!user) {
+                return resolve(null);
+            }
+            const dashboard = await manager.findOne(DRADashboard, {where: {id: dashboardId, users_platform: user}});
+            if (!dashboard) {
+                return resolve(null);
+            }
+            const exportMetaDataExisting = await manager.findOne(DRADashboardExportMetaData, {where: {dashboard: {id: dashboardId, users_platform: user}}});
+            if (exportMetaDataExisting && exportMetaDataExisting.expiry_at > new Date()) {
+                return resolve(exportMetaDataExisting.key);
+            }
+            const salt = parseInt(UtilityService.getInstance().getConstants('PASSWORD_SALT'));
+            const key = encodeURIComponent(await bcrypt.hash(`${dashboardId}`, salt));
+            const exportMetaData = new DRADashboardExportMetaData();
+            exportMetaData.dashboard = dashboard;
+            exportMetaData.users_platform = user;
+            exportMetaData.key = key;
+            exportMetaData.created_at = new Date();
+            exportMetaData.expiry_at = new Date(new Date().getTime() + (48 * 60 * 60 * 1000)); // 48 hours from now
+            await manager.save(exportMetaData);
+            return resolve(key);
         });
     }
 }

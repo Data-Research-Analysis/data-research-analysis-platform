@@ -36,6 +36,7 @@ const state = reactive({
     scaleWidth: 1,
     scaleHeight: 1,
     show_table_dialog: false,
+    sidebar_status: true,
  });
 const project = computed(() => {
     return projectsStore.getSelectedProject();
@@ -165,7 +166,6 @@ function autoResizeTableContainer(chartId) {
         }
     });
 }
-
 function handleTableResize(chartId, resizeData) {
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
     if (!chart || chart.chart_type !== 'table') return;
@@ -187,7 +187,6 @@ function handleTableResize(chartId, resizeData) {
         }, 300);
     }
 }
-
 function deleteChartFromDashboard(chartId) {
     state.dashboard.charts = state.dashboard.charts.filter((chart) => chart.chart_id !== chartId);
     state.selected_chart = null;
@@ -884,6 +883,9 @@ function isDataModelDataEnabled(chartId) {
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
     return chart?.columns?.length && chart?.data?.length;
 }
+function toggleSidebars(value) {
+    state.sidebar_status = value;
+}
 onMounted(async () => {
     state.data_model_tables = []
     dataModelTables?.value?.forEach((dataModelTable) => {
@@ -907,18 +909,21 @@ onMounted(async () => {
             :selected-chart="state.selected_chart"
             @add:selectedColumns="(data) => updateDataModel('add', data)"
             @remove:selectedColumns="(data) => updateDataModel('remove', data)"
+            @toggleSidebar="toggleSidebars"
         />
-        <div class="flex flex-row w-5/6">
-            <div class="flex flex-col w-5/6 ml-2 mr-2">
+        <div class="flex flex-row w-full">
+            <div class="flex flex-col mr-2" :class="{ 'w-5/6': state.sidebar_status, 'w-full': !state.sidebar_status, 'ml-4': !state.sidebar_status }">
                 <div class="flex flex-row justify-between">
-                    <tabs :project-id="project.id"/>
+                    <tabs :project-id="project.id" class="mt-6" :class="{ 'ml-4': state.sidebar_status }"/>
                     <div class="flex flex-row">
-                        <div @click="saveDashboard" class="flex flex-row items-center mr-2 mt-5 p-2 text-md text-white font-bold border border-white border-solid cursor-pointer select-none bg-primary-blue-100 hover:bg-primary-blue-400">
+                        <div @click="saveDashboard" class="flex flex-row items-center h-12 mr-2 mt-7 text-md text-white font-bold border border-white border-solid cursor-pointer select-none bg-primary-blue-100 hover:bg-primary-blue-400">
                             <h3 class="ml-2 mr-2">Save Dashboard</h3>
                         </div>
                     </div>
                 </div>
-                <div class="flex flex-col min-h-200 max-h-200 h-200 overflow-hidden ml-10 mr-2 mb-10 border border-primary-blue-100 border-solid bg-gray-300">
+                <div class="flex flex-col min-h-200 max-h-200 h-200 overflow-hidden overflow-x-auto mr-2 mb-10 border border-primary-blue-100 border-solid bg-gray-300"
+                    :class="{'ml-4': state.sidebar_status}"
+                >
                     <div class="w-full h-full bg-gray-300 draggable-div-container relative">
                         <div v-for="(chart, index) in state.dashboard.charts"
                             class="w-50 flex flex-col justify-between cursor-pointer draggable-div absolute top-0 left-0"
@@ -1055,6 +1060,7 @@ onMounted(async () => {
                                                     :data="chart.data"
                                                     :x-axis-label="chart.x_axis_label"
                                                     :y-axis-label="chart.y_axis_label"
+                                                    :x-axis-rotation="-45"
                                                     class="mt-5"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
@@ -1079,6 +1085,7 @@ onMounted(async () => {
                                                     :y-axis-label="chart.y_axis_label"
                                                     :show-line-chart="true"
                                                     :line-data="chart.line_data"
+                                                    :x-axis-rotation="-45"
                                                     line-color="#FF5733"
                                                     class="mt-5"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
@@ -1094,6 +1101,7 @@ onMounted(async () => {
                                                     :show-legend="true"
                                                     :x-axis-label="chart.x_axis_label"
                                                     :y-axis-label="chart.y_axis_label"
+                                                    :x-axis-rotation="-45"
                                                     :max-legend-width="350"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
@@ -1114,6 +1122,7 @@ onMounted(async () => {
                                                     :max-legend-width="400"
                                                     :legend-line-height="25"
                                                     :legend-item-spacing="25"
+                                                    :x-axis-rotation="-45"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
                                                 />
@@ -1176,8 +1185,8 @@ onMounted(async () => {
                     </div>
                 </div>
             </div>
-            <div class="flex flex-col w-1/6 mt-17 mb-10 mr-2 select-none">
-                <div class="" @click="addChartToDashboard('text_block')" v-tippy="{ content: 'Add Text Block To Dashboard', placement: 'top' }">
+            <div v-if="state.sidebar_status" class="flex flex-col w-1/6 mt-17 mb-10 mr-2 select-none">
+                <div @click="addChartToDashboard('text_block')" v-tippy="{ content: 'Add Text Block To Dashboard', placement: 'top' }">
                      <div class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto mb-2 text-center font-bold text-lg cursor-pointer hover:bg-gray-300" >
                         Text Block
                      </div>
@@ -1222,14 +1231,14 @@ onMounted(async () => {
                         <img src="/assets/images/bubble_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Bubble Chart" />
                     </div>
                 </div>
-                <div class="flex flex-row mb-2">
+                <!-- <div class="flex flex-row mb-2">
                     <div class="mr-2" @click="addChartToDashboard('stacked_area')" v-tippy="{ content: 'Add Stacked Area Chart To Dashboard', placement: 'top' }">
                         <img src="/assets/images/stacked_area_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Stacked Area Chart" />
                     </div>
                     <div class="mr-2" @click="addChartToDashboard('map')" v-tippy="{ content: 'Add Map To Dashboard', placement: 'top' }">
                         <img src="/assets/images/map_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Map Chart" />
                     </div>
-                </div>
+                </div> -->
             </div>
         </div>
         <img src="/assets/images/resize-corner.svg" id="corner-image" class="bottom-right-corner-resize w-[15px] select-none hidden" alt="Resize Visualization" />

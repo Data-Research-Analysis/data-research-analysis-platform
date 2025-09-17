@@ -1,5 +1,6 @@
 import type { IColumn } from "./IColumn";
 import type { IDashboardData } from "./IDashboardData";
+import type { IDashboardDataExportMetaData } from "./IDashboardDataExportMetaData";
 import type { IDimension } from "./IDimension";
 import type { ILocation } from "./ILocation";
 import type { IProject } from "./IProject";
@@ -12,6 +13,7 @@ export interface IDashboard {
     data: IDashboardData[];
     dimensions: IDimension;
     location: ILocation;
+    export_meta_data: IDashboardDataExportMetaData[];
     project: IProject;
     user_platform: IUsersPlatform;
 }

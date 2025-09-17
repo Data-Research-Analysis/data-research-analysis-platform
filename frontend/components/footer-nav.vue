@@ -13,6 +13,10 @@ watch(
 const isHomePage = computed(() => {
     return route.name === "index";
 })
+const isPublicDashboard = computed(() => {
+    return route.name === 'public-dashboard-dashboardkey';
+});
+const currentYear = computed(() => { return new Date().getFullYear()});
 function scrollToTop() {
     window.scrollTo({ top: 0, behavior: 'smooth'});   
 }
@@ -46,7 +50,7 @@ onMounted(() => {
                         <div class="hover:text-gray-300 cursor-pointer" @click="openGithub()">Data Research Analysis is an open source data analysis platform developed under the MIT Open Source License.</div>
                     </div>
                     <div class="w-1/2 flex flex-row justify-end mr-8">
-                        <div class="w-1/4 flex flex-col">
+                        <div v-if="!isPublicDashboard" class="w-1/4 flex flex-col">
                             <span>Important Links</span>
                             <span v-if="isPlatformEnabled() && !state.authenticated" class="text-base mt-2 mb-2">
                                 <NuxtLink to="/register" class="hover:text-gray-300">Register</NuxtLink>
@@ -65,7 +69,7 @@ onMounted(() => {
                     </div>
                 </div>                
                 <div class="">
-                    COPYRIGHT 2024 - 2025 Data Research Analysis (SMC-Private) Limited
+                    COPYRIGHT 2024 - {{ currentYear }} Data Research Analysis (SMC-Private) Limited
                 </div>
             </div>
         </div>

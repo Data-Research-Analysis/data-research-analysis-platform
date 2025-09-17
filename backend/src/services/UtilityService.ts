@@ -102,6 +102,9 @@ export class UtilityService {
             // Map to PostgreSQL equivalent
             return this.mapMySQLToPostgreSQL(parsedType);
         } else {
+            if (dataType === 'USER-DEFINED') {
+                return { type: 'TEXT' }; // Handle USER-DEFINED as TEXT
+            }
             return { type: dataType }; // Pass through unchanged
         }
     }
