@@ -59,5 +59,17 @@ async (req: Request, res: Response) => {
         res.status(400).send({message: 'The public export link could not be generated.'});
     }
 });
+router.get('/public-dashboard-link/:dashboard_key', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([param('dashboard_key').notEmpty()]),
+async (req: Request, res: Response) => {
+    const { dashboard_key } = matchedData(req);
+    const dashboard = await DashboardProcessor.getInstance().getPublicDashboard(encodeURIComponent(dashboard_key));
+    if (dashboard) {
+        res.status(200).send(dashboard);
+    } else {
+        res.status(400).send({message: 'The public dashboard link could not be retrieved.'});
+    }
+});
 
 export default router;

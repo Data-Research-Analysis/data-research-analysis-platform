@@ -101,7 +101,7 @@ onMounted(async () => {
                 </div>
                 <div class="w-1/2 flex flex-col justify-center items-center pb-10">
                     <div>
-                        <img src="/assets/images/data-cloud-analytics.png" class="h-80 border-5 border-white shadow-lg mt-10" />
+                        <img src="/assets/images/dashboard-edit.png" class="h-90 border-5 border-white shadow-lg mt-10" />
                     </div>                    
                 </div>
             </div>

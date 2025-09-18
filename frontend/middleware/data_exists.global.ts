@@ -4,10 +4,25 @@ import { useDataModelsStore } from '@/stores/data_models';
 import { useDashboardsStore } from '@/stores/dashboards';
 
 export default defineNuxtRouteMiddleware(async (to, from) => {
+  const token = getAuthToken();
   const projectsStore = useProjectsStore();
   const dataSourceStore = useDataSourceStore();
   const dataModelsStore = useDataModelsStore();
   const dashboardsStore = useDashboardsStore();
+  if (!token) {
+    if (to.name === 'public-dashboard-dashboardkey') {
+        const dashboardKey = to.params.dashboardkey as string;
+        console.log('dashboardKey', dashboardKey);
+        const dashboard = await dashboardsStore.retrievePublicDashboard(dashboardKey);
+        dashboardsStore.setSelectedDashboard(dashboard.dashboard);
+        console.log('dashboard', dashboard);
+        if (dashboard) {
+            return;
+        } else {
+          return navigateTo('/login');
+        }
+    }
+  }
 
   if (to.name === 'projects-projectid-dashboards-create') {
     if (!dataModelsStore.getDataModelTables()?.length) {

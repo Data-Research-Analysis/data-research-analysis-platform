@@ -179,4 +179,21 @@ export class DashboardProcessor {
             return resolve(key);
         });
     }
+    public async getPublicDashboard(dashboardKey: string): Promise<DRADashboardExportMetaData | null> {
+        return new Promise<DRADashboardExportMetaData | null>(async (resolve, reject) => {
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve(null);
+            }
+            const manager = (await driver.getConcreteDriver()).manager;
+            if (!manager) {
+                return resolve(null);
+            }
+            const exportMetaDataExisting = await manager.findOne(DRADashboardExportMetaData, {where: {key: dashboardKey}, relations: ['dashboard']});
+            if (exportMetaDataExisting && exportMetaDataExisting.expiry_at > new Date()) {
+                return resolve(exportMetaDataExisting);
+            }
+            return resolve(null);
+        });
+    }
 }
