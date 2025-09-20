@@ -768,6 +768,7 @@ function stopDrag() {
 }
 function onResize(event) {
     const draggableDiv = document.getElementById(`draggable-${state.selected_chart.chart_id}`);
+    const draggableInnerDiv = document.getElementById(`draggable-div-inner-container-${state.selected_chart.chart_id}`);
     const chartDiv = document.getElementById(`chart-${state.selected_chart.chart_id}`);
     if (state.is_mouse_down && state.is_resizing && state.selected_div && draggableDiv && chartDiv) {
         const deltaX = event.clientX - state.start_resize_x;
@@ -831,7 +832,8 @@ function onResize(event) {
         state.selected_div.style.height = `${newHeight}px`;
         draggableDiv.style.width = `${newWidthDraggable}px`;//set the width of the draggable
         draggableDiv.style.height = `${newHeightDraggable}px`;//set the height of the draggable
-        
+        draggableInnerDiv.style.width = `${newWidthDraggable}px`;
+
         state.selected_chart.dimensions = {
             width: `${newWidth}px`,
             height: `${newHeight}px`,
@@ -953,6 +955,7 @@ onMounted(async () => {
                             </div>
                             <div class="flex flex-col">
                                 <div
+                                    :id="`draggable-div-inner-container-${chart.chart_id}`"
                                     class="flex flex-row border border-3 border-gray-600 border-b-0 p-2"
                                     :class="{ 'bg-gray-300 cursor-move': chart.config.drag_enabled, 'bg-gray-200': !chart.config.drag_enabled }"
                                     @mousedown="draggableDivMouseDown($event, chart.chart_id)"
@@ -1010,7 +1013,7 @@ onMounted(async () => {
                                     group="data_model_columns"
                                     itemKey="column_name"
                                     class="flex flex-row w-full h-50 bg-gray-200 border border-3 border-gray-600 border-t-0 draggable-model-columns"
-                                    tag="tr"
+                                    tag="div"
                                     :disabled="!chart.config.add_columns_enabled"
                                     @change="changeDataModel($event, chart.chart_id)"
                                 >
