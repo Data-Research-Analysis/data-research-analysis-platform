@@ -283,7 +283,7 @@ export class UtilityService {
         } else if (normalizedType === 'BOOLEAN') {
             return { baseType: 'BOOLEAN' };
         } else if (normalizedType === 'NUMBER') {
-            return { baseType: 'FLOAT' };
+            return { baseType: 'NUMERIC' };
         } else if (normalizedType === 'DATE') {
             return { baseType: 'DATE' };
         }
