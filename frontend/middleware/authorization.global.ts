@@ -65,7 +65,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
         || to.path === "/" || to.path === "/privacy-policy"
         || to.path === "/terms-conditions" || to.name === "verify-email-code"
         || to.name === "unsubscribe-code" || to.name === "articles" || to.name === "articles-articleslug"
-        || to.name === "public-dashboard-dashboardkey") {
+        || to.name === "public-dashboard-dashboardkey" || to.name === "forgot-password" || to.name === "register" || to.name === "forgot-password-code") {
       return;
     }
     if (isPlatformEnabled()) {

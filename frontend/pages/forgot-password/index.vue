@@ -6,11 +6,9 @@ const recaptcha = useReCaptcha();
 const loggedInUserStore = useLoggedInUserStore();
 const state = reactive({
     email: "",
-    password: "",
     emailError: false,
-    passwordError: false,
     errorMessages: [],
-    loginSuccess: false,
+    passwordChangeRequestSuccess: false,
     showAlert: false,
     token: "",
     loading: false,
@@ -23,34 +21,28 @@ async function getToken() {
     state.loading = false;
 }
 
-async function loginUser() {
+async function changePasswordRequest() {
     state.loading = true;
     state.showAlert = false;
-    state.loginSuccess = false;
+    state.passwordChangeRequestSuccess = false;
     state.errorMessages = [];
   
     if (!validate(state.email, "", [validateEmail, validateRequired])) {
         state.emailError = true;
         state.errorMessages.push("Please enter a valid email address.");
+        state.loading = false;
     } else {
         state.emailError = false;
     }
 
-    if (!validate(state.password, "", [validateRequired])) {
-        state.passwordError = true;
-        state.errorMessages.push("Please enter a valid password.");
-    } else {
-        state.passwordError = false;
-    }
-
     if (state.emailError || state.passwordError) {
-        state.loginSuccess = false;
+        state.passwordChangeRequestSuccess = false;
         state.showAlert = true;
     } else {
-        const recaptchaToken = await getRecaptchaToken(recaptcha, 'loginForm');
+        const recaptchaToken = await getRecaptchaToken(recaptcha, 'passwordResetForm');
         if (recaptchaToken) {
             const recaptchaResponse = await verifyRecaptchaToken(state.token, recaptchaToken);
-            if (recaptchaResponse.success && recaptchaResponse.action === "loginForm" && recaptchaResponse.score > 0.8) {
+            if (recaptchaResponse.success && recaptchaResponse.action === "passwordResetForm" && recaptchaResponse.score > 0.8) {
                 const requestOptions = {
                 method: "POST",
                 headers: {
@@ -60,33 +52,31 @@ async function loginUser() {
                 },
                 body: JSON.stringify({
                   email: state.email,
-                  password: state.password,
                 }),
               };
-              const response = await fetch(`${baseUrl()}/auth/login`, requestOptions);
+              const response = await fetch(`${baseUrl()}/auth/password-change-request`, requestOptions);
+              // Always expect 200 status for security reasons (no email enumeration)
               if (response.status === 200) {
-                state.loginSuccess = true;
-                state.showAlert = true;
-                const data = await response.json();
-                loggedInUserStore.setLoggedInUser(data);
-                // state.errorMessages.push(data.message);
-                setAuthToken(data.token);
-                router.push('/projects');
-              } else {
-                state.loginSuccess = false;
+                state.passwordChangeRequestSuccess = true;
                 state.showAlert = true;
                 const data = await response.json();
                 state.errorMessages.push(data.message);
                 state.loading = false;
+              } else {
+                // This should rarely happen now, but handle gracefully
+                state.passwordChangeRequestSuccess = true; // Still show success for security
+                state.showAlert = true;
+                state.errorMessages.push("If this email address exists in our system, you will receive a password reset link shortly. Please check your email and spam folder.");
+                state.loading = false;
               }
             } else {
-                state.loginSuccess = false;
+                state.passwordChangeRequestSuccess = false;
                 state.showAlert = true;
                 state.errorMessages.push("Recaptcha verification failed. Please refresh the page and try again.");
                 state.loading = false;
             }         
         } else {
-            state.loginSuccess = false;
+            state.passwordChangeRequestSuccess = false;
             state.showAlert = true;
             state.errorMessages.push("Recaptcha verification failed. Please refresh the page and try again.");
             state.loading = false;
@@ -98,7 +88,7 @@ onMounted(async () => {
     await getToken();
     window.addEventListener("keydown", (event) => {
         if (event.key === "Enter") {
-            loginUser();
+            changePasswordRequest();
         }
     });
 
@@ -108,18 +98,18 @@ onMounted(async () => {
     <div class="mt-10 flex flex-row justify-center w-full">
         <div class="mt-10 flex flex-col justify-center w-1/2 border border-primary-blue-100 border-solid m-10 p-5 shadow-md">
             <div class="self-center font-bold text-2xl mb-5">
-                Data Research Analysis Login
+                Request Change Password
             </div>
             <div class="self-center text-md mb-5">
-               Please enter your details to login in your account. All of the fields are required to be filled.
+               Please enter your email address to request to change your password.
             </div>
             <div v-if="state.showAlert"
                 class="w-3/4 self-center text-lg p-5 mb-5 font-bold text-black"
-                :class="{ 'bg-green-400': state.loginSuccess, 'bg-red-400': !state.loginSuccess }">
-                <div v-if="state.loginSuccess" class="text-2xl">Success!</div>
-                <div v-else class="text-2xl">Error!</div>
+                :class="{ 'bg-green-400': state.passwordChangeRequestSuccess, 'bg-red-400': !state.passwordChangeRequestSuccess }">
+                <div v-if="state.passwordChangeRequestSuccess" class="text-lg">Password Reset Request Sent!</div>
+                <div v-else class="text-lg">Error!</div>
                 <template v-for="message in state.errorMessages">
-                    <div>{{ message }}</div>
+                    <div class="text-sm mt-2 font-normal">{{ message }}</div>
                 </template>
             </div>
             <input
@@ -129,28 +119,16 @@ onMounted(async () => {
                 :class="!state.emailError ? '' : 'bg-red-300 text-black'"
                 placeholder="Email"
                 :disabled="state.loading"
-                @keydown.enter="loginUser"
+                @keydown.enter="changePasswordRequest"
             />
-            <input
-                v-model="state.password"
-                type="password"
-                class="self-center w-3/4 p-5 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md"
-                :class="!state.passwordError ? '' : 'bg-red-300 text-black'"
-                placeholder="Password"
-                :disabled="state.loading"
-                @keydown.enter="loginUser"
-            />
-            <span class="self-center mb-3 text-blue-600 underline hover:text-gray-500">
-                <NuxtLink to="/forgot-password">Forgot Password?</NuxtLink>
-            </span>
             <spinner v-if="state.loading"/>
             <div
                 v-else
                 class="w-1/4 text-center self-center mb-5 p-2 m-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md"
-                @click="loginUser"
-                @keydown.enter="loginUser"
+                @click="changePasswordRequest"
+                @keydown.enter="changePasswordRequest"
             >
-                Login
+                Request Change Password
             </div>
         </div>
     </div>

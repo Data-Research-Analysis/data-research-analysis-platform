@@ -183,4 +183,163 @@ export class AuthProcessor {
             return resolve(false);
         });
     }
+
+    public async changePasswordRequest(email: string): Promise<boolean> {
+        return new Promise<boolean>(async (resolve, reject) => {
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            const concreteDriver = await driver.getConcreteDriver();
+            if (!concreteDriver) {
+                // Even on database connection failure, return true to prevent information leakage
+                // Add consistent delay to prevent timing attacks
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                return resolve(true);
+            }
+            const manager = concreteDriver.manager;
+            const user: DRAUsersPlatform|null = await manager.findOne(DRAUsersPlatform, {where: {email: email}});
+            
+            // Add consistent delay regardless of whether user exists to prevent timing attacks
+            const startTime = Date.now();
+            
+            if (user) {
+                // Check if there's already a recent password change request (within last 5 minutes)
+                const fiveMinutesAgo = new Date();
+                fiveMinutesAgo.setMinutes(fiveMinutesAgo.getMinutes() - 5);
+                
+                const existingRequest = await manager.findOne(DRAVerificationCode, {
+                    where: {
+                        users_platform: { id: user.id },
+                        expired_at: new Date() // Greater than current date (not expired)
+                    },
+                    relations: { users_platform: true }
+                });
+                
+                // If there's no recent request, proceed with sending email
+                if (!existingRequest || existingRequest.expired_at <= fiveMinutesAgo) {
+                    // Remove any existing password change tokens for this user
+                    const existingTokens = await manager.find(DRAVerificationCode, {
+                        where: { users_platform: { id: user.id } },
+                        relations: { users_platform: true }
+                    });
+                    
+                    for (const token of existingTokens) {
+                        await manager.remove(token);
+                    }
+
+                    const passwordChangeRequestCode = encodeURIComponent(await bcrypt.hash(`${user.email}${user.password}${Date.now()}`, 10));
+                    const unsubscribeCode = encodeURIComponent(await bcrypt.hash(`${user.email}${user.password}${Date.now()}`, 10));                    
+                    const expiredAt = new Date();
+                    expiredAt.setDate(expiredAt.getDate() + 3);//expires in 3 days from now
+                    //We need separate codes for email verification and unsubscription because we need to track the expiration of each code separately
+                    let verificationCode = new DRAVerificationCode();
+                    verificationCode.users_platform = user;
+                    verificationCode.code = passwordChangeRequestCode;
+                    verificationCode.expired_at = expiredAt;
+                    await manager.save(verificationCode);
+
+                    verificationCode = new DRAVerificationCode();
+                    verificationCode.users_platform = user;
+                    verificationCode.code = unsubscribeCode;
+                    verificationCode.expired_at = expiredAt;
+                    await manager.save(verificationCode);
+
+                    const options: Array<ITemplateRenderer> = [
+                        {key: 'name', value: `${user.first_name} ${user.last_name}`},
+                        {key: 'password_change_request_code', value: passwordChangeRequestCode},
+                        {key: 'unsubscribe_code', value: unsubscribeCode}
+                    ];
+                    const content = await TemplateEngineService.getInstance().render('password-change-request.html', options);
+                    const textContent = `Hi ${user.first_name} ${user.last_name}\n\nThank you for choosing Data Research Analysis for your data analysis needs. To change your password, please copy and paste this link into your browser: https://www.dataresearchanalysis.com/forgot-password/${passwordChangeRequestCode}\n\nIf you have any questions or need assistance, please don't hesitate to contact us at mustafa.neguib@dataresearchanalysis.com\n\nPlease note that the code will expire in 3 days from the receipt of this email if you do not verify your email address.\n\n`;
+                    await MailDriver.getInstance().getDriver().initialize();
+                    await MailDriver.getInstance().getDriver().sendEmail(user.email, `${user.first_name} ${user.last_name}`, 'Password Change Request @ Data Research Analysis', textContent, content);
+                }
+                // Note: Even if rate limited, we don't reveal this to the user
+            }
+            // If user doesn't exist, we don't send an email but still return success
+            
+            // Ensure consistent response time (minimum 2 seconds) to prevent timing attacks
+            const elapsedTime = Date.now() - startTime;
+            const minimumDelay = 2000; // 2 seconds
+            if (elapsedTime < minimumDelay) {
+                await new Promise(resolve => setTimeout(resolve, minimumDelay - elapsedTime));
+            }
+            
+            // Always return true to prevent email enumeration
+            return resolve(true);
+        });
+    }
+
+    public async verifyChangePasswordToken(code: string): Promise<boolean> {
+        return new Promise<boolean>(async (resolve, reject) => {
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            const manager = (await driver.getConcreteDriver()).manager;
+            
+            // Add a small delay to prevent rapid brute force attempts
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            console.log('verifying change password token', code);
+            const verificationCode = await manager.findOne(DRAVerificationCode, {
+                where: {code: encodeURIComponent(code)}, 
+                relations: {users_platform: true}
+            });
+            
+            if (verificationCode && verificationCode.expired_at > new Date()) {
+                const user: DRAUsersPlatform|null = await manager.findOne(DRAUsersPlatform, {
+                    where: {id: verificationCode.users_platform.id}
+                });
+                if (user) {
+                    // Token is valid and not expired
+                    return resolve(true);
+                }
+            }
+            return resolve(false);
+        });
+    }
+
+    public async updatePassword(code: string, newPassword: string): Promise<boolean> {
+        return new Promise<boolean>(async (resolve, reject) => {
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            const manager = (await driver.getConcreteDriver()).manager;
+            
+            // Add a small delay to prevent rapid brute force attempts
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            const verificationCode = await manager.findOne(DRAVerificationCode, {
+                where: {code: encodeURIComponent(code)}, 
+                relations: {users_platform: true}
+            });
+            
+            if (verificationCode && verificationCode.expired_at > new Date()) {
+                const user: DRAUsersPlatform|null = await manager.findOne(DRAUsersPlatform, {
+                    where: {id: verificationCode.users_platform.id}
+                });
+                
+                if (user) {
+                    // Check if new password is different from current password
+                    const isSamePassword = await bcrypt.compare(newPassword, user.password);
+                    if (isSamePassword) {
+                        return resolve(false); // Don't allow setting the same password
+                    }
+                    
+                    const salt = parseInt(UtilityService.getInstance().getConstants('PASSWORD_SALT'));
+                    const encryptedPassword = await bcrypt.hash(newPassword, salt);
+                    
+                    // Update user password
+                    user.password = encryptedPassword;
+                    await manager.save(user);
+                    
+                    // Remove ALL verification codes for this user for security
+                    const userTokens = await manager.find(DRAVerificationCode, {
+                        where: { users_platform: { id: user.id } },
+                        relations: { users_platform: true }
+                    });
+                    
+                    for (const token of userTokens) {
+                        await manager.remove(token);
+                    }
+                    
+                    return resolve(true);
+                }
+            }
+            return resolve(false);
+        });
+    }
 }
