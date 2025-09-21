@@ -458,18 +458,133 @@ async function executeQueryOnDataModels(chartId) {
         chart.stack_keys = _.uniq(chart.stack_keys);
     }
 }
+
+// Pre-export preparation function to handle overflow containers
+function prepareForExport() {
+    const dashboardContainer = document.querySelector('.flex.flex-col.min-h-200.max-h-200.h-200.bg-white.overflow-x-auto');
+    const rootContainer = document.querySelector('.data-research-analysis');
+    
+    if (!dashboardContainer || !rootContainer) return null;
+    
+    // Save original styles for dashboard container
+    const originalDashboardStyles = {
+        height: dashboardContainer.style.height || '',
+        maxHeight: dashboardContainer.style.maxHeight || '',
+        minHeight: dashboardContainer.style.minHeight || '',
+        overflow: dashboardContainer.style.overflow || '',
+        overflowX: dashboardContainer.style.overflowX || '',
+        overflowY: dashboardContainer.style.overflowY || ''
+    };
+    
+    // Save original styles for root container
+    const originalRootStyles = {
+        width: rootContainer.style.width || '',
+        minWidth: rootContainer.style.minWidth || '',
+        maxWidth: rootContainer.style.maxWidth || ''
+    };
+    
+    // Calculate full content dimensions
+    const scrollWidth = dashboardContainer.scrollWidth;
+    const scrollHeight = dashboardContainer.scrollHeight;
+    const padding = 80; // Account for margins and padding
+    const requiredWidth = Math.max(scrollWidth + padding, 1200); // Minimum width
+    
+    // Expand dashboard container to show all content
+    dashboardContainer.style.height = 'auto';
+    dashboardContainer.style.maxHeight = 'none';
+    dashboardContainer.style.minHeight = `${Math.max(scrollHeight, 400)}px`;
+    dashboardContainer.style.overflow = 'visible';
+    dashboardContainer.style.overflowX = 'visible';
+    dashboardContainer.style.overflowY = 'visible';
+    
+    // Expand root container to accommodate dashboard content
+    // This will automatically expand header and footer via their responsive classes
+    rootContainer.style.width = `${requiredWidth}px`;
+    rootContainer.style.minWidth = `${requiredWidth}px`;
+    rootContainer.style.maxWidth = 'none';
+    
+    return { 
+        dashboardContainer, 
+        originalDashboardStyles,
+        rootContainer,
+        originalRootStyles,
+        expandedWidth: requiredWidth
+    };
+}
+
+// Post-export restoration function
+function restoreOriginalStyles(preparation) {
+    if (!preparation) return;
+    
+    // Restore dashboard container styles
+    if (preparation.dashboardContainer && preparation.originalDashboardStyles) {
+        const { dashboardContainer, originalDashboardStyles } = preparation;
+        dashboardContainer.style.height = originalDashboardStyles.height;
+        dashboardContainer.style.maxHeight = originalDashboardStyles.maxHeight;
+        dashboardContainer.style.minHeight = originalDashboardStyles.minHeight;
+        dashboardContainer.style.overflow = originalDashboardStyles.overflow;
+        dashboardContainer.style.overflowX = originalDashboardStyles.overflowX;
+        dashboardContainer.style.overflowY = originalDashboardStyles.overflowY;
+    }
+    
+    // Restore root container styles (this will restore header/footer widths automatically)
+    if (preparation.rootContainer && preparation.originalRootStyles) {
+        const { rootContainer, originalRootStyles } = preparation;
+        rootContainer.style.width = originalRootStyles.width;
+        rootContainer.style.minWidth = originalRootStyles.minWidth;
+        rootContainer.style.maxWidth = originalRootStyles.maxWidth;
+    }
+}
+
 function exportDashboardAsImage() {
     const dashboardElement = document.querySelector('.data-research-analysis');
     if (dashboardElement) {
-
-        $htmlToImageToPng(dashboardElement).then((dataUrl) => {
-            // const img = new Image();
-            // img.src = dataUrl;
-            const link = document.createElement('a');
-            link.download = `${dashboard.value.name || 'dashboard'}.png`;
-            link.href = dataUrl;
-            link.click();
-        });
+        // Prepare containers for export
+        const preparation = prepareForExport();
+        
+        if (!preparation) {
+            console.error('Failed to prepare containers for export');
+            return;
+        }
+        
+        // Wait for layout to settle after style changes
+        setTimeout(() => {
+            // Use the calculated expanded width for consistent capture
+            const captureWidth = preparation.expandedWidth;
+            const captureHeight = dashboardElement.scrollHeight;
+            
+            $htmlToImageToPng(dashboardElement, {
+                width: captureWidth,
+                height: captureHeight,
+                backgroundColor: '#ffffff',
+                useCORS: true,
+                allowTaint: true,
+                scrollX: 0,
+                scrollY: 0
+            }).then((dataUrl) => {
+                // Restore original styles
+                restoreOriginalStyles(preparation);
+                
+                // Download the image
+                const link = document.createElement('a');
+                link.download = `${dashboard.value.name || 'dashboard'}.png`;
+                link.href = dataUrl;
+                link.click();
+            }).catch((error) => {
+                // Restore styles even on error
+                restoreOriginalStyles(preparation);
+                console.error('Export failed:', error);
+                
+                // Show error message to user
+                if (typeof $swal !== 'undefined') {
+                    $swal.fire({
+                        icon: 'error',
+                        title: 'Export Failed',
+                        text: 'Failed to export dashboard as image. Please try again.',
+                    });
+                }
+            });
+        }, 200); // Increased timeout to allow for width changes to settle
     }
 }
 
