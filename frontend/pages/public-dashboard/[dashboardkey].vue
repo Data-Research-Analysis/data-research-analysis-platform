@@ -509,7 +509,7 @@ onMounted(async () => {
                 />
             </div>
             <div class="flex flex-col w-full p-10">
-                <div class="flex flex-col min-h-200 max-h-200 h-200 bg-white overflow-hidden ml-10 mr-2 mb-10">
+                <div class="flex flex-col min-h-200 max-h-200 h-200 bg-white overflow-x-auto ml-10 mr-2 mb-10">
                     <div class="w-full h-full draggable-div-container relative">
                         <div v-for="(chart, index) in charts"
                             class="w-50 flex flex-col justify-between cursor-pointer draggable-div absolute top-0 left-0"
