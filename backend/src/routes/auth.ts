@@ -32,7 +32,6 @@ router.post('/login', async (req: Request, res: Response, next: any) => {
     next();
 }, validateJWT, validate([body('email').notEmpty(), body('password').notEmpty()]), async (req: Request, res: Response) => {
     const { email, password } = matchedData(req);
-    const response: any = await AuthProcessor.getInstance().login(email, password);
     try {
         const response: any = await AuthProcessor.getInstance().login(email, password);
         console.log('login response', response);
@@ -94,6 +93,72 @@ router.get('/validate-token', async (req: Request, res: Response, next: any) => 
     next();
 },validateJWT, async (req: Request, res: Response) => {
     res.status(200).send({message: 'validated token'});
+});
+
+/**
+ * This route is used to request a password change
+ */
+router.post('/password-change-request', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([body('email').notEmpty()]), async (req: Request, res: Response) => {
+    const { email } = matchedData(req);
+    try {
+        // Always call the method, which handles security internally
+        await AuthProcessor.getInstance().changePasswordRequest(email);
+        
+        // Always return success to prevent email enumeration attacks
+        res.status(200).send({
+            message: 'If this email address exists in our system, you will receive a password reset link shortly. Please check your email and spam folder.'
+        });
+    } catch (error) {
+        // Even on error, return success message to prevent information leakage
+        res.status(200).send({
+            message: 'If this email address exists in our system, you will receive a password reset link shortly. Please check your email and spam folder.'
+        });
+    }
+});
+
+/**
+ * This route is used to verify a password change token
+ */
+router.get('/verify-change-password-token/:code', async (req: Request, res: Response, next: any) => {
+    next();
+}, validate([param('code').notEmpty()]), async (req: Request, res: Response) => {
+    const { code } = matchedData(req);
+    try {
+        const response: boolean = await AuthProcessor.getInstance().verifyChangePasswordToken(code);
+        if (response) {
+            res.status(200).send({message: 'Password change token is valid.'});
+        } else {
+            res.status(400).send({message: 'Password change token verification failed. The token has expired or is invalid.'});
+        }
+    } catch (error) {
+        res.status(400).send({message: 'Password change token verification failed. The token has expired or is invalid.'});
+    }
+});
+
+/**
+ * This route is used to update a user's password with a valid token
+ */
+router.post('/update-password', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([
+    body('code').notEmpty().withMessage('Password change token is required'),
+    body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters long')
+        .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[#?!@$%^&*-])/)
+        .withMessage('Password must contain at least one lowercase letter, one uppercase letter, one number, and one special character (#?!@$%^&*-)')
+]), async (req: Request, res: Response) => {
+    const { code, password } = matchedData(req);
+    try {
+        const response: boolean = await AuthProcessor.getInstance().updatePassword(code, password);
+        if (response) {
+            res.status(200).send({message: 'Password updated successfully. You can now login with your new password.'});
+        } else {
+            res.status(400).send({message: 'Password update failed. The token has expired, is invalid, or the new password is the same as your current password.'});
+        }
+    } catch (error) {
+        res.status(400).send({message: 'Password update failed. The token has expired, is invalid, or the new password is the same as your current password.'});
+    }
 });
 
 export default router;

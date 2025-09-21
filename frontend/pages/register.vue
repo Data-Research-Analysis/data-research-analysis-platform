@@ -195,6 +195,7 @@ onMounted(async () => {
                 :disabled="state.loading"
                 @keydown.enter="createAccount"
             />
+            <span class="self-center mb-3 text-blue-600 underline hover:text-gray-500"><NuxtLink to="/forgot-password">Forgot Password?</NuxtLink></span>
             <spinner v-if="state.loading"/>
             <div
                 v-else
