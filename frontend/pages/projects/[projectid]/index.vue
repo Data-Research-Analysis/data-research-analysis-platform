@@ -11,6 +11,10 @@ const state = reactive({
     data_sources: [],
     available_data_sources: [
         {
+            name: 'PDF',
+            url: `${route.fullPath}/data-sources/connect/pdf`,
+        },
+        {
             name: 'Excel File',
             url: `${route.fullPath}/data-sources/connect/excel`,
         },
