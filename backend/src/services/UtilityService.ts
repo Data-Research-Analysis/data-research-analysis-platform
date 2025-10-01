@@ -4,6 +4,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { DBDriver } from '../drivers/DBDriver.js';
 import { PostgresDataSource } from '../datasources/PostgresDataSource.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
+import { QueueService } from './QueueService.js';
+import { SocketIODriver } from '../drivers/SocketIODriver.js';
 
 export class UtilityService {
     private static instance: UtilityService;
@@ -28,6 +30,9 @@ export class UtilityService {
         const password = process?.env?.POSTGRESQL_PASSWORD || 'dra_password';
         const postgresDataSource = PostgresDataSource.getInstance().getDataSource(host, port, database, username, password);
         await driver.initialize(postgresDataSource);
+        await QueueService.getInstance().run();
+        await SocketIODriver.getInstance().initialize();
+        console.log('Utilities initialized');
     }
 
     public getDataSourceType(dataSourceType: string): EDataSourceType {
@@ -87,6 +92,13 @@ export class UtilityService {
             MAIL_PASS: process.env.MAIL_PASS || '',
             MAIL_FROM: process.env.MAIL_FROM || '',
             MAIL_REPLY_TO: process.env.MAIL_REPLY_TO || '',
+            REDIS_HOST: process.env.REDIS_HOST || 'localhost',
+            REDIS_PORT: process.env.REDIS_PORT || '6379',
+            DATA_DRIVER: process.env.DATA_DRIVER || 'redis',
+            SOCKETIO_SERVER_URL: process.env.SOCKETIO_SERVER_URL || 'http://localhost',
+            SOCKETIO_SERVER_PORT: process.env.SOCKETIO_SERVER_PORT || 3002,
+            SOCKETIO_CLIENT_URL: process.env.SOCKETIO_CLIENT_URL || 'http://localhost',
+            SOCKETIO_CLIENT_PORT: process.env.SOCKETIO_CLIENT_PORT || 3000,
         }[key];
     }
 

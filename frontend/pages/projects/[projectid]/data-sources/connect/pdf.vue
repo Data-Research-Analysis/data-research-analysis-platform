@@ -1,5 +1,4 @@
 <script setup>
-import * as XLSX from 'xlsx';
 const { $swal } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
@@ -242,93 +241,147 @@ function analyzeColumns(rows) {
     }
   })
 }
-async function parseFile(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      try {
-        let rows = []
-        let workbook = null
-        
-        if (file.name.toLowerCase().endsWith('.csv')) {
-          // Parse CSV
-          const text = e.target.result
-          const lines = text.split('\n').filter(line => line.trim())
-          const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''))
-          
-          rows = lines.slice(1).map(line => {
-            const values = line.split(',').map(v => v.trim().replace(/"/g, ''))
-            const obj = {}
-            headers.forEach((header, index) => {
-                obj[header] = values[index] || ''
-            })
-            return obj
-          })
-        } else {
-            // Parse Excel
-            const data = new Uint8Array(e.target.result)
-            workbook = XLSX.read(data, { type: 'array', cellDates: true })
-            const firstSheetName = workbook.SheetNames[0]
-            const worksheet = workbook.Sheets[firstSheetName]
-            rows = XLSX.utils.sheet_to_json(worksheet)
-        }
-        
-        // Analyze columns for type and width after parsing data
-        const analyzedColumns = analyzeColumns(rows)
-        const fileData = {
-          id: `file_${Date.now()}_${Math.random()}`,
-          name: file.name,
-          size: file.size,
-          type: file.type || 'application/pdf',
-          num_rows: rows.length,
-          num_columns: rows.length > 0 ? Object.keys(rows[0]).length : 0,
-          columns: analyzedColumns,
-          rows: rows.map((row) => {
-              return {
-                id: `row_${Date.now()}_${Math.random()}`,
-                ...row,
-              };
-          }),
-          status: 'pending',//uploaded, processing, failed
-          workbook,
-          uploadedAt: new Date()
-        }        
-        resolve(fileData)
-      } catch (error) {
-        reject(error)
+async function uploadPDFToServer(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  const token = getAuthToken();
+  
+  // Update file status to uploading and simulate progress
+  const fileIndex = state.files.findIndex(f => f.originalFile === file);
+  if (fileIndex !== -1) {
+    state.files[fileIndex].status = 'uploading';
+    state.files[fileIndex].uploadProgress = 0;
+  }
+  
+  // Simulate upload progress since fetch doesn't support upload progress natively
+  const progressInterval = setInterval(() => {
+    if (fileIndex !== -1 && state.files[fileIndex].status === 'uploading') {
+      const currentProgress = state.files[fileIndex].uploadProgress || 0;
+      if (currentProgress < 90) {
+        state.files[fileIndex].uploadProgress = Math.min(currentProgress + Math.random() * 20, 90);
       }
     }
+  }, 200);
+  
+  try {
+    const response = await fetch(`${baseUrl()}/data-source/upload/pdf`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Authorization-Type': 'auth'
+      },
+      body: formData
+    });
     
-    reader.onerror = () => reject(new Error('Failed to read file'))
+    // Clear progress interval
+    clearInterval(progressInterval);
     
-    if (file.name.toLowerCase().endsWith('.csv')) {
-      reader.readAsText(file)
-    } else {
-      reader.readAsArrayBuffer(file)
+    if (fileIndex !== -1) {
+      state.files[fileIndex].uploadProgress = 100;
     }
-  })
+    
+    if (!response.ok) {
+      throw new Error(`Upload failed with status ${response.status}`);
+    }
+    
+    const responseData = await response.json();
+    return responseData;
+    
+  } catch (error) {
+    // Clear progress interval on error
+    clearInterval(progressInterval);
+    
+    if (fileIndex !== -1) {
+      state.files[fileIndex].uploadProgress = 0;
+    }
+    
+    throw new Error(error.message || 'Network error during upload');
+  }
+}
+
+async function parseFile(file) {
+  return new Promise(async (resolve, reject) => {
+    try {
+      // For PDF files, upload to server and get processed data
+      if (file.name.toLowerCase().endsWith('.pdf')) {
+        const uploadResponse = await uploadPDFToServer(file);
+        
+        if (uploadResponse.success && uploadResponse.data) {
+          const fileData = {
+            id: `file_${Date.now()}_${Math.random()}`,
+            name: file.name,
+            size: file.size,
+            type: file.type || 'application/pdf',
+            serverFileName: uploadResponse.file_name,
+            fileUrl: uploadResponse.url,
+            num_rows: uploadResponse.data.rows ? uploadResponse.data.rows.length : 0,
+            num_columns: uploadResponse.data.columns ? uploadResponse.data.columns.length : 0,
+            columns: uploadResponse.data.columns || [],
+            rows: uploadResponse.data.rows || [],
+            status: 'uploaded',
+            uploadedAt: new Date(),
+            originalFile: file,
+            uploadProgress: 100
+          };
+          resolve(fileData);
+        } else {
+          reject(new Error('PDF processing failed on server'));
+        }
+      } else {
+        // Fallback for other file types (though we should only accept PDFs)
+        reject(new Error('Only PDF files are supported'));
+      }
+    } catch (error) {
+      reject(error);
+    }
+  });
 }
 async function handleFiles(files) {
-    const rejectedFiles = [];
-    for (const file of files) {
-        if (isValidFile(file)) {
-            try {
-                const parsedFile = await parseFile(file);
-                state.files.push(parsedFile);
-            } catch (error) {
-                rejectedFiles.push(`${file.name}`)
-            }
-        } else {
-            rejectedFiles.push(`${file.name}`)
-        }
+  for (const file of files) {
+    // Check if file already exists
+    if (state.files.some(f => f.name === file.name && f.size === file.size)) {
+      continue;
     }
-    if (rejectedFiles.length > 0) {
-        $swal.fire({
-            icon: 'error',
-            title: `Error!`,
-            text: `The following files could not be processed: ${rejectedFiles.join(', ')} as either there is an error in them or are not a valid excel file.`,
-        });
+    
+    // Validate PDF file type
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      console.error('Only PDF files are supported');
+      continue;
     }
+    
+    // Add file to state with initial status
+    const tempFile = {
+      id: `temp_${Date.now()}_${Math.random()}`,
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      status: 'processing',
+      uploadProgress: 0,
+      originalFile: file
+    };
+    state.files.push(tempFile);
+    
+    try {
+      const fileData = await parseFile(file);
+      
+      // Replace temp file with parsed data
+      const tempIndex = state.files.findIndex(f => f.id === tempFile.id);
+      if (tempIndex !== -1) {
+        state.files.splice(tempIndex, 1, fileData);
+      }
+    } catch (error) {
+      console.error('Error processing PDF file:', error);
+      
+      // Update temp file with error status
+      const tempIndex = state.files.findIndex(f => f.id === tempFile.id);
+      if (tempIndex !== -1) {
+        state.files[tempIndex].status = 'error';
+        state.files[tempIndex].error = error.message;
+        state.files[tempIndex].uploadProgress = 0;
+      }
+    }
+  }
 }
 function handleCellUpdate(event) {
     const row = state.selected_file.rows.find((row) => {
@@ -401,12 +454,17 @@ onMounted(async () => {
                                       class="text-xl ml-2 text-green-300"
                                     />
                                     <font-awesome
+                                      v-else-if="file.status === 'uploading'"
+                                      icon="fas fa-upload"
+                                      class="text-xl ml-2 text-blue-500 animate-pulse"
+                                    />
+                                    <font-awesome
                                       v-else-if="file.status === 'processing'"
                                       icon="fas fa-hourglass-half"
                                       class="text-xl ml-2 text-gray-500"
                                     />
                                     <font-awesome
-                                      v-else-if="file.status === 'failed'"
+                                      v-else-if="file.status === 'error'"
                                       icon="fas fa-exclamation"
                                       class="text-xl ml-2 text-red-500"
                                     />
@@ -415,24 +473,38 @@ onMounted(async () => {
                                     <div class="text-md">
                                       {{ file.name }}
                                     </div>
+                                    <!-- Upload progress -->
+                                    <div v-if="file.status === 'uploading' && file.uploadProgress !== undefined" class="mt-2">
+                                      <div class="flex justify-between text-xs text-gray-600 mb-1">
+                                        <span>Uploading...</span>
+                                        <span>{{ file.uploadProgress }}%</span>
+                                      </div>
+                                      <div class="w-full bg-gray-200 rounded-full h-2">
+                                        <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" :style="`width: ${file.uploadProgress}%`"></div>
+                                      </div>
+                                    </div>
+                                    <!-- Error message -->
+                                    <div v-if="file.status === 'error' && file.error" class="mt-2 text-xs text-red-600">
+                                      {{ file.error }}
+                                    </div>
                                 </div>
                                 <div class="flex flex-row justify-center items-center mt-5 mr-10">
                                     <font-awesome
-                                        icon="fas fa-file-excel"
-                                        class="text-5xl ml-2 text-green-300"
+                                        icon="fas fa-file-pdf"
+                                        class="text-5xl ml-2 text-red-500"
                                     />
                                 </div>
                             </NuxtLink>
                         </template>
                     </notched-card>
-                    <div v-if="file.status === 'pending'" class="absolute top-px -right-2 z-10 bg-gray-200 hover:bg-gray-300 border border-gray-200 border-solid rounded-full w-10 h-10 flex items-center justify-center cursor-pointer" @click="removeFile(file.id)" v-tippy="{ content: 'Remove File', placement: 'top' }">
+                    <div v-if="file.status !== 'uploading'" class="absolute top-px -right-2 z-10 bg-gray-200 hover:bg-gray-300 border border-gray-200 border-solid rounded-full w-10 h-10 flex items-center justify-center cursor-pointer" @click="removeFile(file.id)" v-tippy="{ content: 'Remove File', placement: 'top' }">
                         <font-awesome icon="fas fa-xmark" class="text-xl text-red-500 hover:text-red-400" />
                     </div>
                 </div>
             </div>            
             <div v-if="state.files && state.files.length" class="flex flex-row w-full justify-center mt-10">
                 <div v-if="state.columns && state.columns.length && state.show_table_dialog" class="flex flex-col w-3/4 justify-center overflow-hidden mb-10">
-                    <h2 class="mb-4 text-xl font-bold text-gray-800">Data From The Selected Excel File</h2>
+                    <h2 class="mb-4 text-xl font-bold text-gray-800">Data From The Selected PDF File</h2>
                     <custom-data-table
                         :initial-data="state.rows"
                         :columns="state.columns"
@@ -446,7 +518,7 @@ onMounted(async () => {
             </div>
             <spinner v-if="state.loading"/>
             <div v-else-if="!state.loading && state.files && state.files.length" class="h-10 text-center items-center self-center mt-5 mb-5 p-2 font-bold shadow-md select-none bg-primary-blue-100 hover:bg-primary-blue-200 cursor-pointer text-white" @click="createDataSource">
-                Create Excel Data Source &amp; Upload Excel Files
+                Create PDF Data Source &amp; Upload PDF Files
             </div>
 
         </div>

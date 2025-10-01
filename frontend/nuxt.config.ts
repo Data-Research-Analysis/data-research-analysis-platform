@@ -51,6 +51,10 @@ export default defineNuxtConfig({
       NUXT_RECAPTCHA_SITE_KEY: process.env.NUXT_RECAPTCHA_SITE_KEY,
       NUXT_PORT: process.env.NUXT_PORT,
       PLATFORM_ENABLED: process.env.NUXT_PLATFORM_ENABLED,
+      NUXT_GA_ID: process.env.NUXT_GA_ID,
+      NUXT_PLATFORM_ENABLED: process.env.NUXT_PLATFORM_ENABLED,
+      SOCKETIO_SERVER_URL: process.env.SOCKETIO_SERVER_URL,
+      SOCKETIO_SERVER_PORT: process.env.SOCKETIO_SERVER_PORT,
     }
   },
   gtag: {

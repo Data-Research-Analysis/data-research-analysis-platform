@@ -11,6 +11,7 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { UtilityService } from '../services/UtilityService.js';
 import { ExcelFileService } from '../services/ExcelFileService.js';
+import { PDFService } from '../services/PDFService.js';
 
 const router = express.Router();
 
@@ -165,13 +166,30 @@ router.post('/upload/pdf', async (req: Request, res: Response, next: any) => {
     if (!file) {
         return res.status(400).json({ message: 'No file uploaded.' });
     }
-    const publicUrl = UtilityService.getInstance().getConstants('PUBLIC_BACKEND_URL');
-    if (req?.file?.filename) {
-      const fileUrl = `${publicUrl}/uploads/pdf/${req.file.filename}`;
-    //   const data = await ExcelFileService.getInstance().readExcelFile(req.file.filename);
-      res.status(200).json({ url: fileUrl, file_name: req.file.filename });
-    } else {
-      res.status(400).json({ message: 'File upload failed.' });
+    
+    try {
+        const publicUrl = UtilityService.getInstance().getConstants('PUBLIC_BACKEND_URL');
+        if (req?.file?.filename) {
+            const fileUrl = `${publicUrl}/uploads/pdf/${req.file.filename}`;
+            await PDFService.getInstance().preparePDFForDataExtraction(req.file.filename);
+            
+            res.status(200).json({
+                url: fileUrl, 
+                file_name: req.file.filename,
+                file_size: req.file.size,
+                original_name: req.file.originalname,
+                // data: pdfData,
+                success: true
+            });
+        } else {
+            res.status(400).json({ message: 'File upload failed.' });
+        }
+    } catch (error) {
+        console.error('PDF processing error:', error);
+        res.status(500).json({ 
+            message: 'PDF processing failed.', 
+            error: error.message 
+        });
     }
 });
 export default router;

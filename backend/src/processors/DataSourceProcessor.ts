@@ -9,7 +9,7 @@ import { DataSource } from "typeorm";
 import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
 import { EDataSourceType } from "../types/EDataSourceType.js";
 import { UtilityService } from "../services/UtilityService.js";
-import { IExcelDataSourceReturn } from "../types/IExcelDataSourceReturn.js";
+import { IDataSourceReturn } from "../types/IDataSourceReturn.js";
 export class DataSourceProcessor {
     private static instance: DataSourceProcessor;
     private constructor() {}
@@ -444,8 +444,8 @@ export class DataSourceProcessor {
         });
     }
 
-    public async addExcelDataSource(fileName: string, dataSourceName: string, fileId: string, data: string, tokenDetails: ITokenDetails, projectId: number, dataSourceId: number = null): Promise<IExcelDataSourceReturn> {
-        return new Promise<IExcelDataSourceReturn>(async (resolve, reject) => {
+    public async addExcelDataSource(fileName: string, dataSourceName: string, fileId: string, data: string, tokenDetails: ITokenDetails, projectId: number, dataSourceId: number = null): Promise<IDataSourceReturn> {
+        return new Promise<IDataSourceReturn>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             if (!driver) {
@@ -543,6 +543,13 @@ export class DataSourceProcessor {
                 return resolve({ status: 'success', file_id: fileId, data_source_id: dataSource.id });
             }
             return resolve({ status: 'error', file_id: fileId });
+        });
+    }
+
+    public async addPDFDataSource(fileName: string, dataSourceName: string, fileId: string, tokenDetails: ITokenDetails, projectId: number): Promise<IDataSourceReturn> {
+        return new Promise<IDataSourceReturn>(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+
         });
     }
 }
