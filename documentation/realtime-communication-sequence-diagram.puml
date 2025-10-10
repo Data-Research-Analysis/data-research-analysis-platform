@@ -1,0 +1,175 @@
+@startuml Real_Time_Communication_Sequence_Diagram
+!theme aws-orange
+title Data Research Analysis Platform - Socket.IO Real-time Communication
+
+participant "Frontend\n(Vue/Nuxt)" as Frontend
+participant "Socket.IO Client" as SocketClient
+participant "Express Server" as Express
+participant "Socket.IO Server" as SocketServer
+participant "Worker Thread" as Worker
+participant "Queue Service" as Queue
+participant "File System" as FileSystem
+
+== Connection Establishment ==
+
+Frontend -> SocketClient: Initialize Socket.IO connection
+activate SocketClient
+
+SocketClient -> SocketServer: Connect to ws://backend:3002
+activate SocketServer
+
+SocketServer -> Express: Share HTTP server instance
+SocketServer -> Frontend: Connection established event
+note right: Client receives 'connect' event
+
+== PDF Upload Initiation ==
+
+Frontend -> Express: POST /api/data-sources/pdf (multipart/form-data)
+activate Express
+
+Express -> FileSystem: Save uploaded PDF file
+activate FileSystem
+FileSystem --> Express: File saved successfully
+deactivate FileSystem
+
+Express -> Queue: Add PDF processing job
+activate Queue
+Queue --> Express: Job queued successfully
+deactivate Queue
+
+Express --> Frontend: HTTP 200 OK (upload complete)
+deactivate Express
+
+== Background Processing ==
+
+Queue -> Worker: Start PDF processing job
+activate Worker
+
+Worker -> FileSystem: Read PDF file
+activate FileSystem
+FileSystem --> Worker: PDF file data
+deactivate FileSystem
+
+Worker -> Worker: Convert PDF to images using ghostscript
+note right: Heavy processing in background thread
+
+alt Processing Successful
+    Worker -> FileSystem: Save converted images
+    activate FileSystem
+    FileSystem --> Worker: Images saved
+    deactivate FileSystem
+    
+    Worker -> SocketServer: Emit 'PDF_TO_IMAGES_COMPLETE' event
+    SocketServer -> SocketClient: Forward completion event
+    SocketClient -> Frontend: Process completion event
+    
+    Frontend -> Frontend: Update UI with success message
+    Frontend -> Frontend: Display converted image files
+    Frontend -> Frontend: Hide progress indicators
+    
+else Processing Failed
+    Worker -> SocketServer: Emit 'PDF_PROCESSING_ERROR' event
+    SocketServer -> SocketClient: Forward error event
+    SocketClient -> Frontend: Process error event
+    
+    Frontend -> Frontend: Display error message
+    Frontend -> Frontend: Reset form state
+    Frontend -> Frontend: Allow user to retry
+end
+
+deactivate Worker
+
+== Data Model Processing ==
+
+Frontend -> Express: POST /api/data-models/build
+activate Express
+
+Express -> Queue: Add data model building job
+activate Queue
+Queue --> Express: Job queued
+deactivate Queue
+
+Express --> Frontend: HTTP 200 OK
+deactivate Express
+
+Queue -> Worker: Start data model job
+activate Worker
+
+Worker -> Worker: Process data model configuration
+Worker -> FileSystem: Generate SQL queries
+activate FileSystem
+FileSystem --> Worker: Queries saved
+deactivate FileSystem
+
+Worker -> SocketServer: Emit 'DATA_MODEL_BUILD_COMPLETE'
+SocketServer -> SocketClient: Forward event with model data
+SocketClient -> Frontend: Update data model state
+
+Frontend -> Frontend: Refresh data model list
+Frontend -> Frontend: Show success notification
+
+deactivate Worker
+
+== Dashboard Export ==
+
+Frontend -> Express: POST /api/dashboards/export
+activate Express
+
+Express -> Queue: Add export job
+activate Queue
+Queue --> Express: Job queued
+deactivate Queue
+
+Express --> Frontend: HTTP 200 OK
+deactivate Express
+
+Queue -> Worker: Start export job
+activate Worker
+
+Worker -> Worker: Generate dashboard export
+Worker -> FileSystem: Save export file
+activate FileSystem
+FileSystem --> Worker: Export file saved
+deactivate FileSystem
+
+Worker -> SocketServer: Emit 'DASHBOARD_EXPORT_COMPLETE'
+SocketServer -> SocketClient: Forward event with download link
+SocketClient -> Frontend: Show download ready notification
+
+Frontend -> Frontend: Display download button
+Frontend -> Frontend: Trigger file download
+
+deactivate Worker
+
+== Error Handling ==
+
+alt Network Connection Lost
+    SocketClient -> SocketClient: Detect disconnection
+    SocketClient -> Frontend: Emit 'disconnect' event
+    Frontend -> Frontend: Show "Connection lost" message
+    
+    SocketClient -> SocketServer: Attempt reconnection
+    SocketServer -> SocketClient: Reconnection successful
+    SocketClient -> Frontend: Emit 'reconnect' event
+    Frontend -> Frontend: Hide connection error
+    Frontend -> Frontend: Refresh current data
+end
+
+== Connection Cleanup ==
+
+Frontend -> SocketClient: User navigates away / closes tab
+SocketClient -> SocketServer: Disconnect
+SocketServer -> SocketServer: Clean up client resources
+deactivate SocketServer
+deactivate SocketClient
+
+note across
+  Socket.IO provides:
+  - Automatic reconnection
+  - Event acknowledgments  
+  - Room-based broadcasting
+  - Fallback to long-polling
+  - Real-time progress updates
+end note
+
+@enduml

@@ -1,0 +1,102 @@
+@startuml PDF_Processing_Activity_Diagram
+!theme aws-orange
+title Data Research Analysis Platform - PDF Processing Workflow
+
+start
+
+:User navigates to PDF Data Source page;
+
+:User selects PDF file(s) from file input;
+
+if (File validation passes?) then (yes)
+    :Generate unique filename with timestamp and user ID;
+    :Create File object with renamed file;
+    :Initialize progress tracking;
+    :Start Socket.IO connection;
+    
+    fork
+        :Display upload progress bar;
+        :Show processing status messages;
+    fork again
+        :Create FormData with renamed file;
+        :Send POST request to /api/data-sources/pdf;
+        
+        :Backend receives multipart form data;
+        :Multer middleware saves file to uploads/pdf directory;
+        :Extract file metadata (size, name, path);
+        :Create database record for data source;
+        
+        if (Save to database successful?) then (yes)
+            :Queue PDF processing job in QueueService;
+            :Return 200 OK with job details;
+            
+            :QueueService picks up job;
+            :WorkerService spawns worker thread;
+            
+            partition "Worker Thread Processing" {
+                :Load PDF file from disk;
+                :Convert PDF to individual image files;
+                :Save images to uploads/pdfs/images directory;
+                :Generate image file paths;
+                
+                if (Images generated successfully?) then (yes)
+                    :Emit Socket.IO event: PDF_TO_IMAGES_COMPLETE;
+                    :Include array of image file paths;
+                else (no)
+                    :Emit Socket.IO event: PDF_PROCESSING_ERROR;
+                    :Include error details;
+                endif
+            }
+            
+            :Frontend receives Socket.IO event;
+            
+            if (Event is success?) then (yes)
+                :Update UI with success message;
+                :Display generated image files;
+                :Hide progress indicators;
+                :Enable next steps (data modeling);
+            else (error)
+                :Display error message;
+                :Reset form state;
+                :Allow user to retry;
+            endif
+            
+        else (no)
+            :Return 500 error;
+            :Display database error to user;
+        endif
+    end fork
+    
+else (no)
+    :Display validation error message;
+    :Highlight invalid file(s);
+    :Show supported file types and size limits;
+endif
+
+:User can proceed to build data model or upload more files;
+
+stop
+
+floating note right
+  **Filename Generation**
+  Format: {timestamp}_{userId}_{originalName}
+  Example: 1672531200000_123_report.pdf
+end note
+
+floating note left
+  **Worker Thread Processing**
+  Uses ghostscript via worker_threads
+  to convert PDF pages to PNG images
+  Handles large files without blocking
+  main thread
+end note
+
+floating note right
+  **Socket.IO Events**
+  Real-time updates keep user informed
+  of processing status without polling
+  Events: PDF_TO_IMAGES_COMPLETE,
+  PDF_PROCESSING_ERROR
+end note
+
+@enduml

@@ -3,23 +3,23 @@
 # This script runs as root initially to fix permissions, then switches to appuser
 cd /backend
 
-# Fix permissions and ownership for the public/uploads/pdf folder after volume mount
-if [ -d "public/uploads/pdf" ]; then
-    echo "Setting up permissions for public/uploads/pdf folder..."
-    
-    # Set directory permissions to 755 (readable/executable by all, writable by owner)
-    find public/uploads/pdf -type d -exec chmod 755 {} \;
+# Fix permissions and ownership for the public/uploads/pdfs folder after volume mount
+if [ -d "public/uploads/pdfs" ]; then
+    echo "Setting up permissions for public/uploads/pdfs folder..."
 
-    # Set file permissions to 644 (readable by all, writable by owner)  
-    find public/uploads/pdf -type f -exec chmod 644 {} \;
+    # Set directory permissions to 755 (readable/executable by all, writable by owner)
+    find public/uploads/pdfs -type d -exec chmod 755 {} \;
+
+    # Set file permissions to 755 (readable by all, writable by owner)  
+    find public/uploads/pdfs -type f -exec chmod 755 {} \;
 
     # Change ownership to appuser (requires root)
-    chown -R appuser:appuser /public/uploads/pdf
+    chown -R appuser:appuser /public/uploads/pdfs
     
     echo "Fixed permissions and ownership for public/uploads/pdf folder"
-    ls -la public/uploads/pdf
+    ls -la public/uploads/pdfs
 else
-    echo "public/uploads/pdf folder not found"
+    echo "public/uploads/pdfs folder not found"
 fi
 
 # Ensure /backend is owned by appuser

@@ -149,13 +149,10 @@ const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     // Set the destination directory for uploaded files
     // Ensure this directory exists in your backend project
-    cb(null, path.join(__dirname, '../../public/uploads/pdf/'));
+    cb(null, path.join(__dirname, '../../public/uploads/pdfs/'));
   },
   filename: (req, file, cb) => {
-    // Generate a unique filename to prevent overwrites
-    // e.g., image-16789012345.jpg
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+    cb(null, file.originalname);
   }
 });
 const upload = multer({ storage: storage });
@@ -166,11 +163,11 @@ router.post('/upload/pdf', async (req: Request, res: Response, next: any) => {
     if (!file) {
         return res.status(400).json({ message: 'No file uploaded.' });
     }
-    
     try {
         const publicUrl = UtilityService.getInstance().getConstants('PUBLIC_BACKEND_URL');
         if (req?.file?.filename) {
-            const fileUrl = `${publicUrl}/uploads/pdf/${req.file.filename}`;
+            const fileUrl = `${publicUrl}/uploads/pdfs/${req.file.filename}`;
+            console.log('Uploaded file URL:', fileUrl);
             await PDFService.getInstance().preparePDFForDataExtraction(req.file.filename);
             
             res.status(200).json({

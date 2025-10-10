@@ -2,7 +2,9 @@ import "reflect-metadata";
 import express from 'express';
 import bodyParser from 'body-parser';
 import cors from 'cors';
+import { createServer } from 'http';
 import { UtilityService } from './services/UtilityService.js';
+import { SocketIODriver } from './drivers/SocketIODriver.js';
 import home from './routes/home.js';
 import auth from './routes/auth.js';
 import project from './routes/project.js';
@@ -19,7 +21,13 @@ import { dirname } from 'path';
 
 console.log('Starting up Data Research Analysis API Server');
 const app = express();
-UtilityService.getInstance().initialize();
+
+// Create HTTP server that will be shared between Express and Socket.IO
+const httpServer = createServer(app);
+
+// Initialize utility services
+await UtilityService.getInstance().initialize();
+
 const port = parseInt(UtilityService.getInstance().getConstants('PORT'));
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -47,7 +55,16 @@ app.use('/article', public_article);
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 app.use('/', express.static(path.join(__dirname, '../public')));
 
+// Initialize Socket.IO with the shared HTTP server
+try {
+  await SocketIODriver.getInstance().initialize(httpServer);
+  console.log('Socket.IO server initialized successfully');
+} catch (error) {
+  console.error('Failed to initialize Socket.IO server:', error);
+}
 
-app.listen(port, () => {
-  return console.log(`Express is listening at http://localhost:${port}`);
+// Start the HTTP server (handles both Express and Socket.IO)
+httpServer.listen(port, () => {
+  console.log(`Data Research Analysis server is running at http://localhost:${port}`);
+  console.log(`Socket.IO server is also available on the same port`);
 });

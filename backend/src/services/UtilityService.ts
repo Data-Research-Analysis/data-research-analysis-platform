@@ -5,7 +5,6 @@ import { DBDriver } from '../drivers/DBDriver.js';
 import { PostgresDataSource } from '../datasources/PostgresDataSource.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { QueueService } from './QueueService.js';
-import { SocketIODriver } from '../drivers/SocketIODriver.js';
 
 export class UtilityService {
     private static instance: UtilityService;
@@ -31,7 +30,6 @@ export class UtilityService {
         const postgresDataSource = PostgresDataSource.getInstance().getDataSource(host, port, database, username, password);
         await driver.initialize(postgresDataSource);
         await QueueService.getInstance().run();
-        await SocketIODriver.getInstance().initialize();
         console.log('Utilities initialized');
     }
 
@@ -99,6 +97,14 @@ export class UtilityService {
             SOCKETIO_SERVER_PORT: process.env.SOCKETIO_SERVER_PORT || 3002,
             SOCKETIO_CLIENT_URL: process.env.SOCKETIO_CLIENT_URL || 'http://localhost',
             SOCKETIO_CLIENT_PORT: process.env.SOCKETIO_CLIENT_PORT || 3000,
+            QUEUE_STATUS_INTERVAL: process.env.QUEUE_STATUS_INTERVAL || 5000,
+            NUM_WORKERS: process.env.NUM_WORKERS || 3,
+            AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID || '',
+            AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY || '',
+            AWS_S3_REGION: process.env.AWS_S3_REGION || '',
+            AWS_S3_IMAGES_EXTRACT_BUCKET: process.env.AWS_S3_IMAGES_EXTRACT_BUCKET || '',
+            IMAGE_PAGE_WIDTH: process.env.IMAGE_PAGE_WIDTH || 4000,
+            IMAGE_PAGE_HEIGHT: process.env.IMAGE_PAGE_HEIGHT || 6000
         }[key];
     }
 

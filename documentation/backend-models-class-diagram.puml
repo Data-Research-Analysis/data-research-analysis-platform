@@ -1,0 +1,195 @@
+@startuml Backend_Models_Class_Diagram
+!theme aws-orange
+title Data Research Analysis Platform - Backend Models
+
+' Define styling
+skinparam class {
+    BackgroundColor LightBlue
+    BorderColor DarkBlue
+    ArrowColor DarkBlue
+}
+skinparam package {
+    BackgroundColor LightGray
+    BorderColor Gray
+}
+
+package "Core Entities" {
+    class DRAUser {
+        +id: number
+        +email: string
+        +created_at: Date
+    }
+
+    class DRAUsersPlatform {
+        +id: number
+        +email: string
+        +first_name: string
+        +last_name: string
+        +password: string
+        +user_type: EUserType
+        +email_verified_at: Date
+        +unsubscribe_from_emails_at: Date
+        --
+        +projects: DRAProject[]
+        +data_sources: DRADataSource[]
+        +data_models: DRADataModel[]
+        +verification_codes: DRAVerificationCode[]
+        +dashboards: DRADashboard[]
+        +articles: DRAArticle[]
+        +categories: DRACategory[]
+    }
+
+    class DRAVerificationCode {
+        +id: number
+        +code: string
+        +expired_at: Date
+        --
+        +users_platform: DRAUsersPlatform
+    }
+}
+
+package "Project Management" {
+    class DRAProject {
+        +id: number
+        +name: string
+        +created_at: Date
+        --
+        +users_platform: DRAUsersPlatform
+        +data_sources: DRADataSource[]
+        +dashboards: DRADashboard[]
+    }
+}
+
+package "Data Layer" {
+    class DRADataSource {
+        +id: number
+        +name: string
+        +data_type: EDataSourceType
+        +connection_details: IDBConnectionDetails
+        +created_at: Date
+        --
+        +users_platform: DRAUsersPlatform
+        +project: DRAProject
+        +data_models: DRADataModel[]
+    }
+
+    class DRADataModel {
+        +id: number
+        +schema: string
+        +name: string
+        +sql_query: string
+        +query: JSON
+        --
+        +users_platform: DRAUsersPlatform
+        +data_source: DRADataSource
+    }
+}
+
+package "Dashboard & Visualization" {
+    class DRADashboard {
+        +id: number
+        +data: JSON
+        --
+        +users_platform: DRAUsersPlatform
+        +project: DRAProject
+    }
+
+    class DRADashboardExportMetaData {
+        +id: number
+        +dashboard_id: number
+        +file_name: string
+        +file_path: string
+        +file_size: number
+        +created_at: Date
+        --
+        +dashboard: DRADashboard
+    }
+}
+
+package "Content Management" {
+    class DRAArticle {
+        +id: number
+        +title: string
+        +content: string
+        +slug: string
+        +created_at: Date
+        --
+        +users_platform: DRAUsersPlatform
+        +categories: DRACategory[]
+    }
+
+    class DRACategory {
+        +id: number
+        +name: string
+        +description: string
+        --
+        +users_platform: DRAUsersPlatform
+        +articles: DRAArticle[]
+    }
+
+    class DRAArticleCategory {
+        +article_id: number
+        +category_id: number
+        --
+        +article: DRAArticle
+        +category: DRACategory
+    }
+}
+
+package "Enums & Types" {
+    enum EUserType {
+        ADMIN
+        NORMAL
+    }
+
+    enum EDataSourceType {
+        POSTGRESQL
+        MYSQL
+        MARIADB
+        MONGODB
+        CSV
+        EXCEL
+        PDF
+    }
+
+    interface IDBConnectionDetails {
+        host?: string
+        port?: number
+        database?: string
+        username?: string
+        password?: string
+        file_path?: string
+    }
+}
+
+' Relationships
+DRAUsersPlatform ||--o{ DRAProject : "owns"
+DRAUsersPlatform ||--o{ DRADataSource : "creates"
+DRAUsersPlatform ||--o{ DRADataModel : "builds"
+DRAUsersPlatform ||--o{ DRAVerificationCode : "has"
+DRAUsersPlatform ||--o{ DRADashboard : "creates"
+DRAUsersPlatform ||--o{ DRAArticle : "authors"
+DRAUsersPlatform ||--o{ DRACategory : "manages"
+
+DRAProject ||--o{ DRADataSource : "contains"
+DRAProject ||--o{ DRADashboard : "includes"
+
+DRADataSource ||--o{ DRADataModel : "generates"
+DRADataSource }o--|| EDataSourceType : "typed as"
+DRADataSource }o--|| IDBConnectionDetails : "configured with"
+
+DRADashboard ||--o| DRADashboardExportMetaData : "exports to"
+
+DRAArticle }o--o{ DRACategory : "categorized by"
+DRAArticleCategory }|--|| DRAArticle : "links"
+DRAArticleCategory }|--|| DRACategory : "links"
+
+DRAUsersPlatform }o--|| EUserType : "classified as"
+
+note right of DRADataSource : Supports multiple data source types\nincluding databases, files, and PDFs
+
+note right of DRADashboard : Stores visualization data\nas JSON configuration
+
+note right of DRAUsersPlatform : Central user entity with\nrelationships to all major entities
+
+@enduml

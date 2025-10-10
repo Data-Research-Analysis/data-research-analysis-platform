@@ -1,0 +1,431 @@
+@startuml Frontend_Components_Class_Diagram
+!theme aws-orange
+title Data Research Analysis Platform - Frontend Components Architecture
+
+' Define styling
+skinparam class {
+    BackgroundColor LightGreen
+    BorderColor DarkGreen
+    ArrowColor DarkGreen
+}
+skinparam package {
+    BackgroundColor LightGray
+    BorderColor Gray
+}
+
+package "Layouts" {
+    class DefaultLayout {
+        +components: Component[]
+        --
+        +renderHeader(): void
+        +renderFooter(): void
+        +renderSidebar(): void
+        +renderContent(): void
+    }
+}
+
+package "Pages" {
+    class IndexPage {
+        +title: string
+        +heroSection: HeroComponent
+        +featuresSection: Component[]
+        --
+        +render(): void
+        +loadContent(): Promise<void>
+    }
+
+    class LoginPage {
+        +form: LoginForm
+        +validation: Validator
+        --
+        +handleLogin(credentials: LoginCredentials): Promise<void>
+        +redirectAfterLogin(): void
+    }
+
+    class RegisterPage {
+        +form: RegisterForm
+        +validation: Validator
+        --
+        +handleRegister(userData: UserData): Promise<void>
+        +sendVerificationEmail(): Promise<void>
+    }
+
+    class ProjectsPage {
+        +projects: IProject[]
+        +selectedProject: IProject
+        --
+        +loadProjects(): Promise<void>
+        +createProject(project: IProject): Promise<void>
+        +selectProject(projectId: number): void
+    }
+
+    class DataSourcesPage {
+        +dataSources: IDataSource[]
+        +selectedDataSource: IDataSource
+        --
+        +loadDataSources(): Promise<void>
+        +createDataSource(dataSource: IDataSource): Promise<void>
+        +testConnection(connectionDetails: any): Promise<boolean>
+    }
+
+    class DashboardsPage {
+        +dashboards: IDashboard[]
+        +selectedDashboard: IDashboard
+        --
+        +loadDashboards(): Promise<void>
+        +createDashboard(dashboard: IDashboard): Promise<void>
+        +exportDashboard(format: string): Promise<void>
+    }
+
+    class PDFDataSourcePage {
+        +uploadedFiles: File[]
+        +processingStatus: ProcessingStatus
+        +socketConnection: Socket
+        --
+        +handleFileUpload(files: File[]): Promise<void>
+        +generateFileName(): string
+        +uploadPDFToServer(file: File): Promise<void>
+        +trackProgress(progress: number): void
+        +handleSocketEvents(): void
+    }
+}
+
+package "Shared Components" {
+    class HeaderNav {
+        +user: User
+        +navigationItems: NavItem[]
+        --
+        +renderUserMenu(): void
+        +handleLogout(): void
+        +toggleMobileMenu(): void
+    }
+
+    class FooterNav {
+        +links: FooterLink[]
+        +socialMedia: SocialLink[]
+        --
+        +renderLinks(): void
+        +renderSocialMedia(): void
+    }
+
+    class Sidebar {
+        +menuItems: MenuItem[]
+        +isCollapsed: boolean
+        --
+        +toggleCollapse(): void
+        +renderMenuItems(): void
+        +handleNavigation(item: MenuItem): void
+    }
+
+    class SidebarAdmin {
+        +adminMenuItems: AdminMenuItem[]
+        +permissions: Permission[]
+        --
+        +checkPermissions(): boolean
+        +renderAdminMenu(): void
+    }
+
+    class NavigationDrawer {
+        +isOpen: boolean
+        +items: NavItem[]
+        --
+        +open(): void
+        +close(): void
+        +toggle(): void
+    }
+
+    class Breadcrumbs {
+        +path: BreadcrumbItem[]
+        +separator: string
+        --
+        +buildPath(route: Route): BreadcrumbItem[]
+        +renderBreadcrumbs(): void
+    }
+}
+
+package "Form Components" {
+    class AddExternalDataSource {
+        +supportedDataSources: DataSourceType[]
+        +selectedType: DataSourceType
+        --
+        +renderDataSourceOptions(): void
+        +validateConnection(details: ConnectionDetails): Promise<boolean>
+        +handleSubmit(): Promise<void>
+    }
+
+    class BuildDataModel {
+        +dataSource: IDataSource
+        +tables: TableInfo[]
+        +relationships: Relationship[]
+        --
+        +loadTables(): Promise<void>
+        +defineRelationships(): void
+        +generateSQL(): string
+        +saveDataModel(): Promise<void>
+    }
+
+    class DataModelBuilder {
+        +canvas: CanvasElement
+        +entities: EntityNode[]
+        +connections: ConnectionLine[]
+        --
+        +addEntity(entity: EntityNode): void
+        +removeEntity(entityId: string): void
+        +createConnection(fromId: string, toId: string): void
+        +exportSchema(): Schema
+    }
+
+    class CustomDataTable {
+        +data: TableData[]
+        +columns: ColumnDefinition[]
+        +pagination: PaginationConfig
+        +sorting: SortConfig
+        --
+        +loadData(): Promise<void>
+        +sortData(column: string, direction: SortDirection): void
+        +filterData(filters: FilterConfig[]): void
+        +exportData(format: ExportFormat): Promise<void>
+    }
+}
+
+package "UI Components" {
+    class OverlayDialog {
+        +isVisible: boolean
+        +title: string
+        +content: Component
+        --
+        +show(): void
+        +hide(): void
+        +setContent(content: Component): void
+    }
+
+    class Spinner {
+        +size: SpinnerSize
+        +color: string
+        +isVisible: boolean
+        --
+        +show(): void
+        +hide(): void
+        +setSize(size: SpinnerSize): void
+    }
+
+    class Tabs {
+        +tabs: TabItem[]
+        +activeTab: string
+        --
+        +switchTab(tabId: string): void
+        +addTab(tab: TabItem): void
+        +removeTab(tabId: string): void
+    }
+
+    class MultiSelect {
+        +options: SelectOption[]
+        +selectedValues: any[]
+        +placeholder: string
+        --
+        +selectOption(option: SelectOption): void
+        +deselectOption(option: SelectOption): void
+        +clearSelection(): void
+    }
+
+    class SwitchButton {
+        +isEnabled: boolean
+        +label: string
+        +onToggle: Function
+        --
+        +toggle(): void
+        +enable(): void
+        +disable(): void
+    }
+
+    class ComboButton {
+        +mainAction: ButtonAction
+        +dropdownActions: ButtonAction[]
+        --
+        +executeMainAction(): void
+        +showDropdown(): void
+        +hideDropdown(): void
+    }
+
+    class TextEditor {
+        +content: string
+        +toolbar: ToolbarConfig
+        +plugins: EditorPlugin[]
+        --
+        +insertText(text: string): void
+        +formatText(format: TextFormat): void
+        +saveContent(): Promise<void>
+        +loadContent(): Promise<void>
+    }
+
+    class NotchedCard {
+        +title: string
+        +content: Component
+        +notchPosition: NotchPosition
+        --
+        +setTitle(title: string): void
+        +setContent(content: Component): void
+    }
+}
+
+package "Chart Components" {
+    class ChartsContainer {
+        +chartTypes: ChartType[]
+        +data: ChartData
+        --
+        +renderChart(type: ChartType): void
+        +updateData(data: ChartData): void
+        +exportChart(format: string): Promise<void>
+    }
+}
+
+package "Stores (Pinia)" {
+    class DataSourceStore {
+        +dataSources: IDataSource[]
+        +selectedDataSource: IDataSource
+        --
+        +setDataSources(sources: IDataSource[]): void
+        +setSelectedDataSource(source: IDataSource): void
+        +retrieveDataSources(): Promise<void>
+        +clearDataSources(): void
+    }
+
+    class ProjectStore {
+        +projects: IProject[]
+        +selectedProject: IProject
+        --
+        +setProjects(projects: IProject[]): void
+        +setSelectedProject(project: IProject): void
+        +retrieveProjects(): Promise<void>
+        +clearProjects(): void
+    }
+
+    class DashboardStore {
+        +dashboards: IDashboard[]
+        +selectedDashboard: IDashboard
+        --
+        +setDashboards(dashboards: IDashboard[]): void
+        +setSelectedDashboard(dashboard: IDashboard): void
+        +retrieveDashboards(): Promise<void>
+        +exportDashboard(dashboard: IDashboard): Promise<void>
+    }
+
+    class DataModelStore {
+        +dataModels: IDataModel[]
+        +selectedDataModel: IDataModel
+        --
+        +setDataModels(models: IDataModel[]): void
+        +setSelectedDataModel(model: IDataModel): void
+        +retrieveDataModels(): Promise<void>
+        +buildDataModel(config: ModelConfig): Promise<void>
+    }
+
+    class LoggedInUserStore {
+        +user: User
+        +isAuthenticated: boolean
+        +token: string
+        --
+        +setUser(user: User): void
+        +setToken(token: string): void
+        +login(credentials: LoginCredentials): Promise<void>
+        +logout(): void
+        +refreshToken(): Promise<void>
+    }
+
+    class ArticleStore {
+        +articles: IArticle[]
+        +selectedArticle: IArticle
+        +categories: ICategory[]
+        --
+        +setArticles(articles: IArticle[]): void
+        +setSelectedArticle(article: IArticle): void
+        +retrieveArticles(): Promise<void>
+        +createArticle(article: IArticle): Promise<void>
+    }
+}
+
+package "Composables" {
+    class AuthToken {
+        --
+        +getAuthToken(): string
+        +setAuthToken(token: string): void
+        +removeAuthToken(): void
+        +isTokenValid(): boolean
+    }
+
+    class Utils {
+        --
+        +baseUrl(): string
+        +formatDate(date: Date): string
+        +debounce(func: Function, wait: number): Function
+        +generateUUID(): string
+    }
+
+    class Validator {
+        --
+        +validateEmail(email: string): boolean
+        +validatePassword(password: string): boolean
+        +validateRequired(value: any): boolean
+        +validateForm(form: FormData): ValidationResult
+    }
+}
+
+' Page relationships
+DefaultLayout ||--o{ IndexPage : contains
+DefaultLayout ||--o{ LoginPage : contains
+DefaultLayout ||--o{ RegisterPage : contains
+DefaultLayout ||--o{ ProjectsPage : contains
+DefaultLayout ||--o{ DataSourcesPage : contains
+DefaultLayout ||--o{ DashboardsPage : contains
+DefaultLayout ||--o{ PDFDataSourcePage : contains
+
+' Layout components
+DefaultLayout ||--|| HeaderNav : includes
+DefaultLayout ||--|| FooterNav : includes
+DefaultLayout ||--o| Sidebar : may include
+DefaultLayout ||--o| SidebarAdmin : may include
+
+' Page components
+ProjectsPage ||--o{ CustomDataTable : uses
+DataSourcesPage ||--|| AddExternalDataSource : includes
+DataSourcesPage ||--|| BuildDataModel : may include
+DataSourcesPage ||--|| DataModelBuilder : may include
+DashboardsPage ||--o{ ChartsContainer : displays
+PDFDataSourcePage ||--|| Spinner : shows progress
+
+' UI component relationships
+OverlayDialog ||--o| Tabs : may contain
+OverlayDialog ||--o| TextEditor : may contain
+CustomDataTable ||--|| MultiSelect : may use
+AddExternalDataSource ||--|| ComboButton : uses
+BuildDataModel ||--|| NotchedCard : uses
+
+' Store relationships
+ProjectsPage --> ProjectStore : uses
+DataSourcesPage --> DataSourceStore : uses
+DashboardsPage --> DashboardStore : uses
+PDFDataSourcePage --> DataSourceStore : updates
+LoginPage --> LoggedInUserStore : authenticates
+RegisterPage --> LoggedInUserStore : creates user
+
+' Composable relationships
+LoginPage --> AuthToken : manages tokens
+RegisterPage --> AuthToken : manages tokens
+ProjectsPage --> Utils : utility functions
+DataSourcesPage --> Validator : validates forms
+PDFDataSourcePage --> Utils : helper functions
+
+' Store cross-dependencies
+DataSourceStore --> DataModelStore : triggers updates
+ProjectStore --> DataSourceStore : filters by project
+DashboardStore --> DataModelStore : uses data models
+
+note right of PDFDataSourcePage : Handles PDF file upload with\nreal-time progress tracking\nvia Socket.IO
+
+note right of DataModelBuilder : Visual drag-and-drop interface\nfor building data relationships
+
+note right of CustomDataTable : Reusable table component with\nsorting, filtering, and export
+
+note bottom of LoggedInUserStore : Central authentication state\nmanagement with JWT tokens
+
+@enduml

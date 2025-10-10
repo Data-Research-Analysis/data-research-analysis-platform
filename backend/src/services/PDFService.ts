@@ -58,25 +58,20 @@ export class PDFService {
                 const __filename = fileURLToPath(import.meta.url);
                 const __dirname = dirname(__filename);
                 let baseUrl = __dirname.split('/');
-                const filePath = `${baseUrl.slice(0, baseUrl.length - 2).join('/')}/public/uploads/pdf/${fileName}`;
-                
+                const filePath = `${baseUrl.slice(0, baseUrl.length - 2).join('/')}/public/uploads/pdfs/${fileName}`;
                 // Check if file exists
                 if (!fs.existsSync(filePath)) {
                     return resolve(false);
                 }
 
-                // Check file size (50MB limit)
+                // Check file size (20MB limit)
                 const stats = fs.statSync(filePath);
-                const maxSize = 50 * 1024 * 1024; // 50MB
+                const maxSize = 20 * 1024 * 1024; // 20MB
                 if (stats.size > maxSize) {
                     return resolve(false);
                 }
 
-                // Basic file validation - check if it's actually a PDF
-                const buffer = fs.readFileSync(filePath);
-                const isPDF = buffer.toString('utf8', 0, 4) === '%PDF';
-                
-                return resolve(isPDF);
+                return resolve(true);
             } catch (error) {
                 return resolve(false);
             }

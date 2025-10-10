@@ -1,4 +1,7 @@
 import { Queue, Document } from "theta-mn-queue";
+import { UtilityService } from "./UtilityService.js";
+import { WorkerService } from "./WorkerService.js";
+import { EOperation } from "../types/EOperation.js";
 
 export class QueueService {
 
@@ -14,18 +17,20 @@ export class QueueService {
         }
         return QueueService.instance;
     }
-    public initializeQueues(): void {
-        this.pdfConversionQueue = new Queue('DRAPdfConversionQueue');
-        this.textExtractionQueue = new Queue('DRATextExtractionQueue');
-        this.pdfConversionQueue.purge();
-        this.textExtractionQueue.purge();
+    public async initializeQueues(): Promise<void> {
+        return new Promise<void>(async (resolve, reject) => {
+            this.pdfConversionQueue = new Queue('DRAPdfConversionQueue');
+            this.textExtractionQueue = new Queue('DRATextExtractionQueue');
+            await this.purgeQueues();
+            return resolve();
+        });
     }
     public async addPDFConversionJob(fileName: string): Promise<void> {
         return new Promise<void>(async (resolve, reject) => {
             const index = await this.pdfConversionQueue.getNextIndex();
             let response:Document = new Document({id: index, key: 'pdfConversion', content: JSON.stringify({ fileName })});
-            this.pdfConversionQueue.enqueue(response);
-            this.pdfConversionQueue.commit();
+            await this.pdfConversionQueue.enqueue(response);
+            await this.pdfConversionQueue.commit();
             resolve();
         });
     }
@@ -33,20 +38,22 @@ export class QueueService {
         return new Promise<void>(async (resolve, reject) => {
             const index = await this.textExtractionQueue.getNextIndex();
             let response:Document = new Document({id: index, key: 'textExtraction', content: JSON.stringify({ fileName })});
-            this.textExtractionQueue.enqueue(response);
-            this.pdfConversionQueue.commit();
+            await this.textExtractionQueue.enqueue(response);
+            await this.textExtractionQueue.commit();
             resolve();
         });
     }
     public async getNextPDFConversionJob(): Promise<Document | null> {
         return new Promise<Document | null>(async (resolve, reject) => {
-            const job = this.pdfConversionQueue.dequeue();
+            const job = await this.pdfConversionQueue.dequeue();
+            await this.pdfConversionQueue.commit();
             resolve(job);
         });
     }
     public async getNextTextExtractionJob(): Promise<Document | null> {
         return new Promise<Document | null>(async (resolve, reject) => {
-            const job = this.textExtractionQueue.dequeue();
+            const job = await this.textExtractionQueue.dequeue();
+            await this.textExtractionQueue.commit();
             resolve(job);
         });
     }
@@ -71,12 +78,28 @@ export class QueueService {
     }
     public run(): Promise<void> {
         return new Promise<void>(async (resolve, reject) => {
-            this.initializeQueues();
+            await this.initializeQueues();
             setInterval(async () => {
                 console.log('--- Queue Status ---');
                 console.log(`PDF Conversion Queue Size: ${await this.pdfConversionQueue.length()}`);
                 console.log(`Text Extraction Queue Size: ${await this.textExtractionQueue.length()}`);
-            }, 2000);
+                const numPDFConverion = await this.pdfConversionQueue.length();
+                if (numPDFConverion > 0) {
+                    const job: Document | null = await this.pdfConversionQueue.dequeue();
+                    if (job) {
+                        console.log('Processing PDF Conversion Job:', job);
+                        await WorkerService.getInstance().runWorker(EOperation.PDF_TO_IMAGES, JSON.parse(job.getContent()).fileName);
+                    }
+                }
+                const numTextExtraction = await this.textExtractionQueue.length();
+                if (numTextExtraction > 0) {
+                    const job: Document | null = await this.textExtractionQueue.dequeue();
+                    if (job) {
+                        console.log('Processing Text Extraction Job:', job);
+                        await WorkerService.getInstance().runWorker(EOperation.EXTRACT_TEXT_FROM_IMAGE, JSON.parse(job.getContent()).fileName);
+                    }
+                }
+            }, UtilityService.getInstance().getConstants('QUEUE_STATUS_INTERVAL'));
             resolve();
         });
     }

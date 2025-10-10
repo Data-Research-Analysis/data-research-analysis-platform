@@ -1,5 +1,8 @@
 <script setup>
-const { $swal } = useNuxtApp();
+import _ from 'lodash';
+import { ISocketEvent } from '~/types/ISocketEvent';
+const loggedInUserStore = useLoggedInUserStore();
+const { $swal, $socketio } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
 
@@ -12,8 +15,9 @@ const state = reactive({
     rows: [],
     selected_file: null,
     loading: false,
+    upload_id: 0,
 });
-
+const user = computed(() => loggedInUserStore.getLoggedInUser());
 function handleDrop(e) {
     preventDefaults(e);
     const dt = e.dataTransfer;
@@ -85,9 +89,9 @@ async function createDataSource() {
                   };
                 }),
                 rows,
-                file_name: file.name.replace(/\.(pdf)$/, "").substring(0, 20).replace(/\s/g,'_').toLowerCase(),
+                file_name: (file.name || file.displayName).replace(/\.(pdf)$/, "").substring(0, 20).replace(/\s/g,'_').toLowerCase(),
               },
-              file_name: file.name.replace(/\.(pdf)$/, "").substring(0, 20).replace(/\s/g,'_').toLowerCase(),
+              file_name: (file.name || file.displayName).replace(/\.(pdf)$/, "").substring(0, 20).replace(/\s/g,'_').toLowerCase(),
               data_source_name: state.data_source_name,
               project_id: route.params.projectid,
               data_source_id: dataSourceId ? dataSourceId : null,
@@ -241,28 +245,10 @@ function analyzeColumns(rows) {
     }
   })
 }
-async function uploadPDFToServer(file) {
+async function uploadPDFToServer(fileData) {
   const formData = new FormData();
-  formData.append('file', file);
-  
+  formData.append('file', fileData.processedFile);
   const token = getAuthToken();
-  
-  // Update file status to uploading and simulate progress
-  const fileIndex = state.files.findIndex(f => f.originalFile === file);
-  if (fileIndex !== -1) {
-    state.files[fileIndex].status = 'uploading';
-    state.files[fileIndex].uploadProgress = 0;
-  }
-  
-  // Simulate upload progress since fetch doesn't support upload progress natively
-  const progressInterval = setInterval(() => {
-    if (fileIndex !== -1 && state.files[fileIndex].status === 'uploading') {
-      const currentProgress = state.files[fileIndex].uploadProgress || 0;
-      if (currentProgress < 90) {
-        state.files[fileIndex].uploadProgress = Math.min(currentProgress + Math.random() * 20, 90);
-      }
-    }
-  }, 200);
   
   try {
     const response = await fetch(`${baseUrl()}/data-source/upload/pdf`, {
@@ -273,61 +259,32 @@ async function uploadPDFToServer(file) {
       },
       body: formData
     });
-    
-    // Clear progress interval
-    clearInterval(progressInterval);
-    
-    if (fileIndex !== -1) {
-      state.files[fileIndex].uploadProgress = 100;
-    }
-    
     if (!response.ok) {
+      if (fileIndex !== -1) {
+        state.files[fileIndex].status = 'error';
+      }
       throw new Error(`Upload failed with status ${response.status}`);
-    }
-    
-    const responseData = await response.json();
-    return responseData;
-    
+    }    
   } catch (error) {
-    // Clear progress interval on error
-    clearInterval(progressInterval);
-    
     if (fileIndex !== -1) {
-      state.files[fileIndex].uploadProgress = 0;
+      state.files[fileIndex].status = 'error';
     }
-    
     throw new Error(error.message || 'Network error during upload');
   }
 }
 
-async function parseFile(file) {
+async function parseFile(fileData) {
   return new Promise(async (resolve, reject) => {
     try {
       // For PDF files, upload to server and get processed data
-      if (file.name.toLowerCase().endsWith('.pdf')) {
-        const uploadResponse = await uploadPDFToServer(file);
-        
-        if (uploadResponse.success && uploadResponse.data) {
-          const fileData = {
-            id: `file_${Date.now()}_${Math.random()}`,
-            name: file.name,
-            size: file.size,
-            type: file.type || 'application/pdf',
-            serverFileName: uploadResponse.file_name,
-            fileUrl: uploadResponse.url,
-            num_rows: uploadResponse.data.rows ? uploadResponse.data.rows.length : 0,
-            num_columns: uploadResponse.data.columns ? uploadResponse.data.columns.length : 0,
-            columns: uploadResponse.data.columns || [],
-            rows: uploadResponse.data.rows || [],
-            status: 'uploaded',
-            uploadedAt: new Date(),
-            originalFile: file,
-            uploadProgress: 100
-          };
-          resolve(fileData);
-        } else {
-          reject(new Error('PDF processing failed on server'));
-        }
+      if (fileData.originalName.toLowerCase().endsWith('.pdf')) {
+        // Create a new File object with the generated name
+        const renamedFile = new File([fileData.originalFile], fileData.name, { 
+          type: fileData.originalFile.type 
+        });
+        fileData.processedFile = renamedFile;
+        await uploadPDFToServer(fileData);
+        resolve();
       } else {
         // Fallback for other file types (though we should only accept PDFs)
         reject(new Error('Only PDF files are supported'));
@@ -343,46 +300,37 @@ async function handleFiles(files) {
     if (state.files.some(f => f.name === file.name && f.size === file.size)) {
       continue;
     }
-    
+    console.log('handleFiles - processing file:', file.name);
     // Validate PDF file type
     if (!file.name.toLowerCase().endsWith('.pdf')) {
       console.error('Only PDF files are supported');
       continue;
     }
     
+    // Generate standardized file name
+    const generatedFileName = `${user.value.id}_${Date.now()}_${state.upload_id}.pdf`;
+    
     // Add file to state with initial status
     const tempFile = {
-      id: `temp_${Date.now()}_${Math.random()}`,
-      name: file.name,
+      id: `${user.value.id}_${Date.now()}_${state.upload_id}`,
+      originalName: file.name,
+      name: generatedFileName,
+      displayName: file.name, // Show original name to user
       size: file.size,
       type: file.type,
       status: 'processing',
-      uploadProgress: 0,
-      originalFile: file
+      originalFile: file,
+      columns: [],
+      rows: [],
+      num_columns: 0,
+      num_rows: 0,
+      
     };
     state.files.push(tempFile);
-    
-    try {
-      const fileData = await parseFile(file);
-      
-      // Replace temp file with parsed data
-      const tempIndex = state.files.findIndex(f => f.id === tempFile.id);
-      if (tempIndex !== -1) {
-        state.files.splice(tempIndex, 1, fileData);
-      }
-    } catch (error) {
-      console.error('Error processing PDF file:', error);
-      
-      // Update temp file with error status
-      const tempIndex = state.files.findIndex(f => f.id === tempFile.id);
-      if (tempIndex !== -1) {
-        state.files[tempIndex].status = 'error';
-        state.files[tempIndex].error = error.message;
-        state.files[tempIndex].uploadProgress = 0;
-      }
-    }
+    await parseFile(tempFile);
   }
 }
+
 function handleCellUpdate(event) {
     const row = state.selected_file.rows.find((row) => {
       if (row.id === event.row.id) {
@@ -411,6 +359,7 @@ function handleColumnRemoved(event) {
   });
 }
 onMounted(async () => {
+  state.upload_id = _.uniqueId();
   dropZone = document.getElementById('drop-zone');
   const fileElem = document.getElementById('file-elem');
   ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
@@ -423,6 +372,31 @@ onMounted(async () => {
   dropZone.addEventListener('click', () => {
       fileElem.click();
   });
+  $socketio.on(ISocketEvent.PDF_TO_IMAGES_COMPLETE, (data) => {
+      console.log('Socket Event', ISocketEvent.PDF_TO_IMAGES_COMPLETE, data);
+      const fileIndex = state.files.findIndex(f => f.id === data.fileName.replace('.pdf', ''));
+      console.log('File Index', fileIndex);
+      if (fileIndex !== -1) {
+          state.files[fileIndex].status = 'processing';
+          // state.files[fileIndex].columns = data.columns || [];
+          // state.files[fileIndex].rows = data.rows || [];
+          // state.files[fileIndex].num_columns = data.columns ? data.columns.length : 0;
+          // state.files[fileIndex].num_rows = data.rows ? data.rows.length : 0;
+      }
+    });
+    $socketio.on(ISocketEvent.EXTRACT_TEXT_FROM_IMAGE_COMPLETE, (data) => {
+      console.log('Socket Event', ISocketEvent.EXTRACT_TEXT_FROM_IMAGE_COMPLETE, data);
+      const fileIndex = state.files.findIndex(f => data.fileName.replace('.pdf', '').includes(f.id));
+      console.log('File Index', fileIndex);
+      if (fileIndex !== -1) {
+          state.files[fileIndex].status = 'completed';
+          // state.files[fileIndex].columns = data.columns || [];
+          // state.files[fileIndex].rows = data.rows || [];
+          // state.files[fileIndex].num_columns = data.columns ? data.columns.length : 0;
+          // state.files[fileIndex].num_rows = data.rows ? data.rows.length : 0;
+      }
+    });
+
 });
 </script>
 <template>
@@ -443,20 +417,16 @@ onMounted(async () => {
                             <NuxtLink class="text-gray-500">
                                 <div class="flex flex-row justify-end">
                                     <font-awesome
+                                      v-if="file.status === 'completed' && file.rows && file.rows.length"
                                       icon="fas fa-table"
                                       class="text-xl ml-2 text-gray-500 hover:text-gray-400 cursor-pointer"
                                       :v-tippy-content="'View Data In Table'"
                                       @click="showTable(file.id)"
                                     />
                                     <font-awesome
-                                      v-if="file.status === 'uploaded'"
+                                      v-if="file.status === 'completed'"
                                       icon="fas fa-check"
                                       class="text-xl ml-2 text-green-300"
-                                    />
-                                    <font-awesome
-                                      v-else-if="file.status === 'uploading'"
-                                      icon="fas fa-upload"
-                                      class="text-xl ml-2 text-blue-500 animate-pulse"
                                     />
                                     <font-awesome
                                       v-else-if="file.status === 'processing'"
@@ -471,19 +441,8 @@ onMounted(async () => {
                                 </div>
                                 <div class="flex flex-col justify-center">
                                     <div class="text-md">
-                                      {{ file.name }}
+                                      {{ file.displayName || file.name }}
                                     </div>
-                                    <!-- Upload progress -->
-                                    <div v-if="file.status === 'uploading' && file.uploadProgress !== undefined" class="mt-2">
-                                      <div class="flex justify-between text-xs text-gray-600 mb-1">
-                                        <span>Uploading...</span>
-                                        <span>{{ file.uploadProgress }}%</span>
-                                      </div>
-                                      <div class="w-full bg-gray-200 rounded-full h-2">
-                                        <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" :style="`width: ${file.uploadProgress}%`"></div>
-                                      </div>
-                                    </div>
-                                    <!-- Error message -->
                                     <div v-if="file.status === 'error' && file.error" class="mt-2 text-xs text-red-600">
                                       {{ file.error }}
                                     </div>
@@ -497,7 +456,7 @@ onMounted(async () => {
                             </NuxtLink>
                         </template>
                     </notched-card>
-                    <div v-if="file.status !== 'uploading'" class="absolute top-px -right-2 z-10 bg-gray-200 hover:bg-gray-300 border border-gray-200 border-solid rounded-full w-10 h-10 flex items-center justify-center cursor-pointer" @click="removeFile(file.id)" v-tippy="{ content: 'Remove File', placement: 'top' }">
+                    <div v-if="file.status !== 'processing'" class="absolute top-px -right-2 z-10 bg-gray-200 hover:bg-gray-300 border border-gray-200 border-solid rounded-full w-10 h-10 flex items-center justify-center cursor-pointer" @click="removeFile(file.id)" v-tippy="{ content: 'Remove File', placement: 'top' }">
                         <font-awesome icon="fas fa-xmark" class="text-xl text-red-500 hover:text-red-400" />
                     </div>
                 </div>

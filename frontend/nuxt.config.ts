@@ -36,6 +36,7 @@ export default defineNuxtConfig({
   },
   plugins: [
     { src: '~/plugins/recaptcha.ts', mode: 'client' },
+    { src: '~/plugins/socketio.ts', mode: 'client' },
   ],
   modules: [
     'nuxt-gtag',

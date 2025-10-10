@@ -14,7 +14,7 @@ import { DRADashboardExportMetaData } from "../models/DRADashboardExportMetaData
 dotenv.config();
 
 const host = process.env.POSTGRESQL_HOST_MIGRATIONS;
-const port = parseInt(process?.env?.POSTGRESQL_PORT_MIGRATIONS || '5434');
+const port = parseInt(process.env.POSTGRESQL_PORT_MIGRATIONS);
 const database = process.env.POSTGRESQL_DB_NAME;
 const username = process.env.POSTGRESQL_USERNAME;
 const password = process.env.POSTGRESQL_PASSWORD;
