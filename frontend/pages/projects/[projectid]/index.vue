@@ -13,22 +13,27 @@ const state = reactive({
         {
             name: 'PDF',
             url: `${route.fullPath}/data-sources/connect/pdf`,
+            image_url: '/_nuxt/assets/images/pdf.png',
         },
         {
             name: 'Excel File',
             url: `${route.fullPath}/data-sources/connect/excel`,
+            image_url: '/_nuxt/assets/images/excel.png',
         },
         {
             name: 'PostgreSQL',
             url: `${route.fullPath}/data-sources/connect/postgres`,
+            image_url: '/_nuxt/assets/images/postgresql.png',
         },
         {
             name: 'MySQL',
             url: `${route.fullPath}/data-sources/connect/mysql`,
+            image_url: '/_nuxt/assets/images/mysql.png',
         },
         {
             name: 'MariaDB',
             url: `${route.fullPath}/data-sources/connect/mariadb`,
+            image_url: '/_nuxt/assets/images/mariadb.png',
         },
         // {
         //     name: 'MongoDB',
@@ -149,12 +154,15 @@ onMounted(async () => {
                     </div>
                 </div>
             </div>
-            <overlay-dialog v-if="state.show_dialog" @close="closeDialog">
+            <overlay-dialog v-if="state.show_dialog" @close="closeDialog" :yOffset="90">
                 <template #overlay>
                     <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                         <template v-for="dataSource in state.available_data_sources" :key="dataSource.name">
                             <NuxtLink :to="dataSource.url" class="w-full border border-primary-blue-100 border-solid p-10 font-bold text-center hover:bg-gray-200 shadow-md cursor-pointer select-none" >
-                                {{ dataSource.name }}
+                                <div class="flex flex-col">
+                                    <img :src="dataSource.image_url" :alt="dataSource.name" class="mx-auto mb-3 h-[100px]" />
+                                    {{ dataSource.name }}
+                                </div>
                             </NuxtLink>
                         </template>
                     </div>

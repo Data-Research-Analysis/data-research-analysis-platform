@@ -3,6 +3,7 @@ import { dirname } from 'path';
 import { fileURLToPath } from 'url';
 import CPage from '../types/CPage.js';
 import * as XLSX from 'xlsx';
+import { WinstonLoggerService } from './WinstonLoggerService.js';
 
 export class ExcelFileService {
     private static instance: ExcelFileService;
@@ -26,24 +27,30 @@ export class ExcelFileService {
     }
     public async writeCPageToExcelFile(fileName: string, page: CPage): Promise<void> {   
         return new Promise<void>(async (resolve, reject) => {
-            console.log('writeCPageToExcelFile', fileName);
-            let fileMapping = new Map<string, string>();
-            let data = [{}];
-            page.getLines().forEach(line => {
-            if (!line.getIgnoreLine()) {
-                line.getWords().forEach((word, index) => {
-                fileMapping.set(`column${index}`, word.getText());
-                });
-                let rowData = Object.fromEntries(fileMapping);
-                data.push(rowData);
-                fileMapping.clear();
-            }
-            });
+            let data = await this.convertToDataArray(page);
             const worksheet = XLSX.utils.json_to_sheet(data);
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, "Data");
-            XLSX.writeFile(workbook, fileName, { compression: true });        
+            XLSX.writeFile(workbook, fileName, { compression: true });
             return resolve();
+        });
+    }
+    public async convertToDataArray(page: CPage): Promise<any[]> {
+        return new Promise<any[]>(async (resolve, reject) => {
+            let fileMapping = new Map<string, string>();
+            let data = [];
+            for (let i = 0; i < page.getLines().length; i++) {
+                const line = page.getLines()[i];
+                if (!line.getIgnoreLine()) {
+                    line.getWords().forEach((word, index) => {
+                    fileMapping.set(`column${index}`, word.getText());
+                    });
+                    let rowData = Object.fromEntries(fileMapping);
+                    data.push(rowData);
+                    fileMapping.clear();
+                }
+            }
+            return resolve(data);
         });
     }
 }

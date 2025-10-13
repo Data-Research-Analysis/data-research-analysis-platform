@@ -9,17 +9,22 @@ const props = defineProps({
         required: false,
         default: true,
     },
+    yOffset: {
+        type: Number,
+        required: false,
+        default: 200,
+    },
 });
 const emit = defineEmits(['close']);
 function close() {
     emit('close');
 }
 onMounted(() => {
-    state.top = `${window.scrollY + 200}px`;
+    state.top = `${window.scrollY + props.yOffset}px`;
     if (props.enableScrolling) {
         //keep the overlay in the same position when the user scrolls
         document.addEventListener("scroll", () => {
-            state.top = `${window.scrollY + 200}px`;
+            state.top = `${window.scrollY + props.yOffset}px`;
         })
     }
 });

@@ -1,15 +1,13 @@
 import { ITextExtractDriver } from "../interfaces/ITextExtractDriver.js";
-import {TextractClient,  DetectDocumentTextCommand, AnalyzeDocumentCommand, FeatureType, Block, AnalyzeDocumentCommandOutput } from  "@aws-sdk/client-textract";
-import { S3Client, ListObjectsCommand, ListObjectsCommandOutput, GetObjectCommand } from "@aws-sdk/client-s3";
+import {TextractClient, AnalyzeDocumentCommand, Block, AnalyzeDocumentCommandOutput } from  "@aws-sdk/client-textract";
 import CPage from "../types/CPage.js";
 import { UtilityService } from "../services/UtilityService.js";
 import { AWSService } from "../services/AWSService.js";
-import { Credentials } from "aws-sdk";
 import { IAmazonDocumentRequest } from "../types/IAmazonDocumentRequest.js";
-import { WinstonLoggerService } from "../services/WinstonLoggerService.js";
 import CLine from "../types/CLine.js";
 import CWord from "../types/CWord.js";
 import { ExcelFileService } from "../services/ExcelFileService.js";
+import { EPageType } from "../types/EPageType.js";
 
 export class AmazonTextExtractDriver implements ITextExtractDriver {
     private static instance: AmazonTextExtractDriver;
@@ -39,7 +37,7 @@ export class AmazonTextExtractDriver implements ITextExtractDriver {
                 Document: {
                     Bytes: Buffer.concat(dataChunks),
                 },
-                FeatureTypes: ["TABLES"],
+                FeatureTypes: ["TABLES", "LAYOUT"],
             };
             const analyzeDoc = new AnalyzeDocumentCommand(params);
             try {
@@ -50,8 +48,8 @@ export class AmazonTextExtractDriver implements ITextExtractDriver {
             }
         });
     }
-    public buildPageModel(fileName: string): Promise<CPage> {
-        return new Promise<CPage>(async (resolve, reject) => {
+    public buildPageModel(fileName: string): Promise<[CPage, EPageType]> {
+        return new Promise<[CPage, EPageType]>(async (resolve, reject) => {
             await this.initialize();
             const dataChunks = await AWSService.getInstance().getS3Object(fileName);
             const blocksData = await this.extractTextFromImage(dataChunks);
@@ -62,6 +60,7 @@ export class AmazonTextExtractDriver implements ITextExtractDriver {
             page.setNumberOfHorizontalCells(20);
             for (let i=0; i<page.getNumberOfVerticalCells(); i++) {
               let line: CLine = new CLine(page.getWidth(), page.getAverageWordHeight(), 0, 0);
+              line.setIgnoreLine(true);
               for (let j=0; j<page.getNumberOfHorizontalCells(); j++) {
                 let word: CWord = new CWord(page.getAverageWordWidth(), page.getAverageWordHeight(), j * page.getAverageWordWidth(), i * page.getAverageWordHeight(), ' ');
                 line.addWord(word);
@@ -126,23 +125,49 @@ export class AmazonTextExtractDriver implements ITextExtractDriver {
                 }
                 let relString = foundWords?.length ? `${foundWords.map((word:any) => word.Text).join(' ')}` : '';
                 const pattern = /^note\s[\S\s]+/gi
-                // if ((relString.toLowerCase().match(pattern) || relString.toLowerCase() === 'note') && cell.ColumnIndex > 0) {
-                //   noteColumn = cell.ColumnIndex;
-                // }
-                // if (noteColumn !== cell.ColumnIndex) {
-                  relString = relString.replace(/^\-$/gi, '0');
-                  page.getLines()[cell.RowIndex + 2]?.getWords()[cell.ColumnIndex]?.setText(`${relString}`);
-                // }
+                relString = relString.replace(/^\-$/gi, '0');
+                page.getLines()[cell.RowIndex + 2]?.getWords()[cell.ColumnIndex]?.setText(`${relString}`);
               });
+              page.getLines().forEach((line) => {
+                let numberOfWordsWithText = 0;
+                line.getWords().forEach((word) => {
+                  if (word.getText().trim().length) {
+                    numberOfWordsWithText++;
+                  }
+                });
+                console.log('numberOfWordsWithText', numberOfWordsWithText);
+                if (numberOfWordsWithText) {
+                  line.setIgnoreLine(false);
+                }
+              });
+              return resolve([page, EPageType.TABLE]);
+            } else {
+              const lines = blocksData?.Blocks?.filter((line: Block) => line.BlockType === 'LINE');
+              lines?.forEach((line: any, index: number) => {
+                let numberOfWordsWithText = 0;
+                line.Text.split(/[\s,]+/).forEach((wordText: string, wordIndex: number) => {
+                  numberOfWordsWithText += wordText.trim().length ? 1 : 0;
+                  page.getLines()[index].getWords()[wordIndex]?.setText(wordText);
+                });
+                console.log('numberOfWordsWithText', numberOfWordsWithText);
+                if (numberOfWordsWithText) {
+                  page.getLines()[index].setIgnoreLine(false);
+                }
+              });
+              return resolve([page, EPageType.TEXT]);
             }
-            WinstonLoggerService.getInstance().log('info', `buildPageModel page ${JSON.stringify(page)}`);
-            return resolve(page); // Placeholder, implement actual conversion logic here
         });
     }
-    public async convertExtractedTextToTable(fileName: string, page: CPage): Promise<string> {
+    public async convertExtractedTextToTable(page: CPage): Promise<string> {
         return new Promise<string>(async (resolve, reject) => {
-            console.log('convertExtractedTextToTable fileName', fileName);
-            await ExcelFileService.getInstance().writeCPageToExcelFile(fileName.replace('.png', '.xlsx'), page);
+            const data = await ExcelFileService.getInstance().convertToDataArray(page);
+            return resolve(''); // Placeholder, implement actual conversion logic here
+
+        });
+    }
+    public async convertExtractedTextToText(page: CPage): Promise<string> {
+        return new Promise<string>(async (resolve, reject) => {
+            const data = await ExcelFileService.getInstance().convertToDataArray(page);
             return resolve(''); // Placeholder, implement actual conversion logic here
 
         });

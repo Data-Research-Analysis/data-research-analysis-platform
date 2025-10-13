@@ -8,6 +8,7 @@ import { EOperation } from '../../dist/types/EOperation.js';
 import { UtilityService } from '../../dist/services/UtilityService.js';
 import { AWSService } from '../../dist/services/AWSService.js';
 import { AmazonTextExtractDriver } from '../../dist/drivers/AmazonTextExtractDriver.js';
+import { EPageType } from "../../dist/types/EPageType.js";
 
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -54,9 +55,14 @@ async function extractTextFromImage(fileName) {
         const completePath = path.join(UtilityService.getInstance().getConstants('PUBLIC_BACKEND_URL'), 'uploads', 'pdfs', 'images', path.basename(fileName));
         await AWSService.getInstance().deleteAllFilesFromS3Bucket();
         await AWSService.getInstance().uploadFileToS3Bucket(completePath);
-        const page = await AmazonTextExtractDriver.getInstance().buildPageModel(path.basename(fileName));
-        const excelFilePath = path.join(baseDir, 'public', 'uploads', 'pdfs', path.basename(fileName));
-        await AmazonTextExtractDriver.getInstance().convertExtractedTextToTable(excelFilePath, page);
+        const [page, pageType] = await AmazonTextExtractDriver.getInstance().buildPageModel(path.basename(fileName));
+        if (pageType === EPageType.TABLE) {
+            const excelFilePath = path.join(baseDir, 'public', 'uploads', 'pdfs', path.basename(fileName));
+            await AmazonTextExtractDriver.getInstance().convertExtractedTextToTable(page);
+        } else if (pageType === EPageType.TEXT) {
+            const textFilePath = path.join(baseDir, 'public', 'uploads', 'pdfs', path.basename(fileName));
+            await AmazonTextExtractDriver.getInstance().convertExtractedTextToText(page);
+        }
         parentPort.postMessage({ message: EOperation.EXTRACT_TEXT_FROM_IMAGE_COMPLETE, identifier: identifier });
         return resolve();
     });

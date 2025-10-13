@@ -358,6 +358,9 @@ function handleColumnRemoved(event) {
     });
   });
 }
+function showPages(fileId) {
+  
+}
 onMounted(async () => {
   state.upload_id = _.uniqueId();
   dropZone = document.getElementById('drop-zone');
@@ -416,6 +419,12 @@ onMounted(async () => {
                         <template #body="{ onClick }">
                             <NuxtLink class="text-gray-500">
                                 <div class="flex flex-row justify-end">
+                                    <font-awesome
+                                      icon="fas fa-file-lines"
+                                      class="text-xl ml-2 text-gray-500 hover:text-gray-400 cursor-pointer"
+                                      :v-tippy-content="'View Pages In This PDF'"
+                                      @click="showPages(file.id)"
+                                    />
                                     <font-awesome
                                       v-if="file.status === 'completed' && file.rows && file.rows.length"
                                       icon="fas fa-table"
