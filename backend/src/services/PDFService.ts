@@ -86,51 +86,7 @@ export class PDFService {
                 if (!isValid) {
                     return reject(new Error('Invalid PDF file'));
                 }
-
                 QueueService.getInstance().addPDFConversionJob(fileName);
-                // Extract content
-                // const content = await this.extractPDFContent(fileName);
-
-                // For now, return mock tabular data
-                // TODO: Implement actual PDF table extraction
-                // const mockTableData = {
-                //     columns: [
-                //         {
-                //             id: `col_${Date.now()}_1`,
-                //             key: 'column1',
-                //             title: 'Column 1',
-                //             type: 'text',
-                //             width: 120,
-                //             sortable: true,
-                //             editable: true,
-                //             visible: true
-                //         },
-                //         {
-                //             id: `col_${Date.now()}_2`,
-                //             key: 'column2',
-                //             title: 'Column 2',
-                //             type: 'text',
-                //             width: 120,
-                //             sortable: true,
-                //             editable: true,
-                //             visible: true
-                //         }
-                //     ],
-                //     rows: [
-                //         {
-                //             id: `row_${Date.now()}_1`,
-                //             column1: 'Sample Data 1',
-                //             column2: 'Sample Data 2'
-                //         },
-                //         {
-                //             id: `row_${Date.now()}_2`,
-                //             column1: 'Sample Data 3',
-                //             column2: 'Sample Data 4'
-                //         }
-                //     ],
-                //     metadata: content.metadata
-                // };
-
                 return resolve(true);
             } catch (error) {
                 return reject(false);

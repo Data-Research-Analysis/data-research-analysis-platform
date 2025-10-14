@@ -135,7 +135,6 @@ export class AmazonTextExtractDriver implements ITextExtractDriver {
                     numberOfWordsWithText++;
                   }
                 });
-                console.log('numberOfWordsWithText', numberOfWordsWithText);
                 if (numberOfWordsWithText) {
                   line.setIgnoreLine(false);
                 }
@@ -149,7 +148,6 @@ export class AmazonTextExtractDriver implements ITextExtractDriver {
                   numberOfWordsWithText += wordText.trim().length ? 1 : 0;
                   page.getLines()[index].getWords()[wordIndex]?.setText(wordText);
                 });
-                console.log('numberOfWordsWithText', numberOfWordsWithText);
                 if (numberOfWordsWithText) {
                   page.getLines()[index].setIgnoreLine(false);
                 }
@@ -158,17 +156,10 @@ export class AmazonTextExtractDriver implements ITextExtractDriver {
             }
         });
     }
-    public async convertExtractedTextToTable(page: CPage): Promise<string> {
-        return new Promise<string>(async (resolve, reject) => {
+    public async convertExtractedTextToDataArray(page: CPage): Promise<any[]> {
+        return new Promise<any[]>(async (resolve, reject) => {
             const data = await ExcelFileService.getInstance().convertToDataArray(page);
-            return resolve(''); // Placeholder, implement actual conversion logic here
-
-        });
-    }
-    public async convertExtractedTextToText(page: CPage): Promise<string> {
-        return new Promise<string>(async (resolve, reject) => {
-            const data = await ExcelFileService.getInstance().convertToDataArray(page);
-            return resolve(''); // Placeholder, implement actual conversion logic here
+            return resolve(data);
 
         });
     }

@@ -16,6 +16,7 @@ const state = reactive({
     selected_file: null,
     loading: false,
     upload_id: 0,
+    selected_sheet_number: 0,
 });
 const user = computed(() => loggedInUserStore.getLoggedInUser());
 function handleDrop(e) {
@@ -36,10 +37,11 @@ function showTable(fileId) {
             state.columns = [];
             const file = state.files.find((file) => file.id === fileId);
             state.selected_file = file;
+            console.log('showTable - selected file:', file);
             if (file && file.id) {
-                if (file.rows) {
-                    state.columns = file.columns;
-                    state.rows = file.rows;
+                if (file.pages && file.pages.length && file.pages[state.selected_sheet_number] && file.pages[state.selected_sheet_number].rows) {
+                    state.columns = file.pages[state.selected_sheet_number].columns;
+                    state.rows = file.pages[state.selected_sheet_number].rows;
                 }
             }
             state.show_table_dialog = true;
@@ -320,11 +322,7 @@ async function handleFiles(files) {
       type: file.type,
       status: 'processing',
       originalFile: file,
-      columns: [],
-      rows: [],
-      num_columns: 0,
-      num_rows: 0,
-      
+      pages: [],      
     };
     state.files.push(tempFile);
     await parseFile(tempFile);
@@ -341,18 +339,18 @@ function handleCellUpdate(event) {
 }
 function handleRowsRemoved(event) {
   if (event.allRemoved) {
-    state.selected_file.rows = []
+    state.selected_file.pages[state.selected_sheet_number].rows = []
   } else {
-    state.selected_file.rows = state.selected_file.rows.filter(row => event.removedRows.filter((removedRow) => removedRow.id  === row.id).length === 0);
-    state.selected_file.num_rows = state.selected_file.rows.length;
+    state.selected_file.pages[state.selected_sheet_number].rows = state.selected_file.pages[state.selected_sheet_number].rows.filter(row => event.removedRows.filter((removedRow) => removedRow.id  === row.id).length === 0);
+    state.selected_file.pages[state.selected_sheet_number].num_rows = state.selected_file.pages[state.selected_sheet_number].rows.length;
   }
 }
 function handleColumnRemoved(event) {
-  state.selected_file.columns = state.selected_file.columns.filter(col => {
+  state.selected_file.pages[state.selected_sheet_number].columns = state.selected_file.pages[state.selected_sheet_number].columns.filter(col => {
     return event.removedColumns.filter((removedCol) => removedCol.id === col.id).length === 0
   });
-  state.selected_file.num_columns = state.selected_file.columns.length;
-  state.selected_file.rows.forEach((row) => {
+  state.selected_file.pages[state.selected_sheet_number].num_columns = state.selected_file.pages[state.selected_sheet_number].columns.length;
+  state.selected_file.pages[state.selected_sheet_number].rows.forEach((row) => {
     event.removedColumns.forEach((col) => {
       delete row[col.key];
     });
@@ -376,30 +374,55 @@ onMounted(async () => {
       fileElem.click();
   });
   $socketio.on(ISocketEvent.PDF_TO_IMAGES_COMPLETE, (data) => {
-      console.log('Socket Event', ISocketEvent.PDF_TO_IMAGES_COMPLETE, data);
-      const fileIndex = state.files.findIndex(f => f.id === data.fileName.replace('.pdf', ''));
-      console.log('File Index', fileIndex);
+    console.log('Received PDF_TO_IMAGES_COMPLETE event:', data);
+    if ( typeof data === 'string' ) {
+      const parsedData = JSON.parse(data);
+      const fileIndex = state.files.findIndex(f => f.id === parsedData.file_name);
+      console.log('PDF_TO_IMAGES_COMPLETE fileIndex:', fileIndex);
       if (fileIndex !== -1) {
           state.files[fileIndex].status = 'processing';
-          // state.files[fileIndex].columns = data.columns || [];
-          // state.files[fileIndex].rows = data.rows || [];
-          // state.files[fileIndex].num_columns = data.columns ? data.columns.length : 0;
-          // state.files[fileIndex].num_rows = data.rows ? data.rows.length : 0;
+          state.files[fileIndex].pages = []
+          const numPages = parsedData.num_pages || 0;
+          for (let i = 0; i <numPages; i++) {
+            state.files[fileIndex].pages.push({
+              rows: [],
+              columns: [],
+              num_rows: 0,
+              num_columns: 0,
+              page_number: i + 1,
+            });
+          }
       }
+    }
+    
     });
     $socketio.on(ISocketEvent.EXTRACT_TEXT_FROM_IMAGE_COMPLETE, (data) => {
-      console.log('Socket Event', ISocketEvent.EXTRACT_TEXT_FROM_IMAGE_COMPLETE, data);
-      const fileIndex = state.files.findIndex(f => data.fileName.replace('.pdf', '').includes(f.id));
-      console.log('File Index', fileIndex);
-      if (fileIndex !== -1) {
-          state.files[fileIndex].status = 'completed';
-          // state.files[fileIndex].columns = data.columns || [];
-          // state.files[fileIndex].rows = data.rows || [];
-          // state.files[fileIndex].num_columns = data.columns ? data.columns.length : 0;
-          // state.files[fileIndex].num_rows = data.rows ? data.rows.length : 0;
+      console.log('Received EXTRACT_TEXT_FROM_IMAGE_COMPLETE event:', data);
+      if (typeof data === 'string') {
+        const parsedData = JSON.parse(data);
+        console.log('EXTRACT_TEXT_FROM_IMAGE_COMPLETE - parsedData:', parsedData);
+        const fileName = parsedData.file_name.split('-')[0];
+        const pageNumber = parseInt(parsedData.file_name.split('-')[1]) || 1;
+        const pageData = parsedData.data.data;
+        console.log('Received EXTRACT_TEXT_FROM_IMAGE_COMPLETE event for file:', fileName, 'with data:', pageData);
+        const fileIndex = state.files.findIndex(f => fileName.includes(f.id));
+        console.log('EXTRACT_TEXT_FROM_IMAGE_COMPLETE fileIndex:', fileIndex, 'pageNumber:', pageNumber);
+        if (fileIndex !== -1) {
+            const analyzedColumns = analyzeColumns(pageData);
+            if (state.files[fileIndex].pages.length === pageNumber) {
+              state.files[fileIndex].status = 'completed';
+            }
+            const pageIndex = pageNumber - 1;
+            if (state.files[fileIndex].pages[pageIndex]) {
+              state.files[fileIndex].pages[pageIndex].columns = analyzedColumns;
+              state.files[fileIndex].pages[pageIndex].rows = pageData || [];
+              state.files[fileIndex].pages[pageIndex].num_columns = Object.keys(pageData[0]).length || 0;
+              state.files[fileIndex].pages[pageIndex].num_rows = pageData ? pageData.length : 0;
+            }
+            console.log('Files after updating page data:', state.files);
+        }
       }
     });
-
 });
 </script>
 <template>
@@ -426,7 +449,7 @@ onMounted(async () => {
                                       @click="showPages(file.id)"
                                     />
                                     <font-awesome
-                                      v-if="file.status === 'completed' && file.rows && file.rows.length"
+                                      v-if="file.status === 'completed' && file.pages[state.selected_sheet_number].rows && file.pages[state.selected_sheet_number].rows.length"
                                       icon="fas fa-table"
                                       class="text-xl ml-2 text-gray-500 hover:text-gray-400 cursor-pointer"
                                       :v-tippy-content="'View Data In Table'"

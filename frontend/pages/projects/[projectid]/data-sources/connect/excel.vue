@@ -33,6 +33,7 @@ function showTable(fileId) {
             state.columns = [];
             const file = state.files.find((file) => file.id === fileId);
             state.selected_file = file;
+            console.log('showTable - selected file:', file);
             if (file && file.id) {
                 if (file.rows) {
                     state.columns = file.columns;

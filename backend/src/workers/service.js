@@ -43,9 +43,9 @@ async function convertPDFs(fileName) {
         const {stdout, stderr} = await executor(`gs -dNOSAFER -dNOPAUSE -sDEVICE=pnggray -dBATCH -r600 -sOutputFile="${targetPath}"  ${sourcePath}`);
         if (stderr) {
             console.log(`stderror: ${stderr}`);
-            parentPort.postMessage({ message: 'file corrupt', completed: false, file: fileName });
+            parentPort.postMessage({ message: 'file corrupt', data: { completed: false, identifier: identifier, file: fileName, data: null } });
         }
-        parentPort.postMessage({ message: EOperation.PDF_TO_IMAGES_COMPLETE, identifier: identifier });
+        parentPort.postMessage({ message: EOperation.PDF_TO_IMAGES_COMPLETE, data: { identifier: identifier, data: null } });
         return resolve();
     });
 }
@@ -56,14 +56,14 @@ async function extractTextFromImage(fileName) {
         await AWSService.getInstance().deleteAllFilesFromS3Bucket();
         await AWSService.getInstance().uploadFileToS3Bucket(completePath);
         const [page, pageType] = await AmazonTextExtractDriver.getInstance().buildPageModel(path.basename(fileName));
+        let data = [];
+        console.log('extractTextFromImage - path.basename(fileName)', path.basename(fileName));
         if (pageType === EPageType.TABLE) {
-            const excelFilePath = path.join(baseDir, 'public', 'uploads', 'pdfs', path.basename(fileName));
-            await AmazonTextExtractDriver.getInstance().convertExtractedTextToTable(page);
+            data = await AmazonTextExtractDriver.getInstance().convertExtractedTextToDataArray(page);
         } else if (pageType === EPageType.TEXT) {
-            const textFilePath = path.join(baseDir, 'public', 'uploads', 'pdfs', path.basename(fileName));
-            await AmazonTextExtractDriver.getInstance().convertExtractedTextToText(page);
+            data = await AmazonTextExtractDriver.getInstance().convertExtractedTextToDataArray(page);
         }
-        parentPort.postMessage({ message: EOperation.EXTRACT_TEXT_FROM_IMAGE_COMPLETE, identifier: identifier });
+        parentPort.postMessage({ message: EOperation.EXTRACT_TEXT_FROM_IMAGE_COMPLETE, data: { identifier: identifier, data: data } });
         return resolve();
     });
 }
