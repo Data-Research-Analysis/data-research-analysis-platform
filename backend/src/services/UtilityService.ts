@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { DBDriver } from '../drivers/DBDriver.js';
 import { PostgresDataSource } from '../datasources/PostgresDataSource.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
+import { QueueService } from './QueueService.js';
 
 export class UtilityService {
     private static instance: UtilityService;
@@ -28,6 +29,8 @@ export class UtilityService {
         const password = process?.env?.POSTGRESQL_PASSWORD || 'dra_password';
         const postgresDataSource = PostgresDataSource.getInstance().getDataSource(host, port, database, username, password);
         await driver.initialize(postgresDataSource);
+        await QueueService.getInstance().run();
+        console.log('Utilities initialized');
     }
 
     public getDataSourceType(dataSourceType: string): EDataSourceType {
@@ -44,6 +47,8 @@ export class UtilityService {
                 return EDataSourceType.CSV;
             case 'excel':
                 return EDataSourceType.EXCEL;
+            case 'pdf':
+                return EDataSourceType.PDF;
             default:
                 return EDataSourceType.POSTGRESQL;
         }
@@ -87,6 +92,21 @@ export class UtilityService {
             MAIL_PASS: process.env.MAIL_PASS || '',
             MAIL_FROM: process.env.MAIL_FROM || '',
             MAIL_REPLY_TO: process.env.MAIL_REPLY_TO || '',
+            REDIS_HOST: process.env.REDIS_HOST || 'localhost',
+            REDIS_PORT: process.env.REDIS_PORT || '6379',
+            DATA_DRIVER: process.env.DATA_DRIVER || 'redis',
+            SOCKETIO_SERVER_URL: process.env.SOCKETIO_SERVER_URL || 'http://localhost',
+            SOCKETIO_SERVER_PORT: process.env.SOCKETIO_SERVER_PORT || 3002,
+            SOCKETIO_CLIENT_URL: process.env.SOCKETIO_CLIENT_URL || 'http://localhost',
+            SOCKETIO_CLIENT_PORT: process.env.SOCKETIO_CLIENT_PORT || 3000,
+            QUEUE_STATUS_INTERVAL: process.env.QUEUE_STATUS_INTERVAL || 5000,
+            NUM_WORKERS: process.env.NUM_WORKERS || 3,
+            AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID || '',
+            AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY || '',
+            AWS_S3_REGION: process.env.AWS_S3_REGION || '',
+            AWS_S3_IMAGES_EXTRACT_BUCKET: process.env.AWS_S3_IMAGES_EXTRACT_BUCKET || '',
+            IMAGE_PAGE_WIDTH: process.env.IMAGE_PAGE_WIDTH || 4000,
+            IMAGE_PAGE_HEIGHT: process.env.IMAGE_PAGE_HEIGHT || 6000
         }[key];
     }
 
@@ -95,6 +115,10 @@ export class UtilityService {
         const dbLower = database.toLowerCase();
         if (dbLower === EDataSourceType.EXCEL) {
             const parsedType = this.parseExcelDataType(dataType);
+            return this.mapMySQLToPostgreSQL(parsedType);
+        } else if (dbLower === EDataSourceType.PDF) {
+            // PDF uses same data type parsing as Excel since they have similar structure
+            const parsedType = this.parsePDFDataType(dataType);
             return this.mapMySQLToPostgreSQL(parsedType);
         } else if (dbLower === EDataSourceType.MYSQL || dbLower === EDataSourceType.MARIADB) {
             // Parse MySQL/MariaDB data type (MariaDB is MySQL-compatible)
@@ -287,5 +311,91 @@ export class UtilityService {
         } else if (normalizedType === 'DATE') {
             return { baseType: 'DATE' };
         }
+    }
+
+    private parsePDFDataType(dataType: string): { 
+        baseType: string; 
+        size?: number;
+    } {
+        // PDF data types are similar to Excel: text, email, url, boolean, number, date
+        const normalizedType = dataType.trim().toUpperCase();
+        if (normalizedType === 'EMAIL') {
+            return { baseType: 'VARCHAR', size: 512 };
+        } else if (normalizedType === 'URL') {
+            return { baseType: 'VARCHAR', size: 1024 };
+        } else if (normalizedType === 'TEXT') {
+            return { baseType: 'VARCHAR', size: 2048 }; // PDF text might be longer
+        } else if (normalizedType === 'BOOLEAN') {
+            return { baseType: 'BOOLEAN' };
+        } else if (normalizedType === 'NUMBER') {
+            return { baseType: 'NUMERIC' };
+        } else if (normalizedType === 'DATE') {
+            return { baseType: 'DATE' };
+        } else {
+            // Default to text for unknown PDF data types
+            return { baseType: 'VARCHAR', size: 1024 };
+        }
+    }
+    /**
+     * Sanitizes data for PostgreSQL by ensuring boolean values are properly formatted
+     */
+    public sanitizeDataForPostgreSQL(data: any): any {
+        if (!data) return data;
+        
+        // Handle columns
+        if (data.columns && Array.isArray(data.columns)) {
+            data.columns = data.columns.map((column: any) => ({
+                ...column,
+                // Ensure column metadata is preserved
+            }));
+        }
+        
+        // Handle rows
+        if (data.rows && Array.isArray(data.rows)) {
+            data.rows = data.rows.map((row: any) => {
+                let sanitizedRow = { ...row };
+                
+                // Sanitize row data if it's nested
+                if (row.data && typeof row.data === 'object') {
+                    sanitizedRow.data = this.sanitizeRowData(row.data, data.columns);
+                } else {
+                    // If row data is at the top level
+                    sanitizedRow = this.sanitizeRowData(row, data.columns);
+                }
+                
+                return sanitizedRow;
+            });
+        }
+        
+        return data;
+    }
+    
+    /**
+     * Sanitizes individual row data based on column types
+     */
+    public sanitizeRowData(rowData: any, columns: any[]): any {
+        if (!rowData || !columns) return rowData;
+        
+        const sanitized = { ...rowData };
+        
+        columns.forEach((column: any) => {
+            const value = sanitized[column.title] || sanitized[column.key];
+            
+            if (column.type === 'boolean' && (value !== null && value !== undefined)) {
+                const stringValue = String(value).trim().toLowerCase();
+                
+                // Convert to standardized boolean values
+                if (['true', '1', 'yes', 'y', 'on', 'active', 'enabled'].includes(stringValue)) {
+                    sanitized[column.title || column.key] = 'true';
+                } else if (['false', '0', 'no', 'n', 'off', 'inactive', 'disabled'].includes(stringValue)) {
+                    sanitized[column.title || column.key] = 'false';
+                } else {
+                    // For ambiguous values, set to null
+                    sanitized[column.title || column.key] = null;
+                }
+            }
+        });
+        
+        return sanitized;
     }
 }

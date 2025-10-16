@@ -18,7 +18,7 @@ export class DBDriver {
     }
 
     //This is a factory method to get the relevant driver
-    public getDriver(driverName: 'excel' | 'csv' | 'postgresql' | 'mysql' | 'mariadb' | 'mongodb'): Promise<IDBDriver> {
+    public getDriver(driverName: 'excel' | 'csv' | 'postgresql' | 'mysql' | 'mariadb' | 'mongodb' | 'pdf'): Promise<IDBDriver> {
         return new Promise<IDBDriver>(async (resolve, reject) => {
             console.log('Getting driver', driverName);
             console.log(driverName === EDataSourceType.POSTGRESQL);
@@ -33,6 +33,8 @@ export class DBDriver {
             } else if (driverName === EDataSourceType.CSV) {
 
             } else if (driverName === EDataSourceType.EXCEL) {
+
+            } else if (driverName === EDataSourceType.PDF) {
 
             }
 

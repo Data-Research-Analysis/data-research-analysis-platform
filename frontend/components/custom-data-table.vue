@@ -11,6 +11,23 @@ const props = defineProps({
   editable: {
     type: Boolean,
     default: true
+  },
+  // Sheet-related props
+  sheets: {
+    type: Array,
+    default: () => []
+  },
+  activeSheetId: {
+    type: String,
+    default: null
+  },
+  allowMultipleSheets: {
+    type: Boolean,
+    default: true
+  },
+  maxSheets: {
+    type: Number,
+    default: 10
   }
 });
 
@@ -19,6 +36,13 @@ const emit = defineEmits([
   'row-selected',
   'rows-removed',
   'column-removed',
+  // Sheet-related events
+  'sheet-changed',
+  'sheet-created',
+  'sheet-deleted',
+  'sheet-renamed',
+  'sheet-reordered',
+  'sheet-duplicated'
 ]);
 
 const tableState = reactive({
@@ -32,6 +56,18 @@ const tableState = reactive({
   editingCell: null,
   showColumnMenu: null,
   columnMenuPosition: { left: '0px', top: '0px' }
+});
+
+// Sheet management state
+const sheetsState = reactive({
+  sheets: [],
+  activeSheetId: null,
+  selectedSheets: new Set(),
+  draggedSheet: null,
+  showSheetMenu: null,
+  sheetMenuPosition: { left: '0px', top: '0px' },
+  editingSheetId: null,
+  newSheetCounter: 1
 });
 
 // Computed properties
@@ -91,6 +127,23 @@ const sortColumn = computed(() => tableState.sortColumn);
 const sortDirection = computed(() => tableState.sortDirection);
 const showColumnMenu = computed(() => tableState.showColumnMenu);
 const columnMenuPosition = computed(() => tableState.columnMenuPosition);
+
+// Sheet computed properties
+const activeSheet = computed(() => 
+  sheetsState.sheets.find(sheet => sheet.id === sheetsState.activeSheetId)
+);
+
+const hasMultipleSheets = computed(() => 
+  props.allowMultipleSheets && sheetsState.sheets.length > 1
+);
+
+const canCreateNewSheet = computed(() => 
+  props.allowMultipleSheets && sheetsState.sheets.length < props.maxSheets
+);
+
+const isMultiSheetMode = computed(() => 
+  props.allowMultipleSheets && (sheetsState.sheets.length > 0 || props.sheets.length > 0)
+);
 
 // Row selection methods
 function toggleRowSelection(rowId) {
@@ -552,7 +605,21 @@ defineExpose({
     tableState.selectedRows.clear();
     tableState.selectedColumns.clear();
     tableState.allRowsSelected = false;
-  }
+  },
+  // Sheet management methods
+  getAllSheetsData: () => sheetsState.sheets.map(sheet => ({
+    ...sheet,
+    data: sheet.rows.map(row => row.data)
+  })),
+  getActiveSheetData: () => activeSheet.value ? {
+    ...activeSheet.value,
+    data: tableState.rows.map(row => row.data)
+  } : null,
+  createSheet: (name, columns, rows) => createSheet(name, columns, rows),
+  switchToSheet: (sheetId) => switchToSheet(sheetId),
+  deleteSheet: (sheetId) => deleteSheet(sheetId),
+  renameSheet: (sheetId, newName) => renameSheet(sheetId, newName),
+  duplicateSheet: (sheetId) => duplicateSheet(sheetId)
 });
 
 function handleEscapeKey(e) {
@@ -562,8 +629,47 @@ function handleEscapeKey(e) {
 }
 
 function handleKeyboardShortcuts(e) {
-  // Only handle shortcuts when not editing a cell
-  if (tableState.editingCell) return;
+  // Only handle shortcuts when not editing a cell or sheet name
+  if (tableState.editingCell || sheetsState.editingSheetId) return;
+  
+  // Sheet navigation shortcuts
+  if (isMultiSheetMode.value) {
+    // Ctrl+PageUp: Previous sheet
+    if (e.ctrlKey && e.key === 'PageUp') {
+      e.preventDefault();
+      navigateSheet(-1);
+      return;
+    }
+    
+    // Ctrl+PageDown: Next sheet
+    if (e.ctrlKey && e.key === 'PageDown') {
+      e.preventDefault();
+      navigateSheet(1);
+      return;
+    }
+    
+    // Ctrl+T: New sheet
+    if ((e.ctrlKey || e.metaKey) && e.key === 't' && canCreateNewSheet.value) {
+      e.preventDefault();
+      const newSheet = createSheet();
+      switchToSheet(newSheet.id);
+      return;
+    }
+    
+    // Ctrl+W: Close current sheet
+    if ((e.ctrlKey || e.metaKey) && e.key === 'w' && sheetsState.sheets.length > 1) {
+      e.preventDefault();
+      deleteSheet(sheetsState.activeSheetId);
+      return;
+    }
+    
+    // F2: Rename current sheet
+    if (e.key === 'F2' && sheetsState.activeSheetId) {
+      e.preventDefault();
+      startSheetRename(sheetsState.activeSheetId);
+      return;
+    }
+  }
   
   // Ctrl+A or Cmd+A: Select all columns
   if ((e.ctrlKey || e.metaKey) && e.key === 'a' && e.shiftKey) {
@@ -592,6 +698,18 @@ function handleKeyboardShortcuts(e) {
     tableState.selectedRows.clear();
     tableState.allRowsSelected = false;
     tableState.showColumnMenu = null;
+    sheetsState.showSheetMenu = null;
+    sheetsState.editingSheetId = null;
+  }
+}
+
+function navigateSheet(direction) {
+  const currentIndex = sheetsState.sheets.findIndex(s => s.id === sheetsState.activeSheetId);
+  if (currentIndex === -1) return;
+  
+  const newIndex = currentIndex + direction;
+  if (newIndex >= 0 && newIndex < sheetsState.sheets.length) {
+    switchToSheet(sheetsState.sheets[newIndex].id);
   }
 }
 
@@ -599,23 +717,251 @@ function handleClickOutside(e) {
   if (!e.target.closest('.column-menu') && !e.target.closest('.column-menu-trigger')) {
     tableState.showColumnMenu = null;
   }
+  if (!e.target.closest('.sheet-menu') && !e.target.closest('.sheet-menu-trigger')) {
+    sheetsState.showSheetMenu = null;
+  }
 }
 
-onMounted(() => {
-    tableState.columns = props.columns.map(col => ({
+// Sheet Management Functions
+function createSheet(name = null, columns = [], rows = []) {
+  const sheetName = name || `Sheet ${sheetsState.newSheetCounter}`;
+  
+  // Process columns with proper structure
+  const processedColumns = columns.length > 0 
+    ? columns.map(col => ({
         ...col,
         id: col?.id ? col.id : `col_${Date.now()}_${Math.random()}`,
         width: col.width || 150,
         visible: col.visible !== false,
         sortable: col.sortable !== false,
         editable: col.editable !== false
-    }));
-
-    tableState.rows = props.initialData.map((rowData, index) => ({
+      }))
+    : (props.columns || []).map(col => ({
+        ...col,
+        id: col?.id ? col.id : `col_${Date.now()}_${Math.random()}`,
+        width: col.width || 150,
+        visible: col.visible !== false,
+        sortable: col.sortable !== false,
+        editable: col.editable !== false
+      }));
+  
+  // Process rows with proper structure
+  const processedRows = rows.length > 0 
+    ? rows.map((rowData, index) => ({
         id: rowData?.id ? rowData.id : `row_${Date.now()}_${index}`,
         selected: false,
         data: { ...rowData }
-    }));
+      }))
+    : (props.initialData || []).map((rowData, index) => ({
+        id: rowData?.id ? rowData.id : `row_${Date.now()}_${index}`,
+        selected: false,
+        data: { ...rowData }
+      }));
+  
+  const newSheet = {
+    id: `sheet_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    name: sheetName,
+    columns: processedColumns,
+    rows: processedRows,
+    metadata: {
+      created: new Date(),
+      modified: new Date(),
+      rowCount: processedRows.length,
+      columnCount: processedColumns.length
+    }
+  };
+  
+  sheetsState.sheets.push(newSheet);
+  sheetsState.newSheetCounter++;
+  
+  if (!sheetsState.activeSheetId) {
+    switchToSheet(newSheet.id);
+  }
+  
+  emit('sheet-created', newSheet);
+  return newSheet;
+}
+
+function switchToSheet(sheetId) {
+  const oldSheetId = sheetsState.activeSheetId;
+  const targetSheet = sheetsState.sheets.find(sheet => sheet.id === sheetId);
+  
+  if (!targetSheet) return;
+  
+  // Save current sheet state if switching from existing sheet
+  if (oldSheetId && oldSheetId !== sheetId) {
+    saveCurrentSheetState();
+  }
+  
+  sheetsState.activeSheetId = sheetId;
+  
+  // Load target sheet data
+  loadSheetData(targetSheet);
+  
+  emit('sheet-changed', { oldSheetId, newSheetId: sheetId, sheet: targetSheet });
+}
+
+function saveCurrentSheetState() {
+  const currentSheet = sheetsState.sheets.find(sheet => sheet.id === sheetsState.activeSheetId);
+  if (currentSheet) {
+    currentSheet.columns = [...tableState.columns];
+    currentSheet.rows = tableState.rows.map(row => ({ ...row, data: { ...row.data } }));
+    currentSheet.metadata.modified = new Date();
+    currentSheet.metadata.rowCount = tableState.rows.length;
+    currentSheet.metadata.columnCount = tableState.columns.length;
+  }
+}
+
+function loadSheetData(sheet) {
+  // Clear current selections
+  tableState.selectedRows.clear();
+  tableState.selectedColumns.clear();
+  tableState.allRowsSelected = false;
+  tableState.editingCell = null;
+  tableState.sortColumn = null;
+  tableState.sortDirection = null;
+  
+  // Load sheet data
+  tableState.columns = [...sheet.columns];
+  tableState.rows = sheet.rows.map(row => ({ ...row, data: { ...row.data } }));
+}
+
+function renameSheet(sheetId, newName) {
+  const sheet = sheetsState.sheets.find(s => s.id === sheetId);
+  if (!sheet || !newName.trim()) return;
+  
+  const oldName = sheet.name;
+  sheet.name = newName.trim();
+  sheet.metadata.modified = new Date();
+  
+  emit('sheet-renamed', { sheetId, oldName, newName: sheet.name });
+}
+
+function duplicateSheet(sheetId) {
+  const sourceSheet = sheetsState.sheets.find(s => s.id === sheetId);
+  if (!sourceSheet) return;
+  
+  const duplicatedSheet = createSheet(
+    `${sourceSheet.name} (Copy)`,
+    [...sourceSheet.columns],
+    sourceSheet.rows.map(row => ({ ...row, data: { ...row.data } }))
+  );
+  
+  emit('sheet-duplicated', { originalSheet: sourceSheet, duplicatedSheet });
+  return duplicatedSheet;
+}
+
+function deleteSheet(sheetId) {
+  const sheetIndex = sheetsState.sheets.findIndex(s => s.id === sheetId);
+  if (sheetIndex === -1 || sheetsState.sheets.length <= 1) return;
+  
+  const deletedSheet = sheetsState.sheets[sheetIndex];
+  sheetsState.sheets.splice(sheetIndex, 1);
+  
+  // Switch to adjacent sheet if current sheet is deleted
+  if (sheetsState.activeSheetId === sheetId) {
+    const newActiveIndex = Math.min(sheetIndex, sheetsState.sheets.length - 1);
+    switchToSheet(sheetsState.sheets[newActiveIndex].id);
+  }
+  
+  emit('sheet-deleted', deletedSheet);
+}
+
+function moveSheet(fromIndex, toIndex) {
+  if (fromIndex === toIndex) return;
+  
+  const sheet = sheetsState.sheets.splice(fromIndex, 1)[0];
+  sheetsState.sheets.splice(toIndex, 0, sheet);
+  
+  emit('sheet-reordered', sheetsState.sheets);
+}
+
+function startSheetRename(sheetId) {
+  sheetsState.editingSheetId = sheetId;
+  
+  nextTick(() => {
+    const input = document.querySelector('.sheet-name-input');
+    if (input) {
+      input.focus();
+      input.select();
+    }
+  });
+}
+
+function stopSheetRename() {
+  sheetsState.editingSheetId = null;
+}
+
+function toggleSheetMenu(sheetId, event) {
+  if (sheetsState.showSheetMenu === sheetId) {
+    sheetsState.showSheetMenu = null;
+    return;
+  }
+  
+  sheetsState.showSheetMenu = sheetId;
+  
+  const rect = event.currentTarget.getBoundingClientRect();
+  const menuWidth = 150;
+  const menuHeight = 200;
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  
+  let left = rect.left;
+  let top = rect.top - menuHeight - 5;
+  
+  if (left + menuWidth > viewportWidth) {
+    left = rect.right - menuWidth;
+  }
+  
+  if (top < 5) {
+    top = rect.bottom + 5;
+  }
+  
+  sheetsState.sheetMenuPosition = {
+    left: Math.max(5, left) + 'px',
+    top: Math.max(5, top) + 'px'
+  };
+}
+
+onMounted(() => {
+    // Initialize sheets if provided, otherwise create default sheet
+    if (props.sheets && props.sheets.length > 0) {
+        sheetsState.sheets = props.sheets.map(sheet => ({
+            ...sheet,
+            id: sheet.id || `sheet_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            metadata: {
+                created: sheet.metadata?.created || new Date(),
+                modified: sheet.metadata?.modified || new Date(),
+                rowCount: sheet.rows?.length || 0,
+                columnCount: sheet.columns?.length || 0,
+                ...sheet.metadata
+            }
+        }));
+        
+        const targetSheetId = props.activeSheetId || sheetsState.sheets[0].id;
+        switchToSheet(targetSheetId);
+    } else if (props.allowMultipleSheets) {
+        // Create default sheet with provided data
+        const defaultSheet = createSheet('Sheet 1', props.columns, props.initialData);
+        switchToSheet(defaultSheet.id);
+    } else {
+        // Single sheet mode - use existing initialization
+        tableState.columns = props.columns.map(col => ({
+            ...col,
+            id: col?.id ? col.id : `col_${Date.now()}_${Math.random()}`,
+            width: col.width || 150,
+            visible: col.visible !== false,
+            sortable: col.sortable !== false,
+            editable: col.editable !== false
+        }));
+
+        tableState.rows = props.initialData.map((rowData, index) => ({
+            id: rowData?.id ? rowData.id : `row_${Date.now()}_${index}`,
+            selected: false,
+            data: { ...rowData }
+        }));
+    }
+    
     document.addEventListener('click', handleClickOutside);
     document.addEventListener('keydown', handleEscapeKey);
     document.addEventListener('keydown', handleKeyboardShortcuts);
@@ -963,8 +1309,144 @@ onUnmounted(() => {
       </div>
     </Transition>
 
+    <!-- Sheet Tabs (Multi-sheet Mode) -->
+    <div v-if="isMultiSheetMode" class="mt-2 border-t border-gray-200 bg-gray-50">
+      <div class="flex items-center justify-between p-2">
+        <!-- Sheet Tabs Container -->
+        <div class="flex-1 overflow-x-auto">
+          <div class="flex items-center gap-1 min-w-max">
+            <!-- Individual Sheet Tabs -->
+            <div
+              v-for="sheet in sheetsState.sheets"
+              :key="sheet.id"
+              class="relative flex items-center group"
+            >
+              <!-- Sheet Tab -->
+              <div
+                class="flex items-center px-3 py-2 border border-gray-300 bg-white cursor-pointer transition-all duration-200 hover:bg-gray-50"
+                :class="{
+                  'bg-blue-50 border-blue-300 text-blue-700': sheet.id === sheetsState.activeSheetId,
+                  'bg-white border-gray-300 text-gray-700': sheet.id !== sheetsState.activeSheetId
+                }"
+                @click="switchToSheet(sheet.id)"
+                @dblclick="startSheetRename(sheet.id)"
+                @contextmenu.prevent="toggleSheetMenu(sheet.id, $event)"
+              >
+                <!-- Sheet Name (Editable) -->
+                <input
+                  v-if="sheetsState.editingSheetId === sheet.id"
+                  v-model="sheet.name"
+                  @blur="stopSheetRename(); renameSheet(sheet.id, sheet.name)"
+                  @keydown.enter="stopSheetRename(); renameSheet(sheet.id, sheet.name)"
+                  @keydown.escape="stopSheetRename()"
+                  class="sheet-name-input bg-transparent border-none outline-none focus:ring-2 focus:ring-blue-500 rounded px-1 min-w-[60px] max-w-[120px]"
+                />
+                <span v-else class="text-sm font-medium select-none truncate max-w-[120px]">
+                  {{ sheet.name }}
+                </span>
+                
+                <!-- Sheet Stats -->
+                <div class="ml-2 text-xs text-gray-500">
+                  ({{ sheet.metadata.rowCount || 0 }})
+                </div>
+                
+                <!-- Close Button -->
+                <button
+                  v-if="sheetsState.sheets.length > 1"
+                  @click.stop="deleteSheet(sheet.id)"
+                  class="ml-2 w-4 h-4 rounded hover:bg-red-100 hover:text-red-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                  title="Close sheet"
+                >
+                  <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                  </svg>
+                </button>
+                
+                <!-- Menu Trigger -->
+                <button
+                  @click.stop="toggleSheetMenu(sheet.id, $event)"
+                  class="ml-1 w-4 h-4 rounded hover:bg-gray-200 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 sheet-menu-trigger"
+                  title="Sheet options"
+                >
+                  <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            <!-- New Sheet Button -->
+            <button
+              v-if="canCreateNewSheet"
+              @click="createSheet(); switchToSheet(sheetsState.sheets[sheetsState.sheets.length - 1].id)"
+              class="flex items-center justify-center w-8 h-8 border border-gray-300 bg-white hover:bg-gray-50 transition-colors duration-200 rounded"
+              title="Add new sheet (Ctrl+T)"
+            >
+              <svg class="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        
+        <!-- Sheet Actions -->
+        <div class="flex items-center gap-2 ml-4">
+          <span class="text-xs text-gray-500">
+            {{ sheetsState.sheets.length }}/{{ props.maxSheets }} sheets
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sheet Context Menu -->
+    <Transition
+      enter-active-class="transition ease-out duration-200"
+      enter-from-class="opacity-0 scale-95 transform translate-y-1"
+      enter-to-class="opacity-100 scale-100 transform translate-y-0"
+      leave-active-class="transition ease-in duration-150"
+      leave-from-class="opacity-100 scale-100 transform translate-y-0"
+      leave-to-class="opacity-0 scale-95 transform translate-y-1"
+    >
+      <div 
+        v-if="sheetsState.showSheetMenu"
+        class="fixed bg-white border border-gray-300 shadow-lg z-50 py-1 min-w-[150px] sheet-menu"
+        :style="sheetsState.sheetMenuPosition"
+      >
+        <button 
+          @click="startSheetRename(sheetsState.showSheetMenu); sheetsState.showSheetMenu = null;" 
+          class="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm flex items-center gap-2 transition-colors duration-150"
+        >
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/>
+          </svg>
+          Rename Sheet
+        </button>
+        <button 
+          @click="duplicateSheet(sheetsState.showSheetMenu); sheetsState.showSheetMenu = null;" 
+          class="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm flex items-center gap-2 transition-colors duration-150"
+        >
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
+            <path fill-rule="evenodd" d="M4 5a2 2 0 012-2v1a1 1 0 001 1h1a1 1 0 001-1V3a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/>
+          </svg>
+          Duplicate Sheet
+        </button>
+        <hr class="my-1 border-gray-200">
+        <button 
+          v-if="sheetsState.sheets.length > 1"
+          @click="deleteSheet(sheetsState.showSheetMenu); sheetsState.showSheetMenu = null;" 
+          class="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 text-sm flex items-center gap-2 transition-colors duration-150"
+        >
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" clip-rule="evenodd"/>
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v4a1 1 0 102 0V5z" clip-rule="evenodd"/>
+          </svg>
+          Delete Sheet
+        </button>
+      </div>
+    </Transition>
+
     <!-- Help Section -->
-        <!-- Help Section -->
     <div class="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
       <div class="text-xs text-gray-600 space-y-1">
         <div>
@@ -989,6 +1471,11 @@ onUnmounted(() => {
           <kbd class="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">Ctrl+Shift+A</kbd> Select all columns • 
           <kbd class="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">Ctrl+F</kbd> Fill selection gaps • 
           <kbd class="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">Esc</kbd> Clear selections
+          <span v-if="isMultiSheetMode"> • 
+            <kbd class="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">Ctrl+PageUp/PageDown</kbd> Navigate sheets • 
+            <kbd class="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">Ctrl+T</kbd> New sheet • 
+            <kbd class="px-1 py-0.5 bg-white border border-gray-300 rounded text-xs">F2</kbd> Rename sheet
+          </span>
         </div>
       </div>
     </div>

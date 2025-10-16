@@ -1,4 +1,4 @@
-export interface IExcelDataSourceReturn {
+export interface IDataSourceReturn {
     status: string;
     file_id: string;
     data_source_id?: number;

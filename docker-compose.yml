@@ -5,6 +5,9 @@ volumes:
   data_research_analysis_postgres_data:
     name: data_research_analysis_postgres_data
     external: true
+  data_research_analysis_redis_data:
+    name: data_research_analysis_redis_data
+    external: true
 
 services:
   frontend.dataresearchanalysis.test:
@@ -57,3 +60,18 @@ services:
       - "POSTGRES_PASSWORD=$POSTGRESDB_ROOT_PASSWORD"
       - "POSTGRES_DB=$POSTGRESDB_DATABASE"
     container_name: database.dataresearchanalysis.test
+
+  redis.dataresearchanalysis.test:
+    image: redis:7-alpine
+    volumes:
+      - data_research_analysis_redis_data:/data
+    ports:
+      - "$REDIS_LOCAL_PORT:$REDIS_DOCKER_PORT"
+    networks:
+      - docker_test_network
+    env_file:
+      - ./.env
+    environment:
+      - "VIRTUAL_HOST=redis.dataresearchanalysis.test"
+    # command: redis-server --appendonly yes --requirepass "$REDIS_PASSWORD"
+    container_name: redis.dataresearchanalysis.test

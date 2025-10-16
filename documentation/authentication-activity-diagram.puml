@@ -1,0 +1,151 @@
+@startuml Authentication_Activity_Diagram
+!theme aws-orange
+title Data Research Analysis Platform - Authentication Workflow
+
+|User|
+start
+
+:Navigate to registration page;
+
+:Fill registration form;
+:Enter email, first name, last name, password;
+
+:Submit registration form;
+
+|Backend|
+:Receive registration request;
+:Validate form data;
+
+if (Email already exists?) then (yes)
+    :Return error: Email already registered;
+    |User|
+    :Display error message;
+    :Return to registration form;
+else (no)
+    :Hash password with bcrypt and salt;
+    :Create new DRAUsersPlatform record;
+    :Generate verification code;
+    :Save verification code to database;
+    :Send verification email;
+    :Return success response;
+    
+    |User|
+    :Display success message;
+    :Show "Check your email" notification;
+    
+    :User checks email;
+    :Click verification link;
+    
+    |Backend|
+    :Receive verification request;
+    :Validate verification code;
+    
+    if (Code valid and not expired?) then (yes)
+        :Update email_verified_at timestamp;
+        :Delete used verification code;
+        :Return success response;
+        
+        |User|
+        :Display "Email verified" message;
+        :Redirect to login page;
+        
+        :Fill login form;
+        :Enter email and password;
+        :Submit login form;
+        
+        |Backend|
+        :Receive login request;
+        :Find user by email;
+        
+        if (User exists?) then (yes)
+            if (Email verified?) then (yes)
+                :Compare password with stored hash;
+                
+                if (Password matches?) then (yes)
+                    :Generate JWT token;
+                    :Set token expiration;
+                    :Return token and user data;
+                    
+                    |User|
+                    :Store JWT token in localStorage;
+                    :Update authentication state;
+                    :Redirect to dashboard/projects;
+                    
+                    partition "Authenticated Session" {
+                        :Access protected routes;
+                        :Include JWT in API requests;
+                        
+                        |Backend|
+                        :Validate JWT on each request;
+                        
+                        if (Token valid?) then (yes)
+                            :Process API request;
+                            :Return requested data;
+                        else (no)
+                            :Return 401 Unauthorized;
+                            
+                            |User|
+                            :Clear stored token;
+                            :Redirect to login page;
+                        endif
+                    }
+                    
+                else (no)
+                    :Return error: Invalid credentials;
+                    |User|
+                    :Display login error;
+                endif
+            else (no)
+                :Return error: Email not verified;
+                |User|
+                :Display verification required message;
+                :Option to resend verification email;
+            endif
+        else (no)
+            :Return error: User not found;
+            |User|
+            :Display login error;
+        endif
+    else (no)
+        :Return error: Invalid or expired code;
+        |User|
+        :Display verification failed message;
+        :Option to resend verification email;
+    endif
+endif
+
+|User|
+if (Logout requested?) then (yes)
+    :Clear JWT token from localStorage;
+    :Clear authentication state;
+    :Redirect to home page;
+    stop
+else (continue session)
+    :Continue using application;
+endif
+
+floating note right
+  **JWT Token Details:**
+  - User ID
+  - Email
+  - User type (ADMIN/NORMAL)
+  - Expiration time
+  - Issued at timestamp
+end note
+
+floating note left
+  **Password Security:**
+  Uses bcrypt with salt rounds
+  configured via PASSWORD_SALT
+  environment variable
+end note
+
+floating note right
+  **Email Verification:**
+  Verification code expires after
+  configured time period
+  Links contain UUID codes
+  One-time use only
+end note
+
+@enduml

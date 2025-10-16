@@ -1,0 +1,252 @@
+@startuml API_Integration_Sequence_Diagram
+!theme aws-orange
+title Data Research Analysis Platform - API Integration with Authentication
+
+participant "Frontend\n(Vue/Nuxt)" as Frontend
+participant "Auth Middleware" as AuthMiddleware
+participant "Express Router" as Router
+participant "Processor" as Processor
+participant "Database\n(PostgreSQL)" as Database
+participant "External Services" as External
+
+== Authentication Flow ==
+
+Frontend -> Router: POST /api/auth/login
+activate Router
+
+Router -> Processor: UserProcessor.login(credentials)
+activate Processor
+
+Processor -> Database: Find user by email
+activate Database
+Database --> Processor: User record
+deactivate Database
+
+Processor -> Processor: Compare password hash
+Processor -> Processor: Generate JWT token
+
+Processor --> Router: { token, user, expires }
+deactivate Processor
+
+Router --> Frontend: HTTP 200 OK + JWT token
+deactivate Router
+
+Frontend -> Frontend: Store token in localStorage
+Frontend -> Frontend: Update authentication state
+
+== Authenticated API Request ==
+
+Frontend -> Router: GET /api/projects\nAuthorization: Bearer {JWT}
+activate Router
+
+Router -> AuthMiddleware: Validate JWT token
+activate AuthMiddleware
+
+AuthMiddleware -> AuthMiddleware: Verify token signature
+AuthMiddleware -> AuthMiddleware: Check expiration
+
+alt Token Valid
+    AuthMiddleware -> Database: Verify user exists
+    activate Database
+    Database --> AuthMiddleware: User confirmed
+    deactivate Database
+    
+    AuthMiddleware --> Router: User context attached
+    deactivate AuthMiddleware
+    
+    Router -> Processor: ProjectProcessor.getUserProjects(userId)
+    activate Processor
+    
+    Processor -> Database: SELECT projects WHERE user_id = ?
+    activate Database
+    Database --> Processor: Project records
+    deactivate Database
+    
+    Processor --> Router: Projects array
+    deactivate Processor
+    
+    Router --> Frontend: HTTP 200 OK + projects data
+    
+else Token Invalid/Expired
+    AuthMiddleware --> Router: HTTP 401 Unauthorized
+    deactivate AuthMiddleware
+    
+    Router --> Frontend: HTTP 401 Unauthorized
+    
+    Frontend -> Frontend: Clear stored token
+    Frontend -> Frontend: Redirect to login page
+end
+
+deactivate Router
+
+== Data Source Creation ==
+
+Frontend -> Router: POST /api/data-sources\nAuthorization: Bearer {JWT}\nContent-Type: application/json
+activate Router
+
+Router -> AuthMiddleware: Validate JWT
+activate AuthMiddleware
+AuthMiddleware --> Router: User authenticated
+deactivate AuthMiddleware
+
+Router -> Processor: DataSourceProcessor.create(dataSourceData)
+activate Processor
+
+Processor -> Processor: Validate data source configuration
+Processor -> External: Test database connection
+activate External
+
+alt Connection Successful
+    External --> Processor: Connection confirmed
+    deactivate External
+    
+    Processor -> Database: BEGIN TRANSACTION
+    activate Database
+    
+    Processor -> Database: INSERT INTO dra_data_sources
+    Database --> Processor: Data source created
+    
+    Processor -> Database: COMMIT TRANSACTION
+    deactivate Database
+    
+    Processor --> Router: Created data source
+    deactivate Processor
+    
+    Router --> Frontend: HTTP 201 Created + data source
+    
+else Connection Failed
+    External --> Processor: Connection error
+    deactivate External
+    
+    Processor --> Router: Validation error
+    deactivate Processor
+    
+    Router --> Frontend: HTTP 400 Bad Request + error details
+end
+
+deactivate Router
+
+== File Upload with Progress ==
+
+Frontend -> Router: POST /api/data-sources/pdf\nAuthorization: Bearer {JWT}\nContent-Type: multipart/form-data
+activate Router
+
+Router -> AuthMiddleware: Validate JWT
+activate AuthMiddleware
+AuthMiddleware --> Router: User authenticated
+deactivate AuthMiddleware
+
+Router -> Router: Multer middleware processes file
+Router -> Processor: PDFProcessor.handleUpload(file)
+activate Processor
+
+Processor -> Database: INSERT INTO dra_data_sources
+activate Database
+Database --> Processor: Data source record created
+deactivate Database
+
+Processor -> External: Queue background processing job
+activate External
+External --> Processor: Job queued successfully
+deactivate External
+
+Processor --> Router: Upload successful
+deactivate Processor
+
+Router --> Frontend: HTTP 200 OK + job details
+deactivate Router
+
+note right: Background processing continues\nvia Socket.IO (see previous diagram)
+
+== Dashboard Export ==
+
+Frontend -> Router: POST /api/dashboards/{id}/export\nAuthorization: Bearer {JWT}
+activate Router
+
+Router -> AuthMiddleware: Validate JWT + ownership
+activate AuthMiddleware
+
+AuthMiddleware -> Database: Verify dashboard ownership
+activate Database
+Database --> AuthMiddleware: User owns dashboard
+deactivate Database
+
+AuthMiddleware --> Router: Access granted
+deactivate AuthMiddleware
+
+Router -> Processor: DashboardProcessor.export(dashboardId, format)
+activate Processor
+
+Processor -> Database: Fetch dashboard data
+activate Database
+Database --> Processor: Dashboard configuration
+deactivate Database
+
+Processor -> External: Generate export file
+activate External
+External --> Processor: Export file created
+deactivate External
+
+Processor -> Database: INSERT INTO dra_dashboard_export_metadata
+activate Database
+Database --> Processor: Export metadata saved
+deactivate Database
+
+Processor --> Router: Export initiated
+deactivate Processor
+
+Router --> Frontend: HTTP 202 Accepted + export job ID
+deactivate Router
+
+note right: Export completion notified\nvia Socket.IO
+
+== Error Handling Patterns ==
+
+alt Network Error
+    Frontend -> Router: API Request times out
+    Frontend -> Frontend: Show "Connection error" message
+    Frontend -> Frontend: Retry mechanism with exponential backoff
+    
+else Server Error (500)
+    Router -> Processor: Business logic error
+    Processor -> Database: Database operation fails
+    Database --> Processor: SQL error
+    Processor --> Router: Internal error
+    Router --> Frontend: HTTP 500 Internal Server Error
+    Frontend -> Frontend: Show generic error message
+    Frontend -> Frontend: Log error for debugging
+    
+else Validation Error (400)
+    Router -> Processor: Invalid input data
+    Processor -> Processor: Validation fails
+    Processor --> Router: Validation errors array
+    Router --> Frontend: HTTP 400 Bad Request + validation details
+    Frontend -> Frontend: Highlight invalid form fields
+    Frontend -> Frontend: Show specific error messages
+    
+else Authorization Error (403)
+    Router -> AuthMiddleware: Check resource permissions
+    AuthMiddleware -> Database: Verify ownership/permissions
+    Database --> AuthMiddleware: Access denied
+    AuthMiddleware --> Router: Forbidden
+    Router --> Frontend: HTTP 403 Forbidden
+    Frontend -> Frontend: Show "Access denied" message
+end
+
+== Rate Limiting ==
+
+Frontend -> Router: Multiple rapid requests
+Router -> Router: Check rate limit (requests/minute)
+
+alt Rate Limit Exceeded
+    Router --> Frontend: HTTP 429 Too Many Requests
+    note right: Retry-After header included
+    Frontend -> Frontend: Show rate limit message
+    Frontend -> Frontend: Implement request queuing
+    
+else Within Limits
+    Router -> AuthMiddleware: Continue processing
+    note right: Normal API flow continues
+end
+
+@enduml

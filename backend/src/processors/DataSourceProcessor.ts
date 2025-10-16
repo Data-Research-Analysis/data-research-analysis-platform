@@ -9,7 +9,10 @@ import { DataSource } from "typeorm";
 import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
 import { EDataSourceType } from "../types/EDataSourceType.js";
 import { UtilityService } from "../services/UtilityService.js";
-import { IExcelDataSourceReturn } from "../types/IExcelDataSourceReturn.js";
+import { IDataSourceReturn } from "../types/IDataSourceReturn.js";
+import { IPDFDataSourceReturn } from "../types/IPDFDataSourceReturn.js";
+import { FilesService } from "../services/FilesService.js";
+import { QueueService } from "../services/QueueService.js";
 export class DataSourceProcessor {
     private static instance: DataSourceProcessor;
     private constructor() {}
@@ -129,6 +132,20 @@ export class DataSourceProcessor {
                     query = `DROP TABLE IF EXISTS dra_excel.${tableName}`;
                     await dbConnector.query(query);
                 }
+            } else if (dataSource.connection_details.schema === 'dra_pdf') {
+                //delete the tables that were created for the PDF data source
+                const dbConnector = await driver.getConcreteDriver();
+                if (!dbConnector) {
+                    return resolve(false);
+                }
+                //get the list of tables in the dra_pdf schema that were created for this data source
+                let query = `SELECT table_name FROM information_schema.tables WHERE table_schema = 'dra_pdf' AND table_name LIKE '%_data_source_${dataSource.id}%'`;
+                const tables = await dbConnector.query(query);
+                for (let i = 0; i < tables.length; i++) {
+                    const tableName = tables[i].table_name;
+                    query = `DROP TABLE IF EXISTS dra_pdf.${tableName}`;
+                    await dbConnector.query(query);
+                }
             }
             //TODO: delete all of the dashboards contained in all of the related data models
             const dataModel = await manager.findOne(DRADataModel, {where: {data_source: dataSource, users_platform: user}});
@@ -192,7 +209,7 @@ export class DataSourceProcessor {
 
             if (dataSource.data_type === EDataSourceType.MONGODB) {
                 //TODO: Leaving here for when MongoDB data source is implemented
-            } else if (dataSource.data_type === EDataSourceType.POSTGRESQL || dataSource.data_type === EDataSourceType.MYSQL || dataSource.data_type === EDataSourceType.MARIADB) {
+            } else if (dataSource.data_type === EDataSourceType.POSTGRESQL || dataSource.data_type === EDataSourceType.MYSQL || dataSource.data_type === EDataSourceType.MARIADB || dataSource.data_type === EDataSourceType.EXCEL || dataSource.data_type === EDataSourceType.PDF) {
                 const connection: IDBConnectionDetails = dataSource.connection_details;
                 const dataSourceType = UtilityService.getInstance().getDataSourceType(connection.data_source_type);
                 if (!dataSourceType) {
@@ -444,8 +461,8 @@ export class DataSourceProcessor {
         });
     }
 
-    public async addExcelDataSource(fileName: string, dataSourceName: string, fileId: string, data: string, tokenDetails: ITokenDetails, projectId: number, dataSourceId: number = null): Promise<IExcelDataSourceReturn> {
-        return new Promise<IExcelDataSourceReturn>(async (resolve, reject) => {
+    public async addExcelDataSource(fileName: string, dataSourceName: string, fileId: string, data: string, tokenDetails: ITokenDetails, projectId: number, dataSourceId: number = null): Promise<IDataSourceReturn> {
+        return new Promise<IDataSourceReturn>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             if (!driver) {
@@ -544,5 +561,203 @@ export class DataSourceProcessor {
             }
             return resolve({ status: 'error', file_id: fileId });
         });
+    }
+
+    public async addPDFDataSource(
+        dataSourceName: string, 
+        fileId: string, 
+        data: string, 
+        tokenDetails: ITokenDetails, 
+        projectId: number, 
+        dataSourceId: number = null, 
+        sheetInfo?: any
+    ): Promise<IPDFDataSourceReturn> {
+        return new Promise<IPDFDataSourceReturn>(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve({ status: 'error', file_id: fileId });
+            }
+            const dbConnector = await driver.getConcreteDriver();
+            if (!dbConnector) {
+                return resolve({ status: 'error', file_id: fileId });
+            }
+            const manager = (await driver.getConcreteDriver()).manager;
+            if (!manager) {
+                return resolve({ status: 'error', file_id: fileId });
+            }
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!user) {
+                return resolve({ status: 'error', file_id: fileId });
+            }
+            const project: DRAProject|null = await manager.findOne(DRAProject, {where: {id: projectId, users_platform: user}});
+            if (project) {
+                let dataSource = new DRADataSource();
+                const sheetsProcessed = [];
+                
+                if (!dataSourceId) {
+                    // Create new data source - tables will be saved in the platform's own database but in a dedicated schema
+                    const host = UtilityService.getInstance().getConstants('POSTGRESQL_HOST');
+                    const port = UtilityService.getInstance().getConstants('POSTGRESQL_PORT');
+                    const database = UtilityService.getInstance().getConstants('POSTGRESQL_DB_NAME');
+                    const username = UtilityService.getInstance().getConstants('POSTGRESQL_USERNAME');
+                    const password = UtilityService.getInstance().getConstants('POSTGRESQL_PASSWORD');
+
+                    // The PDF files will be saved as tables in the dra_pdf schema which will be separate from the public schema
+                    let query = `CREATE SCHEMA IF NOT EXISTS dra_pdf`;
+                    await dbConnector.query(query);
+                    const connection: IDBConnectionDetails = {
+                        data_source_type: UtilityService.getInstance().getDataSourceType('postgresql'),
+                        host: host,
+                        port: port,
+                        schema: 'dra_pdf',
+                        database: database,
+                        username: username,
+                        password: password,
+                    };
+                    dataSource.name = `${dataSourceName}_${new Date().getTime()}`;
+                    dataSource.connection_details = connection;
+                    dataSource.data_type = UtilityService.getInstance().getDataSourceType('postgresql');
+                    dataSource.project = project;
+                    dataSource.users_platform = user;
+                    dataSource.created_at = new Date();
+                    dataSource = await manager.save(dataSource);
+                } else {
+                    dataSource = await manager.findOne(DRADataSource, { where: { id: dataSourceId, project: project, users_platform: user } });
+                }
+
+                // Parse the data - could be a single sheet or multiple sheets
+                const parsedData = JSON.parse(data);
+                
+                // Handle single sheet format vs multi-sheet format
+                const sheets = parsedData.columns && parsedData.rows ? [parsedData] : parsedData.sheets || [];
+                
+                // Process each sheet
+                for (let i = 0; i < sheets.length; i++) {
+                    const sheetData = sheets[i];
+                    const sheetNumber = i + 1;
+                    const pageName = `page_${sheetNumber}`;
+                    const pageNumber = sheetInfo?.page_number || sheetNumber;
+                    
+                    // Create table name for this sheet
+                    const tableName = `pdf_${fileId}_${pageNumber}_data_source_${dataSource.id}`;
+                    console.log('Creating table:', tableName);
+                    // Create table query
+                    let createTableQuery = `CREATE TABLE dra_pdf.${tableName} `;
+                    let columns = '';
+                    let insertQueryColumns = '';
+                    
+                    if (sheetData.columns && sheetData.columns.length > 0) {
+                        sheetData.columns.forEach((column: any, index: number) => {
+                            const dataType = UtilityService.getInstance().convertDataTypeToPostgresDataType(EDataSourceType.PDF, column.type);
+                            let dataTypeString = '';
+                            if (dataType.size) {
+                                dataTypeString = `${dataType.type}(${dataType.size})`;
+                            } else {
+                                dataTypeString = `${dataType.type}`;
+                            }
+                            if (index < sheetData.columns.length - 1) {
+                                columns += `${column.column_name} ${dataTypeString}, `;
+                            } else {
+                                columns += `${column.column_name} ${dataTypeString} `;
+                            }
+                            if (index < sheetData.columns.length - 1) {
+                                insertQueryColumns += `${column.column_name},`;
+                            } else {
+                                insertQueryColumns += `${column.column_name}`;
+                            }
+                        });
+                        
+                        createTableQuery += `(${columns})`;
+                        insertQueryColumns = `(${insertQueryColumns})`;
+                        
+                        // Create the table
+                        await dbConnector.query(createTableQuery);
+                        
+                        // Insert data rows
+                        if (sheetData.rows && sheetData.rows.length > 0) {
+                            for (const row of sheetData.rows) {
+                                let insertQuery = `INSERT INTO dra_pdf.${tableName} `;
+                                let values = '';
+                                
+                                sheetData.columns.forEach((column: any, colIndex: number) => {
+                                    const value = row.data ? row.data[column.title] : row[column.title];
+                                    if (colIndex > 0) {
+                                        values += ', ';
+                                    }
+                                    
+                                    // Handle different data types properly
+                                    if (value === null || value === undefined) {
+                                        values += 'NULL';
+                                    } else if (column.type === 'boolean') {
+                                        // Convert boolean values to PostgreSQL format
+                                        const boolValue = this.convertToPostgresBoolean(value);
+                                        values += boolValue;
+                                    } else if (typeof value === 'string') {
+                                        values += `'${value.replace(/'/g, "''")}'`;
+                                    } else if (typeof value === 'number') {
+                                        values += `${value}`;
+                                    } else {
+                                        // For other types, convert to string and escape
+                                        values += `'${String(value).replace(/'/g, "''")}'`;
+                                    }
+                                });
+                                
+                                insertQuery += `${insertQueryColumns} VALUES(${values});`;
+                                await dbConnector.query(insertQuery);
+                            }
+                        }
+                        
+                        // Track processed sheet
+                        sheetsProcessed.push({
+                            sheet_id: sheetInfo?.sheet_id || `sheet_${sheetNumber}`,
+                            sheet_name: pageName,
+                            table_name: tableName,
+                            page_number: pageNumber
+                        });
+                    }
+                }
+
+                //Add the user to the delete files queue, which will get all of the
+                //files uploaded by the user and will be deleted
+                await QueueService.getInstance().addFilesDeletionJob(user.id);
+
+                // FilesService.getInstance().deleteFileFromDisk()
+                
+                return resolve({
+                    status: 'success', 
+                    file_id: fileId, 
+                    data_source_id: dataSource.id,
+                    sheets_processed: sheetsProcessed.length,
+                    sheet_details: sheetsProcessed
+                });
+            }
+            return resolve({ status: 'error', file_id: fileId });
+        });
+    }
+
+    /**
+     * Converts various boolean representations to PostgreSQL boolean format
+     */
+    private convertToPostgresBoolean(value: any): string {
+        if (value === null || value === undefined) {
+            return 'NULL';
+        }
+        
+        const stringValue = String(value).trim().toLowerCase();
+        
+        // Handle common true values
+        if (['true', '1', 'yes', 'y', 'on', 'active', 'enabled'].includes(stringValue)) {
+            return 'TRUE';
+        }
+        
+        // Handle common false values
+        if (['false', '0', 'no', 'n', 'off', 'inactive', 'disabled'].includes(stringValue)) {
+            return 'FALSE';
+        }
+        
+        // If we can't determine the boolean value, default to NULL
+        console.warn(`Unable to convert value "${value}" to boolean, using NULL`);
+        return 'NULL';
     }
 }

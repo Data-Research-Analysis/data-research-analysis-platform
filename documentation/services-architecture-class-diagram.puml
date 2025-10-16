@@ -1,0 +1,265 @@
+@startuml Services_Architecture_Class_Diagram
+!theme aws-orange
+title Data Research Analysis Platform - Services Architecture
+
+' Define styling
+skinparam class {
+    BackgroundColor LightBlue
+    BorderColor DarkBlue
+    ArrowColor DarkBlue
+}
+skinparam package {
+    BackgroundColor LightGray
+    BorderColor Gray
+}
+
+package "Core Services" {
+    class UtilityService {
+        -instance: UtilityService
+        --
+        +getInstance(): UtilityService
+        +initialize(): Promise<void>
+        +getDataSourceType(type: string): EDataSourceType
+        +generateJWT(payload: any): string
+        +verifyJWT(token: string): any
+        +hashPassword(password: string): string
+        +comparePassword(password: string, hash: string): boolean
+        +generateUUID(): string
+        +generateRandomString(length: number): string
+        +sendEmail(template: string, data: any): Promise<void>
+    }
+
+    class QueueService {
+        -instance: QueueService
+        -pdfConversionQueue: Queue
+        -textExtractionQueue: Queue
+        --
+        +getInstance(): QueueService
+        +initializeQueues(): Promise<void>
+        +addPDFConversionJob(fileName: string): Promise<void>
+        +addTextExtractionJob(fileName: string): Promise<void>
+        +getNextPDFConversionJob(): Promise<Document>
+        +getNextTextExtractionJob(): Promise<Document>
+        +purgeQueues(): Promise<void>
+        +run(): Promise<void>
+    }
+
+    class WorkerService {
+        -instance: WorkerService
+        --
+        +getInstance(): WorkerService
+        +runWorker(operation: EOperation, fileName: string): Promise<void>
+        +processJob(operation: EOperation, fileName: string): Promise<void>
+    }
+}
+
+package "File Services" {
+    class FilesService {
+        -instance: FilesService
+        --
+        +getInstance(): FilesService
+        +writeToFile(filePath: string, content: string): Promise<void>
+        +readFile(filePath: string): Promise<string>
+        +deleteFile(filePath: string): Promise<void>
+        +getDirectoryPath(relativePath: string): Promise<string>
+        +readDir(directoryPath: string): Promise<string[]>
+        +createDirectory(directoryPath: string): Promise<void>
+    }
+
+    class PDFService {
+        -instance: PDFService
+        --
+        +getInstance(): PDFService
+        +extractPDFContent(fileName: string): Promise<any>
+        +processPDFFile(filePath: string): Promise<any>
+        +convertPDFToImages(fileName: string): Promise<string[]>
+    }
+
+    class ExcelFileService {
+        -instance: ExcelFileService
+        --
+        +getInstance(): ExcelFileService
+        +readExcelFile(filePath: string): Promise<any>
+        +parseExcelData(data: any): Promise<any>
+        +validateExcelStructure(data: any): boolean
+    }
+}
+
+package "Cloud Services" {
+    class AWSService {
+        -instance: AWSService
+        -region: string
+        -s3client: S3Client
+        -bucketName: string
+        --
+        +getInstance(): AWSService
+        +initialize(region: string, bucketName: string, accessKeyId: string, secretAccessKey: string): Promise<void>
+        +getRegion(): Promise<string>
+        +getS3Client(): Promise<S3Client>
+        +getBucketName(): Promise<string>
+        +getListOfImagesFromS3Bucket(): Promise<ListObjectsCommandOutput>
+        +deleteAllFilesFromS3Bucket(): Promise<void>
+        +uploadFileToS3Bucket(fileName: string): Promise<void>
+        +getS3Object(key: string): Promise<Uint8Array[]>
+    }
+}
+
+package "Infrastructure Services" {
+    class TemplateEngineService {
+        -instance: TemplateEngineService
+        --
+        +getInstance(): TemplateEngineService
+        +renderTemplate(templateName: string, data: any): Promise<string>
+        +loadTemplate(templatePath: string): Promise<string>
+        +compileTemplate(template: string, data: any): string
+    }
+
+    class WinstonLoggerService {
+        -instance: WinstonLoggerService
+        -logger: Logger
+        --
+        +getInstance(): WinstonLoggerService
+        +info(message: string, meta?: any): void
+        +error(message: string, meta?: any): void
+        +warn(message: string, meta?: any): void
+        +debug(message: string, meta?: any): void
+    }
+}
+
+package "Data Drivers" {
+    class DBDriver {
+        -instance: DBDriver
+        -drivers: Map<string, any>
+        --
+        +getInstance(): DBDriver
+        +getDriver(type: string): Promise<any>
+        +initialize(dataSource: DataSource): Promise<void>
+        +testConnection(config: any): Promise<boolean>
+    }
+
+    class PostgresDriver {
+        -instance: PostgresDriver
+        -dataSource: DataSource
+        --
+        +getInstance(): PostgresDriver
+        +initialize(dataSource: DataSource): Promise<void>
+        +executeQuery(query: string): Promise<any>
+        +testConnection(): Promise<boolean>
+    }
+
+    class MySQLDriver {
+        -instance: MySQLDriver
+        -dataSource: DataSource
+        --
+        +getInstance(): MySQLDriver
+        +initialize(dataSource: DataSource): Promise<void>
+        +executeQuery(query: string): Promise<any>
+        +testConnection(): Promise<boolean>
+    }
+
+    class MariaDBDriver {
+        -instance: MariaDBDriver
+        -dataSource: DataSource
+        --
+        +getInstance(): MariaDBDriver
+        +initialize(dataSource: DataSource): Promise<void>
+        +executeQuery(query: string): Promise<any>
+        +testConnection(): Promise<boolean>
+    }
+}
+
+package "Communication Drivers" {
+    class SocketIODriver {
+        -instance: SocketIODriver
+        -io: Server
+        --
+        +getInstance(): SocketIODriver
+        +initialize(httpServer: HttpServer): Promise<void>
+        +emit(event: string, data: any): void
+        +broadcast(event: string, data: any): void
+        +handleConnection(socket: Socket): void
+    }
+
+    class MailDriver {
+        -instance: MailDriver
+        --
+        +getInstance(): MailDriver
+        +sendMail(options: MailOptions): Promise<void>
+        +configureTransporter(config: any): void
+    }
+
+    class NodeMailerDriver {
+        -instance: NodeMailerDriver
+        -transporter: Transporter
+        --
+        +getInstance(): NodeMailerDriver
+        +initialize(config: any): Promise<void>
+        +sendMail(options: MailOptions): Promise<void>
+    }
+}
+
+package "Text Processing" {
+    class TextExtractDriver {
+        -instance: TextExtractDriver
+        --
+        +getInstance(): TextExtractDriver
+        +extractTextFromImage(imagePath: string): Promise<string>
+        +processTextData(text: string): Promise<any>
+    }
+
+    class AmazonTextExtractDriver {
+        -instance: AmazonTextExtractDriver
+        -textractClient: TextractClient
+        --
+        +getInstance(): AmazonTextExtractDriver
+        +initialize(region: string, credentials: any): Promise<void>
+        +extractTextFromImage(imageBuffer: Buffer): Promise<any>
+        +analyzeDocument(document: any): Promise<any>
+    }
+}
+
+' Service Dependencies
+UtilityService --> DBDriver : uses
+UtilityService --> QueueService : initializes
+UtilityService --> SocketIODriver : configures
+
+QueueService --> WorkerService : processes jobs
+WorkerService --> FilesService : manages files
+WorkerService --> SocketIODriver : emits events
+WorkerService --> PDFService : processes PDFs
+
+PDFService --> FilesService : reads/writes files
+PDFService --> QueueService : queues jobs
+
+AWSService --> FilesService : uploads files
+AWSService ..> TextExtractDriver : may use
+
+DBDriver --> PostgresDriver : manages
+DBDriver --> MySQLDriver : manages
+DBDriver --> MariaDBDriver : manages
+
+MailDriver --> NodeMailerDriver : implements
+UtilityService --> MailDriver : sends emails
+UtilityService --> TemplateEngineService : renders templates
+
+TextExtractDriver <|-- AmazonTextExtractDriver : extends
+AmazonTextExtractDriver --> AWSService : uses AWS services
+
+WorkerService --> TextExtractDriver : processes text
+PDFService --> AWSService : may upload to S3
+
+' All services use logging
+UtilityService ..> WinstonLoggerService : logs
+QueueService ..> WinstonLoggerService : logs
+WorkerService ..> WinstonLoggerService : logs
+PDFService ..> WinstonLoggerService : logs
+
+note right of QueueService : Manages background job processing\nfor PDF conversion and text extraction
+
+note right of WorkerService : Spawns worker threads for\nheavy processing tasks
+
+note right of SocketIODriver : Provides real-time communication\nbetween frontend and backend
+
+note bottom of AWSService : Handles S3 operations for\nfile storage and retrieval
+
+@enduml

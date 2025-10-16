@@ -11,6 +11,8 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { UtilityService } from '../services/UtilityService.js';
 import { ExcelFileService } from '../services/ExcelFileService.js';
+import { PDFService } from '../services/PDFService.js';
+
 const router = express.Router();
 
 router.get('/list', async (req: Request, res: Response, next: any) => {
@@ -138,6 +140,85 @@ async (req: Request, res: Response) => {
         res.status(200).send({message: 'The data source has been connected.', result});
     } catch (error) {
         res.status(400).send({message: 'The data source could not be connected.'});
+    }
+});
+
+router.post('/add-pdf-data-source', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([
+    body('data_source_name').notEmpty().trim().escape(), 
+    body('file_id').notEmpty().trim().escape(), 
+    body('data').notEmpty(), 
+    body('project_id').notEmpty().trim().escape().toInt(), 
+    body('data_source_id').optional().trim().escape().toInt(),
+    body('sheet_info').optional()
+]),
+async (req: Request, res: Response) => {
+    const { data_source_name, file_id, data, project_id, data_source_id, sheet_info } = matchedData(req);
+    try {
+        // Sanitize boolean values in the data before processing
+        const sanitizedData = UtilityService.getInstance().sanitizeDataForPostgreSQL(data);
+        
+        const result = await DataSourceProcessor.getInstance().addPDFDataSource(
+            data_source_name, 
+            file_id, 
+            JSON.stringify(sanitizedData), 
+            req.body.tokenDetails, 
+            project_id, 
+            data_source_id, 
+            sheet_info
+        );
+        res.status(200).send({message: 'PDF data source created successfully.', result});
+    } catch (error) {
+        console.error('PDF data source creation error:', error);
+        res.status(400).send({message: 'PDF data source creation failed.'});
+    }
+});
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    // Set the destination directory for uploaded files
+    // Ensure this directory exists in your backend project
+    cb(null, path.join(__dirname, '../../public/uploads/pdfs/'));
+  },
+  filename: (req, file, cb) => {
+    cb(null, file.originalname);
+  }
+});
+const upload = multer({ storage: storage });
+router.post('/upload/pdf', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, upload.single('file'), async (req: IMulterRequest, res: Response) => {
+    const file = req.file;
+    if (!file) {
+        return res.status(400).json({ message: 'No file uploaded.' });
+    }
+    try {
+        const publicUrl = UtilityService.getInstance().getConstants('PUBLIC_BACKEND_URL');
+        if (req?.file?.filename) {
+            const fileUrl = `${publicUrl}/uploads/pdfs/${req.file.filename}`;
+            console.log('Uploaded file URL:', fileUrl);
+            await PDFService.getInstance().preparePDFForDataExtraction(req.file.filename);
+            
+            res.status(200).json({
+                url: fileUrl, 
+                file_name: req.file.filename,
+                file_size: req.file.size,
+                original_name: req.file.originalname,
+                // data: pdfData,
+                success: true
+            });
+        } else {
+            res.status(400).json({ message: 'File upload failed.' });
+        }
+    } catch (error) {
+        console.error('PDF processing error:', error);
+        res.status(500).json({ 
+            message: 'PDF processing failed.', 
+            error: error.message 
+        });
     }
 });
 export default router;
