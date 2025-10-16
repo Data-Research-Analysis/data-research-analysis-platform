@@ -18,11 +18,11 @@ export class WorkerService {
         }
         return WorkerService.instance;
     }
-    public runWorker(operation: EOperation, fileName: string): Promise<void> {
+    public runWorker(operation: EOperation, fileName: string, userId: number): Promise<void> {
         return new Promise<void>(async (resolve, reject) => {
             const __filename = fileURLToPath(import.meta.url);
             const __dirname = dirname(__filename);
-            const workerData = { fileName, operation, identifier: `worker-${Date.now()}` };
+            const workerData = { fileName, operation, identifier: `worker-${Date.now()}`, userId };
             const fileNameParts = __filename.split(path.sep);
             fileNameParts.pop();
             fileNameParts.pop();

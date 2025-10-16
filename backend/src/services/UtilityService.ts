@@ -336,4 +336,66 @@ export class UtilityService {
             return { baseType: 'VARCHAR', size: 1024 };
         }
     }
+    /**
+     * Sanitizes data for PostgreSQL by ensuring boolean values are properly formatted
+     */
+    public sanitizeDataForPostgreSQL(data: any): any {
+        if (!data) return data;
+        
+        // Handle columns
+        if (data.columns && Array.isArray(data.columns)) {
+            data.columns = data.columns.map((column: any) => ({
+                ...column,
+                // Ensure column metadata is preserved
+            }));
+        }
+        
+        // Handle rows
+        if (data.rows && Array.isArray(data.rows)) {
+            data.rows = data.rows.map((row: any) => {
+                let sanitizedRow = { ...row };
+                
+                // Sanitize row data if it's nested
+                if (row.data && typeof row.data === 'object') {
+                    sanitizedRow.data = this.sanitizeRowData(row.data, data.columns);
+                } else {
+                    // If row data is at the top level
+                    sanitizedRow = this.sanitizeRowData(row, data.columns);
+                }
+                
+                return sanitizedRow;
+            });
+        }
+        
+        return data;
+    }
+    
+    /**
+     * Sanitizes individual row data based on column types
+     */
+    public sanitizeRowData(rowData: any, columns: any[]): any {
+        if (!rowData || !columns) return rowData;
+        
+        const sanitized = { ...rowData };
+        
+        columns.forEach((column: any) => {
+            const value = sanitized[column.title] || sanitized[column.key];
+            
+            if (column.type === 'boolean' && (value !== null && value !== undefined)) {
+                const stringValue = String(value).trim().toLowerCase();
+                
+                // Convert to standardized boolean values
+                if (['true', '1', 'yes', 'y', 'on', 'active', 'enabled'].includes(stringValue)) {
+                    sanitized[column.title || column.key] = 'true';
+                } else if (['false', '0', 'no', 'n', 'off', 'inactive', 'disabled'].includes(stringValue)) {
+                    sanitized[column.title || column.key] = 'false';
+                } else {
+                    // For ambiguous values, set to null
+                    sanitized[column.title || column.key] = null;
+                }
+            }
+        });
+        
+        return sanitized;
+    }
 }

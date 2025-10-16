@@ -156,10 +156,13 @@ router.post('/add-pdf-data-source', async (req: Request, res: Response, next: an
 async (req: Request, res: Response) => {
     const { data_source_name, file_id, data, project_id, data_source_id, sheet_info } = matchedData(req);
     try {
+        // Sanitize boolean values in the data before processing
+        const sanitizedData = UtilityService.getInstance().sanitizeDataForPostgreSQL(data);
+        
         const result = await DataSourceProcessor.getInstance().addPDFDataSource(
             data_source_name, 
             file_id, 
-            JSON.stringify(data), 
+            JSON.stringify(sanitizedData), 
             req.body.tokenDetails, 
             project_id, 
             data_source_id, 

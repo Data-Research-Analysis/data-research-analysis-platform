@@ -14,7 +14,7 @@ import { FilesService } from "../../dist/services/FilesService.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const { fileName, operation, identifier } = workerData;
+const { fileName, operation, identifier, userId } = workerData;
 const directoryPathParts = __dirname.split(path.sep);
 directoryPathParts.pop();
 directoryPathParts.pop();
@@ -28,7 +28,7 @@ if (operation === EOperation.PDF_TO_IMAGES) {
 } else if (operation === EOperation.EXTRACT_TEXT_FROM_IMAGE) {
     await extractTextFromImage(fileName);
 } else if (operation === EOperation.DELETE_FILES) {
-    await deleteFiles(fileName);
+    await deleteFiles(userId);
 }
 
 /**
@@ -91,7 +91,7 @@ async function deleteFiles(userId) {
         for (const filePath of userPdfFiles) {
             await FilesService.getInstance().deleteFileFromDisk(filePath);
         }
-        parentPort.postMessage({ message: EOperation.DELETE_FILES_COMPLETE, data: { identifier: identifier } });
+        // parentPort.postMessage({ message: EOperation.DELETE_FILES_COMPLETE, data: { identifier: identifier } });
         return resolve();
     });
 }

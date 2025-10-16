@@ -685,12 +685,21 @@ export class DataSourceProcessor {
                                     if (colIndex > 0) {
                                         values += ', ';
                                     }
-                                    if (typeof value === 'string') {
-                                        values += `'${value.replace(/'/g, "''")}'`;
-                                    } else if (value === null || value === undefined) {
+                                    
+                                    // Handle different data types properly
+                                    if (value === null || value === undefined) {
                                         values += 'NULL';
-                                    } else {
+                                    } else if (column.type === 'boolean') {
+                                        // Convert boolean values to PostgreSQL format
+                                        const boolValue = this.convertToPostgresBoolean(value);
+                                        values += boolValue;
+                                    } else if (typeof value === 'string') {
+                                        values += `'${value.replace(/'/g, "''")}'`;
+                                    } else if (typeof value === 'number') {
                                         values += `${value}`;
+                                    } else {
+                                        // For other types, convert to string and escape
+                                        values += `'${String(value).replace(/'/g, "''")}'`;
                                     }
                                 });
                                 
@@ -725,5 +734,30 @@ export class DataSourceProcessor {
             }
             return resolve({ status: 'error', file_id: fileId });
         });
+    }
+
+    /**
+     * Converts various boolean representations to PostgreSQL boolean format
+     */
+    private convertToPostgresBoolean(value: any): string {
+        if (value === null || value === undefined) {
+            return 'NULL';
+        }
+        
+        const stringValue = String(value).trim().toLowerCase();
+        
+        // Handle common true values
+        if (['true', '1', 'yes', 'y', 'on', 'active', 'enabled'].includes(stringValue)) {
+            return 'TRUE';
+        }
+        
+        // Handle common false values
+        if (['false', '0', 'no', 'n', 'off', 'inactive', 'disabled'].includes(stringValue)) {
+            return 'FALSE';
+        }
+        
+        // If we can't determine the boolean value, default to NULL
+        console.warn(`Unable to convert value "${value}" to boolean, using NULL`);
+        return 'NULL';
     }
 }

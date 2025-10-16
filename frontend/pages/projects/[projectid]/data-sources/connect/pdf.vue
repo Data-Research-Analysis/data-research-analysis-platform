@@ -19,6 +19,33 @@ const state = reactive({
 });
 const user = computed(() => loggedInUserStore.getLoggedInUser());
 
+// Computed properties for button state management
+const allFilesCompleted = computed(() => {
+    if (!state.files || state.files.length === 0) return false;
+    return state.files.every(file => file.status === 'completed');
+});
+
+const hasProcessingFiles = computed(() => {
+    return state.files.some(file => file.status === 'processing');
+});
+
+const hasErrorFiles = computed(() => {
+    return state.files.some(file => file.status === 'error');
+});
+
+const buttonDisabled = computed(() => {
+    return state.loading || !allFilesCompleted.value || state.files.length === 0;
+});
+
+const buttonStatusText = computed(() => {
+    if (state.loading) return 'Creating Data Source...';
+    if (state.files.length === 0) return 'Please upload PDF files first';
+    if (hasErrorFiles.value) return 'Some files failed to process';
+    if (hasProcessingFiles.value) return 'Processing files...';
+    if (allFilesCompleted.value) return 'Ready to create data source';
+    return 'Upload PDF files to continue';
+});
+
 // Sheet Management Functions
 function createSheetFromPage(file, pageData, pageNumber) {
   const sheetName = `${file.displayName || file.name} - Page ${pageNumber}`;
@@ -127,6 +154,11 @@ function removeFile(fileId) {
     }
 }
 async function createDataSource() {
+    // Prevent execution if button should be disabled
+    if (buttonDisabled.value) {
+        return;
+    }
+
     const token = getAuthToken();
     if (!state.data_source_name || state.data_source_name.trim() === '') {
         $swal.fire({
@@ -142,6 +174,16 @@ async function createDataSource() {
             icon: 'error',
             title: `Error!`,
             text: `No sheet data available to create data source.`,
+        });
+        return;
+    }
+
+    // Additional check to ensure all files are completed
+    if (!allFilesCompleted.value) {
+        $swal.fire({
+            icon: 'error',
+            title: `Error!`,
+            text: `Please wait for all PDF files to finish processing before creating the data source.`,
         });
         return;
     }
@@ -240,9 +282,13 @@ function isBooleanType(values) {
   const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '')
   if (nonEmptyValues.length === 0) return false
   
-  return nonEmptyValues.every(value => 
+  // Require at least 70% of values to be valid boolean patterns
+  const validBooleanCount = nonEmptyValues.filter(value => 
     booleanPatterns.test(String(value).trim())
-  )
+  ).length;
+  
+  const threshold = Math.max(1, Math.ceil(nonEmptyValues.length * 0.7));
+  return validBooleanCount >= threshold;
 }
 function isNumberType(values) {
   const numberPattern = /^-?\$?[\d,]+\.?\d*%?$/
@@ -681,7 +727,47 @@ onMounted(async () => {
                         <font-awesome icon="fas fa-xmark" class="text-xl text-red-500 hover:text-red-400" />
                     </div>
                 </div>
-            </div>            
+            </div>
+            
+            <!-- File processing status summary -->
+            <div v-if="state.files && state.files.length" class="flex flex-col items-center mt-5">
+                <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-3/4 max-w-md">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-2">Processing Status</h4>
+                    <div class="space-y-2">
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-600">Total Files:</span>
+                            <span class="font-medium">{{ state.files.length }}</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-green-600">Completed:</span>
+                            <span class="font-medium">{{ state.files.filter(f => f.status === 'completed').length }}</span>
+                        </div>
+                        <div class="flex justify-between text-sm" v-if="hasProcessingFiles">
+                            <span class="text-blue-600">Processing:</span>
+                            <span class="font-medium">{{ state.files.filter(f => f.status === 'processing').length }}</span>
+                        </div>
+                        <div class="flex justify-between text-sm" v-if="hasErrorFiles">
+                            <span class="text-red-600">Failed:</span>
+                            <span class="font-medium">{{ state.files.filter(f => f.status === 'error').length }}</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Progress bar -->
+                    <div class="mt-3">
+                        <div class="flex justify-between text-xs text-gray-500 mb-1">
+                            <span>Progress</span>
+                            <span>{{ Math.round((state.files.filter(f => f.status === 'completed').length / state.files.length) * 100) }}%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div 
+                                class="bg-green-500 h-2 rounded-full transition-all duration-300 ease-out"
+                                :style="{ width: (state.files.filter(f => f.status === 'completed').length / state.files.length) * 100 + '%' }"
+                            ></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             <div v-if="state.files && state.files.length" class="flex flex-row w-full justify-center mt-10">
                 <div v-if="state.sheets && state.sheets.length && state.show_table_dialog" class="flex flex-col w-full justify-center overflow-hidden mb-10 px-4">
                     <h2 class="mb-4 text-xl font-bold text-gray-800">PDF Data - Multi-Sheet View</h2>
@@ -706,8 +792,25 @@ onMounted(async () => {
                 </div>
             </div>
             <spinner v-if="state.loading"/>
-            <div v-else-if="!state.loading && state.files && state.files.length" class="h-10 text-center items-center self-center mt-5 mb-5 p-2 font-bold shadow-md select-none bg-primary-blue-100 hover:bg-primary-blue-200 cursor-pointer text-white" @click="createDataSource">
-                Create PDF Data Source &amp; Upload PDF Files
+            
+            <!-- Button status and creation section -->
+            <div v-else-if="state.files && state.files.length" class="flex flex-col items-center mt-5 mb-5">
+                <!-- Status message -->
+                <div class="text-sm text-gray-600 mb-3 text-center">
+                    {{ buttonStatusText }}
+                </div>
+                
+                <!-- Create button -->
+                <div 
+                    class="h-10 text-center items-center self-center p-2 font-bold shadow-md select-none transition-all duration-200"
+                    :class="{
+                        'bg-primary-blue-100 hover:bg-primary-blue-200 cursor-pointer text-white': !buttonDisabled,
+                        'bg-gray-300 cursor-not-allowed text-gray-500': buttonDisabled
+                    }"
+                    @click="!buttonDisabled && createDataSource()"
+                >
+                    Create PDF Data Source &amp; Upload PDF Files
+                </div>
             </div>
         </div>
     </div>

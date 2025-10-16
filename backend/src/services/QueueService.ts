@@ -111,7 +111,7 @@ export class QueueService {
                     const job: Document | null = await this.pdfConversionQueue.dequeue();
                     if (job) {
                         console.log('Processing PDF Conversion Job:', job);
-                        await WorkerService.getInstance().runWorker(EOperation.PDF_TO_IMAGES, JSON.parse(job.getContent()).fileName);
+                        await WorkerService.getInstance().runWorker(EOperation.PDF_TO_IMAGES, JSON.parse(job.getContent()).fileName, 0);
                     }
                 }
                 const numTextExtraction = await this.textExtractionQueue.length();
@@ -119,7 +119,7 @@ export class QueueService {
                     const job: Document | null = await this.textExtractionQueue.dequeue();
                     if (job) {
                         console.log('Processing Text Extraction Job:', job);
-                        await WorkerService.getInstance().runWorker(EOperation.EXTRACT_TEXT_FROM_IMAGE, JSON.parse(job.getContent()).fileName);
+                        await WorkerService.getInstance().runWorker(EOperation.EXTRACT_TEXT_FROM_IMAGE, JSON.parse(job.getContent()).fileName, 0);
                     }
                 }
                 const numFileDeletion = await this.fileDeletionQueue.length();
@@ -127,7 +127,7 @@ export class QueueService {
                     const job: Document | null = await this.fileDeletionQueue.dequeue();
                     if (job) {
                         console.log('Processing File Deletion Job:', job);
-                        await WorkerService.getInstance().runWorker(EOperation.DELETE_FILES, JSON.parse(job.getContent()).userId);
+                        await WorkerService.getInstance().runWorker(EOperation.DELETE_FILES, " ", JSON.parse(job.getContent()).userId as number);
                     }
                 }
             }, UtilityService.getInstance().getConstants('QUEUE_STATUS_INTERVAL'));
