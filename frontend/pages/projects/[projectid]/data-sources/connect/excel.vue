@@ -88,27 +88,24 @@ function showTable(fileId) {
         setTimeout(() => {
             const file = state.files.find((file) => file.id === fileId);
             state.selected_file = file;
-            console.log('showTable - selected file:', file);
+            
             if (file && file.id) {
-                // Create sheets from all worksheets of the selected file
+                // Get existing sheets for the selected file
                 const fileSheets = getSheetsByFileId(fileId);
-
-                // If sheets already exist, show the table
-                if (fileSheets.length > 0) {
-                    state.show_table_dialog = true;
-                    return;
-                }
                 
-                // Create sheets from file worksheets if they don't exist yet
-                if (file.worksheets && file.worksheets.length > 0) {
-                    file.worksheets.forEach((worksheetData, index) => {
-                        if (worksheetData.rows && worksheetData.rows.length > 0) {
-                            const sheet = createSheetFromWorksheet(file, worksheetData, worksheetData.sheetName, index);
-                            addSheetToCollection(sheet);
-                        }
-                    });
+                if (fileSheets.length > 0) {
+                    // Set the first sheet of this file as active if no active sheet or if active sheet is from different file
+                    const currentActiveSheet = state.sheets.find(s => s.id === state.activeSheetId);
+                    if (!currentActiveSheet || currentActiveSheet.fileId !== fileId) {
+                        state.activeSheetId = fileSheets[0].id;
+                        console.log(`Set active sheet to: ${fileSheets[0].name}`);
+                    }
+                } else {
+                    console.log('No sheets found for file:', file.name);
+                    console.log('This might indicate the file had no data or failed to process');
                 }
             }
+            
             state.show_table_dialog = true;
         }, 500);
     });
@@ -469,7 +466,31 @@ async function handleFiles(files) {
             try {
                 const parsedFile = await parseFile(file);
                 state.files.push(parsedFile);
+                
+                // Immediately create sheets from worksheets
+                console.log('Creating sheets immediately for file:', parsedFile.name);
+                if (parsedFile.worksheets && parsedFile.worksheets.length > 0) {
+                    let sheetsCreated = 0;
+                    parsedFile.worksheets.forEach((worksheetData, index) => {
+                        if (worksheetData.rows && worksheetData.rows.length > 0) {
+                            const sheet = createSheetFromWorksheet(parsedFile, worksheetData, worksheetData.sheetName, index);
+                            addSheetToCollection(sheet);
+                            sheetsCreated++;
+                            console.log(`Created sheet: ${sheet.name} with ${worksheetData.rows.length} rows`);
+                        } else {
+                            console.log(`Skipping empty worksheet: ${worksheetData.sheetName}`);
+                        }
+                    });
+                    
+                    // Update file status to indicate sheets are ready
+                    parsedFile.status = 'loaded';
+                    console.log(`File ${parsedFile.name} processed with ${sheetsCreated} sheets created`);
+                } else {
+                    console.log('No worksheets found in file:', parsedFile.name);
+                    parsedFile.status = 'empty';
+                }
             } catch (error) {
+                console.error('Error processing file:', file.name, error);
                 rejectedFiles.push(`${file.name}`)
             }
         } else {
@@ -582,6 +603,7 @@ onMounted(async () => {
                             <NuxtLink class="text-gray-500">
                                 <div class="flex flex-row justify-end">
                                     <font-awesome
+                                      v-if="file.status === 'loaded' && getSheetsByFileId(file.id).length > 0"
                                       icon="fas fa-table"
                                       class="text-xl ml-2 text-gray-500 hover:text-gray-400 cursor-pointer"
                                       :v-tippy-content="'View Data In Table'"
@@ -593,9 +615,19 @@ onMounted(async () => {
                                       class="text-xl ml-2 text-green-300"
                                     />
                                     <font-awesome
+                                      v-else-if="file.status === 'loaded'"
+                                      icon="fas fa-check-circle"
+                                      class="text-xl ml-2 text-blue-500"
+                                    />
+                                    <font-awesome
                                       v-else-if="file.status === 'processing'"
                                       icon="fas fa-hourglass-half"
                                       class="text-xl ml-2 text-gray-500"
+                                    />
+                                    <font-awesome
+                                      v-else-if="file.status === 'empty'"
+                                      icon="fas fa-exclamation-triangle"
+                                      class="text-xl ml-2 text-yellow-500"
                                     />
                                     <font-awesome
                                       v-else-if="file.status === 'failed'"
@@ -607,6 +639,12 @@ onMounted(async () => {
                                     <div class="text-md">
                                       {{ file.name }}
                                     </div>
+                                    <div v-if="file.status === 'loaded'" class="mt-1 text-xs text-blue-600">
+                                      {{ getSheetsByFileId(file.id).length }} sheet{{ getSheetsByFileId(file.id).length !== 1 ? 's' : '' }} ready
+                                    </div>
+                                    <div v-else-if="file.status === 'empty'" class="mt-1 text-xs text-yellow-600">
+                                      No data found
+                                    </div>
                                 </div>
                                 <div class="flex flex-row justify-center items-center mt-5 mr-10">
                                     <font-awesome
@@ -617,7 +655,7 @@ onMounted(async () => {
                             </NuxtLink>
                         </template>
                     </notched-card>
-                    <div v-if="file.status === 'pending'" class="absolute top-px -right-2 z-10 bg-gray-200 hover:bg-gray-300 border border-gray-200 border-solid rounded-full w-10 h-10 flex items-center justify-center cursor-pointer" @click="removeFile(file.id)" v-tippy="{ content: 'Remove File', placement: 'top' }">
+                    <div v-if="file.status === 'pending' || file.status === 'loaded' || file.status === 'empty' || file.status === 'failed'" class="absolute top-px -right-2 z-10 bg-gray-200 hover:bg-gray-300 border border-gray-200 border-solid rounded-full w-10 h-10 flex items-center justify-center cursor-pointer" @click="removeFile(file.id)" v-tippy="{ content: 'Remove File', placement: 'top' }">
                         <font-awesome icon="fas fa-xmark" class="text-xl text-red-500 hover:text-red-400" />
                     </div>
                 </div>
