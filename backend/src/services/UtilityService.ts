@@ -47,6 +47,8 @@ export class UtilityService {
                 return EDataSourceType.CSV;
             case 'excel':
                 return EDataSourceType.EXCEL;
+            case 'pdf':
+                return EDataSourceType.PDF;
             default:
                 return EDataSourceType.POSTGRESQL;
         }
@@ -113,6 +115,10 @@ export class UtilityService {
         const dbLower = database.toLowerCase();
         if (dbLower === EDataSourceType.EXCEL) {
             const parsedType = this.parseExcelDataType(dataType);
+            return this.mapMySQLToPostgreSQL(parsedType);
+        } else if (dbLower === EDataSourceType.PDF) {
+            // PDF uses same data type parsing as Excel since they have similar structure
+            const parsedType = this.parsePDFDataType(dataType);
             return this.mapMySQLToPostgreSQL(parsedType);
         } else if (dbLower === EDataSourceType.MYSQL || dbLower === EDataSourceType.MARIADB) {
             // Parse MySQL/MariaDB data type (MariaDB is MySQL-compatible)
@@ -304,6 +310,30 @@ export class UtilityService {
             return { baseType: 'NUMERIC' };
         } else if (normalizedType === 'DATE') {
             return { baseType: 'DATE' };
+        }
+    }
+
+    private parsePDFDataType(dataType: string): { 
+        baseType: string; 
+        size?: number;
+    } {
+        // PDF data types are similar to Excel: text, email, url, boolean, number, date
+        const normalizedType = dataType.trim().toUpperCase();
+        if (normalizedType === 'EMAIL') {
+            return { baseType: 'VARCHAR', size: 512 };
+        } else if (normalizedType === 'URL') {
+            return { baseType: 'VARCHAR', size: 1024 };
+        } else if (normalizedType === 'TEXT') {
+            return { baseType: 'VARCHAR', size: 2048 }; // PDF text might be longer
+        } else if (normalizedType === 'BOOLEAN') {
+            return { baseType: 'BOOLEAN' };
+        } else if (normalizedType === 'NUMBER') {
+            return { baseType: 'NUMERIC' };
+        } else if (normalizedType === 'DATE') {
+            return { baseType: 'DATE' };
+        } else {
+            // Default to text for unknown PDF data types
+            return { baseType: 'VARCHAR', size: 1024 };
         }
     }
 }

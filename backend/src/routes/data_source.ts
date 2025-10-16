@@ -143,6 +143,35 @@ async (req: Request, res: Response) => {
     }
 });
 
+router.post('/add-pdf-data-source', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([
+    body('data_source_name').notEmpty().trim().escape(), 
+    body('file_id').notEmpty().trim().escape(), 
+    body('data').notEmpty(), 
+    body('project_id').notEmpty().trim().escape().toInt(), 
+    body('data_source_id').optional().trim().escape().toInt(),
+    body('sheet_info').optional()
+]),
+async (req: Request, res: Response) => {
+    const { data_source_name, file_id, data, project_id, data_source_id, sheet_info } = matchedData(req);
+    try {
+        const result = await DataSourceProcessor.getInstance().addPDFDataSource(
+            data_source_name, 
+            file_id, 
+            JSON.stringify(data), 
+            req.body.tokenDetails, 
+            project_id, 
+            data_source_id, 
+            sheet_info
+        );
+        res.status(200).send({message: 'PDF data source created successfully.', result});
+    } catch (error) {
+        console.error('PDF data source creation error:', error);
+        res.status(400).send({message: 'PDF data source creation failed.'});
+    }
+});
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const storage = multer.diskStorage({

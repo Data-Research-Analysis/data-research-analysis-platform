@@ -10,7 +10,7 @@ export class DRADataSource {
     id!: number
     @Column({ type: 'varchar', length: 255 })
     name!: string
-    @Column({ type: 'enum', enum: [EDataSourceType.POSTGRESQL, EDataSourceType.MYSQL, EDataSourceType.MARIADB, EDataSourceType.MONGODB, EDataSourceType.CSV, EDataSourceType.EXCEL] })
+    @Column({ type: 'enum', enum: [EDataSourceType.POSTGRESQL, EDataSourceType.MYSQL, EDataSourceType.MARIADB, EDataSourceType.MONGODB, EDataSourceType.CSV, EDataSourceType.EXCEL, EDataSourceType.PDF] })
     data_type!: EDataSourceType;
     @Column({ type: 'jsonb' })
     connection_details!: IDBConnectionDetails

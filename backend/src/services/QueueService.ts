@@ -8,6 +8,7 @@ export class QueueService {
     private static instance: QueueService;
     private pdfConversionQueue: Queue;
     private textExtractionQueue: Queue;
+    private fileDeletionQueue: Queue;
     
     private constructor() {}
 
@@ -21,6 +22,7 @@ export class QueueService {
         return new Promise<void>(async (resolve, reject) => {
             this.pdfConversionQueue = new Queue('DRAPdfConversionQueue');
             this.textExtractionQueue = new Queue('DRATextExtractionQueue');
+            this.fileDeletionQueue = new Queue('DRAFileDeletionQueue');
             await this.purgeQueues();
             return resolve();
         });
@@ -43,6 +45,15 @@ export class QueueService {
             resolve();
         });
     }
+    public async addFilesDeletionJob(userId: number): Promise<void> {
+        return new Promise<void>(async (resolve, reject) => {
+            const index = await this.fileDeletionQueue.getNextIndex();
+            let response:Document = new Document({id: index, key: 'fileDeletion', content: JSON.stringify({ userId })});
+            await this.fileDeletionQueue.enqueue(response);
+            await this.fileDeletionQueue.commit();
+            resolve();
+        });
+    }
     public async getNextPDFConversionJob(): Promise<Document | null> {
         return new Promise<Document | null>(async (resolve, reject) => {
             const job = await this.pdfConversionQueue.dequeue();
@@ -54,6 +65,13 @@ export class QueueService {
         return new Promise<Document | null>(async (resolve, reject) => {
             const job = await this.textExtractionQueue.dequeue();
             await this.textExtractionQueue.commit();
+            resolve(job);
+        });
+    }
+    public async getNextFileDeletionJob(): Promise<Document | null> {
+        return new Promise<Document | null>(async (resolve, reject) => {
+            const job = await this.fileDeletionQueue.dequeue();
+            await this.fileDeletionQueue.commit();
             resolve(job);
         });
     }
@@ -69,10 +87,17 @@ export class QueueService {
             resolve();
         });
     }
+    public async purgeFileDeletionQueue(): Promise<void> {
+        return new Promise<void>(async (resolve, reject) => {
+            await this.fileDeletionQueue.purge();
+            resolve();
+        });
+    }
     public async purgeQueues(): Promise<void> {
         return new Promise<void>(async (resolve, reject) => {
             await this.purgePDFConversionQueue();
             await this.purgeTextExtractionQueue();
+            await this.purgeFileDeletionQueue();
             resolve();
         });
     }
@@ -81,8 +106,6 @@ export class QueueService {
             await this.initializeQueues();
             setInterval(async () => {
                 console.log('--- Queue Status ---');
-                console.log(`PDF Conversion Queue Size: ${await this.pdfConversionQueue.length()}`);
-                console.log(`Text Extraction Queue Size: ${await this.textExtractionQueue.length()}`);
                 const numPDFConverion = await this.pdfConversionQueue.length();
                 if (numPDFConverion > 0) {
                     const job: Document | null = await this.pdfConversionQueue.dequeue();
@@ -97,6 +120,14 @@ export class QueueService {
                     if (job) {
                         console.log('Processing Text Extraction Job:', job);
                         await WorkerService.getInstance().runWorker(EOperation.EXTRACT_TEXT_FROM_IMAGE, JSON.parse(job.getContent()).fileName);
+                    }
+                }
+                const numFileDeletion = await this.fileDeletionQueue.length();
+                if (numFileDeletion > 0) {
+                    const job: Document | null = await this.fileDeletionQueue.dequeue();
+                    if (job) {
+                        console.log('Processing File Deletion Job:', job);
+                        await WorkerService.getInstance().runWorker(EOperation.DELETE_FILES, JSON.parse(job.getContent()).userId);
                     }
                 }
             }, UtilityService.getInstance().getConstants('QUEUE_STATUS_INTERVAL'));

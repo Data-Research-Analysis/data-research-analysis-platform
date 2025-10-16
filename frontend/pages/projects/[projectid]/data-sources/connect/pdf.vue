@@ -11,14 +11,69 @@ const state = reactive({
     data_source_name: '',
     files: [],
     show_table_dialog: false,
-    columns: [],
-    rows: [],
+    sheets: [], // New: unified collection of all sheets from all PDFs
+    activeSheetId: null,
     selected_file: null,
     loading: false,
     upload_id: 0,
-    selected_sheet_number: 0,
 });
 const user = computed(() => loggedInUserStore.getLoggedInUser());
+
+// Sheet Management Functions
+function createSheetFromPage(file, pageData, pageNumber) {
+  const sheetName = `${file.displayName || file.name} - Page ${pageNumber}`;
+  const sheetId = `${file.id}_page_${pageNumber}`;
+  
+  const sheet = {
+    id: sheetId,
+    name: sheetName,
+    fileName: file.displayName || file.name,
+    fileId: file.id,
+    pageNumber: pageNumber,
+    columns: pageData.columns || [],
+    rows: pageData.rows || [],
+    metadata: {
+      created: new Date(),
+      modified: new Date(),
+      rowCount: pageData.rows?.length || 0,
+      columnCount: pageData.columns?.length || 0,
+      pdfFileId: file.id
+    }
+  };
+  
+  return sheet;
+}
+
+function addSheetToCollection(sheet) {
+  // Remove existing sheet with same ID if it exists
+  const existingIndex = state.sheets.findIndex(s => s.id === sheet.id);
+  if (existingIndex !== -1) {
+    state.sheets[existingIndex] = sheet;
+  } else {
+    state.sheets.push(sheet);
+  }
+  
+  // Set as active if it's the first sheet
+  if (!state.activeSheetId) {
+    state.activeSheetId = sheet.id;
+  }
+}
+
+function removeSheetsByFileId(fileId) {
+  state.sheets = state.sheets.filter(sheet => sheet.fileId !== fileId);
+  
+  // Update active sheet if current one was removed
+  if (state.sheets.length > 0 && !state.sheets.find(s => s.id === state.activeSheetId)) {
+    state.activeSheetId = state.sheets[0].id;
+  } else if (state.sheets.length === 0) {
+    state.activeSheetId = null;
+  }
+}
+
+function getSheetsByFileId(fileId) {
+  return state.sheets.filter(sheet => sheet.fileId === fileId);
+}
+
 function handleDrop(e) {
     preventDefaults(e);
     const dt = e.dataTransfer;
@@ -33,15 +88,26 @@ function showTable(fileId) {
     nextTick(() => {
         state.show_table_dialog = false;
         setTimeout(() => {
-            state.rows = [];
-            state.columns = [];
             const file = state.files.find((file) => file.id === fileId);
             state.selected_file = file;
-            console.log('showTable - selected file:', file);
             if (file && file.id) {
-                if (file.pages && file.pages.length && file.pages[state.selected_sheet_number] && file.pages[state.selected_sheet_number].rows) {
-                    state.columns = file.pages[state.selected_sheet_number].columns;
-                    state.rows = file.pages[state.selected_sheet_number].rows;
+                // Create sheets from all pages of the selected file
+                const fileSheets = getSheetsByFileId(fileId);
+
+                // If sheets already exist, show the table
+                if (fileSheets.length > 0) {
+                    state.show_table_dialog = true;
+                    return;
+                }
+                
+                // Create sheets from file pages if they don't exist yet
+                if (file.pages && file.pages.length > 0) {
+                    file.pages.forEach((pageData, index) => {
+                        if (pageData.rows && pageData.rows.length > 0) {
+                            const sheet = createSheetFromPage(file, pageData, index + 1);
+                            addSheetToCollection(sheet);
+                        }
+                    });
                 }
             }
             state.show_table_dialog = true;
@@ -49,10 +115,18 @@ function showTable(fileId) {
     });
 }
 function removeFile(fileId) {
+    // Remove sheets associated with this file
+    removeSheetsByFileId(fileId);
+    
+    // Remove the file itself
     state.files = state.files.filter((file) => file.id !== fileId);
+    
+    // Hide table dialog if no sheets remain
+    if (state.sheets.length === 0) {
+        state.show_table_dialog = false;
+    }
 }
 async function createDataSource() {
-  // const results = await Promise.allSettled()
     const token = getAuthToken();
     if (!state.data_source_name || state.data_source_name.trim() === '') {
         $swal.fire({
@@ -62,52 +136,89 @@ async function createDataSource() {
         });
         return;
     }
+    
+    if (state.sheets.length === 0) {
+        $swal.fire({
+            icon: 'error',
+            title: `Error!`,
+            text: `No sheet data available to create data source.`,
+        });
+        return;
+    }
+    
     state.loading = true;
-    const url = `${baseUrl()}/data-source/add-excel-data-source`;
+    const url = `${baseUrl()}/data-source/add-pdf-data-source`;
     let dataSourceId = null;
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-    for (const file of state.files) {
-      const columns = file.columns;
-      const rows = file.rows;
-      const fileId = file.id;
-      file.status = 'processing';
-      const response = await fetch(url, {
-          method: "POST",
-          headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${token}`,
-              "Authorization-Type": "auth",
-          },
-          body: JSON.stringify({
-              file_id: fileId,
-              data: {
-                columns: columns.map((column) => {
-                  return {
-                    title: column.title,
-                    key: column.key,
-                    column_name: column.key.substring(0, 20).replace(/\s/g,'_').toLowerCase(),
-                    type: column.type,
-                  };
-                }),
-                rows,
-                file_name: (file.name || file.displayName).replace(/\.(pdf)$/, "").substring(0, 20).replace(/\s/g,'_').toLowerCase(),
-              },
-              file_name: (file.name || file.displayName).replace(/\.(pdf)$/, "").substring(0, 20).replace(/\s/g,'_').toLowerCase(),
-              data_source_name: state.data_source_name,
-              project_id: route.params.projectid,
-              data_source_id: dataSourceId ? dataSourceId : null,
-          })
-      });
-      if (response.status === 200) {
-        const data = await response.json();
-        dataSourceId = data.result.data_source_id;
-        file.status = 'uploaded';
-      } else {
-        file.status = 'failed';
-      }
-      await sleep(1000);
+    // Process each sheet as a separate data source entry
+    for (const sheet of state.sheets) {
+        if (!sheet.columns || sheet.columns.length === 0 || !sheet.rows || sheet.rows.length === 0) {
+            console.log('Skipping empty sheet:', sheet.name);
+            continue;
+        }
+        
+        const file = state.files.find(f => f.id === sheet.fileId);
+        if (!file) continue;
+        
+        file.status = 'processing';
+        
+        // Convert sheet data to the expected format
+        const sheetRows = sheet.rows.map(row => row.data || row);
+        
+        const response = await fetch(url, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`,
+                "Authorization-Type": "auth",
+            },
+            body: JSON.stringify({
+                file_id: file.id,
+                data: {
+                    columns: sheet.columns.map((column) => {
+                        return {
+                            title: column.title,
+                            key: column.key,
+                            column_name: column.key.substring(0, 20).replace(/\s/g,'_').toLowerCase(),
+                            type: column.type,
+                        };
+                    }),
+                    rows: sheetRows,
+                },
+                data_source_name: `${state.data_source_name}`.replace(/\s/g,'_').toLowerCase(),
+                project_id: route.params.projectid,
+                data_source_id: dataSourceId ? dataSourceId : null,
+                sheet_info: {
+                    sheet_id: sheet.id,
+                    sheet_name: sheet.name,
+                    file_name: sheet.fileName,
+                    page_number: sheet.pageNumber
+                }
+            })
+        });
+        
+        if (response.status === 200) {
+            const data = await response.json();
+            dataSourceId = data.result.data_source_id;
+            file.status = 'uploaded';
+            console.log(`Sheet ${sheet.name} uploaded successfully`);
+        } else {
+            file.status = 'failed';
+            console.error(`Failed to upload sheet ${sheet.name}`);
+        }
+        
+        await sleep(1000);
     }
+    
+    state.loading = false;
+    
+    $swal.fire({
+        icon: 'success',
+        title: 'Success!',
+        text: `PDF data source created with ${state.sheets.length} sheets.`,
+    });
+    
     router.push(`/projects/${route.params.projectid}/data-sources`);
 }
 function isValidFile(file) {
@@ -322,7 +433,7 @@ async function handleFiles(files) {
       type: file.type,
       status: 'processing',
       originalFile: file,
-      pages: [],      
+      pages: [],
     };
     state.files.push(tempFile);
     await parseFile(tempFile);
@@ -330,34 +441,85 @@ async function handleFiles(files) {
 }
 
 function handleCellUpdate(event) {
-    const row = state.selected_file.rows.find((row) => {
-      if (row.id === event.row.id) {
-        return row
-      }
-    });
-    row[event.columnKey] = event.newValue;
+    // Update the active sheet's data
+    const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
+    if (activeSheet) {
+        const row = activeSheet.rows.find((row) => row.id === event.rowId);
+        if (row) {
+            row.data = row.data || {};
+            row.data[event.columnKey] = event.newValue;
+            activeSheet.metadata.modified = new Date();
+        }
+    }
 }
 function handleRowsRemoved(event) {
-  if (event.allRemoved) {
-    state.selected_file.pages[state.selected_sheet_number].rows = []
-  } else {
-    state.selected_file.pages[state.selected_sheet_number].rows = state.selected_file.pages[state.selected_sheet_number].rows.filter(row => event.removedRows.filter((removedRow) => removedRow.id  === row.id).length === 0);
-    state.selected_file.pages[state.selected_sheet_number].num_rows = state.selected_file.pages[state.selected_sheet_number].rows.length;
-  }
+    const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
+    if (activeSheet) {
+        if (event.allRemoved) {
+            activeSheet.rows = [];
+        } else {
+            activeSheet.rows = activeSheet.rows.filter(row => 
+                !event.removedRows.some(removedRow => removedRow.id === row.id)
+            );
+        }
+        activeSheet.metadata.rowCount = activeSheet.rows.length;
+        activeSheet.metadata.modified = new Date();
+    }
 }
 function handleColumnRemoved(event) {
-  state.selected_file.pages[state.selected_sheet_number].columns = state.selected_file.pages[state.selected_sheet_number].columns.filter(col => {
-    return event.removedColumns.filter((removedCol) => removedCol.id === col.id).length === 0
-  });
-  state.selected_file.pages[state.selected_sheet_number].num_columns = state.selected_file.pages[state.selected_sheet_number].columns.length;
-  state.selected_file.pages[state.selected_sheet_number].rows.forEach((row) => {
-    event.removedColumns.forEach((col) => {
-      delete row[col.key];
-    });
-  });
+    const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
+    if (activeSheet) {
+        // Remove columns
+        activeSheet.columns = activeSheet.columns.filter(col => 
+            !event.removedColumns.some(removedCol => removedCol.id === col.id)
+        );
+        
+        // Remove data from rows
+        activeSheet.rows.forEach((row) => {
+            if (row.data) {
+                event.removedColumns.forEach((col) => {
+                    delete row.data[col.key];
+                });
+            } else {
+                // Handle legacy row structure
+                event.removedColumns.forEach((col) => {
+                    delete row[col.key];
+                });
+            }
+        });
+        
+        activeSheet.metadata.columnCount = activeSheet.columns.length;
+        activeSheet.metadata.modified = new Date();
+    }
 }
 function showPages(fileId) {
-  
+    // This function is no longer needed as pages are now sheets
+    showTable(fileId);
+}
+
+// Sheet Event Handlers
+function handleSheetChanged(event) {
+    state.activeSheetId = event.newSheetId;
+}
+
+function handleSheetCreated(event) {
+    // Optionally handle custom sheet creation logic
+}
+
+function handleSheetDeleted(event) {
+    // Remove from our sheets collection if it exists
+    const sheetIndex = state.sheets.findIndex(s => s.id === event.id);
+    if (sheetIndex !== -1) {
+        state.sheets.splice(sheetIndex, 1);
+    }
+}
+
+function handleSheetRenamed(event) {
+    const sheet = state.sheets.find(s => s.id === event.sheetId);
+    if (sheet) {
+        sheet.name = event.newName;
+        sheet.metadata.modified = new Date();
+    }
 }
 onMounted(async () => {
   state.upload_id = _.uniqueId();
@@ -374,52 +536,79 @@ onMounted(async () => {
       fileElem.click();
   });
   $socketio.on(ISocketEvent.PDF_TO_IMAGES_COMPLETE, (data) => {
-    console.log('Received PDF_TO_IMAGES_COMPLETE event:', data);
-    if ( typeof data === 'string' ) {
+    if (typeof data === 'string') {
       const parsedData = JSON.parse(data);
       const fileIndex = state.files.findIndex(f => f.id === parsedData.file_name);
-      console.log('PDF_TO_IMAGES_COMPLETE fileIndex:', fileIndex);
       if (fileIndex !== -1) {
           state.files[fileIndex].status = 'processing';
-          state.files[fileIndex].pages = []
+          state.files[fileIndex].pages = [];
           const numPages = parsedData.num_pages || 0;
-          for (let i = 0; i <numPages; i++) {
-            state.files[fileIndex].pages.push({
+          for (let i = 0; i < numPages; i++) {
+            const pageData = {
               rows: [],
               columns: [],
               num_rows: 0,
               num_columns: 0,
               page_number: i + 1,
-            });
+            };
+            state.files[fileIndex].pages.push(pageData);
+            // Create placeholder sheet for this page
+            const sheet = createSheetFromPage(state.files[fileIndex], pageData, i + 1);
+            addSheetToCollection(sheet);
           }
       }
     }
-    
     });
     $socketio.on(ISocketEvent.EXTRACT_TEXT_FROM_IMAGE_COMPLETE, (data) => {
-      console.log('Received EXTRACT_TEXT_FROM_IMAGE_COMPLETE event:', data);
       if (typeof data === 'string') {
         const parsedData = JSON.parse(data);
-        console.log('EXTRACT_TEXT_FROM_IMAGE_COMPLETE - parsedData:', parsedData);
         const fileName = parsedData.file_name.split('-')[0];
         const pageNumber = parseInt(parsedData.file_name.split('-')[1]) || 1;
         const pageData = parsedData.data.data;
-        console.log('Received EXTRACT_TEXT_FROM_IMAGE_COMPLETE event for file:', fileName, 'with data:', pageData);
         const fileIndex = state.files.findIndex(f => fileName.includes(f.id));
-        console.log('EXTRACT_TEXT_FROM_IMAGE_COMPLETE fileIndex:', fileIndex, 'pageNumber:', pageNumber);
         if (fileIndex !== -1) {
             const analyzedColumns = analyzeColumns(pageData);
-            if (state.files[fileIndex].pages.length === pageNumber) {
-              state.files[fileIndex].status = 'completed';
-            }
             const pageIndex = pageNumber - 1;
+
+            // Update file page data
             if (state.files[fileIndex].pages[pageIndex]) {
               state.files[fileIndex].pages[pageIndex].columns = analyzedColumns;
               state.files[fileIndex].pages[pageIndex].rows = pageData || [];
-              state.files[fileIndex].pages[pageIndex].num_columns = Object.keys(pageData[0]).length || 0;
+              state.files[fileIndex].pages[pageIndex].num_columns = pageData && pageData[0] ? Object.keys(pageData[0]).length : 0;
               state.files[fileIndex].pages[pageIndex].num_rows = pageData ? pageData.length : 0;
             }
-            console.log('Files after updating page data:', state.files);
+
+            // Update or create corresponding sheet
+            const sheetId = `${state.files[fileIndex].id}_page_${pageNumber}`;
+            const existingSheet = state.sheets.find(s => s.id === sheetId);
+            
+            if (existingSheet) {
+                // Update existing sheet
+                existingSheet.columns = analyzedColumns;
+                existingSheet.rows = (pageData || []).map((rowData, index) => ({
+                    id: `row_${Date.now()}_${index}`,
+                    data: { ...rowData }
+                }));
+                existingSheet.metadata.rowCount = pageData ? pageData.length : 0;
+                existingSheet.metadata.columnCount = analyzedColumns.length;
+                existingSheet.metadata.modified = new Date();
+            } else {
+                // Create new sheet
+                const pageInfo = {
+                    columns: analyzedColumns,
+                    rows: (pageData || []).map((rowData, index) => ({
+                        id: `row_${Date.now()}_${index}`,
+                        data: { ...rowData }
+                    }))
+                };
+                const newSheet = createSheetFromPage(state.files[fileIndex], pageInfo, pageNumber);
+                addSheetToCollection(newSheet);
+            }
+            
+            // Mark file as completed when all pages are processed
+            if (state.files[fileIndex].pages.length === pageNumber) {
+              state.files[fileIndex].status = 'completed';
+            }
         }
       }
     });
@@ -443,16 +632,10 @@ onMounted(async () => {
                             <NuxtLink class="text-gray-500">
                                 <div class="flex flex-row justify-end">
                                     <font-awesome
-                                      icon="fas fa-file-lines"
-                                      class="text-xl ml-2 text-gray-500 hover:text-gray-400 cursor-pointer"
-                                      :v-tippy-content="'View Pages In This PDF'"
-                                      @click="showPages(file.id)"
-                                    />
-                                    <font-awesome
-                                      v-if="file.status === 'completed' && file.pages[state.selected_sheet_number].rows && file.pages[state.selected_sheet_number].rows.length"
+                                      v-if="file.status === 'completed' && file.pages && file.pages.some(page => page.rows && page.rows.length)"
                                       icon="fas fa-table"
                                       class="text-xl ml-2 text-gray-500 hover:text-gray-400 cursor-pointer"
-                                      :v-tippy-content="'View Data In Table'"
+                                      :v-tippy-content="'View All Pages In Multi-Sheet Table'"
                                       @click="showTable(file.id)"
                                     />
                                     <font-awesome
@@ -475,6 +658,12 @@ onMounted(async () => {
                                     <div class="text-md">
                                       {{ file.displayName || file.name }}
                                     </div>
+                                    <div v-if="file.status === 'completed' && file.pages" class="mt-1 text-xs text-green-600">
+                                      {{ file.pages.length }} pages processed
+                                    </div>
+                                    <div v-if="file.status === 'processing'" class="mt-1 text-xs text-blue-600">
+                                      Processing pages...
+                                    </div>
                                     <div v-if="file.status === 'error' && file.error" class="mt-2 text-xs text-red-600">
                                       {{ file.error }}
                                     </div>
@@ -494,15 +683,24 @@ onMounted(async () => {
                 </div>
             </div>            
             <div v-if="state.files && state.files.length" class="flex flex-row w-full justify-center mt-10">
-                <div v-if="state.columns && state.columns.length && state.show_table_dialog" class="flex flex-col w-3/4 justify-center overflow-hidden mb-10">
-                    <h2 class="mb-4 text-xl font-bold text-gray-800">Data From The Selected PDF File</h2>
+                <div v-if="state.sheets && state.sheets.length && state.show_table_dialog" class="flex flex-col w-full justify-center overflow-hidden mb-10 px-4">
+                    <h2 class="mb-4 text-xl font-bold text-gray-800">PDF Data - Multi-Sheet View</h2>
+                    <div class="text-sm text-gray-600 mb-4">
+                        Showing {{ state.sheets.length }} sheet{{ state.sheets.length !== 1 ? 's' : '' }} from {{ state.files.length }} PDF file{{ state.files.length !== 1 ? 's' : '' }}
+                    </div>
                     <custom-data-table
-                        :initial-data="state.rows"
-                        :columns="state.columns"
+                        :sheets="state.sheets"
+                        :activeSheetId="state.activeSheetId"
+                        :allowMultipleSheets="true"
+                        :maxSheets="50"
                         :editable="true"
                         @cell-updated="handleCellUpdate"
                         @rows-removed="handleRowsRemoved"
                         @column-removed="handleColumnRemoved"
+                        @sheet-changed="handleSheetChanged"
+                        @sheet-created="handleSheetCreated"
+                        @sheet-deleted="handleSheetDeleted"
+                        @sheet-renamed="handleSheetRenamed"
                         ref="dataTable"
                     />
                 </div>
@@ -511,7 +709,6 @@ onMounted(async () => {
             <div v-else-if="!state.loading && state.files && state.files.length" class="h-10 text-center items-center self-center mt-5 mb-5 p-2 font-bold shadow-md select-none bg-primary-blue-100 hover:bg-primary-blue-200 cursor-pointer text-white" @click="createDataSource">
                 Create PDF Data Source &amp; Upload PDF Files
             </div>
-
         </div>
     </div>
 </template>
