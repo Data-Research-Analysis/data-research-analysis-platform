@@ -393,10 +393,11 @@ async function parseFile(file) {
             const analyzedColumns = analyzeColumns(rows);
             const worksheetData = {
                 sheetName: 'Sheet1',
-                rows: rows.map((row) => ({
+                rows: rows.map((row, index) => ({
                     id: `row_${Date.now()}_${Math.floor(Math.random() * 100) + 1}`,
-                    data: row,
-                    ...row
+                    index: index,
+                    selected: false,
+                    data: row
                 })),
                 columns: analyzedColumns,
                 num_rows: rows.length,
@@ -413,10 +414,11 @@ async function parseFile(file) {
                     const analyzedColumns = analyzeColumns(sheetRows);
                     const worksheetData = {
                         sheetName: sheetName,
-                        rows: sheetRows.map((row) => ({
+                        rows: sheetRows.map((row, rowIndex) => ({
                             id: `row_${Date.now()}_${Math.floor(Math.random() * 100) + 1}_${index}`,
-                            data: row,
-                            ...row
+                            index: rowIndex,
+                            selected: false,
+                            data: row
                         })),
                         columns: analyzedColumns,
                         num_rows: sheetRows.length,
@@ -468,7 +470,6 @@ async function handleFiles(files) {
                 state.files.push(parsedFile);
                 
                 // Immediately create sheets from worksheets
-                console.log('Creating sheets immediately for file:', parsedFile.name);
                 if (parsedFile.worksheets && parsedFile.worksheets.length > 0) {
                     let sheetsCreated = 0;
                     parsedFile.worksheets.forEach((worksheetData, index) => {
@@ -509,7 +510,8 @@ async function handleFiles(files) {
 function handleCellUpdate(event) {
     const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
     if (activeSheet) {
-        const row = activeSheet.rows.find(row => row.id === event.row.id);
+        // Find row by event.rowId (correct property from custom-data-table)
+        const row = activeSheet.rows.find(row => row.id === event.rowId);
         if (row) {
             if (row.data) {
                 row.data[event.columnKey] = event.newValue;
@@ -545,6 +547,28 @@ function handleColumnRemoved(event) {
     }
 }
 
+function handleRowAdded(event) {
+    const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
+    if (activeSheet) {
+        // Update sheet row collection with all rows from the table
+        activeSheet.rows = [...event.allRows];
+        // Update sheet metadata
+        activeSheet.metadata.rowCount = event.rowCount;
+        activeSheet.metadata.modified = new Date();
+    }
+}
+
+function handleColumnAdded(event) {
+    const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
+    if (activeSheet) {        
+        // Update sheet column collection with all columns from the table
+        activeSheet.columns = [...event.allColumns];        
+        // Update sheet metadata
+        activeSheet.metadata.columnCount = event.columnCount;
+        activeSheet.metadata.modified = new Date();
+    }
+}
+
 function handleColumnRenamed(event) {
     const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
     if (activeSheet) {
@@ -557,15 +581,11 @@ function handleColumnRenamed(event) {
             // Update key if needed (for backend consistency)
             if (!column.originalKey) {
                 column.originalKey = column.key;
-            }
-            
+            }    
             // Keep same key or update based on new name
             // The key is used for database column mapping, so we preserve it
             // unless this is a brand new column
-            
             activeSheet.metadata.modified = new Date();
-            
-            console.log(`Column renamed from "${event.oldName}" to "${event.newName}" in sheet ${activeSheet.name}`);
         }
     }
 }
@@ -697,6 +717,8 @@ onMounted(async () => {
                         @rows-removed="handleRowsRemoved"
                         @column-removed="handleColumnRemoved"
                         @column-renamed="handleColumnRenamed"
+                        @row-added="handleRowAdded"
+                        @column-added="handleColumnAdded"
                         @sheet-changed="handleSheetChanged"
                         @sheet-created="handleSheetCreated"
                         @sheet-deleted="handleSheetDeleted"
