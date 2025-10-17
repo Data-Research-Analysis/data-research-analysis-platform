@@ -35,8 +35,12 @@ const emit = defineEmits([
   'cell-updated',
   'row-selected',
   'rows-removed',
+  'row-added',
+  'row-duplicated',
   'column-removed',
   'column-renamed',
+  'column-added',
+  'column-duplicated',
   // Sheet-related events
   'sheet-changed',
   'sheet-created',
@@ -58,7 +62,9 @@ const tableState = reactive({
   editingColumnId: null,
   originalColumnName: null,
   showColumnMenu: null,
-  columnMenuPosition: { left: '0px', top: '0px' }
+  columnMenuPosition: { left: '0px', top: '0px' },
+  showRowMenu: null,
+  rowMenuPosition: { left: '0px', top: '0px' }
 });
 
 // Sheet management state
@@ -130,6 +136,8 @@ const sortColumn = computed(() => tableState.sortColumn);
 const sortDirection = computed(() => tableState.sortDirection);
 const showColumnMenu = computed(() => tableState.showColumnMenu);
 const columnMenuPosition = computed(() => tableState.columnMenuPosition);
+const showRowMenu = computed(() => tableState.showRowMenu);
+const rowMenuPosition = computed(() => tableState.rowMenuPosition);
 
 // Sheet computed properties
 const activeSheet = computed(() => 
@@ -228,6 +236,151 @@ function removeAllRows() {
     allRemoved: true
   });
 };
+
+function removeRowByIndex(rowIndex) {
+  if (rowIndex < 0 || rowIndex >= tableState.rows.length) return;
+  
+  const rowToRemove = tableState.rows[rowIndex];
+  const removedRows = [rowToRemove];
+  
+  // Remove the row
+  tableState.rows.splice(rowIndex, 1);
+  
+  // Update row indices for remaining rows
+  updateRowIndices();
+  
+  // Clear selections that might reference the removed row
+  tableState.selectedRows.delete(rowToRemove.id);
+  tableState.allRowsSelected = false;
+  
+  console.log('Row removed by index:', rowIndex, 'Row data:', rowToRemove);
+  emit('rows-removed', {
+    removedRows,
+    remainingCount: tableState.rows.length
+  });
+}
+
+// Row addition functionality
+function getDefaultValueForType(columnType) {
+  switch (columnType) {
+    case 'number':
+      return 0;
+    case 'boolean':
+      return false;
+    case 'date':
+      return new Date().toISOString().split('T')[0];
+    case 'text':
+    case 'email':
+    case 'url':
+    default:
+      return '';
+  }
+}
+
+function updateRowIndices() {
+  tableState.rows.forEach((row, index) => {
+    row.index = index;
+  });
+}
+
+function addNewRow(position = 'end', defaultData = {}) {
+  const newRowId = `row_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const newRow = {
+    id: newRowId,
+    index: 0, // Will be updated by updateRowIndices
+    selected: false,
+    data: { ...defaultData }
+  };
+  
+  // Initialize empty data for all columns
+  tableState.columns.forEach(column => {
+    if (newRow.data[column.key] === undefined) {
+      newRow.data[column.key] = getDefaultValueForType(column.type);
+    }
+  });
+  
+  // Insert at position
+  if (position === 'end' || position >= tableState.rows.length) {
+    tableState.rows.push(newRow);
+  } else if (typeof position === 'number' && position >= 0) {
+    tableState.rows.splice(position, 0, newRow);
+  } else {
+    tableState.rows.push(newRow);
+  }
+  
+  // Update all row indices
+  updateRowIndices();
+  
+  // Update sheet if in multi-sheet mode
+  if (isMultiSheetMode.value && activeSheet.value) {
+    activeSheet.value.rows = [...tableState.rows];
+    activeSheet.value.metadata.rowCount = tableState.rows.length;
+    activeSheet.value.metadata.modified = new Date();
+  }
+  
+  emit('row-added', { 
+    rowId: newRowId, 
+    rowData: newRow, 
+    position, 
+    allRows: tableState.rows,
+    rowCount: tableState.rows.length
+  });
+  
+  showSelectionFeedback(`New row added`);
+  return newRow;
+}
+
+function insertRowAt(index, defaultData = {}) {
+  return addNewRow(index, defaultData);
+}
+
+function duplicateRow(rowId) {
+  const sourceRow = tableState.rows.find(row => row.id === rowId);
+  if (!sourceRow) return null;
+  
+  const newRowId = `row_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const duplicatedRow = {
+    id: newRowId,
+    index: 0, // Will be updated by updateRowIndices
+    selected: false,
+    data: { ...sourceRow.data }
+  };
+  
+  // Insert after the source row
+  const sourceIndex = tableState.rows.findIndex(row => row.id === rowId);
+  tableState.rows.splice(sourceIndex + 1, 0, duplicatedRow);
+  
+  // Update all row indices
+  updateRowIndices();
+  
+  // Update sheet if in multi-sheet mode
+  if (isMultiSheetMode.value && activeSheet.value) {
+    activeSheet.value.rows = [...tableState.rows];
+    activeSheet.value.metadata.rowCount = tableState.rows.length;
+    activeSheet.value.metadata.modified = new Date();
+  }
+  
+  emit('row-duplicated', { 
+    originalRowId: rowId, 
+    newRowId, 
+    rowData: duplicatedRow,
+    position: sourceIndex + 1,
+    allRows: tableState.rows
+  });
+  
+  showSelectionFeedback(`Row duplicated`);
+  return duplicatedRow;
+}
+
+function addMultipleRows(count = 1, position = 'end') {
+  const addedRows = [];
+  for (let i = 0; i < count; i++) {
+    const newRow = addNewRow(position === 'end' ? 'end' : position + i);
+    addedRows.push(newRow);
+  }
+  showSelectionFeedback(`Added ${count} rows`);
+  return addedRows;
+}
 
 // Column selection and management
 function handleColumnHeaderClick(column, event) {
@@ -408,6 +561,117 @@ function removeColumn(columnId) {
     removedColumns: [column],
     remainingColumns: tableState.columns
   });
+}
+
+// Column addition functionality
+function addNewColumn(position = 'end', columnConfig = {}) {
+  const newColumnId = `col_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const columnNumber = tableState.columns.length + 1;
+  const newColumn = {
+    id: newColumnId,
+    key: columnConfig.key || `column_${columnNumber}`,
+    title: columnConfig.title || `Column ${columnNumber}`,
+    type: columnConfig.type || 'text',
+    width: columnConfig.width || 150,
+    visible: columnConfig.visible !== false,
+    sortable: columnConfig.sortable !== false,
+    editable: columnConfig.editable !== false
+  };
+  
+  // Add default values to existing rows
+  const defaultValue = getDefaultValueForType(newColumn.type);
+  tableState.rows.forEach(row => {
+    row.data[newColumn.key] = defaultValue;
+  });
+  
+  // Insert at position
+  if (position === 'end' || position >= tableState.columns.length) {
+    tableState.columns.push(newColumn);
+  } else if (typeof position === 'number' && position >= 0) {
+    tableState.columns.splice(position, 0, newColumn);
+  } else {
+    tableState.columns.push(newColumn);
+  }
+  
+  // Update sheet if in multi-sheet mode
+  if (isMultiSheetMode.value && activeSheet.value) {
+    activeSheet.value.columns = [...tableState.columns];
+    activeSheet.value.metadata.columnCount = tableState.columns.length;
+    activeSheet.value.metadata.modified = new Date();
+  }
+  
+  emit('column-added', {
+    columnId: newColumnId,
+    columnData: newColumn,
+    position,
+    allColumns: tableState.columns,
+    columnCount: tableState.columns.length
+  });
+  
+  showSelectionFeedback(`New column "${newColumn.title}" added`);
+  return newColumn;
+}
+
+function insertColumnAt(index, columnConfig = {}) {
+  return addNewColumn(index, columnConfig);
+}
+
+function duplicateColumn(columnId) {
+  const sourceColumn = tableState.columns.find(col => col.id === columnId);
+  if (!sourceColumn) return null;
+  
+  const newColumnId = `col_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const duplicatedColumn = {
+    ...sourceColumn,
+    id: newColumnId,
+    key: `${sourceColumn.key}_copy`,
+    title: `${sourceColumn.title} (Copy)`
+  };
+  
+  // Copy data from source column to new column for all rows
+  tableState.rows.forEach(row => {
+    row.data[duplicatedColumn.key] = row.data[sourceColumn.key];
+  });
+  
+  // Insert after the source column
+  const sourceIndex = tableState.columns.findIndex(col => col.id === columnId);
+  tableState.columns.splice(sourceIndex + 1, 0, duplicatedColumn);
+  
+  // Update sheet if in multi-sheet mode
+  if (isMultiSheetMode.value && activeSheet.value) {
+    activeSheet.value.columns = [...tableState.columns];
+    activeSheet.value.metadata.columnCount = tableState.columns.length;
+    activeSheet.value.metadata.modified = new Date();
+  }
+  
+  emit('column-duplicated', { 
+    originalColumnId: columnId, 
+    newColumnId, 
+    columnData: duplicatedColumn,
+    position: sourceIndex + 1,
+    allColumns: tableState.columns
+  });
+  
+  showSelectionFeedback(`Column "${sourceColumn.title}" duplicated`);
+  return duplicatedColumn;
+}
+
+function addMultipleColumns(count = 1, position = 'end', baseConfig = {}) {
+  const addedColumns = [];
+  for (let i = 0; i < count; i++) {
+    const columnConfig = {
+      ...baseConfig,
+      title: baseConfig.title ? `${baseConfig.title} ${i + 1}` : undefined
+    };
+    const newColumn = addNewColumn(position === 'end' ? 'end' : position + i, columnConfig);
+    addedColumns.push(newColumn);
+  }
+  showSelectionFeedback(`Added ${count} columns`);
+  return addedColumns;
+}
+
+function getColumnIndex(columnId) {
+  return tableState.columns.findIndex(col => col.id === columnId);
 }
 
 function sortColumnByDirection(columnId, direction) {
@@ -701,6 +965,48 @@ function toggleColumnMenu(columnId, event) {
   console.log('Menu opened at position:', menuPosition);
 }
 
+// Row context menu
+function toggleRowMenu(rowIndex, event) {
+  console.log('Toggle row menu called for row:', rowIndex);
+  
+  if (tableState.showRowMenu === rowIndex) {
+    tableState.showRowMenu = null;
+    console.log('Row menu closed');
+    return;
+  }
+  
+  tableState.showRowMenu = rowIndex;
+  
+  // Get the position relative to the viewport
+  const rect = event.currentTarget.getBoundingClientRect();
+  const menuWidth = 180; // wider for row operations
+  const menuHeight = 160; // approximate height
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  
+  // Calculate optimal position
+  let left = rect.right + 5;
+  let top = rect.top;
+  
+  // Adjust if menu would go off-screen horizontally
+  if (left + menuWidth > viewportWidth) {
+    left = rect.left - menuWidth - 5;
+  }
+  
+  // Adjust if menu would go off-screen vertically
+  if (top + menuHeight > viewportHeight) {
+    top = viewportHeight - menuHeight - 5;
+  }
+  
+  const menuPosition = {
+    left: Math.max(5, left) + 'px',
+    top: Math.max(5, top) + 'px'
+  };
+  
+  tableState.rowMenuPosition = menuPosition;
+  console.log('Row menu opened at position:', menuPosition);
+}
+
 // Expose methods for parent component
 defineExpose({
   getTableData: () => tableState.rows.map(row => row.data),
@@ -806,6 +1112,48 @@ function handleKeyboardShortcuts(e) {
     return;
   }
   
+  // Row and Column Addition Shortcuts
+  // Ctrl+Shift+Plus: Add new row
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === '+' || e.key === '=' || e.keyCode === 187)) {
+    e.preventDefault();
+    addNewRow();
+    return;
+  }
+  
+  // Ctrl+Alt+Plus: Add new column
+  if ((e.ctrlKey || e.metaKey) && e.altKey && (e.key === '+' || e.key === '=' || e.keyCode === 187)) {
+    e.preventDefault();
+    addNewColumn();
+    return;
+  }
+  
+  // Insert: Add new row (context-sensitive)
+  if (e.key === 'Insert' && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+    e.preventDefault();
+    addNewRow();
+    return;
+  }
+  
+  // Shift+Insert: Add new column (context-sensitive)
+  if (e.key === 'Insert' && e.shiftKey && !e.ctrlKey && !e.altKey) {
+    e.preventDefault();
+    addNewColumn();
+    return;
+  }
+  
+  // Ctrl+D: Duplicate selected row/column
+  if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+    e.preventDefault();
+    if (tableState.selectedRows.size === 1) {
+      const rowId = Array.from(tableState.selectedRows)[0];
+      duplicateRow(rowId);
+    } else if (tableState.selectedColumns.size === 1) {
+      const columnId = Array.from(tableState.selectedColumns)[0];
+      duplicateColumn(columnId);
+    }
+    return;
+  }
+  
   // Escape: Clear all selections
   if (e.key === 'Escape') {
     tableState.selectedColumns.clear();
@@ -830,6 +1178,9 @@ function navigateSheet(direction) {
 function handleClickOutside(e) {
   if (!e.target.closest('.column-menu') && !e.target.closest('.column-menu-trigger')) {
     tableState.showColumnMenu = null;
+  }
+  if (!e.target.closest('.row-menu') && !e.target.closest('.row-menu-trigger')) {
+    tableState.showRowMenu = null;
   }
   if (!e.target.closest('.sheet-menu') && !e.target.closest('.sheet-menu-trigger')) {
     sheetsState.showSheetMenu = null;
@@ -863,11 +1214,13 @@ function createSheet(name = null, columns = [], rows = []) {
   const processedRows = rows.length > 0 
     ? rows.map((rowData, index) => ({
         id: rowData?.id ? rowData.id : `row_${Date.now()}_${index}`,
+        index: index,
         selected: false,
         data: { ...rowData }
       }))
     : (props.initialData || []).map((rowData, index) => ({
         id: rowData?.id ? rowData.id : `row_${Date.now()}_${index}`,
+        index: index,
         selected: false,
         data: { ...rowData }
       }));
@@ -938,6 +1291,9 @@ function loadSheetData(sheet) {
   // Load sheet data
   tableState.columns = [...sheet.columns];
   tableState.rows = sheet.rows.map(row => ({ ...row, data: { ...row.data } }));
+  
+  // Ensure all rows have proper indices
+  updateRowIndices();
 }
 
 function renameSheet(sheetId, newName) {
@@ -1071,6 +1427,7 @@ onMounted(() => {
 
         tableState.rows = props.initialData.map((rowData, index) => ({
             id: rowData?.id ? rowData.id : `row_${Date.now()}_${index}`,
+            index: index,
             selected: false,
             data: { ...rowData }
         }));
@@ -1283,6 +1640,19 @@ onUnmounted(() => {
                 </svg>
               </div>
             </th>
+            
+            <!-- Add Column Button -->
+            <th class="w-12 p-3 border-r border-gray-200 text-center bg-gray-50 hover:bg-gray-100">
+              <button
+                @click="addNewColumn()"
+                class="w-8 h-8 rounded-full bg-green-500 hover:bg-green-600 text-white flex items-center justify-center transition-colors duration-200"
+                title="Add New Column (Ctrl+Alt++)"
+              >
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/>
+                </svg>
+              </button>
+            </th>
           </tr>
         </thead>
 
@@ -1295,13 +1665,20 @@ onUnmounted(() => {
             :class="selectedRows.has(row.id) ? 'bg-blue-50' : 'bg-white'"
           >
             <!-- Row Selection Cell -->
-            <td class="w-12 p-3 border-r border-gray-200 text-center">
-              <input 
-                type="checkbox"
-                :checked="selectedRows.has(row.id)"
-                @change="toggleRowSelection(row.id)"
-                class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-              />
+            <td 
+              class="w-12 p-3 border-r border-gray-200 text-center bg-gray-50 hover:bg-gray-100 cursor-pointer relative row-menu-trigger"
+              @contextmenu.prevent="toggleRowMenu(row.index, $event)"
+              @click="toggleRowSelection(row.id)"
+            >
+              <div class="flex flex-col items-center gap-1">
+                <span class="text-xs text-gray-500 font-medium">{{ row.index + 1 }}</span>
+                <input 
+                  type="checkbox"
+                  :checked="selectedRows.has(row.id)"
+                  @change.stop="toggleRowSelection(row.id)"
+                  class="w-3 h-3 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-1"
+                />
+              </div>
             </td>
             
             <!-- Data Cells -->
@@ -1381,6 +1758,20 @@ onUnmounted(() => {
           </tr>
         </tbody>
       </table>
+      
+      <!-- Add Row Button -->
+      <div class="p-3 border-t border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors duration-200">
+        <button
+          @click="addNewRow()"
+          class="w-full h-10 rounded-lg bg-green-500 hover:bg-green-600 text-white flex items-center justify-center gap-2 transition-colors duration-200"
+          title="Add New Row (Ctrl+Alt+R)"
+        >
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/>
+          </svg>
+          Add Row
+        </button>
+      </div>
     </div>
 
     <!-- Column Context Menu -->
@@ -1426,6 +1817,36 @@ onUnmounted(() => {
           </svg>
           Fill Selection Gaps
         </button>
+        <hr class="my-1 border-gray-200">
+        <button 
+          @click="insertColumnAt(getColumnIndex(showColumnMenu)); tableState.showColumnMenu = null;" 
+          class="w-full text-left px-4 py-2 hover:bg-green-50 text-green-600 text-sm flex items-center gap-2 transition-colors duration-150"
+        >
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/>
+          </svg>
+          Insert Column Before
+        </button>
+        <button 
+          @click="insertColumnAt(getColumnIndex(showColumnMenu) + 1); tableState.showColumnMenu = null;" 
+          class="w-full text-left px-4 py-2 hover:bg-green-50 text-green-600 text-sm flex items-center gap-2 transition-colors duration-150"
+        >
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/>
+          </svg>
+          Insert Column After
+        </button>
+        <button 
+          @click="duplicateColumn(showColumnMenu); tableState.showColumnMenu = null;" 
+          class="w-full text-left px-4 py-2 hover:bg-green-50 text-green-600 text-sm flex items-center gap-2 transition-colors duration-150"
+        >
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M4 2a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2V4a2 2 0 00-2-2H4zm0 2h8v8H4V4z" clip-rule="evenodd"/>
+            <path fill-rule="evenodd" d="M8 6a2 2 0 012-2h4a2 2 0 012 2v8a2 2 0 01-2 2h-4a2 2 0 01-2-2V6z" clip-rule="evenodd"/>
+          </svg>
+          Duplicate Column
+        </button>
+        <hr class="my-1 border-gray-200">
         <button 
           @click="startColumnEdit(showColumnMenu)" 
           class="w-full text-left px-4 py-2 hover:bg-blue-50 text-blue-600 text-sm flex items-center gap-2 transition-colors duration-150"
@@ -1444,6 +1865,62 @@ onUnmounted(() => {
             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v4a1 1 0 102 0V5z" clip-rule="evenodd"/>
           </svg>
           Remove Column
+        </button>        
+      </div>
+    </Transition>
+
+    <!-- Row Context Menu -->
+    <Transition
+      enter-active-class="transition ease-out duration-200"
+      enter-from-class="opacity-0 scale-95 transform translate-y-1"
+      enter-to-class="opacity-100 scale-100 transform translate-y-0"
+      leave-active-class="transition ease-in duration-150"
+      leave-from-class="opacity-100 scale-100 transform translate-y-0"
+      leave-to-class="opacity-0 scale-95 transform translate-y-1"
+    >
+      <div 
+        v-if="showRowMenu !== null"
+        class="fixed bg-white border border-gray-300 shadow-lg z-50 py-1 min-w-[180px] row-menu"
+        :style="rowMenuPosition"
+      >
+        <button 
+          @click="insertRowAt(showRowMenu); tableState.showRowMenu = null;" 
+          class="w-full text-left px-4 py-2 hover:bg-green-50 text-green-600 text-sm flex items-center gap-2 transition-colors duration-150"
+        >
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/>
+          </svg>
+          Insert Row Above
+        </button>
+        <button 
+          @click="insertRowAt(showRowMenu + 1); tableState.showRowMenu = null;" 
+          class="w-full text-left px-4 py-2 hover:bg-green-50 text-green-600 text-sm flex items-center gap-2 transition-colors duration-150"
+        >
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/>
+          </svg>
+          Insert Row Below
+        </button>
+        <button 
+          @click="duplicateRow(tableState.rows[showRowMenu]?.id); tableState.showRowMenu = null;" 
+          class="w-full text-left px-4 py-2 hover:bg-green-50 text-green-600 text-sm flex items-center gap-2 transition-colors duration-150"
+        >
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M4 2a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2V4a2 2 0 00-2-2H4zm0 2h8v8H4V4z" clip-rule="evenodd"/>
+            <path fill-rule="evenodd" d="M8 6a2 2 0 012-2h4a2 2 0 012 2v8a2 2 0 01-2 2h-4a2 2 0 01-2-2V6z" clip-rule="evenodd"/>
+          </svg>
+          Duplicate Row
+        </button>
+        <hr class="my-1 border-gray-200">
+        <button 
+          @click="removeRowByIndex(showRowMenu); tableState.showRowMenu = null;" 
+          class="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 text-sm flex items-center gap-2 transition-colors duration-150"
+        >
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" clip-rule="evenodd"/>
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v4a1 1 0 102 0V5z" clip-rule="evenodd"/>
+          </svg>
+          Delete Row
         </button>        
       </div>
     </Transition>

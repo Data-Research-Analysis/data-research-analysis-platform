@@ -459,7 +459,6 @@ async function handleFiles(files) {
     if (state.files.some(f => f.name === file.name && f.size === file.size)) {
       continue;
     }
-    console.log('handleFiles - processing file:', file.name);
     // Validate PDF file type
     if (!file.name.toLowerCase().endsWith('.pdf')) {
       console.error('Only PDF files are supported');
@@ -538,6 +537,29 @@ function handleColumnRemoved(event) {
         activeSheet.metadata.modified = new Date();
     }
 }
+
+function handleRowAdded(event) {
+    const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
+    if (activeSheet) {
+        // Update sheet row collection with all rows from the table
+        activeSheet.rows = [...event.allRows];
+        // Update sheet metadata
+        activeSheet.metadata.rowCount = event.rowCount;
+        activeSheet.metadata.modified = new Date();        
+    }
+}
+
+function handleColumnAdded(event) {
+    const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
+    if (activeSheet) {
+        // Update sheet column collection with all columns from the table
+        activeSheet.columns = [...event.allColumns];
+        // Update sheet metadata
+        activeSheet.metadata.columnCount = event.columnCount;
+        activeSheet.metadata.modified = new Date();
+    }
+}
+
 function showPages(fileId) {
     // This function is no longer needed as pages are now sheets
     showTable(fileId);
@@ -586,9 +608,7 @@ function handleColumnRenamed(event) {
             // The key is used for database column mapping, so we preserve it
             // unless this is a brand new column
             
-            activeSheet.metadata.modified = new Date();
-            
-            console.log(`Column renamed from "${event.oldName}" to "${event.newName}" in sheet ${activeSheet.name}`);
+            activeSheet.metadata.modified = new Date();            
         }
     }
 }
@@ -810,6 +830,8 @@ onMounted(async () => {
                         @rows-removed="handleRowsRemoved"
                         @column-removed="handleColumnRemoved"
                         @column-renamed="handleColumnRenamed"
+                        @row-added="handleRowAdded"
+                        @column-added="handleColumnAdded"
                         @sheet-changed="handleSheetChanged"
                         @sheet-created="handleSheetCreated"
                         @sheet-deleted="handleSheetDeleted"
