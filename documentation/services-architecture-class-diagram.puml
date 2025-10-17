@@ -198,6 +198,25 @@ package "Communication Drivers" {
     }
 }
 
+package "Data Processing" {
+    class DataSourceProcessor {
+        -instance: DataSourceProcessor
+        --
+        +getInstance(): DataSourceProcessor
+        +getDataSources(tokenDetails: ITokenDetails): Promise<DRADataSource[]>
+        +connectToDataSource(connection: IDBConnectionDetails): Promise<DataSource>
+        +addDataSource(connection: IDBConnectionDetails, tokenDetails: ITokenDetails, projectId: number): Promise<boolean>
+        +deleteDataSource(dataSourceId: number, tokenDetails: ITokenDetails): Promise<boolean>
+        +deleteDataSourcesForProject(projectId: number, tokenDetails: ITokenDetails): Promise<boolean>
+        +getTablesFromDataSource(dataSourceId: number, tokenDetails: ITokenDetails): Promise<any>
+        +executeQueryOnExternalDataSource(dataSourceId: number, query: string, tokenDetails: ITokenDetails): Promise<any>
+        +buildDataModelOnQuery(dataSourceId: number, query: string, queryJSON: string, dataModelName: string, tokenDetails: ITokenDetails): Promise<boolean>
+        +addExcelDataSource(fileName: string, dataSourceName: string, fileId: string, data: string, tokenDetails: ITokenDetails, projectId: number, dataSourceId?: number, sheetInfo?: any): Promise<IExcelDataSourceReturn>
+        +addPDFDataSource(dataSourceName: string, fileId: string, data: string, tokenDetails: ITokenDetails, projectId: number, dataSourceId?: number, sheetInfo?: any): Promise<IPDFDataSourceReturn>
+        -sanitizeColumnName(columnName: string): string
+    }
+}
+
 package "Text Processing" {
     class TextExtractDriver {
         -instance: TextExtractDriver
@@ -231,6 +250,13 @@ WorkerService --> PDFService : processes PDFs
 PDFService --> FilesService : reads/writes files
 PDFService --> QueueService : queues jobs
 
+DataSourceProcessor --> DBDriver : manages connections
+DataSourceProcessor --> UtilityService : utilities
+DataSourceProcessor --> QueueService : file operations
+DataSourceProcessor --> FilesService : file management
+DataSourceProcessor --> ExcelFileService : Excel processing
+DataSourceProcessor --> PDFService : PDF processing
+
 AWSService --> FilesService : uploads files
 AWSService ..> TextExtractDriver : may use
 
@@ -253,12 +279,15 @@ UtilityService ..> WinstonLoggerService : logs
 QueueService ..> WinstonLoggerService : logs
 WorkerService ..> WinstonLoggerService : logs
 PDFService ..> WinstonLoggerService : logs
+DataSourceProcessor ..> WinstonLoggerService : logs
 
 note right of QueueService : Manages background job processing\nfor PDF conversion and text extraction
 
 note right of WorkerService : Spawns worker threads for\nheavy processing tasks
 
 note right of SocketIODriver : Provides real-time communication\nbetween frontend and backend
+
+note right of DataSourceProcessor : Handles Excel/PDF data processing\nwith table creation and management
 
 note bottom of AWSService : Handles S3 operations for\nfile storage and retrieval
 

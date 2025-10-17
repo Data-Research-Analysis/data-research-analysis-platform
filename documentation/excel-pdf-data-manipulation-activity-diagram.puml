@@ -1,0 +1,169 @@
+@startuml Excel_PDF_Data_Manipulation_Activity_Diagram
+!theme aws-orange
+title Data Research Analysis Platform - Excel/PDF Data Manipulation Workflow
+
+skinparam activity {
+    BackgroundColor LightBlue
+    BorderColor DarkBlue
+}
+
+start
+
+:User loads Excel/PDF data source;
+
+if (Data source type?) then (Excel)
+    :Load Excel component;
+    :Display Excel sheets in tabs;
+else (PDF)
+    :Load PDF component;
+    :Display PDF pages in tabs;
+endif
+
+:Render CustomDataTable component;
+:Initialize data grid with rows and columns;
+
+partition "User Interaction" {
+    while (User performs action?) is (Yes)
+        if (Action type?) then (Add Row)
+            if (Row position?) then (After current)
+                :Call addNewRow(index + 1);
+                :Insert empty row after current;
+            else (Before current)
+                :Call addNewRow(index);
+                :Insert empty row before current;
+            endif
+            :Update row indices;
+            :Emit rowAdded event;
+        elseif (Action type?) then (Add Column)
+            if (Column position?) then (After current)
+                :Call addNewColumn(index + 1);
+                :Insert empty column after current;
+            else (Before current)
+                :Call addNewColumn(index);
+                :Insert empty column before current;
+            endif
+            :Update column headers;
+            :Emit columnAdded event;
+        elseif (Action type?) then (Duplicate Row)
+            :Call duplicateRow(index);
+            :Copy row data;
+            :Insert duplicate after original;
+            :Emit rowAdded event;
+        elseif (Action type?) then (Duplicate Column)
+            :Call duplicateColumn(index);
+            :Copy column data;
+            :Insert duplicate after original;
+            :Emit columnAdded event;
+        elseif (Action type?) then (Cell Edit)
+            :Validate cell input;
+            if (Valid input?) then (Yes)
+                :Update cell value;
+                :Emit cellUpdated event;
+            else (No)
+                :Show validation error;
+            endif
+        elseif (Action type?) then (Keyboard Shortcut)
+            if (Shortcut type?) then (Ctrl+Alt+R)
+                :Add new row below current;
+            elseif (Shortcut type?) then (Ctrl+Alt+C)
+                :Add new column to right;
+            elseif (Shortcut type?) then (Insert)
+                :Insert row at current position;
+            elseif (Shortcut type?) then (Ctrl+D)
+                :Duplicate current row;
+            endif
+        endif
+    endwhile (No)
+}
+
+partition "Data Processing" {
+    :Parent component receives event;
+    
+    if (Event type?) then (Row/Column Added)
+        :Update internal data structure;
+        :Log operation details;
+        :Validate data integrity;
+        if (Excel data source?) then (Yes)
+            :Update Excel sheet data;
+            :Maintain sheet structure;
+        else (PDF data source)
+            :Update PDF page data;
+            :Maintain page structure;
+        endif
+    elseif (Event type?) then (Cell Updated)
+        :Identify target row by ID;
+        :Update specific cell value;
+        :Validate data type consistency;
+        :Log cell update operation;
+    endif
+    
+    :Emit data change to parent;
+    :Update component state;
+}
+
+partition "Backend Synchronization" {
+    if (Auto-save enabled?) then (Yes)
+        :Prepare data for backend;
+        :Call appropriate API endpoint;
+        
+        if (Data source type?) then (Excel)
+            :POST /api/data_source/excel/update;
+            :Include sheet information;
+        else (PDF)
+            :POST /api/data_source/pdf/update;
+            :Include page information;
+        endif
+        
+        if (API response?) then (Success)
+            :Confirm changes saved;
+            :Update UI status;
+        else (Error)
+            :Show error message;
+            :Revert local changes;
+        endif
+    else (Manual save)
+        :Mark data as modified;
+        :Show unsaved changes indicator;
+    endif
+}
+
+partition "Data Validation" {
+    :Check data consistency;
+    :Validate column types;
+    :Ensure row integrity;
+    
+    if (Validation errors?) then (Yes)
+        :Highlight problematic cells;
+        :Show validation messages;
+        :Prevent invalid operations;
+    else (No)
+        :Continue normal operation;
+    endif
+}
+
+:Update data table display;
+:Refresh row/column indices;
+:Maintain scroll position;
+
+stop
+
+' Documentation Notes:
+' Supported Interaction Methods:
+' - Context menu operations
+' - Keyboard shortcuts (Ctrl+Alt+R/C, Insert, Ctrl+D)
+' - Button clicks  
+' - Drag and drop (future enhancement)
+'
+' Data Integrity Features:
+' - Multi-sheet Excel file support
+' - Multi-page PDF document handling
+' - Mixed data types per column
+' - Unique row identifiers
+'
+' Auto-save Capabilities:
+' - Debounced API calls
+' - Conflict resolution
+' - Error recovery
+' - Transaction handling
+
+@enduml

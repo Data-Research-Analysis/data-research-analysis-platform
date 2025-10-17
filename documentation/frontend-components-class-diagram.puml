@@ -180,11 +180,61 @@ package "Form Components" {
         +columns: ColumnDefinition[]
         +pagination: PaginationConfig
         +sorting: SortConfig
+        +sheets: SheetData[]
+        +activeSheetId: string
+        +selectedRows: Set<string>
+        +selectedColumns: Set<string>
+        +editingCell: EditingState
         --
         +loadData(): Promise<void>
         +sortData(column: string, direction: SortDirection): void
         +filterData(filters: FilterConfig[]): void
         +exportData(format: ExportFormat): Promise<void>
+        --
+        ' Row Operations
+        +addNewRow(position: string|number, defaultData: object): RowObject
+        +insertRowAt(index: number, defaultData: object): RowObject
+        +duplicateRow(rowId: string): RowObject
+        +addMultipleRows(count: number, position: string): RowObject[]
+        +removeSelectedRows(): void
+        +removeRowByIndex(index: number): void
+        +updateRowIndices(): void
+        --
+        ' Column Operations
+        +addNewColumn(position: string|number, config: ColumnConfig): ColumnObject
+        +insertColumnAt(index: number, config: ColumnConfig): ColumnObject
+        +duplicateColumn(columnId: string): ColumnObject
+        +addMultipleColumns(count: number, position: string): ColumnObject[]
+        +removeSelectedColumns(): void
+        +removeColumn(columnId: string): void
+        +getColumnIndex(columnId: string): number
+        --
+        ' Cell Operations
+        +updateCellValue(rowId: string, columnKey: string, value: any): void
+        +getCellValue(row: RowObject, columnKey: string): any
+        +startEditing(rowId: string, columnKey: string): void
+        +stopEditing(): void
+        --
+        ' Event System
+        +emit('row-added', event: RowAddedEvent): void
+        +emit('column-added', event: ColumnAddedEvent): void
+        +emit('cell-updated', event: CellUpdatedEvent): void
+        +emit('row-duplicated', event: RowDuplicatedEvent): void
+        +emit('column-duplicated', event: ColumnDuplicatedEvent): void
+        +emit('rows-removed', event: RowsRemovedEvent): void
+        +emit('column-removed', event: ColumnRemovedEvent): void
+        --
+        ' User Interactions
+        +handleKeyboardShortcuts(event: KeyboardEvent): void
+        +handleColumnHeaderClick(column: ColumnObject, event: MouseEvent): void
+        +toggleRowSelection(rowId: string): void
+        +toggleColumnSelection(columnId: string): void
+        --
+        ' Multi-Sheet Support
+        +switchToSheet(sheetId: string): void
+        +createSheet(name: string, columns: ColumnObject[], rows: RowObject[]): SheetObject
+        +deleteSheet(sheetId: string): void
+        +renameSheet(sheetId: string, newName: string): void
     }
 }
 
@@ -392,6 +442,8 @@ DataSourcesPage ||--|| BuildDataModel : may include
 DataSourcesPage ||--|| DataModelBuilder : may include
 DashboardsPage ||--o{ ChartsContainer : displays
 PDFDataSourcePage ||--|| Spinner : shows progress
+PDFDataSourcePage ||--|| CustomDataTable : uses for data display
+ExcelDataSourcePage ||--|| CustomDataTable : uses for data display
 
 ' UI component relationships
 OverlayDialog ||--o| Tabs : may contain
@@ -424,7 +476,7 @@ note right of PDFDataSourcePage : Handles PDF file upload with\nreal-time progre
 
 note right of DataModelBuilder : Visual drag-and-drop interface\nfor building data relationships
 
-note right of CustomDataTable : Reusable table component with\nsorting, filtering, and export
+note right of CustomDataTable : Enhanced data table with Excel-like features:\n• Row/column addition, removal, duplication\n• Keyboard shortcuts (Ctrl+Alt+R/C)\n• Context menus and + buttons\n• Multi-sheet support\n• Real-time data synchronization\n• Event-driven parent integration
 
 note bottom of LoggedInUserStore : Central authentication state\nmanagement with JWT tokens
 

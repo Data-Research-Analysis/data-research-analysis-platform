@@ -1,0 +1,157 @@
+@startuml Data_Manipulation_Sequence_Diagram
+!theme aws-orange
+title Data Research Analysis Platform - Data Manipulation Workflow
+
+participant "User" as User
+participant "CustomDataTable\n(Component)" as Table
+participant "Excel.vue\n(Parent)" as Excel
+participant "PDF.vue\n(Parent)" as PDF
+participant "Sheet State\n(Reactive)" as State
+participant "Browser\n(Event System)" as Browser
+
+== Row Addition Workflow ==
+
+User -> Table: Click "Add Row" or\nKeyboard Shortcut (Ctrl+Alt+R)
+activate Table
+
+Table -> Table: addNewRow(position, defaultData)
+Table -> Table: Generate unique row ID
+Table -> Table: Initialize with default values for all columns
+Table -> Table: updateRowIndices()
+
+Table -> State: Update tableState.rows
+Table -> Table: Update multi-sheet mode if active
+Table -> Table: emit('row-added', {\n  rowId, rowData, position,\n  allRows, rowCount\n})
+
+Table -> Excel: @row-added event
+activate Excel
+Excel -> Excel: handleRowAdded(event)
+Excel -> Excel: Find activeSheet by ID
+Excel -> Excel: activeSheet.rows = [...event.allRows]
+Excel -> Excel: Update metadata (rowCount, modified)
+Excel -> Excel: Console log for debugging
+deactivate Excel
+
+Table -> Table: showSelectionFeedback("New row added")
+deactivate Table
+
+== Column Addition Workflow ==
+
+User -> Table: Click "Add Column" or\nKeyboard Shortcut (Ctrl+Alt+C)
+activate Table
+
+Table -> Table: addNewColumn(position, columnConfig)
+Table -> Table: Generate unique column ID
+Table -> Table: Create column structure with defaults
+
+Table -> Table: Add default values to existing rows
+loop For each existing row
+    Table -> Table: row.data[newColumn.key] = defaultValue
+end
+
+Table -> State: Update tableState.columns
+Table -> Table: Update multi-sheet mode if active
+Table -> Table: emit('column-added', {\n  columnId, columnData, position,\n  allColumns, columnCount\n})
+
+Table -> Excel: @column-added event
+activate Excel
+Excel -> Excel: handleColumnAdded(event)
+Excel -> Excel: Find activeSheet by ID
+Excel -> Excel: activeSheet.columns = [...event.allColumns]
+Excel -> Excel: Update metadata (columnCount, modified)
+Excel -> Excel: Console log for debugging
+deactivate Excel
+
+Table -> Table: showSelectionFeedback("New column added")
+deactivate Table
+
+== Cell Update After Addition ==
+
+User -> Table: Click on cell and type value
+activate Table
+
+Table -> Table: startEditing(rowId, columnKey)
+Table -> Table: Show input field
+
+User -> Table: Enter new value and press Enter
+Table -> Table: updateCellValue(rowId, columnKey, newValue)
+Table -> Table: Type conversion based on column type
+Table -> Table: row.data[columnKey] = processedValue
+
+Table -> Table: emit('cell-updated', {\n  rowId, columnKey,\n  oldValue, newValue, row\n})
+
+Table -> Excel: @cell-updated event
+activate Excel
+Excel -> Excel: handleCellUpdate(event)
+Excel -> Excel: Find activeSheet by ID
+Excel -> Excel: Find row by event.rowId
+Excel -> Excel: row.data[event.columnKey] = event.newValue
+Excel -> Excel: Update activeSheet.metadata.modified
+deactivate Excel
+
+Table -> Table: stopEditing()
+deactivate Table
+
+== Row Duplication Workflow ==
+
+User -> Table: Right-click row header → "Duplicate Row"
+activate Table
+
+Table -> Table: duplicateRow(rowId)
+Table -> Table: Find source row by ID
+Table -> Table: Generate new row ID
+Table -> Table: Create duplicated row with copied data
+Table -> Table: Insert after source row
+Table -> Table: updateRowIndices()
+
+Table -> Table: emit('row-duplicated', {\n  originalRowId, newRowId,\n  rowData, position, allRows\n})
+
+Table -> Excel: @row-duplicated event (if handler exists)
+Table -> Table: showSelectionFeedback("Row duplicated")
+deactivate Table
+
+== Context Menu Operations ==
+
+User -> Table: Right-click row number
+Table -> Browser: Show context menu
+Browser -> Table: Position menu relative to click
+
+User -> Table: Select "Insert Row Above"
+Table -> Table: insertRowAt(showRowMenu)
+Table -> Table: Follow Row Addition Workflow
+
+User -> Table: Select "Insert Row Below"  
+Table -> Table: insertRowAt(showRowMenu + 1)
+Table -> Table: Follow Row Addition Workflow
+
+== Keyboard Shortcuts ==
+
+User -> Browser: Press Ctrl+Alt+R
+Browser -> Table: handleKeyboardShortcuts(event)
+Table -> Table: addNewRow() → Follow Row Addition Workflow
+
+User -> Browser: Press Ctrl+Alt+C
+Browser -> Table: handleKeyboardShortcuts(event) 
+Table -> Table: addNewColumn() → Follow Column Addition Workflow
+
+User -> Browser: Press Ctrl+D (with row selected)
+Browser -> Table: handleKeyboardShortcuts(event)
+Table -> Table: duplicateRow(selectedRowId) → Follow Duplication Workflow
+
+== Error Handling ==
+
+alt Row not found during cell update
+    Table -> Excel: @cell-updated event
+    Excel -> Excel: handleCellUpdate(event)
+    Excel -> Excel: activeSheet.rows.find(row => row.id === event.rowId)
+    Excel -> Excel: Row not found - log error
+    Excel -> Browser: console.error("Row not found for event")
+end
+
+alt Invalid column position
+    Table -> Table: addNewColumn(invalidPosition)
+    Table -> Table: Default to 'end' position
+    Table -> Table: Continue with normal flow
+end
+
+@enduml
