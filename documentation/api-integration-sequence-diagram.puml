@@ -200,6 +200,96 @@ deactivate Router
 
 note right: Export completion notified\nvia Socket.IO
 
+== Data Source Row/Column Manipulation ==
+
+Frontend -> Router: POST /api/data-source/add-row\nAuthorization: Bearer {JWT}
+activate Router
+
+Router -> AuthMiddleware: Validate JWT token
+activate AuthMiddleware
+AuthMiddleware -> Database: Verify user and data source access
+Database --> AuthMiddleware: Access granted
+AuthMiddleware -> Router: User authenticated
+deactivate AuthMiddleware
+
+Router -> Processor: DataSourceProcessor.addRowToDataSource(dataSourceId, rowData)
+activate Processor
+
+Processor -> Database: BEGIN TRANSACTION
+Processor -> Database: INSERT INTO dynamic_table VALUES (...)
+Database --> Processor: Row inserted with ID
+Processor -> Database: UPDATE metadata SET row_count = row_count + 1
+Database --> Processor: Metadata updated
+Processor -> Database: COMMIT
+
+Processor --> Router: { success: true, rowId, updatedCount }
+deactivate Processor
+
+Router --> Frontend: HTTP 200 OK + row data
+deactivate Router
+
+Frontend -> Frontend: Update local state with new row
+Frontend -> Frontend: Refresh CustomDataTable component
+
+== Column Addition ==
+
+Frontend -> Router: POST /api/data-source/add-column\nAuthorization: Bearer {JWT}
+activate Router
+
+Router -> AuthMiddleware: Validate JWT and permissions
+AuthMiddleware --> Router: Authorization confirmed
+
+Router -> Processor: DataSourceProcessor.addColumnToDataSource(dataSourceId, columnConfig)
+activate Processor
+
+Processor -> Database: BEGIN TRANSACTION
+Processor -> Database: ALTER TABLE dynamic_table ADD COLUMN column_name TYPE
+Database --> Processor: Column added
+Processor -> Database: UPDATE all rows SET column_name = default_value
+Database --> Processor: Default values populated
+Processor -> Database: UPDATE metadata SET column_count = column_count + 1
+Database --> Processor: Metadata updated
+Processor -> Database: COMMIT
+
+Processor --> Router: { success: true, columnId, schema }
+deactivate Processor
+
+Router --> Frontend: HTTP 200 OK + column schema
+deactivate Router
+
+Frontend -> Frontend: Update local column definitions
+Frontend -> Frontend: Refresh table structure
+
+== Row Removal ==
+
+Frontend -> Router: DELETE /api/data-source/row/{rowId}\nAuthorization: Bearer {JWT}
+Router -> AuthMiddleware: Validate access
+Router -> Processor: DataSourceProcessor.removeRowFromDataSource(dataSourceId, rowId)
+Processor -> Database: DELETE FROM dynamic_table WHERE id = rowId
+Processor -> Database: UPDATE metadata SET row_count = row_count - 1
+Processor --> Router: { success: true, remainingCount }
+Router --> Frontend: HTTP 200 OK
+
+== Column Removal ==
+
+Frontend -> Router: DELETE /api/data-source/column/{columnName}\nAuthorization: Bearer {JWT}
+Router -> AuthMiddleware: Validate access
+Router -> Processor: DataSourceProcessor.removeColumnFromDataSource(dataSourceId, columnName)
+Processor -> Database: ALTER TABLE dynamic_table DROP COLUMN column_name
+Processor -> Database: UPDATE metadata SET column_count = column_count - 1
+Processor --> Router: { success: true, updatedSchema }
+Router --> Frontend: HTTP 200 OK
+
+== Schema Validation ==
+
+Frontend -> Router: GET /api/data-source/{id}/schema\nAuthorization: Bearer {JWT}
+Router -> AuthMiddleware: Validate access
+Router -> Processor: DataSourceProcessor.getDataSourceSchema(dataSourceId)
+Processor -> Database: DESCRIBE dynamic_table
+Database --> Processor: Column definitions and constraints
+Processor --> Router: { columns, constraints, metadata }
+Router --> Frontend: HTTP 200 OK + schema
+
 == Error Handling Patterns ==
 
 alt Network Error
