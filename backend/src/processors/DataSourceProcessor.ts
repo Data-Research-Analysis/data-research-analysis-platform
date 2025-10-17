@@ -11,6 +11,7 @@ import { EDataSourceType } from "../types/EDataSourceType.js";
 import { UtilityService } from "../services/UtilityService.js";
 import { IDataSourceReturn } from "../types/IDataSourceReturn.js";
 import { IPDFDataSourceReturn } from "../types/IPDFDataSourceReturn.js";
+import { IExcelDataSourceReturn } from "../types/IExcelDataSourceReturn.js";
 import { FilesService } from "../services/FilesService.js";
 import { QueueService } from "../services/QueueService.js";
 export class DataSourceProcessor {
@@ -386,7 +387,6 @@ export class DataSourceProcessor {
                     const columnType = `${column.data_type}${columnSize}`;
 
                     const dataType = UtilityService.getInstance().convertDataTypeToPostgresDataType(dataSourceType, columnType);
-                    console.log('dataType', dataType);
                     let dataTypeString = '';
                     if (dataType.size) {
                         dataTypeString = `${dataType.type}(${dataType.size})`;
@@ -461,8 +461,8 @@ export class DataSourceProcessor {
         });
     }
 
-    public async addExcelDataSource(fileName: string, dataSourceName: string, fileId: string, data: string, tokenDetails: ITokenDetails, projectId: number, dataSourceId: number = null): Promise<IDataSourceReturn> {
-        return new Promise<IDataSourceReturn>(async (resolve, reject) => {
+    public async addExcelDataSource(fileName: string, dataSourceName: string, fileId: string, data: string, tokenDetails: ITokenDetails, projectId: number, dataSourceId: number = null, sheetInfo?: any): Promise<IExcelDataSourceReturn> {
+        return new Promise<IExcelDataSourceReturn>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             if (!driver) {
@@ -513,51 +513,238 @@ export class DataSourceProcessor {
                 } else {
                     dataSource = await manager.findOne(DRADataSource, { where: { id: dataSourceId, project: project, users_platform: user } });
                 }
-                const tableName = `${fileName}_data_source_${dataSource.id}_${new Date().getTime()}`;
-                let createTableQuery = `CREATE TABLE dra_excel.${tableName} `;
-                let columns = '';
-                let insertQueryColumns = '';
-                const parsedTableStructure = JSON.parse(data);
-                parsedTableStructure.columns.forEach((column: any, index: number) => {
-                    const dataType = UtilityService.getInstance().convertDataTypeToPostgresDataType(EDataSourceType.EXCEL, column.type);
-                    let dataTypeString = '';
-                    if (dataType.size) {
-                        dataTypeString = `${dataType.type}(${dataType.size})`;
-                    } else {
-                        dataTypeString = `${dataType.type}`;
-                    }
-                    if (index < parsedTableStructure.columns.length - 1) {
-                        columns += `${column.column_name} ${dataTypeString}, `;
-                    } else {
-                        columns += `${column.column_name} ${dataTypeString} `;
-                    }
-                    if (index < parsedTableStructure.columns.length - 1) {
-                        insertQueryColumns += `${column.column_name},`;
-                    } else {
-                        insertQueryColumns += `${column.column_name}`;
-                    }
-                });
-                createTableQuery += `(${columns})`;
-                insertQueryColumns = `(${insertQueryColumns})`;
-                await dbConnector.query(createTableQuery);
-                parsedTableStructure.rows.forEach(async (row: any, index: number) => {
-                    let insertQuery = `INSERT INTO dra_excel.${tableName} `;
-                    let values = '';
-                    parsedTableStructure.columns.forEach((column: any, colIndex: number) => {
-                        const value = row[column.title];
-                        if (colIndex > 0) {
-                            values += ', ';
+                
+                const sheetsProcessed = [];
+                
+                try {
+                    const parsedTableStructure = JSON.parse(data);
+                    // Get sheet information
+                    const sheetName = sheetInfo?.sheet_name || 'Sheet1';
+                    const sheetId = sheetInfo?.sheet_id || `sheet_${Date.now()}`;
+                    const originalSheetName = sheetInfo?.original_sheet_name || sheetName;
+                    const sheetIndex = sheetInfo?.sheet_index || 0;
+                
+                    // Create table name for this sheet
+                    const rawTableName = `excel_${fileId}_${sheetIndex}_data_source_${dataSource.id}`;
+                    const tableName = this.sanitizeTableName(rawTableName);
+                    
+                    let createTableQuery = `CREATE TABLE dra_excel."${tableName}" `;
+                    let columns = '';
+                    let insertQueryColumns = '';
+                    const sanitizedColumns: Array<{
+                        original: string, 
+                        sanitized: string, 
+                        type: string, 
+                        title?: string, 
+                        key?: string,
+                        originalTitle?: string,
+                        displayTitle?: string
+                    }> = [];
+                    
+                    if (parsedTableStructure.columns && parsedTableStructure.columns.length > 0) {
+                        parsedTableStructure.columns.forEach((column: any, index: number) => {
+                            // Use renamed title if available, fall back to original names
+                            const displayColumnName = column.title || column.column_name || `column_${index}`;
+                            const originalColumnName = column.originalTitle || column.original_title || column.column_name || displayColumnName;
+                            const columnKey = column.originalKey || column.original_key || column.key || displayColumnName.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
+                            
+                            // Sanitize the display name for database usage
+                            const sanitizedColumnName = this.sanitizeColumnName(displayColumnName);
+                            
+                            sanitizedColumns.push({
+                                original: originalColumnName,
+                                sanitized: sanitizedColumnName,
+                                type: column.type,
+                                title: displayColumnName,
+                                key: columnKey,
+                                originalTitle: originalColumnName,
+                                displayTitle: displayColumnName
+                            });
+                            
+                            const dataType = UtilityService.getInstance().convertDataTypeToPostgresDataType(EDataSourceType.EXCEL, column.type);
+                            let dataTypeString = '';
+                            if (dataType.size) {
+                                dataTypeString = `${dataType.type}(${dataType.size})`;
+                            } else {
+                                dataTypeString = `${dataType.type}`;
+                            }
+                            
+                            if (index < parsedTableStructure.columns.length - 1) {
+                                columns += `${sanitizedColumnName} ${dataTypeString}, `;
+                                insertQueryColumns += `${sanitizedColumnName},`;
+                            } else {
+                                columns += `${sanitizedColumnName} ${dataTypeString} `;
+                                insertQueryColumns += `${sanitizedColumnName}`;
+                            }
+                        });
+                        
+                        createTableQuery += `(${columns})`;
+                        insertQueryColumns = `(${insertQueryColumns})`;
+                        
+                        // Create the table
+                        try {
+                            await dbConnector.query(createTableQuery);
+                            console.log('Successfully created table:', tableName);
+                        } catch (error) {
+                            console.error('Error creating table:', error);
+                            console.error('Failed query:', createTableQuery);
+                            throw error;
                         }
-                        if (typeof value === 'string') {
-                            values += `'${value.replace(/'/g, "''")}'`;
+                        
+                        // Insert data rows
+                        if (parsedTableStructure.rows && parsedTableStructure.rows.length > 0) {                            
+                            let successfulInserts = 0;
+                            let failedInserts = 0;
+                            
+                            for (let rowIndex = 0; rowIndex < parsedTableStructure.rows.length; rowIndex++) {
+                                const row = parsedTableStructure.rows[rowIndex];
+                                let insertQuery = `INSERT INTO dra_excel."${tableName}" `;
+                                let values = '';
+ 
+                                sanitizedColumns.forEach((columnInfo, colIndex) => {
+                                    // Try multiple ways to get the value for renamed columns
+                                    let value = undefined;
+                                    const originalColumn = parsedTableStructure.columns[colIndex];
+                                    
+                                    // Frontend sends flattened row data, so try direct access first
+                                    // Strategy 1: Use current column title (handles renamed columns)
+                                    if (originalColumn?.title && row[originalColumn.title] !== undefined) {
+                                        value = row[originalColumn.title];
+                                    }
+                                    // Strategy 2: Use original title if column was renamed
+                                    else if (columnInfo.originalTitle && row[columnInfo.originalTitle] !== undefined) {
+                                        value = row[columnInfo.originalTitle];
+                                    }
+                                    // Strategy 3: Use column key 
+                                    else if (originalColumn?.key && row[originalColumn.key] !== undefined) {
+                                        value = row[originalColumn.key];
+                                    }
+                                    // Strategy 4: Use original key if available
+                                    else if (columnInfo.key && row[columnInfo.key] !== undefined) {
+                                        value = row[columnInfo.key];
+                                    }
+                                    // Strategy 5: Use original column name
+                                    else if (row[columnInfo.original] !== undefined) {
+                                        value = row[columnInfo.original];
+                                    }
+                                    // Strategy 4: Try nested data structure (fallback)
+                                    else if (row.data) {
+                                        if (originalColumn?.title && row.data[originalColumn.title] !== undefined) {
+                                            value = row.data[originalColumn.title];
+                                        } else if (originalColumn?.key && row.data[originalColumn.key] !== undefined) {
+                                            value = row.data[originalColumn.key];
+                                        } else if (row.data[columnInfo.original] !== undefined) {
+                                            value = row.data[columnInfo.original];
+                                        }
+                                    }
+                                    if (colIndex > 0) {
+                                        values += ', ';
+                                    }
+                                    
+                                    // Handle different data types properly with comprehensive escaping
+                                    if (value === null || value === undefined || value === '') {
+                                        values += 'NULL';
+                                    } else if (columnInfo.type === 'boolean') {
+                                        const boolValue = this.convertToPostgresBoolean(value);
+                                        values += boolValue;
+                                    } else if (typeof value === 'string') {
+                                        const escapedValue = this.escapeStringValue(value);
+                                        values += `'${escapedValue}'`;
+                                    } else if (typeof value === 'number') {
+                                        // Ensure it's a valid number
+                                        if (isNaN(value) || !isFinite(value)) {
+                                            values += 'NULL';
+                                        } else {
+                                            values += `${value}`;
+                                        }
+                                    } else {
+                                        // For other types, convert to string and escape
+                                        const stringValue = String(value);
+                                        const escapedValue = this.escapeStringValue(stringValue);
+                                        values += `'${escapedValue}'`;
+                                    }
+                                });
+                                
+                                insertQuery += `${insertQueryColumns} VALUES(${values})`;
+                                try {
+                                    const result = await dbConnector.query(insertQuery);
+                                    successfulInserts++;
+                                    
+                                    // Log result for first few rows
+                                    if (rowIndex < 3) {
+                                        console.log(`Insert result for row ${rowIndex}:`, result);
+                                    }
+                                    
+                                    if (rowIndex % 100 === 0) {
+                                        console.log(`Inserted ${rowIndex + 1}/${parsedTableStructure.rows.length} rows`);
+                                    }
+                                } catch (error) {
+                                    failedInserts++;
+                                    console.error(`ERROR inserting row ${rowIndex + 1}:`, error);
+                                    console.error('Failed query:', insertQuery);
+                                    console.error('Row data:', JSON.stringify(row, null, 2));
+                                    console.error('Column mappings:', sanitizedColumns);
+                                    throw error;
+                                }
+                            }
+                                                        
+                            // Verify data was actually inserted by counting rows in the table
+                            try {
+                                const countQuery = `SELECT COUNT(*) as row_count FROM dra_excel."${tableName}"`;
+                                const countResult = await dbConnector.query(countQuery);
+                                const actualRowCount = countResult[0]?.row_count || 0;
+                                
+                                if (actualRowCount === 0 && parsedTableStructure.rows.length > 0) {
+                                    console.error('WARNING: No rows found in database despite successful insertions!');
+                                } else if (actualRowCount !== parsedTableStructure.rows.length) {
+                                    console.warn(`Row count mismatch: Expected ${parsedTableStructure.rows.length}, found ${actualRowCount}`);
+                                }
+                            } catch (error) {
+                                console.error('Error verifying row count:', error);
+                            }
+                            
+                            console.log(`Successfully inserted all ${parsedTableStructure.rows.length} rows`);
                         } else {
-                            values += `${value}`;
+                            console.log('No rows to insert - parsedTableStructure.rows is empty or undefined');
                         }
+                        
+                        // Log column mapping for renamed columns
+                        const renamedColumns = sanitizedColumns.filter(col => 
+                            col.originalTitle && col.displayTitle && col.originalTitle !== col.displayTitle
+                        );
+                        if (renamedColumns.length > 0) {
+                            console.log(`Column renames detected in sheet ${sheetName}:`);
+                            renamedColumns.forEach(col => {
+                                console.log(`  "${col.originalTitle}" -> "${col.displayTitle}" (DB: ${col.sanitized})`);
+                            });
+                        }
+                        
+                        // Track processed sheet
+                        sheetsProcessed.push({
+                            sheet_id: sheetId,
+                            sheet_name: sheetName,
+                            table_name: tableName, // Using sanitized table name
+                            original_sheet_name: originalSheetName,
+                            sheet_index: sheetIndex
+                        });
+                        
+                        console.log(`Successfully processed sheet: ${sheetName} -> table: ${tableName}`);
+                    }
+                    
+                    console.log('Excel data source processing completed successfully');
+                    return resolve({ 
+                        status: 'success', 
+                        file_id: fileId, 
+                        data_source_id: dataSource.id, 
+                        sheets_processed: sheetsProcessed 
                     });
-                    insertQuery += `${insertQueryColumns} VALUES(${values});`;
-                    await dbConnector.query(insertQuery);
-                });
-                return resolve({ status: 'success', file_id: fileId, data_source_id: dataSource.id });
+                
+                } catch (error) {
+                    console.error('Error processing Excel data source:', error);
+                    console.error('Sheet info:', sheetInfo);
+                    console.error('Data structure:', data?.substring(0, 500) + '...');
+                    return resolve({ status: 'error', file_id: fileId });
+                }
             }
             return resolve({ status: 'error', file_id: fileId });
         });
@@ -647,8 +834,36 @@ export class DataSourceProcessor {
                     let columns = '';
                     let insertQueryColumns = '';
                     
+                    const sanitizedPdfColumns: Array<{
+                        original: string, 
+                        sanitized: string, 
+                        type: string, 
+                        title?: string, 
+                        key?: string,
+                        originalTitle?: string,
+                        displayTitle?: string
+                    }> = [];
+                    
                     if (sheetData.columns && sheetData.columns.length > 0) {
                         sheetData.columns.forEach((column: any, index: number) => {
+                            // Handle renamed columns for PDF similar to Excel
+                            const displayColumnName = column.title || column.column_name || `column_${index}`;
+                            const originalColumnName = column.originalTitle || column.original_title || column.column_name || displayColumnName;
+                            const columnKey = column.originalKey || column.original_key || column.key || displayColumnName.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
+                            
+                            // Sanitize the display name for database usage
+                            const sanitizedColumnName = this.sanitizeColumnName(displayColumnName);
+                            
+                            sanitizedPdfColumns.push({
+                                original: originalColumnName,
+                                sanitized: sanitizedColumnName,
+                                type: column.type,
+                                title: displayColumnName,
+                                key: columnKey,
+                                originalTitle: originalColumnName,
+                                displayTitle: displayColumnName
+                            });
+                            
                             const dataType = UtilityService.getInstance().convertDataTypeToPostgresDataType(EDataSourceType.PDF, column.type);
                             let dataTypeString = '';
                             if (dataType.size) {
@@ -657,14 +872,14 @@ export class DataSourceProcessor {
                                 dataTypeString = `${dataType.type}`;
                             }
                             if (index < sheetData.columns.length - 1) {
-                                columns += `${column.column_name} ${dataTypeString}, `;
+                                columns += `${sanitizedColumnName} ${dataTypeString}, `;
                             } else {
-                                columns += `${column.column_name} ${dataTypeString} `;
+                                columns += `${sanitizedColumnName} ${dataTypeString} `;
                             }
                             if (index < sheetData.columns.length - 1) {
-                                insertQueryColumns += `${column.column_name},`;
+                                insertQueryColumns += `${sanitizedColumnName},`;
                             } else {
-                                insertQueryColumns += `${column.column_name}`;
+                                insertQueryColumns += `${sanitizedColumnName}`;
                             }
                         });
                         
@@ -680,32 +895,75 @@ export class DataSourceProcessor {
                                 let insertQuery = `INSERT INTO dra_pdf.${tableName} `;
                                 let values = '';
                                 
-                                sheetData.columns.forEach((column: any, colIndex: number) => {
-                                    const value = row.data ? row.data[column.title] : row[column.title];
+                                sanitizedPdfColumns.forEach((columnInfo, colIndex) => {
+                                    // Try multiple ways to get the value for renamed columns (similar to Excel)
+                                    let value = undefined;
+                                    const originalColumn = sheetData.columns[colIndex];
+                                    
+                                    // Strategy 1: Use current column title (handles renamed columns)
+                                    if (originalColumn?.title && row[originalColumn.title] !== undefined) {
+                                        value = row[originalColumn.title];
+                                    }
+                                    // Strategy 2: Use original title if column was renamed
+                                    else if (columnInfo.originalTitle && row[columnInfo.originalTitle] !== undefined) {
+                                        value = row[columnInfo.originalTitle];
+                                    }
+                                    // Strategy 3: Use column key 
+                                    else if (originalColumn?.key && row[originalColumn.key] !== undefined) {
+                                        value = row[originalColumn.key];
+                                    }
+                                    // Strategy 4: Try nested data structure (fallback)
+                                    else if (row.data) {
+                                        if (originalColumn?.title && row.data[originalColumn.title] !== undefined) {
+                                            value = row.data[originalColumn.title];
+                                        } else if (columnInfo.originalTitle && row.data[columnInfo.originalTitle] !== undefined) {
+                                            value = row.data[columnInfo.originalTitle];
+                                        } else if (originalColumn?.key && row.data[originalColumn.key] !== undefined) {
+                                            value = row.data[originalColumn.key];
+                                        }
+                                    }
+                                    
                                     if (colIndex > 0) {
                                         values += ', ';
                                     }
                                     
-                                    // Handle different data types properly
-                                    if (value === null || value === undefined) {
+                                    // Handle different data types properly with comprehensive escaping
+                                    if (value === null || value === undefined || value === '') {
                                         values += 'NULL';
-                                    } else if (column.type === 'boolean') {
-                                        // Convert boolean values to PostgreSQL format
+                                    } else if (columnInfo.type === 'boolean') {
                                         const boolValue = this.convertToPostgresBoolean(value);
                                         values += boolValue;
                                     } else if (typeof value === 'string') {
-                                        values += `'${value.replace(/'/g, "''")}'`;
+                                        const escapedValue = this.escapeStringValue(value);
+                                        values += `'${escapedValue}'`;
                                     } else if (typeof value === 'number') {
-                                        values += `${value}`;
+                                        // Ensure it's a valid number
+                                        if (isNaN(value) || !isFinite(value)) {
+                                            values += 'NULL';
+                                        } else {
+                                            values += `${value}`;
+                                        }
                                     } else {
                                         // For other types, convert to string and escape
-                                        values += `'${String(value).replace(/'/g, "''")}'`;
+                                        const escapedValue = this.escapeStringValue(String(value));
+                                        values += `'${escapedValue}'`;
                                     }
                                 });
                                 
                                 insertQuery += `${insertQueryColumns} VALUES(${values});`;
                                 await dbConnector.query(insertQuery);
                             }
+                        }
+                        
+                        // Log column mapping for renamed columns (PDF)
+                        const renamedPdfColumns = sanitizedPdfColumns.filter(col => 
+                            col.originalTitle && col.displayTitle && col.originalTitle !== col.displayTitle
+                        );
+                        if (renamedPdfColumns.length > 0) {
+                            console.log(`Column renames detected in PDF page ${pageNumber}:`);
+                            renamedPdfColumns.forEach(col => {
+                                console.log(`  "${col.originalTitle}" -> "${col.displayTitle}" (DB: ${col.sanitized})`);
+                            });
                         }
                         
                         // Track processed sheet
@@ -734,6 +992,64 @@ export class DataSourceProcessor {
             }
             return resolve({ status: 'error', file_id: fileId });
         });
+    }
+
+    /**
+     * Sanitizes column names to be PostgreSQL-compliant
+     */
+    private sanitizeColumnName(columnName: string): string {
+        // Remove special characters and replace spaces with underscores
+        let sanitized = columnName
+            .replace(/[^a-zA-Z0-9_]/g, '_')
+            .replace(/_+/g, '_')
+            .replace(/^_+|_+$/g, '');
+        
+        // Ensure it starts with a letter or underscore
+        if (!/^[a-zA-Z_]/.test(sanitized)) {
+            sanitized = `col_${sanitized}`;
+        }
+        
+        // Ensure it's not empty
+        if (!sanitized) {
+            sanitized = `col_${Date.now()}`;
+        }
+        
+        // Check against PostgreSQL reserved keywords
+        const reservedKeywords = [
+            'user', 'table', 'select', 'insert', 'update', 'delete', 'create', 'drop', 
+            'alter', 'index', 'view', 'grant', 'revoke', 'commit', 'rollback', 'transaction',
+            'primary', 'foreign', 'key', 'constraint', 'check', 'unique', 'not', 'null',
+            'default', 'auto_increment', 'timestamp', 'date', 'time', 'year', 'month',
+            'order', 'group', 'having', 'where', 'limit', 'offset', 'union', 'join',
+            'inner', 'outer', 'left', 'right', 'cross', 'natural', 'on', 'using'
+        ];
+        
+        if (reservedKeywords.includes(sanitized.toLowerCase())) {
+            sanitized = `${sanitized}_col`;
+        }
+        
+        return sanitized;
+    }
+
+    /**
+     * Sanitizes table names to be PostgreSQL-compliant
+     */
+    private sanitizeTableName(tableName: string): string {
+        return tableName
+            .replace(/[^a-zA-Z0-9_]/g, '_')
+            .replace(/_+/g, '_')
+            .replace(/^_+|_+$/g, '')
+            .toLowerCase();
+    }
+
+    /**
+     * Properly escapes string values for PostgreSQL queries
+     */
+    private escapeStringValue(value: string): string {
+        return value
+            .replace(/\\/g, '\\\\')
+            .replace(/'/g, "''")
+            .replace(/\0/g, '\\0');
     }
 
     /**

@@ -567,6 +567,32 @@ function handleSheetRenamed(event) {
         sheet.metadata.modified = new Date();
     }
 }
+
+function handleColumnRenamed(event) {
+    const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
+    if (activeSheet) {
+        const column = activeSheet.columns.find(col => col.id === event.columnId);
+        if (column) {
+            // Update column title and metadata
+            column.title = event.newName;
+            column.originalTitle = column.originalTitle || event.oldName;
+            
+            // Update key if needed (for backend consistency)
+            if (!column.originalKey) {
+                column.originalKey = column.key;
+            }
+            
+            // Keep same key or update based on new name
+            // The key is used for database column mapping, so we preserve it
+            // unless this is a brand new column
+            
+            activeSheet.metadata.modified = new Date();
+            
+            console.log(`Column renamed from "${event.oldName}" to "${event.newName}" in sheet ${activeSheet.name}`);
+        }
+    }
+}
+
 onMounted(async () => {
   state.upload_id = _.uniqueId();
   dropZone = document.getElementById('drop-zone');
@@ -783,6 +809,7 @@ onMounted(async () => {
                         @cell-updated="handleCellUpdate"
                         @rows-removed="handleRowsRemoved"
                         @column-removed="handleColumnRemoved"
+                        @column-renamed="handleColumnRenamed"
                         @sheet-changed="handleSheetChanged"
                         @sheet-created="handleSheetCreated"
                         @sheet-deleted="handleSheetDeleted"

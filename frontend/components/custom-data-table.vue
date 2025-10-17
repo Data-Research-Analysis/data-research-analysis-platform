@@ -36,6 +36,7 @@ const emit = defineEmits([
   'row-selected',
   'rows-removed',
   'column-removed',
+  'column-renamed',
   // Sheet-related events
   'sheet-changed',
   'sheet-created',
@@ -54,6 +55,8 @@ const tableState = reactive({
   sortColumn: null,
   sortDirection: null,
   editingCell: null,
+  editingColumnId: null,
+  originalColumnName: null,
   showColumnMenu: null,
   columnMenuPosition: { left: '0px', top: '0px' }
 });
@@ -556,6 +559,106 @@ function getInputType(columnType) {
   }
 }
 
+// Column editing functionality
+function isEditingColumn(columnId) {
+  return tableState.editingColumnId === columnId;
+}
+
+function startColumnEdit(columnId) {
+  const column = tableState.columns.find(col => col.id === columnId);
+  if (!column) return;
+  
+  tableState.editingColumnId = columnId;
+  tableState.originalColumnName = column.title;
+  tableState.showColumnMenu = null;
+  
+  // Focus input in next tick
+  nextTick(() => {
+    const input = document.querySelector('.column-name-input');
+    if (input) {
+      input.focus();
+      input.select();
+    }
+  });
+}
+
+function stopColumnEdit() {
+  tableState.editingColumnId = null;
+  tableState.originalColumnName = null;
+}
+
+function cancelColumnEdit() {
+  if (tableState.editingColumnId && tableState.originalColumnName) {
+    const column = tableState.columns.find(col => col.id === tableState.editingColumnId);
+    if (column) {
+      column.title = tableState.originalColumnName;
+    }
+  }
+  stopColumnEdit();
+}
+
+function updateColumnName(columnId, newName) {
+  const column = tableState.columns.find(col => col.id === columnId);
+  if (!column) return;
+  
+  const trimmedName = newName.trim();
+  
+  // Validation
+  if (!trimmedName) {
+    cancelColumnEdit();
+    return;
+  }
+  
+  // Check for duplicate names (case-insensitive)
+  const isDuplicate = tableState.columns.some(col => 
+    col.id !== columnId && 
+    col.title.toLowerCase() === trimmedName.toLowerCase()
+  );
+  
+  if (isDuplicate) {
+    // Show error feedback and revert
+    showSelectionFeedback(`Column name "${trimmedName}" already exists`);
+    cancelColumnEdit();
+    return;
+  }
+  
+  const oldName = column.title;
+  column.title = trimmedName;
+  
+  // Update key if needed (for new columns)
+  if (!column.key || column.key === oldName) {
+    column.key = sanitizeColumnKey(trimmedName);
+  }
+  
+  stopColumnEdit();
+  
+  // Emit column renamed event
+  emit('column-renamed', {
+    columnId,
+    oldName,
+    newName: trimmedName,
+    column: { ...column }
+  });
+  
+  showSelectionFeedback(`Column renamed to "${trimmedName}"`);
+}
+
+function sanitizeColumnKey(name) {
+  // Convert to safe key format (lowercase, no spaces, underscores)
+  return name.toLowerCase()
+    .replace(/[^a-z0-9_]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function handleColumnNameKeydown(columnId, event) {
+  if (event.key === 'Enter') {
+    updateColumnName(columnId, event.target.value);
+  } else if (event.key === 'Escape') {
+    cancelColumnEdit();
+  }
+}
+
 // Context menu
 function toggleColumnMenu(columnId, event) {
   console.log('Toggle column menu called for column:', columnId);
@@ -625,12 +728,15 @@ defineExpose({
 function handleEscapeKey(e) {
     if (e.key === 'Escape') {
         tableState.showColumnMenu = null;
+        if (tableState.editingColumnId) {
+            cancelColumnEdit();
+        }
     }
 }
 
 function handleKeyboardShortcuts(e) {
-  // Only handle shortcuts when not editing a cell or sheet name
-  if (tableState.editingCell || sheetsState.editingSheetId) return;
+  // Only handle shortcuts when not editing a cell, sheet name, or column name
+  if (tableState.editingCell || sheetsState.editingSheetId || tableState.editingColumnId) return;
   
   // Sheet navigation shortcuts
   if (isMultiSheetMode.value) {
@@ -669,6 +775,14 @@ function handleKeyboardShortcuts(e) {
       startSheetRename(sheetsState.activeSheetId);
       return;
     }
+  }
+  
+  // F2: Rename selected column (when not in multi-sheet mode or when only one column selected)
+  if (e.key === 'F2' && tableState.selectedColumns.size === 1) {
+    e.preventDefault();
+    const columnId = Array.from(tableState.selectedColumns)[0];
+    startColumnEdit(columnId);
+    return;
   }
   
   // Ctrl+A or Cmd+A: Select all columns
@@ -1107,7 +1221,23 @@ onUnmounted(() => {
               <!-- Column Title and Sort Indicator -->
               <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-2">
-                  <span class="truncate">{{ column.title }}</span>
+                  <!-- Editable Column Name -->
+                  <input
+                    v-if="isEditingColumn(column.id)"
+                    v-model="column.title"
+                    @blur="updateColumnName(column.id, column.title)"
+                    @keydown="handleColumnNameKeydown(column.id, $event)"
+                    @click.stop
+                    class="column-name-input bg-transparent border-b border-blue-500 outline-none focus:ring-0 min-w-[60px] max-w-[120px] text-sm font-semibold px-1"
+                  />
+                  <span 
+                    v-else 
+                    class="truncate cursor-pointer" 
+                    @dblclick.stop="startColumnEdit(column.id)"
+                    :title="column.title"
+                  >
+                    {{ column.title }}
+                  </span>
                   <!-- Selection indicator -->
                   <div v-if="selectedColumns.has(column.id)" class="w-2 h-2 bg-blue-500 rounded-full" title="Selected"></div>
                 </div>
@@ -1295,6 +1425,15 @@ onUnmounted(() => {
             <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/>
           </svg>
           Fill Selection Gaps
+        </button>
+        <button 
+          @click="startColumnEdit(showColumnMenu)" 
+          class="w-full text-left px-4 py-2 hover:bg-blue-50 text-blue-600 text-sm flex items-center gap-2 transition-colors duration-150"
+        >
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/>
+          </svg>
+          Rename Column
         </button>
         <button 
           @click="removeColumn(showColumnMenu)" 

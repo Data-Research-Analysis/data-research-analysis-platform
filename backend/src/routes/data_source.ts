@@ -131,15 +131,62 @@ async (req: Request, res: Response) => {
 
 router.post('/add-excel-data-source', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([body('file_name').notEmpty().trim().escape(), body('data_source_name').notEmpty().trim().escape(), body('file_id').notEmpty().trim().escape(), body('data').notEmpty(), body('project_id').notEmpty().trim().escape(), body('data_source_id').trim().escape(),
+}, validateJWT, validate([
+    body('file_name').notEmpty().trim().escape(), 
+    body('data_source_name').notEmpty().trim().escape(), 
+    body('file_id').notEmpty().trim().escape(), 
+    body('data').notEmpty(), 
+    body('project_id').notEmpty().trim().escape(), 
+    body('data_source_id').optional().trim().escape(),
+    body('sheet_info').optional()
 ]),
 async (req: Request, res: Response) => {
-    const { file_name, data_source_name, file_id, data, project_id, data_source_id } = matchedData(req);
+    const { file_name, data_source_name, file_id, data, project_id, data_source_id, sheet_info } = matchedData(req);
+    
+    // Debug incoming request data
+    console.log('=== EXCEL ROUTE REQUEST DEBUG ===');
+    console.log('Request body keys:', Object.keys(req.body));
+    console.log('Parsed data structure:', {
+        file_name,
+        data_source_name,
+        file_id,
+        project_id,
+        data_source_id,
+        sheet_info,
+        dataKeys: data ? Object.keys(data) : null,
+        columnsCount: data?.columns?.length || 0,
+        rowsCount: data?.rows?.length || 0
+    });
+    
+    if (data?.columns && data.columns.length > 0) {
+        console.log('Sample columns from request:', data.columns.slice(0, 2));
+    }
+    if (data?.rows && data.rows.length > 0) {
+        console.log('Sample rows from request:', data.rows.slice(0, 2));
+    }
+    
     try {
-        const result = await DataSourceProcessor.getInstance().addExcelDataSource(file_name, data_source_name, file_id, JSON.stringify(data),  req.body.tokenDetails, project_id, data_source_id);
-        res.status(200).send({message: 'The data source has been connected.', result});
+        // Sanitize boolean values in the data before processing
+        const sanitizedData = UtilityService.getInstance().sanitizeDataForPostgreSQL(data);
+        console.log('Data after sanitization:', {
+            columnsCount: sanitizedData?.columns?.length || 0,
+            rowsCount: sanitizedData?.rows?.length || 0
+        });
+        
+        const result = await DataSourceProcessor.getInstance().addExcelDataSource(
+            file_name, 
+            data_source_name, 
+            file_id, 
+            JSON.stringify(sanitizedData), 
+            req.body.tokenDetails, 
+            project_id, 
+            data_source_id, 
+            sheet_info
+        );
+        res.status(200).send({message: 'Excel data source created successfully.', result});
     } catch (error) {
-        res.status(400).send({message: 'The data source could not be connected.'});
+        console.error('Excel data source creation error:', error);
+        res.status(400).send({message: 'Excel data source creation failed.'});
     }
 });
 
