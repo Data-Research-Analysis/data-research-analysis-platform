@@ -62,7 +62,6 @@ async function changeDataModel(event, chartId) {
             autoResizeTableContainer(state.selected_chart.chart_id);
         }
     }
-    
 }
 async function updateDataModel(action, data) {
     if (action === 'add') {
@@ -286,7 +285,6 @@ async function executeQueryOnDataModels(chartId) {
                     value: numericValues[index],
                 });
             });
-            console.log('Chart Data:', chart.data);
         } else if (['vertical_bar_line'].includes(chart.chart_type)) {
             state.response_from_data_models_rows.forEach((row) =>{
                 const columns_data_types = chart.columns.filter((column, index) => index < 3 && Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});

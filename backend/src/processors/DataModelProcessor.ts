@@ -284,7 +284,7 @@ export class DataModelProcessor {
                         tableSchema.rows = rowsData;
                     }
                 }
-                tables = tablesSchema.map((table: any) => {
+                let tempTables = tablesSchema.map((table: any) => {
                     return {
                         table_name: table.table_name,
                         schema: table.table_schema,
@@ -292,8 +292,8 @@ export class DataModelProcessor {
                         rows: table.rows,
                     }
                 });
-                tables = _.uniqBy(tables, 'table_name');
-                tables.forEach((table: any) => {
+                tempTables = _.uniqBy(tempTables, 'table_name');
+                tempTables.forEach((table: any) => {
                     tablesSchema.forEach((result: any) => {
                         if (table.table_name === result.table_name) {
                             table.columns.push({
@@ -308,8 +308,9 @@ export class DataModelProcessor {
                         }
                     });
                 });
+                tables.push(tempTables);
             }
-            return resolve(tables);
+            return resolve(tables.flat());
         });
     }
 
@@ -338,7 +339,6 @@ export class DataModelProcessor {
             } catch (error) {
                 return resolve(null);
             }
-
         });
     }
 }
