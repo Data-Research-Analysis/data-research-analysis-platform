@@ -181,7 +181,6 @@ async function createDataSource() {
                     }),
                     rows: sheetRows,
                 },
-                file_name: file.name.replace(/\.(xlsx|xls|csv)$/, "").substring(0, 20).replace(/\s/g,'_').toLowerCase(),
                 data_source_name: `${state.data_source_name}`.replace(/\s/g,'_').toLowerCase(),
                 project_id: route.params.projectid,
                 data_source_id: dataSourceId ? dataSourceId : null,

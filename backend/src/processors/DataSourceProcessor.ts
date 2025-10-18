@@ -461,7 +461,7 @@ export class DataSourceProcessor {
         });
     }
 
-    public async addExcelDataSource(fileName: string, dataSourceName: string, fileId: string, data: string, tokenDetails: ITokenDetails, projectId: number, dataSourceId: number = null, sheetInfo?: any): Promise<IExcelDataSourceReturn> {
+    public async addExcelDataSource(dataSourceName: string, fileId: string, data: string, tokenDetails: ITokenDetails, projectId: number, dataSourceId: number = null, sheetInfo?: any): Promise<IExcelDataSourceReturn> {
         return new Promise<IExcelDataSourceReturn>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -669,15 +669,6 @@ export class DataSourceProcessor {
                                 try {
                                     const result = await dbConnector.query(insertQuery);
                                     successfulInserts++;
-                                    
-                                    // Log result for first few rows
-                                    if (rowIndex < 3) {
-                                        console.log(`Insert result for row ${rowIndex}:`, result);
-                                    }
-                                    
-                                    if (rowIndex % 100 === 0) {
-                                        console.log(`Inserted ${rowIndex + 1}/${parsedTableStructure.rows.length} rows`);
-                                    }
                                 } catch (error) {
                                     failedInserts++;
                                     console.error(`ERROR inserting row ${rowIndex + 1}:`, error);
@@ -712,13 +703,6 @@ export class DataSourceProcessor {
                         const renamedColumns = sanitizedColumns.filter(col => 
                             col.originalTitle && col.displayTitle && col.originalTitle !== col.displayTitle
                         );
-                        if (renamedColumns.length > 0) {
-                            console.log(`Column renames detected in sheet ${sheetName}:`);
-                            renamedColumns.forEach(col => {
-                                console.log(`  "${col.originalTitle}" -> "${col.displayTitle}" (DB: ${col.sanitized})`);
-                            });
-                        }
-                        
                         // Track processed sheet
                         sheetsProcessed.push({
                             sheet_id: sheetId,
