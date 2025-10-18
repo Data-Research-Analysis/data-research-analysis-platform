@@ -2,6 +2,8 @@
 import { onMounted, watch, nextTick } from 'vue';
 const { $d3 } = useNuxtApp();
 
+const emit = defineEmits(['element-click']);
+
 const props = defineProps({
   chartId: {
     type: String,
@@ -211,6 +213,29 @@ function renderSVG(chartData) {
     .attr('rx', 2)
     .attr('ry', 2)
     .style('cursor', 'pointer')
+    .on('click', function(event, d) {
+      event.stopPropagation();
+      emit('element-click', {
+        chartId: props.chartId,
+        chartType: 'treemap',
+        clickedElement: {
+          type: 'tile',
+          label: d.data.name || d.data.label,
+          value: d.value,
+          category: d.parent?.data?.name || 'root',
+          metadata: {
+            depth: d.depth,
+            area: d.value,
+            bounds: { x0: d.x0, y0: d.y0, x1: d.x1, y1: d.y1 },
+            width: d.x1 - d.x0,
+            height: d.y1 - d.y0,
+            parentName: d.parent?.data?.name
+          }
+        },
+        coordinates: { x: event.offsetX, y: event.offsetY },
+        originalEvent: event
+      });
+    })
     .on('mouseover', function(event, d) {
       $d3.select(this)
         .attr('stroke', '#333')

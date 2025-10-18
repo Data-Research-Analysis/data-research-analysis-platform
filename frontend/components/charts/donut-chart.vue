@@ -2,6 +2,8 @@
 import { onMounted, watch } from "vue";
 const { $d3 } = useNuxtApp();
 
+const emit = defineEmits(['element-click']);
+
 const props = defineProps({
   chartId: {
     type: String,
@@ -77,6 +79,38 @@ function renderSVG(chartData) {
       .join("path")
         .attr("fill", d => color(d.data.label))
         .attr("d", arc)
+        .style("cursor", "pointer")
+        .on("click", function(event, d) {
+          event.stopPropagation();
+          emit('element-click', {
+            chartId: props.chartId,
+            chartType: 'donut',
+            clickedElement: {
+              type: 'slice',
+              label: d.data.label,
+              value: d.data.value,
+              category: d.data.label,
+              metadata: {
+                percentage: d.data.percent_value,
+                startAngle: d.startAngle,
+                endAngle: d.endAngle,
+                innerRadius: props.innerRadius
+              }
+            },
+            coordinates: { x: event.offsetX, y: event.offsetY },
+            originalEvent: event
+          });
+        })
+        .on("mouseover", function(event, d) {
+          $d3.select(this)
+            .style("filter", "brightness(1.1)")
+            .style("stroke-width", "3px");
+        })
+        .on("mouseout", function(event, d) {
+          $d3.select(this)
+            .style("filter", "brightness(1)")
+            .style("stroke-width", "1px");
+        })
       .append("title")
         .text(d => `${d.data.label}: ${d.data.percent_value.toLocaleString("en-US")}%`);
     svg.append("g")

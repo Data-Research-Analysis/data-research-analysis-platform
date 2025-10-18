@@ -876,6 +876,19 @@ async function openTableDialog(chartId) {
 function closeTableDialog() {
     state.show_table_dialog = false
 }
+
+function onChartElementClick(eventData) {
+    console.group(`🎯 Chart Click: ${eventData.chartType}`);
+    console.log('Chart ID:', eventData.chartId);
+    console.log('Element Type:', eventData.clickedElement.type);
+    console.log('Element:', eventData.clickedElement);
+    console.log('Coordinates:', eventData.coordinates);
+    console.groupEnd();
+    
+    // Future: Integrate with filtering system
+    // Future: Add to analytics/tracking
+    // Future: Show detailed drill-down
+}
 async function exportAsWebPage() {
     console.log('exportAsWebPage');
     const token = getAuthToken();
@@ -1081,6 +1094,7 @@ onMounted(async () => {
                                                     :use-container-sizing="true"
                                                     :virtual-scrolling="chart.data[0]?.rows?.length > 100"
                                                     :virtual-scroll-item-height="35"
+                                                    @element-click="onChartElementClick"
                                                     @resize-needed="(data) => handleTableResize(chart.chart_id, data)"
                                                     class="mt-2"
                                                 />
@@ -1091,6 +1105,7 @@ onMounted(async () => {
                                                     :data="chart.data"
                                                     :width="1200"
                                                     :height="1200"
+                                                    @element-click="onChartElementClick"
                                                     class="mt-5"
                                                 />
                                                 <donut-chart
@@ -1100,6 +1115,7 @@ onMounted(async () => {
                                                     :data="chart.data"
                                                     :width="1200"
                                                     :height="1200"
+                                                    @element-click="onChartElementClick"
                                                     class="mt-5"
                                                 />
                                                 <vertical-bar-chart
@@ -1110,9 +1126,10 @@ onMounted(async () => {
                                                     :x-axis-label="chart.x_axis_label"
                                                     :y-axis-label="chart.y_axis_label"
                                                     :x-axis-rotation="-45"
-                                                    class="mt-5"
+                                                    @element-click="onChartElementClick"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
+                                                    class="mt-5"
                                                 />
                                                 <horizontal-bar-chart
                                                     v-if="chart.chart_type === 'horizontal_bar'"
@@ -1121,9 +1138,10 @@ onMounted(async () => {
                                                     :data="chart.data"
                                                     :x-axis-label="chart.x_axis_label"
                                                     :y-axis-label="chart.y_axis_label"
-                                                    class="mt-5"
+                                                    @element-click="onChartElementClick"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
+                                                    class="mt-5"
                                                 />
                                                 <vertical-bar-chart
                                                     v-if="chart.chart_type === 'vertical_bar_line'"
@@ -1136,9 +1154,10 @@ onMounted(async () => {
                                                     :line-data="chart.line_data"
                                                     :x-axis-rotation="-45"
                                                     line-color="#FF5733"
-                                                    class="mt-5"
+                                                    @element-click="onChartElementClick"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
+                                                    class="mt-5"
                                                 />
                                                 <stacked-bar-chart
                                                     v-if="chart.chart_type === 'stacked_bar'"
@@ -1152,6 +1171,7 @@ onMounted(async () => {
                                                     :y-axis-label="chart.y_axis_label"
                                                     :x-axis-rotation="-45"                                                    
                                                     :max-legend-width="350"
+                                                    @element-click="onChartElementClick"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
                                                 />
@@ -1172,6 +1192,7 @@ onMounted(async () => {
                                                     :legend-line-height="25"
                                                     :legend-item-spacing="25"
                                                     :x-axis-rotation="-45"
+                                                    @element-click="onChartElementClick"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
                                                 />
@@ -1189,6 +1210,7 @@ onMounted(async () => {
                                                     :label-font-size="12"
                                                     :value-font-size="10"
                                                     :min-tile-size="30"
+                                                    @element-click="onChartElementClick"
                                                     class="mt-2"
                                                 />
                                                 <bubble-chart
@@ -1198,6 +1220,7 @@ onMounted(async () => {
                                                     :data="chart.data"
                                                     :width="parseInt(chart.dimensions.widthDraggable.replace('px', '')) - 40"
                                                     :height="parseInt(chart.dimensions.heightDraggable.replace('px', '')) - 80"
+                                                    @element-click="onChartElementClick"
                                                     class="mt-2"
                                                 />
                                             </div>

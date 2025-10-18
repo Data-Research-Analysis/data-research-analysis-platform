@@ -2,6 +2,8 @@
 import { onMounted, watch, nextTick } from "vue";
 const { $d3 } = useNuxtApp();
 
+const emit = defineEmits(['element-click']);
+
 const props = defineProps({
   chartId: {
     type: String,
@@ -69,11 +71,40 @@ function renderSVG(chartData) {
     .attr("fill", d => d.color || "#36A2EB")
     .attr("opacity", 0.7)
     .attr("stroke", "#333")
+    .style("cursor", "pointer")
+    .on("click", function(event, d) {
+      event.stopPropagation();
+      emit('element-click', {
+        chartId: props.chartId,
+        chartType: 'bubble',
+        clickedElement: {
+          type: 'bubble',
+          label: d.label,
+          value: d.value,
+          category: d.category || d.label,
+          metadata: {
+            radius: d.r,
+            xValue: d.x,
+            yValue: d.y,
+            size: d.r,
+            color: d.color || "#36A2EB"
+          }
+        },
+        coordinates: { x: event.offsetX, y: event.offsetY },
+        originalEvent: event
+      });
+    })
     .on("mouseover", function (event, d) {
-      $d3.select(this).attr("opacity", 1);
+      $d3.select(this)
+        .attr("opacity", 1)
+        .style("filter", "brightness(1.1)")
+        .attr("stroke-width", "2px");
     })
     .on("mouseout", function (event, d) {
-      $d3.select(this).attr("opacity", 0.7);
+      $d3.select(this)
+        .attr("opacity", 0.7)
+        .style("filter", "brightness(1)")
+        .attr("stroke-width", "1px");
     })
     .append("title")
     .text(d => `${d.label}: ${d.value}`);

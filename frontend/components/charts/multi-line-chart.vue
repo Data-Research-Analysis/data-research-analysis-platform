@@ -2,7 +2,7 @@
 import { onMounted, watch, nextTick, reactive } from 'vue';
 const { $d3 } = useNuxtApp();
 
-const emit = defineEmits(['update:yAxisLabel', 'update:xAxisLabel']);
+const emit = defineEmits(['element-click', 'update:yAxisLabel', 'update:xAxisLabel']);
 
 const state = reactive({
     xAxisLabelLocal: '',
@@ -469,6 +469,29 @@ function renderPoints(svg, width, height, data, scales) {
 
 function setupPointInteractions(points, series, seriesIndex, data) {
     points
+        .style('cursor', 'pointer')
+        .on('click', function(event, d) {
+            event.stopPropagation();
+            const pointIndex = points.nodes().indexOf(this);
+            emit('element-click', {
+              chartId: props.chartId,
+              chartType: 'multiline',
+              clickedElement: {
+                type: 'data_point',
+                label: data.categories[pointIndex],
+                value: d,
+                category: series.name,
+                metadata: {
+                  seriesName: series.name,
+                  pointIndex: pointIndex,
+                  seriesColor: series.color,
+                  seriesIndex: seriesIndex
+                }
+              },
+              coordinates: { x: event.offsetX, y: event.offsetY },
+              originalEvent: event
+            });
+        })
         .on('mouseover', function(event, d) {
             const pointIndex = points.nodes().indexOf(this);
             $d3.select(this).attr('r', 6);

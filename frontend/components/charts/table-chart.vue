@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, reactive } from 'vue';
 
-const emit = defineEmits(['resize-needed']);
+const emit = defineEmits(['element-click', 'resize-needed']);
 
 const state = reactive({
   hoveredRow: null,
@@ -176,6 +176,27 @@ function formatCellValue(value) {
 function truncateText(text, maxLength = 50) {
   if (String(text).length <= maxLength) return text;
   return String(text).substring(0, maxLength) + '...';
+}
+
+function onRowClick(row, index, event) {
+  emit('element-click', {
+    chartId: props.chartId,
+    chartType: 'table',
+    clickedElement: {
+      type: 'row',
+      label: `Row ${index + 1}`,
+      value: index + 1,
+      category: 'data_row',
+      metadata: {
+        rowData: row.originalData || row,
+        rowIndex: index,
+        columns: Object.keys(row.originalData || row),
+        displayedColumns: tableColumns.value
+      }
+    },
+    coordinates: { x: event.offsetX, y: event.offsetY },
+    originalEvent: event
+  });
 }
 
 // Virtual scrolling methods
@@ -372,11 +393,12 @@ onUnmounted(() => {
             v-for="(row, index) in visibleRows"
             :key="virtualScrolling ? row.originalIndex : index"
             :style="virtualScrolling ? { height: itemHeight + 'px' } : {}"
-            class="transition-colors duration-150"
+            class="transition-colors duration-150 cursor-pointer"
             :class="[
               alternateRowColors && (virtualScrolling ? row.originalIndex : index) % 2 === 1 ? 'bg-gray-50' : 'bg-white',
               'hover:bg-blue-50'
             ]"
+            @click="onRowClick(row, virtualScrolling ? row.originalIndex : index, $event)"
             @mouseover="state.hoveredRow = virtualScrolling ? row.originalIndex : index"
             @mouseleave="state.hoveredRow = null"
           >

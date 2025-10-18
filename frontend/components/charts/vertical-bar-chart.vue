@@ -2,7 +2,7 @@
 import { x } from 'happy-dom/lib/PropertySymbol.js';
 import { onMounted, watch, nextTick } from 'vue';
 const { $d3 } = useNuxtApp();
-const emit = defineEmits(['update:yAxisLabel', 'update:xAxisLabel']);
+const emit = defineEmits(['element-click', 'update:yAxisLabel', 'update:xAxisLabel']);
 const state = reactive({
   xAxisLabelLocal: '',
   yAxisLabelLocal: ''
@@ -266,7 +266,29 @@ function renderSVG(chartData, lineData) {
     .attr('y', d => y(d.value))
     .attr('width', x.bandwidth())
     .attr('height', d => !isNaN(height - y(d.value)) ?  height - y(d.value) : 0)
-    .attr('fill', d => color(d.label));
+    .attr('fill', d => color(d.label))
+    .style('cursor', 'pointer')
+    .on('click', function(event, d) {
+      event.stopPropagation();
+      emit('element-click', {
+        chartId: props.chartId,
+        chartType: 'vertical_bar',
+        clickedElement: {
+          type: 'bar',
+          label: d.label,
+          value: d.value,
+          category: d.label,
+          metadata: {
+            barWidth: x.bandwidth(),
+            barHeight: height - y(d.value),
+            xPosition: x(d.label),
+            yPosition: y(d.value)
+          }
+        },
+        coordinates: { x: event.offsetX, y: event.offsetY },
+        originalEvent: event
+      });
+    });
 
   // Tooltips with full values
   svg.selectAll('rect')

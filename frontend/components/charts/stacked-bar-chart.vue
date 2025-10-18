@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, watch, nextTick } from 'vue';
 const { $d3 } = useNuxtApp();
-const emit = defineEmits(['update:yAxisLabel', 'update:xAxisLabel']);
+const emit = defineEmits(['element-click', 'update:yAxisLabel', 'update:xAxisLabel']);
 const state = reactive({
   xAxisLabelLocal: '',
   yAxisLabelLocal: ''
@@ -434,6 +434,33 @@ function renderSVG(chartData) {
     .attr('y', d => y(d[1]))
     .attr('height', d => y(d[0]) - y(d[1]))
     .attr('width', x.bandwidth())
+    .style('cursor', 'pointer')
+    .on('click', function(event, d) {
+      event.stopPropagation();
+      const stackKey = $d3.select(this.parentNode).datum().key;
+      const value = d.data[stackKey];
+      emit('element-click', {
+        chartId: props.chartId,
+        chartType: 'stacked_bar',
+        clickedElement: {
+          type: 'bar_segment',
+          label: d.data.label,
+          value: value,
+          category: stackKey,
+          metadata: {
+            stackKey: stackKey,
+            segmentValue: value,
+            totalValue: d[1] - d[0],
+            stackBottom: d[0],
+            stackTop: d[1],
+            barWidth: x.bandwidth(),
+            segmentHeight: y(d[0]) - y(d[1])
+          }
+        },
+        coordinates: { x: event.offsetX, y: event.offsetY },
+        originalEvent: event
+      });
+    })
     .on('mouseover', function (event, d) {
       // Get the stack key from parent group
       const stackKey = $d3.select(this.parentNode).datum().key;
