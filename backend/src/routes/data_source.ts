@@ -141,13 +141,12 @@ router.post('/add-excel-data-source', async (req: Request, res: Response, next: 
     body('sheet_info').optional()
 ]),
 async (req: Request, res: Response) => {
-    const { file_name, data_source_name, file_id, data, project_id, data_source_id, sheet_info } = matchedData(req);
+    const { data_source_name, file_id, data, project_id, data_source_id, sheet_info } = matchedData(req);
     
     // Debug incoming request data
     console.log('=== EXCEL ROUTE REQUEST DEBUG ===');
     console.log('Request body keys:', Object.keys(req.body));
     console.log('Parsed data structure:', {
-        file_name,
         data_source_name,
         file_id,
         project_id,
@@ -174,7 +173,6 @@ async (req: Request, res: Response) => {
         });
         
         const result = await DataSourceProcessor.getInstance().addExcelDataSource(
-            file_name, 
             data_source_name, 
             file_id, 
             JSON.stringify(sanitizedData), 
