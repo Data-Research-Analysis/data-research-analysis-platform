@@ -40,7 +40,7 @@
                     </p>
                                             
                     <div class="flex flex-col w-3/5 lg:w-1/5 m-auto mt-10 pb-10">
-                        <combo-button label="Join Our Wait List" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" @click="gotoJoinWaitList()"/>
+                        <combo-button label="Join Our Private Beta" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" @click="gotoJoinPrivateBeta()"/>
                     </div>
                 </div>
             </div>

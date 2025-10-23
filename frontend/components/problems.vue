@@ -27,7 +27,7 @@
                     If you answered yes to any of the above questions then you need to change your data analysis platform! Data Research Analysis can save you from all of the above and more headaches!
                 </div>
                 <div class="lg:flex lg:flex-col w-3/5 lg:w-1/5 m-auto mt-10">
-                    <combo-button label="Join Our Wait List" color="primary" class="w-full h-10 mr-2 shadow-lg cursor-pointer" @click="gotoJoinWaitList()"/>
+                    <combo-button label="Join Our Private Beta" color="primary" class="w-full h-10 mr-2 shadow-lg cursor-pointer" @click="gotoJoinPrivateBeta()"/>
                 </div>
             </div> 
         </div>

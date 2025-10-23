@@ -48,31 +48,37 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
           return;
         }
       } else {
-        if (to.path === "/login"// || to.path === "/register"
-            || to.path === "/privacy-policy" || to.path === "/terms-conditions") {
-          return;
-        }
-        if (isPlatformEnabled()) {
-          return navigateTo("/login");
-        } else {
-          return navigateTo("/");
-        }
+        return navigateTo("/projects");
       }
     }
   } else {
     console.log('to', to);
-    if (to.path === "/login" //|| to.path === "/register"
-        || to.path === "/" || to.path === "/privacy-policy"
-        || to.path === "/terms-conditions" || to.name === "verify-email-code"
-        || to.name === "unsubscribe-code" || to.name === "articles" || to.name === "articles-articleslug"
-        || to.name === "public-dashboard-dashboardkey" || to.name === "forgot-password" || to.name === "register" || to.name === "forgot-password-code") {
-      return;
-    }
     if (isPlatformEnabled()) {
-      return navigateTo("/login");
+      console.log('1');
+      console.log('isPlatformRegistrationEnabled()', isPlatformRegistrationEnabled());
+      if (to.path === "/login") {
+        if (isPlatformLoginEnabled()) {
+          return;
+        } else {
+          return navigateTo("/");
+        }
+      } else if (to.path === "/register") {
+        if (isPlatformRegistrationEnabled()) {
+          return;
+        } else {
+          return navigateTo("/");
+        }
+      } else {
+        if (to.path === "/privacy-policy" || to.path === "/terms-conditions") {
+          return;
+        }
+      }
     } else {
-      return navigateTo("/");
+      if (to.path === "/privacy-policy" || to.path === "/terms-conditions") {
+          return;
+      } else {
+        return navigateTo("/");
+      }
     }
   }
-  
 });

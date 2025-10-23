@@ -13,7 +13,7 @@ import { DRAArticleCategory } from './DRAArticleCategory.js';
 export class DRAUsersPlatform {
     @PrimaryGeneratedColumn()
     id!: number
-    @Column({ type: 'varchar', length: 255 })
+    @Column({ type: 'varchar', length: 320 })
     email!: string
     @Column({ type: 'varchar', length: 255 })
     first_name!: string
