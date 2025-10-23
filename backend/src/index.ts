@@ -14,6 +14,7 @@ import dashboard from './routes/dashboard.js';
 import article from './routes/admin/article.js';
 import category from './routes/admin/category.js';
 import image from './routes/admin/image.js';
+import private_beta_users from './routes/admin/private-beta-users.js';
 import public_article from './routes/article.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -50,6 +51,7 @@ app.use('/dashboard', dashboard);
 app.use('/admin/article', article);
 app.use('/admin/category', category);
 app.use('/admin/image', image);
+app.use('/admin/private-beta-users', private_beta_users);
 app.use('/article', public_article);
 
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
