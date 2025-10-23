@@ -58,7 +58,7 @@ function closeDrawer() {
                     <font-awesome icon="fab fa-linkedin" class="ml-5 text-4xl hover:text-gray-300 cursor-pointer" @click="openLinkedin();closeDrawer();"/>
                 </div>
                 <div class="flex flex-row mr-5 mt-5">
-                    <combo-button label="Join Our Wait List" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" @click="gotoJoinWaitList();closeDrawer();"/>
+                    <combo-button label="Join Our Private Beta" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" @click="gotoJoinPrivateBeta();closeDrawer();"/>
                 </div>
             </div>
         </div>

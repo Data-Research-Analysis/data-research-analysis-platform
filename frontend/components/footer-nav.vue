@@ -52,10 +52,10 @@ onMounted(() => {
                     <div class="w-1/2 flex flex-row justify-end mr-8">
                         <div v-if="!isPublicDashboard" class="w-1/4 flex flex-col">
                             <span>Important Links</span>
-                            <span v-if="isPlatformEnabled() && !state.authenticated" class="text-base mt-2 mb-2">
+                            <span v-if="isPlatformEnabled() && isPlatformRegistrationEnabled() && !state.authenticated" class="text-base mt-2 mb-2">
                                 <NuxtLink to="/register" class="hover:text-gray-300">Register</NuxtLink>
                             </span>
-                            <span v-if="isPlatformEnabled() && !state.authenticated" class="text-base mt-2 mb-2">
+                            <span v-if="isPlatformEnabled() && isPlatformLoginEnabled() && !state.authenticated" class="text-base mt-2 mb-2">
                                 <NuxtLink to="/login" class="hover:text-gray-300">Login</NuxtLink>
                             </span>
                             <span class="text-base mt-2 mb-2">

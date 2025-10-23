@@ -16,7 +16,7 @@ export class NodeMailerDriver implements INodeMailerDriver {
     }
     public async initialize(): Promise<void> {
         return new Promise(async (resolve, reject) => {
-            console.log('Initializing Mailtrap');
+            console.log('Initializing Mailer Transporter');
             this.transport = nodemailer.createTransport({
                 host: UtilityService.getInstance().getConstants('MAIL_HOST'),
                 port: UtilityService.getInstance().getConstants('MAIL_PORT'),
@@ -30,7 +30,7 @@ export class NodeMailerDriver implements INodeMailerDriver {
     }
     public async sendEmail(to: string, name: string, subject: string, text: string, html: string): Promise<void> {
         return new Promise(async (resolve, reject) => {
-            console.log('Sending email using Mailtrap');
+            console.log('Sending email using Mailer');
             const from = UtilityService.getInstance().getConstants('MAIL_FROM');
             const replyTo = UtilityService.getInstance().getConstants('MAIL_REPLY_TO');
             
