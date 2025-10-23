@@ -1,6 +1,12 @@
 <script setup>
 import { useDataSourceStore } from '@/stores/data_sources';
 import { useProjectsStore } from '@/stores/projects';
+import pdfImage from '/assets/images/pdf.png';
+import excelImage from '/assets/images/excel.png';
+import postgresqlImage from '/assets/images/postgresql.png';
+import mysqlImage from '/assets/images/mysql.png';
+import mariadbImage from '/assets/images/mariadb.png';
+
 const dataSourceStore = useDataSourceStore();
 const projectsStore = useProjectsStore();
 const { $swal } = useNuxtApp();
@@ -14,27 +20,27 @@ const state = reactive({
         {
             name: 'PDF',
             url: `${route.fullPath}/data-sources/connect/pdf`,
-            image_url: config.public.NUXT_ENV === 'production' ?  '/assets/images/pdf.png' : '/_nuxt/assets/images/pdf.png',
+            image_url: pdfImage,
         },
         {
             name: 'Excel File',
             url: `${route.fullPath}/data-sources/connect/excel`,
-            image_url: config.public.NUXT_ENV === 'production' ?  '/assets/images/excel.png' : '/_nuxt/assets/images/excel.png',
+            image_url: excelImage,
         },
         {
             name: 'PostgreSQL',
             url: `${route.fullPath}/data-sources/connect/postgres`,
-            image_url: config.public.NUXT_ENV === 'production' ?  '/assets/images/postgresql.png' : '/_nuxt/assets/images/postgresql.png',
+            image_url: postgresqlImage,
         },
         {
             name: 'MySQL',
             url: `${route.fullPath}/data-sources/connect/mysql`,
-            image_url: config.public.NUXT_ENV === 'production' ?  '/assets/images/mysql.png' : '/_nuxt/assets/images/mysql.png',
+            image_url: mysqlImage,
         },
         {
             name: 'MariaDB',
             url: `${route.fullPath}/data-sources/connect/mariadb`,
-            image_url: config.public.NUXT_ENV === 'production' ?  '/assets/images/mariadb.png' : '/_nuxt/assets/images/mariadb.png',
+            image_url: mariadbImage,
         },
         // {
         //     name: 'MongoDB',
