@@ -5,6 +5,7 @@ import { useDataModelsStore } from '@/stores/data_models';
 import { useDashboardsStore } from '@/stores/dashboards';
 import { useArticlesStore } from '@/stores/articles';
 import { useLoggedInUserStore } from "@/stores/logged_in_user";
+import { usePrivateBetaUserStore } from '@/stores/private_beta_users';
 
 const projectsStore = useProjectsStore();
 const dataSourceStore = useDataSourceStore();
@@ -12,6 +13,7 @@ const dataModelsStore = useDataModelsStore();
 const dashboardsStore = useDashboardsStore();
 const articlesStore = useArticlesStore();
 const loggedInUserStore = useLoggedInUserStore();
+const privateBetaUserStore = usePrivateBetaUserStore();
 const route = useRoute();
 const router = useRouter();
 const state = reactive({
@@ -63,6 +65,7 @@ watch(
         if (isUserAdmin.value) {
             await articlesStore.retrieveCategories();
             await articlesStore.retrieveArticles();
+            await privateBetaUserStore.retrievePrivateBetaUsers();
             if (route?.params?.articleid) {
                 const articleId = parseInt(route.params.articleid);
                 articlesStore.clearSelectedArticle();
@@ -126,6 +129,7 @@ onMounted(async () => {
         if (isUserAdmin.value) {
             await articlesStore.retrieveCategories();
             await articlesStore.retrieveArticles();
+            await privateBetaUserStore.retrievePrivateBetaUsers();
             if (route?.params?.articleid) {
                 const articleId = parseInt(route.params.articleid);
                 articlesStore.clearSelectedArticle();

@@ -4,6 +4,14 @@ const router = useRouter();
 const state = reactive({
     menu_items: [
         {
+            id: 1,
+            menu_name: 'Private Beta Users',
+            show_menu: true,
+            sub_menus: [
+                { id: 1, name: 'List Private Beta Users', path: '/admin/private-beta-users' },
+            ],
+        },
+        {
             id: 2,
             menu_name: 'Articles Management',
             show_menu: true,
