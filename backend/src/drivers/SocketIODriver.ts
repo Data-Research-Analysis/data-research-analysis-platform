@@ -26,6 +26,7 @@ export class SocketIODriver {
         this.io = new Server(this.httpServer, {
             cors: {
                 origin: [
+                    `${UtilityService.getInstance().getConstants('SOCKETIO_CLIENT_URL')}`,
                     `${UtilityService.getInstance().getConstants('SOCKETIO_CLIENT_URL')}:${UtilityService.getInstance().getConstants('SOCKETIO_CLIENT_PORT')}`,
                     "http://localhost:3000",
                     "http://localhost:3001"

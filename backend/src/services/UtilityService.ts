@@ -61,6 +61,7 @@ export class UtilityService {
 
     public getConstants(key: string): any {
         return {
+            NODE_ENV: process.env.NODE_ENV || 'development',
             PUBLIC_BACKEND_URL: process.env.PUBLIC_BACKEND_URL || 'http://localhost:3002',
             PORT: process.env.PORT || 3002,
             RECAPTCHA_SECRET: process.env.RECAPTCHA_SECRET || '',
@@ -84,7 +85,6 @@ export class UtilityService {
             MARIADB_DATABASE: process.env.MARIADB_DATABASE || '',
             MARIADB_LOCAL_PORT: process.env.MARIADB_LOCAL_PORT || '',
             MARIADB_DOCKER_PORT: process.env.MARIADB_DOCKER_PORT || '',
-            NODE_ENV: process.env.NODE_ENV || 'development',
             MAIL_DRIVER: process.env.MAIL_DRIVER || '',
             MAIL_HOST: process.env.MAIL_HOST || '',
             MAIL_PORT: process.env.MAIL_PORT || '',
