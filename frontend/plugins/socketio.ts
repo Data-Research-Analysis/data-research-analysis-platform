@@ -2,12 +2,15 @@ import { io, Socket } from "socket.io-client";
 
 export default defineNuxtPlugin((nuxtApp) => {
   const config = useRuntimeConfig();  
-  const socketHost = config.public.SOCKETIO_SERVER_URL || 'http://localhost';
-  const socketPort = config.public.SOCKETIO_SERVER_PORT || 3002;
-  
-  console.log(`Attempting to connect to Socket.IO server at ${socketHost}:${socketPort}`);
-  
-  const socket: Socket = io(`${socketHost}:${socketPort}`, {
+  const socketHost = config.public.NUXT_SOCKETIO_SERVER_URL || 'http://localhost';
+  const socketPort = config.public.NUXT_SOCKETIO_SERVER_PORT || 3002;
+  let socketPath = `${socketHost}:${socketPort}`;
+  if (config.public.NUXT_ENV === 'production') {
+    socketPath = `${socketHost}`;
+  }
+  console.log(`Attempting to connect to Socket.IO server at ${socketPath}`);
+
+  const socket: Socket = io(socketPath, {
     autoConnect: true,
     reconnection: true,
     reconnectionDelay: 1000,

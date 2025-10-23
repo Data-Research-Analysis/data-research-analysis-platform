@@ -48,6 +48,7 @@ export default defineNuxtConfig({
       recaptcha: {
         v3SiteKey: process.env.NUXT_RECAPTCHA_SITE_KEY,
       },
+      NUXT_ENV: process.env.NUXT_ENV,
       NUXT_API_URL: process.env.NUXT_API_URL,
       NUXT_RECAPTCHA_SITE_KEY: process.env.NUXT_RECAPTCHA_SITE_KEY,
       NUXT_PORT: process.env.NUXT_PORT,
@@ -55,8 +56,8 @@ export default defineNuxtConfig({
       NUXT_PLATFORM_ENABLED: process.env.NUXT_PLATFORM_ENABLED,
       NUXT_PLATFORM_REGISTRATION_ENABLED: process.env.NUXT_PLATFORM_REGISTRATION_ENABLED,
       NUXT_PLATFORM_LOGIN_ENABLED: process.env.NUXT_PLATFORM_LOGIN_ENABLED,
-      SOCKETIO_SERVER_URL: process.env.SOCKETIO_SERVER_URL,
-      SOCKETIO_SERVER_PORT: process.env.SOCKETIO_SERVER_PORT,
+      NUXT_SOCKETIO_SERVER_URL: process.env.NUXT_SOCKETIO_SERVER_URL,
+      NUXT_SOCKETIO_SERVER_PORT: process.env.NUXT_SOCKETIO_SERVER_PORT,
     }
   },
   gtag: {
