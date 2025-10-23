@@ -15,10 +15,11 @@
                         just a few of the many of the data sources that will be available in the platform.
                     </h3>
                     <div class="flex flex-col mt-10">
-                        <img src="/assets/images/postgresql.png" class="w-1/2 border-1 border-primary-blue-100 shadow-lg p-5 m-auto" alt="PostgreSQL" />
+                        <img src="/assets/images/excel.png" class="w-1/2 border-1 border-primary-blue-100 shadow-lg p-5 m-auto" alt="Excel" />
+                        <img src="/assets/images/pdf.png" class="w-1/2 border-1 border-primary-blue-100 shadow-lg p-5 mt-5 m-auto" alt="PDF" />
+                        <img src="/assets/images/postgresql.png" class="w-1/2 border-1 border-primary-blue-100 shadow-lg p-5 mt-5 m-auto" alt="PostgreSQL" />
                         <img src="/assets/images/mysql.png" class="w-1/2 border-1 border-primary-blue-100 shadow-lg p-5 mt-5 m-auto" alt="MySQL" />
                         <img src="/assets/images/mariadb.png" class="w-1/2 border-1 border-primary-blue-100 shadow-lg p-5 mt-5 m-auto" alt="MariaDB" />
-                        <img src="/assets/images/mongodb.png" class="w-1/2 border-1 border-primary-blue-100 shadow-lg p-5 mt-5 m-auto" alt="MongoDB" />
                     </div>
                 </div>
             </div>
@@ -36,10 +37,11 @@
                     just a few of the many of the data sources that will be available in the platform.
                 </h3>
                 <div class="grid grid-cols-3 gap-2 mt-10">
+                    <img src="/assets/images/excel.png" class="w-3/4 border-1 border-primary-blue-100 shadow-lg p-5" alt="Excel" />
+                    <img src="/assets/images/pdf.png" class="w-3/4 border-1 border-primary-blue-100 shadow-lg p-5" alt="PDF" />
                     <img src="/assets/images/postgresql.png" class="w-3/4 border-1 border-primary-blue-100 shadow-lg p-5" alt="PostgreSQL" />
                     <img src="/assets/images/mysql.png" class="w-3/4 border-1 border-primary-blue-100 shadow-lg p-5"  alt="MySQL" />
                     <img src="/assets/images/mariadb.png" class="w-3/4 border-1 border-primary-blue-100 shadow-lg p-5" alt="MariaDB" />
-                    <img src="/assets/images/mongodb.png" class="w-3/4 border-1 border-primary-blue-100 shadow-lg p-5" alt="MongoDB" />
                 </div>
             </div>
             <div class="w-1/2 flex flex-col mt-10 p-5">
