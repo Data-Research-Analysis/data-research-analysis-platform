@@ -6,6 +6,7 @@ const projectsStore = useProjectsStore();
 const { $swal } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
+const config = useRuntimeConfig();
 const state = reactive({
     show_dialog: false,
     data_sources: [],
@@ -13,34 +14,34 @@ const state = reactive({
         {
             name: 'PDF',
             url: `${route.fullPath}/data-sources/connect/pdf`,
-            image_url: '/_nuxt/assets/images/pdf.png',
+            image_url: config.public.NUXT_ENV === 'production' ?  '/assets/images/pdf.png' : '/_nuxt/assets/images/pdf.png',
         },
         {
             name: 'Excel File',
             url: `${route.fullPath}/data-sources/connect/excel`,
-            image_url: '/_nuxt/assets/images/excel.png',
+            image_url: config.public.NUXT_ENV === 'production' ?  '/assets/images/excel.png' : '/_nuxt/assets/images/excel.png',
         },
         {
             name: 'PostgreSQL',
             url: `${route.fullPath}/data-sources/connect/postgres`,
-            image_url: '/_nuxt/assets/images/postgresql.png',
+            image_url: config.public.NUXT_ENV === 'production' ?  '/assets/images/postgresql.png' : '/_nuxt/assets/images/postgresql.png',
         },
         {
             name: 'MySQL',
             url: `${route.fullPath}/data-sources/connect/mysql`,
-            image_url: '/_nuxt/assets/images/mysql.png',
+            image_url: config.public.NUXT_ENV === 'production' ?  '/assets/images/mysql.png' : '/_nuxt/assets/images/mysql.png',
         },
         {
             name: 'MariaDB',
             url: `${route.fullPath}/data-sources/connect/mariadb`,
-            image_url: '/_nuxt/assets/images/mariadb.png',
+            image_url: config.public.NUXT_ENV === 'production' ?  '/assets/images/mariadb.png' : '/_nuxt/assets/images/mariadb.png',
         },
         // {
         //     name: 'MongoDB',
         //     url: `${route.fullPath}/data-sources/connect/mongodb`,
         // },
     ],
-    selected_tab: 'data_sources',// 'visualizations'
+    selected_tab: 'data_sources',
 })
 watch(
     dataSourceStore,
