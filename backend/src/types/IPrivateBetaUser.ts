@@ -8,4 +8,6 @@ export interface IPrivateBetaUser {
     agree_to_receive_updates: boolean;
     company_name: string;
     created_at: Date;
+    is_converted?: boolean;
+    converted_user_id?: number | null;
 }
