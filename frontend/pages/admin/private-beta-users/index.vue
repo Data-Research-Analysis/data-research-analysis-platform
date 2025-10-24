@@ -12,6 +12,17 @@ const state = reactive({
 const privateBetaUsers = computed(() => [...privateBetaUserStore.getPrivateBetaUsers()].sort((a, b) => a.id - b.id));
 
 async function convertBetaUserToUser(betaUser) {
+    // Check if already converted
+    if (betaUser.is_converted) {
+        $swal.fire({
+            title: "Already Converted",
+            text: `${betaUser.first_name} ${betaUser.last_name} has already been converted to a platform user.`,
+            icon: "info",
+            confirmButtonColor: "#3C8DBC",
+        });
+        return;
+    }
+    
     const { value: confirmConvert } = await $swal.fire({
         title: `Convert ${betaUser.first_name} ${betaUser.last_name} to Full User?`,
         html: `
@@ -54,6 +65,16 @@ async function convertBetaUserToUser(betaUser) {
     } finally {
         state.convertingUsers.delete(betaUser.id);
     }
+}
+
+function getButtonText(user) {
+    if (state.convertingUsers.has(user.id)) {
+        return 'Converting...';
+    }
+    if (user.is_converted) {
+        return 'Already Converted';
+    }
+    return 'Convert to User';
 }
 
 // Check for success message from conversion
@@ -101,7 +122,9 @@ onMounted(() => {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="user in privateBetaUsers" :key="user.id">
+                            <tr v-for="user in privateBetaUsers" 
+                                :key="user.id"
+                                :class="{ 'bg-gray-50': user.is_converted }">
                                 <td class="border px-4 py-2 text-center">
                                     {{ user.id }}
                                 </td>
@@ -126,11 +149,16 @@ onMounted(() => {
                                 <td class="border px-4 py-2 text-center">
                                     <button 
                                         @click="convertBetaUserToUser(user)"
-                                        :disabled="state.convertingUsers.has(user.id)"
-                                        class="text-sm px-3 py-1 bg-green-600 text-white hover:bg-green-700 cursor-pointer font-bold shadow-md rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                                        title="Convert this beta user to a full platform user"
+                                        :disabled="state.convertingUsers.has(user.id) || user.is_converted"
+                                        :class="[
+                                            'text-sm px-3 py-1 font-bold shadow-md rounded disabled:opacity-50 disabled:cursor-not-allowed',
+                                            user.is_converted ? 'bg-gray-400 text-white' : 'bg-green-600 text-white hover:bg-green-700 cursor-pointer'
+                                        ]"
+                                        :title="user.is_converted 
+                                            ? 'This user has already been converted' 
+                                            : 'Convert this beta user to a full platform user'"
                                     >
-                                        {{ state.convertingUsers.has(user.id) ? 'Converting...' : 'Convert to User' }}
+                                        {{ getButtonText(user) }}
                                     </button>
                                 </td>
                             </tr>

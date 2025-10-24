@@ -38,20 +38,28 @@ export class PrivateBetaUserProcessor {
             if (!user) {
                 return resolve([]);
             }
-            const usersList: DRAPrivateBetaUsers[] = [];
+            const usersList: IPrivateBetaUser[] = [];
             const users = await manager.find(DRAPrivateBetaUsers);
             for (let i = 0; i < users.length; i++) {
-                const user = users[i];
+                const betaUser = users[i];
+                
+                // Check if beta user email exists in main users table
+                const existingUser = await manager.findOne(DRAUsersPlatform, {
+                    where: { email: betaUser.business_email }
+                });
+                
                 usersList.push({
-                    id: user.id,
-                    first_name: user.first_name,
-                    last_name: user.last_name,
-                    business_email: user.business_email,
-                    phone_number: user.phone_number,
-                    country: user.country,
-                    agree_to_receive_updates: user.agree_to_receive_updates,
-                    company_name: user.company_name,
-                    created_at: user.created_at,
+                    id: betaUser.id,
+                    first_name: betaUser.first_name,
+                    last_name: betaUser.last_name,
+                    business_email: betaUser.business_email,
+                    phone_number: betaUser.phone_number,
+                    country: betaUser.country,
+                    agree_to_receive_updates: betaUser.agree_to_receive_updates,
+                    company_name: betaUser.company_name,
+                    created_at: betaUser.created_at,
+                    is_converted: existingUser ? true : false,
+                    converted_user_id: existingUser ? existingUser.id : null,
                 });
             }
             return resolve(usersList);
