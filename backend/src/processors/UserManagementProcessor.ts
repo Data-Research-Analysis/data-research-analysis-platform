@@ -2,6 +2,7 @@ import { DBDriver } from "../drivers/DBDriver.js";
 import { ITokenDetails } from "../types/ITokenDetails.js";
 import { EDataSourceType } from "../types/EDataSourceType.js";
 import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
+import { DRAPrivateBetaUsers } from "../models/DRAPrivateBetaUsers.js";
 import { EUserType } from "../types/EUserType.js";
 import bcrypt from 'bcryptjs';
 import { UtilityService } from "../services/UtilityService.js";
@@ -29,6 +30,16 @@ export interface IUserCreation {
     email: string;
     password: string;
     user_type?: EUserType;
+}
+
+export interface IBetaUserForConversion {
+    id: number;
+    first_name: string;
+    last_name: string;
+    email: string;
+    company_name?: string;
+    phone_number?: string;
+    country?: string;
 }
 
 export class UserManagementProcessor {
@@ -316,6 +327,57 @@ export class UserManagementProcessor {
             } catch (error) {
                 console.error('Error deleting user:', error);
                 return resolve(false);
+            }
+        });
+    }
+
+    async getPrivateBetaUserForConversion(tokenDetails: ITokenDetails, betaUserId: number): Promise<IBetaUserForConversion | null> {
+        return new Promise<IBetaUserForConversion | null>(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve(null);
+            }
+            const manager = (await driver.getConcreteDriver()).manager;
+            if (!manager) {
+                return resolve(null);
+            }
+
+            // Verify admin user exists
+            const adminUser = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!adminUser) {
+                return resolve(null);
+            }
+
+            try {
+                // Get the private beta user
+                const betaUser = await manager.findOne(DRAPrivateBetaUsers, {where: {id: betaUserId}});
+                if (!betaUser) {
+                    return resolve(null);
+                }
+
+                // Check if this beta user email already exists in the main users table
+                const existingUser = await manager.findOne(DRAUsersPlatform, {where: {email: betaUser.business_email}});
+                if (existingUser) {
+                    // Return null if user already exists to prevent duplicate conversion
+                    return resolve(null);
+                }
+
+                // Return beta user data formatted for conversion
+                const conversionData: IBetaUserForConversion = {
+                    id: betaUser.id,
+                    first_name: betaUser.first_name,
+                    last_name: betaUser.last_name,
+                    email: betaUser.business_email,
+                    company_name: betaUser.company_name,
+                    phone_number: betaUser.phone_number,
+                    country: betaUser.country
+                };
+
+                return resolve(conversionData);
+            } catch (error) {
+                console.error('Error getting beta user for conversion:', error);
+                return resolve(null);
             }
         });
     }

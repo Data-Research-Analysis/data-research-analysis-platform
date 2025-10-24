@@ -176,6 +176,31 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
         return response.status === 200;
     }
 
+    async function getPrivateBetaUserForConversion(betaUserId: number) {
+        const token = getAuthToken();
+        if (!token) {
+            return { success: false, message: 'Not authenticated' };
+        }
+        
+        const url = `${baseUrl()}/admin/users/convert/${betaUserId}`;
+        const response = await fetch(url, {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`,
+                "Authorization-Type": "auth",
+            },
+        });
+        
+        if (response.status === 200) {
+            const betaUser = await response.json();
+            return { success: true, betaUser };
+        } else {
+            const errorData = await response.json();
+            return { success: false, message: errorData.message || 'Failed to fetch beta user data' };
+        }
+    }
+
     return {
         users,
         selectedUser,
@@ -192,5 +217,6 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
         toggleEmailVerification,
         createUser,
         deleteUser,
+        getPrivateBetaUserForConversion,
     }
 });

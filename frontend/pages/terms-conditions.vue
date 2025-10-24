@@ -212,7 +212,7 @@ onMounted(() => {
             If you have any questions about these Terms and Conditions, You can contact us:
         </p>
         <ul>
-            <li>By email: <a href="mailto:mustafa.neguib@dataresearchanalysis.com" class="hover:text-gray-500">mustafa.neguib@dataresearchanalysis.com</a>  </li>
+            <li>By email: <a href="mailto:hello@dataresearchanalysis.com" class="hover:text-gray-500">hello@dataresearchanalysis.com</a>  </li>
         </ul>
     </div>
 </template>

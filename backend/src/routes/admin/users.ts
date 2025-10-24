@@ -50,6 +50,20 @@ router.get('/list', async (req: Request, res: Response, next: any) => {
     }
 });
 
+// Get private beta user for conversion
+router.get('/convert/:betaUserId', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([param('betaUserId').notEmpty().trim().toInt()]), async (req: Request, res: Response) => {
+    const { betaUserId } = matchedData(req);
+    
+    const betaUser = await UserManagementProcessor.getInstance().getPrivateBetaUserForConversion(req.body.tokenDetails, betaUserId);
+    if (betaUser) {
+        res.status(200).send(betaUser);
+    } else {
+        res.status(404).send({ message: 'Private beta user not found or already converted' });
+    }
+});
+
 // Get user by ID
 router.get('/:user_id', async (req: Request, res: Response, next: any) => {
     next();

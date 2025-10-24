@@ -248,7 +248,7 @@ export class AuthProcessor {
                         {key: 'unsubscribe_code', value: unsubscribeCode}
                     ];
                     const content = await TemplateEngineService.getInstance().render('password-change-request.html', options);
-                    const textContent = `Hi ${user.first_name} ${user.last_name}\n\nThank you for choosing Data Research Analysis for your data analysis needs. To change your password, please copy and paste this link into your browser: https://www.dataresearchanalysis.com/forgot-password/${passwordChangeRequestCode}\n\nIf you have any questions or need assistance, please don't hesitate to contact us at mustafa.neguib@dataresearchanalysis.com\n\nPlease note that the code will expire in 3 days from the receipt of this email if you do not verify your email address.\n\n`;
+                    const textContent = `Hi ${user.first_name} ${user.last_name}\n\nThank you for choosing Data Research Analysis for your data analysis needs. To change your password, please copy and paste this link into your browser: https://www.dataresearchanalysis.com/forgot-password/${passwordChangeRequestCode}\n\nIf you have any questions or need assistance, please don't hesitate to contact us at hello@dataresearchanalysis.com\n\nPlease note that the code will expire in 3 days from the receipt of this email if you do not verify your email address.\n\n`;
                     await MailDriver.getInstance().getDriver().initialize();
                     await MailDriver.getInstance().getDriver().sendEmail(user.email, `${user.first_name} ${user.last_name}`, 'Password Change Request @ Data Research Analysis', textContent, content);
                 }
