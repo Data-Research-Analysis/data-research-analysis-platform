@@ -6,6 +6,10 @@ import { DRAPrivateBetaUsers } from "../models/DRAPrivateBetaUsers.js";
 import { EUserType } from "../types/EUserType.js";
 import bcrypt from 'bcryptjs';
 import { UtilityService } from "../services/UtilityService.js";
+import { ITemplateRenderer } from "../interfaces/ITemplateRenderer.js";
+import { DRAVerificationCode } from "../models/DRAVerificationCode.js";
+import { TemplateEngineService } from "../services/TemplateEngineService.js";
+import { MailDriver } from "../drivers/MailDriver.js";
 
 export interface IUserManagement {
     id: number;
@@ -30,6 +34,7 @@ export interface IUserCreation {
     email: string;
     password: string;
     user_type?: EUserType;
+    is_conversion?: boolean;
 }
 
 export interface IBetaUserForConversion {
@@ -275,7 +280,26 @@ export class UserManagementProcessor {
                 newUser.email_verified_at = new Date(); // Auto-verify admin created users
 
                 await manager.save(newUser);
-
+                if (userData.is_conversion) {
+                    const unsubscribeCode = encodeURIComponent(await bcrypt.hash(`${newUser.email}${userData.password}`, salt));
+                    const expiredAt = new Date();
+                    expiredAt.setDate(expiredAt.getDate() + 3);//expires in 3 days from now
+                    let verificationCode = new DRAVerificationCode();
+                    verificationCode.users_platform = newUser;
+                    verificationCode.code = unsubscribeCode;
+                    verificationCode.expired_at = expiredAt;
+                    await manager.save(verificationCode);
+                    const options: Array<ITemplateRenderer> = [
+                        {key: 'name', value: `${newUser.first_name} ${newUser.last_name}`},
+                        {key: 'email', value: newUser.email},
+                        {key: 'password', value: userData.password},
+                        {key: 'unsubscribe_code', value: unsubscribeCode}
+                    ];
+                    const content = await TemplateEngineService.getInstance().render('welcome-beta-users-email.html', options);
+                    await MailDriver.getInstance().getDriver().initialize();
+                    await MailDriver.getInstance().getDriver().sendEmail(newUser.email, `${newUser.first_name} ${newUser.last_name}`, 'Welcome to Data Research Analysis', 'Hello from Data Research Analysis', content);
+    
+                }
                 // Return user info without password
                 const createdUser: IUserManagement = {
                     id: newUser.id,
@@ -286,7 +310,6 @@ export class UserManagementProcessor {
                     email_verified_at: newUser.email_verified_at,
                     unsubscribe_from_emails_at: newUser.unsubscribe_from_emails_at
                 };
-
                 return resolve(createdUser);
             } catch (error) {
                 console.error('Error creating user:', error);

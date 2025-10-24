@@ -135,7 +135,8 @@ async function createUser() {
         last_name: state.last_name,
         email: state.email,
         password: state.password,
-        user_type: state.user_type
+        user_type: state.user_type,
+        is_conversion: state.isConversion
     };
 
     try {

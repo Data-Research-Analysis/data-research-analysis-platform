@@ -15,16 +15,18 @@ router.post('/', async (req: Request, res: Response, next: any) => {
     body('last_name').notEmpty().trim().isLength({ min: 1 }).withMessage('Last name is required'),
     body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
     body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters long'),
-    body('user_type').optional().isIn(['admin', 'normal']).withMessage('User type must be admin or normal')
+    body('user_type').optional().isIn(['admin', 'normal']).withMessage('User type must be admin or normal'),
+    body('is_conversion').optional().isBoolean().withMessage('is_conversion must be a boolean')
 ]), validatePasswordStrength, async (req: Request, res: Response) => {
-    const { first_name, last_name, email, password, user_type } = matchedData(req);
+    const { first_name, last_name, email, password, user_type, is_conversion } = matchedData(req);
     
     const userData = {
         first_name,
         last_name,
         email,
         password,
-        user_type: user_type === 'admin' ? EUserType.ADMIN : EUserType.NORMAL
+        user_type: user_type === 'admin' ? EUserType.ADMIN : EUserType.NORMAL,
+        is_conversion: is_conversion || false
     };
 
     const result = await UserManagementProcessor.getInstance().createUser(userData, req.body.tokenDetails);
