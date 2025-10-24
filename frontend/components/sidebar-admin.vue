@@ -13,6 +13,15 @@ const state = reactive({
         },
         {
             id: 2,
+            menu_name: 'User Management',
+            show_menu: true,
+            sub_menus: [
+                { id: 1, name: 'Add User', path: '/admin/users/create' },
+                { id: 2, name: 'List Users', path: '/admin/users' },
+            ],
+        },
+        {
+            id: 3,
             menu_name: 'Articles Management',
             show_menu: true,
             sub_menus: [

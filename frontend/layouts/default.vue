@@ -6,6 +6,7 @@ import { useDashboardsStore } from '@/stores/dashboards';
 import { useArticlesStore } from '@/stores/articles';
 import { useLoggedInUserStore } from "@/stores/logged_in_user";
 import { usePrivateBetaUserStore } from '@/stores/private_beta_users';
+import { useUserManagementStore } from '@/stores/user_management';
 
 const projectsStore = useProjectsStore();
 const dataSourceStore = useDataSourceStore();
@@ -14,6 +15,7 @@ const dashboardsStore = useDashboardsStore();
 const articlesStore = useArticlesStore();
 const loggedInUserStore = useLoggedInUserStore();
 const privateBetaUserStore = usePrivateBetaUserStore();
+const userManagementStore = useUserManagementStore();
 const route = useRoute();
 const router = useRouter();
 const state = reactive({
@@ -66,6 +68,7 @@ watch(
             await articlesStore.retrieveCategories();
             await articlesStore.retrieveArticles();
             await privateBetaUserStore.retrievePrivateBetaUsers();
+            await userManagementStore.retrieveUsers();
             if (route?.params?.articleid) {
                 const articleId = parseInt(route.params.articleid);
                 articlesStore.clearSelectedArticle();
@@ -75,6 +78,17 @@ watch(
                 } else {
                     router.push(`/admin/articles`);
                     return;
+            if (route?.params?.userid) {
+                const userId = parseInt(route.params.userid);
+                userManagementStore.clearSelectedUser();
+                const user = userManagementStore.getUsers().find((user) => user.id === userId);
+                if (user) {
+                    userManagementStore.setSelectedUser(user);
+                } else {
+                    router.push(`/admin/users`);
+                    return;
+                }
+            }
                 }
             }
         }
@@ -130,6 +144,7 @@ onMounted(async () => {
             await articlesStore.retrieveCategories();
             await articlesStore.retrieveArticles();
             await privateBetaUserStore.retrievePrivateBetaUsers();
+            await userManagementStore.retrieveUsers();
             if (route?.params?.articleid) {
                 const articleId = parseInt(route.params.articleid);
                 articlesStore.clearSelectedArticle();
@@ -138,6 +153,17 @@ onMounted(async () => {
                     articlesStore.setSelectedArticle(article);
                 } else {
                     router.push(`/admin/articles`);
+                    return;
+                }
+            }
+            if (route?.params?.userid) {
+                const userId = parseInt(route.params.userid);
+                userManagementStore.clearSelectedUser();
+                const user = userManagementStore.getUsers().find((user) => user.id === userId);
+                if (user) {
+                    userManagementStore.setSelectedUser(user);
+                } else {
+                    router.push(`/admin/users`);
                     return;
                 }
             }
