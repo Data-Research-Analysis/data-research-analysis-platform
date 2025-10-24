@@ -10,42 +10,10 @@ import { ITemplateRenderer } from "../interfaces/ITemplateRenderer.js";
 import { DRAVerificationCode } from "../models/DRAVerificationCode.js";
 import { TemplateEngineService } from "../services/TemplateEngineService.js";
 import { MailDriver } from "../drivers/MailDriver.js";
-
-export interface IUserManagement {
-    id: number;
-    email: string;
-    first_name: string;
-    last_name: string;
-    user_type: EUserType;
-    email_verified_at: Date | null;
-    unsubscribe_from_emails_at: Date | null;
-}
-
-export interface IUserUpdate {
-    first_name?: string;
-    last_name?: string;
-    email?: string;
-    user_type?: EUserType;
-}
-
-export interface IUserCreation {
-    first_name: string;
-    last_name: string;
-    email: string;
-    password: string;
-    user_type?: EUserType;
-    is_conversion?: boolean;
-}
-
-export interface IBetaUserForConversion {
-    id: number;
-    first_name: string;
-    last_name: string;
-    email: string;
-    company_name?: string;
-    phone_number?: string;
-    country?: string;
-}
+import { IUserManagement } from "../types/IUserManagement.js";
+import { IUserUpdate } from "../types/IUserUpdate.js";
+import { IUserCreation } from "../types/IUserCreation.js";
+import { IBetaUserForConversion } from "../types/IBetaUserForConversion.js";
 
 export class UserManagementProcessor {
     private static instance: UserManagementProcessor;
