@@ -52,33 +52,32 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
       }
     }
   } else {
-    console.log('to', to);
-    if (isPlatformEnabled()) {
-      console.log('1');
-      console.log('isPlatformRegistrationEnabled()', isPlatformRegistrationEnabled());
-      if (to.path === "/login") {
-        if (isPlatformLoginEnabled()) {
-          return;
-        } else {
-          return navigateTo("/");
-        }
-      } else if (to.path === "/register") {
-        if (isPlatformRegistrationEnabled()) {
-          return;
-        } else {
-          return navigateTo("/");
-        }
+      if (to.path.startsWith("/admin")) {
+        return navigateTo("/login");
+      } else if (to.path.startsWith("/projects")) {
+        return navigateTo("/login");
       } else {
-        if (to.path === "/privacy-policy" || to.path === "/terms-conditions") {
-          return;
+        if (isPlatformEnabled()) {
+          if (to.path === '/login') {
+            if (isPlatformLoginEnabled()) {
+              return;
+            } else {
+              return navigateTo("/");
+            }
+          } else if (to.path === '/register') {
+            if (isPlatformRegistrationEnabled()) {
+                return;
+            } else {
+              return navigateTo("/");
+            }
+          }
+        } else {
+          if (to.path === "/privacy-policy" || to.path === "/terms-conditions") {
+            return;
+          } else {
+          return navigateTo("/");
+          }
         }
-      }
-    } else {
-      if (to.path === "/privacy-policy" || to.path === "/terms-conditions") {
-          return;
-      } else {
-        return navigateTo("/");
       }
     }
-  }
 });
