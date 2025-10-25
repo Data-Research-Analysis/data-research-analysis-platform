@@ -132,7 +132,6 @@ async (req: Request, res: Response) => {
 router.post('/add-excel-data-source', async (req: Request, res: Response, next: any) => {
     next();
 }, validateJWT, validate([
-    body('file_name').notEmpty().trim().escape(), 
     body('data_source_name').notEmpty().trim().escape(), 
     body('file_id').notEmpty().trim().escape(), 
     body('data').notEmpty(), 
