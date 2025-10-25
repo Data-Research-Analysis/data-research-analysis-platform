@@ -98,7 +98,7 @@ onMounted(() => {
                 <menu-dropdown>
                     <template #menuItem="{ onClick }">
                         <div @click="onClick" class="flex flex-col justify-center items-center w-10 h-10 bg-gray-200 border border-primary-blue-100 border-solid p-1 rounded-full cursor-pointer hover:bg-gray-300 font-bold text-center text-black text-none">
-                            M
+                            {{ loggedInUser.first_name.charAt(0).toUpperCase() }}
                         </div>
                     </template>
                     <template #dropdownMenu="{ onClick }">
