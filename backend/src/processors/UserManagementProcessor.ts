@@ -14,6 +14,14 @@ import { IUserManagement } from "../types/IUserManagement.js";
 import { IUserUpdate } from "../types/IUserUpdate.js";
 import { IUserCreation } from "../types/IUserCreation.js";
 import { IBetaUserForConversion } from "../types/IBetaUserForConversion.js";
+import { DRADashboard } from "../models/DRADashboard.js";
+import { DRADashboardExportMetaData } from "../models/DRADashboardExportMetaData.js";
+import { DRADataModel } from "../models/DRADataModel.js";
+import { DRADataSource } from "../models/DRADataSource.js";
+import { DRAProject } from "../models/DRAProject.js";
+import { DRAArticle } from "../models/DRAArticle.js";
+import { DRACategory } from "../models/DRACategory.js";
+import { DRAArticleCategory } from "../models/DRAArticleCategory.js";
 
 export class UserManagementProcessor {
     private static instance: UserManagementProcessor;
@@ -313,6 +321,25 @@ export class UserManagementProcessor {
             }
 
             try {
+                //delete all of the data that is associated with the user
+                const articles = await manager.find(DRAArticle, {where: {users_platform: user}});
+                const categories = await manager.find(DRACategory, {where: {users_platform: user}});
+                const articleCategories = await manager.find(DRAArticleCategory, {where: {article: articles}});
+                const projects = await manager.find(DRAProject, {where: {users_platform: user}});
+                const dataSources = await manager.find(DRADataSource, {where: {users_platform: user}});
+                const dataModels = await manager.find(DRADataModel, {where: {users_platform: user}});
+                const exportedDashboards = await manager.find(DRADashboardExportMetaData, {where: {users_platform: user}});
+                const dashboards = await manager.find(DRADashboard, {where: {users_platform: user}});
+                const verificationCodes = await manager.find(DRAVerificationCode, {where: {users_platform: user}});
+                await manager.remove(articleCategories);
+                await manager.remove(articles);
+                await manager.remove(categories);
+                await manager.remove(exportedDashboards);
+                await manager.remove(dashboards);
+                await manager.remove(dataModels);
+                await manager.remove(dataSources);
+                await manager.remove(projects);
+                await manager.remove(verificationCodes);
                 await manager.remove(user);
                 return resolve(true);
             } catch (error) {
