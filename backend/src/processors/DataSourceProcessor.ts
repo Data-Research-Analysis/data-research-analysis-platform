@@ -231,6 +231,11 @@ export class DataSourceProcessor {
                     return resolve(false);
                 }
                 let query = await externalDriver.getTablesColumnDetails(connection.schema);
+                if (connection.schema === 'dra_excel') {
+                    query += ` AND tb.table_name LIKE '%_data_source_${dataSource.id}_%'`;
+                } else if (connection.schema === 'dra_pdf') {
+                    query += ` AND tb.table_name LIKE '%_data_source_${dataSource.id}_%'`;
+                }
                 let tablesSchema = await dbConnector.query(query);
                 let tables = tablesSchema.map((table: any) => {
                     return {
@@ -266,6 +271,11 @@ export class DataSourceProcessor {
                     });
                 });
                 query = await externalDriver.getTablesRelationships(connection.schema);
+                if (connection.schema === 'dra_excel') {
+                    query += ` AND tc.table_name LIKE '%_data_source_${dataSource.id}_%'`;
+                } else if (connection.schema === 'dra_pdf') {
+                    query += ` AND tc.table_name LIKE '%_data_source_${dataSource.id}_%'`;
+                }
                 tablesSchema = await dbConnector.query(query);
                 tablesSchema.forEach((result: any) => {
                     tables.forEach((table: any) => {
@@ -483,6 +493,7 @@ export class DataSourceProcessor {
             const project:DRAProject|null = await manager.findOne(DRAProject, {where: {id: projectId, users_platform: user}});
             if (project) {
                 let dataSource = new DRADataSource();
+                const sheetsProcessed = [];
                 if (!dataSourceId) {
                     //the tables will be saved in the platform's own database but in a dedicated schema
                     const host = UtilityService.getInstance().getConstants('POSTGRESQL_HOST');
@@ -514,8 +525,6 @@ export class DataSourceProcessor {
                     dataSource = await manager.findOne(DRADataSource, { where: { id: dataSourceId, project: project, users_platform: user } });
                 }
                 
-                const sheetsProcessed = [];
-                
                 try {
                     const parsedTableStructure = JSON.parse(data);
                     // Get sheet information
@@ -525,7 +534,7 @@ export class DataSourceProcessor {
                     const sheetIndex = sheetInfo?.sheet_index || 0;
                 
                     // Create table name for this sheet
-                    const rawTableName = `excel_${fileId}_${sheetIndex}_data_source_${dataSource.id}`;
+                    const rawTableName = `excel_${fileId}_data_source_${dataSource.id}_${sheetName.toLowerCase()}`;
                     const tableName = this.sanitizeTableName(rawTableName);
                     
                     let createTableQuery = `CREATE TABLE dra_excel."${tableName}" `;
@@ -734,15 +743,7 @@ export class DataSourceProcessor {
         });
     }
 
-    public async addPDFDataSource(
-        dataSourceName: string, 
-        fileId: string, 
-        data: string, 
-        tokenDetails: ITokenDetails, 
-        projectId: number, 
-        dataSourceId: number = null, 
-        sheetInfo?: any
-    ): Promise<IPDFDataSourceReturn> {
+    public async addPDFDataSource(dataSourceName: string, fileId: string, data: string, tokenDetails: ITokenDetails, projectId: number, dataSourceId: number = null, sheetInfo?: any): Promise<IPDFDataSourceReturn> {
         return new Promise<IPDFDataSourceReturn>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -765,7 +766,6 @@ export class DataSourceProcessor {
             if (project) {
                 let dataSource = new DRADataSource();
                 const sheetsProcessed = [];
-                
                 if (!dataSourceId) {
                     // Create new data source - tables will be saved in the platform's own database but in a dedicated schema
                     const host = UtilityService.getInstance().getConstants('POSTGRESQL_HOST');
@@ -797,22 +797,16 @@ export class DataSourceProcessor {
                     dataSource = await manager.findOne(DRADataSource, { where: { id: dataSourceId, project: project, users_platform: user } });
                 }
 
-                // Parse the data - could be a single sheet or multiple sheets
-                const parsedData = JSON.parse(data);
-                
-                // Handle single sheet format vs multi-sheet format
-                const sheets = parsedData.columns && parsedData.rows ? [parsedData] : parsedData.sheets || [];
-                
-                // Process each sheet
-                for (let i = 0; i < sheets.length; i++) {
-                    const sheetData = sheets[i];
-                    const sheetNumber = i + 1;
-                    const pageName = `page_${sheetNumber}`;
-                    const pageNumber = sheetInfo?.page_number || sheetNumber;
-                    
+                try {
+                    // Parse the data - could be a single sheet or multiple sheets
+                    const parsedTableStructure = JSON.parse(data);
+                    const sheetName = sheetInfo?.sheet_name || 'Sheet1';
+                    const sheetId = sheetInfo?.sheet_id || `sheet_${Date.now()}`;                    
+                    const sheetIndex = sheetInfo?.sheet_index || 0;
+
                     // Create table name for this sheet
-                    const tableName = `pdf_${fileId}_${pageNumber}_data_source_${dataSource.id}`;
-                    console.log('Creating table:', tableName);
+                    const rawTableName = `pdf_${fileId}_data_source_${dataSource.id}_${sheetName.toLowerCase()}`;
+                    const tableName = this.sanitizeTableName(rawTableName);
                     // Create table query
                     let createTableQuery = `CREATE TABLE dra_pdf.${tableName} `;
                     let columns = '';
@@ -828,8 +822,8 @@ export class DataSourceProcessor {
                         displayTitle?: string
                     }> = [];
                     
-                    if (sheetData.columns && sheetData.columns.length > 0) {
-                        sheetData.columns.forEach((column: any, index: number) => {
+                    if (parsedTableStructure.columns && parsedTableStructure.columns.length > 0) {
+                        parsedTableStructure.columns.forEach((column: any, index: number) => {
                             // Handle renamed columns for PDF similar to Excel
                             const displayColumnName = column.title || column.column_name || `column_${index}`;
                             const originalColumnName = column.originalTitle || column.original_title || column.column_name || displayColumnName;
@@ -855,12 +849,12 @@ export class DataSourceProcessor {
                             } else {
                                 dataTypeString = `${dataType.type}`;
                             }
-                            if (index < sheetData.columns.length - 1) {
+                            if (index < parsedTableStructure.columns.length - 1) {
                                 columns += `${sanitizedColumnName} ${dataTypeString}, `;
                             } else {
                                 columns += `${sanitizedColumnName} ${dataTypeString} `;
                             }
-                            if (index < sheetData.columns.length - 1) {
+                            if (index < parsedTableStructure.columns.length - 1) {
                                 insertQueryColumns += `${sanitizedColumnName},`;
                             } else {
                                 insertQueryColumns += `${sanitizedColumnName}`;
@@ -874,15 +868,15 @@ export class DataSourceProcessor {
                         await dbConnector.query(createTableQuery);
                         
                         // Insert data rows
-                        if (sheetData.rows && sheetData.rows.length > 0) {
-                            for (const row of sheetData.rows) {
+                        if (parsedTableStructure.rows && parsedTableStructure.rows.length > 0) {
+                            for (const row of parsedTableStructure.rows) {
                                 let insertQuery = `INSERT INTO dra_pdf.${tableName} `;
                                 let values = '';
                                 
                                 sanitizedPdfColumns.forEach((columnInfo, colIndex) => {
                                     // Try multiple ways to get the value for renamed columns (similar to Excel)
                                     let value = undefined;
-                                    const originalColumn = sheetData.columns[colIndex];
+                                    const originalColumn = parsedTableStructure.columns[colIndex];
                                     
                                     // Strategy 1: Use current column title (handles renamed columns)
                                     if (originalColumn?.title && row[originalColumn.title] !== undefined) {
@@ -944,7 +938,6 @@ export class DataSourceProcessor {
                             col.originalTitle && col.displayTitle && col.originalTitle !== col.displayTitle
                         );
                         if (renamedPdfColumns.length > 0) {
-                            console.log(`Column renames detected in PDF page ${pageNumber}:`);
                             renamedPdfColumns.forEach(col => {
                                 console.log(`  "${col.originalTitle}" -> "${col.displayTitle}" (DB: ${col.sanitized})`);
                             });
@@ -952,15 +945,20 @@ export class DataSourceProcessor {
                         
                         // Track processed sheet
                         sheetsProcessed.push({
-                            sheet_id: sheetInfo?.sheet_id || `sheet_${sheetNumber}`,
-                            sheet_name: pageName,
+                            sheet_id: sheetId,
+                            sheet_name: sheetName,
                             table_name: tableName,
-                            page_number: pageNumber
+                            sheet_index: sheetIndex
                         });
                     }
+                } catch (error) {
+                    console.error('Error processing Excel data source:', error);
+                    console.error('Sheet info:', sheetInfo);
+                    console.error('Data structure:', data?.substring(0, 500) + '...');
+                    return resolve({ status: 'error', file_id: fileId });
                 }
 
-                //Add the user to the delete files queue, which will get all of the
+                // Add the user to the delete files queue, which will get all of the
                 //files uploaded by the user and will be deleted
                 await QueueService.getInstance().addFilesDeletionJob(user.id);
 

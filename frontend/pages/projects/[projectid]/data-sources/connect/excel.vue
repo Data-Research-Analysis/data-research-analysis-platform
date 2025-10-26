@@ -17,7 +17,7 @@ const state = reactive({
 
 // Sheet Management Functions
 function createSheetFromWorksheet(file, worksheetData, sheetName, sheetIndex) {
-    const displaySheetName = `${file.name} - ${sheetName}`;
+    const displaySheetName = `${sheetName} - ${file.name}`;
     const sheetId = `${file.id}_sheet_${sheetIndex}`;
     
     const sheet = {

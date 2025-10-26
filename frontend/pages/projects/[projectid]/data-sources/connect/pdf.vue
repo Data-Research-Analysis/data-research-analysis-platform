@@ -235,7 +235,7 @@ async function createDataSource() {
                     sheet_id: sheet.id,
                     sheet_name: sheet.name,
                     file_name: sheet.fileName,
-                    page_number: sheet.pageNumber
+                    sheet_index: sheet.pageNumber,
                 }
             })
         });

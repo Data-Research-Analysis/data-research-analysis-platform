@@ -642,7 +642,7 @@ onMounted(async () => {
             <table class="w-full border border-primary-blue-100 border-solid">
                 <thead>
                     <tr>
-                        <th v-for="column in state.response_from_external_data_source_columns" class="bg-blue-100 border border-primary-blue-100 border-solid p-2 text-center font-bold">
+                        <th v-for="column in state.response_from_external_data_source_columns" class="bg-blue-100 border border-primary-blue-100 border-solid p-2 text-center font-bold wrap-anywhere">
                             {{ column }}
                         </th>
                     </tr>
@@ -660,11 +660,13 @@ onMounted(async () => {
                 <h2 class="font-bold text-center mb-5">Tables</h2>
                 <div class="grid grid-cols-1 sm:grid-cols-2 md:Grid-cols-3 md:gap-2">
                     <div v-for="table in state.tables" class="flex flex-col border border-primary-blue-100 border-solid p-1">
-                        <h4 class="bg-gray-300 text-center font-bold p-1 mb-2 overflow-clip text-ellipsis" 
-                            v-tippy="{ content: `${table.schema}.${table.table_name}`, placement: 'bottom' }"
-                        >
-                            {{ table.schema }}.{{ table.table_name }}
+                        <h4 class="bg-gray-300 text-center font-bold p-1 mb-2 overflow-clip text-ellipsis wrap-anywhere">
+                            {{ table.table_name}}
                         </h4>
+                        <div class="bg-gray-300 p-1 m-2 wrap-anywhere">
+                            Table Schema: {{ table.schema }} <br />
+                            Table Name: {{ table.table_name }}
+                        </div>
                         <draggable
                             :list="table.columns"
                             :group="{
@@ -727,7 +729,7 @@ onMounted(async () => {
                                     }"
                                 >
                                     <div class="flex flex-row justify-around">
-                                        <div class="ml-2">
+                                        <div class="ml-2 wrap-anywhere">
                                             Table: {{ element.table_name }}<br />
                                             <strong>Column: {{ element.column_name }}</strong><br />
                                             Column Data Type: {{ element.data_type }}
