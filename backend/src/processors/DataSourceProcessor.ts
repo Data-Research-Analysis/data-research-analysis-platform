@@ -434,11 +434,11 @@ export class DataSourceProcessor {
                     let insertQuery = `INSERT INTO ${dataModelName} `;
                     let values = '';
                     sourceTable.columns.forEach((column: any, columnIndex: number) => {
-                        const columnName = `${column.schema}_${column.table_name}_${column.column_name}`;
+                        const columnName = `${column.table_name}`.length > 20 ? `${column.table_name}`.slice(-20) + `_${column.column_name}` : `${column.table_name}` + `_${column.column_name}`;
                         if (columnIndex < sourceTable.columns.length - 1) {
-                            values += `'${row[columnName] || ''}',`;
+                            values += row[columnName] ? `'${row[columnName]}',` : `null,`
                         } else {
-                            values += `'${row[columnName] || ''}'`;
+                            values += row[columnName] ? `'${row[columnName]}'` : `null`
                         }
                     });
                     if (sourceTable.calculated_columns && sourceTable.calculated_columns.length > 0) {

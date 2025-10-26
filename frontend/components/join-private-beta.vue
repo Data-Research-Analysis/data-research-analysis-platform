@@ -139,7 +139,6 @@ defineExpose({
 
 onMounted(async () => {
     await getToken();
-    console.log(state.countryCodes);
 });
 </script>
 <template>

@@ -407,7 +407,8 @@ function buildSQLQuery() {
     if (dataTables.length === 1) {
         fromJoinClause.push(`FROM ${dataTables[0]}`);
         sqlQuery = `SELECT ${state.data_table.columns.filter((column) => column.is_selected_column).map((column) => {
-            const aliasName = column?.alias_name !== '' ? column.alias_name : `${column.schema}_${column.table_name}_${column.column_name}`;
+            const tableName = column.table_name.length > 20 ? column.table_name.slice(-20) : column.table_name;
+            const aliasName = column?.alias_name !== '' ? column.alias_name : `${tableName}_${column.column_name}`;
             return `${column.schema}.${column.table_name}.${column.column_name} AS ${aliasName}`;
         }).join(', ')}`;
     } else {
@@ -637,12 +638,12 @@ onMounted(async () => {
         <div class="text-md mb-10">
             You can create a new data model from the tables given below by dragging into the empty block shown in the data model section to the right.
         </div>
-        <div v-if="state.response_from_external_data_source_columns && state.response_from_external_data_source_columns.length" class="flex flex-col">
+        <div v-if="state.response_from_external_data_source_columns && state.response_from_external_data_source_columns.length" class="flex flex-col overflow-auto">
             <h3 class="font-bold text-left mb-5">Response From External Data Source</h3>
             <table class="w-full border border-primary-blue-100 border-solid">
                 <thead>
                     <tr>
-                        <th v-for="column in state.response_from_external_data_source_columns" class="bg-blue-100 border border-primary-blue-100 border-solid p-2 text-center font-bold wrap-anywhere">
+                        <th v-for="column in state.response_from_external_data_source_columns" class="bg-blue-100 border border-primary-blue-100 border-solid p-2 text-center font-bold ">
                             {{ column }}
                         </th>
                     </tr>
