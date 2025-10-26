@@ -284,7 +284,7 @@ function updateRowIndices() {
 }
 
 function addNewRow(position = 'end', defaultData = {}) {
-  const newRowId = `row_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const newRowId = `row_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   const newRow = {
     id: newRowId,
     index: 0, // Will be updated by updateRowIndices
@@ -338,7 +338,7 @@ function duplicateRow(rowId) {
   const sourceRow = tableState.rows.find(row => row.id === rowId);
   if (!sourceRow) return null;
   
-  const newRowId = `row_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const newRowId = `row_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   const duplicatedRow = {
     id: newRowId,
     index: 0, // Will be updated by updateRowIndices
@@ -565,7 +565,7 @@ function removeColumn(columnId) {
 
 // Column addition functionality
 function addNewColumn(position = 'end', columnConfig = {}) {
-  const newColumnId = `col_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const newColumnId = `col_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   const columnNumber = tableState.columns.length + 1;
   const newColumn = {
     id: newColumnId,
@@ -619,8 +619,8 @@ function insertColumnAt(index, columnConfig = {}) {
 function duplicateColumn(columnId) {
   const sourceColumn = tableState.columns.find(col => col.id === columnId);
   if (!sourceColumn) return null;
-  
-  const newColumnId = `col_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+  const newColumnId = `col_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   const duplicatedColumn = {
     ...sourceColumn,
     id: newColumnId,
@@ -1226,7 +1226,7 @@ function createSheet(name = null, columns = [], rows = []) {
       }));
   
   const newSheet = {
-    id: `sheet_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    id: `sheet_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
     name: sheetName,
     columns: processedColumns,
     rows: processedRows,
@@ -1398,7 +1398,7 @@ onMounted(() => {
     if (props.sheets && props.sheets.length > 0) {
         sheetsState.sheets = props.sheets.map(sheet => ({
             ...sheet,
-            id: sheet.id || `sheet_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            id: sheet.id || `sheet_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
             metadata: {
                 created: sheet.metadata?.created || new Date(),
                 modified: sheet.metadata?.modified || new Date(),
