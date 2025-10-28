@@ -126,8 +126,14 @@ export class UtilityService {
             // Map to PostgreSQL equivalent
             return this.mapMySQLToPostgreSQL(parsedType);
         } else {
-            if (dataType === 'USER-DEFINED') {
+            // For PostgreSQL and other databases, preserve types
+            const upperType = dataType.toUpperCase();
+            if (upperType === 'USER-DEFINED') {
                 return { type: 'TEXT' }; // Handle USER-DEFINED as TEXT
+            }
+            // Preserve JSON and JSONB types for PostgreSQL
+            if (upperType === 'JSON' || upperType === 'JSONB') {
+                return { type: upperType };
             }
             return { type: dataType }; // Pass through unchanged
         }
@@ -270,9 +276,11 @@ export class UtilityService {
             case 'BOOL':
                 return { type: 'BOOLEAN' };
 
-            // JSON Type
+            // JSON Types
             case 'JSON':
                 return { type: 'JSON' };
+            case 'JSONB':
+                return { type: 'JSONB' };
 
             // Special Types
             case 'ENUM':
