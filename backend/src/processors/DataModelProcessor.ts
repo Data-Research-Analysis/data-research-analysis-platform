@@ -205,10 +205,26 @@ export class DataModelProcessor {
                         if (column && column.schema === 'dra_excel' || column.schema === 'dra_pdf') {
                             columnName = `${column.table_name}`.length > 20 ? `${column.table_name}`.slice(-20) + `_${column.column_name}` : `${column.table_name}` + `_${column.column_name}`;
                         }
-                        if (columnIndex < sourceTable.columns.length - 1) {
-                            values += row[columnName] ? `'${row[columnName]}',` : `null,`;
+                        const columnSize = column?.character_maximum_length ? `(${column?.character_maximum_length})` : '';
+                        const columnType = `${column.data_type}${columnSize}`;
+                        const dataType = UtilityService.getInstance().convertDataTypeToPostgresDataType(dataSourceType, columnType);
+                        let dataTypeString = '';
+                        if (dataType.size) {
+                            dataTypeString = `${dataType.type}(${dataType.size})`;
                         } else {
-                            values += row[columnName] ? `'${row[columnName]}'` : `null`
+                            dataTypeString = `${dataType.type}`;
+                        }
+                        if (dataTypeString === 'JSON' || dataTypeString === 'JSONB') {
+                            values += row[columnName] ? `'${JSON.stringify(row[columnName])}'` : `null`;
+                            if (columnIndex < sourceTable.columns.length - 1) {
+                                values += ',';
+                            }
+                        } else {
+                            if (columnIndex < sourceTable.columns.length - 1) {
+                                values += row[columnName] ? `'${row[columnName]}',` : `null,`
+                            } else {
+                                values += row[columnName] ? `'${row[columnName]}'` : `null`
+                            }
                         }
                     });
                     if (sourceTable.calculated_columns && sourceTable.calculated_columns.length > 0) {
