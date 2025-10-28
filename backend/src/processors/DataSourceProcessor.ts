@@ -403,15 +403,29 @@ export class DataSourceProcessor {
                     } else {
                         dataTypeString = `${dataType.type}`;
                     }
-                    if (index < sourceTable.columns.length - 1) {
-                        columns += `${column.column_name} ${dataTypeString}, `;
+                    if (column && column.schema === 'dra_excel' || column.schema === 'dra_pdf') {
+                        const columnName = `${column.table_name}`.length > 20 ? `${column.table_name}`.slice(-20) + `_${column.column_name}` : `${column.table_name}` + `_${column.column_name}`;
+                        if (index < sourceTable.columns.length - 1) {
+                            columns += `${columnName} ${dataTypeString}, `;
+                        } else {
+                            columns += `${columnName} ${dataTypeString} `;
+                        }
+                        if (index < sourceTable.columns.length - 1) {
+                            insertQueryColumns += `${columnName},`;
+                        } else {
+                            insertQueryColumns += `${columnName}`;
+                        }
                     } else {
-                        columns += `${column.column_name} ${dataTypeString} `;
-                    }
-                    if (index < sourceTable.columns.length - 1) {
-                        insertQueryColumns += `${column.column_name},`;
-                    } else {
-                        insertQueryColumns += `${column.column_name}`;
+                        if (index < sourceTable.columns.length - 1) {
+                            columns += `${column.schema}_${column.table_name}_${column.column_name} ${dataTypeString}, `;
+                        } else {
+                            columns += `${column.schema}_${column.table_name}_${column.column_name} ${dataTypeString} `;
+                        }
+                        if (index < sourceTable.columns.length - 1) {
+                            insertQueryColumns += `${column.schema}_${column.table_name}_${column.column_name},`;
+                        } else {
+                            insertQueryColumns += `${column.schema}_${column.table_name}_${column.column_name}`;
+                        }
                     }
                 });
                 if (sourceTable.calculated_columns && sourceTable.calculated_columns.length > 0) {
@@ -434,7 +448,10 @@ export class DataSourceProcessor {
                     let insertQuery = `INSERT INTO ${dataModelName} `;
                     let values = '';
                     sourceTable.columns.forEach((column: any, columnIndex: number) => {
-                        const columnName = `${column.table_name}`.length > 20 ? `${column.table_name}`.slice(-20) + `_${column.column_name}` : `${column.table_name}` + `_${column.column_name}`;
+                        let columnName = `${column.table_name}_${column.column_name}`;
+                        if (column && column.schema === 'dra_excel' || column.schema === 'dra_pdf') {
+                            columnName = `${column.table_name}`.length > 20 ? `${column.table_name}`.slice(-20) + `_${column.column_name}` : `${column.table_name}` + `_${column.column_name}`;
+                        }
                         if (columnIndex < sourceTable.columns.length - 1) {
                             values += row[columnName] ? `'${row[columnName]}',` : `null,`
                         } else {
@@ -702,7 +719,6 @@ export class DataSourceProcessor {
                             } catch (error) {
                                 console.error('Error verifying row count:', error);
                             }
-                            
                             console.log(`Successfully inserted all ${parsedTableStructure.rows.length} rows`);
                         } else {
                             console.log('No rows to insert - parsedTableStructure.rows is empty or undefined');
