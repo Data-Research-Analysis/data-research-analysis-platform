@@ -517,6 +517,7 @@ async function executeQueryOnDataModels(chartId) {
                 }];
             }
         }
+        chart.stack_keys = _.uniq(chart.stack_keys);
         chart.config.add_columns_enabled = true;
     }
 }
