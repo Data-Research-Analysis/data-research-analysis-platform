@@ -207,6 +207,7 @@ async function executeQueryOnDataModels(chartId) {
     state.response_from_data_models_rows = [];
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId)
     if (chart) {
+        chart.config.add_columns_enabled = false;
         chart.data = [];
         chart.line_data = [];
         chart.stack_keys = [];
@@ -516,6 +517,7 @@ async function executeQueryOnDataModels(chartId) {
                 }];
             }
         }
+        chart.config.add_columns_enabled = true;
     }
 }
 async function saveDashboard() {
