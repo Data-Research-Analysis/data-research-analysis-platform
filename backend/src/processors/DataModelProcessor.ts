@@ -22,6 +22,153 @@ export class DataModelProcessor {
     }
 
     /**
+     * Escape SQL string values to prevent SQL injection
+     * @param value - The value to escape
+     * @returns Escaped string or 'null' for null/undefined values
+     */
+    private escapeSQL(value: any): string {
+        if (value === null || value === undefined) {
+            return 'null';
+        }
+        // Escape single quotes by doubling them (SQL standard)
+        return String(value).replace(/'/g, "''");
+    }
+
+    /**
+     * Format a date value for SQL insertion based on column data type
+     * @param value - The date value to format (Date object, string, or timestamp)
+     * @param columnType - The PostgreSQL date type
+     * @param columnName - The column name (for error logging)
+     * @returns Formatted SQL date string
+     */
+    private formatDateForSQL(value: any, columnType: string, columnName: string): string {
+        if (value === null || value === undefined) {
+            return 'null';
+        }
+
+        try {
+            let dateObj: Date;
+
+            // Convert value to Date object
+            if (value instanceof Date) {
+                dateObj = value;
+            } else if (typeof value === 'string') {
+                // Handle empty or invalid strings
+                if (value.trim() === '' || value === '0000-00-00' || value === '0000-00-00 00:00:00') {
+                    return 'null';
+                }
+                dateObj = new Date(value);
+            } else if (typeof value === 'number') {
+                // Unix timestamp
+                dateObj = new Date(value);
+            } else {
+                console.warn(`Unexpected date value type for column ${columnName}:`, typeof value, value);
+                return 'null';
+            }
+
+            // Validate Date object
+            if (isNaN(dateObj.getTime())) {
+                console.error(`Invalid date value for column ${columnName}:`, value);
+                return 'null';
+            }
+
+            const upperType = columnType.toUpperCase();
+
+            // Format based on column type
+            if (upperType === 'DATE') {
+                // DATE: YYYY-MM-DD format
+                const formatted = dateObj.toISOString().split('T')[0];
+                return `'${formatted}'`;
+            } 
+            else if (upperType === 'TIME' || upperType.startsWith('TIME(') || upperType.includes('TIME WITHOUT')) {
+                // TIME: HH:MM:SS format
+                const timeString = dateObj.toISOString().split('T')[1].split('.')[0];
+                return `'${timeString}'`;
+            } 
+            else if (upperType === 'TIMESTAMP WITH TIME ZONE' || upperType === 'TIMESTAMPTZ') {
+                // TIMESTAMP WITH TIME ZONE: ISO 8601 format with timezone
+                return `'${dateObj.toISOString()}'`;
+            } 
+            else if (upperType === 'TIMESTAMP' || upperType.startsWith('TIMESTAMP(') || upperType.includes('TIMESTAMP WITHOUT')) {
+                // TIMESTAMP: YYYY-MM-DD HH:MM:SS format (no timezone)
+                const formatted = dateObj.toISOString()
+                    .replace('T', ' ')
+                    .split('.')[0];
+                return `'${formatted}'`;
+            }
+
+            // Fallback: use ISO string for timestamp with timezone
+            return `'${dateObj.toISOString()}'`;
+
+        } catch (error) {
+            console.error(`Failed to format date for column ${columnName}:`, error, 'Value:', value);
+            return 'null';
+        }
+    }
+
+    /**
+     * Format a value for SQL insertion based on column data type
+     * @param value - The value to format
+     * @param columnType - The PostgreSQL column type
+     * @param columnName - The column name (for error logging)
+     * @returns Formatted SQL value string
+     */
+    private formatValueForSQL(value: any, columnType: string, columnName: string): string {
+        if (value === null || value === undefined) {
+            return 'null';
+        }
+
+        const upperType = columnType.toUpperCase();
+
+        // Handle DATE, TIME, and TIMESTAMP types
+        if (upperType.includes('DATE') || 
+            upperType.includes('TIME') || 
+            upperType.includes('TIMESTAMP')) {
+            return this.formatDateForSQL(value, upperType, columnName);
+        }
+
+        // Handle JSON and JSONB types
+        if (upperType === 'JSON' || upperType === 'JSONB') {
+            try {
+                // Check if value is already stringified as "[object Object]"
+                const valueStr = String(value);
+                if (valueStr === '[object Object]' || valueStr.startsWith('[object ')) {
+                    console.error(`Detected [object Object] for column ${columnName}. Value type: ${typeof value}`);
+                    if (typeof value === 'object') {
+                        const jsonString = JSON.stringify(value);
+                        return `'${this.escapeSQL(jsonString)}'`;
+                    }
+                    return 'null';
+                }
+
+                if (typeof value === 'object') {
+                    const jsonString = JSON.stringify(value);
+                    return `'${this.escapeSQL(jsonString)}'`;
+                } else if (typeof value === 'string') {
+                    if (value.trim().startsWith('{') || value.trim().startsWith('[')) {
+                        try {
+                            JSON.parse(value);
+                            return `'${this.escapeSQL(value)}'`;
+                        } catch {
+                            return `'${this.escapeSQL(JSON.stringify(value))}'`;
+                        }
+                    } else {
+                        return `'${this.escapeSQL(JSON.stringify(value))}'`;
+                    }
+                } else {
+                    return `'${JSON.stringify(value)}'`;
+                }
+            } catch (error) {
+                console.error(`Failed to serialize JSON for column ${columnName}:`, error, 'Value:', value, 'Type:', typeof value);
+                return 'null';
+            }
+        }
+
+        // Handle all other types with proper escaping
+        return `'${this.escapeSQL(value)}'`;
+    }
+
+    /**
      * Get the list of data models for a user
      * @param tokenDetails 
      * @returns list of data models
@@ -197,6 +344,26 @@ export class DataModelProcessor {
                 createTableQuery += `(${columns})`;
                 await internalDbConnector.query(createTableQuery);
                 insertQueryColumns = `(${insertQueryColumns})`;
+                
+                // Track column data types for proper value formatting
+                const columnDataTypes = new Map<string, string>();
+                sourceTable.columns.forEach((column: any) => {
+                    let columnName = `${column.table_name}_${column.column_name}`;
+                    if (column && column.schema === 'dra_excel' || column.schema === 'dra_pdf') {
+                        columnName = `${column.table_name}`.length > 20 ? `${column.table_name}`.slice(-20) + `_${column.column_name}` : `${column.table_name}` + `_${column.column_name}`;
+                    }
+                    const columnSize = column?.character_maximum_length ? `(${column?.character_maximum_length})` : '';
+                    const columnType = `${column.data_type}${columnSize}`;
+                    const dataType = UtilityService.getInstance().convertDataTypeToPostgresDataType(dataSourceType, columnType);
+                    let dataTypeString = '';
+                    if (dataType.size) {
+                        dataTypeString = `${dataType.type}(${dataType.size})`;
+                    } else {
+                        dataTypeString = `${dataType.type}`;
+                    }
+                    columnDataTypes.set(columnName, dataTypeString);
+                });
+                
                 rowsFromDataSource.forEach((row: any, index: number) => {
                     let insertQuery = `INSERT INTO ${dataModelName} `;
                     let values = '';
@@ -205,26 +372,25 @@ export class DataModelProcessor {
                         if (column && column.schema === 'dra_excel' || column.schema === 'dra_pdf') {
                             columnName = `${column.table_name}`.length > 20 ? `${column.table_name}`.slice(-20) + `_${column.column_name}` : `${column.table_name}` + `_${column.column_name}`;
                         }
-                        const columnSize = column?.character_maximum_length ? `(${column?.character_maximum_length})` : '';
-                        const columnType = `${column.data_type}${columnSize}`;
-                        const dataType = UtilityService.getInstance().convertDataTypeToPostgresDataType(dataSourceType, columnType);
-                        let dataTypeString = '';
-                        if (dataType.size) {
-                            dataTypeString = `${dataType.type}(${dataType.size})`;
-                        } else {
-                            dataTypeString = `${dataType.type}`;
+                        
+                        // Get the column data type and format the value accordingly
+                        const columnType = columnDataTypes.get(columnName) || 'TEXT';
+                        
+                        // Log JSON/JSONB/DATE columns for debugging (first row only)
+                        if ((columnType.toUpperCase().includes('JSON') || 
+                             columnType.toUpperCase().includes('DATE') || 
+                             columnType.toUpperCase().includes('TIME') || 
+                             columnType.toUpperCase().includes('TIMESTAMP')) && 
+                            index === 0) {
+                            console.log(`Column ${columnName} (${columnType}):`, typeof row[columnName], row[columnName]);
                         }
-                        if (dataTypeString === 'JSON' || dataTypeString === 'JSONB') {
-                            values += row[columnName] ? `'${JSON.stringify(row[columnName])}'` : `null`;
-                            if (columnIndex < sourceTable.columns.length - 1) {
-                                values += ',';
-                            }
+                        
+                        const formattedValue = this.formatValueForSQL(row[columnName], columnType, columnName);
+                        
+                        if (columnIndex < sourceTable.columns.length - 1) {
+                            values += `${formattedValue},`;
                         } else {
-                            if (columnIndex < sourceTable.columns.length - 1) {
-                                values += row[columnName] ? `'${row[columnName]}',` : `null,`
-                            } else {
-                                values += row[columnName] ? `'${row[columnName]}'` : `null`
-                            }
+                            values += formattedValue;
                         }
                     });
                     if (sourceTable.calculated_columns && sourceTable.calculated_columns.length > 0) {
