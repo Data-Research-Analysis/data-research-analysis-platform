@@ -5,6 +5,7 @@ import { DBDriver } from '../drivers/DBDriver.js';
 import { PostgresDataSource } from '../datasources/PostgresDataSource.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { QueueService } from './QueueService.js';
+import { EncryptionService } from './EncryptionService.js';
 
 export class UtilityService {
     private static instance: UtilityService;
@@ -30,6 +31,19 @@ export class UtilityService {
         const postgresDataSource = PostgresDataSource.getInstance().getDataSource(host, port, database, username, password);
         await driver.initialize(postgresDataSource);
         await QueueService.getInstance().run();
+        // Initialize encryption service with validation
+        try {
+          const encryptionService = EncryptionService.getInstance();
+          if (!encryptionService.validateKey()) {
+            throw new Error('Encryption key validation failed');
+          }
+          const algorithmInfo = encryptionService.getAlgorithmInfo();
+          console.log(`[SECURITY] Encryption initialized: ${algorithmInfo.algorithm.toUpperCase()}, ${algorithmInfo.keySize}-bit key`);
+        } catch (error) {
+          console.error('[SECURITY] Failed to initialize encryption service:', error.message);
+          console.error('[SECURITY] Please check your ENCRYPTION_KEY in .env file');
+          process.exit(1); // Fail fast - encryption is critical for security
+        }
         console.log('Utilities initialized');
     }
 
