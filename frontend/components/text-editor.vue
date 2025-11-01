@@ -307,7 +307,7 @@
             // Switching to markdown view - get current markdown from editor
             if (editor.value) {
                 try {
-                    markdownContent.value = editor.value.storage.markdown.getMarkdown() || '';
+                    markdownContent.value = editor.value.getMarkdown() || '';
                     viewMode.value = 'markdown';
                 } catch (error) {
                     console.error('Error getting markdown content:', error);
@@ -322,7 +322,7 @@
             if (editor.value) {
                 try {
                     // Only update if content has changed
-                    const currentMarkdown = editor.value.storage.markdown.getMarkdown() || '';
+                    const currentMarkdown = editor.value.getMarkdown() || '';
                     if (markdownContent.value !== currentMarkdown) {
                         editor.value.commands.setContent(markdownContent.value || '', { 
                             contentType: 'markdown' 
@@ -353,7 +353,7 @@
                 const currentHtml = editor.value.getHTML();
                 if (currentHtml !== newContent) {
                     editor.value.commands.setContent(newContent, { contentType: 'html' });
-                    markdownContent.value = editor.value.storage.markdown.getMarkdown() || '';
+                    markdownContent.value = editor.value.getMarkdown() || '';
                 }
             } catch (error) {
                 console.error('Error syncing markdown view:', error);
