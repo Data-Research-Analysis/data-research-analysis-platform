@@ -35,6 +35,7 @@ export class PostgresDataSource {
             logging: true,
             entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRAPrivateBetaUsers, DRADashboard, DRAArticle, DRAArticleCategory, DRACategory, DRADashboardExportMetaData],
             subscribers: [],
+            // Only load TypeORM migration files (exclude utility scripts like migrate-articles-markdown.ts)
             migrations: ['./src/migrations/*.ts'],
         })
     }
