@@ -144,7 +144,7 @@ Time:        ~8-9 seconds
 
 **Added to `/backend/.env`**:
 ```bash
-ENCRYPTION_KEY=d305e1131bcd17038088950f86b28c84f07a20cdd8d75cda0ba5c080c368df86
+ENCRYPTION_KEY=your_64_character_hex_encryption_key_here
 ENCRYPTION_ENABLED=true
 ```
 
