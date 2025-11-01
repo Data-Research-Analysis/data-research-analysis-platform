@@ -17,6 +17,7 @@
     "migration:generate": "npm run typeorm migration:generate -- -d ./src/datasources/PostgresDSMigrations.ts ./src/migrations/$npm_config_name",
     "migration:create": "npm run typeorm migration:create -- -d ./src/datasources/PostgresDSMigrations.ts ./src/migrations/$npm_config_name",
     "migration:revert": "npm run typeorm migration:revert -- -d ./src/datasources/PostgresDSMigrations.ts",
+    "migrate:articles-markdown": "node --import tsx src/utilities/migrateArticlesMarkdown.ts",
     "seed:run": "tsx ./node_modules/@jorgebodega/typeorm-seeding/dist/cli.js seed"
   },
   "keywords": [],
@@ -70,6 +71,7 @@
     "reflect-metadata": "^0.2.2",
     "socket.io": "^4.8.1",
     "theta-mn-queue": "^3.0.9",
+    "turndown": "^7.2.2",
     "typeorm": "^0.3.27",
     "uuid": "^11.1.0",
     "winston": "^3.17.0"

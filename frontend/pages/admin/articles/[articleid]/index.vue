@@ -24,8 +24,9 @@ const editorContent = computed(() => {
 });
 
 const editorFormat = computed(() => {
-    // Use markdown format if we have markdown content, otherwise HTML
-    return state.contentMarkdown ? 'markdown' : 'html';
+    // Always use markdown format to enable the view toggle button
+    // The editor will auto-detect HTML vs markdown content
+    return 'markdown';
 });
 
 watch(

@@ -27,6 +27,13 @@
         content: null,
         counter: 0,
     });
+    
+    // Phase 1: View state management for HTML/Markdown toggle
+    const viewMode = ref('wysiwyg'); // 'wysiwyg' or 'markdown'
+    
+    // Phase 3: Markdown content for raw view
+    const markdownContent = ref('');
+    
     // Initialize the editor
     const editor = useEditor({
         content: '',
@@ -203,6 +210,19 @@
     });
     const buttons = computed(() => props.buttons);
     
+    // Computed property to detect if current content is markdown format
+    const editorFormat = computed(() => {
+        const content = props.content || '';
+        const isHTML = content.trim().startsWith('<') || content.includes('</');
+        return props.inputFormat === 'markdown' && !isHTML ? 'markdown' : 'html';
+    });
+    
+    // Computed property to determine if view toggle should be available
+    const canToggleView = computed(() => {
+        // Only allow toggle when working with markdown content
+        return props.inputFormat === 'markdown';
+    });
+    
     // Helper methods to get content in different formats
     function getMarkdown() {
         return editor.value?.getMarkdown() || '';
@@ -280,6 +300,103 @@
             editor.value.chain().focus().setTextAlign(align).run();
         }
     }
+    
+    // Phase 2 & 4: Toggle view mode function with enhanced sync
+    function toggleViewMode() {
+        if (viewMode.value === 'wysiwyg') {
+            // Switching to markdown view - get current markdown from editor
+            if (editor.value) {
+                try {
+                    markdownContent.value = editor.value.getMarkdown() || '';
+                    viewMode.value = 'markdown';
+                } catch (error) {
+                    console.error('Error getting markdown content:', error);
+                    // Fallback: try to get HTML and show warning
+                    markdownContent.value = '<!-- Error: Could not convert to markdown -->\n' + 
+                                          (editor.value.getHTML() || '');
+                    viewMode.value = 'markdown';
+                }
+            }
+        } else {
+            // Switching back to WYSIWYG - parse markdown back to editor
+            if (editor.value) {
+                try {
+                    // Only update if content has changed
+                    const currentMarkdown = editor.value.getMarkdown() || '';
+                    if (markdownContent.value !== currentMarkdown) {
+                        editor.value.commands.setContent(markdownContent.value || '', { 
+                            contentType: 'markdown' 
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error parsing markdown content:', error);
+                    // Try to set as HTML fallback
+                    try {
+                        editor.value.commands.setContent(markdownContent.value || '', {
+                            contentType: 'html'
+                        });
+                    } catch (htmlError) {
+                        console.error('Error setting content:', htmlError);
+                    }
+                }
+            }
+            viewMode.value = 'wysiwyg';
+        }
+    }
+    
+    // Phase 5: Watch for external content changes when in markdown view
+    watch(() => props.content, (newContent) => {
+        // If in markdown view and content changes externally, update markdown view
+        if (viewMode.value === 'markdown' && editor.value && newContent) {
+            try {
+                // Temporarily set content in editor (hidden) to get markdown
+                const currentHtml = editor.value.getHTML();
+                if (currentHtml !== newContent) {
+                    editor.value.commands.setContent(newContent, { contentType: 'html' });
+                    markdownContent.value = editor.value.getMarkdown() || '';
+                }
+            } catch (error) {
+                console.error('Error syncing markdown view:', error);
+            }
+        }
+    });
+    
+    // Phase 5: Watch markdown content changes and emit updates
+    watch(markdownContent, (newMarkdown) => {
+        // When user edits markdown directly, emit the changes
+        if (viewMode.value === 'markdown' && editor.value) {
+            try {
+                // Parse markdown to HTML for the content emit
+                const tempDiv = document.createElement('div');
+                editor.value.commands.setContent(newMarkdown || '', { contentType: 'markdown' });
+                const html = editor.value.getHTML();
+                emits('update:content', html);
+                emits('update:markdown', newMarkdown);
+            } catch (error) {
+                console.error('Error emitting markdown changes:', error);
+            }
+        }
+    });
+    
+    // Phase 6: Handle tab key in markdown textarea for better UX
+    function handleTabInMarkdown(event) {
+        const textarea = event.target;
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        
+        // Insert tab character (2 spaces for markdown)
+        const spaces = '  ';
+        markdownContent.value = 
+            markdownContent.value.substring(0, start) + 
+            spaces + 
+            markdownContent.value.substring(end);
+        
+        // Move cursor after inserted spaces
+        nextTick(() => {
+            textarea.selectionStart = textarea.selectionEnd = start + spaces.length;
+        });
+    }
+    
     async function handleImageUpload(file) {
         const token = getAuthToken();
         const formData = new FormData();
@@ -320,7 +437,7 @@
 </script>
 <template>
     <div v-if="editor">
-        <div class="flex flex-wrap justify-start">
+        <div class="flex flex-wrap justify-between items-start">
             <div class="bg-white border border-gray-300 mb-2">
                 <span v-for="button in props.buttons">
                     <button v-if="button === 'bold'" @click="editor.chain().focus().toggleBold().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :class="{ 'bg-gray-200': editor.isActive('bold') }">
@@ -394,7 +511,58 @@
                     </button>
                 </span>
             </div>
+            
+            <!-- Phase 2: View Mode Toggle Button -->
+            <div v-if="canToggleView" class="bg-white border border-gray-300 mb-2 ml-auto">
+                <button 
+                    @click="toggleViewMode" 
+                    class="p-2 m-1 hover:bg-gray-200 cursor-pointer flex items-center gap-2"
+                    :class="{ 'bg-gray-200': viewMode === 'markdown' }"
+                >
+                    <font-awesome :icon="viewMode === 'wysiwyg' ? 'fas fa-code' : 'fas fa-eye'" />
+                    <span class="text-sm">{{ viewMode === 'wysiwyg' ? 'In Markdown Mode' : 'In Editor Mode' }}</span>
+                </button>
+            </div>
         </div>
-        <editor-content :editor="editor" class="text-block-editor-content bg-white p-2 cursor-text border border-solid border-gray-300" />
+        
+        <!-- Phase 3 & 6: WYSIWYG Editor View with transition -->
+        <transition name="fade" mode="out-in">
+            <editor-content 
+                v-show="viewMode === 'wysiwyg'" 
+                :editor="editor" 
+                key="wysiwyg"
+                class="text-block-editor-content bg-white p-2 cursor-text border border-solid border-gray-300 transition-opacity duration-200" 
+            />
+        </transition>
+        
+        <!-- Phase 3 & 6: Raw Markdown View with enhanced styling -->
+        <transition name="fade" mode="out-in">
+            <div v-show="viewMode === 'markdown'" key="markdown" class="relative">
+                <textarea
+                    v-model="markdownContent"
+                    class="w-full bg-white p-4 border border-solid border-gray-300 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y transition-all duration-200 leading-relaxed"
+                    :style="{ minHeight: `${props.minHeight}px` }"
+                    placeholder="Markdown content will appear here..."
+                    spellcheck="false"
+                    @keydown.tab.prevent="handleTabInMarkdown"
+                ></textarea>
+                <!-- Phase 6: Helper text for markdown view -->
+                <div class="text-xs text-gray-500 mt-1 px-1">
+                    <span class="mr-3">💡 Tip: Edit markdown directly</span>
+                    <span class="mr-3">• Tab to indent</span>
+                    <span>• Click "Editor" to see formatted view</span>
+                </div>
+            </div>
+        </transition>
     </div>
 </template>
+
+<style scoped>
+/* Phase 6: Smooth transitions */
+.fade-enter-active, .fade-leave-active {
+    transition: opacity 0.2s ease;
+}
+.fade-enter-from, .fade-leave-to {
+    opacity: 0;
+}
+</style>

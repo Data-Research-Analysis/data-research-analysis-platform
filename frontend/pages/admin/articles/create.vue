@@ -139,7 +139,7 @@ onMounted(() => {
                     <text-editor 
                         :buttons="['bold', 'italic', 'heading', 'strike', 'underline', 'link', 'code', 'image', 'ordered-list', 'bullet-list', 'undo', 'redo', 'block-quote']" 
                         minHeight="200" 
-                        inputFormat="html"
+                        inputFormat="markdown"
                         @update:content="(content) => { updateContent(content); }" 
                         @update:markdown="(markdown) => { updateMarkdown(markdown); }"
                     />
