@@ -3,6 +3,7 @@ import { useArticlesStore } from '@/stores/articles';
 const router = useRouter();
 const articlesStore = useArticlesStore();
 const article = computed(() => {
+    console.log('articlesStore.getSelectedArticle()', articlesStore.getSelectedArticle())
     return articlesStore.getSelectedArticle();
 });
 const articles = computed(() => {

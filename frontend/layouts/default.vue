@@ -78,6 +78,8 @@ watch(
                 } else {
                     router.push(`/admin/articles`);
                     return;
+                }
+            }
             if (route?.params?.userid) {
                 const userId = parseInt(route.params.userid);
                 userManagementStore.clearSelectedUser();
@@ -89,8 +91,6 @@ watch(
                     return;
                 }
             }
-                }
-            }
         }
     } else {
         await articlesStore.retrieveCategories();
@@ -100,8 +100,10 @@ watch(
             articlesStore.clearSelectedArticle();
             const article = articlesStore.getArticles().find((article) => article.article.slug === articleSlug);
             if (article) {
+                console.log('public article found in route watcher', article);
                 articlesStore.setSelectedArticle(article);
             } else {
+                router.push(`/articles`);
                 return;
             }
         }
@@ -176,8 +178,10 @@ onMounted(async () => {
             articlesStore.clearSelectedArticle();
             const article = articlesStore.getArticles().find((article) => article.article.slug === articleSlug);
             if (article) {
+                console.log('public article found in onMounted', article);
                 articlesStore.setSelectedArticle(article);
             } else {
+                router.push(`/articles`);
                 return;
             }
         }

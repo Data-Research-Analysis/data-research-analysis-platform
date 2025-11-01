@@ -20,8 +20,13 @@
     import History from '@tiptap/extension-history'
     import TextAlign from '@tiptap/extension-text-align'
     import Blockquote from '@tiptap/extension-blockquote'
+    import { Markdown } from '@tiptap/markdown'
 
-    
+    const emits = defineEmits(['update:content', 'update:markdown']);
+    const state = reactive({
+        content: null,
+        counter: 0,
+    });
     // Initialize the editor
     const editor = useEditor({
         content: '',
@@ -32,7 +37,7 @@
             Strike, Underline,
             Link.configure({
                 openOnClick: false,
-                defaultProtocol: 'https', 
+                protocols: ['https', 'http'],
                 HTMLAttributes: {
                     class: 'text-blue-500 hover:text-blue-700 underline cursor-pointer',
                 },
@@ -69,9 +74,15 @@
                         }
                     })
                 },
-                onPaste: (currentEditor, files) => {
+                onPaste: (currentEditor, files, htmlContent) => {
+                    // Only handle if there are actual image files
+                    if (files.length === 0) {
+                        // No files, let other extensions handle the paste (like Markdown)
+                        return false;
+                    }
+                    
                     files.forEach(async file => {
-                    if (file && file.type.startsWith('image/')) {
+                        if (file && file.type.startsWith('image/')) {
                             try {
                                 const imageUrl = await handleImageUpload(file);
                                 currentEditor.chain().focus().setImage({src: imageUrl}).run();
@@ -108,21 +119,68 @@
             TextAlign.configure({
                 types: ['heading', 'paragraph'],
             }),
+            Markdown.configure({
+                indentation: {
+                    style: 'space',
+                    size: 2,
+                },
+                markedOptions: {
+                    gfm: true,              // GitHub Flavored Markdown
+                    breaks: true,           // Preserve line breaks as <br>
+                },
+            }),
         ],
         editorProps: {
             attributes: {
                 class: 'prose prose-sm sm:prose-base lg:prose-lg xl:prose-2xl m-2 focus:outline-none',
             },
+            handlePaste: (view, event) => {
+                // Get the plain text from clipboard
+                const text = event.clipboardData?.getData('text/plain');
+                
+                // If there's text that looks like markdown, insert it as markdown
+                if (text && (
+                    text.match(/^#{1,6}\s/) ||           // Headings
+                    text.includes('**') ||               // Bold
+                    text.includes('__') ||               // Bold alt
+                    text.includes('*') && !text.match(/^\*\s/) ||  // Italic (not just list)
+                    text.match(/^[-*+]\s/m) ||          // Unordered lists
+                    text.match(/^\d+\.\s/m) ||          // Ordered lists
+                    text.includes('[') && text.includes('](') ||  // Links
+                    text.includes('```') ||             // Code blocks
+                    text.includes('`') ||               // Inline code
+                    text.match(/^>\s/m)                 // Blockquotes
+                )) {
+                    // Prevent default paste behavior
+                    event.preventDefault();
+                    
+                    // Insert content as markdown using the editor's markdown manager
+                    const { state } = view;
+                    const { tr } = state;
+                    
+                    try {
+                        // Use insertContent with contentType='markdown'
+                        editor.value?.chain()
+                            .focus()
+                            .insertContent(text, { contentType: 'markdown' })
+                            .run();
+                        
+                        return true; // Handled
+                    } catch (error) {
+                        console.error('Error pasting markdown:', error);
+                        return false; // Fall back to default
+                    }
+                }
+                
+                // For regular text, use default paste behavior
+                return false;
+            },
         },
         onUpdate: ({ editor }) => {
             // Update the content state whenever the editor content changes
             emits('update:content', editor.getHTML());
+            emits('update:markdown', editor.getMarkdown());
         },
-    });
-    const emits = defineEmits(['update:content']);
-    const state = reactive({
-        content: null,
-        counter: 0,
     });
     const props = defineProps({
         buttons: {
@@ -136,12 +194,41 @@
         minHeight: {
             type: String,
             default: '200'
+        },
+        inputFormat: {
+            type: String,
+            default: 'html',  // 'html' or 'markdown'
+            validator: (value) => ['html', 'markdown'].includes(value)
         }
     });
     const buttons = computed(() => props.buttons);
+    
+    // Helper methods to get content in different formats
+    function getMarkdown() {
+        return editor.value?.getMarkdown() || '';
+    }
+    
+    function getHTML() {
+        return editor.value?.getHTML() || '';
+    }
+    
     watch(() => props.content, (newContent) => {
-        if (editor.value && state.counter === 0) {
-            editor.value.commands.setContent(newContent);
+        if (editor.value && state.counter === 0 && newContent) {
+            // Detect if content is HTML or markdown
+            const isHTML = newContent.trim().startsWith('<') || newContent.includes('</');
+            
+            // Handle content based on actual content type and input format
+            if (props.inputFormat === 'markdown' && !isHTML) {
+                // Loading markdown content - parse it as markdown
+                editor.value.commands.setContent(newContent, { contentType: 'markdown' });
+            } else if (props.inputFormat === 'markdown' && isHTML) {
+                // Loading HTML but expecting markdown mode - convert HTML to editor format normally
+                // This handles old articles without markdown
+                editor.value.commands.setContent(newContent, { contentType: 'html' });
+            } else {
+                // HTML content or default mode
+                editor.value.commands.setContent(newContent, { contentType: 'html' });
+            }
             state.counter++;
         }
     }, { immediate: true });
@@ -219,11 +306,10 @@
     }
     onMounted(() => {
         //set the minimum height of the editor
-        const editorPropsAttributesClass = editor.value.extensionManager.editor.options.editorProps.attributes.class;
-        editor.value.extensionManager.editor.options.editorProps.attributes.class = `min-h-${props.minHeight} ${editorPropsAttributesClass}`;
-        // editor.value.commands.setContent(props.content);
-        // state.content = props.content
-
+        if (editor.value) {
+            const editorPropsAttributesClass = editor.value.options.editorProps.attributes.class;
+            editor.value.options.editorProps.attributes.class = `min-h-${props.minHeight} ${editorPropsAttributesClass}`;
+        }
     });
     onBeforeUnmount(() => {
         // Clean up the editor instance when the component is unmounted

@@ -18,10 +18,10 @@ router.get('/list', async (req: Request, res: Response, next: any) => {
 
 router.post('/add', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([body('title').notEmpty().trim(), body('content').notEmpty(), body('publish_status').notEmpty().trim(), body('categories').notEmpty().isArray()]),
+}, validateJWT, validate([body('title').notEmpty().trim(), body('content').notEmpty(), body('content_markdown').optional(), body('publish_status').notEmpty().trim(), body('categories').notEmpty().isArray()]),
 async (req: Request, res: Response) => {
-    const { title, content, publish_status, categories } = matchedData(req);
-    const result = await ArticleProcessor.getInstance().addArticle(title, content, publish_status, categories, req.body.tokenDetails);
+    const { title, content, content_markdown, publish_status, categories } = matchedData(req);
+    const result = await ArticleProcessor.getInstance().addArticle(title, content, content_markdown, publish_status, categories, req.body.tokenDetails);
     if (result) {
         res.status(200).send({message: 'The article has been added.'});
     } else {
@@ -57,10 +57,10 @@ router.delete('/delete/:article_id', async (req: Request, res: Response, next: a
 
 router.post('/edit', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([body('article_id').notEmpty().trim().toInt(), body('title').notEmpty().trim(), body('content').notEmpty(), body('categories').notEmpty().isArray()]),
+}, validateJWT, validate([body('article_id').notEmpty().trim().toInt(), body('title').notEmpty().trim(), body('content').notEmpty(), body('content_markdown').optional(), body('categories').notEmpty().isArray()]),
 async (req: Request, res: Response) => {
-    const { article_id, title, content, categories } = matchedData(req);
-    const result = await ArticleProcessor.getInstance().editArticle(article_id, title, content, categories, req.body.tokenDetails);
+    const { article_id, title, content, content_markdown, categories } = matchedData(req);
+    const result = await ArticleProcessor.getInstance().editArticle(article_id, title, content, content_markdown, categories, req.body.tokenDetails);
     if (result) {
         res.status(200).send({message: 'The article has been edited.'});
     } else {

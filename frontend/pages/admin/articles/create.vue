@@ -7,7 +7,8 @@ const articlesStore = useArticlesStore();
 const state = reactive({
     title: '',
     content: '',
-     keys: [],
+    contentMarkdown: '',  // NEW: Markdown content
+    keys: [],
     menuFilteredData: [],
 })
 const filteredCategoriesKeys = computed(() => {
@@ -15,6 +16,9 @@ const filteredCategoriesKeys = computed(() => {
 });
 function updateContent(content) {
     state.content = content;
+}
+function updateMarkdown(markdown) {  // NEW
+    state.contentMarkdown = markdown;
 }
 function menuFilteredData(menuData) {
   state.menuFilteredData = menuData;
@@ -35,6 +39,7 @@ async function postData(publishStatus) {
         body: JSON.stringify({
             title: title,
             content: content,
+            content_markdown: state.contentMarkdown,  // NEW: Send markdown
             categories: categories,
             publish_status: publishStatus,
         })
@@ -131,7 +136,13 @@ onMounted(() => {
                     />
                 </div>
                 <div>
-                    <text-editor :buttons="['bold', 'italic', 'heading', 'strike', 'underline', 'link', 'code', 'image', 'ordered-list', 'bullet-list', 'undo', 'redo', 'block-quote']" minHeight="200" @update:content="(content) => { updateContent(content); }" />
+                    <text-editor 
+                        :buttons="['bold', 'italic', 'heading', 'strike', 'underline', 'link', 'code', 'image', 'ordered-list', 'bullet-list', 'undo', 'redo', 'block-quote']" 
+                        minHeight="200" 
+                        inputFormat="html"
+                        @update:content="(content) => { updateContent(content); }" 
+                        @update:markdown="(markdown) => { updateMarkdown(markdown); }"
+                    />
                 </div>
             </div>
         </div>

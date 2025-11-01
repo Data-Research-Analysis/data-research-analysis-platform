@@ -10,6 +10,8 @@ export class DRAArticle {
   title!: string;
   @Column({ type: 'text' })
   content!: string;
+  @Column({ type: 'text', nullable: true })
+  content_markdown?: string;
   @Column({ type: 'enum', enum: [EPublishStatus.PUBLISHED, EPublishStatus.DRAFT] })
   publish_status!: EPublishStatus;
   @Column({ type: 'varchar', length: 255 })
