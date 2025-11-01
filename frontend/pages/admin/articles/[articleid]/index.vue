@@ -7,6 +7,7 @@ const articlesStore = useArticlesStore();
 const state = reactive({
     title: '',
     content: '',
+    contentMarkdown: '',  // NEW: Markdown content
     keys: [],
     menuFilteredData: [],
     selectedMenuItems: [],
@@ -15,12 +16,25 @@ const article = computed(() => articlesStore.getSelectedArticle());
 const categoriesKeys = computed(() => {
   return state.keys.filter((item) => item.showValues);
 });
+
+// Determine content and format for editor
+const editorContent = computed(() => {
+    // Prefer markdown if available, otherwise use HTML
+    return state.contentMarkdown || state.content || '';
+});
+
+const editorFormat = computed(() => {
+    // Use markdown format if we have markdown content, otherwise HTML
+    return state.contentMarkdown ? 'markdown' : 'html';
+});
+
 watch(
     articlesStore,
     (value, oldValue) => {
         if (article.value?.article) {
             state.title = article.value.article.title;
-            state.content = article.value.article.content;
+            state.contentMarkdown = article.value.article.content_markdown || '';  // NEW: Load markdown
+            state.content = article.value.article.content;  // HTML fallback
             state.selectedMenuItems = state.keys.filter((item) => {
                 return article.value.categories.find((category) => category.id === item.id) !== undefined;
             });
@@ -29,6 +43,9 @@ watch(
 );
 function updateContent(content) {
     state.content = content;
+}
+function updateMarkdown(markdown) {  // NEW
+    state.contentMarkdown = markdown;
 }
 function menuFilteredData(menuData) {
   state.menuFilteredData = menuData;
@@ -50,6 +67,7 @@ async function updateArticle() {
             article_id: article.value.article.id,
             title: title,
             content: content,
+            content_markdown: state.contentMarkdown,  // NEW: Send markdown
             categories: categories,
         })
     });
@@ -81,7 +99,8 @@ onMounted(() => {
         isChild: false,
     }));
     state.title = article?.value?.article?.title || '';
-    state.content = article?.value?.article?.content || '';
+    state.contentMarkdown = article?.value?.article?.content_markdown || '';  // NEW: Load markdown
+    state.content = article?.value?.article?.content || '';  // HTML fallback
     state.selectedMenuItems = state.keys.filter((item) => {
         return article?.value?.categories.find((category) => category.id === item.id) !== undefined;
     });
@@ -126,7 +145,14 @@ onMounted(() => {
                     />
                 </div>
                 <div>
-                    <text-editor :buttons="['bold', 'italic', 'heading', 'strike', 'underline', 'link', 'code', 'image', 'ordered-list', 'bullet-list', 'undo', 'redo', 'block-quote']" minHeight="200" @update:content="(content) => { updateContent(content); }" :content="state.content" />
+                    <text-editor 
+                        :buttons="['bold', 'italic', 'heading', 'strike', 'underline', 'link', 'code', 'image', 'ordered-list', 'bullet-list', 'undo', 'redo', 'block-quote']" 
+                        minHeight="200" 
+                        :inputFormat="editorFormat"
+                        @update:content="(content) => { updateContent(content); }" 
+                        @update:markdown="(markdown) => { updateMarkdown(markdown); }"
+                        :content="editorContent"
+                    />
                 </div>
             </div>
         </div>

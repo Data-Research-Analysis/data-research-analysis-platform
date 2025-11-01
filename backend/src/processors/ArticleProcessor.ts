@@ -50,7 +50,7 @@ export class ArticleProcessor {
         });
     }
 
-    async addArticle(title: string, content: string, publishStatus: EPublishStatus, categories: any[], tokenDetails: ITokenDetails): Promise<boolean> {
+    async addArticle(title: string, content: string, contentMarkdown: string | undefined, publishStatus: EPublishStatus, categories: any[], tokenDetails: ITokenDetails): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -69,6 +69,7 @@ export class ArticleProcessor {
                 const article = new DRAArticle();
                 article.title = title;
                 article.content = content;
+                article.content_markdown = contentMarkdown;
                 article.publish_status = publishStatus;
                 article.slug = _.kebabCase(title).substring(0,100); // Generate a slug from the title
                 article.users_platform = user;
@@ -142,7 +143,7 @@ export class ArticleProcessor {
         });
     }
 
-    async editArticle(articleId: number, title: string, content: string, categories: any[], tokenDetails: ITokenDetails): Promise<boolean> {
+    async editArticle(articleId: number, title: string, content: string, contentMarkdown: string | undefined, categories: any[], tokenDetails: ITokenDetails): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -176,7 +177,7 @@ export class ArticleProcessor {
                     articleCategories.push(articleCategory);
                 }
                 await manager.save(articleCategories);
-                await manager.update(DRAArticle, {id: articleId}, {title: title, content: content});
+                await manager.update(DRAArticle, {id: articleId}, {title: title, content: content, content_markdown: contentMarkdown});
                 return resolve(true);
             } catch (error) {
                 console.log('error', error);
