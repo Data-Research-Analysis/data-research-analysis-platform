@@ -1,5 +1,7 @@
 <script setup>
 import {useProjectsStore} from '@/stores/projects';
+import { useProjects } from '@/composables/useProjects';
+
 const projectsStore = useProjectsStore();
 const { $swal } = useNuxtApp();
 
