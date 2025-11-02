@@ -141,21 +141,6 @@ router.post('/add-excel-data-source', async (req: Request, res: Response, next: 
 ]),
 async (req: Request, res: Response) => {
     const { data_source_name, file_id, data, project_id, data_source_id, sheet_info } = matchedData(req);
-    
-    // Debug incoming request data
-    console.log('=== EXCEL ROUTE REQUEST DEBUG ===');
-    console.log('Request body keys:', Object.keys(req.body));
-    console.log('Parsed data structure:', {
-        data_source_name,
-        file_id,
-        project_id,
-        data_source_id,
-        sheet_info,
-        dataKeys: data ? Object.keys(data) : null,
-        columnsCount: data?.columns?.length || 0,
-        rowsCount: data?.rows?.length || 0
-    });
-    
     if (data?.columns && data.columns.length > 0) {
         console.log('Sample columns from request:', data.columns.slice(0, 2));
     }

@@ -23,6 +23,36 @@ export class AuthProcessor {
         return AuthProcessor.instance;
     }
 
+    public async getUserById(userId: number): Promise<IUsersPlatform | null> {
+        return new Promise<IUsersPlatform | null>(async (resolve, reject) => {
+            try {
+                let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+                const concreteDriver = await driver.getConcreteDriver();
+                if (!concreteDriver) {
+                    return resolve(null);
+                }
+                const manager = concreteDriver.manager;
+                const user: DRAUsersPlatform|null = await manager.findOne(DRAUsersPlatform, {where: {id: userId}});
+                if (user) {
+                    const userPlatform:IUsersPlatform = {
+                        id: user.id, 
+                        email: user.email, 
+                        first_name: user.first_name, 
+                        last_name: user.last_name, 
+                        user_type: user.user_type,
+                        token: '' // Token not needed for /auth/me endpoint
+                    };
+                    return resolve(userPlatform);
+                } else {
+                    return resolve(null);
+                }
+            } catch (error) {
+                console.error('Error fetching user by ID:', error);
+                return resolve(null);
+            }
+        });
+    }
+
     public async login(email: string, password: string): Promise<IUsersPlatform> {
         return new Promise<IUsersPlatform>(async (resolve, reject) => {
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);

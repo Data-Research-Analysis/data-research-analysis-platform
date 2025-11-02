@@ -2,39 +2,43 @@
 import { useLoggedInUserStore } from "@/stores/logged_in_user";
 const route = useRoute();
 const loggedInUserStore = useLoggedInUserStore();
+
+// Get auth token as a reactive reference
+const authToken = useCookie('dra_auth_token');
+
 const state = reactive({
     drawerOpen: false,
-    authenticated: false,
-})
+});
 
-watch(
-  route,
-  (value, oldValue) => {
-    state.authenticated = isAuthenticated();
-  },
-);
+// Computed property for authentication state based on cookie
+const authenticated = computed(() => {
+    // Check cookie value directly for reactivity
+    return !!authToken.value;
+});
+
 const loggedInUser = computed(() => {
     return loggedInUserStore.getLoggedInUser();
 });
+
 const isUserAdmin = computed(() => {
     return loggedInUser.value?.user_type === 'admin';
 });
+
 const isPublicDashboard = computed(() => {
     return route.name === 'public-dashboard-dashboardkey';
 });
+
 const userNameFirstLetter = computed(() => {
     return loggedInUser.value?.first_name ? loggedInUser.value.first_name.charAt(0).toUpperCase() : '';
 });
+
 function openDrawer() {
- state.drawerOpen = true;
-}
-function closeDrawer() {
- state.drawerOpen = false;
+    state.drawerOpen = true;
 }
 
-onMounted(() => {
-    state.authenticated = isAuthenticated();
-})
+function closeDrawer() {
+    state.drawerOpen = false;
+}
 </script>
 <template>
     <div class="relative bg-primary-blue-100 text-white h-10 lg:h-15 shadow-lg z-10" id="top">
@@ -43,7 +47,7 @@ onMounted(() => {
             <font-awesome icon="fas fa-bars" class="text-2xl cursor-pointer hover:text-gray-300" @click="openDrawer" />
         </div>
         <div v-if="!isPublicDashboard" class="absolute lg:top-2 lg:right-10 lg:h-10 hidden lg:block">
-            <div v-if="!state.authenticated" class="flex flex-row justify-between items-center h-full">
+            <div v-if="!authenticated" class="flex flex-row justify-between items-center h-full">
                 <div class="flex flex-row items-center -mt-2">
                     <div class="text-xl font-bold hover:text-gray-300 cursor-pointer">
                         <NuxtLink to="/">Home</NuxtLink>

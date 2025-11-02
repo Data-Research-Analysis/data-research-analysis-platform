@@ -32,7 +32,16 @@ export class CategoryProcessor {
             if (!user) {
                 return resolve([]);
             }
-            const categories = await manager.find(DRACategory, {where: {users_platform: user}});
+            
+            // If user is admin, return all categories
+            // Otherwise, return only categories owned by the user
+            let categories: DRACategory[];
+            if (user.user_type === 'admin') {
+                categories = await manager.find(DRACategory);
+            } else {
+                categories = await manager.find(DRACategory, {where: {users_platform: user}});
+            }
+            
             return resolve(categories);
         });
     }

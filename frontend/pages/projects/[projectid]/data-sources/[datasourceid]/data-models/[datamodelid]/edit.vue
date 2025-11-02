@@ -37,10 +37,18 @@ onMounted(async () => {
 });
 </script>
 <template>
-    <div class="flex flex-col">
+    <div v-if="project" class="flex flex-col">
         <tabs :project-id="project.id"/>
         <div class="flex flex-col min-h-100 mb-10">
             <data-model-builder v-if="(state.data_source_tables && state.data_source_tables.length) && (state.data_model && state.data_model.query)" :data-source-tables="state.data_source_tables" :data-model="state.data_model" :is-edit-data-model="true" />
+        </div>
+    </div>
+    
+    <!-- Loading state when project not loaded -->
+    <div v-else class="flex items-center justify-center min-h-screen">
+        <div class="text-center">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-blue-500 mb-4"></div>
+            <p class="text-gray-600">Loading data model...</p>
         </div>
     </div>
 </template>

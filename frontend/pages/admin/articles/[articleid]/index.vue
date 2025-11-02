@@ -4,6 +4,9 @@ const router = useRouter();
 const { $swal } = useNuxtApp();
 const articlesStore = useArticlesStore();
 
+// Fetch categories using SSR-compatible composable
+const { categories, pending: categoriesPending, error: categoriesError } = useCategories();
+
 // SEO Meta Tags for Article Edit Page
 useHead({
     title: 'Edit Article - Admin | Data Research Analysis',
@@ -16,13 +19,26 @@ const state = reactive({
     title: '',
     content: '',
     contentMarkdown: '',  // NEW: Markdown content
-    keys: [],
     menuFilteredData: [],
     selectedMenuItems: [],
 })
+
 const article = computed(() => articlesStore.getSelectedArticle());
+
+// Compute categories keys from fetched data
 const categoriesKeys = computed(() => {
-  return state.keys.filter((item) => item.showValues);
+    if (!categories.value) return [];
+    return categories.value.map((category) => ({
+        id: category.id,
+        key: category.title.toLowerCase().replace(/\s+/g, '_'),
+        label: category.title,
+        showValues: true,
+        isChild: false,
+    }));
+});
+
+const filteredCategoriesKeys = computed(() => {
+    return categoriesKeys.value.filter((item) => item.showValues);
 });
 
 // Determine content and format for editor
@@ -37,19 +53,6 @@ const editorFormat = computed(() => {
     return 'markdown';
 });
 
-watch(
-    articlesStore,
-    (value, oldValue) => {
-        if (article.value?.article) {
-            state.title = article.value.article.title;
-            state.contentMarkdown = article.value.article.content_markdown || '';  // NEW: Load markdown
-            state.content = article.value.article.content;  // HTML fallback
-            state.selectedMenuItems = state.keys.filter((item) => {
-                return article.value.categories.find((category) => category.id === item.id) !== undefined;
-            });
-        }
-    },
-);
 function updateContent(content) {
     state.content = content;
 }
@@ -98,22 +101,18 @@ async function updateArticle() {
     articlesStore.clearArticles();
     await articlesStore.retrieveArticles();
 }
-onMounted(() => {
-    const categories = articlesStore.getCategories();
-    state.keys = categories.map((category) => ({
-        id: category.id,
-        key: category.title.toLowerCase().replace(/\s+/g, '_'),
-        label: category.title,
-        showValues: true,
-        isChild: false,
-    }));
-    state.title = article?.value?.article?.title || '';
-    state.contentMarkdown = article?.value?.article?.content_markdown || '';  // NEW: Load markdown
-    state.content = article?.value?.article?.content || '';  // HTML fallback
-    state.selectedMenuItems = state.keys.filter((item) => {
-        return article?.value?.categories.find((category) => category.id === item.id) !== undefined;
-    });
-})
+
+// Initialize form data when article and categories are loaded
+watchEffect(() => {
+    if (article.value && categoriesKeys.value.length > 0) {
+        state.title = article.value.article?.title || '';
+        state.contentMarkdown = article.value.article?.content_markdown || '';  // NEW: Load markdown
+        state.content = article.value.article?.content || '';  // HTML fallback
+        state.selectedMenuItems = categoriesKeys.value.filter((item) => {
+            return article.value.categories?.find((category) => category.id === item.id) !== undefined;
+        });
+    }
+});
 </script>
 <template>
     <div class="flex flex-row">
@@ -142,9 +141,15 @@ onMounted(() => {
                     />
                 </div>
                 <div class="mb-3">
+                    <div v-if="categoriesPending" class="text-gray-500 p-2">
+                        Loading categories...
+                    </div>
+                    <div v-else-if="categoriesError" class="text-red-500 p-2">
+                        Error loading categories. Please refresh the page.
+                    </div>
                     <multi-select
-                        v-if="categoriesKeys.length && state.selectedMenuItems.length"
-                        :options="categoriesKeys"
+                        v-else-if="filteredCategoriesKeys.length && state.selectedMenuItems.length"
+                        :options="filteredCategoriesKeys"
                         :default-options="state.selectedMenuItems"
                         :searchable="true"
                         placeholder="Select Categories"
@@ -152,6 +157,9 @@ onMounted(() => {
                             (filteredData) => menuFilteredData(filteredData)
                         "
                     />
+                    <div v-else-if="!filteredCategoriesKeys.length" class="text-gray-500 p-2">
+                        No categories available.
+                    </div>
                 </div>
                 <div>
                     <text-editor 
