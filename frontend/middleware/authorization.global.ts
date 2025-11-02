@@ -5,7 +5,6 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
   
   const token = getAuthToken();
   const loggedInUserStore = useLoggedInUserStore();
-  console.log('baseUrl()', baseUrl());
   if (token) {
     if (to.path === "/logout") {
       //logout the user
@@ -35,7 +34,6 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
 
             },
           };
-          console.log('baseUrl()', baseUrl());
           const response = await fetch(
             `${baseUrl()}/auth/validate-token`,
             requestOptions,
