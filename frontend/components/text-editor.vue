@@ -39,9 +39,23 @@
         content: '',
         extensions: [ 
             Document,
+            Text,
+            Paragraph,
+            // Load Markdown early so other extensions can override its behavior
+            Markdown.configure({
+                html: true,                 // Allow HTML in markdown (for images)
+                tightLists: true,
+                tightListClass: 'tight',
+                bulletListMarker: '-',
+                linkify: false,
+                transformPastedText: false,
+                transformCopiedText: false,
+            }),
             Bold,
-            Italic, Heading,
-            Strike, Underline,
+            Italic, 
+            Heading,
+            Strike, 
+            Underline,
             Link.configure({
                 openOnClick: false,
                 protocols: ['https', 'http'],
@@ -58,48 +72,6 @@
                 placeholder: 'Type your text here...',
                 emptyEditorClass: "before:content-[attr(data-placeholder)] before:float-left before:text-[#adb5bd] before:h-0 before:pointer-events-none",
             }),
-            Image.configure({
-                inline: true,
-                allowBase64: false,
-            }),
-            FileHandler.configure({
-                allowedMimeTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/webp'],
-                onDrop: (currentEditor, files, pos) =>  {
-                    files.forEach(async file => {
-                        if (file && file.type.startsWith('image/')) {
-                            try {
-                                const imageUrl = await handleImageUpload(file);
-                                currentEditor.chain().focus().insertContentAt(pos, {
-                                    type: 'image',
-                                    attrs: {
-                                        src: imageUrl,
-                                    }
-                                }).run();
-                            } catch (error) {
-                                console.error('Error uploading image:', error);
-                            }
-                        }
-                    })
-                },
-                onPaste: (currentEditor, files, htmlContent) => {
-                    // Only handle if there are actual image files
-                    if (files.length === 0) {
-                        // No files, let other extensions handle the paste (like Markdown)
-                        return false;
-                    }
-                    
-                    files.forEach(async file => {
-                        if (file && file.type.startsWith('image/')) {
-                            try {
-                                const imageUrl = await handleImageUpload(file);
-                                currentEditor.chain().focus().setImage({src: imageUrl}).run();
-                            } catch (error) {
-                                console.error('Error uploading image:', error);
-                            }
-                        }
-                    })
-                },
-            }),
             ListItem,
             OrderedList.configure({
                 HTMLAttributes: {
@@ -111,13 +83,6 @@
                     class: 'list-disc pl-5',
                 },
             }),
-            Dropcursor.configure({
-                color: '#3c8dbc',
-                width: 3,
-            }),
-            Text,
-            Paragraph,
-            History,
             Blockquote.configure({
                 HTMLAttributes: {
                     class: 'border-l-2 border-gray-300 pl-4 italic text-gray-600',
@@ -126,14 +91,65 @@
             TextAlign.configure({
                 types: ['heading', 'paragraph'],
             }),
-            Markdown.configure({
-                indentation: {
-                    style: 'space',
-                    size: 2,
+            History,
+            Dropcursor.configure({
+                color: '#3c8dbc',
+                width: 3,
+            }),
+            // Image extension - load after Markdown to override image handling
+            Image.configure({
+                inline: true,
+                allowBase64: false,
+                HTMLAttributes: {
+                    class: 'max-w-full h-auto',
                 },
-                markedOptions: {
-                    gfm: true,              // GitHub Flavored Markdown
-                    breaks: true,           // Preserve line breaks as <br>
+            }),
+            FileHandler.configure({
+                allowedMimeTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/webp'],
+                onDrop: (currentEditor, files, pos) =>  {
+                    console.log('FileHandler onDrop triggered with files:', files);
+                    files.forEach(file => {
+                        console.log('Processing file:', file.name, file.type);
+                        if (file && file.type.startsWith('image/')) {
+                            console.log('Uploading image...');
+                            handleImageUpload(file).then(imageUrl => {
+                                console.log('Image uploaded successfully, URL:', imageUrl);
+                                console.log('Inserting at position:', pos);
+                                
+                                // Try setting image using setImage command instead of insertContentAt
+                                currentEditor
+                                    .chain()
+                                    .focus()
+                                    .setImage({ src: imageUrl })
+                                    .run();
+                                    
+                                console.log('Image insertion command executed');
+                            }).catch(error => {
+                                console.error('Error uploading image:', error);
+                                alert('Failed to upload image. Please try again.');
+                            });
+                        }
+                    });
+                },
+                onPaste: (currentEditor, files, htmlContent) => {
+                    // Only handle if there are actual image files
+                    if (files.length === 0) {
+                        // No files, let other extensions handle the paste (like Markdown)
+                        return false;
+                    }
+                    
+                    files.forEach(file => {
+                        if (file && file.type.startsWith('image/')) {
+                            handleImageUpload(file).then(imageUrl => {
+                                currentEditor.chain().focus().setImage({src: imageUrl}).run();
+                            }).catch(error => {
+                                console.error('Error uploading image:', error);
+                                alert('Failed to upload image. Please try again.');
+                            });
+                        }
+                    });
+                    
+                    return true; // Indicate that we handled the paste
                 },
             }),
         ],
@@ -142,6 +158,13 @@
                 class: 'prose prose-sm sm:prose-base lg:prose-lg xl:prose-2xl m-2 focus:outline-none',
             },
             handlePaste: (view, event) => {
+                // Check if there are files in the clipboard (images)
+                const files = Array.from(event.clipboardData?.files || []);
+                if (files.length > 0 && files.some(file => file.type.startsWith('image/'))) {
+                    // Let FileHandler extension handle image paste
+                    return false;
+                }
+                
                 // Get the plain text from clipboard
                 const text = event.clipboardData?.getData('text/plain');
                 
@@ -408,7 +431,8 @@
         const formData = new FormData();
         formData.append('image', file);
         try {
-            let url = `${baseUrl()}/admin/image/upload`;
+            const backendUrl = baseUrl();
+            let url = `${backendUrl}/admin/image/upload`;
             const response = await fetch(url, {
                 method: 'POST',
                 headers: {
@@ -421,7 +445,26 @@
                 throw new Error('Image upload failed');
             }
             const data = await response.json();
-            return data.url;
+            console.log('Backend response data:', data);
+            
+            // Extract the image URL from the response
+            // Backend returns {urls: [{path: "/backend/public/uploads/filename.png", ...}]}
+            let imagePath;
+            if (data.url) {
+                imagePath = data.url;
+            } else if (data.urls && data.urls.length > 0 && data.urls[0].path) {
+                // Remove '/backend/public' prefix to get just '/uploads/filename.png'
+                imagePath = data.urls[0].path.replace('/backend/public', '');
+            } else if (data.path) {
+                imagePath = data.path.replace('/backend/public', '');
+            }
+            
+            // Construct the full URL with backend base URL
+            const imageUrl = `${backendUrl}${imagePath}`;
+            
+            console.log('Extracted image path:', imagePath);
+            console.log('Full image URL:', imageUrl);
+            return imageUrl;
         } catch (error) {
             console.error('Error uploading image:', error);
             throw error;

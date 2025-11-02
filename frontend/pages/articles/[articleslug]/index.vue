@@ -1,9 +1,6 @@
 <script setup>
-import { useArticlesStore } from '@/stores/articles';
-
 const route = useRoute();
 const router = useRouter();
-const articlesStore = useArticlesStore();
 const slug = String(route.params.articleslug);
 
 // Fetch articles with SSR support
@@ -13,13 +10,6 @@ const { articles: allArticles, pending, error } = await usePublicArticles();
 const article = computed(() => {
     if (!allArticles.value) return null;
     return allArticles.value.find(a => a.article.slug === slug);
-});
-
-// Set selected article in store for potential client-side navigation
-watchEffect(() => {
-    if (article.value && import.meta.client) {
-        articlesStore.setSelectedArticle(article.value);
-    }
 });
 
 // Get related articles (other published articles, shuffled)

@@ -12,27 +12,12 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
   const dataSourceStore = useDataSourceStore();
   const dataModelsStore = useDataModelsStore();
   const dashboardsStore = useDashboardsStore();
+  
   if (!token) {
     if (to.name === 'public-dashboard-dashboardkey') {
-        const dashboardKey = to.params.dashboardkey as string;
-        // Handle fetch errors gracefully (e.g., during SSR when backend is not accessible)
-        try {
-          const dashboard = await dashboardsStore.retrievePublicDashboard(dashboardKey);
-          dashboardsStore.setSelectedDashboard(dashboard.dashboard);
-          if (dashboard) {
-              return;
-          } else {
-            return navigateTo('/login');
-          }
-        } catch (error) {
-          console.error('Failed to retrieve public dashboard:', error);
-          // During SSR, allow the route to continue (will retry on client)
-          if (isServer) {
-            return;
-          } else {
-            return navigateTo('/login');
-          }
-        }
+        // Data fetching is handled by the page component using usePublicDashboard composable
+        // No need to fetch here - just allow navigation
+        return;
     }
   }
 
@@ -51,15 +36,10 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
       }
     }
   } else if (to.name === 'public-dashboard-dashboardkey') {
-    const dashboardKey = to.params.dashboardkey as string;
-    const dashboards = dashboardsStore.getDashboards();
-    const dashboard = dashboards.find((dashboard) => dashboard.export_meta_data.filter((meta) => decodeURIComponent(meta.key) === decodeURIComponent(dashboardKey)).length > 0);
-    if (dashboard) {
-        dashboardsStore.clearSelectedDashboard();
-        dashboardsStore.setSelectedDashboard(dashboard);
-    } else {
-      return navigateTo('/projects');
-    }
+    // Public dashboards are accessible to anyone, even without authentication
+    // The page component will handle fetching the dashboard data using the key
+    // Don't check the user's dashboard store or redirect
+    return;
   } else if (to.name === 'projects-projectid-data-sources-datasourceid-data-models' || to.name === 'projects-projectid-data-sources-datasourceid-data-models-create') {
     if (!projectsStore.getSelectedProject()) {
       return navigateTo('/projects');

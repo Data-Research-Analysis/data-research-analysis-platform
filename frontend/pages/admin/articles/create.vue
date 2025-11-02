@@ -4,6 +4,9 @@ const router = useRouter();
 const { $swal } = useNuxtApp();
 const articlesStore = useArticlesStore();
 
+// Fetch categories using SSR-compatible composable
+const { categories, pending: categoriesPending, error: categoriesError } = useCategories();
+
 // SEO Meta Tags for Article Create Page
 useHead({
     title: 'Create Article - Admin | Data Research Analysis',
@@ -16,11 +19,23 @@ const state = reactive({
     title: '',
     content: '',
     contentMarkdown: '',  // NEW: Markdown content
-    keys: [],
     menuFilteredData: [],
 })
+
+// Compute categories keys from fetched data
+const categoriesKeys = computed(() => {
+    if (!categories.value) return [];
+    return categories.value.map((category) => ({
+        id: category.id,
+        key: category.title.toLowerCase().replace(/\s+/g, '_'),
+        label: category.title,
+        showValues: true,
+        isChild: false,
+    }));
+});
+
 const filteredCategoriesKeys = computed(() => {
-  return state.keys.filter((item) => item.showValues);
+    return categoriesKeys.value.filter((item) => item.showValues);
 });
 function updateContent(content) {
     state.content = content;
@@ -88,16 +103,6 @@ async function saveAsDraft() {
         });
     }
 }
-onMounted(() => {
-    const categories = articlesStore.getCategories();
-    state.keys = categories.map((category) => ({
-        id: category.id,
-        key: category.title.toLowerCase().replace(/\s+/g, '_'),
-        label: category.title,
-        showValues: true,
-        isChild: false,
-    }));
-})
 </script>
 <template>
     <div class="flex flex-row">
@@ -132,8 +137,14 @@ onMounted(() => {
                     />
                 </div>
                 <div class="mb-3">
+                    <div v-if="categoriesPending" class="text-gray-500 p-2">
+                        Loading categories...
+                    </div>
+                    <div v-else-if="categoriesError" class="text-red-500 p-2">
+                        Error loading categories. Please refresh the page.
+                    </div>
                     <multi-select
-                        v-if="filteredCategoriesKeys.length"
+                        v-else-if="filteredCategoriesKeys.length"
                         :options="filteredCategoriesKeys"
                         :default-options="[filteredCategoriesKeys[0]]"
                         :searchable="true"
@@ -142,6 +153,9 @@ onMounted(() => {
                             (filteredData) => menuFilteredData(filteredData)
                         "
                     />
+                    <div v-else class="text-gray-500 p-2">
+                        No categories available.
+                    </div>
                 </div>
                 <div>
                     <text-editor 

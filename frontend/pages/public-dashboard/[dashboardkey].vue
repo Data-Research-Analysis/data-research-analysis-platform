@@ -9,10 +9,35 @@ const dashboardsStore = useDashboardsStore();
 const { $swal, $htmlToImageToPng } = useNuxtApp();
 const router = useRouter();
 const route = useRoute();
+const dashboardKey = String(route.params.dashboardkey);
 
-// Dynamic SEO Meta Tags for Public Dashboard
-const dashboard = computed(() => dashboardsStore.getSelectedDashboard());
-const project = computed(() => projectsStore.getSelectedProject());
+// Fetch dashboard with SSR support
+const { dashboardData, pending, error } = await usePublicDashboard(dashboardKey);
+
+// Computed dashboard from SSR data or store
+const dashboard = computed(() => {
+  if (dashboardData.value?.dashboard) {
+    return dashboardData.value.dashboard;
+  }
+  return dashboardsStore.getSelectedDashboard();
+});
+
+const project = computed(() => {
+  if (dashboardData.value?.project) {
+    return dashboardData.value.project;
+  }
+  return projectsStore.getSelectedProject();
+});
+
+// Sync with store on client for backward compatibility
+watchEffect(() => {
+  if (import.meta.client && dashboardData.value?.dashboard) {
+    dashboardsStore.setSelectedDashboard(dashboardData.value.dashboard);
+    if (dashboardData.value.project) {
+      projectsStore.setSelectedProject(dashboardData.value.project);
+    }
+  }
+});
 
 // Set up dynamic meta tags based on dashboard data
 useHead(() => ({

@@ -2,15 +2,15 @@
 import {useProjectsStore} from '@/stores/projects';
 const projectsStore = useProjectsStore();
 const { $swal } = useNuxtApp();
+
+// Fetch projects with client-side SSR
+const { data: projectsList, pending, error, refresh } = useProjects();
+
 const state = reactive({
     project_name: '',
-    projects: [],
-})
-watch(
-  projectsStore,
-  (value, oldValue) => {
-    state.projects = projectsStore.getProjects().map((project) => {
-        return {
+    projects: computed(() => {
+        if (!projectsList.value) return [];
+        return projectsList.value.map((project) => ({
             id: project.id,
             user_id: project.user_platform_id,
             name: project.name,
@@ -19,10 +19,10 @@ watch(
             visualizations: 0,
             dashboards: 0,
             stories: 0,
-        }
-    });
-  },
-);
+        }));
+    }),
+});
+
 async function addProject() {
     const inputValue = "";
     const { value: projectName } = await $swal.fire({
@@ -41,27 +41,18 @@ async function addProject() {
     });
     if (projectName) {
         state.project_name = projectName;
-        const token = getAuthToken();
-        const requestOptions = {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`,
-                "Authorization-Type": "auth",
-            },
-            body: JSON.stringify({
-                project_name: projectName,
-            }),
-        };
-        const response = await fetch(`${baseUrl()}/project/add`, requestOptions);
-        if (response && response.status === 200) {
-            const data = await response.json();
+        const { execute } = useAuthenticatedMutation();
+        const data = await execute('/project/add', {
+            method: 'POST',
+            body: { project_name: projectName }
+        });
+        
+        if (data) {
             $swal.fire({
                 title: `The project ${projectName} has been created successfully.`,
                 confirmButtonColor: "#3C8DBC",
             });
-            await projectsStore.retrieveProjects();
-            getProjects();
+            await refresh(); // Refresh projects list
         } else {
             $swal.fire({
                 title: `There was an error creating the project ${projectName}.`,
@@ -70,21 +61,7 @@ async function addProject() {
         }
     }
 }
-function getProjects() {
-    state.projects = projectsStore.getProjects().map((project) => {
-        return {
-            id: project.id,
-            name: project.name,
-            dataSources: 0,
-            sheets: 0,
-            visualizations: 0,
-            dashboards: 0,
-            stories: 0,
-            user_id: project.user_platform_id,
-        }
-    });
-    
-}
+
 async function deleteProject(projectId) {
     const { value: confirmDelete } = await $swal.fire({
         title: "Are you sure you want to delete the project?",
@@ -98,32 +75,24 @@ async function deleteProject(projectId) {
     if (!confirmDelete) {
         return;
     }
-    const token = getAuthToken();
-    const requestOptions = {
-        method: "DELETE",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`,
-            "Authorization-Type": "auth",
-        },
-    };
-    const response = await fetch(`${baseUrl()}/project/delete/${projectId}`, requestOptions);
-    if (response && response.status === 200) {
-        const data = await response.json();
+    
+    const { execute } = useAuthenticatedMutation();
+    const data = await execute(`/project/delete/${projectId}`, {
+        method: 'DELETE'
+    });
+    
+    if (data) {
         $swal.fire(`The project has been deleted successfully.`);
+        await refresh(); // Refresh projects list
     } else {
         $swal.fire(`There was an error deleting the project.`);
     }
-    await projectsStore.retrieveProjects();
-    getProjects();
 }
+
 async function setSelectedProject(projectId) {
     const project = state.projects.find((project) => project.id === projectId);
     projectsStore.setSelectedProject(project);
 }
-onMounted(async () => {
-    getProjects();
-})
 </script>
 <template>
     <div class="min-h-100 flex flex-col ml-4 mr-4 mb-10 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md">

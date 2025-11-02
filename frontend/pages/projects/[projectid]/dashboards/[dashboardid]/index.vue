@@ -878,29 +878,63 @@ async function openTableDialog(chartId) {
 function closeTableDialog() {
     state.show_table_dialog = false
 }
-async function exportAsWebPage() {
-    console.log('exportAsWebPage');
-    const token = getAuthToken();
-    let url = `${baseUrl()}/dashboard/generate-public-export-link/${dashboard.value.id}`;
-    const response = await fetch(url, {
-        method: "GET",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`,
-            "Authorization-Type": "auth",
-        },
-    });
-    if (response.status === 200) {
-        const data = await response.json();
-        await dashboardsStore.retrieveDashboards();
-        // router.push(`/public-dashboard/${data.key}`);
-        const routeData = router.resolve(`/public-dashboard/${data.key}`);
-        window.open(routeData.href, '_blank');
-    } else {
+async function exportAsWebPage(closeMenu) {
+    console.log('exportAsWebPage called');
+    
+    // Close the menu first
+    if (closeMenu && typeof closeMenu === 'function') {
+        closeMenu();
+    }
+    
+    try {
+        const token = getAuthToken();
+        if (!dashboard.value?.id) {
+            console.error('Dashboard ID is missing');
+            $swal.fire({
+                icon: 'error',
+                title: `Error! `,
+                text: 'Dashboard ID is missing. Please refresh the page and try again.',
+            });
+            return;
+        }
+        
+        let url = `${baseUrl()}/dashboard/generate-public-export-link/${dashboard.value.id}`;
+        console.log('Calling API:', url);
+        
+        const response = await fetch(url, {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`,
+                "Authorization-Type": "auth",
+            },
+        });
+        
+        console.log('Response status:', response.status);
+        
+        if (response.status === 200) {
+            const data = await response.json();
+            console.log('Public link generated:', data);
+            await dashboardsStore.retrieveDashboards();
+            
+            // Construct the public dashboard URL directly without using router
+            const publicDashboardUrl = `${window.location.origin}/public-dashboard/${data.key}`;
+            console.log('Opening public dashboard:', publicDashboardUrl);
+            window.open(publicDashboardUrl, '_blank');
+        } else {
+            console.error('API returned non-200 status:', response.status);
+            $swal.fire({
+                icon: 'error',
+                title: `Error! `,
+                text: 'Unfortunately, we encountered an error! Please refresh the page and try again.',
+            });
+        }
+    } catch (error) {
+        console.error('Error in exportAsWebPage:', error);
         $swal.fire({
             icon: 'error',
             title: `Error! `,
-            text: 'Unfortunately, we encountered an error! Please refresh the page and try again.',
+            text: 'An unexpected error occurred. Please try again.',
         });
     }
 }
@@ -938,7 +972,7 @@ onMounted(async () => {
 });
 </script>
 <template>
-    <div class="flex flex-row">
+    <div v-if="project && dashboard" class="flex flex-row">
         <sidebar
             class="w-1/6"
             :data-models="state.data_model_tables"
@@ -963,10 +997,8 @@ onMounted(async () => {
                             </template>
                             <template #dropdownMenu="{ onClick }">
                                 <div class="flex flex-col w-40 text-center">
-                                    <div @click="exportAsWebPage">
-                                        <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer border-b-1 border-primary-blue-100 border-solid pt-1 pb-1">
-                                            As Publicly Accessible Web Page
-                                        </div>
+                                    <div @click="exportAsWebPage(onClick)" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer border-b-1 border-primary-blue-100 border-solid pt-1 pb-1">
+                                        As Publicly Accessible Web Page
                                     </div>
                                 </div>
                             </template>
@@ -1328,4 +1360,12 @@ onMounted(async () => {
             </div>
         </template>
     </overlay-dialog>
+    
+    <!-- Loading state when project or dashboard not loaded -->
+    <div v-else class="flex items-center justify-center min-h-screen">
+        <div class="text-center">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-blue-500 mb-4"></div>
+            <p class="text-gray-600">Loading dashboard...</p>
+        </div>
+    </div>
 </template>

@@ -2,7 +2,6 @@ import { useLoggedInUserStore } from "@/stores/logged_in_user";
 export default defineNuxtRouteMiddleware(async (to, from) => {
   // Check if running on server side
   const isServer = typeof window === 'undefined'
-  
   const token = getAuthToken();
   const loggedInUserStore = useLoggedInUserStore();
   if (token) {
@@ -38,11 +37,20 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
             `${baseUrl()}/auth/validate-token`,
             requestOptions,
           );
+          
+          if (!response.ok) {
+            // Token is invalid - clear it and redirect to login
+            deleteAuthToken();
+            return navigateTo("/login");
+          }
+          
           const data = await response.json();
           if (data?.message === "validated token") {
             isAuthorized = true;
           } else {
-            isAuthorized = false;
+            // Token is invalid - clear it and redirect to login
+            deleteAuthToken();
+            return navigateTo("/login");
           }
         } catch (error) {
           // If fetch fails (backend not available), allow navigation to continue
@@ -54,22 +62,35 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
       }
       
       if (isAuthorized) {
+        // Check if user is trying to access admin pages
         if (to.path.startsWith("/admin")) {
-          if (loggedInUserStore.getLoggedInUser()?.user_type === "admin") {
-            return;
+          const currentUser = loggedInUserStore.getLoggedInUser();
+          // If user data isn't loaded yet, allow access temporarily
+          // The page will handle authorization once user data loads
+          if (!currentUser) {
+            console.log('[middleware] User data not loaded yet, allowing admin access temporarily');
+            return; // Allow access, user data will be validated by the page
+          }
+          
+          if (currentUser.user_type === "admin") {
+            return; // Allow admin access
           } else {
-            return navigateTo("/projects");
+            return navigateTo("/projects"); // Non-admin can't access admin pages
           }
-        } else {
-          if (to.path === "/login" || to.path === "/register"
-              || to.path === "/" || to.path === "/privacy-policy"
-              || to.path === "/terms-conditions") {
-            return navigateTo("/projects");
-          }
-          return;
         }
-      } else {
-        return navigateTo("/projects");
+        
+        // If authenticated user tries to access login/register, redirect to projects
+        if (to.path === "/login" || to.path === "/register") {
+          return navigateTo("/projects");
+        }
+        
+        // If authenticated user tries to access home page, redirect to projects
+        if (to.path === "/" && isPlatformEnabled()) {
+          return navigateTo("/projects");
+        }
+        
+        // Allow access to all other pages when authenticated
+        return;
       }
     }
   } else {

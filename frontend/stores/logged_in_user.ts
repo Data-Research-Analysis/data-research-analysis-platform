@@ -18,6 +18,18 @@ export const useLoggedInUserStore = defineStore('loggedInUserDRA', () => {
     }
     
     function getLoggedInUser() {
+        // If value is undefined and we're on client, try loading from localStorage as fallback
+        if (!loggedInUser.value && import.meta.client) {
+            const stored = localStorage.getItem('loggedInUser');
+            if (stored && stored !== 'null' && stored !== 'undefined') {
+                try {
+                    loggedInUser.value = JSON.parse(stored);
+                } catch (error) {
+                    console.error('Error parsing stored user data:', error);
+                    localStorage.removeItem('loggedInUser');
+                }
+            }
+        }
         return loggedInUser.value;
     }
     

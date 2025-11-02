@@ -4,35 +4,34 @@ import { useDashboardsStore } from '~/stores/dashboards';
 const projectsStore = useProjectsStore();
 const dashboardsStore = useDashboardsStore();
 const { $swal } = useNuxtApp();
-const state = reactive({
-    dashboards: [],
+const route = useRoute();
 
-})
-watch(
-    dashboardsStore,
-    (value, oldValue) => {
-        getDashboards();
-    },
-)
-const project = computed(() => {
-    return projectsStore.getSelectedProject();
-});
-const dashboard = computed(() => {
-    return dashboardsStore.getSelectedDashboard();
-});
-async function getDashboards() {
-    state.dashboards = [];
-    state.dashboards = dashboardsStore.getDashboards().filter((dashboardObj) => dashboardObj?.project?.id === project?.value?.id).map((dashboardObj) => {
-        return {
+// Get project ID from route
+const projectId = String(route.params.projectid);
+
+// Fetch dashboards with client-side SSR
+const { data: dashboardsList, pending, error, refresh } = useDashboards(projectId);
+
+const state = reactive({
+    dashboards: computed(() => {
+        if (!dashboardsList.value) return [];
+        return dashboardsList.value.map((dashboardObj) => ({
             id: dashboardObj.id,
             dashboard: dashboardObj.data,
             project_id: dashboardObj.project_id,
             user_id: dashboardObj.user_platform_id,
-        }
-    });
-    console.log("state.dashboards", state.dashboards);
-    console.log("dashboardsStore.getDashboards()", dashboardsStore.getDashboards());
-}
+        }));
+    }),
+});
+
+const project = computed(() => {
+    return projectsStore.getSelectedProject();
+});
+
+const dashboard = computed(() => {
+    return dashboardsStore.getSelectedDashboard();
+});
+
 async function deleteDashboard(dashboardId) {
     const { value: confirmDelete } = await $swal.fire({
         title: "Are you sure you want to delete the dashboard?",
@@ -46,33 +45,50 @@ async function deleteDashboard(dashboardId) {
     if (!confirmDelete) {
         return;
     }
-    const token = getAuthToken();
-    const requestOptions = {
-        method: "DELETE",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`,
-            "Authorization-Type": "auth",
-        },
-    };
-    const response = await fetch(`${baseUrl()}/dashboard/delete/${dashboardId}`, requestOptions);
-    if (response && response.status === 200) {
-        const data = await response.json();
+    
+    const { execute } = useAuthenticatedMutation();
+    const data = await execute(`/dashboard/delete/${dashboardId}`, {
+        method: 'DELETE'
+    });
+    
+    if (data) {
         $swal.fire(`The dashboard has been deleted successfully.`);
+        await refresh(); // Refresh dashboards list
     } else {
         $swal.fire(`There was an error deleting the dashboard.`);
     }
-    await dashboardsStore.retrieveDashboards();
-    getDashboards();
 }
-onMounted(async () => {
-    getDashboards();
-})
 </script>
 <template>
     <div v-if="project && project.id" class="flex flex-col">
         <tabs :project-id="project.id"/>
-        <div class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 mb-10 border border-primary-blue-100 border-solid p-10 shadow-md">
+        
+        <!-- Loading State -->
+        <div v-if="pending" class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 mb-10 border border-primary-blue-100 border-solid p-10 shadow-md">
+            <div class="flex items-center justify-center py-20">
+                <div class="text-center">
+                    <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-blue-500 mb-4"></div>
+                    <p class="text-gray-600">Loading dashboards...</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Error State -->
+        <div v-else-if="error" class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 mb-10 border border-red-200 border-solid p-10 shadow-md bg-red-50">
+            <div class="flex items-center justify-center py-20">
+                <div class="text-center">
+                    <font-awesome icon="fas fa-exclamation-triangle" class="text-5xl text-red-500 mb-4" />
+                    <p class="text-red-600 font-semibold mb-2">Error loading dashboards</p>
+                    <p class="text-gray-600 text-sm">{{ error.message }}</p>
+                    <button @click="refresh()" class="mt-4 px-4 py-2 bg-primary-blue-500 text-white rounded hover:bg-primary-blue-600">
+                        Try Again
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Dashboards Content -->
+        <div v-else class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 mb-10 border border-primary-blue-100 border-solid p-10 shadow-md">
             <div class="font-bold text-2xl mb-5">
                 Dashboards
             </div>
