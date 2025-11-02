@@ -5,21 +5,28 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
     const users = ref<IUserManagement[]>([]);
     const selectedUser = ref<IUserManagement | null>(null);
 
-    if (localStorage.getItem('userManagementUsers')) {
-        users.value = JSON.parse(localStorage.getItem('userManagementUsers') || 'null') || [];
-    }
-    if (localStorage.getItem('selectedUserManagement')) {
-        selectedUser.value = JSON.parse(localStorage.getItem('selectedUserManagement') || 'null');
+    // Only access localStorage on client side
+    if (import.meta.client) {
+        if (localStorage.getItem('userManagementUsers')) {
+            users.value = JSON.parse(localStorage.getItem('userManagementUsers') || 'null') || [];
+        }
+        if (localStorage.getItem('selectedUserManagement')) {
+            selectedUser.value = JSON.parse(localStorage.getItem('selectedUserManagement') || 'null');
+        }
     }
 
     function setUsers(usersList: IUserManagement[]) {
         users.value = usersList;
-        localStorage.setItem('userManagementUsers', JSON.stringify(usersList));
+        if (import.meta.client) {
+            localStorage.setItem('userManagementUsers', JSON.stringify(usersList));
+        }
     }
 
     function setSelectedUser(user: IUserManagement) {
         selectedUser.value = user;
-        localStorage.setItem('selectedUserManagement', JSON.stringify(user));
+        if (import.meta.client) {
+            localStorage.setItem('selectedUserManagement', JSON.stringify(user));
+        }
     }
 
     function getUsers() {
@@ -32,12 +39,16 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
 
     function clearUsers() {
         users.value = [];
-        localStorage.removeItem('userManagementUsers');
+        if (import.meta.client) {
+            localStorage.removeItem('userManagementUsers');
+        }
     }
 
     function clearSelectedUser() {
         selectedUser.value = null;
-        localStorage.removeItem('selectedUserManagement');
+        if (import.meta.client) {
+            localStorage.removeItem('selectedUserManagement');
+        }
     }
 
     async function retrieveUsers() {

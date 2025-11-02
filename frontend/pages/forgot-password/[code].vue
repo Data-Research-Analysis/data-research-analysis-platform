@@ -145,11 +145,14 @@ onMounted(async () => {
     state.code = route.params.code;
     await verifyToken();
     
-    window.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" && state.tokenValid) {
-            changePassword();
-        }
-    });
+    // Only add event listeners on client side for SSR compatibility
+    if (import.meta.client) {
+        window.addEventListener("keydown", (event) => {
+            if (event.key === "Enter" && state.tokenValid) {
+                changePassword();
+            }
+        });
+    }
 })
 </script>
 <template>

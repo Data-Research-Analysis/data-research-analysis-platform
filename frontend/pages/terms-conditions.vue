@@ -1,6 +1,24 @@
 <script setup>
 import { onMounted } from "vue";
 
+// SEO Meta Tags for Terms & Conditions
+useHead({
+    title: 'Terms and Conditions - Data Research Analysis',
+    meta: [
+        { name: 'description', content: 'Read the Terms and Conditions for using Data Research Analysis platform. Understand your rights and responsibilities when using our services.' },
+        { name: 'robots', content: 'index, follow' },
+        
+        // Open Graph / Facebook
+        { property: 'og:type', content: 'article' },
+        { property: 'og:title', content: 'Terms and Conditions - Data Research Analysis' },
+        { property: 'og:description', content: 'Terms and conditions for using our data analysis platform.' },
+        { property: 'og:url', content: 'https://dataresearchanalysis.com/terms-conditions' },
+    ],
+    link: [
+        { rel: 'canonical', href: 'https://dataresearchanalysis.com/terms-conditions' }
+    ]
+});
+
 onMounted(() => {
 
 })

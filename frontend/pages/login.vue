@@ -4,6 +4,24 @@ import { useLoggedInUserStore } from "@/stores/logged_in_user";
 const router = useRouter();
 const recaptcha = useReCaptcha();
 const loggedInUserStore = useLoggedInUserStore();
+
+// SEO Meta Tags for Login Page
+useHead({
+    title: 'Login - Data Research Analysis Platform',
+    meta: [
+        { name: 'description', content: 'Sign in to your Data Research Analysis account to access your data dashboards, analytics, and visualization tools.' },
+        { name: 'robots', content: 'noindex, nofollow' }, // Don't index login page
+        
+        // Open Graph / Facebook
+        { property: 'og:type', content: 'website' },
+        { property: 'og:title', content: 'Login - Data Research Analysis' },
+        { property: 'og:description', content: 'Sign in to your Data Research Analysis account.' },
+    ],
+    link: [
+        { rel: 'canonical', href: 'https://dataresearchanalysis.com/login' }
+    ]
+});
+
 const state = reactive({
     email: "",
     password: "",
@@ -96,12 +114,14 @@ async function loginUser() {
 
 onMounted(async () => {
     await getToken();
-    window.addEventListener("keydown", (event) => {
-        if (event.key === "Enter") {
-            loginUser();
-        }
-    });
-
+    // Only add event listeners on client side for SSR compatibility
+    if (import.meta.client) {
+        window.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+                loginUser();
+            }
+        });
+    }
 })
 </script>
 <template>

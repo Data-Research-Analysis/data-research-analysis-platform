@@ -4,19 +4,26 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     const dataSources = ref<IDataSource[]>([])
     const selectedDataSource = ref<IDataSource>()
     
-    if (localStorage.getItem('dataSources')) {
-        dataSources.value = JSON.parse(localStorage.getItem('dataSources') || '[]')
-    }
-    if (localStorage.getItem('selectedDataSource')) {
-        selectedDataSource.value = JSON.parse(localStorage.getItem('selectedDataSource') || 'null')
+    // Only access localStorage on client side
+    if (import.meta.client) {
+        if (localStorage.getItem('dataSources')) {
+            dataSources.value = JSON.parse(localStorage.getItem('dataSources') || '[]')
+        }
+        if (localStorage.getItem('selectedDataSource')) {
+            selectedDataSource.value = JSON.parse(localStorage.getItem('selectedDataSource') || 'null')
+        }
     }
     function setDataSources(dataSourcesList: IDataSource[]) {
         dataSources.value = dataSourcesList
-        localStorage.setItem('dataSources', JSON.stringify(dataSourcesList))
+        if (import.meta.client) {
+            localStorage.setItem('dataSources', JSON.stringify(dataSourcesList))
+        }
     }
     function setSelectedDataSource(dataSource: IDataSource) {
         selectedDataSource.value = dataSource
-        localStorage.setItem('selectedDataSource', JSON.stringify(dataSource))
+        if (import.meta.client) {
+            localStorage.setItem('selectedDataSource', JSON.stringify(dataSource))
+        }
     }
     function getDataSources() {
         return dataSources.value;
@@ -45,11 +52,15 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     }
     function clearDataSources() {
         dataSources.value = []
-        localStorage.removeItem('dataSources')
+        if (import.meta.client) {
+            localStorage.removeItem('dataSources')
+        }
     }
     function clearSelectedDataSource() {
         selectedDataSource.value = undefined
-        localStorage.removeItem('selectedDataSource')
+        if (import.meta.client) {
+            localStorage.removeItem('selectedDataSource')
+        }
     }
     async function retrieveTablesFromDataSources(dataSourceId: string) {
         const token = getAuthToken();

@@ -27,7 +27,8 @@ function setSelectedTab(tab) {
     }
 }
 onMounted(() => {
-    const path = window.location.pathname;
+    // Use Nuxt's route.path instead of window.location for SSR compatibility
+    const path = route.path;
     if (path.includes('dashboards')) {
         state.selectedTab = 'dashboards';
     } else {

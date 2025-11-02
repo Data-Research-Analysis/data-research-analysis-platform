@@ -4,19 +4,27 @@ export const useProjectsStore = defineStore('projectsDRA', () => {
     const projects = ref<IProject[]>([])
     const selectedProject = ref<IProject>()
 
-    if (localStorage.getItem('projects')) {
-        projects.value = JSON.parse(localStorage.getItem('projects') || '[]')
+    // Only access localStorage on client side
+    if (import.meta.client) {
+        if (localStorage.getItem('projects')) {
+            projects.value = JSON.parse(localStorage.getItem('projects') || '[]')
+        }
+        if (localStorage.getItem('selectedProject')) {
+            selectedProject.value = JSON.parse(localStorage.getItem('selectedProject') || 'null')
+        }
     }
-    if (localStorage.getItem('selectedProject')) {
-        selectedProject.value = JSON.parse(localStorage.getItem('selectedProject') || 'null')
-    }
+    
     function setProjects(projectsList: IProject[]) {
         projects.value = projectsList
-        localStorage.setItem('projects', JSON.stringify(projectsList))
+        if (import.meta.client) {
+            localStorage.setItem('projects', JSON.stringify(projectsList))
+        }
     }
     function setSelectedProject(project: IProject) {
         selectedProject.value = project
-        localStorage.setItem('selectedProject', JSON.stringify(project))
+        if (import.meta.client) {
+            localStorage.setItem('selectedProject', JSON.stringify(project))
+        }
     }
     function getProjects() {
         return projects.value;
@@ -44,11 +52,15 @@ export const useProjectsStore = defineStore('projectsDRA', () => {
     }
     function clearProjects() {
         projects.value = []
-        localStorage.removeItem('projects')
+        if (import.meta.client) {
+            localStorage.removeItem('projects')
+        }
     }
     function clearSelectedProject() {
         selectedProject.value = undefined
-        localStorage.removeItem('selectedProject')
+        if (import.meta.client) {
+            localStorage.removeItem('selectedProject')
+        }
     }
     return {
         projects,

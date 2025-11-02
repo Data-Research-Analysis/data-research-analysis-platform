@@ -213,6 +213,9 @@ function setupVirtualScrolling() {
   if (!props.virtualScrolling) return;
   
   nextTick(() => {
+    // Only access DOM on client side for SSR compatibility
+    if (!import.meta.client) return;
+    
     const container = document.querySelector(`#table-chart-${props.chartId} .scroll-container`);
     if (container) {
       state.containerHeight = container.clientHeight;
@@ -271,6 +274,9 @@ watch(() => tableColumns.value.length, (newCount, oldCount) => {
 let resizeObserver = null;
 
 onMounted(() => {
+  // Only set up virtual scrolling on client side for SSR compatibility
+  if (!import.meta.client) return;
+  
   // Initialize visible range for virtual scrolling immediately
   if (props.virtualScrolling) {
     updateVisibleRange(); // This will show initial rows even before container is measured
