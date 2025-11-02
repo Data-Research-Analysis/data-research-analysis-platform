@@ -2,10 +2,8 @@ import { useLoggedInUserStore } from "@/stores/logged_in_user";
 export default defineNuxtRouteMiddleware(async (to, from) => {
   // Check if running on server side
   const isServer = typeof window === 'undefined'
-  
   const token = getAuthToken();
   const loggedInUserStore = useLoggedInUserStore();
-  
   if (token) {
     if (to.path === "/logout") {
       //logout the user
