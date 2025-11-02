@@ -40,16 +40,9 @@ export const useDataSources = (projectId: string | number) => {
     return filtered;
   });
 
-  // Check if store has data, if not set pending to true
-  const pending = ref(dataSourcesStore.getDataSources().length === 0);
+  // Pending is false immediately since data is already in store from default.vue
+  const pending = ref(false);
   const error = ref(null);
-  
-  // Watch for store data to be loaded
-  watch(() => dataSourcesStore.getDataSources(), (newDataSources) => {
-    if (newDataSources.length > 0) {
-      pending.value = false;
-    }
-  });
   
   // Refresh function to reload data sources from API
   const refresh = async () => {
