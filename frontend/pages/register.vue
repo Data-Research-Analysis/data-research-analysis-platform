@@ -2,6 +2,29 @@
 import { useReCaptcha } from "vue-recaptcha-v3";
 const recaptcha = useReCaptcha();
 
+// SEO Meta Tags for Register Page
+useHead({
+    title: 'Register - Create Your Free Account | Data Research Analysis',
+    meta: [
+        { name: 'description', content: 'Create a free Data Research Analysis account to start building data dashboards, connecting data sources, and visualizing your data insights.' },
+        { name: 'robots', content: 'index, follow' },
+        
+        // Open Graph / Facebook
+        { property: 'og:type', content: 'website' },
+        { property: 'og:title', content: 'Register - Data Research Analysis' },
+        { property: 'og:description', content: 'Create your free account and start analyzing data today.' },
+        { property: 'og:url', content: 'https://dataresearchanalysis.com/register' },
+        
+        // Twitter
+        { name: 'twitter:card', content: 'summary' },
+        { name: 'twitter:title', content: 'Register - Data Research Analysis' },
+        { name: 'twitter:description', content: 'Create your free account and start analyzing data today.' },
+    ],
+    link: [
+        { rel: 'canonical', href: 'https://dataresearchanalysis.com/register' }
+    ]
+});
+
 const state = reactive({
     firstName: "",
     lastName: "",
@@ -123,11 +146,14 @@ async function createAccount() {
 
 onMounted(async () => {
     await getToken();
-    window.addEventListener("keydown", (event) => {
-        if (event.key === "Enter") {
-            createAccount();
-        }
-    });
+    // Only add event listeners on client side for SSR compatibility
+    if (import.meta.client) {
+        window.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+                createAccount();
+            }
+        });
+    }
 })
 </script>
 <template>

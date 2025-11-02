@@ -253,6 +253,9 @@
         }
     }, { immediate: true });
     function setLink() {
+        // Only use window.prompt on client side for SSR compatibility
+        if (!import.meta.client) return;
+        
         if (!editor.value.isActive('link')) {
             const previousUrl = editor.value.getAttributes('link').href;
             const url = window.prompt('URL', previousUrl);
@@ -288,6 +291,9 @@
         }
     }
     function setImage() {
+        // Only use window.prompt on client side for SSR compatibility
+        if (!import.meta.client) return;
+        
         const imageUrl = window.prompt('Image URL');
         if (imageUrl) {
             editor.value.chain().focus().setImage({ src: imageUrl }).run();

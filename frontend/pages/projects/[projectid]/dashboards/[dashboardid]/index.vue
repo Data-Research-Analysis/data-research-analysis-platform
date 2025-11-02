@@ -920,8 +920,11 @@ onMounted(async () => {
             columns: dataModelTable.columns,
         })
     })
-    document.addEventListener('mousedown', mouseDown);
-    document.addEventListener('mouseup', mouseUp);
+    // Only add event listeners on client side for SSR compatibility
+    if (import.meta.client) {
+        document.addEventListener('mousedown', mouseDown);
+        document.addEventListener('mouseup', mouseUp);
+    }
     state.dashboard.charts = dashboard.value?.data?.charts.map((chart) => {
         return {
             ...chart,

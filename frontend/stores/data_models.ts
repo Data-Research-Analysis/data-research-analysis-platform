@@ -6,26 +6,36 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
     const selectedDataModel = ref<IDataModel>()
     const dataModelTables = ref<IDataModelTable[]>([])
     
-    if (localStorage.getItem('dataModels')) {
-        dataModels.value = JSON.parse(localStorage.getItem('dataModels') || '[]');
+    // Only access localStorage on client side
+    if (import.meta.client) {
+        if (localStorage.getItem('dataModels')) {
+            dataModels.value = JSON.parse(localStorage.getItem('dataModels') || '[]');
+        }
+        if (localStorage.getItem('selectedDataModel')) {
+            selectedDataModel.value = JSON.parse(localStorage.getItem('selectedDataModel') || 'null');
+        }
+        if (localStorage.getItem('dataModelTables')) {
+            dataModelTables.value = JSON.parse(localStorage.getItem('dataModelTables') || 'null');
+        }
     }
-    if (localStorage.getItem('selectedDataModel')) {
-        selectedDataModel.value = JSON.parse(localStorage.getItem('selectedDataModel') || 'null');
-    }
-    if (localStorage.getItem('dataModelTables')) {
-        dataModelTables.value = JSON.parse(localStorage.getItem('dataModelTables') || 'null');
-    }
+    
     function setDataModels(dataModelsList: IDataModel[]) {
         dataModels.value = dataModelsList;
-        localStorage.setItem('dataModels', JSON.stringify(dataModelsList));
+        if (import.meta.client) {
+            localStorage.setItem('dataModels', JSON.stringify(dataModelsList));
+        }
     }
     function setSelectedDataModel(dataModel: IDataModel) {
         selectedDataModel.value = dataModel;
-        localStorage.setItem('selectedDataModel', JSON.stringify(dataModel));
+        if (import.meta.client) {
+            localStorage.setItem('selectedDataModel', JSON.stringify(dataModel));
+        }
     }
     function setDataModelTables(dataModelTablesList: IDataModelTable[]) {
         dataModelTables.value = dataModelTablesList;
-        localStorage.setItem('dataModelTables', JSON.stringify(dataModelTablesList));
+        if (import.meta.client) {
+            localStorage.setItem('dataModelTables', JSON.stringify(dataModelTablesList));
+        }
     }
     function getDataModels() {
         return dataModels.value;
@@ -78,11 +88,15 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
     }
     function clearDataModels() {
         dataModels.value = []
-        localStorage.removeItem('dataModels')
+        if (import.meta.client) {
+            localStorage.removeItem('dataModels')
+        }
     }
     function clearSelectedDataModel() {
         selectedDataModel.value = undefined
-        localStorage.removeItem('selectedDataModel')
+        if (import.meta.client) {
+            localStorage.removeItem('selectedDataModel')
+        }
     }
     
     return {

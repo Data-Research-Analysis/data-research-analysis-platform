@@ -4,6 +4,9 @@ import { useDataModelsStore } from '@/stores/data_models';
 import { useDashboardsStore } from '@/stores/dashboards';
 
 export default defineNuxtRouteMiddleware(async (to, from) => {
+  // Check if running on server side
+  const isServer = typeof window === 'undefined'
+  
   const token = getAuthToken();
   const projectsStore = useProjectsStore();
   const dataSourceStore = useDataSourceStore();
@@ -13,13 +16,25 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     if (to.name === 'public-dashboard-dashboardkey') {
         const dashboardKey = to.params.dashboardkey as string;
         console.log('dashboardKey', dashboardKey);
-        const dashboard = await dashboardsStore.retrievePublicDashboard(dashboardKey);
-        dashboardsStore.setSelectedDashboard(dashboard.dashboard);
-        console.log('dashboard', dashboard);
-        if (dashboard) {
+        
+        // Handle fetch errors gracefully (e.g., during SSR when backend is not accessible)
+        try {
+          const dashboard = await dashboardsStore.retrievePublicDashboard(dashboardKey);
+          dashboardsStore.setSelectedDashboard(dashboard.dashboard);
+          console.log('dashboard', dashboard);
+          if (dashboard) {
+              return;
+          } else {
+            return navigateTo('/login');
+          }
+        } catch (error) {
+          console.error('Failed to retrieve public dashboard:', error);
+          // During SSR, allow the route to continue (will retry on client)
+          if (isServer) {
             return;
-        } else {
-          return navigateTo('/login');
+          } else {
+            return navigateTo('/login');
+          }
         }
     }
   }

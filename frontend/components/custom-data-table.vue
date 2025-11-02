@@ -486,6 +486,9 @@ function selectAllColumns() {
     // Console log for debugging
     console.log(message);
     
+    // Only manipulate DOM on client side for SSR compatibility
+    if (!import.meta.client) return;
+    
     // Create a toast-like notification
     const toast = document.createElement('div');
     toast.className = 'fixed top-4 right-4 bg-blue-500 text-white px-4 py-2 shadow-lg z-50 text-sm font-medium transform transition-all duration-300';
@@ -1433,16 +1436,21 @@ onMounted(() => {
         }));
     }
     
-    document.addEventListener('click', handleClickOutside);
-    document.addEventListener('keydown', handleEscapeKey);
-    document.addEventListener('keydown', handleKeyboardShortcuts);
+    // Only add event listeners on client side for SSR compatibility
+    if (import.meta.client) {
+        document.addEventListener('click', handleClickOutside);
+        document.addEventListener('keydown', handleEscapeKey);
+        document.addEventListener('keydown', handleKeyboardShortcuts);
+    }
 });
 
 onUnmounted(() => {
-    // Clean up event listeners
-    document.removeEventListener('click', handleClickOutside);
-    document.removeEventListener('keydown', handleEscapeKey);
-    document.removeEventListener('keydown', handleKeyboardShortcuts);
+    // Clean up event listeners only on client side
+    if (import.meta.client) {
+        document.removeEventListener('click', handleClickOutside);
+        document.removeEventListener('keydown', handleEscapeKey);
+        document.removeEventListener('keydown', handleKeyboardShortcuts);
+    }
 });  
 </script>
 <template>

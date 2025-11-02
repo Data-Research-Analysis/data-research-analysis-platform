@@ -3,7 +3,7 @@ import tailwindcss from "@tailwindcss/vite";
 
 export default defineNuxtConfig({
   compatibilityDate: '2024-11-01',
-  ssr: false,
+  ssr: true,
   app: {
     head: {
       charset: 'utf-8',
@@ -37,6 +37,12 @@ export default defineNuxtConfig({
   plugins: [
     { src: '~/plugins/recaptcha.ts', mode: 'client' },
     { src: '~/plugins/socketio.ts', mode: 'client' },
+    { src: '~/plugins/d3.ts', mode: 'client' },
+    { src: '~/plugins/draggable.ts', mode: 'client' },
+    { src: '~/plugins/htmlToImage.ts', mode: 'client' },
+    { src: '~/plugins/sweetalert2.ts', mode: 'client' },
+    { src: '~/plugins/vuetippy.ts', mode: 'client' },
+    // fontawesome.ts is universal (works on server for SSR icons)
   ],
   modules: [
     'nuxt-gtag',

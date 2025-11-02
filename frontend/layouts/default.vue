@@ -21,6 +21,101 @@ const router = useRouter();
 const state = reactive({
     authenticated: false,
 })
+
+// Helper function to load data - works in both SSR and client
+async function loadData() {
+    state.authenticated = isAuthenticated();
+    
+    try {
+        if (state.authenticated) {
+            await projectsStore.retrieveProjects();
+            await dataSourceStore.retrieveDataSources();
+            await dataModelsStore.retrieveDataModels();
+            await dashboardsStore.retrieveDashboards();
+            if (projectsStore?.getSelectedProject()?.id) {
+                await dataModelsStore.retrieveDataModelTables(projectsStore?.getSelectedProject()?.id);
+            }
+            if (route?.params?.projectid) {
+                const projectId = parseInt(String(route.params.projectid));
+                projectsStore.clearSelectedProject();
+                const project = projectsStore.getProjects().find((project) => project.id === projectId);
+                if (project) {
+                    projectsStore.setSelectedProject(project);
+                } else {
+                    router.push(`/projects`);
+                    return;
+                }
+                if (route?.params?.dashboardid) {
+                    const dashboardId = parseInt(String(route.params.dashboardid));
+                    const dashboard = dashboardsStore.getDashboards().find((dashboard) => dashboard.id === dashboardId);
+                    dashboardsStore.clearSelectedDashboard();
+                    if (dashboard) {
+                        dashboardsStore.setSelectedDashboard(dashboard);
+                    } else {
+                        router.push(`/dashboards`);
+                        return;
+                    }
+                }
+            }
+            if (isUserAdmin.value) {
+                await articlesStore.retrieveCategories();
+                await articlesStore.retrieveArticles();
+                await privateBetaUserStore.retrievePrivateBetaUsers();
+                await userManagementStore.retrieveUsers();
+                if (route?.params?.articleid) {
+                    const articleId = parseInt(String(route.params.articleid));
+                    articlesStore.clearSelectedArticle();
+                    const article = articlesStore.getArticles().find((article) => article.article.id === articleId);
+                    if (article) {
+                        articlesStore.setSelectedArticle(article);
+                    } else {
+                        router.push(`/admin/articles`);
+                        return;
+                    }
+                }
+                if (route?.params?.userid) {
+                    const userId = parseInt(String(route.params.userId));
+                    userManagementStore.clearSelectedUser();
+                    const user = userManagementStore.getUsers().find((user) => user.id === userId);
+                    if (user) {
+                        userManagementStore.setSelectedUser(user);
+                    } else {
+                        router.push(`/admin/users`);
+                        return;
+                    }
+                }
+            }
+        } else {
+            await articlesStore.retrieveCategories();
+            await articlesStore.retrievePublicArticles();
+            if (route?.params?.articleslug) {
+                const articleSlug = String(route.params.articleslug);
+                articlesStore.clearSelectedArticle();
+                const article = articlesStore.getArticles().find((article) => article.article.slug === articleSlug);
+                if (article) {
+                    console.log('public article found', article);
+                    articlesStore.setSelectedArticle(article);
+                } else {
+                    router.push(`/articles`);
+                    return;
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Failed to load data:', error);
+        // During SSR, allow the page to render (will retry on client)
+        // On client, the error will be visible in console
+        if (import.meta.client) {
+            // Optionally show a notification to the user
+            console.warn('Data loading failed. Some features may not work correctly.');
+        }
+    }
+}
+
+// Note: onServerPrefetch removed to prevent backend fetch errors during SSR
+// Data will be loaded on client-side via onMounted
+// This ensures SSR works even when backend is not accessible
+
 const loggedInUser = computed(() => {
     return loggedInUserStore.getLoggedInUser();
 });
@@ -33,159 +128,11 @@ const isInPublicDashboard = computed(() => {
 watch(
   route,
   async (value, oldValue) => {
-    state.authenticated = isAuthenticated();
-    if (state.authenticated) {
-        await projectsStore.retrieveProjects();
-        await dataSourceStore.retrieveDataSources();
-        await dataModelsStore.retrieveDataModels();
-        await dashboardsStore.retrieveDashboards();
-        if (projectsStore?.getSelectedProject()?.id) {
-            await dataModelsStore.retrieveDataModelTables(projectsStore?.getSelectedProject()?.id);
-        }
-        if (value?.params?.projectid) {
-            const projectId = parseInt(route.params.projectid);
-            projectsStore.clearSelectedProject();
-            const project = projectsStore.getProjects().find((project) => project.id === projectId);
-            if (project) {
-                projectsStore.setSelectedProject(project);
-            } else {
-                router.push(`/projects`);
-                return;
-            }
-            if (value?.params?.dashboardid) {
-                const dashboardId = parseInt(route.params.dashboardid);
-                const dashboard = dashboardsStore.getDashboards().find((dashboard) => dashboard.id === dashboardId);
-                dashboardsStore.clearSelectedDashboard();
-                if (dashboard) {
-                    dashboardsStore.setSelectedDashboard(dashboard);
-                } else {
-                    router.push(`/dashboards`);
-                    return;
-                }
-            }
-        }
-        if (isUserAdmin.value) {
-            await articlesStore.retrieveCategories();
-            await articlesStore.retrieveArticles();
-            await privateBetaUserStore.retrievePrivateBetaUsers();
-            await userManagementStore.retrieveUsers();
-            if (route?.params?.articleid) {
-                const articleId = parseInt(route.params.articleid);
-                articlesStore.clearSelectedArticle();
-                const article = articlesStore.getArticles().find((article) => article.article.id === articleId);
-                if (article) {
-                    articlesStore.setSelectedArticle(article);
-                } else {
-                    router.push(`/admin/articles`);
-                    return;
-                }
-            }
-            if (route?.params?.userid) {
-                const userId = parseInt(route.params.userid);
-                userManagementStore.clearSelectedUser();
-                const user = userManagementStore.getUsers().find((user) => user.id === userId);
-                if (user) {
-                    userManagementStore.setSelectedUser(user);
-                } else {
-                    router.push(`/admin/users`);
-                    return;
-                }
-            }
-        }
-    } else {
-        await articlesStore.retrieveCategories();
-        await articlesStore.retrievePublicArticles();
-        if (value?.params?.articleslug) {
-            const articleSlug = route.params.articleslug;
-            articlesStore.clearSelectedArticle();
-            const article = articlesStore.getArticles().find((article) => article.article.slug === articleSlug);
-            if (article) {
-                console.log('public article found in route watcher', article);
-                articlesStore.setSelectedArticle(article);
-            } else {
-                router.push(`/articles`);
-                return;
-            }
-        }
-    }
+    await loadData();
   },
 );
 onMounted(async () => {
-    state.authenticated = isAuthenticated();
-    if (state.authenticated) {
-        await projectsStore.retrieveProjects();
-        await dataSourceStore.retrieveDataSources();
-        await dataModelsStore.retrieveDataModels();
-        await dashboardsStore.retrieveDashboards();
-        if (projectsStore?.getSelectedProject()?.id) {
-            await dataModelsStore.retrieveDataModelTables(projectsStore?.getSelectedProject()?.id);
-        }
-        if (route?.params?.projectid) {
-            const projectId = parseInt(route.params.projectid);
-            projectsStore.clearSelectedProject();
-            const project = projectsStore.getProjects().find((project) => project.id === projectId);
-            if (project) {
-                projectsStore.setSelectedProject(project);
-            } else {
-                router.push(`/projects`);
-                return;
-            }
-            if (route?.params?.dashboardid) {
-                const dashboardId = parseInt(route.params.dashboardid);
-                const dashboard = dashboardsStore.getDashboards().find((dashboard) => dashboard.id === dashboardId);
-                dashboardsStore.clearSelectedDashboard();
-                if (dashboard) {
-                    dashboardsStore.setSelectedDashboard(dashboard);
-                } else {
-                    router.push(`/dashboards`);
-                    return;
-                }
-            }
-        }
-        if (isUserAdmin.value) {
-            await articlesStore.retrieveCategories();
-            await articlesStore.retrieveArticles();
-            await privateBetaUserStore.retrievePrivateBetaUsers();
-            await userManagementStore.retrieveUsers();
-            if (route?.params?.articleid) {
-                const articleId = parseInt(route.params.articleid);
-                articlesStore.clearSelectedArticle();
-                const article = articlesStore.getArticles().find((article) => article.article.id === articleId);
-                if (article) {
-                    articlesStore.setSelectedArticle(article);
-                } else {
-                    router.push(`/admin/articles`);
-                    return;
-                }
-            }
-            if (route?.params?.userid) {
-                const userId = parseInt(route.params.userid);
-                userManagementStore.clearSelectedUser();
-                const user = userManagementStore.getUsers().find((user) => user.id === userId);
-                if (user) {
-                    userManagementStore.setSelectedUser(user);
-                } else {
-                    router.push(`/admin/users`);
-                    return;
-                }
-            }
-        }
-    } else {
-        await articlesStore.retrieveCategories();
-        await articlesStore.retrievePublicArticles();
-        if (route?.params?.articleslug) {
-            const articleSlug = route.params.articleslug;
-            articlesStore.clearSelectedArticle();
-            const article = articlesStore.getArticles().find((article) => article.article.slug === articleSlug);
-            if (article) {
-                console.log('public article found in onMounted', article);
-                articlesStore.setSelectedArticle(article);
-            } else {
-                router.push(`/articles`);
-                return;
-            }
-        }
-    }
+    await loadData();
 })
 </script>
 <template>

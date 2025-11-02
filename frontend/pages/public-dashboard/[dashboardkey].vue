@@ -8,6 +8,62 @@ const dataModelsStore = useDataModelsStore();
 const dashboardsStore = useDashboardsStore();
 const { $swal, $htmlToImageToPng } = useNuxtApp();
 const router = useRouter();
+const route = useRoute();
+
+// Dynamic SEO Meta Tags for Public Dashboard
+const dashboard = computed(() => dashboardsStore.getSelectedDashboard());
+const project = computed(() => projectsStore.getSelectedProject());
+
+// Set up dynamic meta tags based on dashboard data
+useHead(() => ({
+    title: dashboard.value?.name 
+        ? `${dashboard.value.name} - Data Dashboard | Data Research Analysis`
+        : 'Public Dashboard | Data Research Analysis',
+    meta: [
+        { 
+            name: 'description', 
+            content: dashboard.value?.description 
+                || `Interactive data dashboard for ${project.value?.name || 'data analysis'}. Explore visualizations and insights powered by Data Research Analysis.` 
+        },
+        { name: 'robots', content: 'index, follow' },
+        
+        // Open Graph / Facebook
+        { property: 'og:type', content: 'website' },
+        { property: 'og:url', content: `https://dataresearchanalysis.com/public-dashboard/${route.params.dashboardkey}` },
+        { 
+            property: 'og:title', 
+            content: dashboard.value?.name 
+                ? `${dashboard.value.name} - Data Dashboard`
+                : 'Public Data Dashboard' 
+        },
+        { 
+            property: 'og:description', 
+            content: dashboard.value?.description 
+                || `Interactive data dashboard with real-time visualizations and analytics.` 
+        },
+        { property: 'og:image', content: 'https://dataresearchanalysis.com/images/dashboard-preview.png' },
+        
+        // Twitter
+        { name: 'twitter:card', content: 'summary_large_image' },
+        { name: 'twitter:url', content: `https://dataresearchanalysis.com/public-dashboard/${route.params.dashboardkey}` },
+        { 
+            name: 'twitter:title', 
+            content: dashboard.value?.name 
+                ? `${dashboard.value.name} - Data Dashboard`
+                : 'Public Data Dashboard' 
+        },
+        { 
+            name: 'twitter:description', 
+            content: dashboard.value?.description 
+                || `Interactive data dashboard with real-time visualizations.` 
+        },
+        { name: 'twitter:image', content: 'https://dataresearchanalysis.com/images/dashboard-preview.png' },
+    ],
+    link: [
+        { rel: 'canonical', href: `https://dataresearchanalysis.com/public-dashboard/${route.params.dashboardkey}` }
+    ]
+}));
+
 const state = reactive({
     data_model_tables: [],
     chart_mode: 'table',//table, pie, vertical_bar, horizontal_bar, vertical_bar_line, stacked_bar, multiline, heatmap, bubble, map
@@ -38,12 +94,7 @@ const state = reactive({
     scaleHeight: 1,
     show_table_dialog: false,
  });
-const project = computed(() => {
-    return projectsStore.getSelectedProject();
-});
-const dashboard = computed(() => {
-    return dashboardsStore.getSelectedDashboard();
-});
+// project and dashboard computeds are defined above for SEO
 const dataModelTables = computed(() => {
     return dataModelsStore.getDataModelTables();
 });
@@ -88,6 +139,9 @@ function autoResizeTableContainer(chartId) {
     if (!chart || chart.chart_type !== 'table') return;
     
     nextTick(() => {
+        // Only access DOM on client side for SSR compatibility
+        if (!import.meta.client) return;
+        
         // Calculate required width based on columns
         const columnCount = chart.columns?.length || 0;
         const minColumnWidth = 120; // From component prop
@@ -117,6 +171,9 @@ function autoResizeTableContainer(chartId) {
 function handleTableResize(chartId, resizeData) {
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
     if (!chart || chart.chart_type !== 'table') return;
+    
+    // Only access DOM on client side for SSR compatibility
+    if (!import.meta.client) return;
     
     const draggableDiv = document.getElementById(`draggable-div-${chartId}`);
     
@@ -461,6 +518,9 @@ async function executeQueryOnDataModels(chartId) {
 
 // Pre-export preparation function to handle overflow containers
 function prepareForExport() {
+    // Only access DOM on client side for SSR compatibility
+    if (!import.meta.client) return null;
+    
     const dashboardContainer = document.querySelector('.flex.flex-col.min-h-200.max-h-200.h-200.bg-white.overflow-x-auto');
     const rootContainer = document.querySelector('.data-research-analysis');
     
@@ -537,6 +597,9 @@ function restoreOriginalStyles(preparation) {
 }
 
 function exportDashboardAsImage() {
+    // Only export on client side for SSR compatibility
+    if (!import.meta.client) return;
+    
     const dashboardElement = document.querySelector('.data-research-analysis');
     if (dashboardElement) {
         // Prepare containers for export

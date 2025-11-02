@@ -18,26 +18,32 @@ const isPublicDashboard = computed(() => {
 });
 const currentYear = computed(() => { return new Date().getFullYear()});
 function scrollToTop() {
-    window.scrollTo({ top: 0, behavior: 'smooth'});   
+    // Only access window on client side for SSR compatibility
+    if (import.meta.client) {
+        window.scrollTo({ top: 0, behavior: 'smooth'});   
+    }
 }
 
 onMounted(() => {
     state.authenticated = isAuthenticated();
-    document.addEventListener("scroll", () => {
-        const scrollButton = document.getElementById("scroll_to_top_button");
-        if (window.scrollY > 100) {
-            scrollButton?.classList?.remove("hidden", "opacity-0", "translate-y-2");
-            scrollButton?.classList?.add("opacity-100", "translate-y-0");
-        } else {
-            scrollButton?.classList?.add("opacity-0", "translate-y-2");
-            scrollButton?.classList?.remove("opacity-100", "translate-y-0");
-            setTimeout(() => {
-                if (window.scrollY <= 100) {
-                    scrollButton?.classList?.add("hidden");
-                }
-            }, 300);
-        }
-    })
+    // Only access window/document on client side for SSR compatibility
+    if (import.meta.client) {
+        document.addEventListener("scroll", () => {
+            const scrollButton = document.getElementById("scroll_to_top_button");
+            if (window.scrollY > 100) {
+                scrollButton?.classList?.remove("hidden", "opacity-0", "translate-y-2");
+                scrollButton?.classList?.add("opacity-100", "translate-y-0");
+            } else {
+                scrollButton?.classList?.add("opacity-0", "translate-y-2");
+                scrollButton?.classList?.remove("opacity-100", "translate-y-0");
+                setTimeout(() => {
+                    if (window.scrollY <= 100) {
+                        scrollButton?.classList?.add("hidden");
+                    }
+                }, 300);
+            }
+        })
+    }
 })
 </script>
 <template>

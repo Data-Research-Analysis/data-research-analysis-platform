@@ -4,6 +4,14 @@ const router = useRouter();
 const { $swal } = useNuxtApp();
 const articlesStore = useArticlesStore();
 
+// SEO Meta Tags for Article Create Page
+useHead({
+    title: 'Create Article - Admin | Data Research Analysis',
+    meta: [
+        { name: 'robots', content: 'noindex, nofollow' }, // Don't index admin pages
+    ]
+});
+
 const state = reactive({
     title: '',
     content: '',
