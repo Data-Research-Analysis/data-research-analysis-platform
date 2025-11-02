@@ -15,13 +15,10 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
   if (!token) {
     if (to.name === 'public-dashboard-dashboardkey') {
         const dashboardKey = to.params.dashboardkey as string;
-        console.log('dashboardKey', dashboardKey);
-        
         // Handle fetch errors gracefully (e.g., during SSR when backend is not accessible)
         try {
           const dashboard = await dashboardsStore.retrievePublicDashboard(dashboardKey);
           dashboardsStore.setSelectedDashboard(dashboard.dashboard);
-          console.log('dashboard', dashboard);
           if (dashboard) {
               return;
           } else {
