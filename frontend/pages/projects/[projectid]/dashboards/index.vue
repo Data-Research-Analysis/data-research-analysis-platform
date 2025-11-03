@@ -7,20 +7,23 @@ const { $swal } = useNuxtApp();
 const route = useRoute();
 
 // Get project ID from route
-const projectId = String(route.params.projectid);
-
-// Fetch dashboards with client-side SSR
-const { data: dashboardsList, pending, error, refresh } = useDashboards(projectId);
+const projectId = parseInt(String(route.params.projectid));
 
 const state = reactive({
     dashboards: computed(() => {
-        if (!dashboardsList.value) return [];
-        return dashboardsList.value.map((dashboardObj) => ({
-            id: dashboardObj.id,
-            dashboard: dashboardObj.data,
-            project_id: dashboardObj.project_id,
-            user_id: dashboardObj.user_platform_id,
-        }));
+        const allDashboards = dashboardsStore.getDashboards();
+        // Filter dashboards by project ID
+        return allDashboards
+            .filter((d) => {
+                const dProjectId = d.project_id || d.project?.id;
+                return dProjectId === projectId;
+            })
+            .map((dashboardObj) => ({
+                id: dashboardObj.id,
+                dashboard: dashboardObj.data,
+                project_id: dashboardObj.project_id,
+                user_id: dashboardObj.user_platform_id,
+            }));
     }),
 });
 
@@ -53,7 +56,7 @@ async function deleteDashboard(dashboardId) {
     
     if (data) {
         $swal.fire(`The dashboard has been deleted successfully.`);
-        await refresh(); // Refresh dashboards list
+        await dashboardsStore.retrieveDashboards(); // Refresh dashboards list
     } else {
         $swal.fire(`There was an error deleting the dashboard.`);
     }
@@ -63,32 +66,8 @@ async function deleteDashboard(dashboardId) {
     <div v-if="project && project.id" class="flex flex-col">
         <tabs :project-id="project.id"/>
         
-        <!-- Loading State -->
-        <div v-if="pending" class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 mb-10 border border-primary-blue-100 border-solid p-10 shadow-md">
-            <div class="flex items-center justify-center py-20">
-                <div class="text-center">
-                    <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-blue-500 mb-4"></div>
-                    <p class="text-gray-600">Loading dashboards...</p>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Error State -->
-        <div v-else-if="error" class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 mb-10 border border-red-200 border-solid p-10 shadow-md bg-red-50">
-            <div class="flex items-center justify-center py-20">
-                <div class="text-center">
-                    <font-awesome icon="fas fa-exclamation-triangle" class="text-5xl text-red-500 mb-4" />
-                    <p class="text-red-600 font-semibold mb-2">Error loading dashboards</p>
-                    <p class="text-gray-600 text-sm">{{ error.message }}</p>
-                    <button @click="refresh()" class="mt-4 px-4 py-2 bg-primary-blue-500 text-white rounded hover:bg-primary-blue-600">
-                        Try Again
-                    </button>
-                </div>
-            </div>
-        </div>
-        
         <!-- Dashboards Content -->
-        <div v-else class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 mb-10 border border-primary-blue-100 border-solid p-10 shadow-md">
+        <div class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 mb-10 border border-primary-blue-100 border-solid p-10 shadow-md">
             <div class="font-bold text-2xl mb-5">
                 Dashboards
             </div>

@@ -20,8 +20,6 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     return;
   }
   
-  console.log('[data_exists] Running for route:', to.name, 'params:', to.params);
-  
   const token = getAuthToken();
   const projectsStore = useProjectsStore();
   const dataSourceStore = useDataSourceStore();
@@ -32,13 +30,11 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
   
   // Skip validation for public dashboard - they handle their own data
   if (to.name === 'public-dashboard-dashboardkey') {
-    console.log('[data_exists] Skipping - public dashboard');
     return;
   }
 
   // Skip validation for unauthenticated routes
   if (!token) {
-    console.log('[data_exists] No token, handling public routes');
     // Handle public article selection
     if (to.params.articleslug) {
       const articleSlug = String(to.params.articleslug);
@@ -55,22 +51,18 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
   // === PROJECT VALIDATION AND SELECTION ===
   if (to.params.projectid) {
     const projectId = parseInt(String(to.params.projectid));
-    const allProjects = projectsStore.getProjects();
-    console.log('[data_exists] Looking for project', projectId, 'in', allProjects.length, 'projects');
-    const project = allProjects.find((p) => p.id === projectId);
+    const project = projectsStore.getProjects().find((p) => p.id === projectId);
     
     if (!project) {
-      console.warn(`[data_exists] Project ${projectId} not found, redirecting to /projects`);
+      console.warn(`Project ${projectId} not found, redirecting to /projects`);
       return navigateTo('/projects');
     }
     
-    console.log('[data_exists] Project found:', project.name);
     // Set selected project
     projectsStore.setSelectedProject(project);
     
     // Load data model tables for this project if not already loaded
     if (!dataModelsStore.getDataModelTables()?.length) {
-      console.log('[data_exists] Loading data model tables for project', projectId);
       await dataModelsStore.retrieveDataModelTables(projectId);
     }
   }
