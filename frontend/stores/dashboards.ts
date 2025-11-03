@@ -16,6 +16,8 @@ export const useDashboardsStore = defineStore('dashboardsDRA', () => {
     }
     function setDashboards(dashboardsList: IDashboard[]) {
         dashboards.value = dashboardsList
+        console.log("Setting dashboards in store:", dashboardsList);
+        console.log("dashboards.value", dashboards.value)
         if (import.meta.client) {
             localStorage.setItem('dashboards', JSON.stringify(dashboardsList))
         }

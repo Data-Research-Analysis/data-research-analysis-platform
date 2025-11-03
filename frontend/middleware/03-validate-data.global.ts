@@ -54,7 +54,6 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     const project = projectsStore.getProjects().find((p) => p.id === projectId);
     
     if (!project) {
-      console.warn(`Project ${projectId} not found, redirecting to /projects`);
       return navigateTo('/projects');
     }
     
@@ -73,7 +72,6 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     const dataSource = dataSourceStore.getDataSources().find((ds) => ds.id === dataSourceId);
     
     if (!dataSource) {
-      console.warn(`Data source ${dataSourceId} not found, redirecting to project`);
       const projectId = to.params.projectid;
       return navigateTo(`/projects/${projectId}`);
     }
@@ -83,7 +81,6 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     const dsProjectId = dataSource.project_id || dataSource.project?.id;
     
     if (dsProjectId !== projectId) {
-      console.warn(`Data source ${dataSourceId} doesn't belong to project ${projectId}`);
       return navigateTo(`/projects/${projectId}`);
     }
     
@@ -97,7 +94,6 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     const dashboard = dashboardsStore.getDashboards().find((d) => d.id === dashboardId);
     
     if (!dashboard) {
-      console.warn(`Dashboard ${dashboardId} not found, redirecting to dashboards list`);
       const projectId = to.params.projectid;
       return navigateTo(`/projects/${projectId}/dashboards`);
     }
@@ -107,7 +103,6 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     const dashboardProjectId = dashboard.project_id || dashboard.project?.id;
     
     if (dashboardProjectId !== projectId) {
-      console.warn(`Dashboard ${dashboardId} doesn't belong to project ${projectId}`);
       return navigateTo(`/projects/${projectId}/dashboards`);
     }
     
@@ -121,7 +116,6 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     const article = articlesStore.getArticles().find((a) => a.article.id === articleId);
     
     if (!article) {
-      console.warn(`Article ${articleId} not found, redirecting to articles list`);
       return navigateTo('/admin/articles');
     }
     
@@ -135,7 +129,6 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     const user = userManagementStore.getUsers().find((u) => u.id === userId);
     
     if (!user) {
-      console.warn(`User ${userId} not found, redirecting to users list`);
       return navigateTo('/admin/users');
     }
     
@@ -148,7 +141,6 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
   // Creating dashboard requires data models
   if (to.name === 'projects-projectid-dashboards-create') {
     if (!dataModelsStore.getDataModelTables()?.length) {
-      console.warn('No data models available, cannot create dashboard');
       return navigateTo(`/projects/${to.params.projectid}`);
     }
   }
