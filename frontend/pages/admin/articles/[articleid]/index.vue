@@ -148,7 +148,7 @@ watchEffect(() => {
                         Error loading categories. Please refresh the page.
                     </div>
                     <multi-select
-                        v-else-if="filteredCategoriesKeys.length && state.selectedMenuItems.length"
+                        v-else-if="filteredCategoriesKeys.length"
                         :options="filteredCategoriesKeys"
                         :default-options="state.selectedMenuItems"
                         :searchable="true"
@@ -157,7 +157,7 @@ watchEffect(() => {
                             (filteredData) => menuFilteredData(filteredData)
                         "
                     />
-                    <div v-else-if="!filteredCategoriesKeys.length" class="text-gray-500 p-2">
+                    <div v-else class="text-gray-500 p-2">
                         No categories available.
                     </div>
                 </div>

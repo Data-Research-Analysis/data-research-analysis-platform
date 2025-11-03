@@ -23,19 +23,11 @@ export const useDataSources = (projectId: string | number) => {
     const allDataSources = dataSourcesStore.getDataSources();
     const pid = parseInt(projectId.toString());
     
-    console.log('useDataSources - All data sources:', allDataSources.length);
-    console.log('useDataSources - First data source structure:', allDataSources[0]);
-    console.log('useDataSources - Looking for project_id:', pid);
-    
     const filtered = allDataSources.filter((ds: any) => {
       // Check both project_id field and project.id (in case backend returns project relation)
       const dsProjectId = ds.project_id || ds.project?.id;
-      console.log('Checking data source:', ds.id, 'project_id:', ds.project_id, 'project.id:', ds.project?.id, 'matches:', dsProjectId === pid);
       return dsProjectId === pid;
     });
-    
-    console.log('useDataSources - Filtered for project', pid, ':', filtered.length);
-    console.log('useDataSources - Filtered data:', filtered);
     
     return filtered;
   });

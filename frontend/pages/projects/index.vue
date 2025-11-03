@@ -1,18 +1,13 @@
 <script setup>
 import {useProjectsStore} from '@/stores/projects';
-import { useProjects } from '@/composables/useProjects';
-
 const projectsStore = useProjectsStore();
 const { $swal } = useNuxtApp();
-
-// Fetch projects with client-side SSR
-const { data: projectsList, pending, error, refresh } = useProjects();
 
 const state = reactive({
     project_name: '',
     projects: computed(() => {
-        if (!projectsList.value) return [];
-        return projectsList.value.map((project) => ({
+        const projects = projectsStore.getProjects();
+        return projects.map((project) => ({
             id: project.id,
             user_id: project.user_platform_id,
             name: project.name,
@@ -54,7 +49,7 @@ async function addProject() {
                 title: `The project ${projectName} has been created successfully.`,
                 confirmButtonColor: "#3C8DBC",
             });
-            await refresh(); // Refresh projects list
+            await projectsStore.retrieveProjects(); // Refresh projects list
         } else {
             $swal.fire({
                 title: `There was an error creating the project ${projectName}.`,
@@ -85,7 +80,7 @@ async function deleteProject(projectId) {
     
     if (data) {
         $swal.fire(`The project has been deleted successfully.`);
-        await refresh(); // Refresh projects list
+        await projectsStore.retrieveProjects(); // Refresh projects list
     } else {
         $swal.fire(`There was an error deleting the project.`);
     }

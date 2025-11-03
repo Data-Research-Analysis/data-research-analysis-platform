@@ -15,23 +15,26 @@ const router = useRouter();
 const config = useRuntimeConfig();
 
 // Get project ID from route
-const projectId = String(route.params.projectid);
-
-// Fetch data sources with client-side SSR
-const { data: dataSourcesList, pending, error, refresh } = useDataSources(projectId);
+const projectId = parseInt(String(route.params.projectid));
 
 const state = reactive({
     show_dialog: false,
     data_sources: computed(() => {
-        if (!dataSourcesList.value) return [];
-        return dataSourcesList.value.map((dataSource) => ({
-            id: dataSource.id,
-            name: dataSource.name,
-            data_type: dataSource.data_type,
-            connection_details: dataSource.connection_details,
-            user_id: dataSource.user_platform_id,
-            project_id: dataSource.project_id,
-        }));
+        const allDataSources = dataSourceStore.getDataSources();
+        // Filter data sources by project ID
+        return allDataSources
+            .filter((ds) => {
+                const dsProjectId = ds.project_id || ds.project?.id;
+                return dsProjectId === projectId;
+            })
+            .map((dataSource) => ({
+                id: dataSource.id,
+                name: dataSource.name,
+                data_type: dataSource.data_type,
+                connection_details: dataSource.connection_details,
+                user_id: dataSource.user_platform_id,
+                project_id: dataSource.project_id,
+            }));
     }),
     available_data_sources: [
         {
@@ -96,7 +99,7 @@ async function deleteDataSource(dataSourceId) {
     
     if (data) {
         $swal.fire(`The data source has been deleted successfully.`);
-        await refresh(); // Refresh data sources list
+        await dataSourceStore.retrieveDataSources(); // Refresh data sources list
     } else {
         $swal.fire(`There was an error deleting the data source.`);
     }
@@ -111,32 +114,8 @@ async function setSelectedDataSource(dataSourceId) {
     <div class="flex flex-col">
         <tabs :project-id="project.id"/>
         
-        <!-- Loading State -->
-        <div v-if="pending" class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 mb-10 border border-primary-blue-100 border-solid p-10 shadow-md">
-            <div class="flex items-center justify-center py-20">
-                <div class="text-center">
-                    <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-blue-500 mb-4"></div>
-                    <p class="text-gray-600">Loading data sources...</p>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Error State -->
-        <div v-else-if="error" class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 mb-10 border border-red-200 border-solid p-10 shadow-md bg-red-50">
-            <div class="flex items-center justify-center py-20">
-                <div class="text-center">
-                    <font-awesome icon="fas fa-exclamation-triangle" class="text-5xl text-red-500 mb-4" />
-                    <p class="text-red-600 font-semibold mb-2">Error loading data sources</p>
-                    <p class="text-gray-600 text-sm">{{ error.message }}</p>
-                    <button @click="refresh()" class="mt-4 px-4 py-2 bg-primary-blue-500 text-white rounded hover:bg-primary-blue-600">
-                        Try Again
-                    </button>
-                </div>
-            </div>
-        </div>
-        
         <!-- Data Sources Content -->
-        <div v-else class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 mb-10 border border-primary-blue-100 border-solid p-10 shadow-md">
+        <div class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 mb-10 border border-primary-blue-100 border-solid p-10 shadow-md">
             <div class="font-bold text-2xl mb-5">
                 Data Sources
             </div>
