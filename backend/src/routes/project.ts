@@ -11,10 +11,13 @@ const router = express.Router();
  */
 router.post('/add', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([body('project_name').notEmpty().trim().escape(),]),
+}, validateJWT, validate([
+    body('project_name').notEmpty().trim().escape(),
+    body('description').optional().trim()
+]),
 async (req: Request, res: Response) => {
-    const { project_name } = matchedData(req);
-    const response: boolean = await ProjectProcessor.getInstance().addProject(project_name, req.body.tokenDetails);
+    const { project_name, description } = matchedData(req);
+    const response: boolean = await ProjectProcessor.getInstance().addProject(project_name, description, req.body.tokenDetails);
     if (response) {
         res.status(200).send({message: 'The project has been added.'});
     } else {

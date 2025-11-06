@@ -122,6 +122,12 @@ async function setSelectedDataSource(dataSourceId) {
             <div class="text-md">
                 Data sources are the basic entity that you provide. A data source can range from a simple excel file to a PostgresSQL. This is the data that you provide which you will then work with in order to reach your analysis goals.
             </div>
+            <div class="text-lg font3-bold mt-5">
+                Project Description
+            </div>
+            <div class="text-md">
+                {{project.description}}
+            </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5">
                 <notched-card class="justify-self-center mt-10">
                     <template #body="{ onClick }">
