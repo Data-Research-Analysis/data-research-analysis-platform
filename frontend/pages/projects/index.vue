@@ -11,6 +11,7 @@ const state = reactive({
             id: project.id,
             user_id: project.user_platform_id,
             name: project.name,
+            description: project.description,
             dataSources: 0,
             sheets: 0,
             visualizations: 0,
@@ -21,27 +22,52 @@ const state = reactive({
 });
 
 async function addProject() {
-    const inputValue = "";
-    const { value: projectName } = await $swal.fire({
-        title: "Enter Project Name",
-        input: "text",
-        inputLabel: "Project Name",
-        inputValue,
+    const { value: formValues } = await $swal.fire({
+        title: "Create New Project",
+        html: `
+            <div class="text-left">
+                <label for="swal-input1" class="block text-sm font-medium text-gray-700 mb-1">
+                    Project Name <span class="text-red-500">*</span>
+                </label>
+                <input id="swal-input1" class="swal2-input w-full" placeholder="Enter project name">
+                
+                <label for="swal-input2" class="block text-sm font-medium text-gray-700 mb-1 mt-4">
+                    Description
+                </label>
+                <textarea id="swal-input2" class="swal2-textarea w-full" 
+                    placeholder="Enter project description (optional)" 
+                    rows="3"></textarea>
+            </div>
+        `,
         showCancelButton: true,
         confirmButtonColor: "#3C8DBC",
         cancelButtonColor: "#DD4B39",
-        inputValidator: (value) => {
-            if (!value) {
-                return "Please enter in a name for the project!";
+        confirmButtonText: "Create Project",
+        focusConfirm: false,
+        preConfirm: () => {
+            const projectName = document.getElementById('swal-input1').value;
+            const description = document.getElementById('swal-input2').value;
+            
+            if (!projectName) {
+                $swal.showValidationMessage('Please enter a project name!');
+                return false;
             }
+            
+            return { projectName, description };
         }
     });
-    if (projectName) {
+    
+    if (formValues) {
+        const { projectName, description } = formValues;
         state.project_name = projectName;
+        
         const { execute } = useAuthenticatedMutation();
         const data = await execute('/project/add', {
             method: 'POST',
-            body: { project_name: projectName }
+            body: { 
+                project_name: projectName,
+                description: description
+            }
         });
         
         if (data) {
@@ -49,7 +75,7 @@ async function addProject() {
                 title: `The project ${projectName} has been created successfully.`,
                 confirmButtonColor: "#3C8DBC",
             });
-            await projectsStore.retrieveProjects(); // Refresh projects list
+            await projectsStore.retrieveProjects();
         } else {
             $swal.fire({
                 title: `There was an error creating the project ${projectName}.`,
@@ -118,17 +144,8 @@ async function setSelectedProject(projectId) {
                                 <div class="text-md font-bold">
                                     {{project.name}}
                                 </div>
-                                <div class="bg-gray-300 p-5">
-                                    Screenshot here
-                                </div>
-                                <div class="flex flex-row justify-between mt-1">
-                                    <ul class="text-xs">
-                                        <li>{{ project.dataSources }} Data Sources</li>
-                                        <li>{{ project.sheets }} Sheets</li>
-                                        <li>{{ project.visualizations }} Visualizations</li>
-                                        <li>{{ project.dashboards }} Dashboard</li>
-                                        <li>{{ project.stories }} Story</li>
-                                    </ul>
+                                <div class="text-sm mt-4">
+                                    {{project.description}}
                                 </div>
                             </div>
                         </NuxtLink>

@@ -15,7 +15,7 @@ export class ProjectProcessor {
         return ProjectProcessor.instance;
     }
 
-    async addProject(project_name: string, tokenDetails: ITokenDetails): Promise<boolean> {
+    async addProject(project_name: string, description: string | undefined, tokenDetails: ITokenDetails): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -27,6 +27,7 @@ export class ProjectProcessor {
             }
             const project = new DRAProject();
             project.name = project_name;
+            project.description = description || '';
             project.users_platform = user;
             project.created_at = new Date();
             await manager.save(project);

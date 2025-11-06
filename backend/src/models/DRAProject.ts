@@ -8,6 +8,8 @@ export class DRAProject {
     id!: number
     @Column({ type: 'varchar', length: 255 })
     name!: string
+    @Column({ type: 'text', nullable: true })
+    description!: string
     @Column({ type: 'timestamp', nullable: true })
     created_at!: Date
 
