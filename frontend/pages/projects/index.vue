@@ -136,7 +136,7 @@ async function setSelectedProject(projectId) {
                     </div>
                 </template>
             </notched-card>
-            <div v-for="project in state.projects" class="relative">
+            <div v-for="project in state.projects" :key="project.id" class="relative">
                 <notched-card class="justify-self-center mt-10">
                     <template #body="{ onClick }">
                         <NuxtLink :to="`/projects/${project.id}`" class="hover:text-gray-500 cursor-pointer" @click="setSelectedProject(project.id)">
@@ -144,7 +144,7 @@ async function setSelectedProject(projectId) {
                                 <div class="text-md font-bold">
                                     {{project.name}}
                                 </div>
-                                <div class="text-sm mt-4">
+                                <div v-if="project.description" class="text-sm mt-4 text-gray-600 line-clamp-3">
                                     {{project.description}}
                                 </div>
                             </div>
