@@ -6,28 +6,18 @@ export const useArticlesStore = defineStore('articlesDRA', () => {
     const categories = ref<ICategory[]>([]);
     const selectedArticle = ref<IArticle>();
 
-    // Only access localStorage on client side
-    if (import.meta.client) {
-        if (localStorage.getItem('articles')) {
-            articles.value = JSON.parse(localStorage.getItem('articles') || 'null') || [];
-        }
-        if (localStorage.getItem('categories')) {
-            categories.value = JSON.parse(localStorage.getItem('categories') || 'null') || [];
-        }
-        if (localStorage.getItem('selectedArticle')) {
-            selectedArticle.value = JSON.parse(localStorage.getItem('selectedArticle') || 'null')
-        }
-    }
     function setArticles(articlesList: IArticle[]) {
         articles.value = articlesList;
         if (import.meta.client) {
             localStorage.setItem('articles', JSON.stringify(articlesList));
+            enableRefreshDataFlag('setArticles');
         }
     }
     function setCategories(categoriesList: ICategory[]) {
         categories.value = categoriesList;
         if (import.meta.client) {
             localStorage.setItem('categories', JSON.stringify(categoriesList));
+            enableRefreshDataFlag('setCategories');
         }
     }
     function setSelectedArticle(article: IArticle) {
@@ -37,24 +27,35 @@ export const useArticlesStore = defineStore('articlesDRA', () => {
             }
         }
     function getArticles() {
+        if (import.meta.client && localStorage.getItem('articles')) {
+            articles.value = JSON.parse(localStorage.getItem('articles') || 'null') || [];
+        }
         return articles.value;
     }
     function getCategories() {
+        if (import.meta.client && localStorage.getItem('categories')) {
+            categories.value = JSON.parse(localStorage.getItem('categories') || 'null') || [];
+        }
         return categories.value;
     }
     function getSelectedArticle() {
+        if (import.meta.client && localStorage.getItem('selectedArticle')) {
+            selectedArticle.value = JSON.parse(localStorage.getItem('selectedArticle') || 'null')
+        }
         return selectedArticle.value;
     }
     function clearArticles() {
         articles.value = [];
         if (import.meta.client) {
             localStorage.removeItem('articles');
+            enableRefreshDataFlag('clearArticles');
         }
     }
     function clearCategories() {
         categories.value = [];
         if (import.meta.client) {
             localStorage.removeItem('categories');
+            enableRefreshDataFlag('clearCategories');
         }
     }
     function clearSelectedArticle() {

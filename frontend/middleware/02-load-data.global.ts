@@ -37,7 +37,13 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
 
   try {
     if (token) {
-      // Authenticated user - load all user-specific data
+        // Authenticated user - load all user-specific data
+        const needsDataRefresh = typeof window !== 'undefined' && localStorage.getItem('refreshData') === 'true';
+        console.log("localStorage.getItem('refreshData')", localStorage.getItem('refreshData'));
+        console.log('Needs data refresh:', needsDataRefresh);
+        if (!needsDataRefresh) {
+            return;
+        }
         // Load core project-related data
         await projectsStore.retrieveProjects();
         await dataSourceStore.retrieveDataSources();
@@ -51,7 +57,12 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
           await articlesStore.retrieveArticles();
           await privateBetaUserStore.retrievePrivateBetaUsers();
           await userManagementStore.retrieveUsers();
-        }      
+        }
+        if (typeof window !== 'undefined') {
+          console.log('Clearing refreshData flag from localStorage');
+          localStorage.removeItem('refreshData');
+          console.log('localStorage', localStorage);
+        }
     } else {
       // Unauthenticated user - load public data only
       await articlesStore.retrieveCategories();

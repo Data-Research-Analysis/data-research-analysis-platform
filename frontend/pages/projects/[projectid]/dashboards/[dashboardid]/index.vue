@@ -53,7 +53,7 @@ const charts = computed(() => {
     return state.dashboard.charts;
 });
 watch(
-    dashboardsStore,
+    dashboardsStore.selectedDashboard,
     (value, oldValue) => {
         state.dashboard.charts = dashboardsStore.getSelectedDashboard()?.data?.charts.map((chart) => {
             return {

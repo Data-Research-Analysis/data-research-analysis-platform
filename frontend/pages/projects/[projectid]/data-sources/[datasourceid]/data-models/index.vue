@@ -13,10 +13,11 @@ const state = reactive({
 
 })
 watch(
-    dataModelsStore,
+    dataModelsStore.dataModels,
     (value, oldValue) => {
         getDataModels();
     },
+    { deep: true }
 )
 const project = computed(() => {
     return projectsStore.getSelectedProject();

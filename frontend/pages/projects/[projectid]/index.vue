@@ -11,8 +11,6 @@ const dataSourceStore = useDataSourceStore();
 const projectsStore = useProjectsStore();
 const { $swal } = useNuxtApp();
 const route = useRoute();
-const router = useRouter();
-const config = useRuntimeConfig();
 
 // Get project ID from route
 const projectId = parseInt(String(route.params.projectid));
@@ -111,8 +109,8 @@ async function setSelectedDataSource(dataSourceId) {
 }
 </script>
 <template>
-    <div class="flex flex-col">
-        <tabs :project-id="project.id"/>
+    <div v-if="project" class="flex flex-col">
+        <tabs v-if="project && project.id" :project-id="project.id"/>
         
         <!-- Data Sources Content -->
         <div class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 mb-10 border border-primary-blue-100 border-solid p-10 shadow-md">
@@ -139,7 +137,7 @@ async function setSelectedDataSource(dataSourceId) {
                         </div>
                     </template>
                 </notched-card>
-                <div v-for="dataSource in state.data_sources" class="relative">
+                <div v-if="state.data_sources && state.data_sources.length" v-for="dataSource in state.data_sources" class="relative">
                     <notched-card class="justify-self-center mt-10">
                         <template #body="{ onClick }">
                             <NuxtLink :to="`/projects/${project.id}/data-sources/${dataSource.id}/data-models`" class="hover:text-gray-500 cursor-pointer" @click="setSelectedDataSource(dataSource.id)">

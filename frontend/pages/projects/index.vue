@@ -5,22 +5,21 @@ const { $swal } = useNuxtApp();
 
 const state = reactive({
     project_name: '',
-    projects: computed(() => {
-        const projects = projectsStore.getProjects();
-        return projects.map((project) => ({
-            id: project.id,
-            user_id: project.user_platform_id,
-            name: project.name,
-            description: project.description,
-            dataSources: 0,
-            sheets: 0,
-            visualizations: 0,
-            dashboards: 0,
-            stories: 0,
-        }));
-    }),
 });
-
+const projects = computed(() => {
+    const projects = projectsStore.getProjects();
+    return projects.map((project) => ({
+        id: project.id,
+        user_id: project.user_platform_id,
+        name: project.name,
+        description: project.description,
+        dataSources: 0,
+        sheets: 0,
+        visualizations: 0,
+        dashboards: 0,
+        stories: 0,
+    }));
+});
 async function addProject() {
     const { value: formValues } = await $swal.fire({
         title: "Create New Project",
@@ -113,7 +112,7 @@ async function deleteProject(projectId) {
 }
 
 async function setSelectedProject(projectId) {
-    const project = state.projects.find((project) => project.id === projectId);
+    const project = projects.value.find((project) => project.id === projectId);
     projectsStore.setSelectedProject(project);
 }
 </script>
@@ -136,7 +135,7 @@ async function setSelectedProject(projectId) {
                     </div>
                 </template>
             </notched-card>
-            <div v-for="project in state.projects" :key="project.id" class="relative">
+            <div v-for="project in projects" :key="project.id" class="relative">
                 <NuxtLink :to="`/projects/${project.id}`" class="hover:text-gray-500 cursor-pointer" @click="setSelectedProject(project.id)">
                     <notched-card class="justify-self-center mt-10">
                         <template #body="{ onClick }">
