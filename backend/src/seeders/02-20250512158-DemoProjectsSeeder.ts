@@ -16,6 +16,7 @@ export class DemoProjectsSeeder extends Seeder {
         }
         const project = new DRAProject();
         project.name = 'DRA Demo Project';
+        project.description = 'This is a demo project created for testing purposes.';
         project.users_platform = user; // Assuming the user with ID 1 exists
         project.created_at = new Date();
         await manager.save(project);

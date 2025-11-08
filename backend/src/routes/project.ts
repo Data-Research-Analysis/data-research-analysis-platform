@@ -36,9 +36,7 @@ router.delete('/delete/:project_id', async (req: Request, res: Response, next: a
     next();
 }, validateJWT, validate([param('project_id').notEmpty().trim().toInt().escape().toInt()]), async (req: Request, res: Response) => {
     const { project_id } = matchedData(req);
-    //delete all of the data sources contained in the project
-    await DataSourceProcessor.getInstance().deleteDataSourcesForProject(project_id, req.body.tokenDetails);
-    //delete the project
+    // Delete the project (this now handles ALL cascading deletes internally)
     const response: boolean = await ProjectProcessor.getInstance().deleteProject(project_id, req.body.tokenDetails);
     if (response) {
         res.status(200).send({message: 'The project has been deleted.'});

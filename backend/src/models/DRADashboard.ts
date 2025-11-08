@@ -14,7 +14,7 @@ export class DRADashboard {
   @JoinColumn({ name: 'users_platform_id', referencedColumnName: 'id' })
   users_platform!: Relation<DRAUsersPlatform>
   
-  @ManyToOne(() => DRAProject, (project) => project.dashboards)
+  @ManyToOne(() => DRAProject, (project) => project.dashboards, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'project_id', referencedColumnName: 'id' })
   project!: Relation<DRAProject>
 

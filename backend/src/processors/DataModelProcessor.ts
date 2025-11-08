@@ -1,6 +1,7 @@
 import _ from "lodash";
 import { DBDriver } from "../drivers/DBDriver.js";
 import { DRADataModel } from "../models/DRADataModel.js";
+import { DRADashboard } from "../models/DRADashboard.js";
 import { ITokenDetails } from "../types/ITokenDetails.js";
 import { IDBConnectionDetails } from "../types/IDBConnectionDetails.js";
 import { UtilityService } from "../services/UtilityService.js";
@@ -201,28 +202,65 @@ export class DataModelProcessor {
      */
     public async deleteDataModel(dataModelId: number, tokenDetails: ITokenDetails): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
-            const { user_id } = tokenDetails;
-            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-            if (!driver) {
+            try {
+                const { user_id } = tokenDetails;
+                let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+                if (!driver) {
+                    return resolve(false);
+                }
+                const manager = (await driver.getConcreteDriver()).manager;
+                if (!manager) {
+                    return resolve(false);
+                }
+                const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+                if (!user) {
+                    return resolve(false);
+                }
+                const dataModel = await manager.findOne(DRADataModel, {where: {id: dataModelId, users_platform: user}});
+                if (!dataModel) {
+                    return resolve(false);
+                }
+                
+                // Clean up dashboard references before deleting
+                const dashboards = await manager.find(DRADashboard, {
+                    where: {users_platform: user}
+                });
+                
+                for (const dashboard of dashboards) {
+                    let modified = false;
+                    const updatedCharts = dashboard.data.charts.filter(chart => {
+                        // Check if chart columns reference the deleted data model
+                        const usesDeletedModel = chart.columns?.some(col => 
+                            col.tableName === dataModel.name && 
+                            col.schema === dataModel.schema
+                        );
+                        if (usesDeletedModel) {
+                            modified = true;
+                            console.log(`Removing chart ${chart.chart_id} from dashboard ${dashboard.id} (references deleted model)`);
+                            return false; // Remove this chart
+                        }
+                        return true; // Keep this chart
+                    });
+                    
+                    // If charts were removed, update the dashboard
+                    if (modified) {
+                        dashboard.data.charts = updatedCharts;
+                        await manager.save(dashboard);
+                        console.log(`Updated dashboard ${dashboard.id} to remove charts using deleted model`);
+                    }
+                }
+                
+                // Drop the physical table
+                const dbConnector = await driver.getConcreteDriver();
+                await dbConnector.query(`DROP TABLE IF EXISTS ${dataModel.schema}.${dataModel.name}`);
+                // Remove the data model record
+                await manager.remove(dataModel);
+                console.log(`Successfully deleted data model ${dataModelId}`);
+                return resolve(true);
+            } catch (error) {
+                console.error(`Fatal error deleting data model ${dataModelId}:`, error);
                 return resolve(false);
             }
-            const manager = (await driver.getConcreteDriver()).manager;
-            if (!manager) {
-                return resolve(false);
-            }
-            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
-            if (!user) {
-                return resolve(false);
-            }
-            const dataModel = await manager.findOne(DRADataModel, {where: {id: dataModelId, users_platform: user}});
-            if (!dataModel) {
-                return resolve(false);
-            }
-            //TODO: delete visualizations data
-            const dbConnector = await driver.getConcreteDriver();
-            await dbConnector.query(`DROP TABLE IF EXISTS ${dataModel.schema}.${dataModel.name}`);
-            await manager.remove(dataModel);
-            return resolve(true);
         });
     }
 

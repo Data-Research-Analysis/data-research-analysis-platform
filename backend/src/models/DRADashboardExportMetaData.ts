@@ -12,11 +12,11 @@ export class DRADashboardExportMetaData {
   @Column({ type: 'timestamp' })
   expiry_at!: Date;
   
-  @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.dashboards)
+  @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.dashboards, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'users_platform_id', referencedColumnName: 'id' })
   users_platform!: Relation<DRAUsersPlatform>
 
-  @ManyToOne(() => DRADashboard, (dashboard) => dashboard.export_meta_data)
+  @ManyToOne(() => DRADashboard, (dashboard) => dashboard.export_meta_data, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'dashboard_id', referencedColumnName: 'id' })
   dashboard!: Relation<DRADashboard>
 

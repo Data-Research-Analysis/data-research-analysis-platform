@@ -194,6 +194,7 @@ function buildSQLQuery(chart) {
     let sqlQuery = '';
     let fromJoinClause = [];
     let dataTables = chart.columns.map((column) => `${column.schema}.${column.table_name}`);
+    console.log('dataTables', dataTables);
     dataTables = _.uniq(dataTables);
     fromJoinClause.push(`FROM ${dataTables[0]}`);
     sqlQuery = `SELECT ${chart.columns.map((column) => {
@@ -891,6 +892,7 @@ function toggleSidebars(value) {
 }
 onMounted(async () => {
     state.data_model_tables = []
+    console.log('dataModelTables', dataModelTables);
     dataModelTables?.value?.forEach((dataModelTable) => {
         state.data_model_tables.push({
             schema: dataModelTable.schema,

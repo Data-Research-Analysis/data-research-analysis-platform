@@ -18,7 +18,7 @@ export class DRADataModel {
     @JoinColumn({ name: 'users_platform_id', referencedColumnName: 'id' })
     users_platform!: Relation<DRAUsersPlatform>
     
-    @ManyToOne(() => DRADataSource, (dataSource) => dataSource.data_models)
+    @ManyToOne(() => DRADataSource, (dataSource) => dataSource.data_models, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'data_source_id', referencedColumnName: 'id' })
     data_source!: Relation<DRADataSource>
 }

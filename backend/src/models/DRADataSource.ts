@@ -94,7 +94,7 @@ export class DRADataSource {
     @OneToMany(() => DRADataModel, (dataModel) => dataModel.data_source, { cascade: ["remove", "update"] })
     data_models!: Relation<DRADataModel>[]
     
-    @ManyToOne(() => DRAProject, (project) => project.data_sources)
+    @ManyToOne(() => DRAProject, (project) => project.data_sources, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'project_id', referencedColumnName: 'id' })
     project!: Relation<DRAProject>
     
