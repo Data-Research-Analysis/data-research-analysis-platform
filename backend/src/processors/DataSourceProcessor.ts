@@ -5,6 +5,7 @@ import { DRADataSource } from "../models/DRADataSource.js";
 import { ITokenDetails } from "../types/ITokenDetails.js";
 import { DRAProject } from "../models/DRAProject.js";
 import { DRADataModel } from "../models/DRADataModel.js";
+import { DRADashboard } from "../models/DRADashboard.js";
 import { DataSource } from "typeorm";
 import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
 import { EDataSourceType } from "../types/EDataSourceType.js";
@@ -252,86 +253,86 @@ export class DataSourceProcessor {
 
     public async deleteDataSource(dataSourceId: number, tokenDetails: ITokenDetails): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
-            const { user_id } = tokenDetails;
-            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-            if (!driver) {
-                return resolve(false);
-            }
-            const manager = (await driver.getConcreteDriver()).manager;
-            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
-            if (!user) {
-                return resolve(false);
-            }
-            const dataSource: DRADataSource|null = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}});
-            if (!dataSource) {
-                return resolve(false);
-            }
-            if (dataSource.connection_details.schema === 'dra_excel') {
-                //delete the tables that were created for the excel data source
-                const dbConnector = await driver.getConcreteDriver();
-                if (!dbConnector) {
+            try {
+                const { user_id } = tokenDetails;
+                let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+                if (!driver) {
                     return resolve(false);
                 }
-                //get the list of tables in the dra_excel schema that were created for this data source
-                let query = `SELECT table_name FROM information_schema.tables WHERE table_schema = 'dra_excel' AND table_name LIKE '%_data_source_${dataSource.id}_%'`;
-                const tables = await dbConnector.query(query);
-                for (let i = 0; i < tables.length; i++) {
-                    const tableName = tables[i].table_name;
-                    query = `DROP TABLE IF EXISTS dra_excel.${tableName}`;
-                    await dbConnector.query(query);
-                }
-            } else if (dataSource.connection_details.schema === 'dra_pdf') {
-                //delete the tables that were created for the PDF data source
+                const manager = (await driver.getConcreteDriver()).manager;
                 const dbConnector = await driver.getConcreteDriver();
-                if (!dbConnector) {
+                const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+                if (!user) {
                     return resolve(false);
                 }
-                //get the list of tables in the dra_pdf schema that were created for this data source
-                let query = `SELECT table_name FROM information_schema.tables WHERE table_schema = 'dra_pdf' AND table_name LIKE '%_data_source_${dataSource.id}%'`;
-                const tables = await dbConnector.query(query);
-                for (let i = 0; i < tables.length; i++) {
-                    const tableName = tables[i].table_name;
-                    query = `DROP TABLE IF EXISTS dra_pdf.${tableName}`;
-                    await dbConnector.query(query);
+                const dataSource: DRADataSource|null = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}, relations: ['data_models']});
+                if (!dataSource) {
+                    return resolve(false);
                 }
-            }
-            //TODO: delete all of the dashboards contained in all of the related data models
-            const dataModel = await manager.findOne(DRADataModel, {where: {data_source: dataSource, users_platform: user}});
-            if (dataModel) {
-                await manager.remove(dataModel);
-            }
-            await manager.remove(dataSource);
-            return resolve(true);
-        });
-    }
-
-    public async deleteDataSourcesForProject(projectId: number, tokenDetails: ITokenDetails): Promise<boolean> {
-        return new Promise<boolean>(async (resolve, reject) => {
-            const { user_id } = tokenDetails;
-            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-            if (!driver) {
+                                
+                // Get all data models for this data source
+                const dataModels = dataSource.data_models;
+                
+                console.log(`Found ${dataModels.length} data models to delete`);
+                
+                // For each data model, drop physical table and clean dashboard references
+                for (const dataModel of dataModels) {
+                    try {
+                        // Drop the physical data model table
+                        await dbConnector.query(
+                            `DROP TABLE IF EXISTS ${dataModel.schema}.${dataModel.name}`
+                        );
+                    } catch (error) {
+                        console.error(`Error deleting physical data model ${dataModel.schema}.${dataModel.name}:`, error);
+                    }
+                }
+                // Delete Excel schema tables
+                if (dataSource.connection_details?.schema === 'dra_excel') {
+                    if (!dbConnector) {
+                        return resolve(false);
+                    }
+                    try {
+                        const query = `SELECT table_name FROM information_schema.tables WHERE table_schema = 'dra_excel' AND table_name LIKE '%_data_source_${dataSource.id}_%'`;
+                        const tables = await dbConnector.query(query);
+                        console.log(`Found ${tables.length} Excel tables to delete`);
+                        
+                        for (let i = 0; i < tables.length; i++) {
+                            const tableName = tables[i].table_name;
+                            await dbConnector.query(`DROP TABLE IF EXISTS dra_excel.${tableName}`);
+                            console.log(`Dropped Excel table: ${tableName}`);
+                        }
+                    } catch (error) {
+                        console.error(`Error deleting Excel tables:`, error);
+                    }
+                }
+                
+                // Delete PDF schema tables
+                if (dataSource.connection_details?.schema === 'dra_pdf') {
+                    if (!dbConnector) {
+                        return resolve(false);
+                    }
+                    try {
+                        const query = `SELECT table_name FROM information_schema.tables WHERE table_schema = 'dra_pdf' AND table_name LIKE '%_data_source_${dataSource.id}%'`;
+                        const tables = await dbConnector.query(query);
+                        console.log(`Found ${tables.length} PDF tables to delete`);
+                        
+                        for (let i = 0; i < tables.length; i++) {
+                            const tableName = tables[i].table_name;
+                            await dbConnector.query(`DROP TABLE IF EXISTS dra_pdf.${tableName}`);
+                            console.log(`Dropped PDF table: ${tableName}`);
+                        }
+                    } catch (error) {
+                        console.error(`Error deleting PDF tables:`, error);
+                    }
+                }                
+                // Remove the data source record
+                await manager.remove(dataSource);
+                console.log(`Successfully deleted data source ${dataSourceId}`);
+                return resolve(true);
+            } catch (error) {
+                console.error(`Fatal error deleting data source ${dataSourceId}:`, error);
                 return resolve(false);
             }
-            const manager = (await driver.getConcreteDriver()).manager;
-            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
-            if (!user) {
-                return resolve(false);
-            }
-            const project = await manager.findOne(DRAProject, {where: {id: projectId}});
-            if (!project) {
-                return resolve(false);
-            }
-            const dataSource = await manager.find(DRADataSource, {where: {project: project, users_platform: user}});
-            if (!dataSource) {
-                return resolve(false);
-            }
-            const dataModels = await manager.find(DRADataModel, {where: {data_source: dataSource}});
-            if (!dataModels) {
-                return resolve(false);
-            }
-            manager.remove(dataModels);
-            manager.remove(dataSource);
-            return resolve(true);
         });
     }
 
@@ -588,8 +589,14 @@ export class DataSourceProcessor {
                         insertQueryColumns += `${column.column_name}`;
                     }
                 });
+                columns += `,dra_data_source_id integer`;
                 createTableQuery += `(${columns})`;
+
+                const alterTableQuery = `ALTER TABLE public."${dataModelName}" ADD CONSTRAINT FK_${Date.now()} FOREIGN KEY (dra_data_source_id) REFERENCES public.dra_data_sources(id) ON DELETE CASCADE ON UPDATE NO ACTION;`;
                 await internalDbConnector.query(createTableQuery);
+                await internalDbConnector.query(alterTableQuery);
+
+                insertQueryColumns += `,dra_data_source_id`;
                 insertQueryColumns = `(${insertQueryColumns})`;
                 
                 // Track column data types for proper value formatting
@@ -651,6 +658,7 @@ export class DataSourceProcessor {
                             values += `'${row[columnName] || 0}'`;
                         }
                     });
+                    values += `,${dataSource.id}`;
                     insertQuery += `${insertQueryColumns} VALUES(${values});`;
                     internalDbConnector.query(insertQuery);
                 });
@@ -778,148 +786,152 @@ export class DataSourceProcessor {
                             }
                             
                             if (index < parsedTableStructure.columns.length - 1) {
-                                columns += `${sanitizedColumnName} ${dataTypeString}, `;
+                                columns += `${sanitizedColumnName} ${dataTypeString},`;
                                 insertQueryColumns += `${sanitizedColumnName},`;
                             } else {
-                                columns += `${sanitizedColumnName} ${dataTypeString} `;
+                                columns += `${sanitizedColumnName} ${dataTypeString}`;
                                 insertQueryColumns += `${sanitizedColumnName}`;
                             }
                         });
                         
+                        // columns += `,dra_data_source_id integer`;
                         createTableQuery += `(${columns})`;
-                        insertQueryColumns = `(${insertQueryColumns})`;
-                        
-                        // Create the table
+
+                        // const alterTableQuery = `ALTER TABLE dra_excel."${tableName}" ADD CONSTRAINT FK_${Date.now()} FOREIGN KEY (dra_data_source_id) REFERENCES public.dra_data_sources(id) ON DELETE CASCADE ON UPDATE NO ACTION;`;
                         try {
+                            // Create and alter the table
                             await dbConnector.query(createTableQuery);
+                            // await dbConnector.query(alterTableQuery);
                             console.log('Successfully created table:', tableName);
+    
+                            // insertQueryColumns += `,dra_data_source_id`;
+                            insertQueryColumns = `(${insertQueryColumns})`;
+
+                            // Insert data rows
+                            if (parsedTableStructure.rows && parsedTableStructure.rows.length > 0) {                            
+                                let successfulInserts = 0;
+                                let failedInserts = 0;
+                                
+                                for (let rowIndex = 0; rowIndex < parsedTableStructure.rows.length; rowIndex++) {
+                                    const row = parsedTableStructure.rows[rowIndex];
+                                    let insertQuery = `INSERT INTO dra_excel."${tableName}" `;
+                                    let values = '';
+     
+                                    sanitizedColumns.forEach((columnInfo, colIndex) => {
+                                        // Try multiple ways to get the value for renamed columns
+                                        let value = undefined;
+                                        const originalColumn = parsedTableStructure.columns[colIndex];
+                                        
+                                        // Frontend sends flattened row data, so try direct access first
+                                        // Strategy 1: Use current column title (handles renamed columns)
+                                        if (originalColumn?.title && row[originalColumn.title] !== undefined) {
+                                            value = row[originalColumn.title];
+                                        }
+                                        // Strategy 2: Use original title if column was renamed
+                                        else if (columnInfo.originalTitle && row[columnInfo.originalTitle] !== undefined) {
+                                            value = row[columnInfo.originalTitle];
+                                        }
+                                        // Strategy 3: Use column key 
+                                        else if (originalColumn?.key && row[originalColumn.key] !== undefined) {
+                                            value = row[originalColumn.key];
+                                        }
+                                        // Strategy 4: Use original key if available
+                                        else if (columnInfo.key && row[columnInfo.key] !== undefined) {
+                                            value = row[columnInfo.key];
+                                        }
+                                        // Strategy 5: Use original column name
+                                        else if (row[columnInfo.original] !== undefined) {
+                                            value = row[columnInfo.original];
+                                        }
+                                        // Strategy 4: Try nested data structure (fallback)
+                                        else if (row.data) {
+                                            if (originalColumn?.title && row.data[originalColumn.title] !== undefined) {
+                                                value = row.data[originalColumn.title];
+                                            } else if (originalColumn?.key && row.data[originalColumn.key] !== undefined) {
+                                                value = row.data[originalColumn.key];
+                                            } else if (row.data[columnInfo.original] !== undefined) {
+                                                value = row.data[columnInfo.original];
+                                            }
+                                        }
+                                        if (colIndex > 0) {
+                                            values += ', ';
+                                        }
+                                        
+                                        // Handle different data types properly with comprehensive escaping
+                                        if (value === null || value === undefined || value === '') {
+                                            values += 'NULL';
+                                        } else if (columnInfo.type === 'boolean') {
+                                            const boolValue = this.convertToPostgresBoolean(value);
+                                            values += boolValue;
+                                        } else if (typeof value === 'string') {
+                                            const escapedValue = this.escapeStringValue(value);
+                                            values += `'${escapedValue}'`;
+                                        } else if (typeof value === 'number') {
+                                            // Ensure it's a valid number
+                                            if (isNaN(value) || !isFinite(value)) {
+                                                values += 'NULL';
+                                            } else {
+                                                values += `${value}`;
+                                            }
+                                        } else {
+                                            // For other types, convert to string and escape
+                                            const stringValue = String(value);
+                                            const escapedValue = this.escapeStringValue(stringValue);
+                                            values += `'${escapedValue}'`;
+                                        }
+                                    });
+    
+                                    // values += `,${dataSource.id}`;
+                                    insertQuery += `${insertQueryColumns} VALUES(${values})`;
+                                    try {
+                                        const result = await dbConnector.query(insertQuery);
+                                        successfulInserts++;
+                                    } catch (error) {
+                                        failedInserts++;
+                                        console.error(`ERROR inserting row ${rowIndex + 1}:`, error);
+                                        console.error('Failed query:', insertQuery);
+                                        console.error('Row data:', JSON.stringify(row, null, 2));
+                                        console.error('Column mappings:', sanitizedColumns);
+                                        throw error;
+                                    }
+                                }
+                                                            
+                                // Verify data was actually inserted by counting rows in the table
+                                try {
+                                    const countQuery = `SELECT COUNT(*) as row_count FROM dra_excel."${tableName}"`;
+                                    const countResult = await dbConnector.query(countQuery);
+                                    const actualRowCount = countResult[0]?.row_count || 0;
+                                    
+                                    if (actualRowCount === 0 && parsedTableStructure.rows.length > 0) {
+                                        console.error('WARNING: No rows found in database despite successful insertions!');
+                                    } else if (actualRowCount !== parsedTableStructure.rows.length) {
+                                        console.warn(`Row count mismatch: Expected ${parsedTableStructure.rows.length}, found ${actualRowCount}`);
+                                    }
+                                } catch (error) {
+                                    console.error('Error verifying row count:', error);
+                                }
+                                console.log(`Successfully inserted all ${parsedTableStructure.rows.length} rows`);
+                            } else {
+                                console.log('No rows to insert - parsedTableStructure.rows is empty or undefined');
+                            }
+                            // Log column mapping for renamed columns
+                            const renamedColumns = sanitizedColumns.filter(col => 
+                                col.originalTitle && col.displayTitle && col.originalTitle !== col.displayTitle
+                            );
+                            // Track processed sheet
+                            sheetsProcessed.push({
+                                sheet_id: sheetId,
+                                sheet_name: sheetName,
+                                table_name: tableName, // Using sanitized table name
+                                original_sheet_name: originalSheetName,
+                                sheet_index: sheetIndex
+                            });
+                            console.log(`Successfully processed sheet: ${sheetName} -> table: ${tableName}`);
                         } catch (error) {
                             console.error('Error creating table:', error);
                             console.error('Failed query:', createTableQuery);
                             throw error;
-                        }
-                        
-                        // Insert data rows
-                        if (parsedTableStructure.rows && parsedTableStructure.rows.length > 0) {                            
-                            let successfulInserts = 0;
-                            let failedInserts = 0;
-                            
-                            for (let rowIndex = 0; rowIndex < parsedTableStructure.rows.length; rowIndex++) {
-                                const row = parsedTableStructure.rows[rowIndex];
-                                let insertQuery = `INSERT INTO dra_excel."${tableName}" `;
-                                let values = '';
- 
-                                sanitizedColumns.forEach((columnInfo, colIndex) => {
-                                    // Try multiple ways to get the value for renamed columns
-                                    let value = undefined;
-                                    const originalColumn = parsedTableStructure.columns[colIndex];
-                                    
-                                    // Frontend sends flattened row data, so try direct access first
-                                    // Strategy 1: Use current column title (handles renamed columns)
-                                    if (originalColumn?.title && row[originalColumn.title] !== undefined) {
-                                        value = row[originalColumn.title];
-                                    }
-                                    // Strategy 2: Use original title if column was renamed
-                                    else if (columnInfo.originalTitle && row[columnInfo.originalTitle] !== undefined) {
-                                        value = row[columnInfo.originalTitle];
-                                    }
-                                    // Strategy 3: Use column key 
-                                    else if (originalColumn?.key && row[originalColumn.key] !== undefined) {
-                                        value = row[originalColumn.key];
-                                    }
-                                    // Strategy 4: Use original key if available
-                                    else if (columnInfo.key && row[columnInfo.key] !== undefined) {
-                                        value = row[columnInfo.key];
-                                    }
-                                    // Strategy 5: Use original column name
-                                    else if (row[columnInfo.original] !== undefined) {
-                                        value = row[columnInfo.original];
-                                    }
-                                    // Strategy 4: Try nested data structure (fallback)
-                                    else if (row.data) {
-                                        if (originalColumn?.title && row.data[originalColumn.title] !== undefined) {
-                                            value = row.data[originalColumn.title];
-                                        } else if (originalColumn?.key && row.data[originalColumn.key] !== undefined) {
-                                            value = row.data[originalColumn.key];
-                                        } else if (row.data[columnInfo.original] !== undefined) {
-                                            value = row.data[columnInfo.original];
-                                        }
-                                    }
-                                    if (colIndex > 0) {
-                                        values += ', ';
-                                    }
-                                    
-                                    // Handle different data types properly with comprehensive escaping
-                                    if (value === null || value === undefined || value === '') {
-                                        values += 'NULL';
-                                    } else if (columnInfo.type === 'boolean') {
-                                        const boolValue = this.convertToPostgresBoolean(value);
-                                        values += boolValue;
-                                    } else if (typeof value === 'string') {
-                                        const escapedValue = this.escapeStringValue(value);
-                                        values += `'${escapedValue}'`;
-                                    } else if (typeof value === 'number') {
-                                        // Ensure it's a valid number
-                                        if (isNaN(value) || !isFinite(value)) {
-                                            values += 'NULL';
-                                        } else {
-                                            values += `${value}`;
-                                        }
-                                    } else {
-                                        // For other types, convert to string and escape
-                                        const stringValue = String(value);
-                                        const escapedValue = this.escapeStringValue(stringValue);
-                                        values += `'${escapedValue}'`;
-                                    }
-                                });
-                                
-                                insertQuery += `${insertQueryColumns} VALUES(${values})`;
-                                try {
-                                    const result = await dbConnector.query(insertQuery);
-                                    successfulInserts++;
-                                } catch (error) {
-                                    failedInserts++;
-                                    console.error(`ERROR inserting row ${rowIndex + 1}:`, error);
-                                    console.error('Failed query:', insertQuery);
-                                    console.error('Row data:', JSON.stringify(row, null, 2));
-                                    console.error('Column mappings:', sanitizedColumns);
-                                    throw error;
-                                }
-                            }
-                                                        
-                            // Verify data was actually inserted by counting rows in the table
-                            try {
-                                const countQuery = `SELECT COUNT(*) as row_count FROM dra_excel."${tableName}"`;
-                                const countResult = await dbConnector.query(countQuery);
-                                const actualRowCount = countResult[0]?.row_count || 0;
-                                
-                                if (actualRowCount === 0 && parsedTableStructure.rows.length > 0) {
-                                    console.error('WARNING: No rows found in database despite successful insertions!');
-                                } else if (actualRowCount !== parsedTableStructure.rows.length) {
-                                    console.warn(`Row count mismatch: Expected ${parsedTableStructure.rows.length}, found ${actualRowCount}`);
-                                }
-                            } catch (error) {
-                                console.error('Error verifying row count:', error);
-                            }
-                            console.log(`Successfully inserted all ${parsedTableStructure.rows.length} rows`);
-                        } else {
-                            console.log('No rows to insert - parsedTableStructure.rows is empty or undefined');
-                        }
-                        
-                        // Log column mapping for renamed columns
-                        const renamedColumns = sanitizedColumns.filter(col => 
-                            col.originalTitle && col.displayTitle && col.originalTitle !== col.displayTitle
-                        );
-                        // Track processed sheet
-                        sheetsProcessed.push({
-                            sheet_id: sheetId,
-                            sheet_name: sheetName,
-                            table_name: tableName, // Using sanitized table name
-                            original_sheet_name: originalSheetName,
-                            sheet_index: sheetIndex
-                        });
-                        
-                        console.log(`Successfully processed sheet: ${sheetName} -> table: ${tableName}`);
+                        }                        
                     }
                     
                     console.log('Excel data source processing completed successfully');
@@ -1059,88 +1071,97 @@ export class DataSourceProcessor {
                             }
                         });
                         
+                        // columns += `,dra_data_source_id integer`;
                         createTableQuery += `(${columns})`;
+
+                        // insertQueryColumns += `,dra_data_source_id`;
                         insertQueryColumns = `(${insertQueryColumns})`;
-                        
-                        // Create the table
-                        await dbConnector.query(createTableQuery);
-                        
-                        // Insert data rows
-                        if (parsedTableStructure.rows && parsedTableStructure.rows.length > 0) {
-                            for (const row of parsedTableStructure.rows) {
-                                let insertQuery = `INSERT INTO dra_pdf.${tableName} `;
-                                let values = '';
-                                
-                                sanitizedPdfColumns.forEach((columnInfo, colIndex) => {
-                                    // Try multiple ways to get the value for renamed columns (similar to Excel)
-                                    let value = undefined;
-                                    const originalColumn = parsedTableStructure.columns[colIndex];
+                        // const alterTableQuery = `ALTER TABLE dra_pdf."${tableName}" ADD CONSTRAINT FK_${Date.now()} FOREIGN KEY (dra_data_source_id) REFERENCES public.dra_data_sources(id) ON DELETE CASCADE ON UPDATE NO ACTION;`;
+                        try {
+                            // Create the table
+                            await dbConnector.query(createTableQuery);
+                            // await dbConnector.query(alterTableQuery);
+                            console.log('Successfully created table:', tableName);
+                            // Insert data rows
+                            if (parsedTableStructure.rows && parsedTableStructure.rows.length > 0) {
+                                for (const row of parsedTableStructure.rows) {
+                                    let insertQuery = `INSERT INTO dra_pdf.${tableName} `;
+                                    let values = '';
                                     
-                                    // Strategy 1: Use current column title (handles renamed columns)
-                                    if (originalColumn?.title && row[originalColumn.title] !== undefined) {
-                                        value = row[originalColumn.title];
-                                    }
-                                    // Strategy 2: Use original title if column was renamed
-                                    else if (columnInfo.originalTitle && row[columnInfo.originalTitle] !== undefined) {
-                                        value = row[columnInfo.originalTitle];
-                                    }
-                                    // Strategy 3: Use column key 
-                                    else if (originalColumn?.key && row[originalColumn.key] !== undefined) {
-                                        value = row[originalColumn.key];
-                                    }
-                                    // Strategy 4: Try nested data structure (fallback)
-                                    else if (row.data) {
-                                        if (originalColumn?.title && row.data[originalColumn.title] !== undefined) {
-                                            value = row.data[originalColumn.title];
-                                        } else if (columnInfo.originalTitle && row.data[columnInfo.originalTitle] !== undefined) {
-                                            value = row.data[columnInfo.originalTitle];
-                                        } else if (originalColumn?.key && row.data[originalColumn.key] !== undefined) {
-                                            value = row.data[originalColumn.key];
+                                    sanitizedPdfColumns.forEach((columnInfo, colIndex) => {
+                                        // Try multiple ways to get the value for renamed columns (similar to Excel)
+                                        let value = undefined;
+                                        const originalColumn = parsedTableStructure.columns[colIndex];
+                                        
+                                        // Strategy 1: Use current column title (handles renamed columns)
+                                        if (originalColumn?.title && row[originalColumn.title] !== undefined) {
+                                            value = row[originalColumn.title];
                                         }
-                                    }
-                                    
-                                    if (colIndex > 0) {
-                                        values += ', ';
-                                    }
-                                    
-                                    // Handle different data types properly with comprehensive escaping
-                                    if (value === null || value === undefined || value === '') {
-                                        values += 'NULL';
-                                    } else if (columnInfo.type === 'boolean') {
-                                        const boolValue = this.convertToPostgresBoolean(value);
-                                        values += boolValue;
-                                    } else if (typeof value === 'string') {
-                                        const escapedValue = this.escapeStringValue(value);
-                                        values += `'${escapedValue}'`;
-                                    } else if (typeof value === 'number') {
-                                        // Ensure it's a valid number
-                                        if (isNaN(value) || !isFinite(value)) {
+                                        // Strategy 2: Use original title if column was renamed
+                                        else if (columnInfo.originalTitle && row[columnInfo.originalTitle] !== undefined) {
+                                            value = row[columnInfo.originalTitle];
+                                        }
+                                        // Strategy 3: Use column key 
+                                        else if (originalColumn?.key && row[originalColumn.key] !== undefined) {
+                                            value = row[originalColumn.key];
+                                        }
+                                        // Strategy 4: Try nested data structure (fallback)
+                                        else if (row.data) {
+                                            if (originalColumn?.title && row.data[originalColumn.title] !== undefined) {
+                                                value = row.data[originalColumn.title];
+                                            } else if (columnInfo.originalTitle && row.data[columnInfo.originalTitle] !== undefined) {
+                                                value = row.data[columnInfo.originalTitle];
+                                            } else if (originalColumn?.key && row.data[originalColumn.key] !== undefined) {
+                                                value = row.data[originalColumn.key];
+                                            }
+                                        }
+                                        
+                                        if (colIndex > 0) {
+                                            values += ', ';
+                                        }
+                                        
+                                        // Handle different data types properly with comprehensive escaping
+                                        if (value === null || value === undefined || value === '') {
                                             values += 'NULL';
+                                        } else if (columnInfo.type === 'boolean') {
+                                            const boolValue = this.convertToPostgresBoolean(value);
+                                            values += boolValue;
+                                        } else if (typeof value === 'string') {
+                                            const escapedValue = this.escapeStringValue(value);
+                                            values += `'${escapedValue}'`;
+                                        } else if (typeof value === 'number') {
+                                            // Ensure it's a valid number
+                                            if (isNaN(value) || !isFinite(value)) {
+                                                values += 'NULL';
+                                            } else {
+                                                values += `${value}`;
+                                            }
                                         } else {
-                                            values += `${value}`;
+                                            // For other types, convert to string and escape
+                                            const escapedValue = this.escapeStringValue(String(value));
+                                            values += `'${escapedValue}'`;
                                         }
-                                    } else {
-                                        // For other types, convert to string and escape
-                                        const escapedValue = this.escapeStringValue(String(value));
-                                        values += `'${escapedValue}'`;
-                                    }
-                                });
-                                
-                                insertQuery += `${insertQueryColumns} VALUES(${values});`;
-                                await dbConnector.query(insertQuery);
+                                    });
+
+                                    // values += `,${dataSource.id}`;
+                                    insertQuery += `${insertQueryColumns} VALUES(${values});`;
+                                    await dbConnector.query(insertQuery);
+                                }
                             }
+                            
+                            // Log column mapping for renamed columns (PDF)
+                            const renamedPdfColumns = sanitizedPdfColumns.filter(col => 
+                                col.originalTitle && col.displayTitle && col.originalTitle !== col.displayTitle
+                            );
+                            if (renamedPdfColumns.length > 0) {
+                                renamedPdfColumns.forEach(col => {
+                                    console.log(`  "${col.originalTitle}" -> "${col.displayTitle}" (DB: ${col.sanitized})`);
+                                });
+                            }
+                        } catch (error) {
+                            console.error('Error creating table:', tableName, error);
+                            throw error;
                         }
-                        
-                        // Log column mapping for renamed columns (PDF)
-                        const renamedPdfColumns = sanitizedPdfColumns.filter(col => 
-                            col.originalTitle && col.displayTitle && col.originalTitle !== col.displayTitle
-                        );
-                        if (renamedPdfColumns.length > 0) {
-                            renamedPdfColumns.forEach(col => {
-                                console.log(`  "${col.originalTitle}" -> "${col.displayTitle}" (DB: ${col.sanitized})`);
-                            });
-                        }
-                        
                         // Track processed sheet
                         sheetsProcessed.push({
                             sheet_id: sheetId,

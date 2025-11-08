@@ -8,7 +8,7 @@ export class DRACategory {
   @Column({ type: 'varchar', length: 512 })
   title!: string;
   
-  @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.categories)
+  @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.categories, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'users_platform_id', referencedColumnName: 'id' })
   users_platform!: Relation<DRAUsersPlatform>
   

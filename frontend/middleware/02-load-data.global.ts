@@ -34,18 +34,10 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
   const userManagementStore = useUserManagementStore();
 
   // Skip data loading for public dashboard pages - they handle their own data
-  if (to.name === 'public-dashboard-dashboardkey') {
-    return;
-  }
 
   try {
     if (token) {
       // Authenticated user - load all user-specific data
-      
-      // Check if data is already loaded (don't reload on every navigation)
-      const needsLoad = projectsStore.getProjects().length === 0;
-      
-      if (needsLoad) {
         // Load core project-related data
         await projectsStore.retrieveProjects();
         await dataSourceStore.retrieveDataSources();
@@ -59,9 +51,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
           await articlesStore.retrieveArticles();
           await privateBetaUserStore.retrievePrivateBetaUsers();
           await userManagementStore.retrieveUsers();
-        }
-      }
-      
+        }      
     } else {
       // Unauthenticated user - load public data only
       await articlesStore.retrieveCategories();

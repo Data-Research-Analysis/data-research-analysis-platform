@@ -13,7 +13,7 @@ export class DRAProject {
     @Column({ type: 'timestamp', nullable: true })
     created_at!: Date
 
-    @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.projects)
+    @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.projects, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'users_platform_id', referencedColumnName: 'id' })
     users_platform!: Relation<DRAUsersPlatform>
     
