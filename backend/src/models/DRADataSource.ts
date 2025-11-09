@@ -29,7 +29,6 @@ const connectionDetailsTransformer: ValueTransformer = {
             try {
                 return encryptionService.encrypt(value);
             } catch (error) {
-                console.error('[SECURITY] Failed to encrypt connection details on save:', error.message);
                 throw error;
             }
         }
@@ -55,7 +54,6 @@ const connectionDetailsTransformer: ValueTransformer = {
             try {
                 return encryptionService.decrypt(value);
             } catch (error) {
-                console.error('[SECURITY] Failed to decrypt connection details on load:', error.message);
                 throw error;
             }
         }
@@ -65,7 +63,6 @@ const connectionDetailsTransformer: ValueTransformer = {
             try {
                 return JSON.parse(value);
             } catch {
-                console.warn('[SECURITY] Found malformed connection details, returning as-is');
                 return value as any;
             }
         }

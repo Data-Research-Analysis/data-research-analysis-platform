@@ -39,8 +39,6 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     if (token) {
         // Authenticated user - load all user-specific data
         const needsDataRefresh = typeof window !== 'undefined' && localStorage.getItem('refreshData') === 'true';
-        console.log("localStorage.getItem('refreshData')", localStorage.getItem('refreshData'));
-        console.log('Needs data refresh:', needsDataRefresh);
         if (!needsDataRefresh) {
             return;
         }
@@ -59,9 +57,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
           await userManagementStore.retrieveUsers();
         }
         if (typeof window !== 'undefined') {
-          console.log('Clearing refreshData flag from localStorage');
           localStorage.removeItem('refreshData');
-          console.log('localStorage', localStorage);
         }
     } else {
       // Unauthenticated user - load public data only
@@ -69,7 +65,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
       await articlesStore.retrievePublicArticles();
     }
   } catch (error) {
-    console.error('[load-data] Failed to load data:', error);
+    console.error('Failed to load data:', error);
     // Don't block navigation on error - let pages handle missing data gracefully
   }
 });

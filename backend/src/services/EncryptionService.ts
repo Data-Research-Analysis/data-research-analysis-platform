@@ -57,7 +57,6 @@ export class EncryptionService {
         }
 
         this.encryptionKey = Buffer.from(keyHex, 'hex');
-        console.log('[SECURITY] Encryption service initialized successfully');
     }
 
     /**

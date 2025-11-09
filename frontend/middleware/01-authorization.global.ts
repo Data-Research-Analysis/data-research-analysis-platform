@@ -68,7 +68,6 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
           // If user data isn't loaded yet, allow access temporarily
           // The page will handle authorization once user data loads
           if (!currentUser) {
-            console.log('[middleware] User data not loaded yet, allowing admin access temporarily');
             return; // Allow access, user data will be validated by the page
           }
           
