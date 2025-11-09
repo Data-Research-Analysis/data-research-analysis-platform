@@ -12,7 +12,7 @@ process.env.ENCRYPTION_ENABLED = 'true';
 // Generate a test encryption key if not already set
 if (!process.env.ENCRYPTION_KEY) {
   process.env.ENCRYPTION_KEY = crypto.randomBytes(32).toString('hex');
-  console.log('[TEST] Generated test encryption key');
+  console.log('Generated test encryption key');
 }
 
 // Set test database configuration
@@ -23,4 +23,4 @@ process.env.POSTGRESQL_USERNAME = 'postgres';
 process.env.POSTGRESQL_PASSWORD = 'postgres';
 process.env.POSTGRESQL_DB_NAME = 'test_dra_db';
 
-console.log('[TEST] Test environment initialized');
+console.log('Test environment initialized');
