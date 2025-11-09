@@ -32,6 +32,7 @@ const state = reactive({
                 connection_details: dataSource.connection_details,
                 user_id: dataSource.user_platform_id,
                 project_id: dataSource.project_id,
+                dataModels: dataSource.DataModels?.length || 0,
             }));
     }),
     available_data_sources: [
@@ -47,7 +48,7 @@ const state = reactive({
         },
         {
             name: 'PostgreSQL',
-            url: `${route.fullPath}/data-sources/connect/postgres`,
+            url: `${route.fullPath}/data-sources/connect/postgresql`,
             image_url: postgresqlImage,
         },
         {
@@ -145,18 +146,25 @@ async function setSelectedDataSource(dataSourceId) {
                                     <div class="text-md font-bold">
                                         {{dataSource.name}}
                                     </div>
-                                    <div class="flex flex-row justify-between mt-4 mb-10">
-                                        <ul class="text-xs">
-                                            <li>{{ dataSource.dataModels }} Data Sources</li>
-                                        </ul>
-                                    </div>
                                 </div>
                             </NuxtLink>
                         </template>
                     </notched-card>
-                    <div class="absolute top-5 -right-2 z-10 bg-gray-200 hover:bg-gray-300 border border-gray-200 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer" @click="deleteDataSource(dataSource.id)">
-                        <font-awesome icon="fas fa-xmark" class="text-xl text-red-500 hover:text-red-400" />
+                    <div 
+                        class="absolute top-5 -right-2 z-10 bg-red-500 hover:bg-red-700 border border-red-500 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer"
+                        @click="deleteDataSource(dataSource.id)"
+                        v-tippy="{ content: 'Delete Data Source' }"
+                    >
+                        <font-awesome icon="fas fa-xmark" class="text-xl text-white" />
                     </div>
+                    <NuxtLink 
+                        v-if="['postgresql', 'mysql', 'mariadb'].includes(dataSource.data_type)"
+                        :to="`/projects/${project.id}/data-sources/${dataSource.id}/edit/${dataSource.data_type}`"
+                        class="absolute top-16 -right-2 z-10 bg-blue-500 hover:bg-blue-600 border border-blue-500 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer"
+                        v-tippy="{ content: 'Edit Data Source' }"
+                    >
+                        <font-awesome icon="fas fa-pen" class="text-sm text-white" />
+                    </NuxtLink>
                 </div>
             </div>
             <overlay-dialog v-if="state.show_dialog" @close="closeDialog" :yOffset="90">

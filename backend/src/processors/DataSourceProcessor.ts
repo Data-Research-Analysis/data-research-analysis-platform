@@ -251,6 +251,54 @@ export class DataSourceProcessor {
         });
     }
 
+    public async updateDataSource(dataSourceId: number, connection: IDBConnectionDetails, tokenDetails: ITokenDetails): Promise<boolean> {
+        return new Promise<boolean>(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve(false);
+            }
+            const manager = (await driver.getConcreteDriver()).manager;
+            if (!manager) {
+                return resolve(false);
+            }
+            
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!user) {
+                return resolve(false);
+            }
+            
+            // Find existing data source owned by user
+            const dataSource = await manager.findOne(DRADataSource, {
+                where: {id: dataSourceId, users_platform: user}
+            });
+            
+            if (!dataSource) {
+                return resolve(false);
+            }
+            
+            // Test new connection before updating
+            try {
+                const testConnection = await this.connectToDataSource(connection);
+                if (!testConnection) {
+                    console.error('Failed to connect with new credentials');
+                    return resolve(false);
+                }
+            } catch (error) {
+                console.error('Failed to connect with new credentials:', error);
+                return resolve(false);
+            }
+            
+            // Update connection details (will be auto-encrypted by transformer)
+            dataSource.connection_details = connection;
+            dataSource.name = connection.database;
+            dataSource.data_type = UtilityService.getInstance().getDataSourceType(connection.data_source_type);
+            
+            await manager.save(dataSource);
+            return resolve(true);
+        });
+    }
+
     public async deleteDataSource(dataSourceId: number, tokenDetails: ITokenDetails): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             try {

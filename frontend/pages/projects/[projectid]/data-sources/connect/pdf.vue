@@ -816,7 +816,7 @@ onMounted(async () => {
             
             <div v-if="state.files && state.files.length" class="flex flex-row w-full justify-center mt-10">
                 <div v-if="state.sheets && state.sheets.length && state.show_table_dialog" class="flex flex-col w-full justify-center overflow-hidden mb-10 px-4">
-                    <h2 class="mb-4 text-xl font-bold text-gray-800">PDF Data - Multi-Sheet View</h2>
+                    <h2 class="mb-4 text-xl font-bold text-gray-800">Data From The PDF File(s)/Pages</h2>
                     <div class="text-sm text-gray-600 mb-4">
                         Showing {{ state.sheets.length }} sheet{{ state.sheets.length !== 1 ? 's' : '' }} from {{ state.files.length }} PDF file{{ state.files.length !== 1 ? 's' : '' }}
                     </div>
