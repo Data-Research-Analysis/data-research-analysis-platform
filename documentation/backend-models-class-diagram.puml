@@ -52,11 +52,12 @@ package "Project Management" {
     class DRAProject {
         +id: number
         +name: string
+        +description: string
         +created_at: Date
         --
         +users_platform: DRAUsersPlatform
-        +data_sources: DRADataSource[]
-        +dashboards: DRADashboard[]
+        +data_sources: DRADataSource[] {cascade: remove, update}
+        +dashboards: DRADashboard[] {cascade: remove, update}
     }
 }
 
@@ -65,12 +66,12 @@ package "Data Layer" {
         +id: number
         +name: string
         +data_type: EDataSourceType
-        +connection_details: IDBConnectionDetails
+        +connection_details: IDBConnectionDetails <<encrypted>>
         +created_at: Date
         --
         +users_platform: DRAUsersPlatform
-        +project: DRAProject
-        +data_models: DRADataModel[]
+        +project: DRAProject {onDelete: CASCADE}
+        +data_models: DRADataModel[] {cascade: remove, update}
     }
 
     class DRADataModel {
@@ -81,17 +82,18 @@ package "Data Layer" {
         +query: JSON
         --
         +users_platform: DRAUsersPlatform
-        +data_source: DRADataSource
+        +data_source: DRADataSource {onDelete: CASCADE}
     }
 }
 
 package "Dashboard & Visualization" {
     class DRADashboard {
         +id: number
-        +data: JSON
+        +data: IDashboardDataStructure (JSONB)
         --
         +users_platform: DRAUsersPlatform
-        +project: DRAProject
+        +project: DRAProject {onDelete: CASCADE}
+        +export_meta_data: DRADashboardExportMetaData[] {cascade: remove, update}
     }
 
     class DRADashboardExportMetaData {
@@ -102,7 +104,7 @@ package "Dashboard & Visualization" {
         +file_size: number
         +created_at: Date
         --
-        +dashboard: DRADashboard
+        +dashboard: DRADashboard {onDelete: CASCADE}
     }
 }
 
@@ -111,28 +113,36 @@ package "Content Management" {
         +id: number
         +title: string
         +content: string
+        +content_markdown?: string
+        +publish_status: EPublishStatus
         +slug: string
         +created_at: Date
         --
-        +users_platform: DRAUsersPlatform
-        +categories: DRACategory[]
+        +users_platform: DRAUsersPlatform {onDelete: CASCADE}
+        +dra_articles_categories: DRAArticleCategory[]
     }
 
     class DRACategory {
         +id: number
-        +name: string
-        +description: string
+        +title: string
         --
-        +users_platform: DRAUsersPlatform
-        +articles: DRAArticle[]
+        +users_platform: DRAUsersPlatform {onDelete: CASCADE}
+        +dra_articles_categories: DRAArticleCategory[]
     }
 
     class DRAArticleCategory {
+        +id: number
         +article_id: number
         +category_id: number
         --
         +article: DRAArticle
         +category: DRACategory
+        +users_platform: DRAUsersPlatform
+    }
+    
+    enum EPublishStatus {
+        PUBLISHED
+        DRAFT
     }
 }
 
@@ -185,11 +195,16 @@ DRAArticleCategory }|--|| DRAArticle : "links"
 DRAArticleCategory }|--|| DRACategory : "links"
 
 DRAUsersPlatform }o--|| EUserType : "classified as"
+DRAArticle }o--|| EPublishStatus : "status"
 
-note right of DRADataSource : Supports multiple data source types\nincluding databases, files, and PDFs
+note right of DRADataSource : Supports multiple data source types\nincluding databases, files, and PDFs\n\n**Encryption:**\nconnection_details uses ValueTransformer\nfor automatic encryption/decryption\nSupports legacy unencrypted data
 
-note right of DRADashboard : Stores visualization data\nas JSON configuration
+note right of DRADashboard : Stores visualization data\nas JSONB configuration\nSupports chart definitions and layouts
 
-note right of DRAUsersPlatform : Central user entity with\nrelationships to all major entities
+note right of DRAUsersPlatform : Central user entity with\nrelationships to all major entities\n\n**Cascade Deletion:**\nDeleting user cascades to all owned entities
+
+note left of DRAProject : **Cascade Behavior:**\nDeleting project cascades to:\n- All data sources (with cascade: remove)\n- All dashboards (with cascade: remove)\n- Data models via data source cascade\n- Physical tables dropped via processor
+
+note right of DRAArticle : **Content Management:**\nSupports both HTML and Markdown\nSlug auto-generated from title\nPublish status controls visibility
 
 @enduml

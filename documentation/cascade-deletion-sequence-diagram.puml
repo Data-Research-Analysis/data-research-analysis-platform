@@ -1,0 +1,381 @@
+@startuml Cascade_Deletion_Sequence_Diagram
+!theme aws-orange
+title Data Research Analysis Platform - Cascade Deletion Detailed Flow
+
+participant "Frontend" as Frontend
+participant "Router" as Router
+participant "ProjectProcessor" as ProjectProc
+participant "DataSourceProcessor" as DSProc
+participant "DataModelProcessor" as DMProc
+participant "DashboardProcessor" as DashProc
+participant "Database\n(PostgreSQL)" as DB
+participant "Transaction\nManager" as TxnMgr
+
+== Project Deletion (Top-Level Cascade) ==
+
+Frontend -> Router: DELETE /api/project/{projectId}
+activate Router
+
+Router -> ProjectProc: deleteProject(projectId, tokenDetails)
+activate ProjectProc
+
+ProjectProc -> DB: Validate user ownership
+activate DB
+DB --> ProjectProc: User owns project
+deactivate DB
+
+ProjectProc -> DB: Find project with relations:\n- data_sources\n- data_sources.data_models
+activate DB
+DB --> ProjectProc: Project with full hierarchy
+deactivate DB
+
+ProjectProc -> TxnMgr: BEGIN TRANSACTION
+activate TxnMgr
+
+note over ProjectProc, TxnMgr: **Transaction Scope**\nAll operations within single transaction\nEither all succeed or all rollback
+
+loop For each data_source in project.data_sources
+    ProjectProc -> ProjectProc: Process data source deletion
+    
+    loop For each data_model in data_source.data_models
+        ProjectProc -> DB: DROP TABLE IF EXISTS\n  {data_model.schema}.{data_model.name}\n  CASCADE
+        activate DB
+        note right: Physical table removal\nCASCADE drops dependent views/constraints
+        DB --> ProjectProc: Table dropped
+        deactivate DB
+        
+        ProjectProc -> DB: Check for dashboards using data_model
+        activate DB
+        DB --> ProjectProc: List of affected dashboards
+        deactivate DB
+        
+        alt Dashboards found
+            loop For each dashboard
+                ProjectProc -> ProjectProc: Remove data_model references from JSONB
+                ProjectProc -> DB: UPDATE dra_dashboards\n  SET data = jsonb_remove(data, path)\n  WHERE id = ?
+                activate DB
+                DB --> ProjectProc: Dashboard updated
+                deactivate DB
+            end
+        end
+    end
+    
+    alt Data source is Excel type
+        ProjectProc -> DB: DROP SCHEMA IF EXISTS\n  dra_excel_{data_source.id}\n  CASCADE
+        activate DB
+        note right: Removes entire schema\nincluding all tables within
+        DB --> ProjectProc: Schema dropped
+        deactivate DB
+    end
+    
+    alt Data source is PDF type
+        ProjectProc -> DB: DROP SCHEMA IF EXISTS\n  dra_pdf_{data_source.id}\n  CASCADE
+        activate DB
+        DB --> ProjectProc: Schema dropped
+        deactivate DB
+    end
+end
+
+ProjectProc -> DB: DELETE FROM dra_projects WHERE id = ?
+activate DB
+note right: **TypeORM Cascade Behavior:**\nAutomatically cascades to:\n- dra_data_sources (cascade: ["remove", "update"])\n- dra_dashboards (cascade: ["remove", "update"])\n- dra_data_models via data_source cascade\n- dra_dashboard_export_meta_data via dashboard cascade
+DB --> ProjectProc: Project and all related entities deleted
+deactivate DB
+
+ProjectProc -> TxnMgr: COMMIT TRANSACTION
+deactivate TxnMgr
+
+ProjectProc --> Router: true (success)
+deactivate ProjectProc
+
+Router --> Frontend: HTTP 200 OK
+deactivate Router
+
+Frontend -> Frontend: Remove project from store
+Frontend -> Frontend: Clear related data sources, models, dashboards
+Frontend -> Frontend: Navigate to projects list
+
+== Data Source Deletion (Mid-Level Cascade) ==
+
+Frontend -> Router: DELETE /api/data-source/{dataSourceId}
+activate Router
+
+Router -> DSProc: deleteDataSource(dataSourceId, tokenDetails)
+activate DSProc
+
+DSProc -> DB: Validate user ownership
+activate DB
+DB --> DSProc: User owns data source
+deactivate DB
+
+DSProc -> DB: Find data source with data_models relation
+activate DB
+DB --> DSProc: Data source with models
+deactivate DB
+
+DSProc -> TxnMgr: BEGIN TRANSACTION
+activate TxnMgr
+
+loop For each data_model
+    DSProc -> DB: DROP TABLE {schema}.{name} CASCADE
+    activate DB
+    DB --> DSProc: Table dropped
+    deactivate DB
+    
+    DSProc -> DMProc: Clean dashboard references
+    activate DMProc
+    
+    DMProc -> DB: SELECT * FROM dra_dashboards\n  WHERE data->>'dataModelId' = ?
+    activate DB
+    DB --> DMProc: Affected dashboards
+    deactivate DB
+    
+    loop For each dashboard
+        DMProc -> DB: UPDATE dashboard JSONB data
+        DB --> DMProc: Updated
+    end
+    
+    DMProc --> DSProc: Dashboard cleanup complete
+    deactivate DMProc
+end
+
+alt Excel data source
+    DSProc -> DB: DROP SCHEMA dra_excel_{id} CASCADE
+    activate DB
+    DB --> DSProc: Schema dropped
+    deactivate DB
+    
+    DSProc -> DSProc: Delete uploaded Excel files from filesystem
+end
+
+alt PDF data source
+    DSProc -> DB: DROP SCHEMA dra_pdf_{id} CASCADE
+    activate DB
+    DB --> DSProc: Schema dropped
+    deactivate DB
+    
+    DSProc -> DSProc: Delete PDF files and extracted images
+end
+
+DSProc -> DB: DELETE FROM dra_data_sources WHERE id = ?
+activate DB
+note right: Cascades to dra_data_models\nvia onDelete: 'CASCADE'
+DB --> DSProc: Data source and models deleted
+deactivate DB
+
+DSProc -> TxnMgr: COMMIT TRANSACTION
+deactivate TxnMgr
+
+DSProc --> Router: true (success)
+deactivate DSProc
+
+Router --> Frontend: HTTP 200 OK
+deactivate Router
+
+Frontend -> Frontend: Update data sources store
+Frontend -> Frontend: Update data models store
+
+== Data Model Deletion (Low-Level) ==
+
+Frontend -> Router: DELETE /api/data-model/{dataModelId}
+activate Router
+
+Router -> DMProc: deleteDataModel(dataModelId, tokenDetails)
+activate DMProc
+
+DMProc -> DB: Validate user ownership
+activate DB
+DB --> DMProc: User owns data model
+deactivate DB
+
+DMProc -> DB: Get data model details (schema, name)
+activate DB
+DB --> DMProc: Data model metadata
+deactivate DB
+
+DMProc -> TxnMgr: BEGIN TRANSACTION
+activate TxnMgr
+
+DMProc -> DB: DROP TABLE {schema}.{name} CASCADE
+activate DB
+note right: CASCADE drops:\n- Foreign key constraints\n- Dependent views\n- Triggers
+DB --> DMProc: Table dropped successfully
+deactivate DB
+
+DMProc -> DB: Find dashboards referencing this model
+activate DB
+DB -> DB: Query JSONB field:\n  data @> '{"dataModelId": model_id}'
+DB --> DMProc: List of dashboards
+deactivate DB
+
+alt Dashboards found
+    loop For each dashboard
+        DMProc -> DMProc: Parse dashboard JSONB data
+        DMProc -> DMProc: Remove or update chart configurations
+        
+        DMProc -> DB: UPDATE dra_dashboards\n  SET data = modified_jsonb\n  WHERE id = ?
+        activate DB
+        DB --> DMProc: Dashboard updated
+        deactivate DB
+    end
+end
+
+DMProc -> DB: DELETE FROM dra_data_models WHERE id = ?
+activate DB
+DB --> DMProc: Data model entity deleted
+deactivate DB
+
+DMProc -> TxnMgr: COMMIT TRANSACTION
+deactivate TxnMgr
+
+DMProc --> Router: true (success)
+deactivate DMProc
+
+Router --> Frontend: HTTP 200 OK
+deactivate Router
+
+Frontend -> Frontend: Remove from data models store
+Frontend -> Frontend: Refresh dashboard list if needed
+
+== Dashboard Deletion ==
+
+Frontend -> Router: DELETE /api/dashboard/{dashboardId}
+activate Router
+
+Router -> DashProc: deleteDashboard(dashboardId, tokenDetails)
+activate DashProc
+
+DashProc -> DB: Validate user ownership
+activate DB
+DB --> DashProc: User owns dashboard
+deactivate DB
+
+DashProc -> TxnMgr: BEGIN TRANSACTION
+activate TxnMgr
+
+DashProc -> DB: DELETE FROM dra_dashboards WHERE id = ?
+activate DB
+note right: Cascades to:\n- dra_dashboard_export_meta_data\n  (cascade: ["remove", "update"])
+DB -> DB: Delete export metadata records
+DB --> DashProc: Dashboard and metadata deleted
+deactivate DB
+
+DashProc -> TxnMgr: COMMIT TRANSACTION
+deactivate TxnMgr
+
+DashProc --> Router: true (success)
+deactivate DashProc
+
+Router --> Frontend: HTTP 200 OK
+deactivate Router
+
+Frontend -> Frontend: Remove from dashboards store
+
+== Article Deletion with Category Cleanup ==
+
+Frontend -> Router: DELETE /api/article/{articleId}
+activate Router
+
+Router -> ProjectProc: ArticleProcessor.deleteArticle(articleId, tokenDetails)
+activate ProjectProc
+
+ProjectProc -> DB: Validate user ownership
+activate DB
+DB --> ProjectProc: User owns article
+deactivate DB
+
+ProjectProc -> DB: Find article
+activate DB
+DB --> ProjectProc: Article entity
+deactivate DB
+
+ProjectProc -> TxnMgr: BEGIN TRANSACTION
+activate TxnMgr
+
+ProjectProc -> DB: Find article_categories for article
+activate DB
+DB --> ProjectProc: List of article_category records
+deactivate DB
+
+ProjectProc -> DB: DELETE FROM dra_articles_categories\n  WHERE article_id = ?
+activate DB
+note right: Remove many-to-many relationships
+DB --> ProjectProc: Category links deleted
+deactivate DB
+
+ProjectProc -> DB: DELETE FROM dra_articles WHERE id = ?
+activate DB
+DB --> ProjectProc: Article deleted
+deactivate DB
+
+ProjectProc -> TxnMgr: COMMIT TRANSACTION
+deactivate TxnMgr
+
+ProjectProc --> Router: true (success)
+deactivate ProjectProc
+
+Router --> Frontend: HTTP 200 OK
+deactivate Router
+
+Frontend -> Frontend: Remove from articles store
+
+== Error Handling and Rollback ==
+
+Frontend -> Router: DELETE /api/project/{projectId}
+activate Router
+
+Router -> ProjectProc: deleteProject(projectId, tokenDetails)
+activate ProjectProc
+
+ProjectProc -> TxnMgr: BEGIN TRANSACTION
+activate TxnMgr
+
+ProjectProc -> DB: DROP TABLE schema.table1
+activate DB
+DB --> ProjectProc: Success
+deactivate DB
+
+ProjectProc -> DB: DROP TABLE schema.table2
+activate DB
+DB --> ProjectProc: Error: Permission denied
+deactivate DB
+
+ProjectProc -> ProjectProc: Catch exception
+note right: Error detected during cascade
+
+ProjectProc -> TxnMgr: ROLLBACK TRANSACTION
+note right: **All changes reverted:**\n- table1 restored\n- No entities deleted\n- Database state unchanged
+deactivate TxnMgr
+
+ProjectProc --> Router: false (failure)
+deactivate ProjectProc
+
+Router --> Frontend: HTTP 500 Internal Server Error
+deactivate Router
+
+Frontend -> Frontend: Show error message
+Frontend -> Frontend: Keep project in list
+
+note over Frontend, DB
+  **Cascade Deletion Summary:**
+  
+  **Project → Data Sources → Data Models → Physical Tables**
+  **Project → Dashboards → Export Metadata**
+  **Article → Article Categories**
+  
+  **Transaction Safety:**
+  - All operations in single transaction
+  - Automatic rollback on error
+  - Maintains referential integrity
+  
+  **TypeORM Cascade Options:**
+  - cascade: ["remove", "update"]
+  - onDelete: 'CASCADE'
+  
+  **Physical Cleanup:**
+  - DROP TABLE for data models
+  - DROP SCHEMA for Excel/PDF sources
+  - File system cleanup for uploads
+end note
+
+@enduml
