@@ -8,6 +8,7 @@ const { $swal } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
 const state = reactive({
+    dataSource: null,
     host: '',
     port: '',
     schema: '',
@@ -27,13 +28,27 @@ const state = reactive({
     showPassword: false,
 })
 
-async function getToken() {
+async function loadDataSource() {
     state.loading = true;
-    const response = await getGeneratedToken();
-    state.token = response.token;
+    const dataSources = dataSourceStore.getDataSources();
+    const dataSourceId = parseInt(route.params.datasourceid);
+    state.dataSource = dataSources.find(ds => ds.id === dataSourceId);
+    
+    if (state.dataSource && state.dataSource.connection_details) {
+        // Pre-populate form with existing values
+        state.host = state.dataSource.connection_details.host || '';
+        state.port = state.dataSource.connection_details.port?.toString() || '';
+        state.schema = state.dataSource.connection_details.schema || '';
+        state.database_name = state.dataSource.connection_details.database || '';
+        state.username = state.dataSource.connection_details.username || '';
+        // Don't pre-populate password for security
+        state.password = '';
+    }
     state.loading = false;
 }
+
 function validateFields() {
+    state.errorMessages = [];
     if (!validate(state.host, "", [validateRequired])) {
         state.host_error = true;
         state.errorMessages.push("Please enter a valid host.");
@@ -71,6 +86,7 @@ function validateFields() {
         state.password_error = false;
     }
 }
+
 async function testConnection() {
     state.loading = true;
     state.showAlert = false;
@@ -80,7 +96,7 @@ async function testConnection() {
         state.showAlert = true;
         state.loading = false;
     } else {
-        const recaptchaToken = await getRecaptchaToken(recaptcha, 'mysqlConnectionForm');
+        const recaptchaToken = await getRecaptchaToken(recaptcha, 'mariadbEditForm');
         const token = getAuthToken();
         if (recaptchaToken) {
             const requestOptions = {
@@ -116,7 +132,8 @@ async function testConnection() {
     }
     state.loading = false;
 }
-async function connectAndSave() {
+
+async function updateDataSource() {
     state.loading = true;
     state.showAlert = false;
     state.errorMessages = [];
@@ -124,57 +141,62 @@ async function connectAndSave() {
     if (state.host_error || state.port_error || state.database_name_error || state.username_error || state.password_error) {
         state.showAlert = true;
         state.loading = false;
-    } else {
-        const recaptchaToken = await getRecaptchaToken(recaptcha, 'mysqlConnectionForm');
-        const token = getAuthToken();
-        if (recaptchaToken) {
-            const requestOptions = {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${token}`,
-                    "Authorization-Type": "auth",
-                },
-                body: JSON.stringify({
-                    data_source_type: "mysql",
-                    host: state.host,
-                    port: state.port,
-                    schema: state.schema,
-                    database_name: state.database_name,
-                    username: state.username,
-                    password: state.password,
-                    project_id: route.params.projectid,
-                }),
-            };
-            const response = await fetch(`${baseUrl()}/data-source/add-data-source`, requestOptions);
-            if (response.status === 200) {
-                state.connectionSuccess = true;
-                state.showAlert = true;
-                const data = await response.json();
-                state.errorMessages.push("Connection successful!");
-                await dataSourceStore.retrieveDataSources();
-                router.push(`/projects/${route.params.projectid}/data-sources`);
-            } else {
-             state.connectionSuccess = false;
-                state.showAlert = true;
-                const data = await response.json();
-                state.errorMessages.push(data.message);
-            }
-        }
+        return;
     }
-    state.loading = false;
+    
+    const recaptchaToken = await getRecaptchaToken(recaptcha, 'mariadbEditForm');
+    const token = getAuthToken();
+    if (recaptchaToken) {
+        const requestOptions = {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`,
+                "Authorization-Type": "auth",
+            },
+            body: JSON.stringify({
+                data_source_type: "mysql",
+                host: state.host,
+                port: state.port,
+                schema: state.schema,
+                database_name: state.database_name,
+                username: state.username,
+                password: state.password,
+            }),
+        };
+        const response = await fetch(`${baseUrl()}/data-source/update-data-source/${route.params.datasourceid}`, requestOptions);
+        if (response.status === 200) {
+            state.connectionSuccess = true;
+            state.showAlert = true;
+            const data = await response.json();
+            state.errorMessages.push(data.message);
+            await dataSourceStore.retrieveDataSources();
+            setTimeout(() => {
+                router.push(`/projects/${route.params.projectid}/data-sources`);
+            }, 2000);
+        } else {
+            state.connectionSuccess = false;
+            state.showAlert = true;
+            const data = await response.json();
+            state.errorMessages.push(data.message);
+            state.loading = false;
+        }
+    } else {
+        state.loading = false;
+    }
 }
+
 onMounted(async () => {
-    await getToken();
+    await loadDataSource();
 })
 </script>
 <template>
     <div class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md">
         <div class="font-bold text-2xl mb-5">
-            Connect to MySQL Database
+            Edit MariaDB Data Source
         </div>
         <div class="text-md mb-10">
-            Please provide in the following details to the MySQL instance of the data source that you want to connect to.
+            Update the connection details for your MariaDB data source. You must re-enter the password to update.
         </div>
         <div v-if="state.showAlert"
             class="w-3/4 self-center text-lg p-5 mb-5 font-bold text-black"
@@ -231,7 +253,7 @@ onMounted(async () => {
                 :type="state.showPassword ? 'text' : 'password'"
                 class="w-full p-5 pr-12 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md"
                 :class="!state.password_error ? '' : 'bg-red-300 text-black'"
-                placeholder="Password"
+                placeholder="Password (required to update)"
                 :disabled="state.loading"
             />
             <button
@@ -239,22 +261,21 @@ onMounted(async () => {
                 @click="state.showPassword = !state.showPassword"
                 class="absolute right-3 top-5 text-gray-600 hover:text-gray-800"
                 :disabled="state.loading">
-                <font-awesome :icon="state.showPassword ? 'fas fa-eye-slash' : 'fas fa-eye'" class="text-lg" />
+                <font-awesome :icon="state.showPassword ? 'fas fa-eye-slash' : 'fas fa-eye'" class="text-lg cursor-pointer" />
             </button>
         </div>
-        <spinner v-if="state.loading"/>
-        <div v-else class="flex flex-row justify-center">
+        <div class="flex flex-row self-center w-1/2 gap-5">
             <div
-                class="w-1/4 text-center self-center mb-5 p-2 m-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md"
-                @click="connectAndSave"
-            >
-                Connect &amp; Save Connection Details
+                @click="!state.loading && testConnection()"
+                class="h-10 text-center items-center self-center mt-5 mb-5 p-2 font-bold shadow-md select-none bg-gray-500 hover:bg-gray-600 cursor-pointer text-white flex-1"
+                :class="{ 'opacity-50 cursor-not-allowed': state.loading }">
+                Test Connection
             </div>
             <div
-                class="w-1/4 text-center self-center mb-5 p-2 m-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md"
-                @click="testConnection"
-            >
-                Test Connection
+                @click="!state.loading && updateDataSource()"
+                class="h-10 text-center items-center self-center mt-5 mb-5 p-2 font-bold shadow-md select-none bg-primary-blue-100 hover:bg-primary-blue-200 cursor-pointer text-white flex-1"
+                :class="{ 'opacity-50 cursor-not-allowed': state.loading }">
+                Update Data Source
             </div>
         </div>
     </div>

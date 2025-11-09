@@ -81,6 +81,48 @@ async (req: Request, res: Response) => {
     }
 });
 
+router.put('/update-data-source/:data_source_id', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([
+    param('data_source_id').notEmpty().trim().escape().toInt(),
+    body('data_source_type').notEmpty().trim().escape(), 
+    body('host').notEmpty().trim().escape(), 
+    body('port').notEmpty().trim().escape(),
+    body('schema').notEmpty().trim().escape(), 
+    body('database_name').notEmpty().trim().escape(), 
+    body('username').notEmpty().trim().escape(),
+    body('password').notEmpty().trim().escape(),
+]),
+async (req: Request, res: Response) => {
+    const { data_source_id, data_source_type, host, port, schema, database_name, username, password } = matchedData(req);
+    const connection: IDBConnectionDetails = {
+        data_source_type: data_source_type,
+        host: host,
+        port: port,
+        schema: schema,
+        database: database_name,
+        username: username,
+        password: password,
+    };
+    
+    try {
+        const result = await DataSourceProcessor.getInstance().updateDataSource(
+            data_source_id, 
+            connection, 
+            req.body.tokenDetails
+        );
+        
+        if (result) {
+            res.status(200).send({message: 'The data source has been updated successfully.'});        
+        } else {
+            res.status(400).send({message: 'The data source could not be updated.'});
+        }
+    } catch (error) {
+        console.error('Error updating data source:', error);
+        res.status(400).send({message: 'The data source could not be updated.'});
+    }
+});
+
 router.delete('/delete/:data_source_id', async (req: Request, res: Response, next: any) => {
     next();
 }, validateJWT, validate([param('data_source_id').notEmpty().trim().escape().toInt()]),

@@ -24,6 +24,7 @@ const state = reactive({
     showAlert: false,
     errorMessages: [],
     connectionSuccess: false,
+    showPassword: false,
 })
 
 async function getToken() {
@@ -224,14 +225,23 @@ onMounted(async () => {
             placeholder="Username"
             :disabled="state.loading"
         />
-        <input
-            v-model="state.password"
-            type="text"
-            class="self-center w-1/2 p-5 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md"
-            :class="!state.password_error ? '' : 'bg-red-300 text-black'"
-            placeholder="Password"
-            :disabled="state.loading"
-        />
+        <div class="relative self-center w-1/2">
+            <input
+                v-model="state.password"
+                :type="state.showPassword ? 'text' : 'password'"
+                class="w-full p-5 pr-12 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md"
+                :class="!state.password_error ? '' : 'bg-red-300 text-black'"
+                placeholder="Password"
+                :disabled="state.loading"
+            />
+            <button
+                type="button"
+                @click="state.showPassword = !state.showPassword"
+                class="absolute right-3 top-5 text-gray-600 hover:text-gray-800"
+                :disabled="state.loading">
+                <font-awesome :icon="state.showPassword ? 'fas fa-eye-slash' : 'fas fa-eye'" class="text-lg" />
+            </button>
+        </div>
         <spinner v-if="state.loading"/>
         <div v-else class="flex flex-row justify-center">
             <div

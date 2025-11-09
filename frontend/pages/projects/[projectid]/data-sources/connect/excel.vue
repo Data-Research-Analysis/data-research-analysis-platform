@@ -706,7 +706,7 @@ onMounted(async () => {
             </div>            
             <div v-if="state.files && state.files.length" class="flex flex-row w-full justify-center mt-10">
                 <div v-if="state.sheets && state.sheets.length && state.show_table_dialog" class="flex flex-col w-3/4 justify-center overflow-hidden mb-10">
-                    <h2 class="mb-4 text-xl font-bold text-gray-800">Data From The Selected Excel File</h2>
+                    <h2 class="mb-4 text-xl font-bold text-gray-800">Data From The Excel File(s)/Sheets</h2>
                     <custom-data-table
                         :sheets="state.sheets"
                         :active-sheet-id="state.activeSheetId"
