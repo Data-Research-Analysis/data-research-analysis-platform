@@ -3,25 +3,24 @@ import type { IPrivateBetaUser } from '~/types/IPrivateBetaUser';
 export const usePrivateBetaUserStore = defineStore('privateBetaUserStore', () => {
     const privateBetaUsers = ref<IPrivateBetaUser[]>([]);
 
-    // Only access localStorage on client side
-    if (import.meta.client) {
-        if (localStorage.getItem('privateBetaUsers')) {
-            privateBetaUsers.value = JSON.parse(localStorage.getItem('privateBetaUsers') || 'null') || [];
-        }
-    }
     function setPrivateBetaUsers(usersList: IPrivateBetaUser[]) {
         privateBetaUsers.value = usersList;
         if (import.meta.client) {
             localStorage.setItem('privateBetaUsers', JSON.stringify(usersList));
+            enableRefreshDataFlag('setPrivateBetaUsers');
         }
     }
     function getPrivateBetaUsers() {
+        if (import.meta.client && localStorage.getItem('privateBetaUsers')) {
+            privateBetaUsers.value = JSON.parse(localStorage.getItem('privateBetaUsers') || 'null') || [];
+        }
         return privateBetaUsers.value;
     }
     function clearPrivateBetaUsers() {
         privateBetaUsers.value = [];
         if (import.meta.client) {
             localStorage.removeItem('privateBetaUsers');
+            enableRefreshDataFlag('clearPrivateBetaUsers');
         }
     }
     async function retrievePrivateBetaUsers() {

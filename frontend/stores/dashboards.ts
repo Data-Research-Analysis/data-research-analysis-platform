@@ -5,21 +5,11 @@ export const useDashboardsStore = defineStore('dashboardsDRA', () => {
     const selectedDashboard = ref<IDashboard>()
     const columnsAdded = ref<string[]>([])
     
-    // Only access localStorage on client side
-    if (import.meta.client) {
-        if (localStorage.getItem('dashboards')) {
-            dashboards.value = JSON.parse(localStorage.getItem('dashboards') || '[]')
-        }
-        if (localStorage.getItem('selectedDashboard')) {
-            selectedDashboard.value = JSON.parse(localStorage.getItem('selectedDashboard') || 'null')
-        }
-    }
     function setDashboards(dashboardsList: IDashboard[]) {
         dashboards.value = dashboardsList
-        console.log("Setting dashboards in store:", dashboardsList);
-        console.log("dashboards.value", dashboards.value)
         if (import.meta.client) {
             localStorage.setItem('dashboards', JSON.stringify(dashboardsList))
+            enableRefreshDataFlag('setDashboards');
         }
     }
     function setSelectedDashboard(dashboard: IDashboard) {
@@ -32,9 +22,13 @@ export const useDashboardsStore = defineStore('dashboardsDRA', () => {
         columnsAdded.value = columnNames
         if (import.meta.client) {
             localStorage.setItem('columnsAdded', JSON.stringify(columnNames))
+            enableRefreshDataFlag('setColumnsAdded');
         }
     }
     function getDashboards() {
+        if (import.meta.client && localStorage.getItem('dashboards')) {
+            dashboards.value = JSON.parse(localStorage.getItem('dashboards') || '[]')
+        }
         return dashboards.value;
     }
     async function retrieveDashboards() {
@@ -72,6 +66,9 @@ export const useDashboardsStore = defineStore('dashboardsDRA', () => {
         return data;
     }
     function getSelectedDashboard() {
+        if (import.meta.client && localStorage.getItem('selectedDashboard')) {
+            selectedDashboard.value = JSON.parse(localStorage.getItem('selectedDashboard') || 'null')
+        }
         return selectedDashboard.value
     }
     function getColumnsAdded() {
@@ -80,19 +77,21 @@ export const useDashboardsStore = defineStore('dashboardsDRA', () => {
     function clearDashboards() {
         dashboards.value = []
         if (import.meta.client) {
-            localStorage.removeItem('dashboards')
+            localStorage.removeItem('dashboards');
+            enableRefreshDataFlag('clearDashboards');
         }
     }
     function clearSelectedDashboard() {
         selectedDashboard.value = undefined
         if (import.meta.client) {
-            localStorage.removeItem('selectedDashboard')
+            localStorage.removeItem('selectedDashboard');
         }
     }
     function clearColumnsAdded() {
         columnsAdded.value = []
         if (import.meta.client) {
-            localStorage.removeItem('columnsAdded')
+            localStorage.removeItem('columnsAdded');
+            enableRefreshDataFlag('clearColumnsAdded');
         }
     }
     return {

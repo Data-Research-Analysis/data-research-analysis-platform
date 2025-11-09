@@ -3,17 +3,12 @@ import type { IUsersPlatform } from '~/types/IUsersPlatform';
 export const useLoggedInUserStore = defineStore('loggedInUserDRA', () => {
     const loggedInUser = ref<IUsersPlatform>()
 
-    // Only access localStorage on client side
-    if (import.meta.client && localStorage.getItem('loggedInUser')) {
-        loggedInUser.value = JSON.parse(localStorage.getItem('loggedInUser') || 'null');
-    }
-    
     function setLoggedInUser(user: IUsersPlatform) {
-        console.log('setLoggedInUser called with user:', user);
         loggedInUser.value = user;
         // Only update localStorage on client side
         if (import.meta.client) {
             localStorage.setItem('loggedInUser', JSON.stringify(user));
+            enableRefreshDataFlag('setLoggedInUser');
         }
     }
     
@@ -38,6 +33,7 @@ export const useLoggedInUserStore = defineStore('loggedInUserDRA', () => {
         // Only update localStorage on client side
         if (import.meta.client) {
             localStorage.removeItem('loggedInUser');
+            enableRefreshDataFlag('clearUserPlatform');
         }
     }
     

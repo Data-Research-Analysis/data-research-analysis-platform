@@ -588,6 +588,7 @@ async function saveDataModel() {
         })
     });
     if (response.status === 200) {
+        // enableRefreshDataFlag('clearDataModels');
         router.push(`/projects/${route.params.projectid}/data-sources/${route.params.datasourceid}/data-models`);
     } else {
         $swal.fire({

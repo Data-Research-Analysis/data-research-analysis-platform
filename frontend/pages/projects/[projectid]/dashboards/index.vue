@@ -9,24 +9,23 @@ const route = useRoute();
 // Get project ID from route
 const projectId = parseInt(String(route.params.projectid));
 
-const state = reactive({
-    dashboards: computed(() => {
-        const allDashboards = dashboardsStore.getDashboards();
-        // Filter dashboards by project ID
-        return allDashboards
-            .filter((d) => {
-                const dProjectId = d.project_id || d.project?.id;
-                return dProjectId === projectId;
-            })
-            .map((dashboardObj) => ({
-                id: dashboardObj.id,
-                dashboard: dashboardObj.data,
-                project_id: dashboardObj.project_id,
-                user_id: dashboardObj.user_platform_id,
-            }));
-    }),
-});
+const state = reactive({ });
 
+const dashboards = computed(() => {
+    const allDashboards = dashboardsStore.getDashboards();
+    // Filter dashboards by project ID
+    return allDashboards
+        .filter((d) => {
+            const dProjectId = d.project_id || d.project?.id;
+            return dProjectId === projectId;
+        })
+        .map((dashboardObj) => ({
+            id: dashboardObj.id,
+            dashboard: dashboardObj.data,
+            project_id: dashboardObj.project_id,
+            user_id: dashboardObj.user_platform_id,
+        }));
+});
 const project = computed(() => {
     return projectsStore.getSelectedProject();
 });
@@ -72,7 +71,7 @@ async function deleteDashboard(dashboardId) {
                 Dashboards
             </div>
             <div class="text-md">
-                Data Models are part of the semantic data layer and will be the basis of the analysis that you will perform.
+                Dashboards are where you will be building your charts and visualizations based on your data models.
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5">
                 <notched-card class="justify-self-center mt-10">
@@ -87,7 +86,7 @@ async function deleteDashboard(dashboardId) {
                         </NuxtLink>
                     </template>
                 </notched-card>
-                <div v-for="dashboard in state.dashboards" class="relative">
+                <div v-for="dashboard in dashboards" class="relative">
                     <notched-card class="justify-self-center mt-10">
                         <template #body="{ onClick }">
                             <NuxtLink :to="`/projects/${project.id}/dashboards/${dashboard.id}`" class="hover:text-gray-500 cursor-pointer">

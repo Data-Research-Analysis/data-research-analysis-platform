@@ -58,12 +58,8 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     }
     
     // Set selected project
-    projectsStore.setSelectedProject(project);
-    
-    // Load data model tables for this project if not already loaded
-    if (!dataModelsStore.getDataModelTables()?.length) {
-      await dataModelsStore.retrieveDataModelTables(projectId);
-    }
+    projectsStore.setSelectedProject(project);    
+    await dataModelsStore.retrieveDataModelTables(projectId);
   }
 
   // === DATA SOURCE VALIDATION AND SELECTION ===

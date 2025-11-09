@@ -75,9 +75,6 @@ export function isPlatformLoginEnabled() {
 export function cleanString(str: string) {
     return str.replace(/[^a-zA-Z0-9]/g, "");
 }
-export function joinWaitList() {
- 
-}
 export function countryCodes() {
     return [
             {"name":"Afghanistan","iso_2":"AF","iso_3":"AFG","code":"93"},
@@ -251,4 +248,9 @@ export function countryCodes() {
             {"name":"Zambia","iso_2":"ZM","iso_3":"ZMB","code":"260"},
             {"name":"Zimbabwe","iso_2":"ZW","iso_3":"ZWE","code":"263"}
         ];
+}
+export function enableRefreshDataFlag(source: string) {
+    if (import.meta.client) {
+        localStorage.setItem('refreshData', 'true');
+    }
 }

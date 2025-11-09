@@ -5,20 +5,11 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
     const users = ref<IUserManagement[]>([]);
     const selectedUser = ref<IUserManagement | null>(null);
 
-    // Only access localStorage on client side
-    if (import.meta.client) {
-        if (localStorage.getItem('userManagementUsers')) {
-            users.value = JSON.parse(localStorage.getItem('userManagementUsers') || 'null') || [];
-        }
-        if (localStorage.getItem('selectedUserManagement')) {
-            selectedUser.value = JSON.parse(localStorage.getItem('selectedUserManagement') || 'null');
-        }
-    }
-
     function setUsers(usersList: IUserManagement[]) {
         users.value = usersList;
         if (import.meta.client) {
             localStorage.setItem('userManagementUsers', JSON.stringify(usersList));
+            enableRefreshDataFlag('setUsers');
         }
     }
 
@@ -30,10 +21,16 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
     }
 
     function getUsers() {
+        if (import.meta.client && localStorage.getItem('userManagementUsers')) {
+            users.value = JSON.parse(localStorage.getItem('userManagementUsers') || 'null') || [];
+        }
         return users.value;
     }
 
     function getSelectedUser() {
+        if (import.meta.client &&localStorage.getItem('selectedUserManagement')) {
+            selectedUser.value = JSON.parse(localStorage.getItem('selectedUserManagement') || 'null');
+        }
         return selectedUser.value;
     }
 
@@ -41,6 +38,7 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
         users.value = [];
         if (import.meta.client) {
             localStorage.removeItem('userManagementUsers');
+            localStorage.setItem('refreshData', 'true');
         }
     }
 

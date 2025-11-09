@@ -1,9 +1,5 @@
 <script setup>
-import { useArticlesStore } from '@/stores/articles';
-
 const router = useRouter();
-const articlesStore = useArticlesStore();
-
 // Fetch articles with SSR support
 const { articles: allArticles, pending, error } = await usePublicArticles();
 
