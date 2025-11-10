@@ -103,8 +103,8 @@ async function deleteDashboard(dashboardId) {
                             </NuxtLink>
                         </template>
                     </notched-card>
-                    <div class="absolute top-5 -right-2 z-10 bg-gray-200 hover:bg-gray-300 border border-gray-200 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer" @click="deleteDashboard(dashboard.id)">
-                        <font-awesome icon="fas fa-xmark" class="text-xl text-red-500 hover:text-red-400 select-none" />
+                    <div class="absolute top-5 -right-2 z-10 bg-red-500 hover:bg-red-700 border border-red-500 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer" @click="deleteDashboard(dashboard.id)">
+                        <font-awesome icon="fas fa-xmark" class="text-xl text-white select-none" />
                     </div>
                 </div>
             </div>

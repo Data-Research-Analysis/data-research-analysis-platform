@@ -265,6 +265,63 @@ export class DataModelProcessor {
     }
 
     /**
+     * Refresh data model by re-executing stored query against external data source
+     * Drops existing table and recreates with latest data
+     * @param dataModelId - ID of data model to refresh
+     * @param tokenDetails - User authentication details
+     * @returns true if refresh successful, false otherwise
+     */
+    public async refreshDataModel(dataModelId: number, tokenDetails: ITokenDetails): Promise<boolean> {
+        return new Promise<boolean>(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve(false);
+            }
+            const manager = (await driver.getConcreteDriver()).manager;
+            if (!manager) {
+                return resolve(false);
+            }
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!user) {
+                return resolve(false);
+            }
+            
+            // Retrieve existing data model with relations
+            const existingDataModel = await manager.findOne(DRADataModel, {
+                where: {id: dataModelId, users_platform: user},
+                relations: ['data_source']
+            });
+            
+            if (!existingDataModel) {
+                console.error(`Data model ${dataModelId} not found or user ${user_id} does not have permission`);
+                return resolve(false);
+            }
+            
+            // Extract stored query parameters
+            const dataSourceId = existingDataModel.data_source.id;
+            const storedQuery = existingDataModel.sql_query;
+            const storedQueryJSON = JSON.stringify(existingDataModel.query);
+            const currentName = existingDataModel.name;
+            
+            // Extract base name without the UUID suffix (dra_name_uuid -> name)
+            let baseDataModelName = currentName;
+            baseDataModelName = baseDataModelName.replace(/_dra_.*/g, '');
+            
+            // Reuse existing updateDataModelOnQuery logic to refresh the data
+            const refreshResult = await this.updateDataModelOnQuery(
+                dataSourceId,
+                dataModelId,
+                storedQuery,
+                storedQueryJSON,
+                baseDataModelName,
+                tokenDetails
+            );           
+            return resolve(refreshResult);
+        });
+    }
+
+    /**
      * Update the data model on query
      * @param dataSourceId 
      * @param dataModelId 
@@ -293,7 +350,7 @@ export class DataModelProcessor {
             if (!user) {
                 return resolve(false);
             }
-            const dataSource: DRADataSource|null = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}});
+            const dataSource: DRADataSource|null = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}, relations: ['data_models']});
             if (!dataSource) {
                 return resolve(false);
             }
@@ -316,7 +373,7 @@ export class DataModelProcessor {
                 console.log('Error connecting to external DB', error);
                 return resolve(false);
             }
-            const existingDataModel = await manager.findOne(DRADataModel, {where: {id: dataModelId, data_source: dataSource, users_platform: user}});
+            const existingDataModel = dataSource.data_models.find(model => model.id === dataModelId);
             if (!existingDataModel) {
                 return resolve(false);
             }
