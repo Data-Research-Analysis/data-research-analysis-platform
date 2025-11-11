@@ -5,10 +5,12 @@ const { $swal } = useNuxtApp();
 
 const state = reactive({
     project_name: '',
+    loading: true,
 });
+
 const projects = computed(() => {
-    const projects = projectsStore.getProjects();
-    return projects.map((project) => ({
+    const projectsList = projectsStore.getProjects();
+    return projectsList.map((project) => ({
         id: project.id,
         user_id: project.user_platform_id,
         name: project.name,
@@ -19,6 +21,14 @@ const projects = computed(() => {
         dashboards: 0,
         stories: 0,
     }));
+});
+
+// Hide loading once data is available
+onMounted(() => {
+    // Wait for next tick to ensure store is populated
+    nextTick(() => {
+        state.loading = false;
+    });
 });
 async function addProject() {
     const { value: formValues } = await $swal.fire({
@@ -124,7 +134,25 @@ async function setSelectedProject(projectId) {
         <div class="text-md">
             All of your data and files will be contained within projects. All projects are isolated from one another and help with organization of your analysis.
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5">
+        
+        <!-- Skeleton loader for loading state -->
+        <div v-if="state.loading" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5">
+            <div v-for="i in 6" :key="i" class="mt-10">
+                <div class="border border-primary-blue-100 border-solid p-6 shadow-md bg-white min-h-[180px]">
+                    <div class="animate-pulse">
+                        <div class="h-6 bg-gray-300 rounded w-3/4 mb-4"></div>
+                        <div class="space-y-2">
+                            <div class="h-4 bg-gray-200 rounded w-full"></div>
+                            <div class="h-4 bg-gray-200 rounded w-5/6"></div>
+                            <div class="h-4 bg-gray-200 rounded w-4/5"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Actual content -->
+        <div v-else class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5">
             <notched-card class="justify-self-center mt-10">
                 <template #body="{ onClick }">
                     <div class="flex flex-col justify-center text-xl font-bold cursor-pointer items-center" @click="addProject">
