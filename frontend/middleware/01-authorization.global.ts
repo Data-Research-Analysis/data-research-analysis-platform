@@ -30,6 +30,13 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     console.log(`[01-authorization] Started at ${authStartTime.toFixed(2)}ms`)
   }
   
+  // Set batch context if batch ID exists (set by 00-route-loader)
+  const batchId = to.meta.loaderBatchId as string | undefined
+  if (batchId && import.meta.client) {
+    const { setBatchContext } = useGlobalLoader()
+    setBatchContext(batchId)
+  }
+  
   // Check if running on server side
   const isServer = typeof window === 'undefined'
   const token = getAuthToken();
@@ -174,6 +181,12 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
         }
       }
     }
+  
+  // Clear batch context after authorization completes
+  if (batchId && import.meta.client) {
+    const { clearBatchContext } = useGlobalLoader()
+    clearBatchContext()
+  }
   
   // INSTRUMENTATION: Track authorization middleware completion
   if (import.meta.client) {

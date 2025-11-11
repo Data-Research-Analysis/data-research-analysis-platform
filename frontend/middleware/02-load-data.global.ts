@@ -15,18 +15,24 @@ import { useUserManagementStore } from '@/stores/user_management';
  * race conditions on page refresh and allows other middleware to validate
  * with confidence that data exists.
  * 
+ * Uses batch loading context from 00-route-loader to ensure a single loader
+ * remains visible for all parallel API calls.
+ * 
  * Order: authorization.global.ts -> load-data.global.ts -> data_exists.global.ts
  */
 export default defineNuxtRouteMiddleware(async (to, from) => {
-  // INSTRUMENTATION: Track data loading middleware timing
   const dataLoadStartTime = import.meta.client ? performance.now() : 0
-  if (import.meta.client) {
-    console.log(`[02-load-data] Started at ${dataLoadStartTime.toFixed(2)}ms`)
-  }
   
   // Skip during SSR to prevent backend connection issues
   if (typeof window === 'undefined') {
     return;
+  }
+  
+  // Set batch context if batch ID exists (set by 00-route-loader)
+  const batchId = to.meta.loaderBatchId as string | undefined
+  if (batchId && import.meta.client) {
+    const { setBatchContext } = useGlobalLoader()
+    setBatchContext(batchId)
   }
 
   const token = getAuthToken();
@@ -170,6 +176,12 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
   } catch (error) {
     console.error('Failed to load data:', error);
     // Don't block navigation on error - let pages handle missing data gracefully
+  }
+  
+  // Clear batch context after data loading completes
+  if (batchId && import.meta.client) {
+    const { clearBatchContext } = useGlobalLoader()
+    clearBatchContext()
   }
   
   // INSTRUMENTATION: Track data loading middleware completion
