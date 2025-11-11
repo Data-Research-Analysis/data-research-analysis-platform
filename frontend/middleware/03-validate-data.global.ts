@@ -15,6 +15,12 @@ import { useUserManagementStore } from '@/stores/user_management';
  * Order: authorization.global.ts -> load-data.global.ts -> data_exists.global.ts
  */
 export default defineNuxtRouteMiddleware(async (to, from) => {
+  // INSTRUMENTATION: Track validation middleware timing
+  const validateStartTime = import.meta.client ? performance.now() : 0
+  if (import.meta.client) {
+    console.log(`[03-validate-data] Started at ${validateStartTime.toFixed(2)}ms`)
+  }
+  
   // Skip during SSR
   if (typeof window === 'undefined') {
     return;
@@ -139,5 +145,12 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     if (!dataModelsStore.getDataModelTables()?.length) {
       return navigateTo(`/projects/${to.params.projectid}`);
     }
+  }
+  
+  // INSTRUMENTATION: Track validation middleware completion
+  if (import.meta.client) {
+    const validateEndTime = performance.now()
+    const duration = validateEndTime - validateStartTime
+    console.log(`[03-validate-data] Completed at ${validateEndTime.toFixed(2)}ms (duration: ${duration.toFixed(2)}ms)`)
   }
 });

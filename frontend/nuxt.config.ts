@@ -16,6 +16,23 @@ export default defineNuxtConfig({
   devServer: {
     port: process.env.NUXT_PORT ? parseInt(process.env.NUXT_PORT, 10) : 3000,
   },
+  // OPTIMIZATION: Enable experimental features for better performance
+  experimental: {
+    // Enable payload extraction for better hydration
+    payloadExtraction: true,
+    // Enable component islands for partial hydration
+    componentIslands: false, // Can be enabled if needed
+    // Enable view transitions for smoother navigation
+    viewTransition: true,
+  },
+  // OPTIMIZATION: Configure router for better performance
+  router: {
+    options: {
+      // Enable link prefetching on hover/visible
+      linkActiveClass: 'router-link-active',
+      linkExactActiveClass: 'router-link-exact-active',
+    }
+  },
   components: [
     {
       path: '~/components',

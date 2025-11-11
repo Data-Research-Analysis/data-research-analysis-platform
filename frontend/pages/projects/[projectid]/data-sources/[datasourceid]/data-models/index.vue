@@ -11,6 +11,7 @@ const router = useRouter();
 const state = reactive({
     data_models: [],
     refreshing_model_id: null, // Track which model is being refreshed
+    loading: true,
 })
 watch(
     dataModelsStore.dataModels,
@@ -28,6 +29,14 @@ const dataSource = computed(() => {
 const dataModel = computed(() => {
     return dataModelsStore.getSelectedDataModel();
 });
+
+// Hide loading once data is available
+onMounted(() => {
+    nextTick(() => {
+        state.loading = false;
+    });
+});
+
 async function getDataModels() {
     state.data_models = [];
     state.data_models = dataModelsStore.getDataModels().filter((dataModel) => dataModel.data_source.id === dataSource.value.id).map((dataModel) => {
@@ -147,7 +156,23 @@ onMounted(async () => {
             <div class="text-md">
                 Data Models are part of the semantic data layer and will be the basis of the analysis that you will perform.
             </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5">
+            
+            <!-- Skeleton loader for loading state -->
+            <div v-if="state.loading" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5">
+                <div v-for="i in 6" :key="i" class="mt-10">
+                    <div class="border border-primary-blue-100 border-solid p-6 shadow-md bg-white min-h-[180px]">
+                        <div class="animate-pulse">
+                            <div class="h-6 bg-gray-300 rounded w-3/4 mb-4"></div>
+                            <div class="space-y-2 mt-4">
+                                <div class="h-4 bg-gray-200 rounded w-1/2"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Actual content -->
+            <div v-else class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5">
                 <notched-card class="justify-self-center mt-10">
                     <template #body="{ onClick }">
                         <NuxtLink :to="`/projects/${project.id}/data-sources/${dataSource.id}/data-models/create`">

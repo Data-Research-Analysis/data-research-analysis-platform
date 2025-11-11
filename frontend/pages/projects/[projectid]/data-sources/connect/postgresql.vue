@@ -245,16 +245,16 @@ onMounted(async () => {
         <spinner v-if="state.loading"/>
         <div v-else class="flex flex-row justify-center">
             <div
+                class="w-1/4 text-center self-center mb-5 p-2 m-2 bg-gray-500 hover:bg-gray-600 text-white cursor-pointer font-bold shadow-md"
+                @click="testConnection"
+            >
+                Test Connection
+            </div>
+            <div
                 class="w-1/4 text-center self-center mb-5 p-2 m-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md"
                 @click="connectAndSave"
             >
                 Connect &amp; Save Connection Details
-            </div>
-            <div
-                class="w-1/4 text-center self-center mb-5 p-2 m-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md"
-                @click="testConnection"
-            >
-                Test Connection
             </div>
         </div>
     </div>
