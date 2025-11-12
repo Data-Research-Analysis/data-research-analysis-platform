@@ -9,6 +9,8 @@ export class QueueService {
     private pdfConversionQueue: Queue;
     private textExtractionQueue: Queue;
     private fileDeletionQueue: Queue;
+    private databaseBackupQueue: Queue;
+    private databaseRestoreQueue: Queue;
     
     private constructor() {}
 
@@ -23,6 +25,8 @@ export class QueueService {
             this.pdfConversionQueue = new Queue('DRAPdfConversionQueue');
             this.textExtractionQueue = new Queue('DRATextExtractionQueue');
             this.fileDeletionQueue = new Queue('DRAFileDeletionQueue');
+            this.databaseBackupQueue = new Queue('DRADatabaseBackupQueue');
+            this.databaseRestoreQueue = new Queue('DRADatabaseRestoreQueue');
             await this.purgeQueues();
             return resolve();
         });
@@ -54,6 +58,24 @@ export class QueueService {
             resolve();
         });
     }
+    public async addDatabaseBackupJob(userId: number): Promise<void> {
+        return new Promise<void>(async (resolve, reject) => {
+            const index = await this.databaseBackupQueue.getNextIndex();
+            let response:Document = new Document({id: index, key: 'databaseBackup', content: JSON.stringify({ userId })});
+            await this.databaseBackupQueue.enqueue(response);
+            await this.databaseBackupQueue.commit();
+            resolve();
+        });
+    }
+    public async addDatabaseRestoreJob(zipFilePath: string, userId: number): Promise<void> {
+        return new Promise<void>(async (resolve, reject) => {
+            const index = await this.databaseRestoreQueue.getNextIndex();
+            let response:Document = new Document({id: index, key: 'databaseRestore', content: JSON.stringify({ zipFilePath, userId })});
+            await this.databaseRestoreQueue.enqueue(response);
+            await this.databaseRestoreQueue.commit();
+            resolve();
+        });
+    }
     public async getNextPDFConversionJob(): Promise<Document | null> {
         return new Promise<Document | null>(async (resolve, reject) => {
             const job = await this.pdfConversionQueue.dequeue();
@@ -75,6 +97,20 @@ export class QueueService {
             resolve(job);
         });
     }
+    public async getNextDatabaseBackupJob(): Promise<Document | null> {
+        return new Promise<Document | null>(async (resolve, reject) => {
+            const job = await this.databaseBackupQueue.dequeue();
+            await this.databaseBackupQueue.commit();
+            resolve(job);
+        });
+    }
+    public async getNextDatabaseRestoreJob(): Promise<Document | null> {
+        return new Promise<Document | null>(async (resolve, reject) => {
+            const job = await this.databaseRestoreQueue.dequeue();
+            await this.databaseRestoreQueue.commit();
+            resolve(job);
+        });
+    }
     public async purgePDFConversionQueue(): Promise<void> {
         return new Promise<void>(async (resolve, reject) => {
             await this.pdfConversionQueue.purge();
@@ -93,11 +129,25 @@ export class QueueService {
             resolve();
         });
     }
+    public async purgeDatabaseBackupQueue(): Promise<void> {
+        return new Promise<void>(async (resolve, reject) => {
+            await this.databaseBackupQueue.purge();
+            resolve();
+        });
+    }
+    public async purgeDatabaseRestoreQueue(): Promise<void> {
+        return new Promise<void>(async (resolve, reject) => {
+            await this.databaseRestoreQueue.purge();
+            resolve();
+        });
+    }
     public async purgeQueues(): Promise<void> {
         return new Promise<void>(async (resolve, reject) => {
             await this.purgePDFConversionQueue();
             await this.purgeTextExtractionQueue();
             await this.purgeFileDeletionQueue();
+            await this.purgeDatabaseBackupQueue();
+            await this.purgeDatabaseRestoreQueue();
             resolve();
         });
     }
@@ -128,6 +178,23 @@ export class QueueService {
                     if (job) {
                         console.log('Processing File Deletion Job:', job);
                         await WorkerService.getInstance().runWorker(EOperation.DELETE_FILES, " ", JSON.parse(job.getContent()).userId as number);
+                    }
+                }
+                const numDatabaseBackup = await this.databaseBackupQueue.length();
+                if (numDatabaseBackup > 0) {
+                    const job: Document | null = await this.databaseBackupQueue.dequeue();
+                    if (job) {
+                        console.log('Processing Database Backup Job:', job);
+                        await WorkerService.getInstance().runWorker(EOperation.DATABASE_BACKUP, " ", JSON.parse(job.getContent()).userId as number);
+                    }
+                }
+                const numDatabaseRestore = await this.databaseRestoreQueue.length();
+                if (numDatabaseRestore > 0) {
+                    const job: Document | null = await this.databaseRestoreQueue.dequeue();
+                    if (job) {
+                        console.log('Processing Database Restore Job:', job);
+                        const jobContent = JSON.parse(job.getContent());
+                        await WorkerService.getInstance().runWorker(EOperation.DATABASE_RESTORE, jobContent.zipFilePath, jobContent.userId as number);
                     }
                 }
             }, UtilityService.getInstance().getConstants('QUEUE_STATUS_INTERVAL'));
