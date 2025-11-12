@@ -630,32 +630,456 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## Earlier Commits (June 2025 and before)
+## 2025-06-05 to 2025-06-01
 
-### Infrastructure & Setup
-- Initial Docker setup (DRA-10)
-- CI/CD with Jenkins (DRA-15)
-- Database migrations system (DRA-25)
-- Testing infrastructure (DRA-44)
+### Changed - Dashboard Flow Redesign
+**Files:** 19 files (visualization to dashboard flow)
+- Removed individual visualization creation flow
+- Implemented direct dashboard creation (similar to Power BI)
+- Added drag and resize functionality for chart placement
+- Created pie-chart and multi-line-chart components
+- Improved user experience with direct chart placement
 
-### Authentication & User Management
-- Registration flow (DRA-19)
-- Login flow (DRA-20)
-- Email verification (DRA-22)
-- Forgot password (DRA-21)
-- Google reCAPTCHA integration (DRA-8)
+---
 
-### Core Features
-- Project management (DRA-24)
-- Data source connections (PostgreSQL DRA-31, Excel DRA-32)
-- Data model builder (DRA-26, DRA-30)
-- TypeORM migration from Sequelize (DRA-58)
+## 2025-05-31
 
-### UI/UX
-- Landing page development (DRA-7, DRA-12)
-- Navigation drawer (DRA-12)
-- Privacy policy & Terms (DRA-13, DRA-14)
-- Marketing pages (DRA-9, DRA-33)
+### Changed - Visualization Models Update
+**Files:** Backend models, frontend visualization page
+- Updated DRAVisualization and DRAVisualizationModel
+- Added chart type asset images (gray and colored versions)
+- Enhanced visualization creation flow
+- Added D3.js plugin
+
+---
+
+## 2025-05-28 to 2025-05-21
+
+### Added - Visualization System
+**Files:** 50 files (models, processors, routes, pages, stores)
+- Visualization infrastructure with DRAVisualization model
+- Chart type assets (11 chart types)
+- Tabs component for project navigation
+- Sidebar enhancements for visualization listing
+- data_exists.global middleware for data validation
+- Visualization store with CRUD operations
+
+### Fixed - Data Model Builder
+**Files:** DataModelProcessor
+- Fixed incorrect table joining in query builder
+- Improved JOIN clause generation
+
+---
+
+## 2025-05-17
+
+### Changed - Sequelize to TypeORM Migration (DRA-58)
+**Files:** 65 files (complete data layer overhaul)
+- Replaced Sequelize ORM with TypeORM
+- Renamed all models with DRA prefix (DRAProject, DRADataSource, etc.)
+- Created PostgresDSMigrations.ts and PostgresDataSource.ts
+- New migration system using TypeORM
+- Refactored all processors for TypeORM syntax
+- Updated seeders to TypeORM format
+- Docker configuration updates
+- 2078 additions, 1338 deletions
+
+---
+
+## 2025-05-04 to 2025-05-03
+
+### Added - Edit Data Model (DRA-49)
+**Files:** data-model-builder component, edit page, backend processor
+- Complete edit functionality for data models
+- Extracted data-model-builder into reusable component (763 lines)
+- Backend update methods in DataModelProcessor
+
+---
+
+## 2025-05-02
+
+### Documentation - Project Templates
+**Files:** GitHub issue templates, CONTRIBUTING.md
+- Bug report template
+- Feature request template
+- Contributing guidelines
+
+---
+
+## 2025-05-01
+
+### Added - Testing Infrastructure (DRA-44)
+**Files:** Vitest config, test files for hero and notched-card components
+- Unit testing setup with Vitest
+- Component test examples
+- 7889 additions to package-lock.json
+
+### Added - Delete Data Model (DRA-30)
+**Files:** Backend processor/routes, frontend data models page
+- Delete data model functionality
+- Authentication conditions in footer navigation
+- Renamed methods for consistency
+
+### Added - Pull Request Template
+**Files:** .github/PULL_REQUEST_TEMPLATE.md
+- PR template with 43 lines
+
+---
+
+## 2025-04-29 to 2025-04-27
+
+### Added - Landing Page Enhancements
+**Files:** README, components, assets
+- Animated GIFs in README (build-data-model, data-sources, platform)
+- Hero section video (55MB platform.mp4)
+- Data source logos (Excel, MariaDB, MongoDB, MySQL, PostgreSQL)
+- add-external-data-source and build-data-model components
+- Git LFS enabled for large files
+- Navigation drawer auto-close on link click
+
+### Added - Access Control Toggle
+**Files:** Frontend .env, composables, navigation components
+- Environment variable to enable/disable platform access
+- Conditional login/register link visibility
+
+---
+
+## 2025-04-26
+
+### Added - Data Model Builder Complete
+**Files:** 17 files (processors, routes, stores, pages)
+- Full data model creation flow completed
+- GROUP BY, ORDER BY, OFFSET, LIMIT clause support
+- Column selection with drag-drop interface
+- JOIN operations between tables
+- WHERE clause filtering
+- DataModelProcessor with query generation
+- data_models store with 66 lines
+
+---
+
+## 2025-04-19
+
+### Added - Query Builder Enhancements
+**Files:** data-models/create.vue, overlay-dialog
+- ORDER BY, OFFSET, LIMIT clauses
+- Improved drag-drop UX for column selection
+- 268 additions to create page
+
+---
+
+## 2025-04-14
+
+### Added - Query Builder Foundation
+**Files:** data-models/create page, DataSourceProcessor
+- Drag-drop query builder (312 lines)
+- Column selection clause
+- FROM and JOIN clauses
+- WHERE clause (in progress)
+- Changed header flag to Authorization-Type
+
+---
+
+## 2025-04-12 to 2025-04-11
+
+### Fixed - Authorization Issues
+**Files:** Backend middleware, frontend composables
+- Debugging Authorization-Type header
+- Console logging for API failure tracking
+- Hidden cloud access links temporarily
+
+---
+
+## 2025-04-07
+
+### Added - PostgreSQL Data Source Foundation (DRA-31)
+**Files:** 62 files (major feature)
+- PostgreSQL connection functionality
+- Data source creation flow
+- Data models infrastructure
+- Breadcrumbs component
+- Sidebar with data source/model navigation
+- Stores: data_sources, data_models, projects
+- Types: IDataSource, IDataModel, IDataModelColumn, IDataModelRelationship
+- Backend: DataSourceProcessor (141 lines), PostgresDriver enhancements
+- Demo seeders for data sources
+- Frontend pages for connecting to PostgreSQL, creating/viewing data models
+
+---
+
+## 2025-04-01
+
+### Added - Data Source Infrastructure
+**Files:** Backend migrations, drivers, models
+- Data sources, data models, columns, relationships migrations
+- Enhanced PostgresDriver and DBDriver
+- Foundation for data source management
+
+---
+
+## 2025-03-28
+
+### Documentation - Planned Features
+**Files:** README.md
+- Added comprehensive planned features section
+
+---
+
+## 2025-03-26
+
+### Added - Projects Flow (DRA-24)
+**Files:** 26 files (complete project management)
+- Project creation, listing, and management
+- notched-card component for project cards
+- authorization.global middleware
+- Projects seeder with demo data
+- SweetAlert2 integration
+- Enhanced header navigation with dropdown menu
+- Token validation improvements
+
+---
+
+## 2025-03-25
+
+### Added - Loading Spinner
+**Files:** Login and register pages
+- Improved spinner component
+- Loading states for authentication
+
+---
+
+## 2025-03-23
+
+### Added - Cloud Access Menu
+**Files:** Navigation drawer
+- Cloud access menu in mobile navigation
+
+---
+
+## 2025-03-22
+
+### Added - Email Verification System (DRA-22)
+**Files:** 32 files (complete email flow)
+- Email verification with codes
+- Unsubscribe functionality
+- Resend verification code
+- HTML email templates
+- NodeMailer driver integration
+- Template engine service
+- VerificationCodes model and migration
+- Documentation: README, CHANGELOG, CODE_OF_CONDUCT, LICENSE
+
+---
+
+## 2025-03-19
+
+### Changed - Data Layer Refactor (DRA-26)
+**Files:** Backend drivers, models, processors
+- Improved DBDriver and PostgresDriver structure
+- Better error handling and connection management
+- Refactored data access patterns
+
+---
+
+## 2025-03-16
+
+### Added - Login Flow (DRA-20)
+**Files:** 15 files (authentication system)
+- Complete login implementation
+- Menu dropdown component
+- Auth composable
+- Enhanced header navigation with user menu
+- Projects page foundation
+- Token-based authentication
+
+---
+
+## 2025-03-15
+
+### Added - Registration Flow (DRA-19)
+**Files:** 18 files (user registration)
+- Complete registration UI and backend
+- UsersPlatform model and migration
+- AuthProcessor for user management
+- Validator middleware
+- Form validation composable
+- VueTippy integration for tooltips
+
+---
+
+## 2025-03-14
+
+### Changed - Project Structure Reorganization
+**Files:** 73 files (major restructure)
+- Merged marketing and platform codebases
+- Single backend and frontend folders
+- Simplified project structure
+- Updated Docker configuration
+- Combined Jenkinsfile
+
+---
+
+## 2025-03-07
+
+### Added - Google Tag Manager Integration
+**Files:** Nuxt config, package.json
+- Google Tag integration for analytics
+
+---
+
+## 2025-02-23 to 2025-02-21
+
+### Added - CI/CD Pipeline (DRA-15)
+**Files:** Jenkinsfile, ecosystem configs
+- Complete Jenkins pipeline setup
+- PM2 process management
+- Frontend and backend deployment stages
+- Environment variable management
+
+### Fixed - Navigation and Styling
+**Files:** Navigation drawer, footer, header
+- Fixed navigation drawer bugs
+- Improved spacing and layout
+- Removed unnecessary content
+
+---
+
+## 2025-02-22
+
+### Added - Legal Pages
+**Files:** Privacy policy and terms & conditions pages
+- Privacy policy page (359 lines)
+- Terms & conditions page (218 lines)
+- Scroll-to-top button
+- Enhanced footer navigation
+
+---
+
+## 2025-02-21
+
+### Added - Google reCAPTCHA Integration (DRA-8)
+**Files:** 20 files (database and captcha)
+- Google reCAPTCHA implementation
+- PostgresDriver (44 lines)
+- Database migrations setup
+- User model
+- TokenProcessor
+- Home routes with authentication
+- Spinner component
+- WinstonLogger service
+
+---
+
+## 2025-02-19
+
+### Added - Navigation Drawer (DRA-12)
+**Files:** Navigation drawer component
+- Mobile-responsive navigation drawer (51 lines)
+- Enhanced header navigation for mobile
+
+---
+
+## 2025-02-17 to 2025-02-16
+
+### Added - Docker Infrastructure (DRA-10)
+**Files:** Docker configs, backend marketing
+- Complete Docker setup with backend-marketing
+- Database marketing service
+- Backend TypeScript setup
+- Environment configuration
+
+---
+
+## 2025-02-15
+
+### Changed - Project Organization
+**Files:** Folder structure
+- Separated marketing and platform code
+- Renamed folders: frontend-marketing, backend-marketing, frontend-platform, backend-platform
+
+---
+
+## 2025-02-14 to 2025-02-13
+
+### Added - Landing Page Foundation (DRA-7)
+**Files:** 11 files (marketing site)
+- Mobile responsive landing page
+- About component
+- Improved community and features sections
+- Removed signup form and timeline (design change)
+
+---
+
+## 2025-01-30
+
+### Added - Initial Landing Page
+**Files:** 34 files (initial project)
+- Nuxt 3 frontend setup
+- Components: hero, footer, header, community, features, timeline
+- Font Awesome integration
+- Tailwind CSS configuration
+- Docker frontend setup
+- Assets: sheets.png, logo, favicons, background SVGs
+
+---
+
+## 2024-12-25
+
+### Added - First Commit
+**Files:** README.md
+- Initial repository creation
+- Project inception
+
+### Added - Core Platform Foundation
+**Files:** Complete initial project setup
+
+**Backend Infrastructure:**
+- Express.js server setup
+- TypeScript configuration
+- Database migrations (9 migration files)
+- Models: User, UsersPlatform, VerificationCodes, Projects, DataSources, DataModels, Columns, Relationships
+- Processors: AuthProcessor, ProjectProcessor, DataSourceProcessor
+- Routes: auth, home, project, data_source
+- Middleware: authenticate
+- Drivers: PostgresDriver, DBDriver, FileDriver, MailDriver, NodeMailerDriver, HTMLFileDriver
+- Services: UtilityService, TemplateEngineService
+
+**Frontend Infrastructure:**
+- Nuxt 3 setup with TypeScript
+- Tailwind CSS configuration
+- Font Awesome integration
+- Vue components: hero, footer-nav, header-nav, navigation-drawer, breadcrumbs, notched-card, overlay-dialog
+- Pages: index (landing), login, register, projects, verify-email, unsubscribe, forgot-password, privacy-policy, terms-conditions
+- Layouts: default layout with navigation
+- Middleware: authorization.global
+- Stores: projects (Pinia)
+- Composables: Utils, AuthToken
+- Types: IProject, IUsersPlatform
+
+**Docker & CI/CD:**
+- Docker Compose setup with backend, frontend, database services
+- Dockerfiles for each service
+- Jenkinsfile for CI/CD pipeline
+- Environment configuration (.env.example files)
+
+**Authentication & User Management:**
+- Complete registration flow with email verification
+- Login system with JWT tokens
+- Password reset functionality
+- Google reCAPTCHA integration
+- User roles and permissions
+
+**Project Management:**
+- Create, list, view projects
+- Project-based data organization
+- Breadcrumb navigation
+
+**Documentation:**
+- README with project overview
+- Contributing guidelines
+- Code of conduct
+- License
+- Pull request and issue templates
 
 ---
 
