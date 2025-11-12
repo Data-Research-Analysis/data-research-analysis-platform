@@ -22,6 +22,36 @@ const state = reactive({
     menuFilteredData: [],
 })
 
+// Track unsaved changes
+const hasUnsavedChanges = ref(false)
+const lastSavedContent = ref('')
+
+// Watch for content changes
+watch([() => state.content, () => state.title], () => {
+    if (state.content || state.title) {
+        hasUnsavedChanges.value = true
+    }
+})
+
+// Prevent navigation if unsaved changes
+onBeforeRouteLeave(async (to, from) => {
+    if (hasUnsavedChanges.value) {
+        const result = await $swal.fire({
+            title: 'Unsaved Changes',
+            text: 'You have unsaved changes. Are you sure you want to leave?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Leave',
+            cancelButtonText: 'Stay',
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6'
+        })
+        if (!result.isConfirmed) {
+            return false // Block navigation
+        }
+    }
+})
+
 // Compute categories keys from fetched data
 const categoriesKeys = computed(() => {
     if (!categories.value) return [];
@@ -72,6 +102,7 @@ async function postData(publishStatus) {
 async function publishArticle() {
     const response = await postData("published");
     if (response.status === 200) {
+        hasUnsavedChanges.value = false // Clear unsaved changes flag
         $swal.fire({
             icon: 'success',
             title: `Success! `,
@@ -88,6 +119,9 @@ async function publishArticle() {
 }
 async function saveAsDraft() {
     const response = await postData("draft");
+    if (response.status === 200) {
+        hasUnsavedChanges.value = false // Clear unsaved changes flag
+    }
     if (response.status === 200) {
         $swal.fire({
             icon: 'success',

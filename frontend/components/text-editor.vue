@@ -34,6 +34,9 @@
     // Phase 3: Markdown content for raw view
     const markdownContent = ref('');
     
+    // Track uploading images
+    const uploadingImages = ref(new Set());
+    
     // Initialize the editor
     const editor = useEditor({
         content: '',
@@ -427,10 +430,14 @@
     }
     
     async function handleImageUpload(file) {
-        const token = getAuthToken();
-        const formData = new FormData();
-        formData.append('image', file);
+        const uploadId = Date.now() + Math.random()
+        uploadingImages.value.add(uploadId)
+        
         try {
+            const token = getAuthToken();
+            const formData = new FormData();
+            formData.append('image', file);
+            
             const backendUrl = baseUrl();
             let url = `${backendUrl}/admin/image/upload`;
             const response = await fetch(url, {
@@ -441,9 +448,11 @@
                 },
                 body: formData,
             });
+            
             if (!response.ok) {
                 throw new Error('Image upload failed');
             }
+            
             const data = await response.json();
             console.log('Backend response data:', data);
             
@@ -468,6 +477,8 @@
         } catch (error) {
             console.error('Error uploading image:', error);
             throw error;
+        } finally {
+            uploadingImages.value.delete(uploadId)
         }
     }
     onMounted(() => {
@@ -485,7 +496,14 @@
     });
 </script>
 <template>
-    <div v-if="editor">
+    <div v-if="editor" class="relative">
+        <!-- Upload indicator -->
+        <div v-if="uploadingImages.size > 0" 
+             class="absolute top-2 right-2 z-50 bg-blue-500 text-white px-3 py-1 rounded-md text-sm shadow-lg flex items-center gap-2">
+            <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            <span>Uploading image...</span>
+        </div>
+        
         <div class="flex flex-wrap justify-between items-start">
             <div class="bg-white border border-gray-300 mb-2">
                 <span v-for="button in props.buttons">
