@@ -24,7 +24,23 @@ export default defineNuxtPlugin((nuxtApp) => {
   
   // Hover prefetching
   const handleMouseEnter = (e: MouseEvent) => {
-    const link = (e.target as HTMLElement).closest('a')
+    const target = e.target as HTMLElement
+    
+    // Skip if inside editor or form elements to prevent interference during editing
+    if (
+      target.closest('[contenteditable="true"]') ||
+      target.closest('.ProseMirror') ||
+      target.closest('.tiptap') ||
+      target.closest('.prose') ||
+      target.closest('textarea') ||
+      target.closest('input[type="text"]') ||
+      target.closest('input[type="email"]') ||
+      target.closest('form')
+    ) {
+      return
+    }
+    
+    const link = target.closest('a')
     if (!link) return
     
     const href = link.getAttribute('href')
@@ -56,6 +72,14 @@ export default defineNuxtPlugin((nuxtApp) => {
   
   // Initialize observers
   const initializePrefetching = () => {
+    const currentPath = router.currentRoute.value.path
+    
+    // Skip prefetching on admin pages to avoid interference with editors
+    if (currentPath.startsWith('/admin')) {
+      console.log('[prefetch] Disabled on admin pages')
+      return
+    }
+    
     // Add hover listeners to all links
     document.addEventListener('mouseenter', handleMouseEnter, { capture: true, passive: true })
     
@@ -72,6 +96,13 @@ export default defineNuxtPlugin((nuxtApp) => {
   // Re-initialize after route changes (new links may be added)
   router.afterEach(() => {
     nextTick(() => {
+      const currentPath = router.currentRoute.value.path
+      
+      // Skip on admin pages
+      if (currentPath.startsWith('/admin')) {
+        return
+      }
+      
       const links = document.querySelectorAll('a[href^="/"]')
       links.forEach(link => {
         if (!observer) return

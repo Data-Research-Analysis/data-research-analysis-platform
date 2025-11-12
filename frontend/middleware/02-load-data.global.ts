@@ -35,7 +35,8 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     setBatchContext(batchId)
   }
 
-  const token = getAuthToken();
+  try {
+    const token = getAuthToken();
   const loggedInUserStore = useLoggedInUserStore();
   const projectsStore = useProjectsStore();
   const dataSourceStore = useDataSourceStore();
@@ -178,16 +179,18 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     // Don't block navigation on error - let pages handle missing data gracefully
   }
   
-  // Clear batch context after data loading completes
-  if (batchId && import.meta.client) {
-    const { clearBatchContext } = useGlobalLoader()
-    clearBatchContext()
-  }
-  
-  // INSTRUMENTATION: Track data loading middleware completion
-  if (import.meta.client) {
-    const dataLoadEndTime = performance.now()
-    const duration = dataLoadEndTime - dataLoadStartTime
-    console.log(`[02-load-data] Completed at ${dataLoadEndTime.toFixed(2)}ms (duration: ${duration.toFixed(2)}ms)`)
+  } finally {
+    // Clear batch context after data loading completes (always runs)
+    if (batchId && import.meta.client) {
+      const { clearBatchContext } = useGlobalLoader()
+      clearBatchContext()
+    }
+    
+    // INSTRUMENTATION: Track data loading middleware completion
+    if (import.meta.client) {
+      const dataLoadEndTime = performance.now()
+      const duration = dataLoadEndTime - dataLoadStartTime
+      console.log(`[02-load-data] Completed at ${dataLoadEndTime.toFixed(2)}ms (duration: ${duration.toFixed(2)}ms)`)
+    }
   }
 });

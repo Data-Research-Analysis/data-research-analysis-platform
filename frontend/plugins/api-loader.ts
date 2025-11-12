@@ -25,6 +25,8 @@ export default defineNuxtPlugin(() => {
     const excludedUrls = [
       '/generate-token',      // Fast token generation
       '/validate-token',      // Quick token validation
+      '/admin/image/upload',  // Image uploads in article editor (silent background operation)
+      '/image/upload',        // Public image uploads (if exists)
     ]
     
     /**

@@ -37,9 +37,10 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     setBatchContext(batchId)
   }
   
-  // Check if running on server side
-  const isServer = typeof window === 'undefined'
-  const token = getAuthToken();
+  try {
+    // Check if running on server side
+    const isServer = typeof window === 'undefined'
+    const token = getAuthToken();
   const loggedInUserStore = useLoggedInUserStore();
   if (token) {
     if (to.path === "/logout") {
@@ -182,16 +183,18 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
       }
     }
   
-  // Clear batch context after authorization completes
-  if (batchId && import.meta.client) {
-    const { clearBatchContext } = useGlobalLoader()
-    clearBatchContext()
-  }
-  
-  // INSTRUMENTATION: Track authorization middleware completion
-  if (import.meta.client) {
-    const authEndTime = performance.now()
-    const duration = authEndTime - authStartTime
-    console.log(`[01-authorization] Completed at ${authEndTime.toFixed(2)}ms (duration: ${duration.toFixed(2)}ms)`)
+  } finally {
+    // Clear batch context after authorization completes (always runs)
+    if (batchId && import.meta.client) {
+      const { clearBatchContext } = useGlobalLoader()
+      clearBatchContext()
+    }
+    
+    // INSTRUMENTATION: Track authorization middleware completion
+    if (import.meta.client) {
+      const authEndTime = performance.now()
+      const duration = authEndTime - authStartTime
+      console.log(`[01-authorization] Completed at ${authEndTime.toFixed(2)}ms (duration: ${duration.toFixed(2)}ms)`)
+    }
   }
 });
