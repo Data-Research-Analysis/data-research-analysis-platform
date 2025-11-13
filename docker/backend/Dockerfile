@@ -18,6 +18,14 @@ RUN apt-get update && apt-get install -y \
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y nodejs
 
+# Install PostgreSQL 17 client tools for database backup/restore
+# Add PostgreSQL official repository for version 17
+RUN curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgresql-keyring.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/postgresql-keyring.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
+    apt-get update && \
+    apt-get install -y postgresql-client-17 && \
+    rm -rf /var/lib/apt/lists/*
+
 # Install Ghostscript and GraphicsMagick
 RUN apt-get update && apt-get install -y \
     ghostscript \
@@ -27,6 +35,8 @@ RUN apt-get update && apt-get install -y \
 # Verify installations
 RUN node --version && \
     npm --version && \
+    pg_dump --version && \
+    psql --version && \
     gs --version && \
     gm version
 

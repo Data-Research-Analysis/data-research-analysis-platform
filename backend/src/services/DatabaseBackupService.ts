@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import archiver from 'archiver';
 import AdmZip from 'adm-zip';
+import dotenv from 'dotenv';
 
 const execAsync = promisify(exec);
 
@@ -55,6 +56,7 @@ export class DatabaseBackupService {
      */
     public async createBackup(userId: number): Promise<IBackupMetadata> {
         return new Promise<IBackupMetadata>(async (resolve, reject) => {
+            dotenv.config();
             try {
                 const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T').join('_').substring(0, 19);
                 const backupId = `backup_${timestamp}_${userId}`;
@@ -64,12 +66,11 @@ export class DatabaseBackupService {
                 const zipFilePath = path.join(this.backupStoragePath, zipFileName);
 
                 // Get database configuration
-                const dbHost = process.env.POSTGRESDB_HOST || 'localhost';
-                const dbPort = process.env.POSTGRESDB_LOCAL_PORT || '5432';
-                const dbUser = process.env.POSTGRESDB_USER || 'postgres';
-                const dbPassword = process.env.POSTGRESDB_ROOT_PASSWORD || 'postgres';
-                const dbName = process.env.POSTGRESDB_DATABASE || 'data_research_analysis';
-
+                const dbHost = process.env.POSTGRESQL_HOST || 'localhost';
+                const dbPort = process.env.POSTGRESQL_PORT || '5432';
+                const dbUser = process.env.POSTGRESQL_USERNAME || 'postgres';
+                const dbPassword = process.env.POSTGRESQL_PASSWORD || 'postgres';
+                const dbName = process.env.POSTGRESQL_DB_NAME || 'data_research_analysis';
                 console.log(`Creating backup for database: ${dbName}`);
 
                 // Execute pg_dump to create SQL backup
@@ -125,8 +126,8 @@ export class DatabaseBackupService {
         progressCallback?: (progress: number, status: string) => void
     ): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
+            dotenv.config();
             let extractedSqlPath: string | null = null;
-
             try {
                 // Validate ZIP file
                 if (!fs.existsSync(zipFilePath)) {
@@ -159,11 +160,11 @@ export class DatabaseBackupService {
                 progressCallback?.(20, 'Backup extracted successfully');
 
                 // Get database configuration
-                const dbHost = process.env.POSTGRESDB_HOST || 'localhost';
-                const dbPort = process.env.POSTGRESDB_LOCAL_PORT || '5432';
-                const dbUser = process.env.POSTGRESDB_USER || 'postgres';
-                const dbPassword = process.env.POSTGRESDB_ROOT_PASSWORD || 'postgres';
-                const dbName = process.env.POSTGRESDB_DATABASE || 'data_research_analysis';
+                const dbHost = process.env.POSTGRESQL_HOST || 'localhost';
+                const dbPort = process.env.POSTGRESQL_PORT || '5432';
+                const dbUser = process.env.POSTGRESQL_USERNAME || 'postgres';
+                const dbPassword = process.env.POSTGRESQL_PASSWORD || 'postgres';
+                const dbName = process.env.POSTGRESQL_DB_NAME || 'data_research_analysis';
 
                 progressCallback?.(30, 'Terminating active connections...');
 

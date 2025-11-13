@@ -1,6 +1,10 @@
+import { getAuthToken } from './AuthToken';
+
 export const useDatabaseRestore = () => {
     const { $swal, $socketio } = useNuxtApp();
-    
+    const authToken = useCookie('dra_auth_token');
+    const router = useRouter();
+
     // State
     const selectedFile = ref<File | null>(null);
     const isRestoring = ref(false);
@@ -131,7 +135,7 @@ export const useDatabaseRestore = () => {
             const response = await $fetch(`${baseUrl()}/admin/database/restore`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${getCookie('token')}`,
+                    'Authorization': `Bearer ${authToken.value}`,
                     'Authorization-Type': 'auth'
                 },
                 body: formData
@@ -160,6 +164,9 @@ export const useDatabaseRestore = () => {
         onProgress?: (progress: number, status: string) => void,
         onComplete?: (success: boolean, message: string) => void
     ) => {
+        // Only setup listeners on client side
+        if (!import.meta.client || !$socketio) return;
+
         // Progress updates
         $socketio.on('database-restore-progress', (data: string) => {
             const parsed = JSON.parse(data);
@@ -195,9 +202,12 @@ export const useDatabaseRestore = () => {
                     confirmButtonText: 'OK',
                     allowOutsideClick: false
                 }).then(() => {
-                    // Clear token and redirect to login
-                    document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-                    window.location.href = '/auth/login';
+                    // Clear auth token cookie
+                    const authCookie = useCookie('dra_auth_token');
+                    authCookie.value = null;
+                    
+                    // Force full page reload to login to clear all state
+                    window.location.href = '/login';
                 });
             } else {
                 currentStep.value = 'Failed';
@@ -218,6 +228,9 @@ export const useDatabaseRestore = () => {
      * Cleanup Socket.IO listeners
      */
     const cleanupRestoreListeners = () => {
+        // Only cleanup on client side
+        if (!import.meta.client || !$socketio) return;
+
         $socketio.off('database-restore-progress');
         $socketio.off('database-restore-complete');
     };

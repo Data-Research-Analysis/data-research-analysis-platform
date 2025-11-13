@@ -1,9 +1,6 @@
 <script setup lang="ts">
-definePageMeta({
-    middleware: 'authorization',
-    layout: 'default'
-});
-
+const router = useRouter();
+const { $swal } = useNuxtApp();
 useHead({
     title: 'Restore Database - Admin | Data Research Analysis',
     meta: [
@@ -11,8 +8,6 @@ useHead({
     ]
 });
 
-const router = useRouter();
-const { $swal } = useNuxtApp();
 
 // Use restore composable
 const {
@@ -20,6 +15,7 @@ const {
     isRestoring,
     restoreProgress,
     restoreStatus,
+    restoreComplete,
     currentStep,
     selectFile,
     uploadAndRestore,
@@ -85,83 +81,18 @@ const removeFile = () => {
     }
 };
 
-// Start restore with confirmation
+// Start restore (composable handles all dialogs)
 const startRestore = async () => {
-    if (!selectedFile.value) {
-        await $swal.fire({
-            icon: 'error',
-            title: 'No File Selected',
-            text: 'Please select a backup file to restore'
-        });
-        return;
-    }
-
-    // Confirmation dialog with typed confirmation
-    const confirmResult = await $swal.fire({
-        title: 'Restore Database?',
-        html: `
-            <div class="text-left">
-                <p class="mb-4 text-red-600 font-semibold">⚠️ WARNING: This action will:</p>
-                <ul class="list-disc list-inside space-y-2 mb-4 text-sm">
-                    <li>Delete the current database completely</li>
-                    <li>Replace it with the backup data</li>
-                    <li>Log out all users</li>
-                    <li>Require you to log in again</li>
-                </ul>
-                <p class="mb-4">Type <strong>RESTORE</strong> to confirm:</p>
-                <input 
-                    id="confirm-input" 
-                    type="text" 
-                    class="swal2-input" 
-                    placeholder="Type RESTORE"
-                />
-            </div>
-        `,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Yes, Restore Database',
-        cancelButtonText: 'Cancel',
-        confirmButtonColor: '#DC2626',
-        preConfirm: () => {
-            const input = document.getElementById('confirm-input') as HTMLInputElement;
-            if (input.value !== 'RESTORE') {
-                $swal.showValidationMessage('Please type RESTORE to confirm');
-                return false;
-            }
-            return true;
-        }
-    });
-
-    if (!confirmResult.isConfirmed) {
-        return;
-    }
-
-    // Upload and restore using composable
+    // The composable uploadAndRestore() handles all dialogs:
+    // - File validation
+    // - Confirmation with "RESTORE" typing
+    // - Upload progress
+    // - Success/failure modals
     await uploadAndRestore();
 };
 
-// Socket.IO listener with callback (for success modal)
-setupRestoreListeners((success, message) => {
-    if (success) {
-        $swal.fire({
-            icon: 'success',
-            title: 'Restore Complete!',
-            text: 'Your database has been restored. You will be logged out now.',
-            confirmButtonText: 'OK',
-            allowOutsideClick: false
-        }).then(() => {
-            // Clear token and redirect to login
-            document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-            window.location.href = '/auth/login';
-        });
-    } else {
-        $swal.fire({
-            icon: 'error',
-            title: 'Restore Failed',
-            text: message || 'Failed to restore database'
-        });
-    }
-});
+// Socket.IO listener (composable handles success/error modals)
+setupRestoreListeners();
 
 // Go back
 const goBack = () => {
@@ -175,31 +106,17 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div>
+    <div class="flex flex-row">
         <sidebar-admin
+            class="w-1/6"
             :activeLink="10"
         />
-        <div class="w-full lg:ml-[280px] min-h-screen bg-gray-50">
-            <div class="p-6 lg:p-8">
-                <!-- Breadcrumbs -->
-                <breadcrumbs 
-                    :links="[
-                        { name: 'Admin Dashboard', url: '/admin' },
-                        { name: 'Database Management', url: '/admin/database' },
-                        { name: 'Restore Database', url: '/admin/database/restore' }
-                    ]"
-                />
-
-                <!-- Page Header -->
-                <div class="mt-6 mb-8">
-                    <h1 class="text-3xl font-bold text-gray-900">Restore Database</h1>
-                    <p class="mt-2 text-gray-600">
-                        Upload a backup file to restore your database
-                    </p>
-                </div>
+        <div class="w-5/6">
+            <div class="min-h-100 flex flex-col ml-4 mr-4 mb-10 md:ml-10 md:mr-10 p-6 lg:p-8">
+               <h2>Restore Database</h2>
 
                 <!-- Main Content -->
-                <div class="max-w-4xl">
+                <div class="max-w-4xl mt-6">
                     <!-- Warning Banner -->
                     <div class="bg-red-50 border-l-4 border-red-400 p-4 mb-6">
                         <div class="flex">

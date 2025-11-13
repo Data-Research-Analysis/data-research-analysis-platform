@@ -15,6 +15,7 @@ import { DRACategory } from '../models/DRACategory.js';
 import { EPublishStatus } from '../types/EPublishStatus.js';
 import { TokenProcessor } from '../processors/TokenProcessor.js';
 import { ITokenDetails } from '../types/ITokenDetails.js';
+import { EUserType } from '../types/EUserType.js';
 
 describe('Article API - Markdown Support', () => {
     let app: Express;
@@ -26,6 +27,7 @@ describe('Article API - Markdown Support', () => {
     const createTokenDetails = (userId: number): ITokenDetails => ({
         user_id: userId,
         email: 'test-markdown@example.com',
+        user_type: EUserType.ADMIN,
         iat: Math.floor(Date.now() / 1000)
     });
     

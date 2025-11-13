@@ -1,8 +1,6 @@
 <script setup lang="ts">
-definePageMeta({
-    middleware: 'authorization',
-    layout: 'default'
-});
+const { $swal } = useNuxtApp();
+const router = useRouter();
 
 useHead({
     title: 'Create Backup - Admin | Data Research Analysis',
@@ -11,8 +9,6 @@ useHead({
     ]
 });
 
-const router = useRouter();
-const { $swal } = useNuxtApp();
 
 // Use backup composable
 const {
@@ -86,31 +82,17 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div>
+    <div class="flex flex-row">
         <sidebar-admin
+            class="w-1/6"
             :activeLink="10"
         />
-        <div class="w-full lg:ml-[280px] min-h-screen bg-gray-50">
-            <div class="p-6 lg:p-8">
-                <!-- Breadcrumbs -->
-                <breadcrumbs 
-                    :links="[
-                        { name: 'Admin Dashboard', url: '/admin' },
-                        { name: 'Database Management', url: '/admin/database' },
-                        { name: 'Create Backup', url: '/admin/database/backup' }
-                    ]"
-                />
-
-                <!-- Page Header -->
-                <div class="mt-6 mb-8">
-                    <h1 class="text-3xl font-bold text-gray-900">Create Database Backup</h1>
-                    <p class="mt-2 text-gray-600">
-                        Create a complete backup of your PostgreSQL database
-                    </p>
-                </div>
+        <div class="w-5/6">
+            <div class="min-h-100 flex flex-col ml-4 mr-4 mb-10 md:ml-10 md:mr-10 p-6 lg:p-8">
+               <h2>Backup Database</h2>
 
                 <!-- Main Content -->
-                <div class="max-w-4xl">
+                <div class="max-w-4xl mt-6">
                     <!-- Backup Creation Card -->
                     <div class="bg-white rounded-lg shadow-md p-6 border border-gray-200 mb-6">
                         <div v-if="!isBackupInProgress && !backupComplete">

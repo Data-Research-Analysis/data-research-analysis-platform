@@ -1,3 +1,5 @@
+import { getAuthToken } from './AuthToken';
+
 export interface IBackupMetadata {
     id: string;
     filename: string;
@@ -10,6 +12,7 @@ export interface IBackupMetadata {
 
 export const useDatabaseBackup = () => {
     const { $swal, $socketio } = useNuxtApp();
+    const authToken = useCookie('dra_auth_token');
     
     // State
     const isBackupInProgress = ref(false);
@@ -39,7 +42,7 @@ export const useDatabaseBackup = () => {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${getCookie('token')}`,
+                            'Authorization': `Bearer ${authToken.value}`,
                             'Authorization-Type': 'auth'
                         }
                     });
@@ -72,7 +75,7 @@ export const useDatabaseBackup = () => {
             const response: any = await $fetch(`${baseUrl()}/admin/database/backups`, {
                 method: 'GET',
                 headers: {
-                    'Authorization': `Bearer ${getCookie('token')}`,
+                    'Authorization': `Bearer ${authToken.value}`,
                     'Authorization-Type': 'auth'
                 }
             });
@@ -100,7 +103,7 @@ export const useDatabaseBackup = () => {
             const url = `${baseUrl()}/admin/database/backup/${backupId}`;
             const response = await fetch(url, {
                 headers: {
-                    'Authorization': `Bearer ${getCookie('token')}`,
+                    'Authorization': `Bearer ${authToken.value}`,
                     'Authorization-Type': 'auth'
                 }
             });
@@ -152,7 +155,7 @@ export const useDatabaseBackup = () => {
             await $fetch(`${baseUrl()}/admin/database/backup/${backupId}`, {
                 method: 'DELETE',
                 headers: {
-                    'Authorization': `Bearer ${getCookie('token')}`,
+                    'Authorization': `Bearer ${authToken.value}`,
                     'Authorization-Type': 'auth'
                 }
             });
@@ -183,6 +186,9 @@ export const useDatabaseBackup = () => {
      * Setup Socket.IO listener for backup completion
      */
     const setupBackupListener = (onComplete?: (data: any) => void) => {
+        // Only setup listeners on client side
+        if (!import.meta.client || !$socketio) return;
+
         $socketio.on('database-backup-complete', (data: string) => {
             const parsed = JSON.parse(data);
             console.log('Backup complete:', parsed);
@@ -203,6 +209,9 @@ export const useDatabaseBackup = () => {
      * Cleanup Socket.IO listener
      */
     const cleanupBackupListener = () => {
+        // Only cleanup on client side
+        if (!import.meta.client || !$socketio) return;
+
         $socketio.off('database-backup-complete');
     };
 
@@ -225,7 +234,7 @@ export const useDatabaseBackup = () => {
             const response: any = await $fetch(`${baseUrl()}/admin/database/backup/${backupId}/info`, {
                 method: 'GET',
                 headers: {
-                    'Authorization': `Bearer ${getCookie('token')}`,
+                    'Authorization': `Bearer ${authToken.value}`,
                     'Authorization-Type': 'auth'
                 }
             });

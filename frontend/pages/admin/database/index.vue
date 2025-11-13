@@ -1,9 +1,4 @@
 <script setup lang="ts">
-definePageMeta({
-    middleware: 'authorization',
-    layout: 'default'
-});
-
 useHead({
     title: 'Database Management - Admin | Data Research Analysis',
     meta: [
@@ -55,30 +50,16 @@ onMounted(async () => {
 </script>
 
 <template>
-    <div>
+    <div class="flex flex-row">
         <sidebar-admin
+            class="w-1/6"
             :activeLink="10"
         />
-        <div class="w-full lg:ml-[280px] min-h-screen bg-gray-50">
-            <div class="p-6 lg:p-8">
-                <!-- Breadcrumbs -->
-                <breadcrumbs 
-                    :links="[
-                        { name: 'Admin Dashboard', url: '/admin' },
-                        { name: 'Database Management', url: '/admin/database' }
-                    ]"
-                />
-
-                <!-- Page Header -->
-                <div class="mt-6 mb-8">
-                    <h1 class="text-3xl font-bold text-gray-900">Database Management</h1>
-                    <p class="mt-2 text-gray-600">
-                        Create backups and restore your database from backup files
-                    </p>
-                </div>
+        <div class="w-5/6">
+            <div class="min-h-100 flex flex-col ml-4 mr-4 mb-10 md:ml-10 md:mr-10 mt-5 p-6 lg:p-8">
 
                 <!-- Action Cards Grid -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 mt-6">
                     <!-- Create Backup Card -->
                     <div class="bg-white rounded-lg shadow-md p-6 border border-gray-200 hover:shadow-lg transition-shadow">
                         <div class="flex items-start">

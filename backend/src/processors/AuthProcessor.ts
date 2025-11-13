@@ -66,7 +66,7 @@ export class AuthProcessor {
                 const passwordMatch = await bcrypt.compare(password, user.password);
                 if (passwordMatch) {
                     const secret = UtilityService.getInstance().getConstants('JWT_SECRET');
-                    const token = jwt.sign({user_id: user.id}, secret);
+                    const token = jwt.sign({user_id: user.id, user_type: user.user_type, email: user.email}, secret);
                     const userPlatform:IUsersPlatform = {id: user.id, email: email, first_name: user.first_name, last_name: user.last_name, user_type: user.user_type, token: token};
                     return resolve(userPlatform);
                 } else {
