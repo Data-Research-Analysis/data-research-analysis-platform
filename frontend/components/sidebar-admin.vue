@@ -30,6 +30,16 @@ const state = reactive({
                 { id: 3, name: 'List Categories', path: '/admin/articles/categories' },
             ],
         },
+        {
+            id: 4,
+            menu_name: 'Database Management',
+            show_menu: true,
+            sub_menus: [
+                { id: 1, name: 'Database Dashboard', path: '/admin/database' },
+                { id: 2, name: 'Create Backup', path: '/admin/database/backup' },
+                { id: 3, name: 'Restore Database', path: '/admin/database/restore' },
+            ],
+        },
     ],
 })
 const props = defineProps({

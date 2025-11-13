@@ -10,6 +10,7 @@ backend/.env.test
 backend/dist
 backend/public/uploads/*
 !backend/public/uploads
+backend/backend/*
 
 #----------
 # Frontend
