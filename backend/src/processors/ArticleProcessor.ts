@@ -197,7 +197,7 @@ export class ArticleProcessor {
                 return resolve([]);
             }
             const articlesList: IArticle[] = [];
-            const articles = await manager.find(DRAArticle, { relations: ['dra_articles_categories']});
+            const articles = await manager.find(DRAArticle, { where:{ publish_status: EPublishStatus.PUBLISHED }, relations: ['dra_articles_categories']});
             for (let i = 0; i < articles.length; i++) {
                 const article = articles[i];
                 const categories = await manager.find(DRACategory, {where: {id: In(article.dra_articles_categories.map(cat => cat.category_id))}});
