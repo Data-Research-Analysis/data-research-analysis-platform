@@ -1,4 +1,5 @@
 import { useLoggedInUserStore } from "@/stores/logged_in_user";
+
 // Cache token validation for 30 seconds to avoid repeated API calls
 const tokenValidationCache = new Map<string, { isValid: boolean; timestamp: number }>();
 const CACHE_DURATION = 30000; // 30 seconds
@@ -23,6 +24,39 @@ function cacheTokenValidation(token: string, isValid: boolean) {
   });
 }
 
+// Define public routes that don't require authentication
+function isPublicRoute(path: string): boolean {
+  const publicRoutes = [
+    '/',
+    '/login',
+    '/register',
+    '/privacy-policy',
+    '/terms-conditions',
+    '/articles',
+  ];
+  
+  const publicPatterns = [
+    /^\/articles\/.+$/,           // /articles/[slug]
+    /^\/public-dashboard\/.+$/,   // /public-dashboard/[key]
+    /^\/verify-email\/.+$/,       // /verify-email/[code]
+    /^\/forgot-password/,         // /forgot-password and /forgot-password/[code]
+    /^\/unsubscribe\/.+$/,        // /unsubscribe/[code]
+  ];
+  
+  // Check exact matches
+  if (publicRoutes.includes(path)) {
+    return true;
+  }
+  
+  // Check pattern matches
+  return publicPatterns.some(pattern => pattern.test(path));
+}
+
+// Define routes that require authentication
+function requiresAuthentication(path: string): boolean {
+  return path.startsWith('/projects') || path.startsWith('/admin');
+}
+
 export default defineNuxtRouteMiddleware(async (to, from) => {
   // INSTRUMENTATION: Track authorization middleware timing
   const authStartTime = import.meta.client ? performance.now() : 0
@@ -42,6 +76,21 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     const isServer = typeof window === 'undefined'
     const token = getAuthToken();
   const loggedInUserStore = useLoggedInUserStore();
+  
+  // OPTIMIZATION: Skip token validation for public routes
+  if (isPublicRoute(to.path)) {
+    if (import.meta.client) {
+      console.log(`[01-authorization] Public route detected, skipping token validation`)
+    }
+    
+    // If user has token and tries to access login/register, redirect to projects
+    if (token && (to.path === '/login' || to.path === '/register')) {
+      return navigateTo('/projects');
+    }
+    
+    return; // Allow access to public routes without validation
+  }
+  
   if (token) {
     if (to.path === "/logout") {
       //logout the user
@@ -60,7 +109,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
         // Assume authorized during SSR, client will validate
         isAuthorized = true;
       } else {
-        // Client-side: validate token with backend
+        // Client-side: validate token with backend (only for protected routes)
         
         // OPTIMIZATION: Check cache first to avoid repeated API calls
         const cachedValidation = isTokenValidationCached(token);
@@ -154,31 +203,32 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
       }
     }
   } else {
-      if (to.path.startsWith("/admin")) {
+      // No token - check if route requires authentication
+      if (requiresAuthentication(to.path)) {
+        if (import.meta.client) {
+          console.log(`[01-authorization] Protected route requires authentication`)
+        }
         return navigateTo("/login");
-      } else if (to.path.startsWith("/projects")) {
-        return navigateTo("/login");
-      } else {
-        if (isPlatformEnabled()) {
-          if (to.path === '/login') {
-            if (isPlatformLoginEnabled()) {
-              return;
-            } else {
-              return navigateTo("/");
-            }
-          } else if (to.path === '/register') {
-            if (isPlatformRegistrationEnabled()) {
-                return;
-            } else {
-              return navigateTo("/");
-            }
-          }
-        } else {
-          if (to.path === "/privacy-policy" || to.path === "/terms-conditions") {
+      }
+      
+      // Public routes - allow access with platform checks
+      if (isPlatformEnabled()) {
+        if (to.path === '/login') {
+          if (isPlatformLoginEnabled()) {
             return;
           } else {
-          return navigateTo("/");
+            return navigateTo("/");
           }
+        } else if (to.path === '/register') {
+          if (isPlatformRegistrationEnabled()) {
+            return;
+          } else {
+            return navigateTo("/");
+          }
+        }
+      } else {
+        if (to.path === "/privacy-policy" || to.path === "/terms-conditions") {
+          return;
         }
       }
     }

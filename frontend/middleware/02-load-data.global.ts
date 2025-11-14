@@ -8,18 +8,89 @@ import { usePrivateBetaUserStore } from '@/stores/private_beta_users';
 import { useUserManagementStore } from '@/stores/user_management';
 
 /**
- * Global middleware to load all necessary data before pages render
+ * Global middleware to load necessary data before pages render
  * 
- * This middleware runs after authentication and ensures all required data
- * is loaded into stores before the page components mount. This prevents
- * race conditions on page refresh and allows other middleware to validate
- * with confidence that data exists.
+ * OPTIMIZED: Only loads data required for the specific route being accessed.
+ * This prevents unnecessary API calls and improves performance.
  * 
  * Uses batch loading context from 00-route-loader to ensure a single loader
  * remains visible for all parallel API calls.
  * 
  * Order: authorization.global.ts -> load-data.global.ts -> data_exists.global.ts
  */
+
+// Route pattern matching functions
+function isProjectListRoute(path: string): boolean {
+  return path === '/projects';
+}
+
+function isProjectDetailRoute(path: string): boolean {
+  return /^\/projects\/\d+$/.test(path);
+}
+
+function isDataSourceRoute(path: string): boolean {
+  return /^\/projects\/\d+\/data-sources/.test(path);
+}
+
+function isDashboardRoute(path: string): boolean {
+  return /^\/projects\/\d+\/dashboards/.test(path);
+}
+
+function isAdminRoute(path: string): boolean {
+  return path.startsWith('/admin');
+}
+
+function isAdminArticleRoute(path: string): boolean {
+  return path.startsWith('/admin/articles');
+}
+
+function isAdminUserRoute(path: string): boolean {
+  return path.startsWith('/admin/users');
+}
+
+function isAdminPrivateBetaRoute(path: string): boolean {
+  return path.startsWith('/admin/private-beta-users');
+}
+
+function isAdminDatabaseRoute(path: string): boolean {
+  return path.startsWith('/admin/database');
+}
+
+function isPublicArticleRoute(path: string): boolean {
+  return path.startsWith('/articles');
+}
+
+function isPublicRoute(path: string): boolean {
+  const publicRoutes = ['/', '/login', '/register', '/privacy-policy', '/terms-conditions'];
+  return publicRoutes.includes(path) || 
+         path.startsWith('/public-dashboard') || 
+         path.startsWith('/verify-email') || 
+         path.startsWith('/forgot-password') ||
+         path.startsWith('/unsubscribe');
+}
+
+// Smart caching with timestamp
+const DATA_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+function shouldRefreshData(cacheKey: string): boolean {
+  if (typeof window === 'undefined') return false;
+  
+  const forceRefresh = localStorage.getItem('refreshData') === 'true';
+  if (forceRefresh) return true;
+  
+  const lastLoadTime = localStorage.getItem(`${cacheKey}_loadTime`);
+  if (!lastLoadTime) return true;
+  
+  const age = Date.now() - parseInt(lastLoadTime);
+  return age > DATA_CACHE_DURATION;
+}
+
+function markDataLoaded(cacheKey: string): void {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(`${cacheKey}_loadTime`, Date.now().toString());
+  }
+}
+
 export default defineNuxtRouteMiddleware(async (to, from) => {
   const dataLoadStartTime = import.meta.client ? performance.now() : 0
   
@@ -46,132 +117,248 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
   const privateBetaUserStore = usePrivateBetaUserStore();
   const userManagementStore = useUserManagementStore();
 
-  // Skip data loading for public dashboard pages - they handle their own data
-
   try {
+    // OPTIMIZATION: Skip data loading for public routes
+    if (isPublicRoute(to.path) && !isPublicArticleRoute(to.path)) {
+      if (import.meta.client) {
+        console.log(`[02-load-data] Public route, skipping data load`)
+      }
+      return;
+    }
+    
     if (token) {
-        // Authenticated user - load all user-specific data
-        const needsDataRefresh = typeof window !== 'undefined' && localStorage.getItem('refreshData') === 'true';
-        if (!needsDataRefresh) {
-            if (import.meta.client) {
-              const skipTime = performance.now()
-              console.log(`[02-load-data] Skipped (no refresh needed) at ${skipTime.toFixed(2)}ms`)
-            }
-            return;
-        }
-        
-        // OPTIMIZATION: Load all core data in parallel instead of sequentially
+        // AUTHENTICATED ROUTES - Load data based on specific route
         if (import.meta.client) {
-          console.log(`[02-load-data] Starting parallel data loading...`)
+          console.log(`[02-load-data] Authenticated route: ${to.path}`)
         }
         
-        const parallelStartTime = import.meta.client ? performance.now() : 0
+        const loadTasks: Array<Promise<void>> = [];
         
-        // Run all core API calls in parallel
-        await Promise.all([
-          (async () => {
-            const start = import.meta.client ? performance.now() : 0
-            await projectsStore.retrieveProjects();
-            if (import.meta.client) {
-              console.log(`[02-load-data] retrieveProjects: ${(performance.now() - start).toFixed(2)}ms`)
-            }
-          })(),
-          (async () => {
-            const start = import.meta.client ? performance.now() : 0
-            await dataSourceStore.retrieveDataSources();
-            if (import.meta.client) {
-              console.log(`[02-load-data] retrieveDataSources: ${(performance.now() - start).toFixed(2)}ms`)
-            }
-          })(),
-          (async () => {
-            const start = import.meta.client ? performance.now() : 0
-            await dataModelsStore.retrieveDataModels();
-            if (import.meta.client) {
-              console.log(`[02-load-data] retrieveDataModels: ${(performance.now() - start).toFixed(2)}ms`)
-            }
-          })(),
-          (async () => {
-            const start = import.meta.client ? performance.now() : 0
-            await dashboardsStore.retrieveDashboards();
-            if (import.meta.client) {
-              console.log(`[02-load-data] retrieveDashboards: ${(performance.now() - start).toFixed(2)}ms`)
-            }
-          })()
-        ]);
-        
-        if (import.meta.client) {
-          const parallelDuration = performance.now() - parallelStartTime
-          console.log(`[02-load-data] Parallel core data loaded in: ${parallelDuration.toFixed(2)}ms`)
+        // === PROJECT ROUTES ===
+        if (isProjectListRoute(to.path)) {
+          // Only load projects for list page
+          if (shouldRefreshData('projects')) {
+            if (import.meta.client) console.log(`[02-load-data] Loading: projects`)
+            loadTasks.push((async () => {
+              const start = import.meta.client ? performance.now() : 0
+              await projectsStore.retrieveProjects();
+              markDataLoaded('projects');
+              if (import.meta.client) {
+                console.log(`[02-load-data] retrieveProjects: ${(performance.now() - start).toFixed(2)}ms`)
+              }
+            })());
+          }
+        } else if (isProjectDetailRoute(to.path)) {
+          // Load projects + data sources for project detail
+          if (shouldRefreshData('projects')) {
+            if (import.meta.client) console.log(`[02-load-data] Loading: projects, data sources`)
+            loadTasks.push(
+              (async () => {
+                const start = import.meta.client ? performance.now() : 0
+                await projectsStore.retrieveProjects();
+                markDataLoaded('projects');
+                if (import.meta.client) {
+                  console.log(`[02-load-data] retrieveProjects: ${(performance.now() - start).toFixed(2)}ms`)
+                }
+              })(),
+              (async () => {
+                const start = import.meta.client ? performance.now() : 0
+                await dataSourceStore.retrieveDataSources();
+                markDataLoaded('dataSources');
+                if (import.meta.client) {
+                  console.log(`[02-load-data] retrieveDataSources: ${(performance.now() - start).toFixed(2)}ms`)
+                }
+              })()
+            );
+          }
+        } else if (isDataSourceRoute(to.path)) {
+          // Load projects + data sources + data models for data source routes
+          if (shouldRefreshData('dataSources')) {
+            if (import.meta.client) console.log(`[02-load-data] Loading: projects, data sources, data models`)
+            loadTasks.push(
+              (async () => {
+                const start = import.meta.client ? performance.now() : 0
+                await projectsStore.retrieveProjects();
+                markDataLoaded('projects');
+                if (import.meta.client) {
+                  console.log(`[02-load-data] retrieveProjects: ${(performance.now() - start).toFixed(2)}ms`)
+                }
+              })(),
+              (async () => {
+                const start = import.meta.client ? performance.now() : 0
+                await dataSourceStore.retrieveDataSources();
+                markDataLoaded('dataSources');
+                if (import.meta.client) {
+                  console.log(`[02-load-data] retrieveDataSources: ${(performance.now() - start).toFixed(2)}ms`)
+                }
+              })(),
+              (async () => {
+                const start = import.meta.client ? performance.now() : 0
+                await dataModelsStore.retrieveDataModels();
+                markDataLoaded('dataModels');
+                if (import.meta.client) {
+                  console.log(`[02-load-data] retrieveDataModels: ${(performance.now() - start).toFixed(2)}ms`)
+                }
+              })()
+            );
+          }
+        } else if (isDashboardRoute(to.path)) {
+          // Load all project-related data for dashboard routes
+          if (shouldRefreshData('dashboards')) {
+            if (import.meta.client) console.log(`[02-load-data] Loading: projects, data sources, data models, dashboards`)
+            loadTasks.push(
+              (async () => {
+                const start = import.meta.client ? performance.now() : 0
+                await projectsStore.retrieveProjects();
+                markDataLoaded('projects');
+                if (import.meta.client) {
+                  console.log(`[02-load-data] retrieveProjects: ${(performance.now() - start).toFixed(2)}ms`)
+                }
+              })(),
+              (async () => {
+                const start = import.meta.client ? performance.now() : 0
+                await dataSourceStore.retrieveDataSources();
+                markDataLoaded('dataSources');
+                if (import.meta.client) {
+                  console.log(`[02-load-data] retrieveDataSources: ${(performance.now() - start).toFixed(2)}ms`)
+                }
+              })(),
+              (async () => {
+                const start = import.meta.client ? performance.now() : 0
+                await dataModelsStore.retrieveDataModels();
+                markDataLoaded('dataModels');
+                if (import.meta.client) {
+                  console.log(`[02-load-data] retrieveDataModels: ${(performance.now() - start).toFixed(2)}ms`)
+                }
+              })(),
+              (async () => {
+                const start = import.meta.client ? performance.now() : 0
+                await dashboardsStore.retrieveDashboards();
+                markDataLoaded('dashboards');
+                if (import.meta.client) {
+                  console.log(`[02-load-data] retrieveDashboards: ${(performance.now() - start).toFixed(2)}ms`)
+                }
+              })()
+            );
+          }
         }
         
-        // Check if user is admin and load admin-specific data in parallel
-        const currentUser = loggedInUserStore.getLoggedInUser();
-        if (currentUser?.user_type === 'admin') {
-          const adminStartTime = import.meta.client ? performance.now() : 0
+        // === ADMIN ROUTES ===
+        else if (isAdminArticleRoute(to.path)) {
+          // Only load articles data for article routes
+          if (shouldRefreshData('articles')) {
+            if (import.meta.client) console.log(`[02-load-data] Loading: categories, articles`)
+            loadTasks.push(
+              (async () => {
+                const start = import.meta.client ? performance.now() : 0
+                await articlesStore.retrieveCategories();
+                markDataLoaded('categories');
+                if (import.meta.client) {
+                  console.log(`[02-load-data] retrieveCategories: ${(performance.now() - start).toFixed(2)}ms`)
+                }
+              })(),
+              (async () => {
+                const start = import.meta.client ? performance.now() : 0
+                await articlesStore.retrieveArticles();
+                markDataLoaded('articles');
+                if (import.meta.client) {
+                  console.log(`[02-load-data] retrieveArticles: ${(performance.now() - start).toFixed(2)}ms`)
+                }
+              })()
+            );
+          }
+        } else if (isAdminUserRoute(to.path)) {
+          // Only load users for user management routes
+          if (shouldRefreshData('users')) {
+            if (import.meta.client) console.log(`[02-load-data] Loading: users`)
+            loadTasks.push((async () => {
+              const start = import.meta.client ? performance.now() : 0
+              await userManagementStore.retrieveUsers();
+              markDataLoaded('users');
+              if (import.meta.client) {
+                console.log(`[02-load-data] retrieveUsers: ${(performance.now() - start).toFixed(2)}ms`)
+              }
+            })());
+          }
+        } else if (isAdminPrivateBetaRoute(to.path)) {
+          // Only load private beta users
+          if (shouldRefreshData('privateBetaUsers')) {
+            if (import.meta.client) console.log(`[02-load-data] Loading: private beta users`)
+            loadTasks.push((async () => {
+              const start = import.meta.client ? performance.now() : 0
+              await privateBetaUserStore.retrievePrivateBetaUsers();
+              markDataLoaded('privateBetaUsers');
+              if (import.meta.client) {
+                console.log(`[02-load-data] retrievePrivateBetaUsers: ${(performance.now() - start).toFixed(2)}ms`)
+              }
+            })());
+          }
+        } else if (isAdminDatabaseRoute(to.path)) {
+          // Database backup/restore routes don't need any data
+          if (import.meta.client) console.log(`[02-load-data] Database route, no data needed`)
+        } else if (isAdminRoute(to.path)) {
+          // Admin dashboard - no specific data needed
+          if (import.meta.client) console.log(`[02-load-data] Admin dashboard, no data needed`)
+        }
+        
+        // Execute all load tasks in parallel
+        if (loadTasks.length > 0) {
+          const parallelStartTime = import.meta.client ? performance.now() : 0
+          await Promise.all(loadTasks);
+          if (import.meta.client) {
+            const parallelDuration = performance.now() - parallelStartTime
+            console.log(`[02-load-data] Parallel data loaded in: ${parallelDuration.toFixed(2)}ms`)
+          }
+        } else {
+          if (import.meta.client) {
+            console.log(`[02-load-data] No data loading needed (cached or not required)`)
+          }
+        }
+        
+        // Clear force refresh flag
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('refreshData');
+        }
+    } else {
+      // UNAUTHENTICATED ROUTES - Only load data for public article routes
+      if (isPublicArticleRoute(to.path)) {
+        if (shouldRefreshData('publicArticles')) {
+          if (import.meta.client) console.log(`[02-load-data] Loading: public articles, categories`)
+          
+          const publicStartTime = import.meta.client ? performance.now() : 0
           
           await Promise.all([
             (async () => {
               const start = import.meta.client ? performance.now() : 0
               await articlesStore.retrieveCategories();
+              markDataLoaded('categories');
               if (import.meta.client) {
-                console.log(`[02-load-data] retrieveCategories: ${(performance.now() - start).toFixed(2)}ms`)
+                console.log(`[02-load-data] retrieveCategories (public): ${(performance.now() - start).toFixed(2)}ms`)
               }
             })(),
             (async () => {
               const start = import.meta.client ? performance.now() : 0
-              await articlesStore.retrieveArticles();
+              await articlesStore.retrievePublicArticles();
+              markDataLoaded('publicArticles');
               if (import.meta.client) {
-                console.log(`[02-load-data] retrieveArticles: ${(performance.now() - start).toFixed(2)}ms`)
-              }
-            })(),
-            (async () => {
-              const start = import.meta.client ? performance.now() : 0
-              await privateBetaUserStore.retrievePrivateBetaUsers();
-              if (import.meta.client) {
-                console.log(`[02-load-data] retrievePrivateBetaUsers: ${(performance.now() - start).toFixed(2)}ms`)
-              }
-            })(),
-            (async () => {
-              const start = import.meta.client ? performance.now() : 0
-              await userManagementStore.retrieveUsers();
-              if (import.meta.client) {
-                console.log(`[02-load-data] retrieveUsers: ${(performance.now() - start).toFixed(2)}ms`)
+                console.log(`[02-load-data] retrievePublicArticles: ${(performance.now() - start).toFixed(2)}ms`)
               }
             })()
           ]);
           
           if (import.meta.client) {
-            const adminDuration = performance.now() - adminStartTime
-            console.log(`[02-load-data] Parallel admin data loaded in: ${adminDuration.toFixed(2)}ms`)
+            const publicDuration = performance.now() - publicStartTime
+            console.log(`[02-load-data] Parallel public data loaded in: ${publicDuration.toFixed(2)}ms`)
+          }
+        } else {
+          if (import.meta.client) {
+            console.log(`[02-load-data] Public articles cached, skipping load`)
           }
         }
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('refreshData');
+      } else {
+        if (import.meta.client) {
+          console.log(`[02-load-data] Public route, no data needed`)
         }
-    } else {
-      // Unauthenticated user - load public data in parallel
-      const publicStartTime = import.meta.client ? performance.now() : 0
-      
-      await Promise.all([
-        (async () => {
-          const start = import.meta.client ? performance.now() : 0
-          await articlesStore.retrieveCategories();
-          if (import.meta.client) {
-            console.log(`[02-load-data] retrieveCategories (public): ${(performance.now() - start).toFixed(2)}ms`)
-          }
-        })(),
-        (async () => {
-          const start = import.meta.client ? performance.now() : 0
-          await articlesStore.retrievePublicArticles();
-          if (import.meta.client) {
-            console.log(`[02-load-data] retrievePublicArticles: ${(performance.now() - start).toFixed(2)}ms`)
-          }
-        })()
-      ]);
-      
-      if (import.meta.client) {
-        const publicDuration = performance.now() - publicStartTime
-        console.log(`[02-load-data] Parallel public data loaded in: ${publicDuration.toFixed(2)}ms`)
       }
     }
   } catch (error) {
