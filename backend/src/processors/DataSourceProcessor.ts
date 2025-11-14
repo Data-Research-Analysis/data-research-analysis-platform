@@ -624,27 +624,58 @@ export class DataSourceProcessor {
                         }
                     }
                 });
+                // Handle calculated columns
                 if (sourceTable.calculated_columns && sourceTable.calculated_columns.length > 0) {
                     columns += ', ';
                     insertQueryColumns += ', ';
+                    sourceTable.calculated_columns.forEach((column: any, index: number) => {
+                        if (index < sourceTable.calculated_columns.length - 1) {
+                            columns += `${column.column_name} NUMERIC, `;
+                            insertQueryColumns += `${column.column_name}, `;
+                        } else {
+                            columns += `${column.column_name} NUMERIC`;
+                            insertQueryColumns += `${column.column_name}`;
+                        }
+                    });
                 }
-                sourceTable.calculated_columns.forEach((column: any, index: number) => {
-                    if (index < sourceTable.calculated_columns.length - 1) {
-                        columns += `${column.column_name} NUMERIC, `;
-                        insertQueryColumns += `${column.column_name}, `;
-                    } else {
-                        columns += `${column.column_name} NUMERIC`;
-                        insertQueryColumns += `${column.column_name}`;
+                
+                // Handle GROUP BY aggregate function columns
+                if (sourceTable.query_options?.group_by?.aggregate_functions && sourceTable.query_options.group_by.aggregate_functions.length > 0) {
+                    const aggregateFunctions = ['SUM', 'AVG', 'COUNT', 'MIN', 'MAX'];
+                    const validAggFuncs = sourceTable.query_options.group_by.aggregate_functions.filter(
+                        (aggFunc: any) => aggFunc.aggregate_function !== '' && aggFunc.column !== ''
+                    );
+                    
+                    if (validAggFuncs.length > 0) {
+                        // Only add comma if there's content before (regular columns always exist, or calculated columns were added)
+                        columns += ', ';
+                        insertQueryColumns += ', ';
+                        
+                        validAggFuncs.forEach((aggFunc: any, index: number) => {
+                            // Determine column alias name
+                            let aliasName = aggFunc.column_alias_name;
+                            if (!aliasName || aliasName === '') {
+                                const columnParts = aggFunc.column.split('.');
+                                const columnName = columnParts[columnParts.length - 1];
+                                aliasName = `${aggregateFunctions[aggFunc.aggregate_function]}_${columnName}`.toLowerCase();
+                            }
+                            
+                            // Add column to CREATE TABLE statement
+                            if (index < validAggFuncs.length - 1) {
+                                columns += `${aliasName} NUMERIC, `;
+                                insertQueryColumns += `${aliasName}, `;
+                            } else {
+                                columns += `${aliasName} NUMERIC`;
+                                insertQueryColumns += `${aliasName}`;
+                            }
+                        });
                     }
-                });
-                columns += `,dra_data_source_id integer`;
+                }
+                
                 createTableQuery += `(${columns})`;
 
-                const alterTableQuery = `ALTER TABLE public."${dataModelName}" ADD CONSTRAINT FK_${Date.now()} FOREIGN KEY (dra_data_source_id) REFERENCES public.dra_data_sources(id) ON DELETE CASCADE ON UPDATE NO ACTION;`;
                 await internalDbConnector.query(createTableQuery);
-                await internalDbConnector.query(alterTableQuery);
 
-                insertQueryColumns += `,dra_data_source_id`;
                 insertQueryColumns = `(${insertQueryColumns})`;
                 
                 // Track column data types for proper value formatting
@@ -695,18 +726,52 @@ export class DataSourceProcessor {
                             values += formattedValue;
                         }
                     });
+                    // Handle calculated column values
                     if (sourceTable.calculated_columns && sourceTable.calculated_columns.length > 0) {
                         values += ',';
+                        sourceTable.calculated_columns.forEach((column: any, columnIndex: number) => {
+                            const columnName = column.column_name;
+                            if (columnIndex < sourceTable.calculated_columns.length - 1) {
+                                values += `'${row[columnName] || 0}',`;
+                            } else {
+                                values += `'${row[columnName] || 0}'`;
+                            }
+                        });
                     }
-                    sourceTable.calculated_columns.forEach((column: any, columnIndex: number) => {
-                        const columnName = column.column_name;
-                        if (columnIndex < sourceTable.calculated_columns.length - 1) {
-                            values += `'${row[columnName] || 0}',`;
-                        } else {
-                            values += `'${row[columnName] || 0}'`;
+                    
+                    // Handle aggregate function values
+                    if (sourceTable.query_options?.group_by?.aggregate_functions && sourceTable.query_options.group_by.aggregate_functions.length > 0) {
+                        const aggregateFunctions = ['SUM', 'AVG', 'COUNT', 'MIN', 'MAX'];
+                        const validAggFuncs = sourceTable.query_options.group_by.aggregate_functions.filter(
+                            (aggFunc: any) => aggFunc.aggregate_function !== '' && aggFunc.column !== ''
+                        );
+                        
+                        if (validAggFuncs.length > 0) {
+                            values += ',';
+                            validAggFuncs.forEach((aggFunc: any, columnIndex: number) => {
+                                let aliasName = aggFunc.column_alias_name;
+                                let rowKey = aliasName; // Key to lookup in row data
+                                
+                                if (!aliasName || aliasName === '') {
+                                    // When no alias is provided, PostgreSQL uses lowercase function name as column name
+                                    const funcName = aggregateFunctions[aggFunc.aggregate_function].toLowerCase();
+                                    rowKey = funcName; // PostgreSQL default: 'sum', 'avg', 'count', 'min', 'max'
+                                    
+                                    // Generate alias for table column name
+                                    const columnParts = aggFunc.column.split('.');
+                                    const columnName = columnParts[columnParts.length - 1];
+                                    aliasName = `${funcName}_${columnName}`.toLowerCase();
+                                }
+                                
+                                if (columnIndex < validAggFuncs.length - 1) {
+                                    values += `'${row[rowKey] || 0}',`;
+                                } else {
+                                    values += `'${row[rowKey] || 0}'`;
+                                }
+                            });
                         }
-                    });
-                    values += `,${dataSource.id}`;
+                    }
+                    
                     insertQuery += `${insertQueryColumns} VALUES(${values});`;
                     internalDbConnector.query(insertQuery);
                 });
@@ -842,17 +907,13 @@ export class DataSourceProcessor {
                             }
                         });
                         
-                        // columns += `,dra_data_source_id integer`;
                         createTableQuery += `(${columns})`;
 
-                        // const alterTableQuery = `ALTER TABLE dra_excel."${tableName}" ADD CONSTRAINT FK_${Date.now()} FOREIGN KEY (dra_data_source_id) REFERENCES public.dra_data_sources(id) ON DELETE CASCADE ON UPDATE NO ACTION;`;
                         try {
-                            // Create and alter the table
+                            // Create the table
                             await dbConnector.query(createTableQuery);
-                            // await dbConnector.query(alterTableQuery);
                             console.log('Successfully created table:', tableName);
     
-                            // insertQueryColumns += `,dra_data_source_id`;
                             insertQueryColumns = `(${insertQueryColumns})`;
 
                             // Insert data rows
@@ -929,7 +990,6 @@ export class DataSourceProcessor {
                                         }
                                     });
     
-                                    // values += `,${dataSource.id}`;
                                     insertQuery += `${insertQueryColumns} VALUES(${values})`;
                                     try {
                                         const result = await dbConnector.query(insertQuery);
@@ -1119,12 +1179,9 @@ export class DataSourceProcessor {
                             }
                         });
                         
-                        // columns += `,dra_data_source_id integer`;
                         createTableQuery += `(${columns})`;
 
-                        // insertQueryColumns += `,dra_data_source_id`;
                         insertQueryColumns = `(${insertQueryColumns})`;
-                        // const alterTableQuery = `ALTER TABLE dra_pdf."${tableName}" ADD CONSTRAINT FK_${Date.now()} FOREIGN KEY (dra_data_source_id) REFERENCES public.dra_data_sources(id) ON DELETE CASCADE ON UPDATE NO ACTION;`;
                         try {
                             // Create the table
                             await dbConnector.query(createTableQuery);
@@ -1191,7 +1248,6 @@ export class DataSourceProcessor {
                                         }
                                     });
 
-                                    // values += `,${dataSource.id}`;
                                     insertQuery += `${insertQueryColumns} VALUES(${values});`;
                                     await dbConnector.query(insertQuery);
                                 }
