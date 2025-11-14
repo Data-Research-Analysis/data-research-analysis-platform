@@ -991,29 +991,6 @@ onMounted(async () => {
             },
         };
     });
-    
-    // Check validation status
-    try {
-        const token = getAuthToken();
-        const response = await fetch(
-            `${baseUrl()}/dashboard/validation-status/${dashboard.value.id}`,
-            {
-                method: "GET",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${token}`,
-                    "Authorization-Type": "auth",
-                },
-            }
-        );
-        
-        if (response.ok) {
-            state.validation_status = await response.json();
-            state.show_validation_alert = state.validation_status?.needs_validation || false;
-        }
-    } catch (error) {
-        console.error('Failed to load validation status:', error);
-    }
 });
 </script>
 <template>

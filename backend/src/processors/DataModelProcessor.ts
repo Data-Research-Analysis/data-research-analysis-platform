@@ -436,6 +436,39 @@ export class DataModelProcessor {
                         insertQueryColumns += `${column.column_name}`;
                     }
                 });
+                
+                // Handle GROUP BY aggregate function columns
+                if (sourceTable.query_options?.group_by?.aggregate_functions && sourceTable.query_options.group_by.aggregate_functions.length > 0) {
+                    const aggregateFunctions = ['SUM', 'AVG', 'COUNT', 'MIN', 'MAX'];
+                    const validAggFuncs = sourceTable.query_options.group_by.aggregate_functions.filter(
+                        (aggFunc: any) => aggFunc.aggregate_function !== '' && aggFunc.column !== ''
+                    );
+                    
+                    if (validAggFuncs.length > 0) {
+                        columns += ', ';
+                        insertQueryColumns += ', ';
+                        
+                        validAggFuncs.forEach((aggFunc: any, index: number) => {
+                            // Determine column alias name
+                            let aliasName = aggFunc.column_alias_name;
+                            if (!aliasName || aliasName === '') {
+                                const columnParts = aggFunc.column.split('.');
+                                const columnName = columnParts[columnParts.length - 1];
+                                aliasName = `${aggregateFunctions[aggFunc.aggregate_function]}_${columnName}`.toLowerCase();
+                            }
+                            
+                            // Add column to CREATE TABLE statement
+                            if (index < validAggFuncs.length - 1) {
+                                columns += `${aliasName} NUMERIC, `;
+                                insertQueryColumns += `${aliasName}, `;
+                            } else {
+                                columns += `${aliasName} NUMERIC`;
+                                insertQueryColumns += `${aliasName}`;
+                            }
+                        });
+                    }
+                }
+                
                 createTableQuery += `(${columns})`;
                 await internalDbConnector.query(createTableQuery);
                 insertQueryColumns = `(${insertQueryColumns})`;
@@ -499,6 +532,33 @@ export class DataModelProcessor {
                             values += `'${row[columnName] || 0}'`;
                         }
                     });
+                    
+                    // Handle aggregate function values
+                    if (sourceTable.query_options?.group_by?.aggregate_functions && sourceTable.query_options.group_by.aggregate_functions.length > 0) {
+                        const aggregateFunctions = ['SUM', 'AVG', 'COUNT', 'MIN', 'MAX'];
+                        const validAggFuncs = sourceTable.query_options.group_by.aggregate_functions.filter(
+                            (aggFunc: any) => aggFunc.aggregate_function !== '' && aggFunc.column !== ''
+                        );
+                        
+                        if (validAggFuncs.length > 0) {
+                            values += ',';
+                            validAggFuncs.forEach((aggFunc: any, columnIndex: number) => {
+                                let aliasName = aggFunc.column_alias_name;
+                                if (!aliasName || aliasName === '') {
+                                    const columnParts = aggFunc.column.split('.');
+                                    const columnName = columnParts[columnParts.length - 1];
+                                    aliasName = `${aggregateFunctions[aggFunc.aggregate_function]}_${columnName}`.toLowerCase();
+                                }
+                                
+                                if (columnIndex < validAggFuncs.length - 1) {
+                                    values += `'${row[aliasName] || 0}',`;
+                                } else {
+                                    values += `'${row[aliasName] || 0}'`;
+                                }
+                            });
+                        }
+                    }
+                    
                     insertQuery += `${insertQueryColumns} VALUES(${values});`;
                     internalDbConnector.query(insertQuery);
                 });
