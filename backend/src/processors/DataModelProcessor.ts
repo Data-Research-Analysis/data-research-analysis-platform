@@ -398,29 +398,23 @@ export class DataModelProcessor {
                     } else {
                         dataTypeString = `${dataType.type}`;
                     }
-                    if (column && column.schema === 'dra_excel' || column.schema === 'dra_pdf') {
-                        const columnName = `${column.table_name}`.length > 20 ? `${column.table_name}`.slice(-20) + `_${column.column_name}` : `${column.table_name}` + `_${column.column_name}`;
-                        if (index < sourceTable.columns.length - 1) {
-                            columns += `${columnName} ${dataTypeString}, `;
-                        } else {
-                            columns += `${columnName} ${dataTypeString} `;
-                        }
-                        if (index < sourceTable.columns.length - 1) {
-                            insertQueryColumns += `${columnName},`;
-                        } else {
-                            insertQueryColumns += `${columnName}`;
-                        }
+                    
+                    // Determine column name - use alias if provided, otherwise construct from schema_table_column
+                    let columnName;
+                    if (column.alias_name && column.alias_name !== '') {
+                        columnName = column.alias_name;
+                    } else if (column && column.schema === 'dra_excel' || column.schema === 'dra_pdf') {
+                        columnName = `${column.table_name}`.length > 20 ? `${column.table_name}`.slice(-20) + `_${column.column_name}` : `${column.table_name}` + `_${column.column_name}`;
                     } else {
-                        if (index < sourceTable.columns.length - 1) {
-                            columns += `${column.schema}_${column.table_name}_${column.column_name} ${dataTypeString}, `;
-                        } else {
-                            columns += `${column.schema}_${column.table_name}_${column.column_name} ${dataTypeString} `;
-                        }
-                        if (index < sourceTable.columns.length - 1) {
-                            insertQueryColumns += `${column.schema}_${column.table_name}_${column.column_name},`;
-                        } else {
-                            insertQueryColumns += `${column.schema}_${column.table_name}_${column.column_name}`;
-                        }
+                        columnName = `${column.schema}_${column.table_name}_${column.column_name}`;
+                    }
+                    
+                    if (index < sourceTable.columns.length - 1) {
+                        columns += `${columnName} ${dataTypeString}, `;
+                        insertQueryColumns += `${columnName},`;
+                    } else {
+                        columns += `${columnName} ${dataTypeString} `;
+                        insertQueryColumns += `${columnName}`;
                     }
                 });
                 // Handle calculated columns
@@ -498,9 +492,18 @@ export class DataModelProcessor {
                     let insertQuery = `INSERT INTO ${dataModelName} `;
                     let values = '';
                     sourceTable.columns.forEach((column: any, columnIndex: number) => {
-                        let columnName = `${column.table_name}_${column.column_name}`;
-                        if (column && column.schema === 'dra_excel' || column.schema === 'dra_pdf') {
+                        // Determine row key - use alias if provided for data lookup
+                        let rowKey;
+                        let columnName;
+                        if (column.alias_name && column.alias_name !== '') {
+                            rowKey = column.alias_name;
+                            columnName = column.alias_name;
+                        } else if (column && column.schema === 'dra_excel' || column.schema === 'dra_pdf') {
                             columnName = `${column.table_name}`.length > 20 ? `${column.table_name}`.slice(-20) + `_${column.column_name}` : `${column.table_name}` + `_${column.column_name}`;
+                            rowKey = columnName;
+                        } else {
+                            columnName = `${column.schema}_${column.table_name}_${column.column_name}`;
+                            rowKey = columnName;
                         }
                         
                         // Get the column data type and format the value accordingly
@@ -512,10 +515,10 @@ export class DataModelProcessor {
                              columnType.toUpperCase().includes('TIME') || 
                              columnType.toUpperCase().includes('TIMESTAMP')) && 
                             index === 0) {
-                            console.log(`Column ${columnName} (${columnType}):`, typeof row[columnName], row[columnName]);
+                            console.log(`Column ${columnName} (${columnType}):`, typeof row[rowKey], row[rowKey]);
                         }
                         
-                        const formattedValue = this.formatValueForSQL(row[columnName], columnType, columnName);
+                        const formattedValue = this.formatValueForSQL(row[rowKey], columnType, columnName);
                         
                         if (columnIndex < sourceTable.columns.length - 1) {
                             values += `${formattedValue},`;
