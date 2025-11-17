@@ -66,6 +66,33 @@ async function publishArticle(articleId) {
         $swal.fire(`There was an error publishing the article.`);
     }
 }
+
+async function unpublishArticle(articleId) {
+    const { value: confirmUnpublish } = await $swal.fire({
+        title: "Are you sure you want to unpublish the article?",
+        text: "This will make the article a draft",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#3C8DBC",
+        cancelButtonColor: "#DD4B39",
+        confirmButtonText: "Yes, unpublish it!",
+    });
+    if (!confirmUnpublish) {
+        return;
+    }
+    
+    const { execute } = useAuthenticatedMutation();
+    const data = await execute(`/admin/article/unpublish/${articleId}`, {
+        method: 'GET'
+    });
+    
+    if (data) {
+        $swal.fire(`The article has been unpublished successfully.`);
+        await refresh(); // Refresh articles list
+    } else {
+        $swal.fire(`There was an error unpublishing the article.`);
+    }
+}
 </script>
 <template>
     <div class="flex flex-row">
@@ -141,6 +168,7 @@ async function publishArticle(articleId) {
                                 <td class="border px-4 py-2">
                                     <div class="flex flex-row justify-center">
                                         <button v-if="article.article.publish_status === 'draft'" @click="publishArticle(article.article.id)" class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-green-600 text-white hover:bg-green-700 cursor-pointer font-bold shadow-md">Publish Article</button>
+                                        <button v-if="article.article.publish_status === 'published'" @click="unpublishArticle(article.article.id)" class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-orange-600 text-white hover:bg-orange-700 cursor-pointer font-bold shadow-md">Unpublish Article</button>
                                         <NuxtLink :to="`/admin/articles/${article.article.id}`" class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md">
                                             Edit
                                         </NuxtLink>

@@ -42,6 +42,19 @@ async (req: Request, res: Response) => {
     }
 });
 
+router.get('/unpublish/:article_id', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([param('article_id').notEmpty().trim().toInt()]),
+async (req: Request, res: Response) => {
+    const { article_id } = matchedData(req);
+    const result = await ArticleProcessor.getInstance().unpublishArticle(article_id, req.body.tokenDetails);
+    if (result) {
+        res.status(200).send({message: 'The article has been unpublished.'});
+    } else {
+        res.status(400).send({message: 'The article could not be unpublished.'});
+    }
+});
+
 router.delete('/delete/:article_id', async (req: Request, res: Response, next: any) => {
     next();
 }, validateJWT, validate([param('article_id').notEmpty().trim().toInt()]), async (req: Request, res: Response) => {
