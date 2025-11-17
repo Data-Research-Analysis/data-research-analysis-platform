@@ -121,6 +121,29 @@ export class ArticleProcessor {
         });
     }
 
+    async unpublishArticle(articleId: number, tokenDetails: ITokenDetails): Promise<boolean> {
+        return new Promise<boolean>(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            const manager = (await driver.getConcreteDriver()).manager;
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!user) {
+                return resolve(false);
+            }
+            try {
+                const article = await manager.findOne(DRAArticle, {where: {id: articleId}});
+                if (!article) {
+                    return resolve(false);
+                }
+                await manager.update(DRAArticle, {id: articleId}, {publish_status: EPublishStatus.DRAFT});                
+                return resolve(true);
+            } catch (error) {
+                console.log('error', error);
+                return resolve(error);
+            }
+        });
+    }
+
     async deleteArticle(articleId: number, tokenDetails: ITokenDetails): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             const { user_id } = tokenDetails;

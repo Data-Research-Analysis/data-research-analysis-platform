@@ -116,22 +116,115 @@ async function updateArticle() {
     });
     if (response.status === 200) {
         hasUnsavedChanges.value = false // Clear unsaved changes flag
-        $swal.fire({
+        await $swal.fire({
             icon: 'success',
             title: `Success! `,
             text: 'The article has been successfully updated.',
         });
-        router.push(`/admin/articles`);
+        window.location.reload();
     } else {
-        $swal.fire({
+        await $swal.fire({
             icon: 'error',
             title: `Error! `,
             text: 'Unfortunately, we encountered an error! The article could not be updated.',
         });
     }
-    articlesStore.clearSelectedArticle();
-    articlesStore.clearArticles();
-    await articlesStore.retrieveArticles();
+}
+
+async function unpublishArticle() {
+    const result = await $swal.fire({
+        title: "Are you sure?",
+        text: "This will unpublish the article and make it a draft",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#3085d6",
+        cancelButtonColor: "#d33",
+        confirmButtonText: "Yes, unpublish it!",
+    });
+
+    if (result.isConfirmed) {
+        try {
+            const token = getAuthToken();
+            const response = await fetch(`${baseUrl()}/admin/article/unpublish/${article.value.article.id}`, {
+                method: "GET",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+            });
+            
+            if (response.status === 200) {
+                hasUnsavedChanges.value = false
+                await $swal.fire({
+                    icon: 'success',
+                    title: 'Success!',
+                    text: 'Article unpublished successfully',
+                });
+                window.location.reload();
+            } else {
+                await $swal.fire({
+                    icon: 'error',
+                    title: 'Error!',
+                    text: 'There was an error unpublishing the article.',
+                });
+            }
+        } catch (error) {
+            console.log("error", error);
+            await $swal.fire({
+                icon: 'error',
+                title: 'Error!',
+                text: 'There was an error unpublishing the article.',
+            });
+        }
+    }
+}
+
+async function publishArticle() {
+    const result = await $swal.fire({
+        title: "Are you sure?",
+        text: "This will publish the article and make it visible to the public",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#3085d6",
+        cancelButtonColor: "#d33",
+        confirmButtonText: "Yes, publish it!",
+    });
+
+    if (result.isConfirmed) {
+        try {
+            const token = getAuthToken();
+            const response = await fetch(`${baseUrl()}/admin/article/publish/${article.value.article.id}`, {
+                method: "GET",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+            });
+            
+            if (response.status === 200) {
+                hasUnsavedChanges.value = false
+                await $swal.fire({
+                    icon: 'success',
+                    title: 'Success!',
+                    text: 'Article published successfully',
+                });
+                window.location.reload();
+            } else {
+                await $swal.fire({
+                    icon: 'error',
+                    title: 'Error!',
+                    text: 'There was an error publishing the article.',
+                });
+            }
+        } catch (error) {
+            console.log("error", error);
+            await $swal.fire({
+                icon: 'error',
+                title: 'Error!',
+                text: 'There was an error publishing the article.',
+            });
+        }
+    }
 }
 
 // Initialize form data when article and categories are loaded
@@ -169,6 +262,20 @@ watchEffect(() => {
                         @click="updateArticle"
                     >
                         Update
+                    </div>
+                    <div
+                        v-if="article?.article?.publish_status === 'published'"
+                        class="w-24 text-center self-center text-sm p-1 ml-2 mb-4 bg-orange-600 text-white hover:bg-orange-700 cursor-pointer font-bold shadow-md"
+                        @click="unpublishArticle"
+                    >
+                        Unpublish
+                    </div>
+                    <div
+                        v-if="article?.article?.publish_status === 'draft'"
+                        class="w-24 text-center self-center text-sm p-1 ml-2 mb-4 bg-green-600 text-white hover:bg-green-700 cursor-pointer font-bold shadow-md"
+                        @click="publishArticle"
+                    >
+                        Publish
                     </div>
                 </div>
                 <div>
