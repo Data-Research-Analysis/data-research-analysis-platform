@@ -1,6 +1,7 @@
 import _ from "lodash";
 import { DBDriver } from "../drivers/DBDriver.js";
 import { DRADataModel } from "../models/DRADataModel.js";
+import { DRADashboard } from "../models/DRADashboard.js";
 import { ITokenDetails } from "../types/ITokenDetails.js";
 import { IDBConnectionDetails } from "../types/IDBConnectionDetails.js";
 import { UtilityService } from "../services/UtilityService.js";
@@ -19,6 +20,153 @@ export class DataModelProcessor {
             DataModelProcessor.instance = new DataModelProcessor();
         }
         return DataModelProcessor.instance;
+    }
+
+    /**
+     * Escape SQL string values to prevent SQL injection
+     * @param value - The value to escape
+     * @returns Escaped string or 'null' for null/undefined values
+     */
+    private escapeSQL(value: any): string {
+        if (value === null || value === undefined) {
+            return 'null';
+        }
+        // Escape single quotes by doubling them (SQL standard)
+        return String(value).replace(/'/g, "''");
+    }
+
+    /**
+     * Format a date value for SQL insertion based on column data type
+     * @param value - The date value to format (Date object, string, or timestamp)
+     * @param columnType - The PostgreSQL date type
+     * @param columnName - The column name (for error logging)
+     * @returns Formatted SQL date string
+     */
+    private formatDateForSQL(value: any, columnType: string, columnName: string): string {
+        if (value === null || value === undefined) {
+            return 'null';
+        }
+
+        try {
+            let dateObj: Date;
+
+            // Convert value to Date object
+            if (value instanceof Date) {
+                dateObj = value;
+            } else if (typeof value === 'string') {
+                // Handle empty or invalid strings
+                if (value.trim() === '' || value === '0000-00-00' || value === '0000-00-00 00:00:00') {
+                    return 'null';
+                }
+                dateObj = new Date(value);
+            } else if (typeof value === 'number') {
+                // Unix timestamp
+                dateObj = new Date(value);
+            } else {
+                console.warn(`Unexpected date value type for column ${columnName}:`, typeof value, value);
+                return 'null';
+            }
+
+            // Validate Date object
+            if (isNaN(dateObj.getTime())) {
+                console.error(`Invalid date value for column ${columnName}:`, value);
+                return 'null';
+            }
+
+            const upperType = columnType.toUpperCase();
+
+            // Format based on column type
+            if (upperType === 'DATE') {
+                // DATE: YYYY-MM-DD format
+                const formatted = dateObj.toISOString().split('T')[0];
+                return `'${formatted}'`;
+            } 
+            else if (upperType === 'TIME' || upperType.startsWith('TIME(') || upperType.includes('TIME WITHOUT')) {
+                // TIME: HH:MM:SS format
+                const timeString = dateObj.toISOString().split('T')[1].split('.')[0];
+                return `'${timeString}'`;
+            } 
+            else if (upperType === 'TIMESTAMP WITH TIME ZONE' || upperType === 'TIMESTAMPTZ') {
+                // TIMESTAMP WITH TIME ZONE: ISO 8601 format with timezone
+                return `'${dateObj.toISOString()}'`;
+            } 
+            else if (upperType === 'TIMESTAMP' || upperType.startsWith('TIMESTAMP(') || upperType.includes('TIMESTAMP WITHOUT')) {
+                // TIMESTAMP: YYYY-MM-DD HH:MM:SS format (no timezone)
+                const formatted = dateObj.toISOString()
+                    .replace('T', ' ')
+                    .split('.')[0];
+                return `'${formatted}'`;
+            }
+
+            // Fallback: use ISO string for timestamp with timezone
+            return `'${dateObj.toISOString()}'`;
+
+        } catch (error) {
+            console.error(`Failed to format date for column ${columnName}:`, error, 'Value:', value);
+            return 'null';
+        }
+    }
+
+    /**
+     * Format a value for SQL insertion based on column data type
+     * @param value - The value to format
+     * @param columnType - The PostgreSQL column type
+     * @param columnName - The column name (for error logging)
+     * @returns Formatted SQL value string
+     */
+    private formatValueForSQL(value: any, columnType: string, columnName: string): string {
+        if (value === null || value === undefined) {
+            return 'null';
+        }
+
+        const upperType = columnType.toUpperCase();
+
+        // Handle DATE, TIME, and TIMESTAMP types
+        if (upperType.includes('DATE') || 
+            upperType.includes('TIME') || 
+            upperType.includes('TIMESTAMP')) {
+            return this.formatDateForSQL(value, upperType, columnName);
+        }
+
+        // Handle JSON and JSONB types
+        if (upperType === 'JSON' || upperType === 'JSONB') {
+            try {
+                // Check if value is already stringified as "[object Object]"
+                const valueStr = String(value);
+                if (valueStr === '[object Object]' || valueStr.startsWith('[object ')) {
+                    console.error(`Detected [object Object] for column ${columnName}. Value type: ${typeof value}`);
+                    if (typeof value === 'object') {
+                        const jsonString = JSON.stringify(value);
+                        return `'${this.escapeSQL(jsonString)}'`;
+                    }
+                    return 'null';
+                }
+
+                if (typeof value === 'object') {
+                    const jsonString = JSON.stringify(value);
+                    return `'${this.escapeSQL(jsonString)}'`;
+                } else if (typeof value === 'string') {
+                    if (value.trim().startsWith('{') || value.trim().startsWith('[')) {
+                        try {
+                            JSON.parse(value);
+                            return `'${this.escapeSQL(value)}'`;
+                        } catch {
+                            return `'${this.escapeSQL(JSON.stringify(value))}'`;
+                        }
+                    } else {
+                        return `'${this.escapeSQL(JSON.stringify(value))}'`;
+                    }
+                } else {
+                    return `'${JSON.stringify(value)}'`;
+                }
+            } catch (error) {
+                console.error(`Failed to serialize JSON for column ${columnName}:`, error, 'Value:', value, 'Type:', typeof value);
+                return 'null';
+            }
+        }
+
+        // Handle all other types with proper escaping
+        return `'${this.escapeSQL(value)}'`;
     }
 
     /**
@@ -54,8 +202,79 @@ export class DataModelProcessor {
      */
     public async deleteDataModel(dataModelId: number, tokenDetails: ITokenDetails): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
+            try {
+                const { user_id } = tokenDetails;
+                let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+                if (!driver) {
+                    return resolve(false);
+                }
+                const manager = (await driver.getConcreteDriver()).manager;
+                if (!manager) {
+                    return resolve(false);
+                }
+                const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+                if (!user) {
+                    return resolve(false);
+                }
+                const dataModel = await manager.findOne(DRADataModel, {where: {id: dataModelId, users_platform: user}});
+                if (!dataModel) {
+                    return resolve(false);
+                }
+                
+                // Clean up dashboard references before deleting
+                const dashboards = await manager.find(DRADashboard, {
+                    where: {users_platform: user}
+                });
+                
+                for (const dashboard of dashboards) {
+                    let modified = false;
+                    const updatedCharts = dashboard.data.charts.filter(chart => {
+                        // Check if chart columns reference the deleted data model
+                        const usesDeletedModel = chart.columns?.some(col => 
+                            col.tableName === dataModel.name && 
+                            col.schema === dataModel.schema
+                        );
+                        if (usesDeletedModel) {
+                            modified = true;
+                            console.log(`Removing chart ${chart.chart_id} from dashboard ${dashboard.id} (references deleted model)`);
+                            return false; // Remove this chart
+                        }
+                        return true; // Keep this chart
+                    });
+                    
+                    // If charts were removed, update the dashboard
+                    if (modified) {
+                        dashboard.data.charts = updatedCharts;
+                        await manager.save(dashboard);
+                        console.log(`Updated dashboard ${dashboard.id} to remove charts using deleted model`);
+                    }
+                }
+                
+                // Drop the physical table
+                const dbConnector = await driver.getConcreteDriver();
+                await dbConnector.query(`DROP TABLE IF EXISTS ${dataModel.schema}.${dataModel.name}`);
+                // Remove the data model record
+                await manager.remove(dataModel);
+                console.log(`Successfully deleted data model ${dataModelId}`);
+                return resolve(true);
+            } catch (error) {
+                console.error(`Fatal error deleting data model ${dataModelId}:`, error);
+                return resolve(false);
+            }
+        });
+    }
+
+    /**
+     * Refresh data model by re-executing stored query against external data source
+     * Drops existing table and recreates with latest data
+     * @param dataModelId - ID of data model to refresh
+     * @param tokenDetails - User authentication details
+     * @returns true if refresh successful, false otherwise
+     */
+    public async refreshDataModel(dataModelId: number, tokenDetails: ITokenDetails): Promise<boolean> {
+        return new Promise<boolean>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
-            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             if (!driver) {
                 return resolve(false);
             }
@@ -67,15 +286,38 @@ export class DataModelProcessor {
             if (!user) {
                 return resolve(false);
             }
-            const dataModel = await manager.findOne(DRADataModel, {where: {id: dataModelId, users_platform: user}});
-            if (!dataModel) {
+            
+            // Retrieve existing data model with relations
+            const existingDataModel = await manager.findOne(DRADataModel, {
+                where: {id: dataModelId, users_platform: user},
+                relations: ['data_source']
+            });
+            
+            if (!existingDataModel) {
+                console.error(`Data model ${dataModelId} not found or user ${user_id} does not have permission`);
                 return resolve(false);
             }
-            //TODO: delete visualizations data
-            const dbConnector = await driver.getConcreteDriver();
-            await dbConnector.query(`DROP TABLE IF EXISTS ${dataModel.schema}.${dataModel.name}`);
-            await manager.remove(dataModel);
-            return resolve(true);
+            
+            // Extract stored query parameters
+            const dataSourceId = existingDataModel.data_source.id;
+            const storedQuery = existingDataModel.sql_query;
+            const storedQueryJSON = JSON.stringify(existingDataModel.query);
+            const currentName = existingDataModel.name;
+            
+            // Extract base name without the UUID suffix (dra_name_uuid -> name)
+            let baseDataModelName = currentName;
+            baseDataModelName = baseDataModelName.replace(/_dra_.*/g, '');
+            
+            // Reuse existing updateDataModelOnQuery logic to refresh the data
+            const refreshResult = await this.updateDataModelOnQuery(
+                dataSourceId,
+                dataModelId,
+                storedQuery,
+                storedQueryJSON,
+                baseDataModelName,
+                tokenDetails
+            );           
+            return resolve(refreshResult);
         });
     }
 
@@ -108,7 +350,7 @@ export class DataModelProcessor {
             if (!user) {
                 return resolve(false);
             }
-            const dataSource: DRADataSource|null = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}});
+            const dataSource: DRADataSource|null = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}, relations: ['data_models']});
             if (!dataSource) {
                 return resolve(false);
             }
@@ -131,7 +373,7 @@ export class DataModelProcessor {
                 console.log('Error connecting to external DB', error);
                 return resolve(false);
             }
-            const existingDataModel = await manager.findOne(DRADataModel, {where: {id: dataModelId, data_source: dataSource, users_platform: user}});
+            const existingDataModel = dataSource.data_models.find(model => model.id === dataModelId);
             if (!existingDataModel) {
                 return resolve(false);
             }
@@ -156,55 +398,180 @@ export class DataModelProcessor {
                     } else {
                         dataTypeString = `${dataType.type}`;
                     }
-                    if (index < sourceTable.columns.length - 1) {
-                        columns += `${column.column_name} ${dataTypeString}, `;
+                    
+                    // Determine column name - use alias if provided, otherwise construct from schema_table_column
+                    let columnName;
+                    if (column.alias_name && column.alias_name !== '') {
+                        columnName = column.alias_name;
+                    } else if (column && column.schema === 'dra_excel' || column.schema === 'dra_pdf') {
+                        columnName = `${column.table_name}`.length > 20 ? `${column.table_name}`.slice(-20) + `_${column.column_name}` : `${column.table_name}` + `_${column.column_name}`;
                     } else {
-                        columns += `${column.column_name} ${dataTypeString} `;
+                        columnName = `${column.schema}_${column.table_name}_${column.column_name}`;
                     }
+                    
                     if (index < sourceTable.columns.length - 1) {
-                        insertQueryColumns += `${column.column_name},`;
+                        columns += `${columnName} ${dataTypeString}, `;
+                        insertQueryColumns += `${columnName},`;
                     } else {
-                        insertQueryColumns += `${column.column_name}`;
+                        columns += `${columnName} ${dataTypeString} `;
+                        insertQueryColumns += `${columnName}`;
                     }
                 });
+                // Handle calculated columns
                 if (sourceTable.calculated_columns && sourceTable.calculated_columns.length > 0) {
                     columns += ', ';
                     insertQueryColumns += ', ';
+                    sourceTable.calculated_columns.forEach((column: any, index: number) => {
+                        if (index < sourceTable.calculated_columns.length - 1) {
+                            columns += `${column.column_name} NUMERIC, `;
+                            insertQueryColumns += `${column.column_name}, `;
+                        } else {
+                            columns += `${column.column_name} NUMERIC`;
+                            insertQueryColumns += `${column.column_name}`;
+                        }
+                    });
                 }
-                sourceTable.calculated_columns.forEach((column: any, index: number) => {
-                    if (index < sourceTable.calculated_columns.length - 1) {
-                        columns += `${column.column_name} NUMERIC, `;
-                        insertQueryColumns += `${column.column_name}, `;
-                    } else {
-                        columns += `${column.column_name} NUMERIC`;
-                        insertQueryColumns += `${column.column_name}`;
+                
+                // Handle GROUP BY aggregate function columns
+                if (sourceTable.query_options?.group_by?.aggregate_functions && sourceTable.query_options.group_by.aggregate_functions.length > 0) {
+                    const aggregateFunctions = ['SUM', 'AVG', 'COUNT', 'MIN', 'MAX'];
+                    const validAggFuncs = sourceTable.query_options.group_by.aggregate_functions.filter(
+                        (aggFunc: any) => aggFunc.aggregate_function !== '' && aggFunc.column !== ''
+                    );
+                    
+                    if (validAggFuncs.length > 0) {
+                        // Only add comma if there's content before (regular columns always exist, or calculated columns were added)
+                        columns += ', ';
+                        insertQueryColumns += ', ';
+                        
+                        validAggFuncs.forEach((aggFunc: any, index: number) => {
+                            // Determine column alias name
+                            let aliasName = aggFunc.column_alias_name;
+                            if (!aliasName || aliasName === '') {
+                                const columnParts = aggFunc.column.split('.');
+                                const columnName = columnParts[columnParts.length - 1];
+                                aliasName = `${aggregateFunctions[aggFunc.aggregate_function]}_${columnName}`.toLowerCase();
+                            }
+                            
+                            // Add column to CREATE TABLE statement
+                            if (index < validAggFuncs.length - 1) {
+                                columns += `${aliasName} NUMERIC, `;
+                                insertQueryColumns += `${aliasName}, `;
+                            } else {
+                                columns += `${aliasName} NUMERIC`;
+                                insertQueryColumns += `${aliasName}`;
+                            }
+                        });
                     }
-                });
+                }
+                
                 createTableQuery += `(${columns})`;
                 await internalDbConnector.query(createTableQuery);
                 insertQueryColumns = `(${insertQueryColumns})`;
+                
+                // Track column data types for proper value formatting
+                const columnDataTypes = new Map<string, string>();
+                sourceTable.columns.forEach((column: any) => {
+                    let columnName = `${column.table_name}_${column.column_name}`;
+                    if (column && column.schema === 'dra_excel' || column.schema === 'dra_pdf') {
+                        columnName = `${column.table_name}`.length > 20 ? `${column.table_name}`.slice(-20) + `_${column.column_name}` : `${column.table_name}` + `_${column.column_name}`;
+                    }
+                    const columnSize = column?.character_maximum_length ? `(${column?.character_maximum_length})` : '';
+                    const columnType = `${column.data_type}${columnSize}`;
+                    const dataType = UtilityService.getInstance().convertDataTypeToPostgresDataType(dataSourceType, columnType);
+                    let dataTypeString = '';
+                    if (dataType.size) {
+                        dataTypeString = `${dataType.type}(${dataType.size})`;
+                    } else {
+                        dataTypeString = `${dataType.type}`;
+                    }
+                    columnDataTypes.set(columnName, dataTypeString);
+                });
+                
                 rowsFromDataSource.forEach((row: any, index: number) => {
                     let insertQuery = `INSERT INTO ${dataModelName} `;
                     let values = '';
                     sourceTable.columns.forEach((column: any, columnIndex: number) => {
-                        const columnName = `${column.schema}_${column.table_name}_${column.column_name}`;
-                        if (columnIndex < sourceTable.columns.length - 1) {
-                            values += `'${row[columnName] || ''}',`;
+                        // Determine row key - use alias if provided for data lookup
+                        let rowKey;
+                        let columnName;
+                        if (column.alias_name && column.alias_name !== '') {
+                            rowKey = column.alias_name;
+                            columnName = column.alias_name;
+                        } else if (column && column.schema === 'dra_excel' || column.schema === 'dra_pdf') {
+                            columnName = `${column.table_name}`.length > 20 ? `${column.table_name}`.slice(-20) + `_${column.column_name}` : `${column.table_name}` + `_${column.column_name}`;
+                            rowKey = columnName;
                         } else {
-                            values += `'${row[columnName] || ''}'`;
+                            columnName = `${column.schema}_${column.table_name}_${column.column_name}`;
+                            rowKey = columnName;
+                        }
+                        
+                        // Get the column data type and format the value accordingly
+                        const columnType = columnDataTypes.get(columnName) || 'TEXT';
+                        
+                        // Log JSON/JSONB/DATE columns for debugging (first row only)
+                        if ((columnType.toUpperCase().includes('JSON') || 
+                             columnType.toUpperCase().includes('DATE') || 
+                             columnType.toUpperCase().includes('TIME') || 
+                             columnType.toUpperCase().includes('TIMESTAMP')) && 
+                            index === 0) {
+                            console.log(`Column ${columnName} (${columnType}):`, typeof row[rowKey], row[rowKey]);
+                        }
+                        
+                        const formattedValue = this.formatValueForSQL(row[rowKey], columnType, columnName);
+                        
+                        if (columnIndex < sourceTable.columns.length - 1) {
+                            values += `${formattedValue},`;
+                        } else {
+                            values += formattedValue;
                         }
                     });
+                    // Handle calculated column values
                     if (sourceTable.calculated_columns && sourceTable.calculated_columns.length > 0) {
                         values += ',';
+                        sourceTable.calculated_columns.forEach((column: any, columnIndex: number) => {
+                            const columnName = column.column_name;
+                            if (columnIndex < sourceTable.calculated_columns.length - 1) {
+                                values += `'${row[columnName] || 0}',`;
+                            } else {
+                                values += `'${row[columnName] || 0}'`;
+                            }
+                        });
                     }
-                    sourceTable.calculated_columns.forEach((column: any, columnIndex: number) => {
-                        const columnName = column.column_name;
-                        if (columnIndex < sourceTable.calculated_columns.length - 1) {
-                            values += `'${row[columnName] || 0}',`;
-                        } else {
-                            values += `'${row[columnName] || 0}'`;
+                    
+                    // Handle aggregate function values
+                    if (sourceTable.query_options?.group_by?.aggregate_functions && sourceTable.query_options.group_by.aggregate_functions.length > 0) {
+                        const aggregateFunctions = ['SUM', 'AVG', 'COUNT', 'MIN', 'MAX'];
+                        const validAggFuncs = sourceTable.query_options.group_by.aggregate_functions.filter(
+                            (aggFunc: any) => aggFunc.aggregate_function !== '' && aggFunc.column !== ''
+                        );
+                        
+                        if (validAggFuncs.length > 0) {
+                            values += ',';
+                            validAggFuncs.forEach((aggFunc: any, columnIndex: number) => {
+                                let aliasName = aggFunc.column_alias_name;
+                                let rowKey = aliasName; // Key to lookup in row data
+                                
+                                if (!aliasName || aliasName === '') {
+                                    // When no alias is provided, PostgreSQL uses lowercase function name as column name
+                                    const funcName = aggregateFunctions[aggFunc.aggregate_function].toLowerCase();
+                                    rowKey = funcName; // PostgreSQL default: 'sum', 'avg', 'count', 'min', 'max'
+                                    
+                                    // Generate alias for table column name
+                                    const columnParts = aggFunc.column.split('.');
+                                    const columnName = columnParts[columnParts.length - 1];
+                                    aliasName = `${funcName}_${columnName}`.toLowerCase();
+                                }
+                                
+                                if (columnIndex < validAggFuncs.length - 1) {
+                                    values += `'${row[rowKey] || 0}',`;
+                                } else {
+                                    values += `'${row[rowKey] || 0}'`;
+                                }
+                            });
                         }
-                    });
+                    }
+                    
                     insertQuery += `${insertQueryColumns} VALUES(${values});`;
                     internalDbConnector.query(insertQuery);
                 });

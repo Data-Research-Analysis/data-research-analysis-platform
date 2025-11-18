@@ -24,6 +24,120 @@ package "Layouts" {
     }
 }
 
+package "Pinia Stores" {
+    class useProjectsStore {
+        +projects: Ref<IProject[]>
+        +selectedProject: Ref<IProject>
+        --
+        +setProjects(projects): void
+        +setSelectedProject(project): void
+        +getProjects(): IProject[]
+        +getSelectedProject(): IProject
+        +retrieveProjects(): Promise<void>
+        +clearProjects(): void
+    }
+    
+    class useDataSourceStore {
+        +dataSources: Ref<IDataSource[]>
+        +selectedDataSource: Ref<IDataSource>
+        --
+        +setDataSources(dataSources): void
+        +setSelectedDataSource(dataSource): void
+        +getDataSources(): IDataSource[]
+        +getSelectedDataSource(): IDataSource
+        +retrieveDataSources(): Promise<void>
+        +clearDataSources(): void
+    }
+    
+    class useDataModelsStore {
+        +dataModels: Ref<IDataModel[]>
+        +selectedDataModel: Ref<IDataModel>
+        +dataModelTables: Ref<IDataModelTable[]>
+        --
+        +setDataModels(dataModels): void
+        +getDataModels(): IDataModel[]
+        +retrieveDataModels(): Promise<void>
+        +retrieveDataModelTables(projectId): Promise<void>
+    }
+    
+    class useDashboardsStore {
+        +dashboards: Ref<IDashboard[]>
+        +selectedDashboard: Ref<IDashboard>
+        --
+        +setDashboards(dashboards): void
+        +getDashboards(): IDashboard[]
+        +retrieveDashboards(): Promise<void>
+    }
+    
+    class useArticlesStore {
+        +articles: Ref<IArticle[]>
+        +categories: Ref<ICategory[]>
+        --
+        +setArticles(articles): void
+        +setCategories(categories): void
+        +retrieveArticles(): Promise<void>
+        +retrieveCategories(): Promise<void>
+    }
+    
+    class useLoggedInUserStore {
+        +user: Ref<IUser>
+        --
+        +setUser(user): void
+        +getUser(): IUser
+        +clearUser(): void
+    }
+    
+    class usePrivateBetaUserStore {
+        +privateBetaUsers: Ref<any[]>
+        --
+        +setPrivateBetaUsers(users): void
+        +retrievePrivateBetaUsers(): Promise<void>
+    }
+    
+    class useUserManagementStore {
+        +users: Ref<IUser[]>
+        --
+        +setUsers(users): void
+        +retrieveUsers(): Promise<void>
+    }
+}
+
+package "Composables" {
+    class Utils {
+        --
+        +baseUrl(): string
+        +getAuthToken(): string
+        +setAuthToken(token): void
+        +removeAuthToken(): void
+        +enableRefreshDataFlag(source): void
+        +shouldRefreshData(): boolean
+        +clearRefreshDataFlag(): void
+    }
+}
+
+package "Middleware" {
+    class LoadDataMiddleware {
+        +name: "02-load-data.global"
+        --
+        +execute(to, from): Promise<void>
+        +loadProjectsStore(): Promise<void>
+        +loadDataSourcesStore(): Promise<void>
+        +loadDataModelsStore(): Promise<void>
+        +loadDashboardsStore(): Promise<void>
+        +loadArticlesStore(): Promise<void>
+    }
+    
+    class ValidateDataMiddleware {
+        +name: "03-validate-data.global"
+        --
+        +execute(to, from): Promise<void>
+        +validateProjectExists(projectId): boolean
+        +validateDataSourceExists(dataSourceId): boolean
+        +validateUserAuthentication(): boolean
+        +redirectIfInvalid(to): void
+    }
+}
+
 package "Pages" {
     class IndexPage {
         +title: string
@@ -453,24 +567,41 @@ AddExternalDataSource ||--|| ComboButton : uses
 BuildDataModel ||--|| NotchedCard : uses
 
 ' Store relationships
-ProjectsPage --> ProjectStore : uses
-DataSourcesPage --> DataSourceStore : uses
-DashboardsPage --> DashboardStore : uses
-PDFDataSourcePage --> DataSourceStore : updates
-LoginPage --> LoggedInUserStore : authenticates
-RegisterPage --> LoggedInUserStore : creates user
+ProjectsPage --> useProjectsStore : uses
+DataSourcesPage --> useDataSourceStore : uses
+DashboardsPage --> useDashboardsStore : uses
+PDFDataSourcePage --> useDataSourceStore : updates
+LoginPage --> useLoggedInUserStore : authenticates
+RegisterPage --> useLoggedInUserStore : creates user
+
+' Middleware relationships
+LoadDataMiddleware --> useProjectsStore : loads
+LoadDataMiddleware --> useDataSourceStore : loads
+LoadDataMiddleware --> useDataModelsStore : loads
+LoadDataMiddleware --> useDashboardsStore : loads
+LoadDataMiddleware --> useArticlesStore : loads
+ValidateDataMiddleware --> useProjectsStore : validates
+ValidateDataMiddleware --> useLoggedInUserStore : checks auth
 
 ' Composable relationships
-LoginPage --> AuthToken : manages tokens
-RegisterPage --> AuthToken : manages tokens
+LoginPage --> Utils : manages tokens
+RegisterPage --> Utils : manages tokens
 ProjectsPage --> Utils : utility functions
-DataSourcesPage --> Validator : validates forms
+DataSourcesPage --> Utils : validates forms
 PDFDataSourcePage --> Utils : helper functions
 
 ' Store cross-dependencies
-DataSourceStore --> DataModelStore : triggers updates
-ProjectStore --> DataSourceStore : filters by project
-DashboardStore --> DataModelStore : uses data models
+useDataSourceStore --> useDataModelsStore : triggers updates
+useProjectsStore --> useDataSourceStore : filters by project
+useDashboardsStore --> useDataModelsStore : uses data models
+
+' Store -> LocalStorage synchronization
+useProjectsStore ..> localStorage : syncs
+useDataSourceStore ..> localStorage : syncs
+useDataModelsStore ..> localStorage : syncs
+useDashboardsStore ..> localStorage : syncs
+useArticlesStore ..> localStorage : syncs
+useLoggedInUserStore ..> localStorage : syncs
 
 note right of PDFDataSourcePage : Handles PDF file upload with\nreal-time progress tracking\nvia Socket.IO
 
@@ -478,6 +609,14 @@ note right of DataModelBuilder : Visual drag-and-drop interface\nfor building da
 
 note right of CustomDataTable : Enhanced data table with Excel-like features:\n• Row/column addition, removal, duplication\n• Keyboard shortcuts (Ctrl+Alt+R/C)\n• Context menus and + buttons\n• Multi-sheet support\n• Real-time data synchronization\n• Event-driven parent integration
 
-note bottom of LoggedInUserStore : Central authentication state\nmanagement with JWT tokens
+note bottom of useLoggedInUserStore : Central authentication state\nmanagement with JWT tokens
+
+note right of LoadDataMiddleware : **Middleware Execution:**\nRuns on every route navigation\nLoads data into stores from backend\nSynchronizes with localStorage
+
+note left of useProjectsStore : **Store Pattern (CORRECT):**\nAccess refs directly in computed:\ncomputed(() => store.projects.filter(...))\n\n**AVOID (causes infinite recursion):**\ncomputed(() => store.getProjects().filter(...))\n\nGetter methods mutate refs when reading localStorage
+
+note top of Utils : **Composable Utilities:**\nShared functions across components\nToken management\nAPI baseUrl configuration\nData refresh flags
+
+note bottom of CustomDataTable : **Reactivity Pattern:**\nUses computed properties\nDirect store ref access\nAvoids watchers on entire store\nPrevents infinite update loops
 
 @enduml

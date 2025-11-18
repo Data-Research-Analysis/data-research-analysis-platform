@@ -64,7 +64,7 @@ onMounted(async () => {
             </div>
             <div v-if="state.unsubscribeSuccess" class="self-center text-md mb-5">
                We are sorry to see you go, but we understand that you may not want to receive our emails anymore.
-               If you want to subscribe to our emails again, then please send us an email at <a href="mailto:mustafa.neguib@dataresearchanalysis.com" class="hover:text-gray-500">mustafa.neguib@dataresearchanalysis.com</a>.
+               If you want to subscribe to our emails again, then please send us an email at <a href="mailto:hello@dataresearchanalysis.com" class="hover:text-gray-500">hello@dataresearchanalysis.com</a>.
                Please note that you will not be receiving any emails even if they are extremely critical and are related your account.
             </div>
             <div v-else class="self-center text-md mb-5">

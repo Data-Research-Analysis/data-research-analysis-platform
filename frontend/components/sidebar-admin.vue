@@ -4,13 +4,40 @@ const router = useRouter();
 const state = reactive({
     menu_items: [
         {
+            id: 1,
+            menu_name: 'Private Beta Users',
+            show_menu: true,
+            sub_menus: [
+                { id: 1, name: 'List Private Beta Users', path: '/admin/private-beta-users' },
+            ],
+        },
+        {
             id: 2,
+            menu_name: 'User Management',
+            show_menu: true,
+            sub_menus: [
+                { id: 1, name: 'Add User', path: '/admin/users/create' },
+                { id: 2, name: 'List Users', path: '/admin/users' },
+            ],
+        },
+        {
+            id: 3,
             menu_name: 'Articles Management',
             show_menu: true,
             sub_menus: [
                 { id: 1, name: 'Add Article', path: '/admin/articles/create' },
                 { id: 2, name: 'List Articles', path: '/admin/articles' },
                 { id: 3, name: 'List Categories', path: '/admin/articles/categories' },
+            ],
+        },
+        {
+            id: 4,
+            menu_name: 'Database Management',
+            show_menu: true,
+            sub_menus: [
+                { id: 1, name: 'Database Dashboard', path: '/admin/database' },
+                { id: 2, name: 'Create Backup', path: '/admin/database/backup' },
+                { id: 3, name: 'Restore Database', path: '/admin/database/restore' },
             ],
         },
     ],

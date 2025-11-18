@@ -8,6 +8,87 @@ const dataModelsStore = useDataModelsStore();
 const dashboardsStore = useDashboardsStore();
 const { $swal, $htmlToImageToPng } = useNuxtApp();
 const router = useRouter();
+const route = useRoute();
+const dashboardKey = String(route.params.dashboardkey);
+
+// Fetch dashboard with SSR support
+const { dashboardData, pending, error } = await usePublicDashboard(dashboardKey);
+
+// Computed dashboard from SSR data or store
+const dashboard = computed(() => {
+  if (dashboardData.value?.dashboard) {
+    return dashboardData.value.dashboard;
+  }
+  return dashboardsStore.getSelectedDashboard();
+});
+
+const project = computed(() => {
+  if (dashboardData.value?.project) {
+    return dashboardData.value.project;
+  }
+  return projectsStore.getSelectedProject();
+});
+
+// Sync with store on client for backward compatibility
+watchEffect(() => {
+  if (import.meta.client && dashboardData.value?.dashboard) {
+    dashboardsStore.setSelectedDashboard(dashboardData.value.dashboard);
+    if (dashboardData.value.project) {
+      projectsStore.setSelectedProject(dashboardData.value.project);
+    }
+  }
+});
+
+// Set up dynamic meta tags based on dashboard data
+useHead(() => ({
+    title: dashboard.value?.name 
+        ? `${dashboard.value.name} - Data Dashboard | Data Research Analysis`
+        : 'Public Dashboard | Data Research Analysis',
+    meta: [
+        { 
+            name: 'description', 
+            content: dashboard.value?.description 
+                || `Interactive data dashboard for ${project.value?.name || 'data analysis'}. Explore visualizations and insights powered by Data Research Analysis.` 
+        },
+        { name: 'robots', content: 'index, follow' },
+        
+        // Open Graph / Facebook
+        { property: 'og:type', content: 'website' },
+        { property: 'og:url', content: `https://dataresearchanalysis.com/public-dashboard/${route.params.dashboardkey}` },
+        { 
+            property: 'og:title', 
+            content: dashboard.value?.name 
+                ? `${dashboard.value.name} - Data Dashboard`
+                : 'Public Data Dashboard' 
+        },
+        { 
+            property: 'og:description', 
+            content: dashboard.value?.description 
+                || `Interactive data dashboard with real-time visualizations and analytics.` 
+        },
+        { property: 'og:image', content: 'https://dataresearchanalysis.com/images/dashboard-preview.png' },
+        
+        // Twitter
+        { name: 'twitter:card', content: 'summary_large_image' },
+        { name: 'twitter:url', content: `https://dataresearchanalysis.com/public-dashboard/${route.params.dashboardkey}` },
+        { 
+            name: 'twitter:title', 
+            content: dashboard.value?.name 
+                ? `${dashboard.value.name} - Data Dashboard`
+                : 'Public Data Dashboard' 
+        },
+        { 
+            name: 'twitter:description', 
+            content: dashboard.value?.description 
+                || `Interactive data dashboard with real-time visualizations.` 
+        },
+        { name: 'twitter:image', content: 'https://dataresearchanalysis.com/images/dashboard-preview.png' },
+    ],
+    link: [
+        { rel: 'canonical', href: `https://dataresearchanalysis.com/public-dashboard/${route.params.dashboardkey}` }
+    ]
+}));
+
 const state = reactive({
     data_model_tables: [],
     chart_mode: 'table',//table, pie, vertical_bar, horizontal_bar, vertical_bar_line, stacked_bar, multiline, heatmap, bubble, map
@@ -38,12 +119,7 @@ const state = reactive({
     scaleHeight: 1,
     show_table_dialog: false,
  });
-const project = computed(() => {
-    return projectsStore.getSelectedProject();
-});
-const dashboard = computed(() => {
-    return dashboardsStore.getSelectedDashboard();
-});
+// project and dashboard computeds are defined above for SEO
 const dataModelTables = computed(() => {
     return dataModelsStore.getDataModelTables();
 });
@@ -88,6 +164,9 @@ function autoResizeTableContainer(chartId) {
     if (!chart || chart.chart_type !== 'table') return;
     
     nextTick(() => {
+        // Only access DOM on client side for SSR compatibility
+        if (!import.meta.client) return;
+        
         // Calculate required width based on columns
         const columnCount = chart.columns?.length || 0;
         const minColumnWidth = 120; // From component prop
@@ -117,6 +196,9 @@ function autoResizeTableContainer(chartId) {
 function handleTableResize(chartId, resizeData) {
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
     if (!chart || chart.chart_type !== 'table') return;
+    
+    // Only access DOM on client side for SSR compatibility
+    if (!import.meta.client) return;
     
     const draggableDiv = document.getElementById(`draggable-div-${chartId}`);
     
@@ -188,30 +270,37 @@ async function executeQueryOnDataModels(chartId) {
             state.response_from_data_models_rows.forEach((row) =>{
                 const columns_data_types = chart.columns.filter((column, index) => index < 2 && Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
                 columns_data_types.forEach((column, index) => {
-                    if (column.data_type.includes('character varying') ||
-                        column.data_type.includes('varchar') ||
-                        column.data_type.includes('character') ||
-                        column.data_type.includes('char') ||
-                        column.data_type.includes('bpchar') ||
-                        column.data_type.includes('text') ||
-                        column.data_type.includes('USER-DEFINED')
-                    ) {
-                        labelValues.push(row[column.column_name]); 
-                    } else if (
-                            index === 1 && (
-                                column.data_type === 'smallint' ||
-                                column.data_type === 'bigint'  ||
-                                column.data_type === 'integer' ||
-                                column.data_type === 'numeric' ||
-                                column.data_type === 'decimal' || 
-                                column.data_type === 'real' ||
-                                column.data_type === 'double precision' ||
-                                column.data_type === 'small serial' ||
-                                column.data_type === 'serial' ||
-                                column.data_type === 'bigserial'
-                            )
+                    if (index === 0) {
+                        // First column: categorical (label)
+                        if (column.data_type.includes('character varying') ||
+                            column.data_type.includes('varchar') ||
+                            column.data_type.includes('character') ||
+                            column.data_type.includes('char') ||
+                            column.data_type.includes('bpchar') ||
+                            column.data_type.includes('text') ||
+                            column.data_type.includes('USER-DEFINED') ||
+                            column.data_type === 'boolean'
                         ) {
-                        numericValues.push(parseInt(row[column.column_name]));
+                            labelValues.push(row[column.column_name]); 
+                        }
+                    } else if (index === 1) {
+                        // Second column: numerical (value)
+                        if (column.data_type === 'smallint' ||
+                            column.data_type === 'bigint'  ||
+                            column.data_type === 'integer' ||
+                            column.data_type === 'numeric' ||
+                            column.data_type === 'decimal' || 
+                            column.data_type === 'real' ||
+                            column.data_type === 'double precision' ||
+                            column.data_type === 'small serial' ||
+                            column.data_type === 'serial' ||
+                            column.data_type === 'bigserial'
+                        ) {
+                            numericValues.push(parseInt(row[column.column_name]));
+                        } else if (column.data_type === 'boolean') {
+                            // Boolean as numerical: true=1, false=0
+                            numericValues.push(row[column.column_name] ? 1 : 0);
+                        }
                     } else if (
                             index === 2 && (
                                 column.data_type === 'smallint' ||
@@ -241,45 +330,53 @@ async function executeQueryOnDataModels(chartId) {
             state.response_from_data_models_rows.forEach((row) =>{
                 const columns_data_types = chart.columns.filter((column, index) => index < 3 && Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
                 columns_data_types.forEach((column, index) => {
-                    if (column.data_type.includes('character varying') ||
-                        column.data_type.includes('varchar') ||
-                        column.data_type.includes('character') ||
-                        column.data_type.includes('char') ||
-                        column.data_type.includes('bpchar') ||
-                        column.data_type.includes('text') ||
-                        column.data_type.includes('USER-DEFINED')
-                    ) {
-                        labelValues.push(row[column.column_name]); 
-                    } else if (
-                            index === 1 && (
-                                column.data_type === 'smallint' ||
-                                column.data_type === 'bigint'  ||
-                                column.data_type === 'integer' ||
-                                column.data_type === 'numeric' ||
-                                column.data_type === 'decimal' || 
-                                column.data_type === 'real' ||
-                                column.data_type === 'double precision' ||
-                                column.data_type === 'small serial' ||
-                                column.data_type === 'serial' ||
-                                column.data_type === 'bigserial'
-                            )
+                    if (index === 0) {
+                        // First column: categorical (label)
+                        if (column.data_type.includes('character varying') ||
+                            column.data_type.includes('varchar') ||
+                            column.data_type.includes('character') ||
+                            column.data_type.includes('char') ||
+                            column.data_type.includes('bpchar') ||
+                            column.data_type.includes('text') ||
+                            column.data_type.includes('USER-DEFINED') ||
+                            column.data_type === 'boolean'
                         ) {
-                        numericValues.push(parseInt(row[column.column_name]));
-                    } else if (
-                            index === 2 && (
-                                column.data_type === 'smallint' ||
-                                column.data_type === 'bigint'  ||
-                                column.data_type === 'integer' ||
-                                column.data_type === 'numeric' ||
-                                column.data_type === 'decimal' || 
-                                column.data_type === 'real' ||
-                                column.data_type === 'double precision' ||
-                                column.data_type === 'small serial' ||
-                                column.data_type === 'serial' ||
-                                column.data_type === 'bigserial'
-                            )
+                            labelValues.push(row[column.column_name]); 
+                        }
+                    } else if (index === 1) {
+                        // Second column: numerical (bar value)
+                        if (column.data_type === 'smallint' ||
+                            column.data_type === 'bigint'  ||
+                            column.data_type === 'integer' ||
+                            column.data_type === 'numeric' ||
+                            column.data_type === 'decimal' || 
+                            column.data_type === 'real' ||
+                            column.data_type === 'double precision' ||
+                            column.data_type === 'small serial' ||
+                            column.data_type === 'serial' ||
+                            column.data_type === 'bigserial'
                         ) {
-                        numericLineValues.push(parseInt(row[column.column_name]));
+                            numericValues.push(parseInt(row[column.column_name]));
+                        } else if (column.data_type === 'boolean') {
+                            numericValues.push(row[column.column_name] ? 1 : 0);
+                        }
+                    } else if (index === 2) {
+                        // Third column: numerical (line value)
+                        if (column.data_type === 'smallint' ||
+                            column.data_type === 'bigint'  ||
+                            column.data_type === 'integer' ||
+                            column.data_type === 'numeric' ||
+                            column.data_type === 'decimal' || 
+                            column.data_type === 'real' ||
+                            column.data_type === 'double precision' ||
+                            column.data_type === 'small serial' ||
+                            column.data_type === 'serial' ||
+                            column.data_type === 'bigserial'
+                        ) {
+                            numericLineValues.push(parseInt(row[column.column_name]));
+                        } else if (column.data_type === 'boolean') {
+                            numericLineValues.push(row[column.column_name] ? 1 : 0);
+                        }
                     }
                 });
             });
@@ -320,7 +417,7 @@ async function executeQueryOnDataModels(chartId) {
                             column.data_type === 'double precision' ||
                             column.data_type === 'small serial' ||
                             column.data_type === 'serial' ||
-                            column.data_type === 'bigserial'                       
+                            column.data_type === 'bigserial'
                         ) {
                         const stackData = {};
                         const stackKey = column.column_name.replace(/\_/g, ' ');
@@ -330,6 +427,20 @@ async function executeQueryOnDataModels(chartId) {
                         stackData.key = stackKey;
                         stackData.value = parseFloat(row[column.column_name]);
                         stackedValues.push(stackData);
+                    } else if (column.data_type === 'boolean') {
+                        // Boolean can be label if first, otherwise numeric value
+                        if (labelValue === '') {
+                            labelValue = row[column.column_name];
+                        } else {
+                            const stackData = {};
+                            const stackKey = column.column_name.replace(/\_/g, ' ');
+                            if (!chart.stack_keys.includes(stackKey)) {
+                                chart.stack_keys.push(stackKey);
+                            }
+                            stackData.key = stackKey;
+                            stackData.value = row[column.column_name] ? 1 : 0;
+                            stackedValues.push(stackData);
+                        }
                     }
                 });
                 if (labelValue !== '') {
@@ -354,7 +465,8 @@ async function executeQueryOnDataModels(chartId) {
                     column.data_type.includes('char') ||
                     column.data_type.includes('bpchar') ||
                     column.data_type.includes('text') ||
-                    column.data_type.includes('USER-DEFINED')
+                    column.data_type.includes('USER-DEFINED') ||
+                    column.data_type === 'boolean'
                 ) {
                     if (!categoryColumn) {
                         categoryColumn = column;
@@ -461,6 +573,9 @@ async function executeQueryOnDataModels(chartId) {
 
 // Pre-export preparation function to handle overflow containers
 function prepareForExport() {
+    // Only access DOM on client side for SSR compatibility
+    if (!import.meta.client) return null;
+    
     const dashboardContainer = document.querySelector('.flex.flex-col.min-h-200.max-h-200.h-200.bg-white.overflow-x-auto');
     const rootContainer = document.querySelector('.data-research-analysis');
     
@@ -537,6 +652,9 @@ function restoreOriginalStyles(preparation) {
 }
 
 function exportDashboardAsImage() {
+    // Only export on client side for SSR compatibility
+    if (!import.meta.client) return;
+    
     const dashboardElement = document.querySelector('.data-research-analysis');
     if (dashboardElement) {
         // Prepare containers for export
@@ -790,8 +908,13 @@ onMounted(async () => {
                                         </div>
                                     </template>
                                 </draggable>
-                                <div v-else :id="`draggable-${chart.chart_id}`" class="bg-gray-200 border border-3 border-gray-600 border-t-0">
-                                    <text-editor :id="`chart-${chart.chart_id}`" :buttons="['bold', 'italic', 'heading', 'strike', 'underline']" minHeight="10" :content="chart.text_editor.content"  @update:content="(content) => { updateContent(content, chart.chart_id) }" />
+                                <div v-else :id="`draggable-${chart.chart_id}`">
+                                    <div 
+                                        :id="`chart-${chart.chart_id}`" 
+                                        class="prose max-w-none p-4 bg-white"
+                                        v-html="chart.text_editor.content"
+                                        :style="'min-height: 200px;'"
+                                    ></div>
                                 </div>
                             </div>
                         </div>

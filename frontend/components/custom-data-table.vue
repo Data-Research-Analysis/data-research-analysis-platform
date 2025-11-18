@@ -284,7 +284,7 @@ function updateRowIndices() {
 }
 
 function addNewRow(position = 'end', defaultData = {}) {
-  const newRowId = `row_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const newRowId = `row_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   const newRow = {
     id: newRowId,
     index: 0, // Will be updated by updateRowIndices
@@ -338,7 +338,7 @@ function duplicateRow(rowId) {
   const sourceRow = tableState.rows.find(row => row.id === rowId);
   if (!sourceRow) return null;
   
-  const newRowId = `row_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const newRowId = `row_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   const duplicatedRow = {
     id: newRowId,
     index: 0, // Will be updated by updateRowIndices
@@ -486,6 +486,9 @@ function selectAllColumns() {
     // Console log for debugging
     console.log(message);
     
+    // Only manipulate DOM on client side for SSR compatibility
+    if (!import.meta.client) return;
+    
     // Create a toast-like notification
     const toast = document.createElement('div');
     toast.className = 'fixed top-4 right-4 bg-blue-500 text-white px-4 py-2 shadow-lg z-50 text-sm font-medium transform transition-all duration-300';
@@ -565,7 +568,7 @@ function removeColumn(columnId) {
 
 // Column addition functionality
 function addNewColumn(position = 'end', columnConfig = {}) {
-  const newColumnId = `col_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const newColumnId = `col_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   const columnNumber = tableState.columns.length + 1;
   const newColumn = {
     id: newColumnId,
@@ -619,8 +622,8 @@ function insertColumnAt(index, columnConfig = {}) {
 function duplicateColumn(columnId) {
   const sourceColumn = tableState.columns.find(col => col.id === columnId);
   if (!sourceColumn) return null;
-  
-  const newColumnId = `col_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+  const newColumnId = `col_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   const duplicatedColumn = {
     ...sourceColumn,
     id: newColumnId,
@@ -1226,7 +1229,7 @@ function createSheet(name = null, columns = [], rows = []) {
       }));
   
   const newSheet = {
-    id: `sheet_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    id: `sheet_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
     name: sheetName,
     columns: processedColumns,
     rows: processedRows,
@@ -1398,7 +1401,7 @@ onMounted(() => {
     if (props.sheets && props.sheets.length > 0) {
         sheetsState.sheets = props.sheets.map(sheet => ({
             ...sheet,
-            id: sheet.id || `sheet_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            id: sheet.id || `sheet_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
             metadata: {
                 created: sheet.metadata?.created || new Date(),
                 modified: sheet.metadata?.modified || new Date(),
@@ -1433,16 +1436,21 @@ onMounted(() => {
         }));
     }
     
-    document.addEventListener('click', handleClickOutside);
-    document.addEventListener('keydown', handleEscapeKey);
-    document.addEventListener('keydown', handleKeyboardShortcuts);
+    // Only add event listeners on client side for SSR compatibility
+    if (import.meta.client) {
+        document.addEventListener('click', handleClickOutside);
+        document.addEventListener('keydown', handleEscapeKey);
+        document.addEventListener('keydown', handleKeyboardShortcuts);
+    }
 });
 
 onUnmounted(() => {
-    // Clean up event listeners
-    document.removeEventListener('click', handleClickOutside);
-    document.removeEventListener('keydown', handleEscapeKey);
-    document.removeEventListener('keydown', handleKeyboardShortcuts);
+    // Clean up event listeners only on client side
+    if (import.meta.client) {
+        document.removeEventListener('click', handleClickOutside);
+        document.removeEventListener('keydown', handleEscapeKey);
+        document.removeEventListener('keydown', handleKeyboardShortcuts);
+    }
 });  
 </script>
 <template>

@@ -23,6 +23,36 @@ export class AuthProcessor {
         return AuthProcessor.instance;
     }
 
+    public async getUserById(userId: number): Promise<IUsersPlatform | null> {
+        return new Promise<IUsersPlatform | null>(async (resolve, reject) => {
+            try {
+                let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+                const concreteDriver = await driver.getConcreteDriver();
+                if (!concreteDriver) {
+                    return resolve(null);
+                }
+                const manager = concreteDriver.manager;
+                const user: DRAUsersPlatform|null = await manager.findOne(DRAUsersPlatform, {where: {id: userId}});
+                if (user) {
+                    const userPlatform:IUsersPlatform = {
+                        id: user.id, 
+                        email: user.email, 
+                        first_name: user.first_name, 
+                        last_name: user.last_name, 
+                        user_type: user.user_type,
+                        token: '' // Token not needed for /auth/me endpoint
+                    };
+                    return resolve(userPlatform);
+                } else {
+                    return resolve(null);
+                }
+            } catch (error) {
+                console.error('Error fetching user by ID:', error);
+                return resolve(null);
+            }
+        });
+    }
+
     public async login(email: string, password: string): Promise<IUsersPlatform> {
         return new Promise<IUsersPlatform>(async (resolve, reject) => {
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -36,7 +66,7 @@ export class AuthProcessor {
                 const passwordMatch = await bcrypt.compare(password, user.password);
                 if (passwordMatch) {
                     const secret = UtilityService.getInstance().getConstants('JWT_SECRET');
-                    const token = jwt.sign({user_id: user.id}, secret);
+                    const token = jwt.sign({user_id: user.id, user_type: user.user_type, email: user.email}, secret);
                     const userPlatform:IUsersPlatform = {id: user.id, email: email, first_name: user.first_name, last_name: user.last_name, user_type: user.user_type, token: token};
                     return resolve(userPlatform);
                 } else {
@@ -248,7 +278,7 @@ export class AuthProcessor {
                         {key: 'unsubscribe_code', value: unsubscribeCode}
                     ];
                     const content = await TemplateEngineService.getInstance().render('password-change-request.html', options);
-                    const textContent = `Hi ${user.first_name} ${user.last_name}\n\nThank you for choosing Data Research Analysis for your data analysis needs. To change your password, please copy and paste this link into your browser: https://www.dataresearchanalysis.com/forgot-password/${passwordChangeRequestCode}\n\nIf you have any questions or need assistance, please don't hesitate to contact us at mustafa.neguib@dataresearchanalysis.com\n\nPlease note that the code will expire in 3 days from the receipt of this email if you do not verify your email address.\n\n`;
+                    const textContent = `Hi ${user.first_name} ${user.last_name}\n\nThank you for choosing Data Research Analysis for your data analysis needs. To change your password, please copy and paste this link into your browser: https://www.dataresearchanalysis.com/forgot-password/${passwordChangeRequestCode}\n\nIf you have any questions or need assistance, please don't hesitate to contact us at hello@dataresearchanalysis.com\n\nPlease note that the code will expire in 3 days from the receipt of this email if you do not verify your email address.\n\n`;
                     await MailDriver.getInstance().getDriver().initialize();
                     await MailDriver.getInstance().getDriver().sendEmail(user.email, `${user.first_name} ${user.last_name}`, 'Password Change Request @ Data Research Analysis', textContent, content);
                 }

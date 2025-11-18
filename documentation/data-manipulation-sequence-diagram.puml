@@ -148,6 +148,168 @@ alt Row not found during cell update
     Excel -> Browser: console.error("Row not found for event")
 end
 
+== Data Model Creation Workflow ==
+
+participant "Frontend" as Frontend
+participant "DataSourceProcessor" as DSProcessor
+participant "Database (PostgreSQL)" as DB
+participant "External DataSource" as ExtDB
+
+User -> Frontend: Select data source and write SQL query
+Frontend -> Frontend: Build query in visual editor
+Frontend -> Frontend: Configure data model name and schema
+
+User -> Frontend: Click "Create Data Model"
+Frontend -> DSProcessor: buildDataModelOnQuery(\n  dataSourceId,\n  query,\n  queryJSON,\n  dataModelName,\n  tokenDetails\n)
+activate DSProcessor
+
+DSProcessor -> DB: Get data source with connection_details
+activate DB
+DB -> DB: Decrypt connection_details
+DB --> DSProcessor: Data source with credentials
+deactivate DB
+
+DSProcessor -> DSProcessor: Generate sanitized table name
+note right: Format: dra_{sanitized_name}_{uuid}\nMax length: 63 characters
+
+DSProcessor -> ExtDB: Connect to external database
+activate ExtDB
+DSProcessor -> ExtDB: Execute user's SQL query
+ExtDB --> DSProcessor: Query results (sample data)
+deactivate ExtDB
+
+DSProcessor -> DSProcessor: Analyze result columns and data types
+DSProcessor -> DSProcessor: Generate CREATE TABLE statement
+note right: Column types mapped:\nString → VARCHAR\nNumber → NUMERIC\nDate → TIMESTAMP
+
+DSProcessor -> DB: CREATE TABLE schema.table_name (columns...)
+activate DB
+DB --> DSProcessor: Table created
+deactivate DB
+
+DSProcessor -> DB: INSERT INTO table_name SELECT * FROM external_query
+note right: Populate table with data
+activate DB
+DB --> DSProcessor: Data inserted
+deactivate DB
+
+DSProcessor -> DB: Create DRADataModel entity
+activate DB
+DB --> DSProcessor: Data model saved
+deactivate DB
+
+DSProcessor --> Frontend: Success with table name
+deactivate DSProcessor
+
+Frontend -> Frontend: Navigate to data models page
+Frontend -> Frontend: Show success message
+
+== Data Model Deletion Workflow ==
+
+User -> Frontend: Click delete icon on data model
+Frontend -> Frontend: Show confirmation dialog
+
+User -> Frontend: Confirm deletion
+Frontend -> DSProcessor: DataModelProcessor.deleteDataModel(\n  dataModelId,\n  tokenDetails\n)
+activate DSProcessor
+
+DSProcessor -> DB: Find data model by ID
+activate DB
+DB --> DSProcessor: Data model with schema and name
+deactivate DB
+
+DSProcessor -> DSProcessor: Begin transaction
+
+DSProcessor -> DB: DROP TABLE IF EXISTS schema.table_name CASCADE
+note right: Physical table removal
+activate DB
+DB --> DSProcessor: Table dropped
+deactivate DB
+
+DSProcessor -> DB: Check for dashboards using this data model
+activate DB
+DB --> DSProcessor: Dashboard list
+deactivate DB
+
+loop For each dashboard
+    DSProcessor -> DSProcessor: Remove data model references from dashboard.data
+    DSProcessor -> DB: UPDATE dashboard SET data = modified_data
+    DB --> DSProcessor: Dashboard updated
+end
+
+DSProcessor -> DB: DELETE FROM dra_data_models WHERE id = ?
+activate DB
+DB --> DSProcessor: Data model deleted
+deactivate DB
+
+DSProcessor -> DSProcessor: Commit transaction
+
+DSProcessor --> Frontend: Success
+deactivate DSProcessor
+
+Frontend -> Frontend: Remove from local data models list
+Frontend -> Frontend: Show success message
+
+== Dashboard Chart Creation Workflow ==
+
+User -> Frontend: Open dashboard editor
+Frontend -> Frontend: Load available data models
+
+User -> Frontend: Drag chart widget onto canvas
+Frontend -> Frontend: Open chart configuration dialog
+
+User -> Frontend: Select data model and columns
+User -> Frontend: Choose chart type (bar, line, pie, etc.)
+User -> Frontend: Configure chart options
+
+Frontend -> Frontend: Build chart configuration object
+note right: Structure:\n{\n  type: 'bar',\n  dataModelId: 123,\n  columns: [...],\n  options: {...}\n}
+
+User -> Frontend: Click "Save Dashboard"
+Frontend -> DSProcessor: DashboardProcessor.addDashboard(\n  dashboardData,\n  projectId,\n  tokenDetails\n)
+activate DSProcessor
+
+DSProcessor -> DB: Create DRADashboard entity
+note right: data field is JSONB type\nStores entire dashboard configuration
+activate DB
+
+DB -> DB: Store as JSONB column
+note right: Efficient querying and indexing\nNative JSON operations supported
+
+DB --> DSProcessor: Dashboard saved
+deactivate DB
+
+DSProcessor --> Frontend: Success with dashboard ID
+deactivate DSProcessor
+
+Frontend -> Frontend: Navigate to dashboard view
+Frontend -> Frontend: Render charts from configuration
+
+== Dashboard Chart Rendering ==
+
+Frontend -> Frontend: Parse dashboard.data JSONB
+Frontend -> Frontend: Extract chart configurations
+
+loop For each chart
+    Frontend -> DSProcessor: Fetch data model data
+    activate DSProcessor
+    
+    DSProcessor -> DB: SELECT * FROM schema.table_name
+    activate DB
+    DB --> DSProcessor: Table data
+    deactivate DB
+    
+    DSProcessor --> Frontend: Data rows
+    deactivate DSProcessor
+    
+    Frontend -> Frontend: Transform data for chart library
+    Frontend -> Frontend: Render chart component
+end
+
+Frontend -> Frontend: Display complete dashboard
+
+@enduml
+
 alt Invalid column position
     Table -> Table: addNewColumn(invalidPosition)
     Table -> Table: Default to 'end' position

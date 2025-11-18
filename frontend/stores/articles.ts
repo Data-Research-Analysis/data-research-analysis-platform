@@ -6,47 +6,63 @@ export const useArticlesStore = defineStore('articlesDRA', () => {
     const categories = ref<ICategory[]>([]);
     const selectedArticle = ref<IArticle>();
 
-    if (localStorage.getItem('articles')) {
-        articles.value = JSON.parse(localStorage.getItem('articles') || 'null') || [];
-    }
-    if (localStorage.getItem('categories')) {
-        categories.value = JSON.parse(localStorage.getItem('categories') || 'null') || [];
-    }
-    if (localStorage.getItem('selectedArticle')) {
-        selectedArticle.value = JSON.parse(localStorage.getItem('selectedArticle') || 'null')
-    }
     function setArticles(articlesList: IArticle[]) {
         articles.value = articlesList;
-        localStorage.setItem('articles', JSON.stringify(articlesList));
+        if (import.meta.client) {
+            localStorage.setItem('articles', JSON.stringify(articlesList));
+            enableRefreshDataFlag('setArticles');
+        }
     }
     function setCategories(categoriesList: ICategory[]) {
         categories.value = categoriesList;
-        localStorage.setItem('categories', JSON.stringify(categoriesList));
+        if (import.meta.client) {
+            localStorage.setItem('categories', JSON.stringify(categoriesList));
+            enableRefreshDataFlag('setCategories');
+        }
     }
     function setSelectedArticle(article: IArticle) {
             selectedArticle.value = article
-            localStorage.setItem('selectedArticle', JSON.stringify(article))
+            if (import.meta.client) {
+                localStorage.setItem('selectedArticle', JSON.stringify(article))
+            }
         }
     function getArticles() {
+        if (import.meta.client && localStorage.getItem('articles')) {
+            articles.value = JSON.parse(localStorage.getItem('articles') || 'null') || [];
+        }
         return articles.value;
     }
     function getCategories() {
+        if (import.meta.client && localStorage.getItem('categories')) {
+            categories.value = JSON.parse(localStorage.getItem('categories') || 'null') || [];
+        }
         return categories.value;
     }
     function getSelectedArticle() {
+        if (import.meta.client && localStorage.getItem('selectedArticle')) {
+            selectedArticle.value = JSON.parse(localStorage.getItem('selectedArticle') || 'null')
+        }
         return selectedArticle.value;
     }
     function clearArticles() {
         articles.value = [];
-        localStorage.removeItem('articles');
+        if (import.meta.client) {
+            localStorage.removeItem('articles');
+            enableRefreshDataFlag('clearArticles');
+        }
     }
     function clearCategories() {
         categories.value = [];
-        localStorage.removeItem('categories');
+        if (import.meta.client) {
+            localStorage.removeItem('categories');
+            enableRefreshDataFlag('clearCategories');
+        }
     }
     function clearSelectedArticle() {
         selectedArticle.value = undefined;
-        localStorage.removeItem('selectedArticle');
+        if (import.meta.client) {
+            localStorage.removeItem('selectedArticle');
+        }
     }
     async function retrieveCategories() {
         const token = getAuthToken();

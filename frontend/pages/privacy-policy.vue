@@ -1,6 +1,24 @@
 <script setup>
 import { onMounted } from "vue";
 
+// SEO Meta Tags for Privacy Policy
+useHead({
+    title: 'Privacy Policy - Data Research Analysis',
+    meta: [
+        { name: 'description', content: 'Read the Privacy Policy for Data Research Analysis platform. Learn how we collect, use, and protect your personal data and information.' },
+        { name: 'robots', content: 'index, follow' },
+        
+        // Open Graph / Facebook
+        { property: 'og:type', content: 'article' },
+        { property: 'og:title', content: 'Privacy Policy - Data Research Analysis' },
+        { property: 'og:description', content: 'Our commitment to protecting your privacy and personal data.' },
+        { property: 'og:url', content: 'https://dataresearchanalysis.com/privacy-policy' },
+    ],
+    link: [
+        { rel: 'canonical', href: 'https://dataresearchanalysis.com/privacy-policy' }
+    ]
+});
+
 onMounted(() => {
 
 })
@@ -353,7 +371,7 @@ onMounted(() => {
         </p>
         
         <ul>
-            <li>By email: <a href="mailto:mustafa.neguib@dataresearchanalysis.com" class="hover:text-gray-500">mustafa.neguib@dataresearchanalysis.com</a></li>
+            <li>By email: <a href="mailto:hello@dataresearchanalysis.com" class="hover:text-gray-500">hello@dataresearchanalysis.com</a></li>
         </ul>
     </div>
 </template>

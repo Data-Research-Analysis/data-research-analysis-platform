@@ -1,9 +1,76 @@
-import { Column, Entity, JoinColumn, JoinTable, ManyToOne, OneToMany, PrimaryGeneratedColumn, Relation } from 'typeorm';
+import { Column, Entity, JoinColumn, JoinTable, ManyToOne, OneToMany, PrimaryGeneratedColumn, Relation, ValueTransformer } from 'typeorm';
 import { DRAUsersPlatform } from './DRAUsersPlatform.js';
 import { DRADataModel } from './DRADataModel.js';
 import { DRAProject } from './DRAProject.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { IDBConnectionDetails } from '../types/IDBConnectionDetails.js';
+import { EncryptionService } from '../services/EncryptionService.js';
+
+/**
+ * TypeORM transformer for automatic encryption/decryption of connection details
+ * Provides transparent encryption when saving and decryption when loading
+ * Handles both encrypted and legacy unencrypted data for backward compatibility
+ */
+const connectionDetailsTransformer: ValueTransformer = {
+    /**
+     * Transform data TO database (encrypt on save)
+     * @param value - Connection details object to encrypt
+     * @returns Encrypted string for database storage
+     */
+    to(value: IDBConnectionDetails | null | undefined): any {
+        if (!value) {
+            return null;
+        }
+
+        const encryptionService = EncryptionService.getInstance();
+        
+        // Only encrypt if encryption is enabled
+        if (process.env.ENCRYPTION_ENABLED !== 'false') {
+            try {
+                return encryptionService.encrypt(value);
+            } catch (error) {
+                throw error;
+            }
+        }
+
+        // If encryption disabled, store as plain JSON
+        return value;
+    },
+
+    /**
+     * Transform data FROM database (decrypt on load)
+     * @param value - Encrypted string or plain object from database
+     * @returns Decrypted connection details object
+     */
+    from(value: any): IDBConnectionDetails | null {
+        if (!value) {
+            return null;
+        }
+
+        const encryptionService = EncryptionService.getInstance();
+
+        // Check if data is encrypted
+        if (encryptionService.isEncrypted(value)) {
+            try {
+                return encryptionService.decrypt(value);
+            } catch (error) {
+                throw error;
+            }
+        }
+
+        // Handle legacy unencrypted data (backward compatibility)
+        if (typeof value === 'string') {
+            try {
+                return JSON.parse(value);
+            } catch {
+                return value as any;
+            }
+        }
+
+        // Already an object (unencrypted legacy data)
+        return value;
+    }
+};
 @Entity('dra_data_sources')
 export class DRADataSource {
     @PrimaryGeneratedColumn()
@@ -12,7 +79,7 @@ export class DRADataSource {
     name!: string
     @Column({ type: 'enum', enum: [EDataSourceType.POSTGRESQL, EDataSourceType.MYSQL, EDataSourceType.MARIADB, EDataSourceType.MONGODB, EDataSourceType.CSV, EDataSourceType.EXCEL, EDataSourceType.PDF] })
     data_type!: EDataSourceType;
-    @Column({ type: 'jsonb' })
+    @Column({ type: 'jsonb', transformer: connectionDetailsTransformer })
     connection_details!: IDBConnectionDetails
     @Column({ type: 'timestamp', nullable: true })
     created_at!: Date
@@ -24,7 +91,7 @@ export class DRADataSource {
     @OneToMany(() => DRADataModel, (dataModel) => dataModel.data_source, { cascade: ["remove", "update"] })
     data_models!: Relation<DRADataModel>[]
     
-    @ManyToOne(() => DRAProject, (project) => project.data_sources)
+    @ManyToOne(() => DRAProject, (project) => project.data_sources, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'project_id', referencedColumnName: 'id' })
     project!: Relation<DRAProject>
     

@@ -1,5 +1,5 @@
 import { DataSource, DataSourceOptions } from "typeorm";
-import { DRAUser } from "../models/DRAUser.js";
+import { DRAPrivateBetaUsers } from "../models/DRAPrivateBetaUsers.js";
 import { DRADataModel } from "../models/DRADataModel.js";
 import { DRADataSource } from "../models/DRADataSource.js";
 import { DRAVerificationCode } from "../models/DRAVerificationCode.js";
@@ -33,8 +33,9 @@ export class PostgresDataSource {
             database: database,
             synchronize: false,
             logging: true,
-            entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRAUser, DRADashboard, DRAArticle, DRAArticleCategory, DRACategory, DRADashboardExportMetaData],
+            entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRAPrivateBetaUsers, DRADashboard, DRAArticle, DRAArticleCategory, DRACategory, DRADashboardExportMetaData],
             subscribers: [],
+            // Only load TypeORM migration files (exclude utility scripts like migrate-articles-markdown.ts)
             migrations: ['./src/migrations/*.ts'],
         })
     }

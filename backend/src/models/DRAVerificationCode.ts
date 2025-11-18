@@ -9,7 +9,7 @@ export class DRAVerificationCode {
   @Column({ type: 'timestamp', nullable: true })
   expired_at!: Date;
 
-  @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.verification_codes)
+  @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.verification_codes, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'users_platform_id', referencedColumnName: 'id' })
   users_platform!: Relation<DRAUsersPlatform>
 }

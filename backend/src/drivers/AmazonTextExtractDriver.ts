@@ -102,29 +102,24 @@ export class AmazonTextExtractDriver implements ITextExtractDriver {
                 let foundWords: Block[] = [];
                 if (relations?.length && relations[0].length) {
                   foundWords = words?.filter((actualWord: any) => {
-                    if (!actualWord.Text.match(/^\d+\.*\d*$/)) {
-                      for (let i=0; i<relations[0].length; i++) {
-                        if (actualWord?.Relationships?.Ids.includes(relations[0][i])) {
-                          return actualWord;
-                        } else if (actualWord?.Id === relations[0][i]) {
-                          return actualWord;
-                        }
+                    for (let i=0; i<relations[0].length; i++) {
+                      if (actualWord?.Relationships?.Ids.includes(relations[0][i])) {
+                        return actualWord;
+                      } else if (actualWord?.Id === relations[0][i]) {
+                        return actualWord;
                       }
                     }
                   }) || [];
                 } else if (cell?.Id) {
                   foundWords = words?.filter((actualWord: any) => {
-                    if (!actualWord.Text.match(/^\d+\.*\d*$/)) {
-                      if (actualWord?.Relationships?.Ids.includes(cell.Id)) {
-                        return actualWord;
-                      } else if (actualWord?.Id === cell.Id) {
-                        return actualWord;
-                      }
+                    if (actualWord?.Relationships?.Ids.includes(cell.Id)) {
+                      return actualWord;
+                    } else if (actualWord?.Id === cell.Id) {
+                      return actualWord;
                     }
                   }) || [];
                 }
                 let relString = foundWords?.length ? `${foundWords.map((word:any) => word.Text).join(' ')}` : '';
-                const pattern = /^note\s[\S\s]+/gi
                 relString = relString.replace(/^\-$/gi, '0');
                 page.getLines()[cell.RowIndex + 2]?.getWords()[cell.ColumnIndex]?.setText(`${relString}`);
               });

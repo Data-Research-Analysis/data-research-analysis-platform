@@ -20,12 +20,15 @@ function close() {
     emit('close');
 }
 onMounted(() => {
-    state.top = `${window.scrollY + props.yOffset}px`;
-    if (props.enableScrolling) {
-        //keep the overlay in the same position when the user scrolls
-        document.addEventListener("scroll", () => {
-            state.top = `${window.scrollY + props.yOffset}px`;
-        })
+    // Only access window/document on client side for SSR compatibility
+    if (import.meta.client) {
+        state.top = `${window.scrollY + props.yOffset}px`;
+        if (props.enableScrolling) {
+            //keep the overlay in the same position when the user scrolls
+            document.addEventListener("scroll", () => {
+                state.top = `${window.scrollY + props.yOffset}px`;
+            })
+        }
     }
 });
 </script>

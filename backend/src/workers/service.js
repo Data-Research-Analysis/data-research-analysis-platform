@@ -10,6 +10,7 @@ import { AWSService } from '../../dist/services/AWSService.js';
 import { AmazonTextExtractDriver } from '../../dist/drivers/AmazonTextExtractDriver.js';
 import { EPageType } from "../../dist/types/EPageType.js";
 import { FilesService } from "../../dist/services/FilesService.js";
+import { DatabaseBackupService } from "../../dist/services/DatabaseBackupService.js";
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,6 +30,10 @@ if (operation === EOperation.PDF_TO_IMAGES) {
     await extractTextFromImage(fileName);
 } else if (operation === EOperation.DELETE_FILES) {
     await deleteFiles(userId);
+} else if (operation === EOperation.DATABASE_BACKUP) {
+    await createDatabaseBackup(userId);
+} else if (operation === EOperation.DATABASE_RESTORE) {
+    await restoreDatabaseFromBackup(fileName, userId);
 }
 
 /**
@@ -93,5 +98,84 @@ async function deleteFiles(userId) {
         }
         // parentPort.postMessage({ message: EOperation.DELETE_FILES_COMPLETE, data: { identifier: identifier } });
         return resolve();
+    });
+}
+
+/**
+ * Create database backup
+ * @param {number} userId - User ID creating the backup
+ * @returns {Promise<void>}
+ */
+async function createDatabaseBackup(userId) {
+    return new Promise(async (resolve, reject) => {
+        try {
+            console.log('Creating database backup for user:', userId);
+            const metadata = await DatabaseBackupService.getInstance().createBackup(userId);
+            
+            parentPort.postMessage({ 
+                message: EOperation.DATABASE_BACKUP_COMPLETE, 
+                backupFile: metadata.filename,
+                backupId: metadata.id,
+                size: metadata.size,
+                timestamp: metadata.created_at
+            });
+            
+            console.log('Database backup created successfully');
+            return resolve();
+        } catch (error) {
+            console.error('Error creating database backup:', error);
+            parentPort.postMessage({ 
+                message: EOperation.DATABASE_BACKUP_COMPLETE, 
+                error: error.message,
+                success: false
+            });
+            return reject(error);
+        }
+    });
+}
+
+/**
+ * Restore database from backup
+ * @param {string} zipFilePath - Path to backup ZIP file
+ * @param {number} userId - User ID restoring the backup
+ * @returns {Promise<void>}
+ */
+async function restoreDatabaseFromBackup(zipFilePath, userId) {
+    return new Promise(async (resolve, reject) => {
+        try {
+            console.log('Restoring database from backup:', zipFilePath);
+            
+            // Progress callback to send updates to frontend
+            const progressCallback = (progress, status) => {
+                parentPort.postMessage({ 
+                    message: EOperation.DATABASE_RESTORE_PROGRESS,
+                    progress: progress,
+                    status: status
+                });
+            };
+            
+            const success = await DatabaseBackupService.getInstance().restoreFromBackup(
+                zipFilePath,
+                userId,
+                progressCallback
+            );
+            
+            parentPort.postMessage({ 
+                message: EOperation.DATABASE_RESTORE_COMPLETE,
+                success: success,
+                resultMessage: success ? 'Database restored successfully' : 'Database restore failed'
+            });
+            
+            console.log('Database restore completed');
+            return resolve();
+        } catch (error) {
+            console.error('Error restoring database:', error);
+            parentPort.postMessage({ 
+                message: EOperation.DATABASE_RESTORE_COMPLETE,
+                success: false,
+                resultMessage: error.message
+            });
+            return reject(error);
+        }
     });
 }

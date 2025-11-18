@@ -407,7 +407,8 @@ function buildSQLQuery() {
     if (dataTables.length === 1) {
         fromJoinClause.push(`FROM ${dataTables[0]}`);
         sqlQuery = `SELECT ${state.data_table.columns.filter((column) => column.is_selected_column).map((column) => {
-            const aliasName = column?.alias_name !== '' ? column.alias_name : `${column.schema}_${column.table_name}_${column.column_name}`;
+            const tableName = column.table_name.length > 20 ? column.table_name.slice(-20) : column.table_name;
+            const aliasName = column?.alias_name !== '' ? column.alias_name : `${tableName}_${column.column_name}`;
             return `${column.schema}.${column.table_name}.${column.column_name} AS ${aliasName}`;
         }).join(', ')}`;
     } else {
@@ -587,6 +588,7 @@ async function saveDataModel() {
         })
     });
     if (response.status === 200) {
+        // enableRefreshDataFlag('clearDataModels');
         router.push(`/projects/${route.params.projectid}/data-sources/${route.params.datasourceid}/data-models`);
     } else {
         $swal.fire({
@@ -637,12 +639,12 @@ onMounted(async () => {
         <div class="text-md mb-10">
             You can create a new data model from the tables given below by dragging into the empty block shown in the data model section to the right.
         </div>
-        <div v-if="state.response_from_external_data_source_columns && state.response_from_external_data_source_columns.length" class="flex flex-col">
+        <div v-if="state.response_from_external_data_source_columns && state.response_from_external_data_source_columns.length" class="flex flex-col overflow-auto">
             <h3 class="font-bold text-left mb-5">Response From External Data Source</h3>
             <table class="w-full border border-primary-blue-100 border-solid">
                 <thead>
                     <tr>
-                        <th v-for="column in state.response_from_external_data_source_columns" class="bg-blue-100 border border-primary-blue-100 border-solid p-2 text-center font-bold">
+                        <th v-for="column in state.response_from_external_data_source_columns" class="bg-blue-100 border border-primary-blue-100 border-solid p-2 text-center font-bold ">
                             {{ column }}
                         </th>
                     </tr>
@@ -660,11 +662,13 @@ onMounted(async () => {
                 <h2 class="font-bold text-center mb-5">Tables</h2>
                 <div class="grid grid-cols-1 sm:grid-cols-2 md:Grid-cols-3 md:gap-2">
                     <div v-for="table in state.tables" class="flex flex-col border border-primary-blue-100 border-solid p-1">
-                        <h4 class="bg-gray-300 text-center font-bold p-1 mb-2 overflow-clip text-ellipsis" 
-                            v-tippy="{ content: `${table.schema}.${table.table_name}`, placement: 'bottom' }"
-                        >
-                            {{ table.schema }}.{{ table.table_name }}
+                        <h4 class="bg-gray-300 text-center font-bold p-1 mb-2 overflow-clip text-ellipsis wrap-anywhere">
+                            {{ table.table_name}}
                         </h4>
+                        <div class="bg-gray-300 p-1 m-2 wrap-anywhere">
+                            Table Schema: {{ table.schema }} <br />
+                            Table Name: {{ table.table_name }}
+                        </div>
                         <draggable
                             :list="table.columns"
                             :group="{
@@ -727,7 +731,7 @@ onMounted(async () => {
                                     }"
                                 >
                                     <div class="flex flex-row justify-around">
-                                        <div class="ml-2">
+                                        <div class="ml-2 wrap-anywhere">
                                             Table: {{ element.table_name }}<br />
                                             <strong>Column: {{ element.column_name }}</strong><br />
                                             Column Data Type: {{ element.data_type }}

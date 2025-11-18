@@ -20,19 +20,47 @@
     import History from '@tiptap/extension-history'
     import TextAlign from '@tiptap/extension-text-align'
     import Blockquote from '@tiptap/extension-blockquote'
+    import { Markdown } from '@tiptap/markdown'
 
+    const emits = defineEmits(['update:content', 'update:markdown']);
+    const state = reactive({
+        content: null,
+    });
+    
+    // Phase 1: View state management for HTML/Markdown toggle
+    const viewMode = ref('wysiwyg'); // 'wysiwyg' or 'markdown'
+    
+    // Phase 3: Markdown content for raw view
+    const markdownContent = ref('');
+    
+    // Track uploading images
+    const uploadingImages = ref(new Set());
     
     // Initialize the editor
     const editor = useEditor({
         content: '',
         extensions: [ 
             Document,
+            Text,
+            Paragraph,
+            // Load Markdown early so other extensions can override its behavior
+            Markdown.configure({
+                html: true,                 // Allow HTML in markdown (for images)
+                tightLists: true,
+                tightListClass: 'tight',
+                bulletListMarker: '-',
+                linkify: false,
+                transformPastedText: false,
+                transformCopiedText: false,
+            }),
             Bold,
-            Italic, Heading,
-            Strike, Underline,
+            Italic, 
+            Heading,
+            Strike, 
+            Underline,
             Link.configure({
                 openOnClick: false,
-                defaultProtocol: 'https', 
+                protocols: ['https', 'http'],
                 HTMLAttributes: {
                     class: 'text-blue-500 hover:text-blue-700 underline cursor-pointer',
                 },
@@ -46,42 +74,6 @@
                 placeholder: 'Type your text here...',
                 emptyEditorClass: "before:content-[attr(data-placeholder)] before:float-left before:text-[#adb5bd] before:h-0 before:pointer-events-none",
             }),
-            Image.configure({
-                inline: true,
-                allowBase64: false,
-            }),
-            FileHandler.configure({
-                allowedMimeTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/webp'],
-                onDrop: (currentEditor, files, pos) =>  {
-                    files.forEach(async file => {
-                        if (file && file.type.startsWith('image/')) {
-                            try {
-                                const imageUrl = await handleImageUpload(file);
-                                currentEditor.chain().focus().insertContentAt(pos, {
-                                    type: 'image',
-                                    attrs: {
-                                        src: imageUrl,
-                                    }
-                                }).run();
-                            } catch (error) {
-                                console.error('Error uploading image:', error);
-                            }
-                        }
-                    })
-                },
-                onPaste: (currentEditor, files) => {
-                    files.forEach(async file => {
-                    if (file && file.type.startsWith('image/')) {
-                            try {
-                                const imageUrl = await handleImageUpload(file);
-                                currentEditor.chain().focus().setImage({src: imageUrl}).run();
-                            } catch (error) {
-                                console.error('Error uploading image:', error);
-                            }
-                        }
-                    })
-                },
-            }),
             ListItem,
             OrderedList.configure({
                 HTMLAttributes: {
@@ -93,13 +85,6 @@
                     class: 'list-disc pl-5',
                 },
             }),
-            Dropcursor.configure({
-                color: '#3c8dbc',
-                width: 3,
-            }),
-            Text,
-            Paragraph,
-            History,
             Blockquote.configure({
                 HTMLAttributes: {
                     class: 'border-l-2 border-gray-300 pl-4 italic text-gray-600',
@@ -108,21 +93,126 @@
             TextAlign.configure({
                 types: ['heading', 'paragraph'],
             }),
+            History,
+            Dropcursor.configure({
+                color: '#3c8dbc',
+                width: 3,
+            }),
+            // Image extension - load after Markdown to override image handling
+            Image.configure({
+                inline: true,
+                allowBase64: false,
+                HTMLAttributes: {
+                    class: 'max-w-full h-auto',
+                },
+            }),
+            FileHandler.configure({
+                allowedMimeTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/webp'],
+                onDrop: (currentEditor, files, pos) =>  {
+                    console.log('FileHandler onDrop triggered with files:', files);
+                    files.forEach(file => {
+                        console.log('Processing file:', file.name, file.type);
+                        if (file && file.type.startsWith('image/')) {
+                            console.log('Uploading image...');
+                            handleImageUpload(file).then(imageUrl => {
+                                console.log('Image uploaded successfully, URL:', imageUrl);
+                                console.log('Inserting at position:', pos);
+                                
+                                // Try setting image using setImage command instead of insertContentAt
+                                currentEditor
+                                    .chain()
+                                    .focus()
+                                    .setImage({ src: imageUrl })
+                                    .run();
+                                    
+                                console.log('Image insertion command executed');
+                            }).catch(error => {
+                                console.error('Error uploading image:', error);
+                                alert('Failed to upload image. Please try again.');
+                            });
+                        }
+                    });
+                },
+                onPaste: (currentEditor, files, htmlContent) => {
+                    // Only handle if there are actual image files
+                    if (files.length === 0) {
+                        // No files, let other extensions handle the paste (like Markdown)
+                        return false;
+                    }
+                    
+                    files.forEach(file => {
+                        if (file && file.type.startsWith('image/')) {
+                            handleImageUpload(file).then(imageUrl => {
+                                currentEditor.chain().focus().setImage({src: imageUrl}).run();
+                            }).catch(error => {
+                                console.error('Error uploading image:', error);
+                                alert('Failed to upload image. Please try again.');
+                            });
+                        }
+                    });
+                    
+                    return true; // Indicate that we handled the paste
+                },
+            }),
         ],
         editorProps: {
             attributes: {
                 class: 'prose prose-sm sm:prose-base lg:prose-lg xl:prose-2xl m-2 focus:outline-none',
             },
+            handlePaste: (view, event) => {
+                // Check if there are files in the clipboard (images)
+                const files = Array.from(event.clipboardData?.files || []);
+                if (files.length > 0 && files.some(file => file.type.startsWith('image/'))) {
+                    // Let FileHandler extension handle image paste
+                    return false;
+                }
+                
+                // Get the plain text from clipboard
+                const text = event.clipboardData?.getData('text/plain');
+                
+                // If there's text that looks like markdown, insert it as markdown
+                if (text && (
+                    text.match(/^#{1,6}\s/) ||           // Headings
+                    text.includes('**') ||               // Bold
+                    text.includes('__') ||               // Bold alt
+                    text.includes('*') && !text.match(/^\*\s/) ||  // Italic (not just list)
+                    text.match(/^[-*+]\s/m) ||          // Unordered lists
+                    text.match(/^\d+\.\s/m) ||          // Ordered lists
+                    text.includes('[') && text.includes('](') ||  // Links
+                    text.includes('```') ||             // Code blocks
+                    text.includes('`') ||               // Inline code
+                    text.match(/^>\s/m)                 // Blockquotes
+                )) {
+                    // Prevent default paste behavior
+                    event.preventDefault();
+                    
+                    // Insert content as markdown using the editor's markdown manager
+                    const { state } = view;
+                    const { tr } = state;
+                    
+                    try {
+                        // Use insertContent with contentType='markdown'
+                        editor.value?.chain()
+                            .focus()
+                            .insertContent(text, { contentType: 'markdown' })
+                            .run();
+                        
+                        return true; // Handled
+                    } catch (error) {
+                        console.error('Error pasting markdown:', error);
+                        return false; // Fall back to default
+                    }
+                }
+                
+                // For regular text, use default paste behavior
+                return false;
+            },
         },
         onUpdate: ({ editor }) => {
             // Update the content state whenever the editor content changes
             emits('update:content', editor.getHTML());
+            emits('update:markdown', editor.getMarkdown());
         },
-    });
-    const emits = defineEmits(['update:content']);
-    const state = reactive({
-        content: null,
-        counter: 0,
     });
     const props = defineProps({
         buttons: {
@@ -136,16 +226,68 @@
         minHeight: {
             type: String,
             default: '200'
+        },
+        inputFormat: {
+            type: String,
+            default: 'html',  // 'html' or 'markdown'
+            validator: (value) => ['html', 'markdown'].includes(value)
         }
     });
     const buttons = computed(() => props.buttons);
-    watch(() => props.content, (newContent) => {
-        if (editor.value && state.counter === 0) {
-            editor.value.commands.setContent(newContent);
-            state.counter++;
+    
+    // Computed property to detect if current content is markdown format
+    const editorFormat = computed(() => {
+        const content = props.content || '';
+        const isHTML = content.trim().startsWith('<') || content.includes('</');
+        return props.inputFormat === 'markdown' && !isHTML ? 'markdown' : 'html';
+    });
+    
+    // Computed property to determine if view toggle should be available
+    const canToggleView = computed(() => {
+        // Only allow toggle when working with markdown content
+        return props.inputFormat === 'markdown';
+    });
+    
+    // Helper methods to get content in different formats
+    function getMarkdown() {
+        return editor.value?.getMarkdown() || '';
+    }
+    
+    function getHTML() {
+        return editor.value?.getHTML() || '';
+    }
+    
+    // Watch for content changes and update editor
+    watch([() => props.content, editor], ([newContent, editorInstance]) => {
+        // Skip if editor hasn't been created yet or no content
+        if (!editorInstance || !newContent) {
+            return;
+        }
+        
+        // Get current content to compare
+        const currentContent = editorInstance.getHTML();
+        
+        // Only update if content is different to avoid infinite loops
+        if (currentContent === newContent) {
+            return;
+        }
+        
+        // Detect if content is HTML or markdown
+        const isHTML = newContent.trim().startsWith('<') || newContent.includes('</');
+        
+        // Handle content based on actual content type and input format
+        if (props.inputFormat === 'markdown' && !isHTML) {
+            editorInstance.commands.setContent(newContent, { contentType: 'markdown' });
+        } else if (props.inputFormat === 'markdown' && isHTML) {
+            editorInstance.commands.setContent(newContent, { contentType: 'html' });
+        } else {
+            editorInstance.commands.setContent(newContent, { contentType: 'html' });
         }
     }, { immediate: true });
     function setLink() {
+        // Only use window.prompt on client side for SSR compatibility
+        if (!import.meta.client) return;
+        
         if (!editor.value.isActive('link')) {
             const previousUrl = editor.value.getAttributes('link').href;
             const url = window.prompt('URL', previousUrl);
@@ -181,6 +323,9 @@
         }
     }
     function setImage() {
+        // Only use window.prompt on client side for SSR compatibility
+        if (!import.meta.client) return;
+        
         const imageUrl = window.prompt('Image URL');
         if (imageUrl) {
             editor.value.chain().focus().setImage({ src: imageUrl }).run();
@@ -193,12 +338,114 @@
             editor.value.chain().focus().setTextAlign(align).run();
         }
     }
+    
+    // Phase 2 & 4: Toggle view mode function with enhanced sync
+    function toggleViewMode() {
+        if (viewMode.value === 'wysiwyg') {
+            // Switching to markdown view - get current markdown from editor
+            if (editor.value) {
+                try {
+                    markdownContent.value = editor.value.getMarkdown() || '';
+                    viewMode.value = 'markdown';
+                } catch (error) {
+                    console.error('Error getting markdown content:', error);
+                    // Fallback: try to get HTML and show warning
+                    markdownContent.value = '<!-- Error: Could not convert to markdown -->\n' + 
+                                          (editor.value.getHTML() || '');
+                    viewMode.value = 'markdown';
+                }
+            }
+        } else {
+            // Switching back to WYSIWYG - parse markdown back to editor
+            if (editor.value) {
+                try {
+                    // Only update if content has changed
+                    const currentMarkdown = editor.value.getMarkdown() || '';
+                    if (markdownContent.value !== currentMarkdown) {
+                        editor.value.commands.setContent(markdownContent.value || '', { 
+                            contentType: 'markdown' 
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error parsing markdown content:', error);
+                    // Try to set as HTML fallback
+                    try {
+                        editor.value.commands.setContent(markdownContent.value || '', {
+                            contentType: 'html'
+                        });
+                    } catch (htmlError) {
+                        console.error('Error setting content:', htmlError);
+                    }
+                }
+            }
+            viewMode.value = 'wysiwyg';
+        }
+    }
+    
+    // Phase 5: Watch for external content changes when in markdown view
+    watch(() => props.content, (newContent) => {
+        // If in markdown view and content changes externally, update markdown view
+        if (viewMode.value === 'markdown' && editor.value && newContent) {
+            try {
+                // Temporarily set content in editor (hidden) to get markdown
+                const currentHtml = editor.value.getHTML();
+                if (currentHtml !== newContent) {
+                    editor.value.commands.setContent(newContent, { contentType: 'html' });
+                    markdownContent.value = editor.value.getMarkdown() || '';
+                }
+            } catch (error) {
+                console.error('Error syncing markdown view:', error);
+            }
+        }
+    });
+    
+    // Phase 5: Watch markdown content changes and emit updates
+    watch(markdownContent, (newMarkdown) => {
+        // When user edits markdown directly, emit the changes
+        if (viewMode.value === 'markdown' && editor.value) {
+            try {
+                // Parse markdown to HTML for the content emit
+                const tempDiv = document.createElement('div');
+                editor.value.commands.setContent(newMarkdown || '', { contentType: 'markdown' });
+                const html = editor.value.getHTML();
+                emits('update:content', html);
+                emits('update:markdown', newMarkdown);
+            } catch (error) {
+                console.error('Error emitting markdown changes:', error);
+            }
+        }
+    });
+    
+    // Phase 6: Handle tab key in markdown textarea for better UX
+    function handleTabInMarkdown(event) {
+        const textarea = event.target;
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        
+        // Insert tab character (2 spaces for markdown)
+        const spaces = '  ';
+        markdownContent.value = 
+            markdownContent.value.substring(0, start) + 
+            spaces + 
+            markdownContent.value.substring(end);
+        
+        // Move cursor after inserted spaces
+        nextTick(() => {
+            textarea.selectionStart = textarea.selectionEnd = start + spaces.length;
+        });
+    }
+    
     async function handleImageUpload(file) {
-        const token = getAuthToken();
-        const formData = new FormData();
-        formData.append('image', file);
+        const uploadId = Date.now() + Math.random()
+        uploadingImages.value.add(uploadId)
+        
         try {
-            let url = `${baseUrl()}/admin/image/upload`;
+            const token = getAuthToken();
+            const formData = new FormData();
+            formData.append('image', file);
+            
+            const backendUrl = baseUrl();
+            let url = `${backendUrl}/admin/image/upload`;
             const response = await fetch(url, {
                 method: 'POST',
                 headers: {
@@ -207,23 +454,45 @@
                 },
                 body: formData,
             });
+            
             if (!response.ok) {
                 throw new Error('Image upload failed');
             }
+            
             const data = await response.json();
-            return data.url;
+            console.log('Backend response data:', data);
+            
+            // Extract the image URL from the response
+            // Backend returns {urls: [{path: "/backend/public/uploads/filename.png", ...}]}
+            let imagePath;
+            if (data.url) {
+                imagePath = data.url;
+            } else if (data.urls && data.urls.length > 0 && data.urls[0].path) {
+                // Remove '/backend/public' prefix to get just '/uploads/filename.png'
+                imagePath = data.urls[0].path.replace('/backend/public', '');
+            } else if (data.path) {
+                imagePath = data.path.replace('/backend/public', '');
+            }
+            
+            // Construct the full URL with backend base URL
+            const imageUrl = `${backendUrl}${imagePath}`;
+            
+            console.log('Extracted image path:', imagePath);
+            console.log('Full image URL:', imageUrl);
+            return imageUrl;
         } catch (error) {
             console.error('Error uploading image:', error);
             throw error;
+        } finally {
+            uploadingImages.value.delete(uploadId)
         }
     }
     onMounted(() => {
         //set the minimum height of the editor
-        const editorPropsAttributesClass = editor.value.extensionManager.editor.options.editorProps.attributes.class;
-        editor.value.extensionManager.editor.options.editorProps.attributes.class = `min-h-${props.minHeight} ${editorPropsAttributesClass}`;
-        // editor.value.commands.setContent(props.content);
-        // state.content = props.content
-
+        if (editor.value) {
+            const editorPropsAttributesClass = editor.value.options.editorProps.attributes.class;
+            editor.value.options.editorProps.attributes.class = `min-h-${props.minHeight} ${editorPropsAttributesClass}`;
+        }
     });
     onBeforeUnmount(() => {
         // Clean up the editor instance when the component is unmounted
@@ -233,8 +502,15 @@
     });
 </script>
 <template>
-    <div v-if="editor">
-        <div class="flex flex-wrap justify-start">
+    <div v-if="editor" class="relative">
+        <!-- Upload indicator -->
+        <div v-if="uploadingImages.size > 0" 
+             class="absolute top-2 right-2 z-50 bg-blue-500 text-white px-3 py-1 rounded-md text-sm shadow-lg flex items-center gap-2">
+            <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            <span>Uploading image...</span>
+        </div>
+        
+        <div class="flex flex-wrap justify-between items-start">
             <div class="bg-white border border-gray-300 mb-2">
                 <span v-for="button in props.buttons">
                     <button v-if="button === 'bold'" @click="editor.chain().focus().toggleBold().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :class="{ 'bg-gray-200': editor.isActive('bold') }">
@@ -308,7 +584,58 @@
                     </button>
                 </span>
             </div>
+            
+            <!-- Phase 2: View Mode Toggle Button -->
+            <div v-if="canToggleView" class="bg-white border border-gray-300 mb-2 ml-auto">
+                <button 
+                    @click="toggleViewMode" 
+                    class="p-2 m-1 hover:bg-gray-200 cursor-pointer flex items-center gap-2"
+                    :class="{ 'bg-gray-200': viewMode === 'markdown' }"
+                >
+                    <font-awesome :icon="viewMode === 'wysiwyg' ? 'fas fa-code' : 'fas fa-eye'" />
+                    <span class="text-sm">{{ viewMode === 'wysiwyg' ? 'In Markdown Mode' : 'In Editor Mode' }}</span>
+                </button>
+            </div>
         </div>
-        <editor-content :editor="editor" class="text-block-editor-content bg-white p-2 cursor-text border border-solid border-gray-300" />
+        
+        <!-- WYSIWYG Editor View with transition -->
+        <transition name="fade" mode="out-in">
+            <editor-content
+                v-show="viewMode === 'wysiwyg'" 
+                :editor="editor"
+                key="wysiwyg"
+                class="text-block-editor-content bg-white p-2 cursor-text border border-solid border-gray-300 transition-opacity duration-200" 
+            />
+        </transition>
+        
+        <!-- Raw Markdown View with enhanced styling -->
+        <transition name="fade" mode="out-in">
+            <div v-show="viewMode === 'markdown'" key="markdown" class="relative">
+                <textarea
+                    v-model="markdownContent"
+                    class="w-full bg-white p-4 border border-solid border-gray-300 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y transition-all duration-200 leading-relaxed"
+                    :style="{ minHeight: `${props.minHeight}px` }"
+                    placeholder="Markdown content will appear here..."
+                    spellcheck="false"
+                    @keydown.tab.prevent="handleTabInMarkdown"
+                ></textarea>
+                <!-- Phase 6: Helper text for markdown view -->
+                <div class="text-xs text-gray-500 mt-1 px-1">
+                    <span class="mr-3">💡 Tip: Edit markdown directly</span>
+                    <span class="mr-3">• Tab to indent</span>
+                    <span>• Click "Editor" to see formatted view</span>
+                </div>
+            </div>
+        </transition>
     </div>
 </template>
+
+<style scoped>
+/* Phase 6: Smooth transitions */
+.fade-enter-active, .fade-leave-active {
+    transition: opacity 0.2s ease;
+}
+.fade-enter-from, .fade-leave-to {
+    opacity: 0;
+}
+</style>

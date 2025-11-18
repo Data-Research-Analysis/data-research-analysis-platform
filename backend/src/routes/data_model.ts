@@ -23,6 +23,18 @@ async (req: Request, res: Response) => {
         res.status(400).send({message: 'The data model could not be deleted.'});
     }
 });
+router.post('/refresh/:data_model_id', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([param('data_model_id').notEmpty().trim().escape().toInt()]),
+async (req: Request, res: Response) => {
+    const { data_model_id } = matchedData(req);
+    const result = await DataModelProcessor.getInstance().refreshDataModel(data_model_id, req.body.tokenDetails);
+    if (result) {
+        res.status(200).send({message: 'The data model has been refreshed successfully.'});
+    } else {
+        res.status(400).send({message: 'The data model could not be refreshed.'});
+    }
+});
 router.post('/update-data-model-on-query', async (req: Request, res: Response, next: any) => {
     next();
 }, validateJWT, validate([body('data_source_id').notEmpty().trim().escape().toInt(), body('data_model_id').notEmpty().trim().escape().toInt(), body('query').notEmpty().trim(), body('query_json').notEmpty().trim(), body('data_model_name').notEmpty().trim().escape()]),

@@ -4,17 +4,74 @@ const router = useRouter();
 const { $swal } = useNuxtApp();
 const articlesStore = useArticlesStore();
 
+// Fetch categories using SSR-compatible composable
+const { categories, pending: categoriesPending, error: categoriesError } = useCategories();
+
+// SEO Meta Tags for Article Create Page
+useHead({
+    title: 'Create Article - Admin | Data Research Analysis',
+    meta: [
+        { name: 'robots', content: 'noindex, nofollow' }, // Don't index admin pages
+    ]
+});
+
 const state = reactive({
     title: '',
     content: '',
-     keys: [],
+    contentMarkdown: '',  // NEW: Markdown content
     menuFilteredData: [],
 })
+
+// Track unsaved changes
+const hasUnsavedChanges = ref(false)
+const lastSavedContent = ref('')
+
+// Watch for content changes
+watch([() => state.content, () => state.title], () => {
+    if (state.content || state.title) {
+        hasUnsavedChanges.value = true
+    }
+})
+
+// Prevent navigation if unsaved changes
+onBeforeRouteLeave(async (to, from) => {
+    if (hasUnsavedChanges.value) {
+        const result = await $swal.fire({
+            title: 'Unsaved Changes',
+            text: 'You have unsaved changes. Are you sure you want to leave?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Leave',
+            cancelButtonText: 'Stay',
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6'
+        })
+        if (!result.isConfirmed) {
+            return false // Block navigation
+        }
+    }
+})
+
+// Compute categories keys from fetched data
+const categoriesKeys = computed(() => {
+    if (!categories.value) return [];
+    return categories.value.map((category) => ({
+        id: category.id,
+        key: category.title.toLowerCase().replace(/\s+/g, '_'),
+        label: category.title,
+        showValues: true,
+        isChild: false,
+    }));
+});
+
 const filteredCategoriesKeys = computed(() => {
-  return state.keys.filter((item) => item.showValues);
+    return categoriesKeys.value.filter((item) => item.showValues);
 });
 function updateContent(content) {
     state.content = content;
+}
+function updateMarkdown(markdown) {  // NEW
+    state.contentMarkdown = markdown;
 }
 function menuFilteredData(menuData) {
   state.menuFilteredData = menuData;
@@ -35,6 +92,7 @@ async function postData(publishStatus) {
         body: JSON.stringify({
             title: title,
             content: content,
+            content_markdown: state.contentMarkdown,  // NEW: Send markdown
             categories: categories,
             publish_status: publishStatus,
         })
@@ -44,6 +102,7 @@ async function postData(publishStatus) {
 async function publishArticle() {
     const response = await postData("published");
     if (response.status === 200) {
+        hasUnsavedChanges.value = false // Clear unsaved changes flag
         $swal.fire({
             icon: 'success',
             title: `Success! `,
@@ -61,6 +120,9 @@ async function publishArticle() {
 async function saveAsDraft() {
     const response = await postData("draft");
     if (response.status === 200) {
+        hasUnsavedChanges.value = false // Clear unsaved changes flag
+    }
+    if (response.status === 200) {
         $swal.fire({
             icon: 'success',
             title: `Success! `,
@@ -75,16 +137,6 @@ async function saveAsDraft() {
         });
     }
 }
-onMounted(() => {
-    const categories = articlesStore.getCategories();
-    state.keys = categories.map((category) => ({
-        id: category.id,
-        key: category.title.toLowerCase().replace(/\s+/g, '_'),
-        label: category.title,
-        showValues: true,
-        isChild: false,
-    }));
-})
 </script>
 <template>
     <div class="flex flex-row">
@@ -119,8 +171,14 @@ onMounted(() => {
                     />
                 </div>
                 <div class="mb-3">
+                    <div v-if="categoriesPending" class="text-gray-500 p-2">
+                        Loading categories...
+                    </div>
+                    <div v-else-if="categoriesError" class="text-red-500 p-2">
+                        Error loading categories. Please refresh the page.
+                    </div>
                     <multi-select
-                        v-if="filteredCategoriesKeys.length"
+                        v-else-if="filteredCategoriesKeys.length"
                         :options="filteredCategoriesKeys"
                         :default-options="[filteredCategoriesKeys[0]]"
                         :searchable="true"
@@ -129,9 +187,18 @@ onMounted(() => {
                             (filteredData) => menuFilteredData(filteredData)
                         "
                     />
+                    <div v-else class="text-gray-500 p-2">
+                        No categories available.
+                    </div>
                 </div>
                 <div>
-                    <text-editor :buttons="['bold', 'italic', 'heading', 'strike', 'underline', 'link', 'code', 'image', 'ordered-list', 'bullet-list', 'undo', 'redo', 'block-quote']" minHeight="200" @update:content="(content) => { updateContent(content); }" />
+                    <text-editor 
+                        :buttons="['bold', 'italic', 'heading', 'strike', 'underline', 'link', 'code', 'image', 'ordered-list', 'bullet-list', 'undo', 'redo', 'block-quote']" 
+                        minHeight="200" 
+                        inputFormat="markdown"
+                        @update:content="(content) => { updateContent(content); }" 
+                        @update:markdown="(markdown) => { updateMarkdown(markdown); }"
+                    />
                 </div>
             </div>
         </div>

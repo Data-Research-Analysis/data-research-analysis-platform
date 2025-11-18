@@ -1,8 +1,33 @@
 <script setup>
+import { useLoggedInUserStore } from "@/stores/logged_in_user";
+
 const emits = defineEmits(["closeDrawer"]);
 const props = defineProps({
     drawerOpen: Boolean,
-})
+});
+
+const loggedInUserStore = useLoggedInUserStore();
+
+// Get auth token as a reactive reference
+const authToken = useCookie('dra_auth_token');
+
+// Computed property for authentication state based on cookie
+const authenticated = computed(() => {
+    return !!authToken.value;
+});
+
+const loggedInUser = computed(() => {
+    return loggedInUserStore.getLoggedInUser();
+});
+
+const isUserAdmin = computed(() => {
+    return loggedInUser.value?.user_type === 'admin';
+});
+
+const userNameFirstLetter = computed(() => {
+    return loggedInUser.value?.first_name ? loggedInUser.value.first_name.charAt(0).toUpperCase() : '';
+});
+
 function closeDrawer() {
     emits("closeDrawer");
 }
@@ -26,7 +51,9 @@ function closeDrawer() {
                 <img src="/logo-words.svg" class="absolute top-0 -left-1 h-18 lg:h-22 bg-black p-2 pl-5 pr-[130px] logo-fancy"/>     
                 <font-awesome icon="fas fa-times" class="absolute top-18 right-2 text-4xl hover:text-gray-300 cursor-pointer" @click="closeDrawer" />
             </div>
-            <div class="flex flex-col mt-20 ml-2">
+            
+            <!-- Unauthenticated Menu -->
+            <div v-if="!authenticated" class="flex flex-col mt-20 ml-2">
                 <div class="text-xl font-bold hover:text-gray-300 cursor-pointer" @click="closeDrawer">
                     <NuxtLink to="/">Home</NuxtLink>
                 </div>
@@ -42,12 +69,16 @@ function closeDrawer() {
                         </template>
                         <template #dropdownMenu="{ onClick }">
                             <div class="flex flex-col w-40 text-center">
-                                <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer border-b-1 border-primary-blue-100 border-solid pt-1 pb-1">
-                                    <NuxtLink to="/register" @click="closeDrawer">Register</NuxtLink>
-                                </div>
-                                <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer pt-1 pb-1">
-                                    <NuxtLink to="/login" @click="closeDrawer">Login</NuxtLink>
-                                </div>
+                                <template v-if="isPlatformRegistrationEnabled()">
+                                    <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer border-b-1 border-primary-blue-100 border-solid pt-1 pb-1">
+                                        <NuxtLink to="/register" @click="closeDrawer">Register</NuxtLink>
+                                    </div>
+                                </template>
+                                <template v-if="isPlatformLoginEnabled()">
+                                    <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer pt-1 pb-1">
+                                        <NuxtLink to="/login" @click="closeDrawer">Login</NuxtLink>
+                                    </div>
+                                </template>
                             </div>
                         </template>
                     </menu-dropdown>
@@ -58,7 +89,26 @@ function closeDrawer() {
                     <font-awesome icon="fab fa-linkedin" class="ml-5 text-4xl hover:text-gray-300 cursor-pointer" @click="openLinkedin();closeDrawer();"/>
                 </div>
                 <div class="flex flex-row mr-5 mt-5">
-                    <combo-button label="Join Our Wait List" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" @click="gotoJoinWaitList();closeDrawer();"/>
+                    <combo-button label="Join Our Private Beta" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" @click="gotoJoinPrivateBeta();closeDrawer();"/>
+                </div>
+            </div>
+            
+            <!-- Authenticated Menu -->
+            <div v-else class="flex flex-col mt-20 ml-2">
+                <div v-if="isUserAdmin" class="text-xl font-bold hover:text-gray-300 cursor-pointer" @click="closeDrawer">
+                    <NuxtLink to="/admin">Admin</NuxtLink>
+                </div>
+                <div class="text-xl font-bold mt-2 hover:text-gray-300 cursor-pointer" @click="closeDrawer">
+                    <NuxtLink to="/projects">Projects</NuxtLink>
+                </div>
+                <div class="w-3/4 h-1 bg-white m-auto mt-5"></div>
+                <div class="flex flex-row mt-5 items-center">
+                    <div class="flex flex-col justify-center items-center w-10 h-10 bg-gray-200 border border-primary-blue-100 border-solid p-1 rounded-full font-bold text-center text-black">
+                        {{ userNameFirstLetter }}
+                    </div>
+                    <div class="text-xl font-bold ml-3 hover:text-gray-300 cursor-pointer" @click="closeDrawer">
+                        <NuxtLink to="/logout">Logout</NuxtLink>
+                    </div>
                 </div>
             </div>
         </div>

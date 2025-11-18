@@ -38,7 +38,8 @@ const state = reactive({
     scaleHeight: 1,
     show_table_dialog: false,
     sidebar_status: true,
-
+    validation_status: null,
+    show_validation_alert: false,
  });
 const project = computed(() => {
     return projectsStore.getSelectedProject();
@@ -53,11 +54,15 @@ const charts = computed(() => {
     return state.dashboard.charts;
 });
 watch(
-    dashboardsStore,
+    dashboardsStore.selectedDashboard,
     (value, oldValue) => {
-        state.dashboard.charts = dashboardsStore.getSelectedDashboard()?.data?.charts.map((chart) => {
+        const dashboard = dashboardsStore.getSelectedDashboard();
+        const charts = dashboard?.data?.charts || [];
+        
+        state.dashboard.charts = charts.map((chart) => {
             return {
                 ...chart,
+                text_editor: chart.text_editor || { content: '' },
                 config: {
                     drag_enabled: false,
                     resize_enabled: false,
@@ -66,6 +71,7 @@ watch(
             };
         }) || [];
     },
+    { immediate: true }
 )
 async function changeDataModel(event, chartId) {
     const chart = state.dashboard.charts.find((chart) => {
@@ -198,6 +204,7 @@ function deleteChartFromDashboard(chartId) {
     state.dashboard.charts = state.dashboard.charts.filter((chart) => chart.chart_id !== chartId);
     state.selected_chart = null;
 }
+
 function buildSQLQuery(chart) {
     let sqlQuery = '';
     let fromJoinClause = [];
@@ -216,6 +223,7 @@ async function executeQueryOnDataModels(chartId) {
     state.response_from_data_models_rows = [];
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId)
     if (chart) {
+        chart.config.add_columns_enabled = false;
         chart.data = [];
         chart.line_data = [];
         chart.stack_keys = [];
@@ -246,30 +254,37 @@ async function executeQueryOnDataModels(chartId) {
             state.response_from_data_models_rows.forEach((row) =>{
                 const columns_data_types = chart.columns.filter((column, index) => index < 2 && Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
                 columns_data_types.forEach((column, index) => {
-                    if (column.data_type.includes('character varying') ||
-                        column.data_type.includes('varchar') ||
-                        column.data_type.includes('character') ||
-                        column.data_type.includes('char') ||
-                        column.data_type.includes('bpchar') ||
-                        column.data_type.includes('text') ||
-                        column.data_type.includes('USER-DEFINED')
-                    ) {
-                        labelValues.push(row[column.column_name]); 
-                    } else if (
-                            index === 1 && (
-                                column.data_type === 'smallint' ||
-                                column.data_type === 'bigint'  ||
-                                column.data_type === 'integer' ||
-                                column.data_type === 'numeric' ||
-                                column.data_type === 'decimal' || 
-                                column.data_type === 'real' ||
-                                column.data_type === 'double precision' ||
-                                column.data_type === 'small serial' ||
-                                column.data_type === 'serial' ||
-                                column.data_type === 'bigserial'
-                            )
+                    if (index === 0) {
+                        // First column: categorical (label)
+                        if (column.data_type.includes('character varying') ||
+                            column.data_type.includes('varchar') ||
+                            column.data_type.includes('character') ||
+                            column.data_type.includes('char') ||
+                            column.data_type.includes('bpchar') ||
+                            column.data_type.includes('text') ||
+                            column.data_type.includes('USER-DEFINED') ||
+                            column.data_type === 'boolean'
                         ) {
-                        numericValues.push(parseInt(row[column.column_name]));
+                            labelValues.push(row[column.column_name]); 
+                        }
+                    } else if (index === 1) {
+                        // Second column: numerical (value)
+                        if (column.data_type === 'smallint' ||
+                            column.data_type === 'bigint'  ||
+                            column.data_type === 'integer' ||
+                            column.data_type === 'numeric' ||
+                            column.data_type === 'decimal' || 
+                            column.data_type === 'real' ||
+                            column.data_type === 'double precision' ||
+                            column.data_type === 'small serial' ||
+                            column.data_type === 'serial' ||
+                            column.data_type === 'bigserial'
+                        ) {
+                            numericValues.push(parseInt(row[column.column_name]));
+                        } else if (column.data_type === 'boolean') {
+                            // Boolean as numerical: true=1, false=0
+                            numericValues.push(row[column.column_name] ? 1 : 0);
+                        }
                     } else if (
                             index === 2 && (
                                 column.data_type === 'smallint' ||
@@ -299,45 +314,53 @@ async function executeQueryOnDataModels(chartId) {
             state.response_from_data_models_rows.forEach((row) =>{
                 const columns_data_types = chart.columns.filter((column, index) => index < 3 && Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
                 columns_data_types.forEach((column, index) => {
-                    if (column.data_type.includes('character varying') ||
-                        column.data_type.includes('varchar') ||
-                        column.data_type.includes('character') ||
-                        column.data_type.includes('char') ||
-                        column.data_type.includes('bpchar') ||
-                        column.data_type.includes('text') ||
-                        column.data_type.includes('USER-DEFINED')
-                    ) {
-                        labelValues.push(row[column.column_name]); 
-                    } else if (
-                            index === 1 && (
-                                column.data_type === 'smallint' ||
-                                column.data_type === 'bigint'  ||
-                                column.data_type === 'integer' ||
-                                column.data_type === 'numeric' ||
-                                column.data_type === 'decimal' || 
-                                column.data_type === 'real' ||
-                                column.data_type === 'double precision' ||
-                                column.data_type === 'small serial' ||
-                                column.data_type === 'serial' ||
-                                column.data_type === 'bigserial'
-                            )
+                    if (index === 0) {
+                        // First column: categorical (label)
+                        if (column.data_type.includes('character varying') ||
+                            column.data_type.includes('varchar') ||
+                            column.data_type.includes('character') ||
+                            column.data_type.includes('char') ||
+                            column.data_type.includes('bpchar') ||
+                            column.data_type.includes('text') ||
+                            column.data_type.includes('USER-DEFINED') ||
+                            column.data_type === 'boolean'
                         ) {
-                        numericValues.push(parseInt(row[column.column_name]));
-                    } else if (
-                            index === 2 && (
-                                column.data_type === 'smallint' ||
-                                column.data_type === 'bigint'  ||
-                                column.data_type === 'integer' ||
-                                column.data_type === 'numeric' ||
-                                column.data_type === 'decimal' || 
-                                column.data_type === 'real' ||
-                                column.data_type === 'double precision' ||
-                                column.data_type === 'small serial' ||
-                                column.data_type === 'serial' ||
-                                column.data_type === 'bigserial'
-                            )
+                            labelValues.push(row[column.column_name]); 
+                        }
+                    } else if (index === 1) {
+                        // Second column: numerical (bar value)
+                        if (column.data_type === 'smallint' ||
+                            column.data_type === 'bigint'  ||
+                            column.data_type === 'integer' ||
+                            column.data_type === 'numeric' ||
+                            column.data_type === 'decimal' || 
+                            column.data_type === 'real' ||
+                            column.data_type === 'double precision' ||
+                            column.data_type === 'small serial' ||
+                            column.data_type === 'serial' ||
+                            column.data_type === 'bigserial'
                         ) {
-                        numericLineValues.push(parseInt(row[column.column_name]));
+                            numericValues.push(parseInt(row[column.column_name]));
+                        } else if (column.data_type === 'boolean') {
+                            numericValues.push(row[column.column_name] ? 1 : 0);
+                        }
+                    } else if (index === 2) {
+                        // Third column: numerical (line value)
+                        if (column.data_type === 'smallint' ||
+                            column.data_type === 'bigint'  ||
+                            column.data_type === 'integer' ||
+                            column.data_type === 'numeric' ||
+                            column.data_type === 'decimal' || 
+                            column.data_type === 'real' ||
+                            column.data_type === 'double precision' ||
+                            column.data_type === 'small serial' ||
+                            column.data_type === 'serial' ||
+                            column.data_type === 'bigserial'
+                        ) {
+                            numericLineValues.push(parseInt(row[column.column_name]));
+                        } else if (column.data_type === 'boolean') {
+                            numericLineValues.push(row[column.column_name] ? 1 : 0);
+                        }
                     }
                 });
             });
@@ -378,7 +401,7 @@ async function executeQueryOnDataModels(chartId) {
                             column.data_type === 'double precision' ||
                             column.data_type === 'small serial' ||
                             column.data_type === 'serial' ||
-                            column.data_type === 'bigserial'                       
+                            column.data_type === 'bigserial'
                         ) {
                         const stackData = {};
                         const stackKey = column.column_name.replace(/\_/g, ' ');
@@ -388,6 +411,20 @@ async function executeQueryOnDataModels(chartId) {
                         stackData.key = stackKey;
                         stackData.value = parseFloat(row[column.column_name]);
                         stackedValues.push(stackData);
+                    } else if (column.data_type === 'boolean') {
+                        // Boolean can be label if first, otherwise numeric value
+                        if (labelValue === '') {
+                            labelValue = row[column.column_name];
+                        } else {
+                            const stackData = {};
+                            const stackKey = column.column_name.replace(/\_/g, ' ');
+                            if (!chart.stack_keys.includes(stackKey)) {
+                                chart.stack_keys.push(stackKey);
+                            }
+                            stackData.key = stackKey;
+                            stackData.value = row[column.column_name] ? 1 : 0;
+                            stackedValues.push(stackData);
+                        }
                     }
                 });
                 if (labelValue !== '') {
@@ -412,7 +449,8 @@ async function executeQueryOnDataModels(chartId) {
                     column.data_type.includes('char') ||
                     column.data_type.includes('bpchar') ||
                     column.data_type.includes('text') ||
-                    column.data_type.includes('USER-DEFINED')
+                    column.data_type.includes('USER-DEFINED') ||
+                    column.data_type === 'boolean'
                 ) {
                     if (!categoryColumn) {
                         categoryColumn = column;
@@ -514,6 +552,7 @@ async function executeQueryOnDataModels(chartId) {
             }
         }
         chart.stack_keys = _.uniq(chart.stack_keys);
+        chart.config.add_columns_enabled = true;
     }
 }
 async function updateDashboard() {
@@ -545,12 +584,38 @@ async function updateDashboard() {
         });
     }
 }
+async function dismissValidationAlert() {
+    try {
+        const token = getAuthToken();
+        await fetch(
+            `${baseUrl()}/dashboard/clear-validation/${dashboard.value.id}`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+            }
+        );
+        
+        state.show_validation_alert = false;
+        state.validation_status = null;
+    } catch (error) {
+        console.error('Failed to dismiss alert:', error);
+    }
+}
+
 function updateContent(content, chartId) {
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
     if (chart) {
+        if (!chart.text_editor) {
+            chart.text_editor = {};
+        }
         chart.text_editor.content = content;
     }
 }
+
 function toggleDragging(event, chartId) {
     //disable all charts
     state.is_dragging = false;
@@ -876,7 +941,6 @@ async function openTableDialog(chartId) {
 function closeTableDialog() {
     state.show_table_dialog = false
 }
-
 function onChartElementClick(eventData) {
     console.group(`🎯 Chart Click: ${eventData.chartType}`);
     console.log('Chart ID:', eventData.chartId);
@@ -889,29 +953,63 @@ function onChartElementClick(eventData) {
     // Future: Add to analytics/tracking
     // Future: Show detailed drill-down
 }
-async function exportAsWebPage() {
-    console.log('exportAsWebPage');
-    const token = getAuthToken();
-    let url = `${baseUrl()}/dashboard/generate-public-export-link/${dashboard.value.id}`;
-    const response = await fetch(url, {
-        method: "GET",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`,
-            "Authorization-Type": "auth",
-        },
-    });
-    if (response.status === 200) {
-        const data = await response.json();
-        await dashboardsStore.retrieveDashboards();
-        // router.push(`/public-dashboard/${data.key}`);
-        const routeData = router.resolve(`/public-dashboard/${data.key}`);
-        window.open(routeData.href, '_blank');
-    } else {
+async function exportAsWebPage(closeMenu) {
+    console.log('exportAsWebPage called');
+    
+    // Close the menu first
+    if (closeMenu && typeof closeMenu === 'function') {
+        closeMenu();
+    }
+    
+    try {
+        const token = getAuthToken();
+        if (!dashboard.value?.id) {
+            console.error('Dashboard ID is missing');
+            $swal.fire({
+                icon: 'error',
+                title: `Error! `,
+                text: 'Dashboard ID is missing. Please refresh the page and try again.',
+            });
+            return;
+        }
+        
+        let url = `${baseUrl()}/dashboard/generate-public-export-link/${dashboard.value.id}`;
+        console.log('Calling API:', url);
+        
+        const response = await fetch(url, {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`,
+                "Authorization-Type": "auth",
+            },
+        });
+        
+        console.log('Response status:', response.status);
+        
+        if (response.status === 200) {
+            const data = await response.json();
+            console.log('Public link generated:', data);
+            await dashboardsStore.retrieveDashboards();
+            
+            // Construct the public dashboard URL directly without using router
+            const publicDashboardUrl = `${window.location.origin}/public-dashboard/${data.key}`;
+            console.log('Opening public dashboard:', publicDashboardUrl);
+            window.open(publicDashboardUrl, '_blank');
+        } else {
+            console.error('API returned non-200 status:', response.status);
+            $swal.fire({
+                icon: 'error',
+                title: `Error! `,
+                text: 'Unfortunately, we encountered an error! Please refresh the page and try again.',
+            });
+        }
+    } catch (error) {
+        console.error('Error in exportAsWebPage:', error);
         $swal.fire({
             icon: 'error',
             title: `Error! `,
-            text: 'Unfortunately, we encountered an error! Please refresh the page and try again.',
+            text: 'An unexpected error occurred. Please try again.',
         });
     }
 }
@@ -931,8 +1029,11 @@ onMounted(async () => {
             columns: dataModelTable.columns,
         })
     })
-    document.addEventListener('mousedown', mouseDown);
-    document.addEventListener('mouseup', mouseUp);
+    // Only add event listeners on client side for SSR compatibility
+    if (import.meta.client) {
+        document.addEventListener('mousedown', mouseDown);
+        document.addEventListener('mouseup', mouseUp);
+    }
     state.dashboard.charts = dashboard.value?.data?.charts.map((chart) => {
         return {
             ...chart,
@@ -946,16 +1047,18 @@ onMounted(async () => {
 });
 </script>
 <template>
-    <div class="flex flex-row">
-        <sidebar
-            class="w-1/6"
-            :data-models="state.data_model_tables"
-            :selected-chart="state.selected_chart"
-            @add:selectedColumns="(data) => updateDataModel('add', data)"
-            @remove:selectedColumns="(data) => updateDataModel('remove', data)"
-            @toggleSidebar="toggleSidebars"
-        />
-        <div class="flex flex-row" :class="{ 'w-5/6': state.sidebar_status, 'w-full': !state.sidebar_status }">
+    <div>
+        <div v-if="project && dashboard" class="flex flex-row">
+            <div class="w-1/6">
+                <sidebar
+                    :data-models="state.data_model_tables"
+                    :selected-chart="state.selected_chart"
+                    @add:selectedColumns="(data) => updateDataModel('add', data)"
+                    @remove:selectedColumns="(data) => updateDataModel('remove', data)"
+                    @toggleSidebar="toggleSidebars"
+                />
+            </div>
+            <div class="flex flex-row" :class="{ 'w-5/6': state.sidebar_status, 'w-full': !state.sidebar_status }">
             <div class="flex flex-col ml-2 mr-2" :class="{ 'w-5/6': state.sidebar_status, 'w-full': !state.sidebar_status }">
                 <div class="flex flex-row justify-between">
                     <tabs :project-id="project.id" class="mt-6" :class="{ 'ml-10': state.sidebar_status }"/>
@@ -971,16 +1074,79 @@ onMounted(async () => {
                             </template>
                             <template #dropdownMenu="{ onClick }">
                                 <div class="flex flex-col w-40 text-center">
-                                    <div @click="exportAsWebPage">
-                                        <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer border-b-1 border-primary-blue-100 border-solid pt-1 pb-1">
-                                            As Publicly Accessible Web Page
-                                        </div>
+                                    <div @click="exportAsWebPage(onClick)" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer border-b-1 border-primary-blue-100 border-solid pt-1 pb-1">
+                                        As Publicly Accessible Web Page
                                     </div>
                                 </div>
                             </template>
                         </menu-dropdown>
                     </div>
                 </div>
+
+                <!-- Validation Alert Banner -->
+                <div v-if="state.show_validation_alert && state.validation_status?.needs_validation"
+                    class="flex flex-col p-4 mb-4 bg-orange-50 border-l-4 border-orange-500 rounded"
+                    :class="{'ml-10': state.sidebar_status}"
+                >
+                    <div class="flex flex-row justify-between items-start">
+                        <div class="flex flex-row items-start flex-1">
+                            <font-awesome 
+                                icon="fas fa-exclamation-triangle"
+                                class="text-2xl text-orange-500 mt-1 mr-3"
+                            />
+                            <div class="flex flex-col flex-1">
+                                <h3 class="text-lg font-bold text-orange-800 mb-2">Dashboard Needs Update</h3>
+                                <p class="text-sm text-orange-700 mb-3">
+                                    One or more data models used in this dashboard have been refreshed with schema changes. 
+                                    Some charts may have missing columns or data type mismatches.
+                                </p>
+                                
+                                <!-- Validation Issues -->
+                                <div v-if="state.validation_status?.validation_details" class="mb-3">
+                                    <div v-for="issue in state.validation_status.validation_details" :key="issue.chart_id" class="mb-2">
+                                        <p class="text-sm font-semibold text-orange-800">
+                                            Chart "{{ issue.chart_type }}" (ID: {{ issue.chart_id }})
+                                        </p>
+                                        <ul class="ml-4 text-sm text-orange-700">
+                                            <li v-for="col in issue.missing_columns" :key="col" class="list-disc">
+                                                Missing column: <span class="font-mono bg-orange-100 px-1 rounded">{{ col }}</span>
+                                            </li>
+                                            <li v-for="change in issue.type_changes" :key="change.column" class="list-disc">
+                                                Column <span class="font-mono bg-orange-100 px-1 rounded">{{ change.column }}</span> 
+                                                type changed: {{ change.old_type }} → {{ change.new_type }}
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
+
+                                <!-- Action Buttons -->
+                                <div class="flex flex-row gap-3">
+                                    <button
+                                        @click="updateDashboard"
+                                        class="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded text-sm"
+                                    >
+                                        Update Dashboard Now
+                                    </button>
+                                    <button
+                                        @click="dismissValidationAlert"
+                                        class="px-4 py-2 bg-white hover:bg-gray-100 text-orange-700 font-semibold rounded border border-orange-500 text-sm"
+                                    >
+                                        Dismiss Alert
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Close Button -->
+                        <button
+                            @click="state.show_validation_alert = false"
+                            class="ml-4 text-orange-500 hover:text-orange-700"
+                        >
+                            <font-awesome icon="fas fa-times" class="text-xl" />
+                        </button>
+                    </div>
+                </div>
+
                 <div class="flex flex-col min-h-200 max-h-200 h-200 overflow-hidden overflow-x-auto mr-2 mb-10 border border-primary-blue-100 border-solid bg-gray-300"
                     :class="{'ml-10': state.sidebar_status}"
                 >                    
@@ -1227,8 +1393,20 @@ onMounted(async () => {
                                         </div>
                                     </template>
                                 </draggable>
-                                <div v-else :id="`draggable-${chart.chart_id}`" class="bg-gray-200 border border-3 border-gray-600 border-t-0">
-                                    <text-editor :id="`chart-${chart.chart_id}`" :buttons="['bold', 'italic', 'heading', 'strike', 'underline']" minHeight="10" :content="chart.text_editor.content" @update:content="(content) => { updateContent(content, chart.chart_id); }" />
+                                <div 
+                                    v-else 
+                                    :id="`draggable-${chart.chart_id}`" 
+                                    class="bg-gray-200 border border-3 border-gray-600 border-t-0"
+                                    :style="`width: ${chart.dimensions.widthDraggable}; height: ${chart.dimensions.heightDraggable};`"
+                                >
+                                    <text-editor 
+                                        :id="`chart-${chart.chart_id}`" 
+                                        :buttons="['bold', 'italic', 'heading', 'strike', 'underline']" 
+                                        :minHeight="String(parseInt(chart.dimensions.heightDraggable.replace('px', '')) - 20)" 
+                                        :content="chart.text_editor.content"
+                                        inputFormat="wysiwyg" 
+                                        @update:content="(content) => { updateContent(content, chart.chart_id); }" 
+                                    />
                                 </div>
                             </div>
                             <div class="flex flex-row justify-between bottom-corners">
@@ -1314,8 +1492,17 @@ onMounted(async () => {
             </div>
         </div>
         <img src="/assets/images/resize-corner.svg" id="corner-image" class="bottom-right-corner-resize w-[15px] select-none hidden" alt="Resize Visualization" />
-    </div>
-    <overlay-dialog v-if="state.show_table_dialog" :enable-scrolling="false" @close="closeTableDialog">
+        </div>
+        
+        <!-- Loading state when project or dashboard not loaded -->
+        <div v-else class="flex items-center justify-center min-h-screen">
+            <div class="text-center">
+                <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-blue-500 mb-4"></div>
+                <p class="text-gray-600">Loading dashboard...</p>
+            </div>
+        </div>
+        
+        <overlay-dialog v-if="state.show_table_dialog" :enable-scrolling="false" @close="closeTableDialog">
         <template #overlay>
             <div class="flex flex-col w-full max-w-7xl h-full max-h-[85vh] p-5 overflow-hidden">
                 <h2 class="mb-4 text-xl font-bold text-gray-800">Data Model Table Data</h2>
@@ -1346,4 +1533,5 @@ onMounted(async () => {
             </div>
         </template>
     </overlay-dialog>
+    </div>
 </template>

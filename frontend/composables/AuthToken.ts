@@ -3,26 +3,37 @@
  * @param token 
  */
 import { useLoggedInUserStore } from "@/stores/logged_in_user";
+
 export function setAuthToken(token: string) {
-    const d = new Date();
-    d.setTime(d.getTime() + (3 * 24 * 60 * 60 * 1000));//expire in 3 days
-    document.cookie = `dra_auth_token=${token}; expires=${d.toUTCString()}; path=/; samesite=strict;`;
+    // Use Nuxt's useCookie for SSR compatibility
+    const authCookie = useCookie('dra_auth_token', {
+        maxAge: 3 * 24 * 60 * 60, // 3 days in seconds
+        path: '/',
+        sameSite: 'strict'
+    });
+    authCookie.value = token;
 }
+
 export function getAuthToken() {
-    const cookies = document.cookie.split(';')
-    return cookies.find(cookie => {
-        if (cookie.split('=')[0].includes('dra_auth_token')) {
-            return cookie;
-        }
-    })?.split('=')[1]
+    // Use Nuxt's useCookie for SSR compatibility
+    const authCookie = useCookie('dra_auth_token');
+    return authCookie.value || undefined;
 }
+
 export function deleteAuthToken() {
     const loggedInUserStore = useLoggedInUserStore();
     loggedInUserStore.clearUserPlatform();
-    document.cookie = "dra_auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-    localStorage.clear();
-
+    
+    // Clear cookie using Nuxt's useCookie
+    const authCookie = useCookie('dra_auth_token');
+    authCookie.value = null;
+    
+    // Clear localStorage only on client side
+    if (import.meta.client) {
+        localStorage.clear();
+    }
 }
+
 export function isAuthenticated() {
     return getAuthToken() ? true : false;
 }

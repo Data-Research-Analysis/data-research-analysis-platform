@@ -51,6 +51,35 @@ export class WorkerService {
                     for (let i = 0; i < imageFiles.length; i++) {
                         await QueueService.getInstance().addTextExtractionJob(imageFiles[i]);
                     }
+                } else if (message && message.message === EOperation.DATABASE_BACKUP_COMPLETE) {
+                    socketEvent = ISocketEvent.DATABASE_BACKUP_COMPLETE;
+                    const data = { 
+                        backup_file: message.backupFile, 
+                        backup_id: message.backupId,
+                        backup_size: message.size,
+                        timestamp: message.timestamp,
+                        operation 
+                    };
+                    console.log('Emitting event:', socketEvent, data);
+                    await SocketIODriver.getInstance().emitEvent(socketEvent, JSON.stringify(data));
+                } else if (message && message.message === EOperation.DATABASE_RESTORE_PROGRESS) {
+                    socketEvent = ISocketEvent.DATABASE_RESTORE_PROGRESS;
+                    const data = { 
+                        progress: message.progress, 
+                        status: message.status,
+                        operation 
+                    };
+                    console.log('Emitting event:', socketEvent, data);
+                    await SocketIODriver.getInstance().emitEvent(socketEvent, JSON.stringify(data));
+                } else if (message && message.message === EOperation.DATABASE_RESTORE_COMPLETE) {
+                    socketEvent = ISocketEvent.DATABASE_RESTORE_COMPLETE;
+                    const data = { 
+                        success: message.success, 
+                        message: message.resultMessage,
+                        operation 
+                    };
+                    console.log('Emitting event:', socketEvent, data);
+                    await SocketIODriver.getInstance().emitEvent(socketEvent, JSON.stringify(data));
                 }
             });
             worker.on('error', (error) => {

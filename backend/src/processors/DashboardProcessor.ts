@@ -2,7 +2,7 @@ import _ from "lodash";
 import { DBDriver } from "../drivers/DBDriver.js";
 import { ITokenDetails } from "../types/ITokenDetails.js";
 import { DRADashboard } from "../models/DRADashboard.js";
-import { IDashboard } from "../types/IDashboard.js";
+import { IDashboardDataStructure } from "../types/IDashboard.js";
 import { EDataSourceType } from "../types/EDataSourceType.js";
 import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
 import { DRAProject } from "../models/DRAProject.js";
@@ -36,12 +36,12 @@ export class DashboardProcessor {
             if (!user) {
                 return resolve([]);
             }
-            const dataModels = await manager.find(DRADashboard, {where: {users_platform: user}, relations: ['project', 'users_platform', 'export_meta_data']});
-            return resolve(dataModels);
+            const dashboards = await manager.find(DRADashboard, {where: {users_platform: user}, relations: ['project', 'users_platform', 'export_meta_data']});
+            return resolve(dashboards);
         });
     }
 
-    async addDashboard(projectId: number, data: IDashboard, tokenDetails: ITokenDetails): Promise<boolean> {
+    async addDashboard(projectId: number, data: IDashboardDataStructure, tokenDetails: ITokenDetails): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -74,7 +74,7 @@ export class DashboardProcessor {
             }
         });
     }
-    async updateDashboard(dashboardId: number, projectId: number, data: IDashboard, tokenDetails: ITokenDetails): Promise<boolean> {
+    async updateDashboard(dashboardId: number, projectId: number, data: IDashboardDataStructure, tokenDetails: ITokenDetails): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -98,13 +98,8 @@ export class DashboardProcessor {
                 return resolve(false);
             }
             try {
-                // const dashboard = new DRADashboard();
-                // dashboard.project = project;
-                // dashboard.users_platform = user;
-                // dashboard.data = data;
-                // await manager.save(dashboard);
-
-                await manager.update(DRADashboard, {id: dashboardId}, {data: data});
+                // TypeScript workaround for TypeORM deep partial type
+                await manager.update(DRADashboard, {id: dashboardId}, {data: data as any});
                 return resolve(true);
             } catch (error) {
                 console.log('error', error);

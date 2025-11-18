@@ -1,0 +1,282 @@
+<script setup>
+import { useReCaptcha } from "vue-recaptcha-v3";
+import { useDataSourceStore } from '@/stores/data_sources';
+const dataSourceStore = useDataSourceStore();
+const recaptcha = useReCaptcha();
+
+const { $swal } = useNuxtApp();
+const route = useRoute();
+const router = useRouter();
+const state = reactive({
+    dataSource: null,
+    host: '',
+    port: '',
+    schema: '',
+    database_name: '',
+    username: '',
+    password: '',
+    host_error: false,
+    port_error: false,
+    schema_error: false,
+    database_name_error: false,
+    username_error: false,
+    password_error: false,
+    loading: false,
+    showAlert: false,
+    errorMessages: [],
+    connectionSuccess: false,
+    showPassword: false,
+})
+
+async function loadDataSource() {
+    state.loading = true;
+    const dataSources = dataSourceStore.getDataSources();
+    const dataSourceId = parseInt(route.params.datasourceid);
+    state.dataSource = dataSources.find(ds => ds.id === dataSourceId);
+    
+    if (state.dataSource && state.dataSource.connection_details) {
+        // Pre-populate form with existing values
+        state.host = state.dataSource.connection_details.host || '';
+        state.port = state.dataSource.connection_details.port?.toString() || '';
+        state.schema = state.dataSource.connection_details.schema || '';
+        state.database_name = state.dataSource.connection_details.database || '';
+        state.username = state.dataSource.connection_details.username || '';
+        // Don't pre-populate password for security
+        state.password = '';
+    }
+    state.loading = false;
+}
+
+function validateFields() {
+    state.errorMessages = [];
+    if (!validate(state.host, "", [validateRequired])) {
+        state.host_error = true;
+        state.errorMessages.push("Please enter a valid host.");
+    } else {
+        state.host_error = false;
+    }
+    if (!validate(state.port, "", [validateRequired])) {
+        state.port_error = true;
+        state.errorMessages.push("Please enter a valid port.");
+    } else {
+        state.port_error = false;
+    }
+    if (!validate(state.schema, "", [validateRequired])) {
+        state.schema_error = true;
+        state.errorMessages.push("Please enter a valid schema.");
+    } else {
+        state.schema_error = false;
+    }
+    if (!validate(state.database_name, "", [validateRequired])) {
+        state.database_name_error = true;
+        state.errorMessages.push("Please enter a valid database name.");
+    } else {
+        state.database_name_error = false;
+    }
+    if (!validate(state.username, "", [validateRequired])) {
+        state.username_error = true;
+        state.errorMessages.push("Please enter a valid username.");
+    } else {
+        state.username_error = false;
+    }
+    if (!validate(state.password, "", [validateRequired])) {
+        state.password_error = true;
+        state.errorMessages.push("Please enter a valid password.");
+    } else {
+        state.password_error = false;
+    }
+}
+
+async function testConnection() {
+    state.loading = true;
+    state.showAlert = false;
+    state.errorMessages = [];
+    validateFields();
+    if (state.host_error || state.port_error || state.database_name_error || state.username_error || state.password_error) {
+        state.showAlert = true;
+        state.loading = false;
+    } else {
+        const recaptchaToken = await getRecaptchaToken(recaptcha, 'postgresEditForm');
+        const token = getAuthToken();
+        if (recaptchaToken) {
+            const requestOptions = {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+                body: JSON.stringify({
+                    data_source_type: "postgresql",
+                    host: state.host,
+                    port: state.port,
+                    schema: state.schema,
+                    database_name: state.database_name,
+                    username: state.username,
+                    password: state.password,
+                }),
+            };
+            const response = await fetch(`${baseUrl()}/data-source/test-connection`, requestOptions);
+            if (response.status === 200) {
+                state.connectionSuccess = true;
+                state.showAlert = true;
+                const data = await response.json();
+                state.errorMessages.push("Connection successful!");
+            } else {
+             state.connectionSuccess = false;
+                state.showAlert = true;
+                const data = await response.json();
+                state.errorMessages.push(data.message);
+            }
+        }
+    }
+    state.loading = false;
+}
+
+async function updateDataSource() {
+    state.loading = true;
+    state.showAlert = false;
+    state.errorMessages = [];
+    validateFields();
+    if (state.host_error || state.port_error || state.database_name_error || state.username_error || state.password_error) {
+        state.showAlert = true;
+        state.loading = false;
+        return;
+    }
+    
+    const recaptchaToken = await getRecaptchaToken(recaptcha, 'postgresEditForm');
+    const token = getAuthToken();
+    if (recaptchaToken) {
+        const requestOptions = {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`,
+                "Authorization-Type": "auth",
+            },
+            body: JSON.stringify({
+                data_source_type: "postgresql",
+                host: state.host,
+                port: state.port,
+                schema: state.schema,
+                database_name: state.database_name,
+                username: state.username,
+                password: state.password,
+            }),
+        };
+        const response = await fetch(`${baseUrl()}/data-source/update-data-source/${route.params.datasourceid}`, requestOptions);
+        if (response.status === 200) {
+            state.connectionSuccess = true;
+            state.showAlert = true;
+            const data = await response.json();
+            state.errorMessages.push(data.message);
+            await dataSourceStore.retrieveDataSources();
+            setTimeout(() => {
+                router.push(`/projects/${route.params.projectid}/data-sources`);
+            }, 2000);
+        } else {
+            state.connectionSuccess = false;
+            state.showAlert = true;
+            const data = await response.json();
+            state.errorMessages.push(data.message);
+            state.loading = false;
+        }
+    } else {
+        state.loading = false;
+    }
+}
+
+onMounted(async () => {
+    await loadDataSource();
+})
+</script>
+<template>
+    <div class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md">
+        <div class="font-bold text-2xl mb-5">
+            Edit PostgreSQL Data Source
+        </div>
+        <div class="text-md mb-10">
+            Update the connection details for your PostgreSQL data source. You must re-enter the password to update.
+        </div>
+        <div v-if="state.showAlert"
+            class="w-3/4 self-center text-lg p-5 mb-5 font-bold text-black"
+            :class="{ 'bg-green-400': state.connectionSuccess, 'bg-red-400': !state.connectionSuccess }">
+            <div v-if="state.connectionSuccess" class="text-2xl">Success!</div>
+            <div v-else class="text-2xl">Error!</div>
+            <template v-for="message in state.errorMessages">
+                <div>{{ message }}</div>
+            </template>
+        </div>
+        <input
+            v-model="state.host"
+            type="text"
+            class="self-center w-1/2 p-5 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md"
+            :class="!state.host_error ? '' : 'bg-red-300 text-black'"
+            placeholder="Host"
+            :disabled="state.loading"
+        />
+        <input
+            v-model="state.port"
+            type="text"
+            class="self-center w-1/2 p-5 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md"
+            :class="!state.port_error ? '' : 'bg-red-300 text-black'"
+            placeholder="Port"
+            :disabled="state.loading"
+        />
+        <input
+            v-model="state.schema"
+            type="text"
+            class="self-center w-1/2 p-5 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md"
+            :class="!state.schema_error ? '' : 'bg-red-300 text-black'"
+            placeholder="Schema"
+            :disabled="state.loading"
+        />
+        <input
+            v-model="state.database_name"
+            type="text"
+            class="self-center w-1/2 p-5 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md"
+            :class="!state.database_name_error ? '' : 'bg-red-300 text-black'"
+            placeholder="Database Name"
+            :disabled="state.loading"
+        />
+        <input
+            v-model="state.username"
+            type="text"
+            class="self-center w-1/2 p-5 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md"
+            :class="!state.username_error ? '' : 'bg-red-300 text-black'"
+            placeholder="Username"
+            :disabled="state.loading"
+        />
+        <div class="relative self-center w-1/2">
+            <input
+                v-model="state.password"
+                :type="state.showPassword ? 'text' : 'password'"
+                class="w-full p-5 pr-12 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md"
+                :class="!state.password_error ? '' : 'bg-red-300 text-black'"
+                placeholder="Password (required to update)"
+                :disabled="state.loading"
+            />
+            <button
+                type="button"
+                @click="state.showPassword = !state.showPassword"
+                class="absolute right-3 top-5 text-gray-600 hover:text-gray-800"
+                :disabled="state.loading">
+                <font-awesome :icon="state.showPassword ? 'fas fa-eye-slash' : 'fas fa-eye'" class="text-lg cursor-pointer" />
+            </button>
+        </div>
+        <div class="flex flex-row self-center w-1/2 gap-5">
+            <div
+                @click="!state.loading && testConnection()"
+                class="h-10 text-center items-center self-center mt-5 mb-5 p-2 font-bold shadow-md select-none bg-gray-500 hover:bg-gray-600 cursor-pointer text-white flex-1"
+                :class="{ 'opacity-50 cursor-not-allowed': state.loading }">
+                Test Connection
+            </div>
+            <div
+                @click="!state.loading && updateDataSource()"
+                class="h-10 text-center items-center self-center mt-5 mb-5 p-2 font-bold shadow-md select-none bg-primary-blue-100 hover:bg-primary-blue-200 cursor-pointer text-white flex-1"
+                :class="{ 'opacity-50 cursor-not-allowed': state.loading }">
+                Update Data Source
+            </div>
+        </div>
+    </div>
+</template>

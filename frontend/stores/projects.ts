@@ -3,22 +3,24 @@ import type { IProject } from '~/types/IProject';
 export const useProjectsStore = defineStore('projectsDRA', () => {
     const projects = ref<IProject[]>([])
     const selectedProject = ref<IProject>()
-
-    if (localStorage.getItem('projects')) {
-        projects.value = JSON.parse(localStorage.getItem('projects') || '[]')
-    }
-    if (localStorage.getItem('selectedProject')) {
-        selectedProject.value = JSON.parse(localStorage.getItem('selectedProject') || 'null')
-    }
+    
     function setProjects(projectsList: IProject[]) {
         projects.value = projectsList
-        localStorage.setItem('projects', JSON.stringify(projectsList))
+        if (import.meta.client) {
+            localStorage.setItem('projects', JSON.stringify(projectsList));
+            enableRefreshDataFlag('setProjects');
+        }
     }
     function setSelectedProject(project: IProject) {
         selectedProject.value = project
-        localStorage.setItem('selectedProject', JSON.stringify(project))
+        if (import.meta.client) {
+            localStorage.setItem('selectedProject', JSON.stringify(project));
+        }
     }
     function getProjects() {
+        if (import.meta.client && localStorage.getItem('projects')) {
+            projects.value = JSON.parse(localStorage.getItem('projects') || '[]')
+        }
         return projects.value;
     }
     async function retrieveProjects() {
@@ -40,15 +42,23 @@ export const useProjectsStore = defineStore('projectsDRA', () => {
         setProjects(data)
     }
     function getSelectedProject() {
+        if (import.meta.client && localStorage.getItem('selectedProject')) {
+            selectedProject.value = JSON.parse(localStorage.getItem('selectedProject') || 'null')
+        }
         return selectedProject.value
     }
     function clearProjects() {
         projects.value = []
-        localStorage.removeItem('projects')
+        if (import.meta.client) {
+            localStorage.removeItem('projects');
+            enableRefreshDataFlag('clearProjects');
+        }
     }
     function clearSelectedProject() {
         selectedProject.value = undefined
-        localStorage.removeItem('selectedProject')
+        if (import.meta.client) {
+            localStorage.removeItem('selectedProject');
+        }
     }
     return {
         projects,

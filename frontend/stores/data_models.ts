@@ -5,32 +5,37 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
     const dataModels = ref<IDataModel[]>([])
     const selectedDataModel = ref<IDataModel>()
     const dataModelTables = ref<IDataModelTable[]>([])
-    
-    if (localStorage.getItem('dataModels')) {
-        dataModels.value = JSON.parse(localStorage.getItem('dataModels') || '[]');
-    }
-    if (localStorage.getItem('selectedDataModel')) {
-        selectedDataModel.value = JSON.parse(localStorage.getItem('selectedDataModel') || 'null');
-    }
-    if (localStorage.getItem('dataModelTables')) {
-        dataModelTables.value = JSON.parse(localStorage.getItem('dataModelTables') || 'null');
-    }
+
     function setDataModels(dataModelsList: IDataModel[]) {
         dataModels.value = dataModelsList;
-        localStorage.setItem('dataModels', JSON.stringify(dataModelsList));
+        if (import.meta.client) {
+            localStorage.setItem('dataModels', JSON.stringify(dataModelsList));
+            enableRefreshDataFlag('setDataModels');
+        }
     }
     function setSelectedDataModel(dataModel: IDataModel) {
         selectedDataModel.value = dataModel;
-        localStorage.setItem('selectedDataModel', JSON.stringify(dataModel));
+        if (import.meta.client) {
+            localStorage.setItem('selectedDataModel', JSON.stringify(dataModel));
+        }
     }
     function setDataModelTables(dataModelTablesList: IDataModelTable[]) {
         dataModelTables.value = dataModelTablesList;
-        localStorage.setItem('dataModelTables', JSON.stringify(dataModelTablesList));
+        if (import.meta.client) {
+            localStorage.setItem('dataModelTables', JSON.stringify(dataModelTablesList));
+            enableRefreshDataFlag('setDataModelTables');
+        }
     }
     function getDataModels() {
+        if (import.meta.client && localStorage.getItem('dataModels')) {
+            dataModels.value = JSON.parse(localStorage.getItem('dataModels') || '[]');
+        }
         return dataModels.value;
     }
     function getDataModelTables() {
+        if (import.meta.client && localStorage.getItem('dataModelTables')) {
+            dataModelTables.value = JSON.parse(localStorage.getItem('dataModelTables') || '[]');
+        }
         return dataModelTables.value;
     }
     async function retrieveDataModels() {
@@ -74,15 +79,23 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         setDataModelTables(data);
     }
     function getSelectedDataModel() {
+        if (import.meta.client && localStorage.getItem('selectedDataModel')) {
+            selectedDataModel.value = JSON.parse(localStorage.getItem('selectedDataModel') || 'null');
+        }
         return selectedDataModel.value
     }
     function clearDataModels() {
         dataModels.value = []
-        localStorage.removeItem('dataModels')
+        if (import.meta.client) {
+            localStorage.removeItem('dataModels');
+            enableRefreshDataFlag('clearDataModels');
+        }
     }
     function clearSelectedDataModel() {
         selectedDataModel.value = undefined
-        localStorage.removeItem('selectedDataModel')
+        if (import.meta.client) {
+            localStorage.removeItem('selectedDataModel');
+        }
     }
     
     return {

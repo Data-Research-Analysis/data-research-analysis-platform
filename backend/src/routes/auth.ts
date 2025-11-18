@@ -96,6 +96,30 @@ router.get('/validate-token', async (req: Request, res: Response, next: any) => 
 });
 
 /**
+ * This route is used to get the current authenticated user's information
+ */
+router.get('/me', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, async (req: Request, res: Response) => {
+    try {
+        console.log('req.body:', req.body);
+        const userId = req?.body?.tokenDetails?.user_id || null; // Set by validateJWT middleware
+        if (!userId) {
+            return res.status(401).send({message: 'User not authenticated'});
+        }
+        
+        const user = await AuthProcessor.getInstance().getUserById(userId);
+        if (user) {
+            res.status(200).send(user);
+        } else {
+            res.status(404).send({message: 'User not found'});
+        }
+    } catch (error) {
+        res.status(500).send({message: 'Error fetching user information'});
+    }
+});
+
+/**
  * This route is used to request a password change
  */
 router.post('/password-change-request', async (req: Request, res: Response, next: any) => {

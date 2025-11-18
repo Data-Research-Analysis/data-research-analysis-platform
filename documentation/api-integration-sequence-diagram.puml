@@ -339,4 +339,174 @@ else Within Limits
     note right: Normal API flow continues
 end
 
+== Project Deletion with Cascade ==
+
+Frontend -> Router: DELETE /api/project/{projectId}\nAuthorization: Bearer {JWT}
+activate Router
+
+Router -> AuthMiddleware: Validate JWT
+activate AuthMiddleware
+AuthMiddleware --> Router: User authenticated
+deactivate AuthMiddleware
+
+Router -> Processor: ProjectProcessor.deleteProject(projectId, tokenDetails)
+activate Processor
+
+Processor -> Database: Find project with relations
+activate Database
+Database --> Processor: Project + data_sources + data_models
+deactivate Database
+
+Processor -> Processor: Begin transaction
+
+loop For each data source
+    Processor -> Database: Get data models for data source
+    Database --> Processor: Data model list
+    
+    loop For each data model
+        Processor -> Database: DROP TABLE schema.table_name
+        note right: Physical table removal
+        Database --> Processor: Table dropped
+    end
+    
+    alt Data source is Excel schema
+        Processor -> Database: DROP SCHEMA IF EXISTS dra_excel_{id}
+        Database --> Processor: Schema dropped
+    end
+end
+
+Processor -> Database: Delete project (cascades to data_sources, dashboards)
+note right: TypeORM cascade: ["remove", "update"]
+Database --> Processor: Project and related entities deleted
+
+Processor -> Processor: Commit transaction
+
+Processor --> Router: true (success)
+deactivate Processor
+
+Router --> Frontend: HTTP 200 OK
+deactivate Router
+
+Frontend -> Frontend: Update project list
+Frontend -> Frontend: Navigate to projects page
+
+== Data Source Creation with Encryption ==
+
+Frontend -> Router: POST /api/data-source\nAuthorization: Bearer {JWT}\nBody: { connection_details, project_id }
+activate Router
+
+Router -> AuthMiddleware: Validate JWT
+AuthMiddleware --> Router: User authenticated
+
+Router -> Processor: DataSourceProcessor.addDataSource(connection, tokenDetails, projectId)
+activate Processor
+
+Processor -> Processor: Test connection to external database
+note right: Verify credentials work
+
+Processor -> External: Connect with credentials
+activate External
+External --> Processor: Connection successful
+deactivate External
+
+Processor -> Processor: Create DRADataSource entity
+note right: Set connection_details field
+
+Processor -> Database: Save data source
+activate Database
+
+Database -> Database: connectionDetailsTransformer.to()
+note right: Automatic encryption via ValueTransformer\nAlgorithm: aes-256-cbc
+
+Database -> Database: Encrypt connection_details JSON
+Database -> Database: Store encrypted string in database
+
+Database --> Processor: Data source saved with encrypted details
+deactivate Database
+
+Processor --> Router: true (success)
+deactivate Processor
+
+Router --> Frontend: HTTP 200 OK + data source ID
+deactivate Router
+
+Frontend -> Frontend: Refresh data sources list
+
+== Data Source Retrieval with Decryption ==
+
+Frontend -> Router: GET /api/data-source/{id}\nAuthorization: Bearer {JWT}
+activate Router
+
+Router -> Processor: DataSourceProcessor.getDataSources(tokenDetails)
+activate Processor
+
+Processor -> Database: Find data sources by user
+activate Database
+
+Database -> Database: SELECT * FROM dra_data_sources
+Database -> Database: connectionDetailsTransformer.from()
+note right: Automatic decryption via ValueTransformer
+
+Database -> Database: Decrypt connection_details
+Database -> Database: Parse JSON and return object
+
+Database --> Processor: Data sources with decrypted connection_details
+deactivate Database
+
+Processor --> Router: Data source array
+deactivate Processor
+
+Router --> Frontend: HTTP 200 OK + data sources (decrypted)
+deactivate Router
+
+Frontend -> Frontend: Display data source configurations
+note right: connection_details are now plain objects
+
+== Token Validation with TokenProcessor ==
+
+Frontend -> Router: GET /api/protected-resource\nAuthorization: Bearer {JWT}
+activate Router
+
+Router -> AuthMiddleware: Validate request
+activate AuthMiddleware
+
+AuthMiddleware -> Processor: TokenProcessor.validateToken(token)
+activate Processor
+
+Processor -> Processor: Verify JWT signature
+Processor -> Processor: Check expiration time
+Processor -> Processor: Validate token structure
+
+alt Token valid
+    Processor --> AuthMiddleware: true
+    
+    AuthMiddleware -> Processor: TokenProcessor.getTokenDetails(token)
+    Processor -> Processor: Decode JWT payload
+    Processor --> AuthMiddleware: { user_id, email, iat, exp }
+    
+    AuthMiddleware -> Database: Verify user exists
+    Database --> AuthMiddleware: User found
+    
+    AuthMiddleware --> Router: Token valid, user context attached
+    deactivate AuthMiddleware
+    deactivate Processor
+    
+    Router -> Processor: Process business logic
+    Router --> Frontend: HTTP 200 OK + data
+    
+else Token invalid or expired
+    Processor --> AuthMiddleware: false
+    deactivate Processor
+    
+    AuthMiddleware --> Router: HTTP 401 Unauthorized
+    deactivate AuthMiddleware
+    
+    Router --> Frontend: HTTP 401 Unauthorized
+    
+    Frontend -> Frontend: Clear stored token
+    Frontend -> Frontend: Redirect to login
+end
+
+deactivate Router
+
 @enduml

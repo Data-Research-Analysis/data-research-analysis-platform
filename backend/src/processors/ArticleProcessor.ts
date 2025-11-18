@@ -50,7 +50,7 @@ export class ArticleProcessor {
         });
     }
 
-    async addArticle(title: string, content: string, publishStatus: EPublishStatus, categories: any[], tokenDetails: ITokenDetails): Promise<boolean> {
+    async addArticle(title: string, content: string, contentMarkdown: string | undefined, publishStatus: EPublishStatus, categories: any[], tokenDetails: ITokenDetails): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -69,6 +69,7 @@ export class ArticleProcessor {
                 const article = new DRAArticle();
                 article.title = title;
                 article.content = content;
+                article.content_markdown = contentMarkdown;
                 article.publish_status = publishStatus;
                 article.slug = _.kebabCase(title).substring(0,100); // Generate a slug from the title
                 article.users_platform = user;
@@ -120,6 +121,29 @@ export class ArticleProcessor {
         });
     }
 
+    async unpublishArticle(articleId: number, tokenDetails: ITokenDetails): Promise<boolean> {
+        return new Promise<boolean>(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            const manager = (await driver.getConcreteDriver()).manager;
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!user) {
+                return resolve(false);
+            }
+            try {
+                const article = await manager.findOne(DRAArticle, {where: {id: articleId}});
+                if (!article) {
+                    return resolve(false);
+                }
+                await manager.update(DRAArticle, {id: articleId}, {publish_status: EPublishStatus.DRAFT});                
+                return resolve(true);
+            } catch (error) {
+                console.log('error', error);
+                return resolve(error);
+            }
+        });
+    }
+
     async deleteArticle(articleId: number, tokenDetails: ITokenDetails): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
@@ -142,7 +166,7 @@ export class ArticleProcessor {
         });
     }
 
-    async editArticle(articleId: number, title: string, content: string, categories: any[], tokenDetails: ITokenDetails): Promise<boolean> {
+    async editArticle(articleId: number, title: string, content: string, contentMarkdown: string | undefined, categories: any[], tokenDetails: ITokenDetails): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -176,7 +200,7 @@ export class ArticleProcessor {
                     articleCategories.push(articleCategory);
                 }
                 await manager.save(articleCategories);
-                await manager.update(DRAArticle, {id: articleId}, {title: title, content: content});
+                await manager.update(DRAArticle, {id: articleId}, {title: title, content: content, content_markdown: contentMarkdown});
                 return resolve(true);
             } catch (error) {
                 console.log('error', error);
@@ -196,7 +220,7 @@ export class ArticleProcessor {
                 return resolve([]);
             }
             const articlesList: IArticle[] = [];
-            const articles = await manager.find(DRAArticle, { relations: ['dra_articles_categories']});
+            const articles = await manager.find(DRAArticle, { where:{ publish_status: EPublishStatus.PUBLISHED }, relations: ['dra_articles_categories']});
             for (let i = 0; i < articles.length; i++) {
                 const article = articles[i];
                 const categories = await manager.find(DRACategory, {where: {id: In(article.dra_articles_categories.map(cat => cat.category_id))}});

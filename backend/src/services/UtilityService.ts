@@ -5,6 +5,7 @@ import { DBDriver } from '../drivers/DBDriver.js';
 import { PostgresDataSource } from '../datasources/PostgresDataSource.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { QueueService } from './QueueService.js';
+import { EncryptionService } from './EncryptionService.js';
 
 export class UtilityService {
     private static instance: UtilityService;
@@ -30,6 +31,19 @@ export class UtilityService {
         const postgresDataSource = PostgresDataSource.getInstance().getDataSource(host, port, database, username, password);
         await driver.initialize(postgresDataSource);
         await QueueService.getInstance().run();
+        // Initialize encryption service with validation
+        try {
+          const encryptionService = EncryptionService.getInstance();
+          if (!encryptionService.validateKey()) {
+            throw new Error('Encryption key validation failed');
+          }
+          const algorithmInfo = encryptionService.getAlgorithmInfo();
+          console.log(`[SECURITY] Encryption initialized: ${algorithmInfo.algorithm.toUpperCase()}, ${algorithmInfo.keySize}-bit key`);
+        } catch (error) {
+          console.error('[SECURITY] Failed to initialize encryption service:', error.message);
+          console.error('[SECURITY] Please check your ENCRYPTION_KEY in .env file');
+          process.exit(1); // Fail fast - encryption is critical for security
+        }
         console.log('Utilities initialized');
     }
 
@@ -61,6 +75,7 @@ export class UtilityService {
 
     public getConstants(key: string): any {
         return {
+            NODE_ENV: process.env.NODE_ENV || 'development',
             PUBLIC_BACKEND_URL: process.env.PUBLIC_BACKEND_URL || 'http://localhost:3002',
             PORT: process.env.PORT || 3002,
             RECAPTCHA_SECRET: process.env.RECAPTCHA_SECRET || '',
@@ -84,7 +99,6 @@ export class UtilityService {
             MARIADB_DATABASE: process.env.MARIADB_DATABASE || '',
             MARIADB_LOCAL_PORT: process.env.MARIADB_LOCAL_PORT || '',
             MARIADB_DOCKER_PORT: process.env.MARIADB_DOCKER_PORT || '',
-            NODE_ENV: process.env.NODE_ENV || 'development',
             MAIL_DRIVER: process.env.MAIL_DRIVER || '',
             MAIL_HOST: process.env.MAIL_HOST || '',
             MAIL_PORT: process.env.MAIL_PORT || '',
@@ -126,8 +140,14 @@ export class UtilityService {
             // Map to PostgreSQL equivalent
             return this.mapMySQLToPostgreSQL(parsedType);
         } else {
-            if (dataType === 'USER-DEFINED') {
+            // For PostgreSQL and other databases, preserve types
+            const upperType = dataType.toUpperCase();
+            if (upperType === 'USER-DEFINED') {
                 return { type: 'TEXT' }; // Handle USER-DEFINED as TEXT
+            }
+            // Preserve JSON and JSONB types for PostgreSQL
+            if (upperType === 'JSON' || upperType === 'JSONB') {
+                return { type: upperType };
             }
             return { type: dataType }; // Pass through unchanged
         }
@@ -270,9 +290,11 @@ export class UtilityService {
             case 'BOOL':
                 return { type: 'BOOLEAN' };
 
-            // JSON Type
+            // JSON Types
             case 'JSON':
                 return { type: 'JSON' };
+            case 'JSONB':
+                return { type: 'JSONB' };
 
             // Special Types
             case 'ENUM':

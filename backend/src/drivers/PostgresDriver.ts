@@ -122,7 +122,7 @@ export class PostgresDriver implements IDBDriver{
 					JOIN information_schema.constraint_column_usage AS ccu
 						ON ccu.constraint_name = tc.constraint_name
 					WHERE tc.constraint_type = 'FOREIGN KEY'
-						AND tc.table_schema='${schema}';
+						AND tc.table_schema='${schema}'
             `;
             return resolve(query);
         });

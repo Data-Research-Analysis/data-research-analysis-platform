@@ -5,25 +5,30 @@ export const useDashboardsStore = defineStore('dashboardsDRA', () => {
     const selectedDashboard = ref<IDashboard>()
     const columnsAdded = ref<string[]>([])
     
-    if (localStorage.getItem('dashboards')) {
-        dashboards.value = JSON.parse(localStorage.getItem('dashboards') || '[]')
-    }
-    if (localStorage.getItem('selectedDashboard')) {
-        selectedDashboard.value = JSON.parse(localStorage.getItem('selectedDashboard') || 'null')
-    }
     function setDashboards(dashboardsList: IDashboard[]) {
         dashboards.value = dashboardsList
-        localStorage.setItem('dashboards', JSON.stringify(dashboardsList))
+        if (import.meta.client) {
+            localStorage.setItem('dashboards', JSON.stringify(dashboardsList))
+            enableRefreshDataFlag('setDashboards');
+        }
     }
     function setSelectedDashboard(dashboard: IDashboard) {
         selectedDashboard.value = dashboard
-        localStorage.setItem('selectedDashboard', JSON.stringify(dashboard))
+        if (import.meta.client) {
+            localStorage.setItem('selectedDashboard', JSON.stringify(dashboard))
+        }
     }
     function setColumnsAdded(columnNames: string[]) {
         columnsAdded.value = columnNames
-        localStorage.setItem('columnsAdded', JSON.stringify(columnNames))
+        if (import.meta.client) {
+            localStorage.setItem('columnsAdded', JSON.stringify(columnNames))
+            enableRefreshDataFlag('setColumnsAdded');
+        }
     }
     function getDashboards() {
+        if (import.meta.client && localStorage.getItem('dashboards')) {
+            dashboards.value = JSON.parse(localStorage.getItem('dashboards') || '[]')
+        }
         return dashboards.value;
     }
     async function retrieveDashboards() {
@@ -61,6 +66,9 @@ export const useDashboardsStore = defineStore('dashboardsDRA', () => {
         return data;
     }
     function getSelectedDashboard() {
+        if (import.meta.client && localStorage.getItem('selectedDashboard')) {
+            selectedDashboard.value = JSON.parse(localStorage.getItem('selectedDashboard') || 'null')
+        }
         return selectedDashboard.value
     }
     function getColumnsAdded() {
@@ -68,15 +76,23 @@ export const useDashboardsStore = defineStore('dashboardsDRA', () => {
     }
     function clearDashboards() {
         dashboards.value = []
-        localStorage.removeItem('dashboards')
+        if (import.meta.client) {
+            localStorage.removeItem('dashboards');
+            enableRefreshDataFlag('clearDashboards');
+        }
     }
     function clearSelectedDashboard() {
         selectedDashboard.value = undefined
-        localStorage.removeItem('selectedDashboard')
+        if (import.meta.client) {
+            localStorage.removeItem('selectedDashboard');
+        }
     }
     function clearColumnsAdded() {
         columnsAdded.value = []
-        localStorage.removeItem('columnsAdded')
+        if (import.meta.client) {
+            localStorage.removeItem('columnsAdded');
+            enableRefreshDataFlag('clearColumnsAdded');
+        }
     }
     return {
         dashboards,
