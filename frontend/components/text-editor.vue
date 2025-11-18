@@ -259,38 +259,29 @@
     
     // Watch for content changes and update editor
     watch([() => props.content, editor], ([newContent, editorInstance]) => {
-        console.log('[text-editor watch] Triggered - content:', newContent, 'editor exists:', !!editorInstance);
-        
         // Skip if editor hasn't been created yet or no content
         if (!editorInstance || !newContent) {
-            console.log('[text-editor watch] Skipping - editor ready:', !!editorInstance, 'has content:', !!newContent);
             return;
         }
         
         // Get current content to compare
         const currentContent = editorInstance.getHTML();
-        console.log('[text-editor watch] Comparing - current:', currentContent, 'new:', newContent);
         
         // Only update if content is different to avoid infinite loops
         if (currentContent === newContent) {
-            console.log('[text-editor watch] Content unchanged, skipping');
             return;
         }
         
         // Detect if content is HTML or markdown
         const isHTML = newContent.trim().startsWith('<') || newContent.includes('</');
-        console.log('[text-editor watch] Setting content - isHTML:', isHTML, 'inputFormat:', props.inputFormat);
         
         // Handle content based on actual content type and input format
         if (props.inputFormat === 'markdown' && !isHTML) {
             editorInstance.commands.setContent(newContent, { contentType: 'markdown' });
-            console.log('[text-editor watch] ✓ Content set as markdown');
         } else if (props.inputFormat === 'markdown' && isHTML) {
             editorInstance.commands.setContent(newContent, { contentType: 'html' });
-            console.log('[text-editor watch] ✓ Content set as HTML (markdown mode)');
         } else {
             editorInstance.commands.setContent(newContent, { contentType: 'html' });
-            console.log('[text-editor watch] ✓ Content set as HTML');
         }
     }, { immediate: true });
     function setLink() {
