@@ -56,9 +56,13 @@ const charts = computed(() => {
 watch(
     dashboardsStore.selectedDashboard,
     (value, oldValue) => {
-        state.dashboard.charts = dashboardsStore.getSelectedDashboard()?.data?.charts.map((chart) => {
+        const dashboard = dashboardsStore.getSelectedDashboard();
+        const charts = dashboard?.data?.charts || [];
+        
+        state.dashboard.charts = charts.map((chart) => {
             return {
                 ...chart,
+                text_editor: chart.text_editor || { content: '' },
                 config: {
                     drag_enabled: false,
                     resize_enabled: false,
@@ -67,6 +71,7 @@ watch(
             };
         }) || [];
     },
+    { immediate: true }
 )
 async function changeDataModel(event, chartId) {
     const chart = state.dashboard.charts.find((chart) => {
@@ -199,6 +204,7 @@ function deleteChartFromDashboard(chartId) {
     state.dashboard.charts = state.dashboard.charts.filter((chart) => chart.chart_id !== chartId);
     state.selected_chart = null;
 }
+
 function buildSQLQuery(chart) {
     let sqlQuery = '';
     let fromJoinClause = [];
@@ -599,12 +605,17 @@ async function dismissValidationAlert() {
         console.error('Failed to dismiss alert:', error);
     }
 }
+
 function updateContent(content, chartId) {
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
     if (chart) {
+        if (!chart.text_editor) {
+            chart.text_editor = {};
+        }
         chart.text_editor.content = content;
     }
 }
+
 function toggleDragging(event, chartId) {
     //disable all charts
     state.is_dragging = false;
@@ -1024,16 +1035,18 @@ onMounted(async () => {
 });
 </script>
 <template>
-    <div v-if="project && dashboard" class="flex flex-row">
-        <sidebar
-            class="w-1/6"
-            :data-models="state.data_model_tables"
-            :selected-chart="state.selected_chart"
-            @add:selectedColumns="(data) => updateDataModel('add', data)"
-            @remove:selectedColumns="(data) => updateDataModel('remove', data)"
-            @toggleSidebar="toggleSidebars"
-        />
-        <div class="flex flex-row" :class="{ 'w-5/6': state.sidebar_status, 'w-full': !state.sidebar_status }">
+    <div>
+        <div v-if="project && dashboard" class="flex flex-row">
+            <div class="w-1/6">
+                <sidebar
+                    :data-models="state.data_model_tables"
+                    :selected-chart="state.selected_chart"
+                    @add:selectedColumns="(data) => updateDataModel('add', data)"
+                    @remove:selectedColumns="(data) => updateDataModel('remove', data)"
+                    @toggleSidebar="toggleSidebars"
+                />
+            </div>
+            <div class="flex flex-row" :class="{ 'w-5/6': state.sidebar_status, 'w-full': !state.sidebar_status }">
             <div class="flex flex-col ml-2 mr-2" :class="{ 'w-5/6': state.sidebar_status, 'w-full': !state.sidebar_status }">
                 <div class="flex flex-row justify-between">
                     <tabs :project-id="project.id" class="mt-6" :class="{ 'ml-10': state.sidebar_status }"/>
@@ -1358,8 +1371,20 @@ onMounted(async () => {
                                         </div>
                                     </template>
                                 </draggable>
-                                <div v-else :id="`draggable-${chart.chart_id}`" class="bg-gray-200 border border-3 border-gray-600 border-t-0">
-                                    <text-editor :id="`chart-${chart.chart_id}`" :buttons="['bold', 'italic', 'heading', 'strike', 'underline']" minHeight="10" :content="chart.text_editor.content" @update:content="(content) => { updateContent(content, chart.chart_id); }" />
+                                <div 
+                                    v-else 
+                                    :id="`draggable-${chart.chart_id}`" 
+                                    class="bg-gray-200 border border-3 border-gray-600 border-t-0"
+                                    :style="`width: ${chart.dimensions.widthDraggable}; height: ${chart.dimensions.heightDraggable};`"
+                                >
+                                    <text-editor 
+                                        :id="`chart-${chart.chart_id}`" 
+                                        :buttons="['bold', 'italic', 'heading', 'strike', 'underline']" 
+                                        :minHeight="String(parseInt(chart.dimensions.heightDraggable.replace('px', '')) - 20)" 
+                                        :content="chart.text_editor.content"
+                                        inputFormat="wysiwyg" 
+                                        @update:content="(content) => { updateContent(content, chart.chart_id); }" 
+                                    />
                                 </div>
                             </div>
                             <div class="flex flex-row justify-between bottom-corners">
@@ -1445,8 +1470,17 @@ onMounted(async () => {
             </div>
         </div>
         <img src="/assets/images/resize-corner.svg" id="corner-image" class="bottom-right-corner-resize w-[15px] select-none hidden" alt="Resize Visualization" />
-    </div>
-    <overlay-dialog v-if="state.show_table_dialog" :enable-scrolling="false" @close="closeTableDialog">
+        </div>
+        
+        <!-- Loading state when project or dashboard not loaded -->
+        <div v-else class="flex items-center justify-center min-h-screen">
+            <div class="text-center">
+                <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-blue-500 mb-4"></div>
+                <p class="text-gray-600">Loading dashboard...</p>
+            </div>
+        </div>
+        
+        <overlay-dialog v-if="state.show_table_dialog" :enable-scrolling="false" @close="closeTableDialog">
         <template #overlay>
             <div class="flex flex-col w-full max-w-7xl h-full max-h-[85vh] p-5 overflow-hidden">
                 <h2 class="mb-4 text-xl font-bold text-gray-800">Data Model Table Data</h2>
@@ -1477,12 +1511,5 @@ onMounted(async () => {
             </div>
         </template>
     </overlay-dialog>
-    
-    <!-- Loading state when project or dashboard not loaded -->
-    <div v-else class="flex items-center justify-center min-h-screen">
-        <div class="text-center">
-            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-blue-500 mb-4"></div>
-            <p class="text-gray-600">Loading dashboard...</p>
-        </div>
     </div>
 </template>

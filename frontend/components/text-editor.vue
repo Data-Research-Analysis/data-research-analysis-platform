@@ -25,7 +25,6 @@
     const emits = defineEmits(['update:content', 'update:markdown']);
     const state = reactive({
         content: null,
-        counter: 0,
     });
     
     // Phase 1: View state management for HTML/Markdown toggle
@@ -258,24 +257,31 @@
         return editor.value?.getHTML() || '';
     }
     
-    watch(() => props.content, (newContent) => {
-        if (editor.value && state.counter === 0 && newContent) {
-            // Detect if content is HTML or markdown
-            const isHTML = newContent.trim().startsWith('<') || newContent.includes('</');
-            
-            // Handle content based on actual content type and input format
-            if (props.inputFormat === 'markdown' && !isHTML) {
-                // Loading markdown content - parse it as markdown
-                editor.value.commands.setContent(newContent, { contentType: 'markdown' });
-            } else if (props.inputFormat === 'markdown' && isHTML) {
-                // Loading HTML but expecting markdown mode - convert HTML to editor format normally
-                // This handles old articles without markdown
-                editor.value.commands.setContent(newContent, { contentType: 'html' });
-            } else {
-                // HTML content or default mode
-                editor.value.commands.setContent(newContent, { contentType: 'html' });
-            }
-            state.counter++;
+    // Watch for content changes and update editor
+    watch([() => props.content, editor], ([newContent, editorInstance]) => {
+        // Skip if editor hasn't been created yet or no content
+        if (!editorInstance || !newContent) {
+            return;
+        }
+        
+        // Get current content to compare
+        const currentContent = editorInstance.getHTML();
+        
+        // Only update if content is different to avoid infinite loops
+        if (currentContent === newContent) {
+            return;
+        }
+        
+        // Detect if content is HTML or markdown
+        const isHTML = newContent.trim().startsWith('<') || newContent.includes('</');
+        
+        // Handle content based on actual content type and input format
+        if (props.inputFormat === 'markdown' && !isHTML) {
+            editorInstance.commands.setContent(newContent, { contentType: 'markdown' });
+        } else if (props.inputFormat === 'markdown' && isHTML) {
+            editorInstance.commands.setContent(newContent, { contentType: 'html' });
+        } else {
+            editorInstance.commands.setContent(newContent, { contentType: 'html' });
         }
     }, { immediate: true });
     function setLink() {
@@ -592,17 +598,17 @@
             </div>
         </div>
         
-        <!-- Phase 3 & 6: WYSIWYG Editor View with transition -->
+        <!-- WYSIWYG Editor View with transition -->
         <transition name="fade" mode="out-in">
-            <editor-content 
+            <editor-content
                 v-show="viewMode === 'wysiwyg'" 
-                :editor="editor" 
+                :editor="editor"
                 key="wysiwyg"
                 class="text-block-editor-content bg-white p-2 cursor-text border border-solid border-gray-300 transition-opacity duration-200" 
             />
         </transition>
         
-        <!-- Phase 3 & 6: Raw Markdown View with enhanced styling -->
+        <!-- Raw Markdown View with enhanced styling -->
         <transition name="fade" mode="out-in">
             <div v-show="viewMode === 'markdown'" key="markdown" class="relative">
                 <textarea
