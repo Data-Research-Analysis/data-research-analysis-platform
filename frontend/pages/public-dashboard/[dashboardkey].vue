@@ -908,8 +908,13 @@ onMounted(async () => {
                                         </div>
                                     </template>
                                 </draggable>
-                                <div v-else :id="`draggable-${chart.chart_id}`" class="bg-gray-200 border border-3 border-gray-600 border-t-0">
-                                    <text-editor :id="`chart-${chart.chart_id}`" :buttons="['bold', 'italic', 'heading', 'strike', 'underline']" minHeight="10" :content="chart.text_editor.content"  @update:content="(content) => { updateContent(content, chart.chart_id) }" />
+                                <div v-else :id="`draggable-${chart.chart_id}`">
+                                    <div 
+                                        :id="`chart-${chart.chart_id}`" 
+                                        class="prose max-w-none p-4 bg-white"
+                                        v-html="chart.text_editor.content"
+                                        :style="'min-height: 200px;'"
+                                    ></div>
                                 </div>
                             </div>
                         </div>
