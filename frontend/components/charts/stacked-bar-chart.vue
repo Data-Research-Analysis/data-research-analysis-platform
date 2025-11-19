@@ -1,7 +1,7 @@
 <script setup>
-import { onMounted, watch, nextTick } from 'vue';
+import { onMounted, watch, nextTick, onBeforeUnmount } from 'vue';
 const { $d3 } = useNuxtApp();
-const emit = defineEmits(['element-click', 'update:yAxisLabel', 'update:xAxisLabel']);
+const emit = defineEmits(['segment-click', 'update:yAxisLabel', 'update:xAxisLabel']);
 const state = reactive({
   xAxisLabelLocal: '',
   yAxisLabelLocal: ''
@@ -78,7 +78,24 @@ const props = defineProps({
     type: Number,
     default: null,
   },
+  columnName: {
+    type: String,
+    default: 'Value',
+  },
+  categoryName: {
+    type: String,
+    default: 'Category',
+  },
+  stackName: {
+    type: String,
+    default: 'Series',
+  },
+  filterState: {
+    type: Object,
+    default: () => ({ activeFilter: null, isFiltering: false }),
+  },
 });
+let tooltipElement = null;
 
 // Utility function to format large numbers with shortened suffixes
 function formatTickValue(value) {
@@ -294,6 +311,14 @@ function calculateLabelPositions(margin, height, width, processedData) {
 
 function deleteSVGs() {
   $d3.select(`#stacked-bar-chart-${props.chartId}`).selectAll('svg').remove();
+  
+  // Remove tooltip explicitly
+  if (tooltipElement) {
+    tooltipElement.remove();
+    tooltipElement = null;
+  }
+  // Also remove by class as fallback
+  $d3.selectAll('.stacked-bar-tooltip').remove();
 }
 
 function processData(rawData) {
@@ -435,72 +460,103 @@ function renderSVG(chartData) {
     .attr('height', d => y(d[0]) - y(d[1]))
     .attr('width', x.bandwidth())
     .style('cursor', 'pointer')
+    .style('opacity', d => {
+      // Apply filtering logic with enhanced dimming
+      if (!props.filterState.isFiltering) return 1.0;
+      const matches = String(d.data.label) === String(props.filterState.activeFilter.value);
+      return matches ? 1.0 : 0.2;
+    })
+    .style('transition', 'all 0.3s ease')
+    .attr('stroke', d => {
+      if (!props.filterState.isFiltering) return 'none';
+      const matches = String(d.data.label) === String(props.filterState.activeFilter.value);
+      return matches ? '#2196F3' : 'none';
+    })
+    .attr('stroke-width', d => {
+      if (!props.filterState.isFiltering) return '0';
+      const matches = String(d.data.label) === String(props.filterState.activeFilter.value);
+      return matches ? '3' : '0';
+    })
+    .style('filter', d => {
+      if (!props.filterState.isFiltering) return 'none';
+      const matches = String(d.data.label) === String(props.filterState.activeFilter.value);
+      return matches ? 'drop-shadow(0 0 6px rgba(33, 150, 243, 0.6))' : 'none';
+    })
     .on('click', function(event, d) {
       event.stopPropagation();
       const stackKey = $d3.select(this.parentNode).datum().key;
       const value = d.data[stackKey];
-      emit('element-click', {
-        chartId: props.chartId,
-        chartType: 'stacked_bar',
-        clickedElement: {
-          type: 'bar_segment',
-          label: d.data.label,
-          value: value,
-          category: stackKey,
-          metadata: {
-            stackKey: stackKey,
-            segmentValue: value,
-            totalValue: d[1] - d[0],
-            stackBottom: d[0],
-            stackTop: d[1],
-            barWidth: x.bandwidth(),
-            segmentHeight: y(d[0]) - y(d[1])
-          }
-        },
-        coordinates: { x: event.offsetX, y: event.offsetY },
-        originalEvent: event
-      });
-    })
+      emit('segment-click', props.chartId, 'label', d.data.label);
+    });
+
+  // Create custom tooltip for instant display in dashboard container
+  const tooltip = $d3.select('.dashboard-tooltip-container')
+    .append('div')
+    .attr('class', 'stacked-bar-tooltip')
+    .style('position', 'absolute')
+    .style('background', 'rgba(0, 0, 0, 0.9)')
+    .style('color', 'white')
+    .style('padding', '12px 16px')
+    .style('border-radius', '6px')
+    .style('font-size', '14px')
+    .style('pointer-events', 'none')
+    .style('z-index', '10000')
+    .style('opacity', 0)
+    .style('box-shadow', '0 4px 6px rgba(0, 0, 0, 0.3)')
+    .style('line-height', '1.5');
+  
+  tooltipElement = tooltip;
+
+  // Attach tooltip handlers to stacked bar segments
+  stackGroups.selectAll('rect')
     .on('mouseover', function (event, d) {
       // Get the stack key from parent group
       const stackKey = $d3.select(this.parentNode).datum().key;
       const value = d.data[stackKey];
       const total = props.stackKeys.reduce((sum, key) => sum + (d.data[key] || 0), 0);
       
-      // Create enhanced tooltip with full values
-      const tooltip = $d3.select('body').append('div')
-        .attr('class', 'chart-tooltip')
-        .style('position', 'absolute')
-        .style('background', 'rgba(0, 0, 0, 0.8)')
-        .style('color', 'white')
-        .style('padding', '8px 12px')
-        .style('border-radius', '4px')
-        .style('font-size', '12px')
-        .style('pointer-events', 'none')
-        .style('z-index', '1000')
-        .style('opacity', 0);
-
-      tooltip.html(`
-        <div><strong>${d.data.label}</strong></div>
-        <div>${stackKey}: ${value.toLocaleString()}</div>
-        <div>Total: ${total.toLocaleString()}</div>
-      `)
-        .style('left', (event.pageX + 10) + 'px')
+      // Show custom tooltip immediately
+      tooltip
+        .html(`
+          <div style="font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 6px;">
+            ${d.data.label}
+          </div>
+          <div style="margin-bottom: 4px;">
+            <span style="color: #94a3b8;">Category:</span> 
+            <span style="font-weight: 600;">${props.categoryName}</span>
+          </div>
+          <div style="margin-bottom: 4px;">
+            <span style="color: #94a3b8;">${props.stackName}:</span> 
+            <span style="font-weight: 600;">${stackKey}</span>
+          </div>
+          <div style="margin-bottom: 4px;">
+            <span style="color: #94a3b8;">Column:</span> 
+            <span style="font-weight: 600;">${props.columnName}</span>
+          </div>
+          <div style="margin-bottom: 4px;">
+            <span style="color: #94a3b8;">Value:</span> 
+            <span style="font-weight: 600;">${value.toLocaleString('en-US')}</span>
+          </div>
+          <div style="border-top: 1px solid rgba(255,255,255,0.2); margin-top: 6px; padding-top: 6px;">
+            <span style="color: #94a3b8;">Total:</span> 
+            <span style="font-weight: 600;">${total.toLocaleString('en-US')}</span>
+          </div>
+        `)
+        .style('left', (event.pageX + 15) + 'px')
         .style('top', (event.pageY - 10) + 'px')
-        .transition()
-        .duration(200)
         .style('opacity', 1);
 
       $d3.select(this).style('opacity', 0.7);
     })
     .on('mouseout', function () {
-      $d3.selectAll('.chart-tooltip').remove();
+      // Hide tooltip
+      tooltip.style('opacity', 0);
       $d3.select(this).style('opacity', 1);
     })
     .on('mousemove', function (event, d) {
-      // Update tooltip position
-      $d3.selectAll('.chart-tooltip')
-        .style('left', (event.pageX + 10) + 'px')
+      // Update tooltip position as mouse moves
+      tooltip
+        .style('left', (event.pageX + 15) + 'px')
         .style('top', (event.pageY - 10) + 'px');
     });
 
@@ -659,8 +715,12 @@ onMounted(() => {
   renderChart(props.data);
 });
 
-watch(() => [props.data, props.width, props.height, props.stackKeys, props.colorScheme, props.showLegend, props.maxLegendWidth, props.legendItemSpacing, props.legendLineHeight], () => {
+watch(() => [props.data, props.width, props.height, props.stackKeys, props.colorScheme, props.showLegend, props.maxLegendWidth, props.legendItemSpacing, props.legendLineHeight, props.filterState], () => {
   nextTick(() => renderChart(props.data));
+});
+
+onBeforeUnmount(() => {
+  deleteSVGs();
 });
 </script>
 
@@ -673,5 +733,10 @@ watch(() => [props.data, props.width, props.height, props.stackKeys, props.color
 <style scoped>
 .chart-tooltip {
   z-index: 10000;
+}
+
+@keyframes pulse-selected {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
 }
 </style>

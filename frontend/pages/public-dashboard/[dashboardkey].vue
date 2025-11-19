@@ -1,4 +1,5 @@
 <script setup>
+import { onBeforeUnmount } from 'vue';
 import { useProjectsStore } from '@/stores/projects';
 import { useDataModelsStore } from '@/stores/data_models';
 import { useDashboardsStore } from '@/stores/dashboards';
@@ -118,7 +119,12 @@ const state = reactive({
     scaleWidth: 1,
     scaleHeight: 1,
     show_table_dialog: false,
+    filterState: {
+        activeFilter: null,
+        isFiltering: false
+    },
  });
+
 // project and dashboard computeds are defined above for SEO
 const dataModelTables = computed(() => {
     return dataModelsStore.getDataModelTables();
@@ -127,9 +133,12 @@ const charts = computed(() => {
     return state.dashboard.charts;
 });
 watch(
-    dashboardsStore,
+    dashboardsStore.selectedDashboard,
     (value, oldValue) => {
-        state.dashboard.charts = dashboardsStore.getSelectedDashboard()?.data?.charts.map((chart) => {
+        const dashboard = dashboardsStore.getSelectedDashboard();
+        const charts = dashboard?.data?.charts || [];
+        
+        state.dashboard.charts = charts.map((chart) => {
             return {
                 ...chart,
                 config: {
@@ -140,6 +149,7 @@ watch(
             };
         }) || [];
     },
+    { immediate: true }
 )
 async function changeDataModel(event, chartId) {
     const chart = state.dashboard.charts.find((chart) => {
@@ -221,6 +231,159 @@ function handleTableResize(chartId, resizeData) {
             draggableDiv.style.transition = '';
         }, 300);
     }
+}
+
+// Filter handling functions
+function onChartSegmentClick(chartId, filterKey, filterValue) {
+    console.log('Chart segment clicked:', { chartId, filterKey, filterValue });
+    
+    // Toggle: if clicking the same segment that's already filtered, clear the filter
+    if (state.filterState.isFiltering && 
+        state.filterState.activeFilter?.value === filterValue) {
+        clearFilter();
+        return;
+    }
+    
+    if (filterKey && filterValue !== undefined && filterValue !== null) {
+        state.filterState.activeFilter = { chartId, category: filterKey, value: filterValue };
+        state.filterState.isFiltering = true;
+    }
+}
+
+function clearFilter() {
+    state.filterState.activeFilter = null;
+    state.filterState.isFiltering = false;
+}
+
+// Handle ESC key to clear filters
+function handleKeyDown(event) {
+    if (event.key === 'Escape' && state.filterState.isFiltering) {
+        clearFilter();
+    }
+}
+
+// Handle click outside charts to clear filter
+function handleDashboardClick(event) {
+    // Only clear if clicking on the dashboard background, not on charts or UI elements
+    if (state.filterState.isFiltering && 
+        event.target.classList.contains('draggable-div-container')) {
+        clearFilter();
+    }
+}
+
+// Helper to get column name for charts
+function getChartColumnName(chartId) {
+    const chart = charts.value.find(c => c.chart_id === chartId);
+    if (!chart || !chart.columns || chart.columns.length === 0) {
+        return 'Value';
+    }
+    // For pie/donut/bar charts, use the second column (value column) name if available
+    if (['pie', 'donut', 'vertical_bar', 'horizontal_bar', 'stacked_bar'].includes(chart.chart_type) && chart.columns.length >= 2) {
+        return chart.columns[1].column_name || 'Value';
+    }
+    // Otherwise use first column
+    return chart.columns[0]?.column_name || 'Value';
+}
+
+// Helper to get category name for charts
+function getChartCategoryName(chartId) {
+    const chart = charts.value.find(c => c.chart_id === chartId);
+    if (!chart || !chart.columns || chart.columns.length === 0) {
+        return 'Category';
+    }
+    // First column is typically the category/label
+    return chart.columns[0]?.column_name || 'Category';
+}
+
+// Helper to get stack name for stacked charts
+function getChartStackName(chartId) {
+    const chart = charts.value.find(c => c.chart_id === chartId);
+    if (!chart || !chart.columns || chart.columns.length === 0) {
+        return 'Series';
+    }
+    // For stacked bars, return generic series name
+    // Could be enhanced to extract from column metadata if available
+    return 'Series';
+}
+
+// Helper to get X column name for charts
+function getChartXColumnName(chartId) {
+    const chart = charts.value.find(c => c.chart_id === chartId);
+    if (!chart || !chart.columns || chart.columns.length === 0) {
+        return 'X Axis';
+    }
+    // For multiline and bubble: first column is typically X
+    if (['multiline', 'bubble'].includes(chart.chart_type)) {
+        return chart.columns[0]?.column_name || 'X Axis';
+    }
+    return 'X Axis';
+}
+
+// Helper to get Y column name for charts
+function getChartYColumnName(chartId) {
+    const chart = charts.value.find(c => c.chart_id === chartId);
+    if (!chart || !chart.columns || chart.columns.length === 0) {
+        return 'Y Axis';
+    }
+    // For multiline and bubble: second column is typically Y
+    if (['multiline', 'bubble'].includes(chart.chart_type) && chart.columns.length >= 2) {
+        return chart.columns[1]?.column_name || 'Y Axis';
+    }
+    return 'Y Axis';
+}
+
+// Helper to get series name for multiline charts
+function getChartSeriesName(chartId) {
+    const chart = charts.value.find(c => c.chart_id === chartId);
+    if (!chart || !chart.columns || chart.columns.length === 0) {
+        return 'Series';
+    }
+    // For multiline: series might come from third column or be derived
+    if (chart.chart_type === 'multiline') {
+        if (chart.columns.length >= 3) {
+            return chart.columns[2]?.column_name || 'Series';
+        }
+    }
+    return 'Series';
+}
+
+// Helper to get size column name for bubble charts
+function getChartSizeColumnName(chartId) {
+    const chart = charts.value.find(c => c.chart_id === chartId);
+    if (!chart || !chart.columns || chart.columns.length === 0) {
+        return 'Size';
+    }
+    // For bubble: third column is typically size
+    if (chart.chart_type === 'bubble' && chart.columns.length >= 3) {
+        return chart.columns[2]?.column_name || 'Size';
+    }
+    return 'Size';
+}
+
+// Helper to get label column name for bubble charts
+function getChartLabelColumnName(chartId) {
+    const chart = charts.value.find(c => c.chart_id === chartId);
+    if (!chart || !chart.columns || chart.columns.length === 0) {
+        return 'Label';
+    }
+    // For bubble: label is typically first column
+    if (chart.chart_type === 'bubble') {
+        return chart.columns[0]?.column_name || 'Label';
+    }
+    return 'Label';
+}
+
+// Helper to get value name for treemap charts
+function getChartValueName(chartId) {
+    const chart = charts.value.find(c => c.chart_id === chartId);
+    if (!chart || !chart.columns || chart.columns.length === 0) {
+        return 'Value';
+    }
+    // For treemap: last column is typically the value
+    if (chart.chart_type === 'treemap') {
+        return chart.columns[chart.columns.length - 1]?.column_name || 'Value';
+    }
+    return 'Value';
 }
 
 function buildSQLQuery(chart) {
@@ -577,12 +740,11 @@ function prepareForExport() {
     if (!import.meta.client) return null;
     
     const dashboardContainer = document.querySelector('.flex.flex-col.min-h-200.max-h-200.h-200.bg-white.overflow-x-auto');
-    const rootContainer = document.querySelector('.data-research-analysis');
     
-    if (!dashboardContainer || !rootContainer) return null;
+    if (!dashboardContainer) return null;
     
     // Save original styles for dashboard container
-    const originalDashboardStyles = {
+    const originalStyles = {
         height: dashboardContainer.style.height || '',
         maxHeight: dashboardContainer.style.maxHeight || '',
         minHeight: dashboardContainer.style.minHeight || '',
@@ -591,20 +753,11 @@ function prepareForExport() {
         overflowY: dashboardContainer.style.overflowY || ''
     };
     
-    // Save original styles for root container
-    const originalRootStyles = {
-        width: rootContainer.style.width || '',
-        minWidth: rootContainer.style.minWidth || '',
-        maxWidth: rootContainer.style.maxWidth || ''
-    };
-    
     // Calculate full content dimensions
-    const scrollWidth = dashboardContainer.scrollWidth;
     const scrollHeight = dashboardContainer.scrollHeight;
-    const padding = 80; // Account for margins and padding
-    const requiredWidth = Math.max(scrollWidth + padding, 1200); // Minimum width
     
-    // Expand dashboard container to show all content
+    // Expand dashboard container height to show all content
+    // Do NOT modify width - let it remain responsive
     dashboardContainer.style.height = 'auto';
     dashboardContainer.style.maxHeight = 'none';
     dashboardContainer.style.minHeight = `${Math.max(scrollHeight, 400)}px`;
@@ -612,43 +765,25 @@ function prepareForExport() {
     dashboardContainer.style.overflowX = 'visible';
     dashboardContainer.style.overflowY = 'visible';
     
-    // Expand root container to accommodate dashboard content
-    // This will automatically expand header and footer via their responsive classes
-    rootContainer.style.width = `${requiredWidth}px`;
-    rootContainer.style.minWidth = `${requiredWidth}px`;
-    rootContainer.style.maxWidth = 'none';
-    
     return { 
         dashboardContainer, 
-        originalDashboardStyles,
-        rootContainer,
-        originalRootStyles,
-        expandedWidth: requiredWidth
+        originalStyles
     };
 }
 
 // Post-export restoration function
 function restoreOriginalStyles(preparation) {
-    if (!preparation) return;
+    if (!preparation || !preparation.dashboardContainer || !preparation.originalStyles) return;
+    
+    const { dashboardContainer, originalStyles } = preparation;
     
     // Restore dashboard container styles
-    if (preparation.dashboardContainer && preparation.originalDashboardStyles) {
-        const { dashboardContainer, originalDashboardStyles } = preparation;
-        dashboardContainer.style.height = originalDashboardStyles.height;
-        dashboardContainer.style.maxHeight = originalDashboardStyles.maxHeight;
-        dashboardContainer.style.minHeight = originalDashboardStyles.minHeight;
-        dashboardContainer.style.overflow = originalDashboardStyles.overflow;
-        dashboardContainer.style.overflowX = originalDashboardStyles.overflowX;
-        dashboardContainer.style.overflowY = originalDashboardStyles.overflowY;
-    }
-    
-    // Restore root container styles (this will restore header/footer widths automatically)
-    if (preparation.rootContainer && preparation.originalRootStyles) {
-        const { rootContainer, originalRootStyles } = preparation;
-        rootContainer.style.width = originalRootStyles.width;
-        rootContainer.style.minWidth = originalRootStyles.minWidth;
-        rootContainer.style.maxWidth = originalRootStyles.maxWidth;
-    }
+    dashboardContainer.style.height = originalStyles.height;
+    dashboardContainer.style.maxHeight = originalStyles.maxHeight;
+    dashboardContainer.style.minHeight = originalStyles.minHeight;
+    dashboardContainer.style.overflow = originalStyles.overflow;
+    dashboardContainer.style.overflowX = originalStyles.overflowX;
+    dashboardContainer.style.overflowY = originalStyles.overflowY;
 }
 
 function exportDashboardAsImage() {
@@ -656,19 +791,21 @@ function exportDashboardAsImage() {
     if (!import.meta.client) return;
     
     const dashboardElement = document.querySelector('.data-research-analysis');
-    if (dashboardElement) {
-        // Prepare containers for export
-        const preparation = prepareForExport();
-        
-        if (!preparation) {
-            console.error('Failed to prepare containers for export');
-            return;
-        }
-        
-        // Wait for layout to settle after style changes
-        setTimeout(() => {
-            // Use the calculated expanded width for consistent capture
-            const captureWidth = preparation.expandedWidth;
+    if (!dashboardElement) return;
+    
+    // Prepare containers for export
+    const preparation = prepareForExport();
+    
+    if (!preparation) {
+        console.error('Failed to prepare containers for export');
+        return;
+    }
+    
+    // Wait for layout to settle after style changes
+    setTimeout(() => {
+        try {
+            // Capture current dimensions
+            const captureWidth = dashboardElement.scrollWidth;
             const captureHeight = dashboardElement.scrollHeight;
             
             $htmlToImageToPng(dashboardElement, {
@@ -680,17 +817,12 @@ function exportDashboardAsImage() {
                 scrollX: 0,
                 scrollY: 0
             }).then((dataUrl) => {
-                // Restore original styles
-                restoreOriginalStyles(preparation);
-                
                 // Download the image
                 const link = document.createElement('a');
                 link.download = `${dashboard.value.name || 'dashboard'}.png`;
                 link.href = dataUrl;
                 link.click();
             }).catch((error) => {
-                // Restore styles even on error
-                restoreOriginalStyles(preparation);
                 console.error('Export failed:', error);
                 
                 // Show error message to user
@@ -701,9 +833,16 @@ function exportDashboardAsImage() {
                         text: 'Failed to export dashboard as image. Please try again.',
                     });
                 }
+            }).finally(() => {
+                // Always restore original styles, even on error
+                restoreOriginalStyles(preparation);
             });
-        }, 200); // Increased timeout to allow for width changes to settle
-    }
+        } catch (error) {
+            // Restore styles on any synchronous error
+            restoreOriginalStyles(preparation);
+            console.error('Export preparation failed:', error);
+        }
+    }, 100); // Reduced timeout since we're no longer changing widths
 }
 
 onMounted(async () => {
@@ -718,7 +857,7 @@ onMounted(async () => {
             columns: dataModelTable.columns,
         })
     })
-    state.dashboard.charts = dashboard.value?.data?.charts.map((chart) => {
+        state.dashboard.charts = dashboard.value?.data?.charts.map((chart) => {
         return {
             ...chart,
             config: {
@@ -728,6 +867,18 @@ onMounted(async () => {
             },
         };
     });
+    
+    // Add keyboard listener for ESC key (only on client side)
+    if (import.meta.client) {
+        document.addEventListener('keydown', handleKeyDown);
+    }
+});
+
+onBeforeUnmount(() => {
+    // Clean up keyboard listener
+    if (import.meta.client) {
+        document.removeEventListener('keydown', handleKeyDown);
+    }
 });
 </script>
 <template>
@@ -742,8 +893,30 @@ onMounted(async () => {
                 />
             </div>
             <div class="flex flex-col w-full p-10">
+                <!-- Filter indicator banner -->
+                <div v-if="state.filterState.isFiltering" 
+                     class="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 mb-6 mx-10 flex items-center justify-between rounded shadow-sm transition-all duration-300">
+                    <div class="flex flex-col">
+                        <div class="flex items-center mb-1">
+                            <font-awesome icon="fas fa-filter" class="mr-3 text-lg" />
+                            <span class="font-semibold">
+                                Filtering by: <span class="font-bold">{{ state.filterState.activeFilter.value }}</span>
+                            </span>
+                        </div>
+                        <span class="text-xs text-blue-600 ml-8">
+                            💡 Click the same segment again, press ESC, or click outside to clear
+                        </span>
+                    </div>
+                    <button 
+                        @click="clearFilter" 
+                        class="bg-blue-500 hover:bg-blue-600 text-white font-semibold px-4 py-2 rounded transition-colors duration-200 flex items-center gap-2 shadow-sm hover:shadow-md">
+                        <font-awesome icon="fas fa-times" />
+                        Clear Filter
+                    </button>
+                </div>
+                
                 <div class="flex flex-col min-h-200 max-h-200 h-200 bg-white overflow-x-auto ml-10 mr-2 mb-10">
-                    <div class="w-full h-full draggable-div-container relative">
+                    <div class="w-full h-full draggable-div-container relative" @click="handleDashboardClick">
                         <div v-for="(chart, index) in charts"
                             class="w-50 flex flex-col justify-between cursor-pointer draggable-div absolute top-0 left-0"
                             :id="`draggable-div-${chart.chart_id}`"
@@ -780,7 +953,9 @@ onMounted(async () => {
                                                     :use-container-sizing="true"
                                                     :virtual-scrolling="chart.data[0]?.rows?.length > 100"
                                                     :virtual-scroll-item-height="35"
+                                                    :filter-state="state.filterState"
                                                     @resize-needed="(data) => handleTableResize(chart.chart_id, data)"
+                                                    @segment-click="onChartSegmentClick"
                                                     class="mt-2"
                                                 />
                                                 <pie-chart
@@ -790,6 +965,9 @@ onMounted(async () => {
                                                     :data="chart.data"
                                                     :width="1200"
                                                     :height="1200"
+                                                    :column-name="getChartColumnName(chart.chart_id)"
+                                                    :filter-state="state.filterState"
+                                                    @segment-click="onChartSegmentClick"
                                                     class="mt-5"
                                                 />
                                                 <donut-chart
@@ -799,6 +977,9 @@ onMounted(async () => {
                                                     :data="chart.data"
                                                     :width="1200"
                                                     :height="1200"
+                                                    :column-name="getChartColumnName(chart.chart_id)"
+                                                    :filter-state="state.filterState"
+                                                    @segment-click="onChartSegmentClick"
                                                     class="mt-5"
                                                 />
                                                 <vertical-bar-chart
@@ -810,6 +991,10 @@ onMounted(async () => {
                                                     :y-axis-label="chart.y_axis_label"
                                                     :editable-axis-labels="false"
                                                     :x-axis-rotation="-45"
+                                                    :column-name="getChartColumnName(chart.chart_id)"
+                                                    :category-name="getChartCategoryName(chart.chart_id)"
+                                                    :filter-state="state.filterState"
+                                                    @segment-click="onChartSegmentClick"
                                                     class="mt-5"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
@@ -822,6 +1007,10 @@ onMounted(async () => {
                                                     :x-axis-label="chart.x_axis_label"
                                                     :y-axis-label="chart.y_axis_label"
                                                     :editable-axis-labels="false"
+                                                    :column-name="getChartColumnName(chart.chart_id)"
+                                                    :category-name="getChartCategoryName(chart.chart_id)"
+                                                    :filter-state="state.filterState"
+                                                    @segment-click="onChartSegmentClick"
                                                     class="mt-5"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
@@ -838,6 +1027,10 @@ onMounted(async () => {
                                                     :editable-axis-labels="false"
                                                     :x-axis-rotation="-45"
                                                     line-color="#FF5733"
+                                                    :column-name="getChartColumnName(chart.chart_id)"
+                                                    :category-name="getChartCategoryName(chart.chart_id)"
+                                                    :filter-state="state.filterState"
+                                                    @segment-click="onChartSegmentClick"
                                                     class="mt-5"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
@@ -855,6 +1048,11 @@ onMounted(async () => {
                                                     :x-axis-rotation="-45"
                                                     :editable-axis-labels="false"
                                                     :max-legend-width="350"
+                                                    :column-name="getChartColumnName(chart.chart_id)"
+                                                    :category-name="getChartCategoryName(chart.chart_id)"
+                                                    :stack-name="getChartStackName(chart.chart_id)"
+                                                    :filter-state="state.filterState"
+                                                    @segment-click="onChartSegmentClick"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
                                                 />
@@ -876,6 +1074,11 @@ onMounted(async () => {
                                                     :legend-item-spacing="25"
                                                     :editable-axis-labels="false"
                                                     :x-axis-rotation="-45"
+                                                    :x-column-name="getChartXColumnName(chart.chart_id)"
+                                                    :y-column-name="getChartYColumnName(chart.chart_id)"
+                                                    :series-name="getChartSeriesName(chart.chart_id)"
+                                                    :filter-state="state.filterState"
+                                                    @segment-click="onChartSegmentClick"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
                                                 />
@@ -893,6 +1096,10 @@ onMounted(async () => {
                                                     :label-font-size="12"
                                                     :value-font-size="10"
                                                     :min-tile-size="30"
+                                                    :category-name="getChartCategoryName(chart.chart_id)"
+                                                    :value-name="getChartValueName(chart.chart_id)"
+                                                    :filter-state="state.filterState"
+                                                    @segment-click="onChartSegmentClick"
                                                     class="mt-2"
                                                 />
                                                 <bubble-chart
@@ -902,6 +1109,12 @@ onMounted(async () => {
                                                     :data="chart.data"
                                                     :width="parseInt(chart.dimensions.widthDraggable.replace('px', '')) - 40"
                                                     :height="parseInt(chart.dimensions.heightDraggable.replace('px', '')) - 80"
+                                                    :x-column-name="getChartXColumnName(chart.chart_id)"
+                                                    :y-column-name="getChartYColumnName(chart.chart_id)"
+                                                    :size-column-name="getChartSizeColumnName(chart.chart_id)"
+                                                    :label-column-name="getChartLabelColumnName(chart.chart_id)"
+                                                    :filter-state="state.filterState"
+                                                    @segment-click="onChartSegmentClick"
                                                     class="mt-2"
                                                 />
                                             </div>

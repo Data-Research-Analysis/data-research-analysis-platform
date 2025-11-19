@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, reactive } from 'vue';
 
-const emit = defineEmits(['element-click', 'resize-needed']);
+const emit = defineEmits(['segment-click', 'resize-needed']);
 
 const state = reactive({
   hoveredRow: null,
@@ -66,7 +66,11 @@ const props = defineProps({
   useContainerSizing: {
     type: Boolean,
     default: false,
-  }
+  },
+  filterState: {
+    type: Object,
+    default: () => ({ activeFilter: null, isFiltering: false }),
+  },
 });
 
 // Computed properties
@@ -178,25 +182,25 @@ function truncateText(text, maxLength = 50) {
   return String(text).substring(0, maxLength) + '...';
 }
 
+// Helper to get row matching value for filtering
+function getRowMatchValue(row) {
+  // Use first column value as the match criterion
+  if (tableColumns.value.length > 0) {
+    const firstCol = tableColumns.value[0];
+    return String(row[firstCol] || '');
+  }
+  return '';
+}
+
+// Helper to determine if row matches filter
+function rowMatchesFilter(row) {
+  if (!props.filterState.isFiltering) return true;
+  const rowValue = getRowMatchValue(row);
+  return rowValue === String(props.filterState.activeFilter.value);
+}
+
 function onRowClick(row, index, event) {
-  emit('element-click', {
-    chartId: props.chartId,
-    chartType: 'table',
-    clickedElement: {
-      type: 'row',
-      label: `Row ${index + 1}`,
-      value: index + 1,
-      category: 'data_row',
-      metadata: {
-        rowData: row.originalData || row,
-        rowIndex: index,
-        columns: Object.keys(row.originalData || row),
-        displayedColumns: tableColumns.value
-      }
-    },
-    coordinates: { x: event.offsetX, y: event.offsetY },
-    originalEvent: event
-  });
+  emit('segment-click', props.chartId, 'row', row.rowId || index);
 }
 
 // Virtual scrolling methods
@@ -399,10 +403,12 @@ onUnmounted(() => {
             v-for="(row, index) in visibleRows"
             :key="virtualScrolling ? row.originalIndex : index"
             :style="virtualScrolling ? { height: itemHeight + 'px' } : {}"
-            class="transition-colors duration-150 cursor-pointer"
+            class="transition-all duration-300 cursor-pointer"
             :class="[
               alternateRowColors && (virtualScrolling ? row.originalIndex : index) % 2 === 1 ? 'bg-gray-50' : 'bg-white',
-              'hover:bg-blue-50'
+              'hover:bg-blue-50',
+              rowMatchesFilter(row) && props.filterState.isFiltering ? 'border-l-4 border-blue-500 bg-blue-50 font-semibold' : '',
+              !rowMatchesFilter(row) && props.filterState.isFiltering ? 'opacity-20' : 'opacity-100'
             ]"
             @click="onRowClick(row, virtualScrolling ? row.originalIndex : index, $event)"
             @mouseover="state.hoveredRow = virtualScrolling ? row.originalIndex : index"
@@ -460,3 +466,10 @@ onUnmounted(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+@keyframes pulse-selected {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.01); }
+}
+</style>

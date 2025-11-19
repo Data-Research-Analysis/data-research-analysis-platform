@@ -1,8 +1,8 @@
 <script setup>
-import { onMounted, watch, nextTick, reactive } from 'vue';
+import { onMounted, watch, nextTick, reactive, onBeforeUnmount } from 'vue';
 const { $d3 } = useNuxtApp();
 
-const emit = defineEmits(['element-click', 'update:yAxisLabel', 'update:xAxisLabel']);
+const emit = defineEmits(['segment-click', 'update:yAxisLabel', 'update:xAxisLabel']);
 
 const state = reactive({
     xAxisLabelLocal: '',
@@ -78,6 +78,22 @@ const props = defineProps({
         type: Number,
         default: 25,
     },
+    xColumnName: {
+        type: String,
+        default: 'X Axis',
+    },
+    yColumnName: {
+        type: String,
+        default: 'Y Axis',
+    },
+    seriesName: {
+        type: String,
+        default: 'Series',
+    },
+    filterState: {
+        type: Object,
+        default: () => ({ activeFilter: null, isFiltering: false }),
+    },
     editableAxisLabels: {
         type: Boolean,
         default: true,
@@ -111,6 +127,7 @@ const props = defineProps({
         default: () => ({ K: 'k', M: 'M', B: 'B', T: 'T' }),
     }
 });
+let tooltipElement = null;
 
 // Utility function to format large numbers with shortened suffixes
 function formatTickValue(value) {
@@ -204,6 +221,14 @@ function calculateXAxisLabelPosition(chartData, rotationAngle, baseMarginBottom)
 
 function deleteSVGs() {
     $d3.select(`#multi-line-chart-${props.chartId}`).selectAll('svg').remove();
+    
+    // Remove tooltip explicitly
+    if (tooltipElement) {
+        tooltipElement.remove();
+        tooltipElement = null;
+    }
+    // Also remove by class as fallback
+    $d3.selectAll('.multi-line-tooltip').remove();
 }
 
 function processData(rawData) {
@@ -427,14 +452,28 @@ function renderLines(svg, width, height, data, scales) {
 
         const color = series.color || defaultColors[index % defaultColors.length];
         
-        // Add line path without animation
+        // Calculate opacity based on filter state
+        const matches = !props.filterState.isFiltering || String(series.name) === String(props.filterState.activeFilter.value);
+        const opacity = matches ? 1.0 : 0.2;
+        const strokeWidth = props.filterState.isFiltering && matches ? 4 : 2.5;
+        
+        // Add line path with enhanced visual selection
         const path = svg.append('path')
             .datum(series.data)
             .attr('class', `line-series-${index}`)
             .attr('fill', 'none')
             .attr('stroke', color)
-            .attr('stroke-width', 2.5)
-            .attr('d', line);
+            .attr('stroke-width', strokeWidth)
+            .style('opacity', opacity)
+            .style('transition', 'all 0.3s ease')
+            .style('cursor', 'pointer')
+            .style('filter', props.filterState.isFiltering && matches ? 'drop-shadow(0 0 4px rgba(33, 150, 243, 0.5))' : 'none')
+            .attr('d', line)
+            .on('click', function(event) {
+                event.stopPropagation();
+                // Emit segment-click for filtering on line
+                emit('segment-click', props.chartId, 'series', series.name);
+            });
     });
 }
 
@@ -449,17 +488,25 @@ function renderPoints(svg, width, height, data, scales) {
 
         const color = series.color || defaultColors[seriesIndex % defaultColors.length];
         
-        // Create circles for each data point
+        // Calculate opacity based on filter state
+        const matches = !props.filterState.isFiltering || String(series.name) === String(props.filterState.activeFilter.value);
+        const opacity = matches ? 1.0 : 0.2;
+        const pointRadius = props.filterState.isFiltering && matches ? 5 : 4;
+        
+        // Create circles for each data point with enhanced selection
         const points = svg.selectAll(`.points-series-${seriesIndex}`)
             .data(series.data)
             .join('circle')
             .attr('class', `points-series-${seriesIndex}`)
             .attr('cx', (d, i) => x(data.categories[i]))
             .attr('cy', d => y(d))
-            .attr('r', 4)
+            .attr('r', pointRadius)
             .attr('fill', color)
-            .attr('stroke', '#fff')
-            .attr('stroke-width', 2);
+            .attr('stroke', props.filterState.isFiltering && matches ? '#2196F3' : '#fff')
+            .attr('stroke-width', props.filterState.isFiltering && matches ? 2.5 : 2)
+            .style('opacity', opacity)
+            .style('transition', 'all 0.3s ease')
+            .style('filter', props.filterState.isFiltering && matches ? 'drop-shadow(0 0 3px rgba(33, 150, 243, 0.5))' : 'none');
 
         if (props.enableTooltips) {
             setupPointInteractions(points, series, seriesIndex, data);
@@ -473,24 +520,7 @@ function setupPointInteractions(points, series, seriesIndex, data) {
         .on('click', function(event, d) {
             event.stopPropagation();
             const pointIndex = points.nodes().indexOf(this);
-            emit('element-click', {
-              chartId: props.chartId,
-              chartType: 'multiline',
-              clickedElement: {
-                type: 'data_point',
-                label: data.categories[pointIndex],
-                value: d,
-                category: series.name,
-                metadata: {
-                  seriesName: series.name,
-                  pointIndex: pointIndex,
-                  seriesColor: series.color,
-                  seriesIndex: seriesIndex
-                }
-              },
-              coordinates: { x: event.offsetX, y: event.offsetY },
-              originalEvent: event
-            });
+            emit('segment-click', props.chartId, 'series', series.name);
         })
         .on('mouseover', function(event, d) {
             const pointIndex = points.nodes().indexOf(this);
@@ -508,40 +538,51 @@ function setupPointInteractions(points, series, seriesIndex, data) {
 }
 
 function showTooltip(event, value, pointIndex, series, data) {
-    const tooltip = $d3.select('body').selectAll('.line-chart-tooltip')
+    const tooltip = $d3.select('.dashboard-tooltip-container').selectAll('.multi-line-tooltip')
         .data([0])
         .join('div')
-        .attr('class', 'line-chart-tooltip')
+        .attr('class', 'multi-line-tooltip')
         .style('position', 'absolute')
-        .style('background', 'rgba(0,0,0,0.8)')
+        .style('background', 'rgba(0, 0, 0, 0.9)')
         .style('color', 'white')
-        .style('padding', '10px')
-        .style('border-radius', '5px')
-        .style('font-size', '12px')
+        .style('padding', '12px 16px')
+        .style('border-radius', '6px')
+        .style('font-size', '14px')
         .style('pointer-events', 'none')
-        .style('z-index', '1000');
+        .style('z-index', '10000')
+        .style('box-shadow', '0 4px 6px rgba(0, 0, 0, 0.3)')
+        .style('line-height', '1.5');
+    
+    tooltipElement = tooltip;
 
     const content = `
-        <div><strong>${data.categories[pointIndex]}</strong></div>
-        <div style="color: ${series.color || '#ff6b6b'}">${series.name}: ${value}</div>
+        <div style="font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 6px;">
+            ${series.name}
+        </div>
+        <div style="margin-bottom: 4px;">
+            <span style="color: #94a3b8;">${props.seriesName}:</span> 
+            <span style="font-weight: 600; color: ${series.color || '#ff6b6b'};">${series.name}</span>
+        </div>
+        <div style="margin-bottom: 4px;">
+            <span style="color: #94a3b8;">${props.xColumnName}:</span> 
+            <span style="font-weight: 600;">${data.categories[pointIndex]}</span>
+        </div>
+        <div>
+            <span style="color: #94a3b8;">${props.yColumnName}:</span> 
+            <span style="font-weight: 600;">${typeof value === 'number' ? value.toLocaleString('en-US') : value}</span>
+        </div>
     `;
 
     tooltip
         .html(content)
-        .style('left', (event.pageX + 10) + 'px')
+        .style('left', (event.pageX + 15) + 'px')
         .style('top', (event.pageY - 10) + 'px')
-        .style('opacity', 0)
-        .transition()
-        .duration(200)
         .style('opacity', 1);
 }
 
 function hideTooltip() {
-    $d3.select('.line-chart-tooltip')
-        .transition()
-        .duration(200)
-        .style('opacity', 0)
-        .remove();
+    $d3.select('.multi-line-tooltip')
+        .style('opacity', 0);
 }
 
 function renderLegend(svg, width, height, data, margin) {
@@ -802,7 +843,7 @@ onMounted(() => {
     renderChart(props.data);
 });
 
-watch(() => [props.data, props.width, props.height, props.xAxisRotation, props.enableTickShortening, props.editableAxisLabels], () => {
+watch(() => [props.data, props.width, props.height, props.xAxisRotation, props.enableTickShortening, props.editableAxisLabels, props.filterState], () => {
     nextTick(() => renderChart(props.data));
 });
 
@@ -813,10 +854,28 @@ watch(() => props.xAxisLabel, (newVal) => {
 watch(() => props.yAxisLabel, (newVal) => {
     state.yAxisLabelLocal = newVal;
 });
+
+onBeforeUnmount(() => {
+    deleteSVGs();
+});
 </script>
 
 <template>
-    <div>
-        <div :id="`multi-line-chart-${props.chartId}`"></div>
-    </div>
+  <div>
+    <div :id="`multi-line-chart-${props.chartId}`"></div>
+  </div>
 </template>
+
+<style scoped>
+@keyframes pulse-selected {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+</style>
+
+<style scoped>
+@keyframes pulse-selected {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+</style>

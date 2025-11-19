@@ -1,8 +1,8 @@
 <script setup>
-import { onMounted, watch, nextTick } from 'vue';
+import { onMounted, watch, nextTick, onBeforeUnmount } from 'vue';
 const { $d3 } = useNuxtApp();
 
-const emit = defineEmits(['element-click']);
+const emit = defineEmits(['segment-click']);
 
 const props = defineProps({
   chartId: {
@@ -49,11 +49,32 @@ const props = defineProps({
   minTileSize: {
     type: Number,
     default: 30, // Minimum tile size for labels
-  }
+  },
+  categoryName: {
+    type: String,
+    default: 'Category',
+  },
+  valueName: {
+    type: String,
+    default: 'Value',
+  },
+  filterState: {
+    type: Object,
+    default: () => ({ activeFilter: null, isFiltering: false }),
+  },
 });
+let tooltipElement = null;
 
 function deleteSVGs() {
   $d3.select(`#treemap-chart-${props.chartId}`).selectAll('svg').remove();
+  
+  // Remove tooltip explicitly
+  if (tooltipElement) {
+    tooltipElement.remove();
+    tooltipElement = null;
+  }
+  // Also remove by class as fallback
+  $d3.selectAll('.treemap-tooltip').remove();
 }
 
 function processTreemapData(rawData) {
@@ -213,40 +234,88 @@ function renderSVG(chartData) {
     .attr('rx', 2)
     .attr('ry', 2)
     .style('cursor', 'pointer')
+    .style('opacity', d => {
+      // Apply filtering logic
+      if (!props.filterState.isFiltering) return 1.0;
+      const nodeName = d.data.name || d.data.label;
+      return String(nodeName) === String(props.filterState.activeFilter.value) ? 1.0 : 0.3;
+    })
+    .style('transition', 'opacity 0.3s ease')
     .on('click', function(event, d) {
       event.stopPropagation();
-      emit('element-click', {
-        chartId: props.chartId,
-        chartType: 'treemap',
-        clickedElement: {
-          type: 'tile',
-          label: d.data.name || d.data.label,
-          value: d.value,
-          category: d.parent?.data?.name || 'root',
-          metadata: {
-            depth: d.depth,
-            area: d.value,
-            bounds: { x0: d.x0, y0: d.y0, x1: d.x1, y1: d.y1 },
-            width: d.x1 - d.x0,
-            height: d.y1 - d.y0,
-            parentName: d.parent?.data?.name
-          }
-        },
-        coordinates: { x: event.offsetX, y: event.offsetY },
-        originalEvent: event
-      });
-    })
+      const nodeName = d.data.name || d.data.label;
+      emit('segment-click', props.chartId, 'label', nodeName);
+    });
+
+  // Create custom tooltip for instant display in dashboard container
+  const tooltip = $d3.select('.dashboard-tooltip-container')
+    .append('div')
+    .attr('class', 'treemap-tooltip')
+    .style('position', 'absolute')
+    .style('background', 'rgba(0, 0, 0, 0.9)')
+    .style('color', 'white')
+    .style('padding', '12px 16px')
+    .style('border-radius', '6px')
+    .style('font-size', '14px')
+    .style('pointer-events', 'none')
+    .style('z-index', '10000')
+    .style('opacity', 0)
+    .style('box-shadow', '0 4px 6px rgba(0, 0, 0, 0.3)')
+    .style('line-height', '1.5');
+  
+  tooltipElement = tooltip;
+
+  // Attach tooltip handlers to treemap rectangles
+  leaf.selectAll('rect')
     .on('mouseover', function(event, d) {
       $d3.select(this)
         .attr('stroke', '#333')
-        .attr('stroke-width', 2)
-        .style('opacity', 0.8);
+        .attr('stroke-width', 3)
+        .style('filter', 'brightness(1.1)');
+      
+      // Build tooltip content
+      let tooltipContent = `
+        <div style="font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 6px;">
+          ${d.data.name}
+        </div>
+        <div style="margin-bottom: 4px;">
+          <span style="color: #94a3b8;">${props.categoryName}:</span> 
+          <span style="font-weight: 600;">${d.data.name}</span>
+        </div>
+        <div style="margin-bottom: 4px;">
+          <span style="color: #94a3b8;">${props.valueName}:</span> 
+          <span style="font-weight: 600;">${d.value.toLocaleString('en-US')}</span>
+        </div>`;
+      
+      // Add parent info if exists
+      if (d.parent && d.parent.data.name !== 'Root') {
+        tooltipContent += `
+        <div style="border-top: 1px solid rgba(255,255,255,0.2); margin-top: 6px; padding-top: 6px;">
+          <span style="color: #94a3b8;">Parent:</span> 
+          <span style="font-weight: 600;">${d.parent.data.name}</span>
+        </div>`;
+      }
+      
+      tooltip
+        .html(tooltipContent)
+        .style('left', (event.pageX + 15) + 'px')
+        .style('top', (event.pageY - 10) + 'px')
+        .style('opacity', 1);
     })
     .on('mouseout', function(event, d) {
       $d3.select(this)
         .attr('stroke', '#fff')
         .attr('stroke-width', 1)
-        .style('opacity', 1);
+        .style('filter', 'brightness(1)');
+      
+      // Hide tooltip
+      tooltip.style('opacity', 0);
+    })
+    .on('mousemove', function(event) {
+      // Update tooltip position as mouse moves
+      tooltip
+        .style('left', (event.pageX + 15) + 'px')
+        .style('top', (event.pageY - 10) + 'px');
     });
 
   // Add category labels for parent nodes (if there are subcategories)
@@ -353,12 +422,16 @@ onMounted(() => {
   renderChart(props.data);
 });
 
-watch(() => [props.data, props.width, props.height], () => {
+watch(() => [props.data, props.width, props.height, props.filterState], () => {
   renderChart(props.data);
 });
 
 watch(() => [props.colorScheme, props.showLabels, props.showValues, props.labelFontSize, props.valueFontSize, props.minTileSize], () => {
   renderChart(props.data);
+});
+
+onBeforeUnmount(() => {
+  deleteSVGs();
 });
 </script>
 
@@ -367,3 +440,10 @@ watch(() => [props.colorScheme, props.showLabels, props.showValues, props.labelF
     <div :id="`treemap-chart-${props.chartId}`"></div>
   </div>
 </template>
+
+<style scoped>
+@keyframes pulse-selected {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+</style>
