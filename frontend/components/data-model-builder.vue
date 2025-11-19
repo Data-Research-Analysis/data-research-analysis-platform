@@ -624,6 +624,31 @@ async function executeQueryOnExternalDataSource() {
         state.response_from_external_data_source_rows = data;
     }
 }
+async function toggleColumnInDataModel(column, tableName) {
+    if (isColumnInDataModel(column.column_name, tableName)) {
+        // Remove
+        state.data_table.columns = state.data_table.columns.filter((c) => {
+            return !(c.column_name === column.column_name && c.table_name === tableName);
+        });
+        if (state.data_table.columns.length === 0) {
+            state.data_table.query_options.where = [];
+            state.data_table.query_options.group_by = [];
+            state.data_table.query_options.order_by = [];
+            state.data_table.query_options.offset = -1;
+            state.data_table.query_options.limit = -1;
+        }
+        await executeQueryOnExternalDataSource();
+    } else {
+        // Add
+        const newColumn = _.cloneDeep(column);
+        newColumn.table_name = tableName;
+        newColumn.is_selected_column = true;
+        newColumn.alias_name = "";
+        
+        state.data_table.columns.push(newColumn);
+        await executeQueryOnExternalDataSource();
+    }
+}
 onMounted(async () => {
     if (props.dataModel && props.dataModel.query) {
         state.data_table = props.dataModel.query;
@@ -665,7 +690,7 @@ onMounted(async () => {
                         <h4 class="bg-gray-300 text-center font-bold p-1 mb-2 overflow-clip text-ellipsis wrap-anywhere">
                             {{ table.table_name}}
                         </h4>
-                        <div class="bg-gray-300 p-1 m-2 wrap-anywhere">
+                        <div class="bg-gray-300 p-1 m-2 p-2 wrap-anywhere">
                             Table Schema: {{ table.schema }} <br />
                             Table Name: {{ table.table_name }}
                         </div>
@@ -688,15 +713,29 @@ onMounted(async () => {
 
                                     }"
                                 >
-                                    Column: <strong>{{ element.column_name }}</strong><br />
-                                    Column Data Type: {{ element.data_type }}<br />
-                                    <div v-if="element.reference && element.reference.foreign_table_schema">
-                                        <strong>Foreign Key Relationship Reference:</strong><br />
-                                        <div class="border border-primary-blue-100 border-solid p-2 m-1">
-                                            Foreign Table Name: <strong>{{ element.reference.foreign_table_schema }}.{{ element.reference.foreign_table_name }}</strong><br />
-                                            Foreign Column Name: <strong>{{ element.reference.foreign_column_name }}</strong><br />
+                                    <div class="flex flex-row">
+                                        <div class="w-2/3 ml-2 wrap-anywhere">
+                                            Column: <strong>{{ element.column_name }}</strong><br />
+                                            Column Data Type: {{ element.data_type }}<br />
+                                            <div v-if="element.reference && element.reference.foreign_table_schema">
+                                                <strong>Foreign Key Relationship Reference:</strong><br />
+                                                <div class="border border-primary-blue-100 border-solid p-2 m-1">
+                                                    Foreign Table Name: <strong>{{ element.reference.foreign_table_schema }}.{{ element.reference.foreign_table_name }}</strong><br />
+                                                    Foreign Column Name: <strong>{{ element.reference.foreign_column_name }}</strong><br />
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="w-1/3 flex flex-col justify-center">
+                                            <div v-if="!element.reference.foreign_table_schema" class="flex flex-col justify-center mr-2">
+                                                <input type="checkbox" class="cursor-pointer scale-200" 
+                                                    :checked="isColumnInDataModel(element.column_name, table.table_name)" 
+                                                    @change="toggleColumnInDataModel(element, table.table_name)"
+                                                    v-tippy="{ content: isColumnInDataModel(element.column_name, table.table_name) ? 'Uncheck to remove from data model' : 'Check to add to data model', placement: 'top' }"
+                                                />
+                                            </div>
                                         </div>
                                     </div>
+                                    
                                 </div>
                             </template>
                         </draggable>
