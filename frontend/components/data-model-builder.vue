@@ -46,6 +46,7 @@ const state = reactive({
     response_from_external_data_source_columns: [],
     response_from_external_data_source_rows: [],
     calculated_column: {},
+    alerts: [],
 });
 const props = defineProps({
     dataModel: {
@@ -431,44 +432,108 @@ function buildSQLQuery() {
             });
         });
 
+        // Detect orphaned tables (tables with no relationships to other selected tables)
+        const tablesInJoins = new Set();
+        fromJoinClauses.forEach(clause => {
+            tablesInJoins.add(`${clause.local_table_schema}.${clause.local_table_name}`);
+            tablesInJoins.add(`${clause.foreign_table_schema}.${clause.foreign_table_name}`);
+        });
+
+        const orphanedTables = dataTables.filter(table => !tablesInJoins.has(table));
+        if (orphanedTables.length > 0) {
+            const orphanedAlert = {
+                type: 'error',
+                message: `Cannot create data model: The following tables have no foreign key relationships to other selected tables: ${orphanedTables.join(', ')}. Please remove columns from unrelated tables or select tables with defined relationships.`
+            };
+            if (!state.alerts.find(a => a.type === 'error' && a.message.includes('no foreign key relationships'))) {
+                state.alerts.push(orphanedAlert);
+            }
+        } else {
+            // Remove orphaned table error if it exists and no longer applies
+            state.alerts = state.alerts.filter(a => !(a.type === 'error' && a.message.includes('no foreign key relationships')));
+        }
+
         /**
-         * Reordering the fromJoinClauses so that any table that is seen as a foreign table seen earlier on in the list 
-         * is then seen as local table, then to add this particular table join object to the begining of the array
-         * so that the ordering of the tables being joined are correctly joined and their ON statements are correctly
-         * ordered as well.
+         * Reordering the fromJoinClauses using topological sort to ensure proper JOIN order.
+         * A table can only be joined if all tables it references are already in the FROM clause.
          */
-        let modified_tables = [];
-        for (let i=0; i<fromJoinClauses.length;i++) {
-            for (let j=0;j<fromJoinClauses.length;j++) {
-                if (fromJoinClauses[i].foreign_table_name === fromJoinClauses[j].local_table_name) {
-                    modified_tables.push(fromJoinClauses[j]);
+        const sortedClauses = [];
+        const addedTables = new Set();
+        const clausesToProcess = [...fromJoinClauses];
+        
+        // Keep processing until all clauses are added or we detect a circular dependency
+        let lastCount = -1;
+        while (clausesToProcess.length > 0 && lastCount !== clausesToProcess.length) {
+            lastCount = clausesToProcess.length;
+            
+            for (let i = clausesToProcess.length - 1; i >= 0; i--) {
+                const clause = clausesToProcess[i];
+                const localTable = `${clause.local_table_schema}.${clause.local_table_name}`;
+                const foreignTable = `${clause.foreign_table_schema}.${clause.foreign_table_name}`;
+                
+                // Check if both tables referenced in this join are available
+                // A table is available if: it's in addedTables OR it will be added by this clause
+                const localAvailable = addedTables.has(localTable);
+                const foreignAvailable = addedTables.has(foreignTable);
+                
+                // We can add this clause if at least one of the tables is already available
+                if (localAvailable || foreignAvailable || addedTables.size === 0) {
+                    sortedClauses.push(clause);
+                    addedTables.add(localTable);
+                    addedTables.add(foreignTable);
+                    clausesToProcess.splice(i, 1);
                 }
             }
         }
-        for (let i=0; i<fromJoinClauses.length;i++) {
-            if (!modified_tables.find((table) => table.local_table_name === fromJoinClauses[i].local_table_name && table.foreign_table_name === fromJoinClauses[i].foreign_table_name)) {
-                modified_tables.push(fromJoinClauses[i]);
-            }
-        }
-        fromJoinClauses = modified_tables;
+        
+        // If there are still unprocessed clauses, add them anyway (circular dependency case)
+        sortedClauses.push(...clausesToProcess);
+        fromJoinClauses = sortedClauses;
         fromJoinClauses.forEach((clause, index) => {
             if (index === 0) {
                 fromJoinClause.push(`FROM ${clause.local_table_schema}.${clause.local_table_name}`)
                 fromJoinClause.push(`JOIN ${clause.foreign_table_schema}.${clause.foreign_table_name}`)
                 fromJoinClause.push(`ON ${clause.local_table_schema}.${clause.local_table_name}.${clause.local_column_name} = ${clause.foreign_table_schema}.${clause.foreign_table_name}.${clause.foreign_column_name}`)
             } else {
-                if (!fromJoinClause.includes(`FROM ${clause.local_table_schema}.${clause.local_table_name}`) && !fromJoinClause.includes(`JOIN ${clause.local_table_schema}.${clause.local_table_name}`)) {
-                    fromJoinClause.push(`JOIN ${clause.local_table_schema}.${clause.local_table_name}`)
-                } else if (!fromJoinClause.includes(`FROM ${clause.foreign_table_schema}.${clause.foreign_table_name}`) && !fromJoinClause.includes(`JOIN ${clause.foreign_table_schema}.${clause.foreign_table_name}`)) {
-                    fromJoinClause.push(`JOIN ${clause.foreign_table_schema}.${clause.foreign_table_name}`)
+                // More precise table existence check - both tables must be added independently
+                const localTableRef = `${clause.local_table_schema}.${clause.local_table_name}`;
+                const foreignTableRef = `${clause.foreign_table_schema}.${clause.foreign_table_name}`;
+
+                const localTableExists = fromJoinClause.some(entry => 
+                    entry.includes(`FROM ${localTableRef}`) || entry.includes(`JOIN ${localTableRef}`)
+                );
+                const foreignTableExists = fromJoinClause.some(entry => 
+                    entry.includes(`FROM ${foreignTableRef}`) || entry.includes(`JOIN ${foreignTableRef}`)
+                );
+
+                // Determine which table to JOIN (the one that doesn't exist yet)
+                // The ON clause will reference both tables
+                let needsNewJoin = false;
+                
+                if (!localTableExists && !foreignTableExists) {
+                    // Neither table exists - add the foreign table (it will be the new join target)
+                    fromJoinClause.push(`JOIN ${foreignTableRef}`);
+                    needsNewJoin = true;
+                } else if (!localTableExists) {
+                    // Only local table missing - add it
+                    fromJoinClause.push(`JOIN ${localTableRef}`);
+                    needsNewJoin = true;
+                } else if (!foreignTableExists) {
+                    // Only foreign table missing - add it
+                    fromJoinClause.push(`JOIN ${foreignTableRef}`);
+                    needsNewJoin = true;
                 }
-                if (index > 0 && fromJoinClause[fromJoinClause.length - 1].includes(`ON ${clause.local_table_schema}.${clause.local_table_name}`)) {
-                    if (!fromJoinClause.includes(`ON ${clause.local_table_schema}.${clause.local_table_name}.${clause.local_column_name} = ${clause.foreign_table_schema}.${clause.foreign_table_name}.${clause.foreign_column_name}`)) {
-                        fromJoinClause.push(`AND ${clause.local_table_schema}.${clause.local_table_name}.${clause.local_column_name} = ${clause.foreign_table_schema}.${clause.foreign_table_name}.${clause.foreign_column_name}`)
-                    }
+                
+                // Add the ON/AND condition
+                const joinCondition = `${clause.local_table_schema}.${clause.local_table_name}.${clause.local_column_name} = ${clause.foreign_table_schema}.${clause.foreign_table_name}.${clause.foreign_column_name}`;
+                
+                if (needsNewJoin) {
+                    // New table was added, use ON
+                    fromJoinClause.push(`ON ${joinCondition}`);
                 } else {
-                    if (!fromJoinClause.includes(`ON ${clause.local_table_schema}.${clause.local_table_name}.${clause.local_column_name} = ${clause.foreign_table_schema}.${clause.foreign_table_name}.${clause.foreign_column_name}`)) {
-                        fromJoinClause.push(`ON ${clause.local_table_schema}.${clause.local_table_name}.${clause.local_column_name} = ${clause.foreign_table_schema}.${clause.foreign_table_name}.${clause.foreign_column_name}`)
+                    // Both tables already exist, add as additional condition with AND
+                    if (!fromJoinClause.includes(`ON ${joinCondition}`) && !fromJoinClause.includes(`AND ${joinCondition}`)) {
+                        fromJoinClause.push(`AND ${joinCondition}`);
                     }
                 }
             }
@@ -619,6 +684,24 @@ async function executeQueryOnExternalDataSource() {
     });
     const data = await response.json();
     if (data && data.length) {
+        // Check for array values in result (indicates potential cartesian product)
+        const hasArrayValues = data.some(row => 
+            Object.values(row).some(value => Array.isArray(value))
+        );
+        
+        if (hasArrayValues) {
+            const errorAlert = {
+                type: 'error',
+                message: 'The query result contains array values, which may indicate a cartesian product or improper join. Please review your table and column selections.'
+            };
+            if (!state.alerts.find(a => a.type === 'error' && a.message.includes('array values'))) {
+                state.alerts.push(errorAlert);
+            }
+        } else {
+            // Remove array error if it exists and no longer applies
+            state.alerts = state.alerts.filter(a => !(a.type === 'error' && a.message.includes('array values')));
+        }
+        
         const columns = Object.keys(data[0]);
         state.response_from_external_data_source_columns = columns;
         state.response_from_external_data_source_rows = data;
@@ -664,6 +747,33 @@ onMounted(async () => {
         <div class="text-md mb-10">
             You can create a new data model from the tables given below by dragging into the empty block shown in the data model section to the right.
         </div>
+        
+        <!-- Alerts Section -->
+        <div v-if="state.alerts && state.alerts.length > 0" class="flex flex-col mb-5">
+            <div v-for="(alert, index) in state.alerts" :key="index" 
+                class="flex flex-row items-center p-4 mb-2 rounded border"
+                :class="{
+                    'bg-yellow-50 border-yellow-400 text-yellow-800': alert.type === 'warning',
+                    'bg-red-50 border-red-400 text-red-800': alert.type === 'error'
+                }"
+            >
+                <font-awesome 
+                    :icon="alert.type === 'warning' ? 'fas fa-exclamation-triangle' : 'fas fa-exclamation-circle'"
+                    class="mr-3 text-xl"
+                    :class="{
+                        'text-yellow-600': alert.type === 'warning',
+                        'text-red-600': alert.type === 'error'
+                    }"
+                />
+                <span class="flex-1">{{ alert.message }}</span>
+                <font-awesome 
+                    icon="fas fa-times"
+                    class="ml-3 cursor-pointer hover:opacity-70"
+                    @click="state.alerts.splice(index, 1)"
+                />
+            </div>
+        </div>
+        
         <div v-if="state.response_from_external_data_source_columns && state.response_from_external_data_source_columns.length" class="flex flex-col overflow-auto">
             <h3 class="font-bold text-left mb-5">Response From External Data Source</h3>
             <table class="w-full border border-primary-blue-100 border-solid">
