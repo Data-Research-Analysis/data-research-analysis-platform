@@ -318,7 +318,7 @@ function deleteSVGs() {
     tooltipElement = null;
   }
   // Also remove by class as fallback
-  $d3.selectAll('.stacked-bar-tooltip').remove();
+  $d3.selectAll(`.stacked-bar-tooltip-${props.chartId}`).remove();
 }
 
 function processData(rawData) {
@@ -492,7 +492,7 @@ function renderSVG(chartData) {
   // Create custom tooltip for instant display in dashboard container
   const tooltip = $d3.select('.dashboard-tooltip-container')
     .append('div')
-    .attr('class', 'stacked-bar-tooltip')
+    .attr('class', `stacked-bar-tooltip stacked-bar-tooltip-${props.chartId}`)
     .style('position', 'absolute')
     .style('background', 'rgba(0, 0, 0, 0.9)')
     .style('color', 'white')
@@ -542,8 +542,8 @@ function renderSVG(chartData) {
             <span style="font-weight: 600;">${total.toLocaleString('en-US')}</span>
           </div>
         `)
-        .style('left', (event.pageX + 15) + 'px')
-        .style('top', (event.pageY - 10) + 'px')
+        .style('left', (event.clientX + 15) + 'px')
+        .style('top', (event.clientY - 10) + 'px')
         .style('opacity', 1);
 
       $d3.select(this).style('opacity', 0.7);
@@ -556,8 +556,8 @@ function renderSVG(chartData) {
     .on('mousemove', function (event, d) {
       // Update tooltip position as mouse moves
       tooltip
-        .style('left', (event.pageX + 15) + 'px')
-        .style('top', (event.pageY - 10) + 'px');
+        .style('left', (event.clientX + 15) + 'px')
+        .style('top', (event.clientY - 10) + 'px');
     });
 
   // Legend with dynamic positioning and line wrapping

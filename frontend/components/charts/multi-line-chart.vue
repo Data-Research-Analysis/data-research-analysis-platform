@@ -575,8 +575,8 @@ function showTooltip(event, value, pointIndex, series, data) {
 
     tooltip
         .html(content)
-        .style('left', (event.pageX + 15) + 'px')
-        .style('top', (event.pageY - 10) + 'px')
+        .style('left', (event.clientX + 15) + 'px')
+        .style('top', (event.clientY - 10) + 'px')
         .style('opacity', 1);
 }
 

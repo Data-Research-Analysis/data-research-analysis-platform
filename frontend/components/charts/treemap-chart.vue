@@ -82,7 +82,7 @@ function deleteSVGs() {
     tooltipElement = null;
   }
   // Also remove by class as fallback
-  $d3.selectAll('.treemap-tooltip').remove();
+  $d3.selectAll(`.treemap-tooltip-${props.chartId}`).remove();
 }
 
 function processTreemapData(rawData) {
@@ -259,7 +259,7 @@ function renderSVG(chartData) {
   // Create custom tooltip for instant display in dashboard container
   const tooltip = $d3.select('.dashboard-tooltip-container')
     .append('div')
-    .attr('class', 'treemap-tooltip')
+    .attr('class', `treemap-tooltip treemap-tooltip-${props.chartId}`)
     .style('position', 'absolute')
     .style('background', 'rgba(0, 0, 0, 0.9)')
     .style('color', 'white')
@@ -307,8 +307,8 @@ function renderSVG(chartData) {
       
       tooltip
         .html(tooltipContent)
-        .style('left', (event.pageX + 15) + 'px')
-        .style('top', (event.pageY - 10) + 'px')
+        .style('left', (event.clientX + 15) + 'px')
+        .style('top', (event.clientY - 10) + 'px')
         .style('opacity', 1);
     })
     .on('mouseout', function(event, d) {
@@ -323,8 +323,8 @@ function renderSVG(chartData) {
     .on('mousemove', function(event) {
       // Update tooltip position as mouse moves
       tooltip
-        .style('left', (event.pageX + 15) + 'px')
-        .style('top', (event.pageY - 10) + 'px');
+        .style('left', (event.clientX + 15) + 'px')
+        .style('top', (event.clientY - 10) + 'px');
     });
 
   // Add category labels for parent nodes (if there are subcategories)

@@ -40,16 +40,7 @@ const state = reactive({
     sidebar_status: true,
     validation_status: null,
     show_validation_alert: false,
-    filterState: {
-        activeFilter: null,
-        isFiltering: false
-    },
     exportPreparation: null,
-    // Chart filtering state
-    activeFilters: new Map(), // Map<filter_id, IChartFilter>
-    filtersBySource: new Map(), // Map<chart_id, IChartFilter[]>
-    filtersByColumn: new Map(), // Map<column_name, IChartFilter[]>
-    selectedElements: new Map(), // Map<chart_id, selected_value> for visual highlighting
  });
 const project = computed(() => {
     return projectsStore.getSelectedProject();
@@ -227,84 +218,9 @@ function buildSQLQuery(chart) {
     
     sqlQuery += ` ${fromJoinClause.join(' ')}`;
     
-    // Add WHERE clauses from active filters
-    const whereConditions = buildWhereClausesForChart(chart);
-    if (whereConditions.length > 0) {
-        sqlQuery += ` WHERE ${whereConditions.join(' AND ')}`;
-    }
-    
     return sqlQuery;
 }
 
-// Build WHERE clauses from active filters for a specific chart
-function buildWhereClausesForChart(chart) {
-    const conditions = [];
-    
-    // Build map of qualified column names to actual columns for this chart
-    const chartColumnMap = new Map();
-    chart.columns.forEach(col => {
-        const qualifiedName = col.schema && col.table_name 
-            ? `${col.schema}.${col.table_name}.${col.column_name}`
-            : col.column_name;
-        chartColumnMap.set(qualifiedName, col);
-    });
-    
-    // Apply filters that match this chart's columns
-    state.activeFilters.forEach((filter) => {
-        // Skip filters from the same chart (don't filter itself)
-        if (filter.source_chart_id === chart.chart_id) {
-            return;
-        }
-        
-        // Build qualified column name for this filter
-        const filterQualifiedName = filter.schema && filter.table_name 
-            ? `${filter.schema}.${filter.table_name}.${filter.column_name}`
-            : filter.column_name;
-        
-        // Check if this chart has the filtered column (by qualified name)
-        if (chartColumnMap.has(filterQualifiedName)) {
-            const targetColumn = chartColumnMap.get(filterQualifiedName);
-            let condition = '';
-            
-            // Use simple column name in WHERE clause (SQL engine will resolve it)
-            // If there are multiple tables with same column name, this might need schema.table.column
-            const columnReference = filter.column_name;
-            
-            switch (filter.filter_type) {
-                case 'category':
-                    if (typeof filter.value === 'string') {
-                        condition = `${columnReference} ${filter.operator} '${filter.value}'`;
-                    } else {
-                        condition = `${columnReference} ${filter.operator} ${filter.value}`;
-                    }
-                    break;
-                    
-                case 'multi-category':
-                    if (filter.values && filter.values.length > 0) {
-                        const formattedValues = filter.values.map(v => 
-                            typeof v === 'string' ? `'${v}'` : v
-                        ).join(', ');
-                        condition = `${columnReference} ${filter.operator} (${formattedValues})`;
-                    }
-                    break;
-                    
-                case 'range':
-                    if (filter.operator === 'BETWEEN' && filter.min_value !== undefined && filter.max_value !== undefined) {
-                        const min = typeof filter.min_value === 'string' ? `'${filter.min_value}'` : filter.min_value;
-                        const max = typeof filter.max_value === 'string' ? `'${filter.max_value}'` : filter.max_value;
-                        condition = `${columnReference} BETWEEN ${min} AND ${max}`;
-                    }
-                    break;
-            }
-            
-            if (condition) {
-                conditions.push(condition);
-            }
-        }
-    });
-    
-    return conditions;
-}
 async function executeQueryOnDataModels(chartId) {
     state.response_from_data_models_columns = [];
     state.response_from_data_models_rows = [];
@@ -1040,178 +956,6 @@ function getChartCategoryName(chart) {
     return chart.columns[0].column_name || 'Category';
 }
 
-function getChartCategorySourceInfo(chart) {
-    if (!chart || !chart.columns || chart.columns.length < 1) {
-        return { schema: null, table_name: null, column_name: 'Category' };
-    }
-    const col = chart.columns[0];
-    return {
-        schema: col.schema,
-        table_name: col.table_name,
-        column_name: col.column_name || 'Category'
-    };
-}
-
-// Chart-to-chart filtering using existing segment-click event
-function onChartSegmentClick(chartId, key, value) {
-    console.log('onChartSegmentClick called:', { chartId, key, value });
-    const chart = state.dashboard.charts.find(c => c.chart_id === parseInt(chartId));
-    if (!chart) {
-        console.error('Chart not found:', chartId);
-        return;
-    }
-    
-    // Determine the column info based on the key type
-    let sourceInfo;
-    if (key === 'label') {
-        // For charts using 'label' key, get the actual source column info
-        sourceInfo = getChartCategorySourceInfo(chart);
-    } else {
-        // For table charts using actual column names, find the column info
-        const col = chart.columns.find(c => c.column_name === key);
-        if (col) {
-            sourceInfo = {
-                schema: col.schema,
-                table_name: col.table_name,
-                column_name: col.column_name
-            };
-        } else {
-            sourceInfo = { schema: null, table_name: null, column_name: key };
-        }
-    }
-    
-    // Generate unique filter ID
-    const filterId = `filter_${chartId}_${sourceInfo.column_name}_${Date.now()}`;
-    
-    // Create filter object with source column metadata
-    const filter = {
-        filter_id: filterId,
-        source_chart_id: parseInt(chartId),
-        source_chart_type: chart.chart_type,
-        filter_type: 'category',
-        column_name: sourceInfo.column_name,
-        schema: sourceInfo.schema,
-        table_name: sourceInfo.table_name,
-        operator: '=',
-        value: value,
-        display_value: value.toString(),
-        applied_at: Date.now()
-    };
-    
-    // Add to active filters
-    state.activeFilters.set(filterId, filter);
-    
-    // Group by source chart
-    if (!state.filtersBySource.has(filter.source_chart_id)) {
-        state.filtersBySource.set(filter.source_chart_id, []);
-    }
-    state.filtersBySource.get(filter.source_chart_id).push(filter);
-    
-    // Group by qualified column (schema.table.column) for proper matching
-    const qualifiedColumn = filter.schema && filter.table_name 
-        ? `${filter.schema}.${filter.table_name}.${filter.column_name}`
-        : filter.column_name;
-    if (!state.filtersByColumn.has(qualifiedColumn)) {
-        state.filtersByColumn.set(qualifiedColumn, []);
-    }
-    state.filtersByColumn.get(qualifiedColumn).push(filter);
-    
-    // Store selected element for visual highlighting
-    state.selectedElements.set(filter.source_chart_id, value.toString());
-    
-    // Refresh all charts except the source
-    refreshFilteredCharts(filter.source_chart_id);
-}
-
-function removeFilter(filterId) {
-    const filter = state.activeFilters.get(filterId);
-    if (!filter) return;
-    
-    // Remove from active filters
-    state.activeFilters.delete(filterId);
-    
-    // Remove from filtersBySource
-    const sourceFilters = state.filtersBySource.get(filter.source_chart_id);
-    if (sourceFilters) {
-        const index = sourceFilters.findIndex(f => f.filter_id === filterId);
-        if (index !== -1) {
-            sourceFilters.splice(index, 1);
-        }
-        if (sourceFilters.length === 0) {
-            state.filtersBySource.delete(filter.source_chart_id);
-            state.selectedElements.delete(filter.source_chart_id);
-        }
-    }
-    
-    // Remove from filtersByColumn (using qualified column name)
-    const qualifiedColumn = filter.schema && filter.table_name 
-        ? `${filter.schema}.${filter.table_name}.${filter.column_name}`
-        : filter.column_name;
-    const columnFilters = state.filtersByColumn.get(qualifiedColumn);
-    if (columnFilters) {
-        const index = columnFilters.findIndex(f => f.filter_id === filterId);
-        if (index !== -1) {
-            columnFilters.splice(index, 1);
-        }
-        if (columnFilters.length === 0) {
-            state.filtersByColumn.delete(qualifiedColumn);
-        }
-    }
-    
-    // Refresh all charts
-    refreshFilteredCharts();
-}
-
-function clearAllFilters() {
-    state.activeFilters.clear();
-    state.filtersBySource.clear();
-    state.filtersByColumn.clear();
-    state.selectedElements.clear();
-    
-    // Refresh all charts
-    refreshFilteredCharts();
-}
-
-async function refreshFilteredCharts(excludeChartId = null) {
-    console.log('refreshFilteredCharts called, excluding:', excludeChartId);
-    console.log('Active filters:', state.activeFilters);
-    console.log('Filters by column:', state.filtersByColumn);
-    
-    // Refresh all charts that have columns matching any active filter
-    const chartsToRefresh = state.dashboard.charts.filter(chart => {
-        // Don't refresh the source chart
-        if (excludeChartId && chart.chart_id === excludeChartId) {
-            return false;
-        }
-        
-        // Build set of qualified column names for this chart
-        const chartQualifiedColumns = new Set(
-            chart.columns.map(col => 
-                col.schema && col.table_name 
-                    ? `${col.schema}.${col.table_name}.${col.column_name}`
-                    : col.column_name
-            )
-        );
-        
-        // Check if chart has any columns that are being filtered
-        for (const [qualifiedColumnName] of state.filtersByColumn) {
-            if (chartQualifiedColumns.has(qualifiedColumnName)) {
-                console.log(`Chart ${chart.chart_id} needs refresh - has column ${qualifiedColumnName}`);
-                return true;
-            }
-        }
-        
-        return false;
-    });
-    
-    console.log(`Refreshing ${chartsToRefresh.length} charts`);
-    
-    // Execute query for each chart that needs refresh
-    for (const chart of chartsToRefresh) {
-        await executeQueryOnDataModels(chart.chart_id);
-    }
-}
-
 function getChartStackName(chart) {
     if (!chart || !chart.columns || chart.columns.length < 3) return 'Stack';
     return chart.columns[2].column_name || 'Stack';
@@ -1569,45 +1313,6 @@ onUnmounted(() => {
                     </div>
                 </div>
 
-                <!-- Active Filters Section -->
-                <div v-if="state.activeFilters.size > 0" class="mb-4 mx-2" :class="{'ml-10': state.sidebar_status}">
-                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <div class="flex flex-row items-center justify-between mb-3">
-                            <div class="flex items-center">
-                                <i class="fas fa-filter text-blue-600 mr-2"></i>
-                                <h4 class="font-semibold text-blue-900">Active Filters ({{ state.activeFilters.size }})</h4>
-                            </div>
-                            <button
-                                @click="clearAllFilters"
-                                class="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
-                            >
-                                <i class="fas fa-times mr-1"></i>
-                                Clear All
-                            </button>
-                        </div>
-                        <div class="flex flex-wrap gap-2">
-                            <div
-                                v-for="[filterId, filter] in state.activeFilters"
-                                :key="filterId"
-                                class="inline-flex items-center px-3 py-2 bg-white border border-blue-300 rounded-md shadow-sm"
-                            >
-                                <span class="text-xs text-blue-600 font-semibold mr-2">
-                                    {{ filter.source_chart_type.toUpperCase() }}
-                                </span>
-                                <span class="text-sm text-gray-700">
-                                    {{ filter.column_name }}: <strong>{{ filter.display_value }}</strong>
-                                </span>
-                                <button
-                                    @click="removeFilter(filterId)"
-                                    class="ml-2 text-blue-600 hover:text-blue-800 transition-colors"
-                                >
-                                    <i class="fas fa-times text-xs"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
                 <div class="flex flex-col min-h-200 max-h-200 h-200 overflow-hidden overflow-x-auto mr-2 mb-10 border border-primary-blue-100 border-solid bg-gray-300"
                     :class="{'ml-10': state.sidebar_status}"
                 >
@@ -1724,7 +1429,6 @@ onUnmounted(() => {
                                                     :use-container-sizing="true"
                                                     :virtual-scrolling="chart.data[0]?.rows?.length > 100"
                                                     :virtual-scroll-item-height="35"
-                                                    @segment-click="onChartSegmentClick"
                                                     @resize-needed="(data) => handleTableResize(chart.chart_id, data)"
                                                     class="mt-2"
                                                 />
@@ -1737,9 +1441,7 @@ onUnmounted(() => {
                                                     :height="1200"
                                                     :column-name="getChartColumnName(chart)"
                                                     :category-column="getChartCategoryName(chart)"
-                                                    :selected-value="state.selectedElements.get(chart.chart_id)"
-                                                    :filter-state="state.filterState"
-                                                    @segment-click="onChartSegmentClick"
+                                                    :enable-tooltips="true"
                                                     class="mt-5"
                                                 />
                                                 <donut-chart
@@ -1751,9 +1453,7 @@ onUnmounted(() => {
                                                     :height="1200"
                                                     :column-name="getChartColumnName(chart)"
                                                     :category-column="getChartCategoryName(chart)"
-                                                    :selected-value="state.selectedElements.get(chart.chart_id)"
-                                                    :filter-state="state.filterState"
-                                                    @segment-click="onChartSegmentClic                                                    class="mt-5"
+                                                    :enable-tooltips="true"
                                                 />
                                                 <vertical-bar-chart
                                                     v-if="chart.chart_type === 'vertical_bar'"
@@ -1766,9 +1466,7 @@ onUnmounted(() => {
                                                     :column-name="getChartColumnName(chart)"
                                                     :category-name="getChartCategoryName(chart)"
                                                     :category-column="getChartCategoryName(chart)"
-                                                    :selected-value="state.selectedElements.get(chart.chart_id)"
-                                                    :filter-state="state.filterState"
-                                                    @segment-click="onChartSegmentClick"
+                                                    :enable-tooltips="true"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
                                                     class="mt-5"
@@ -1783,9 +1481,7 @@ onUnmounted(() => {
                                                     :column-name="getChartColumnName(chart)"
                                                     :category-name="getChartCategoryName(chart)"
                                                     :category-column="getChartCategoryName(chart)"
-                                                    :selected-value="state.selectedElements.get(chart.chart_id)"
-                                                    :filter-state="state.filterState"
-                                                    @segment-click="onChartSegmentClick"
+                                                    :enable-tooltips="true"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
                                                     class="mt-5"
@@ -1801,7 +1497,7 @@ onUnmounted(() => {
                                                     :line-data="chart.line_data"
                                                     :x-axis-rotation="-45"
                                                     line-color="#FF5733"
-                                                    @segment-click="onChartSegmentClick"
+                                                    :enable-tooltips="true"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
                                                     class="mt-5"
@@ -1820,9 +1516,8 @@ onUnmounted(() => {
                                                     :column-name="getChartColumnName(chart)"
                                                     :category-name="getChartCategoryName(chart)"
                                                     :stack-name="getChartStackName(chart)"
-                                                    :filter-state="state.filterState"
                                                     :max-legend-width="350"
-                                                    @segment-click="onChartSegmentClick"
+                                                    :enable-tooltips="true"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
                                                 />
@@ -1846,8 +1541,6 @@ onUnmounted(() => {
                                                     :x-column-name="getChartXColumnName(chart)"
                                                     :y-column-name="getChartYColumnName(chart)"
                                                     :series-name="getChartSeriesName(chart)"
-                                                    :filter-state="state.filterState"
-                                                    @segment-click="onChartSegmentClick"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
                                                 />
@@ -1868,10 +1561,6 @@ onUnmounted(() => {
                                                     :category-name="getChartCategoryName(chart)"
                                                     :value-name="getChartValueName(chart)"
                                                     :category-column="getChartCategoryName(chart)"
-                                                    :selected-value="state.selectedElements.get(chart.chart_id)"
-                                                    :filter-state="state.filterState"
-                                                    @apply-filter="handleChartFilter"
-                                                    @segment-click="onChartSegmentClick"
                                                     class="mt-2"
                                                 />
                                                 <bubble-chart
@@ -1885,8 +1574,7 @@ onUnmounted(() => {
                                                     :y-column-name="getChartYColumnName(chart)"
                                                     :size-column-name="getChartSizeColumnName(chart)"
                                                     :label-column-name="getChartLabelColumnName(chart)"
-                                                    :filter-state="state.filterState"
-                                                    @segment-click="onChartSegmentClick"
+                                                    :enable-tooltips="true"
                                                     class="mt-2"
                                                 />
                                             </div>

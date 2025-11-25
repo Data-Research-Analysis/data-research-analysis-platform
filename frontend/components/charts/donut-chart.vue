@@ -67,7 +67,7 @@ function deleteSVGs() {
     tooltipElement = null;
   }
   // Also remove by class as fallback
-  $d3.selectAll('.donut-chart-tooltip').remove();
+  $d3.selectAll(`.donut-chart-tooltip-${props.chartId}`).remove();
 }
 function renderSVG(chartData) {
  const margin = {
@@ -108,7 +108,7 @@ function renderSVG(chartData) {
     // Create custom tooltip for instant display in dashboard container
   const tooltip = $d3.select('.dashboard-tooltip-container')
     .append('div')
-    .attr('class', 'donut-chart-tooltip')
+    .attr('class', `donut-chart-tooltip donut-chart-tooltip-${props.chartId}`)
       .style('position', 'absolute')
       .style('background', 'rgba(0, 0, 0, 0.9)')
       .style('color', 'white')
@@ -184,8 +184,8 @@ function renderSVG(chartData) {
                 <span style="font-weight: 600;">${d.data.percent_value}%</span>
               </div>
             `)
-            .style('left', (event.pageX + 15) + 'px')
-            .style('top', (event.pageY - 10) + 'px')
+            .style('left', (event.clientX + 15) + 'px')
+            .style('top', (event.clientY - 10) + 'px')
             .style('opacity', 1);
         })
         .on("mouseout", function(event, d) {
@@ -200,8 +200,8 @@ function renderSVG(chartData) {
         .on("mousemove", function(event) {
           // Update tooltip position as mouse moves
           tooltip
-            .style('left', (event.pageX + 15) + 'px')
-            .style('top', (event.pageY - 10) + 'px');
+            .style('left', (event.clientX + 15) + 'px')
+            .style('top', (event.clientY - 10) + 'px');
         });
     svg.append("g")
         .attr("text-anchor", "middle")

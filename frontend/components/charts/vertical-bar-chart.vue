@@ -199,7 +199,7 @@ function deleteSVGs() {
     tooltipElement = null;
   }
   // Also remove by class as fallback
-  $d3.selectAll('.vertical-bar-tooltip').remove();
+  $d3.selectAll(`.vertical-bar-tooltip-${props.chartId}`).remove();
 }
 
 function renderSVG(chartData, lineData) {
@@ -288,9 +288,10 @@ function renderSVG(chartData, lineData) {
     .style('stroke', 'black');
 
   // Bars
-  svg.selectAll('rect')
+  svg.selectAll('rect.bar')
     .data(chartData)
     .join('rect')
+    .attr('class', 'bar')
     .attr('x', d => x(d.label))
     .attr('y', d => y(d.value))
     .attr('width', x.bandwidth())
@@ -349,7 +350,7 @@ function renderSVG(chartData, lineData) {
   // Create custom tooltip for instant display in dashboard container
   const tooltip = $d3.select('.dashboard-tooltip-container')
     .append('div')
-    .attr('class', 'vertical-bar-tooltip')
+    .attr('class', `vertical-bar-tooltip vertical-bar-tooltip-${props.chartId}`)
     .style('position', 'absolute')
     .style('background', 'rgba(0, 0, 0, 0.9)')
     .style('color', 'white')
@@ -365,7 +366,7 @@ function renderSVG(chartData, lineData) {
   tooltipElement = tooltip;
 
   // Tooltips with full values and instant display
-  svg.selectAll('rect')
+  svg.selectAll('.bar')
     .on('mouseover', function (event, d) {
       $d3.select(this).attr('fill', '#4682b4');
       
@@ -388,8 +389,8 @@ function renderSVG(chartData, lineData) {
             <span style="font-weight: 600;">${d.value.toLocaleString('en-US')}</span>
           </div>
         `)
-        .style('left', (event.pageX + 15) + 'px')
-        .style('top', (event.pageY - 10) + 'px')
+        .style('left', (event.clientX + 15) + 'px')
+        .style('top', (event.clientY - 10) + 'px')
         .style('opacity', 1);
     })
     .on('mouseout', function (event, d) {
@@ -401,8 +402,8 @@ function renderSVG(chartData, lineData) {
     .on('mousemove', function (event, d) {
       // Update tooltip position as mouse moves
       tooltip
-        .style('left', (event.pageX + 15) + 'px')
-        .style('top', (event.pageY - 10) + 'px');
+        .style('left', (event.clientX + 15) + 'px')
+        .style('top', (event.clientY - 10) + 'px');
     });
 
   // Line chart overlay (conditional)
