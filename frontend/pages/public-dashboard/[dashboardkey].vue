@@ -123,6 +123,11 @@ const state = reactive({
         activeFilter: null,
         isFiltering: false
     },
+    // Chart filtering state
+    activeFilters: new Map(), // Map<filter_id, IChartFilter>
+    filtersBySource: new Map(), // Map<chart_id, IChartFilter[]>
+    filtersByColumn: new Map(), // Map<qualified_column_name, IChartFilter[]>
+    selectedElements: new Map(), // Map<chart_id, selected_value> for visual highlighting
  });
 
 // project and dashboard computeds are defined above for SEO
@@ -233,26 +238,208 @@ function handleTableResize(chartId, resizeData) {
     }
 }
 
-// Filter handling functions
+// Chart-to-chart filtering with SQL-based approach
 function onChartSegmentClick(chartId, filterKey, filterValue) {
     console.log('Chart segment clicked:', { chartId, filterKey, filterValue });
     
-    // Toggle: if clicking the same segment that's already filtered, clear the filter
-    if (state.filterState.isFiltering && 
-        state.filterState.activeFilter?.value === filterValue) {
-        clearFilter();
+    const chart = charts.value.find(c => c.chart_id === parseInt(chartId));
+    if (!chart) {
+        console.error('Chart not found:', chartId);
         return;
     }
     
-    if (filterKey && filterValue !== undefined && filterValue !== null) {
-        state.filterState.activeFilter = { chartId, category: filterKey, value: filterValue };
-        state.filterState.isFiltering = true;
+    // Get source column info based on filterKey type
+    let sourceInfo;
+    if (filterKey === 'label') {
+        // For charts using 'label' key, get the actual source column info
+        sourceInfo = getChartCategorySourceInfo(chartId);
+    } else {
+        // For table charts using actual column names, find the column info
+        const col = chart.columns.find(c => c.column_name === filterKey);
+        if (col) {
+            sourceInfo = {
+                schema: col.schema,
+                table_name: col.table_name,
+                column_name: col.column_name
+            };
+        } else {
+            sourceInfo = { schema: null, table_name: null, column_name: filterKey };
+        }
     }
+    
+    // Build qualified column name for matching
+    const qualifiedColumn = sourceInfo.schema && sourceInfo.table_name
+        ? `${sourceInfo.schema}.${sourceInfo.table_name}.${sourceInfo.column_name}`
+        : sourceInfo.column_name;
+    
+    console.log('Filter source info:', sourceInfo, 'Qualified column:', qualifiedColumn);
+    
+    // Check if clicking the same segment that's already filtered - if so, remove it (toggle behavior)
+    const existingFilter = Array.from(state.activeFilters.values()).find(f => 
+        f.source_chart_id === parseInt(chartId) &&
+        f.column_name === sourceInfo.column_name &&
+        f.value === filterValue
+    );
+    
+    if (existingFilter) {
+        console.log('Removing existing filter:', existingFilter.filter_id);
+        removeFilter(existingFilter.filter_id);
+        return;
+    }
+    
+    // Generate unique filter ID
+    const filterId = `filter_${chartId}_${sourceInfo.column_name}_${Date.now()}`;
+    
+    // Create filter object with source column metadata
+    const filter = {
+        filter_id: filterId,
+        source_chart_id: parseInt(chartId),
+        source_chart_type: chart.chart_type,
+        filter_type: 'category',
+        column_name: sourceInfo.column_name,
+        schema: sourceInfo.schema,
+        table_name: sourceInfo.table_name,
+        operator: '=',
+        value: filterValue,
+        display_value: filterValue.toString(),
+        applied_at: Date.now()
+    };
+    
+    // Add to active filters
+    state.activeFilters.set(filterId, filter);
+    
+    // Group by source chart
+    if (!state.filtersBySource.has(filter.source_chart_id)) {
+        state.filtersBySource.set(filter.source_chart_id, []);
+    }
+    state.filtersBySource.get(filter.source_chart_id).push(filter);
+    
+    // Group by qualified column for proper matching
+    if (!state.filtersByColumn.has(qualifiedColumn)) {
+        state.filtersByColumn.set(qualifiedColumn, []);
+    }
+    state.filtersByColumn.get(qualifiedColumn).push(filter);
+    
+    // Store selected element for visual highlighting
+    state.selectedElements.set(filter.source_chart_id, filterValue.toString());
+    
+    // Keep legacy filterState for UI compatibility
+    state.filterState.activeFilter = { 
+        chartId, 
+        category: sourceInfo.column_name,
+        qualifiedColumn: qualifiedColumn,
+        schema: sourceInfo.schema,
+        table_name: sourceInfo.table_name,
+        value: filterValue 
+    };
+    state.filterState.isFiltering = true;
+    
+    // Refresh all charts except the source
+    refreshFilteredCharts(filter.source_chart_id);
+}
+
+function removeFilter(filterId) {
+    const filter = state.activeFilters.get(filterId);
+    if (!filter) return;
+    
+    console.log('Removing filter:', filterId, filter);
+    
+    // Remove from active filters
+    state.activeFilters.delete(filterId);
+    
+    // Remove from filtersBySource
+    const sourceFilters = state.filtersBySource.get(filter.source_chart_id);
+    if (sourceFilters) {
+        const index = sourceFilters.findIndex(f => f.filter_id === filterId);
+        if (index !== -1) {
+            sourceFilters.splice(index, 1);
+        }
+        if (sourceFilters.length === 0) {
+            state.filtersBySource.delete(filter.source_chart_id);
+            state.selectedElements.delete(filter.source_chart_id);
+        }
+    }
+    
+    // Remove from filtersByColumn (using qualified column name)
+    const qualifiedColumn = filter.schema && filter.table_name 
+        ? `${filter.schema}.${filter.table_name}.${filter.column_name}`
+        : filter.column_name;
+    const columnFilters = state.filtersByColumn.get(qualifiedColumn);
+    if (columnFilters) {
+        const index = columnFilters.findIndex(f => f.filter_id === filterId);
+        if (index !== -1) {
+            columnFilters.splice(index, 1);
+        }
+        if (columnFilters.length === 0) {
+            state.filtersByColumn.delete(qualifiedColumn);
+        }
+    }
+    
+    // Update legacy filterState
+    if (state.activeFilters.size === 0) {
+        state.filterState.activeFilter = null;
+        state.filterState.isFiltering = false;
+    }
+    
+    // Refresh all charts
+    refreshFilteredCharts();
 }
 
 function clearFilter() {
+    state.activeFilters.clear();
+    state.filtersBySource.clear();
+    state.filtersByColumn.clear();
+    state.selectedElements.clear();
     state.filterState.activeFilter = null;
     state.filterState.isFiltering = false;
+    
+    // Refresh all charts to show unfiltered data
+    refreshFilteredCharts();
+}
+
+// Refresh charts that should be affected by active filters
+async function refreshFilteredCharts(excludeChartId = null) {
+    console.log('refreshFilteredCharts called, excluding:', excludeChartId);
+    console.log('Active filters:', state.activeFilters);
+    
+    // Refresh all charts that have columns matching any active filter
+    const chartsToRefresh = state.dashboard.charts.filter(chart => {
+        // Don't refresh the source chart
+        if (excludeChartId && chart.chart_id === excludeChartId) {
+            return false;
+        }
+        
+        // If no active filters, refresh all to show unfiltered data
+        if (state.activeFilters.size === 0) {
+            return true;
+        }
+        
+        // Build set of qualified column names for this chart
+        const chartQualifiedColumns = new Set(
+            chart.columns.map(col => 
+                col.schema && col.table_name 
+                    ? `${col.schema}.${col.table_name}.${col.column_name}`
+                    : col.column_name
+            )
+        );
+        
+        // Check if chart has any columns that are being filtered
+        for (const [qualifiedColumnName] of state.filtersByColumn) {
+            if (chartQualifiedColumns.has(qualifiedColumnName)) {
+                console.log(`Chart ${chart.chart_id} needs refresh - has column ${qualifiedColumnName}`);
+                return true;
+            }
+        }
+        
+        return false;
+    });
+    
+    console.log(`Refreshing ${chartsToRefresh.length} charts`);
+    
+    // Execute query for each chart that needs refresh
+    for (const chart of chartsToRefresh) {
+        await executeQueryOnDataModels(chart.chart_id);
+    }
 }
 
 // Handle ESC key to clear filters
@@ -293,6 +480,20 @@ function getChartCategoryName(chartId) {
     }
     // First column is typically the category/label
     return chart.columns[0]?.column_name || 'Category';
+}
+
+// Helper to get source column info (schema, table, column) for the category
+function getChartCategorySourceInfo(chartId) {
+    const chart = charts.value.find(c => c.chart_id === chartId);
+    if (!chart || !chart.columns || chart.columns.length === 0) {
+        return { schema: null, table_name: null, column_name: 'Category' };
+    }
+    const col = chart.columns[0];
+    return {
+        schema: col.schema,
+        table_name: col.table_name,
+        column_name: col.column_name || 'Category'
+    };
 }
 
 // Helper to get stack name for stacked charts
@@ -396,8 +597,84 @@ function buildSQLQuery(chart) {
         return `${column.column_name}`;
     }).join(', ')}`;
     
-    sqlQuery += ` ${fromJoinClause.join(' ')}`;    
+    sqlQuery += ` ${fromJoinClause.join(' ')}`;
+    
+    // Add WHERE clauses from active filters
+    const whereConditions = buildWhereClausesForChart(chart);
+    if (whereConditions.length > 0) {
+        sqlQuery += ` WHERE ${whereConditions.join(' AND ')}`;
+    }
+    
     return sqlQuery;
+}
+
+// Build WHERE clauses from active filters for a specific chart
+function buildWhereClausesForChart(chart) {
+    const conditions = [];
+    
+    // Build map of qualified column names to actual columns for this chart
+    const chartColumnMap = new Map();
+    chart.columns.forEach(col => {
+        const qualifiedName = col.schema && col.table_name 
+            ? `${col.schema}.${col.table_name}.${col.column_name}`
+            : col.column_name;
+        chartColumnMap.set(qualifiedName, col);
+    });
+    
+    // Apply filters that match this chart's columns
+    state.activeFilters.forEach((filter) => {
+        // Skip filters from the same chart (don't filter itself)
+        if (filter.source_chart_id === chart.chart_id) {
+            return;
+        }
+        
+        // Build qualified column name for this filter
+        const filterQualifiedName = filter.schema && filter.table_name 
+            ? `${filter.schema}.${filter.table_name}.${filter.column_name}`
+            : filter.column_name;
+        
+        // Check if this chart has the filtered column (by qualified name)
+        if (chartColumnMap.has(filterQualifiedName)) {
+            const targetColumn = chartColumnMap.get(filterQualifiedName);
+            let condition = '';
+            
+            // Use simple column name in WHERE clause
+            const columnReference = filter.column_name;
+            
+            switch (filter.filter_type) {
+                case 'category':
+                    if (typeof filter.value === 'string') {
+                        condition = `${columnReference} ${filter.operator} '${filter.value}'`;
+                    } else {
+                        condition = `${columnReference} ${filter.operator} ${filter.value}`;
+                    }
+                    break;
+                    
+                case 'multi-category':
+                    if (filter.values && filter.values.length > 0) {
+                        const formattedValues = filter.values.map(v => 
+                            typeof v === 'string' ? `'${v}'` : v
+                        ).join(', ');
+                        condition = `${columnReference} ${filter.operator} (${formattedValues})`;
+                    }
+                    break;
+                    
+                case 'range':
+                    if (filter.operator === 'BETWEEN' && filter.min_value !== undefined && filter.max_value !== undefined) {
+                        const min = typeof filter.min_value === 'string' ? `'${filter.min_value}'` : filter.min_value;
+                        const max = typeof filter.max_value === 'string' ? `'${filter.max_value}'` : filter.max_value;
+                        condition = `${columnReference} BETWEEN ${min} AND ${max}`;
+                    }
+                    break;
+            }
+            
+            if (condition) {
+                conditions.push(condition);
+            }
+        }
+    });
+    
+    return conditions;
 }
 async function executeQueryOnDataModels(chartId) {
     state.response_from_data_models_columns = [];
@@ -893,26 +1170,46 @@ onBeforeUnmount(() => {
                 />
             </div>
             <div class="flex flex-col w-full p-10">
-                <!-- Filter indicator banner -->
-                <div v-if="state.filterState.isFiltering" 
-                     class="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 mb-6 mx-10 flex items-center justify-between rounded shadow-sm transition-all duration-300">
-                    <div class="flex flex-col">
-                        <div class="flex items-center mb-1">
-                            <font-awesome icon="fas fa-filter" class="mr-3 text-lg" />
-                            <span class="font-semibold">
-                                Filtering by: <span class="font-bold">{{ state.filterState.activeFilter.value }}</span>
-                            </span>
+                <!-- Active Filters Section -->
+                <div v-if="state.activeFilters.size > 0" class="mb-6 mx-10">
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div class="flex flex-row items-center justify-between mb-3">
+                            <div class="flex items-center">
+                                <font-awesome icon="fas fa-filter" class="text-blue-600 mr-2" />
+                                <h4 class="font-semibold text-blue-900">Active Filters ({{ state.activeFilters.size }})</h4>
+                            </div>
+                            <button
+                                @click="clearFilter"
+                                class="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+                            >
+                                <font-awesome icon="fas fa-times" class="mr-1" />
+                                Clear All
+                            </button>
                         </div>
-                        <span class="text-xs text-blue-600 ml-8">
-                            💡 Click the same segment again, press ESC, or click outside to clear
-                        </span>
+                        <div class="flex flex-wrap gap-2">
+                            <div
+                                v-for="[filterId, filter] in state.activeFilters"
+                                :key="filterId"
+                                class="inline-flex items-center px-3 py-2 bg-white border border-blue-300 rounded-md shadow-sm"
+                            >
+                                <span class="text-xs text-blue-600 font-semibold mr-2">
+                                    {{ filter.source_chart_type.toUpperCase() }}
+                                </span>
+                                <span class="text-sm text-gray-700">
+                                    {{ filter.column_name }}: <strong>{{ filter.display_value }}</strong>
+                                </span>
+                                <button
+                                    @click="removeFilter(filterId)"
+                                    class="ml-2 text-blue-600 hover:text-blue-800 transition-colors"
+                                >
+                                    <font-awesome icon="fas fa-times" class="text-xs" />
+                                </button>
+                            </div>
+                        </div>
+                        <div class="text-xs text-blue-600 mt-2">
+                            💡 Click segments again to remove filters, or press ESC to clear all
+                        </div>
                     </div>
-                    <button 
-                        @click="clearFilter" 
-                        class="bg-blue-500 hover:bg-blue-600 text-white font-semibold px-4 py-2 rounded transition-colors duration-200 flex items-center gap-2 shadow-sm hover:shadow-md">
-                        <font-awesome icon="fas fa-times" />
-                        Clear Filter
-                    </button>
                 </div>
                 
                 <div class="flex flex-col min-h-200 max-h-200 h-200 bg-white overflow-x-auto ml-10 mr-2 mb-10">
@@ -966,6 +1263,7 @@ onBeforeUnmount(() => {
                                                     :width="1200"
                                                     :height="1200"
                                                     :column-name="getChartColumnName(chart.chart_id)"
+                                                    :selected-value="state.selectedElements.get(chart.chart_id)"
                                                     :filter-state="state.filterState"
                                                     @segment-click="onChartSegmentClick"
                                                     class="mt-5"
@@ -978,6 +1276,7 @@ onBeforeUnmount(() => {
                                                     :width="1200"
                                                     :height="1200"
                                                     :column-name="getChartColumnName(chart.chart_id)"
+                                                    :selected-value="state.selectedElements.get(chart.chart_id)"
                                                     :filter-state="state.filterState"
                                                     @segment-click="onChartSegmentClick"
                                                     class="mt-5"
@@ -993,6 +1292,7 @@ onBeforeUnmount(() => {
                                                     :x-axis-rotation="-45"
                                                     :column-name="getChartColumnName(chart.chart_id)"
                                                     :category-name="getChartCategoryName(chart.chart_id)"
+                                                    :selected-value="state.selectedElements.get(chart.chart_id)"
                                                     :filter-state="state.filterState"
                                                     @segment-click="onChartSegmentClick"
                                                     class="mt-5"
@@ -1009,6 +1309,7 @@ onBeforeUnmount(() => {
                                                     :editable-axis-labels="false"
                                                     :column-name="getChartColumnName(chart.chart_id)"
                                                     :category-name="getChartCategoryName(chart.chart_id)"
+                                                    :selected-value="state.selectedElements.get(chart.chart_id)"
                                                     :filter-state="state.filterState"
                                                     @segment-click="onChartSegmentClick"
                                                     class="mt-5"

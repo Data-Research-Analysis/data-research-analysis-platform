@@ -58,6 +58,14 @@ const props = defineProps({
     type: String,
     default: 'Value',
   },
+  categoryColumn: {
+    type: String,
+    default: 'category',
+  },
+  selectedValue: {
+    type: String,
+    default: null,
+  },
   filterState: {
     type: Object,
     default: () => ({ activeFilter: null, isFiltering: false }),
@@ -236,14 +244,15 @@ function renderSVG(chartData) {
     .style('cursor', 'pointer')
     .style('opacity', d => {
       // Apply filtering logic
-      if (!props.filterState.isFiltering) return 1.0;
+      if (!props.selectedValue) return 1.0;
       const nodeName = d.data.name || d.data.label;
-      return String(nodeName) === String(props.filterState.activeFilter.value) ? 1.0 : 0.3;
+      return String(nodeName) === String(props.selectedValue) ? 1.0 : 0.3;
     })
     .style('transition', 'opacity 0.3s ease')
     .on('click', function(event, d) {
       event.stopPropagation();
       const nodeName = d.data.name || d.data.label;
+      
       emit('segment-click', props.chartId, 'label', nodeName);
     });
 

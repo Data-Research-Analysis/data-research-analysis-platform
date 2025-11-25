@@ -56,6 +56,14 @@ const props = defineProps({
     type: String,
     default: 'Category',
   },
+  categoryColumn: {
+    type: String,
+    default: 'category',
+  },
+  selectedValue: {
+    type: String,
+    default: null,
+  },
   filterState: {
     type: Object,
     default: () => ({ activeFilter: null, isFiltering: false }),
@@ -298,49 +306,50 @@ function renderSVG(chartData) {
     .style('cursor', 'pointer')
     .style('opacity', d => {
       // Apply filtering logic with enhanced dimming
-      if (!props.filterState.isFiltering) return 1.0;
+      if (!props.selectedValue) return 1.0;
       
       const barLabel = String(d.label).trim();
-      const filterValue = String(props.filterState.activeFilter.value).trim();
+      const filterValue = String(props.selectedValue).trim();
       
       // Try multiple matching strategies
       const exactMatch = barLabel === filterValue;
       const caseInsensitiveMatch = barLabel.toLowerCase() === filterValue.toLowerCase();
-      const typeCoercedMatch = d.label == props.filterState.activeFilter.value;
+      const typeCoercedMatch = d.label == props.selectedValue;
       const matches = exactMatch || caseInsensitiveMatch || typeCoercedMatch;
       
-      return matches ? 1.0 : 0.2;
+      return matches ? 1.0 : 0.3;
     })
     .style('transition', 'all 0.3s ease')
     .attr('stroke', d => {
-      if (!props.filterState.isFiltering) return 'none';
+      if (!props.selectedValue) return 'none';
       
       const barLabel = String(d.label).trim();
-      const filterValue = String(props.filterState.activeFilter.value).trim();
-      const matches = barLabel === filterValue || barLabel.toLowerCase() === filterValue.toLowerCase() || d.label == props.filterState.activeFilter.value;
+      const filterValue = String(props.selectedValue).trim();
+      const matches = barLabel === filterValue || barLabel.toLowerCase() === filterValue.toLowerCase() || d.label == props.selectedValue;
       
       return matches ? '#2196F3' : 'none';
     })
     .attr('stroke-width', d => {
-      if (!props.filterState.isFiltering) return '0';
+      if (!props.selectedValue) return '0';
       
       const barLabel = String(d.label).trim();
-      const filterValue = String(props.filterState.activeFilter.value).trim();
-      const matches = barLabel === filterValue || barLabel.toLowerCase() === filterValue.toLowerCase() || d.label == props.filterState.activeFilter.value;
+      const filterValue = String(props.selectedValue).trim();
+      const matches = barLabel === filterValue || barLabel.toLowerCase() === filterValue.toLowerCase() || d.label == props.selectedValue;
       
       return matches ? '3' : '0';
     })
     .style('filter', d => {
-      if (!props.filterState.isFiltering) return 'none';
+      if (!props.selectedValue) return 'none';
       
       const barLabel = String(d.label).trim();
-      const filterValue = String(props.filterState.activeFilter.value).trim();
-      const matches = barLabel === filterValue || barLabel.toLowerCase() === filterValue.toLowerCase() || d.label == props.filterState.activeFilter.value;
+      const filterValue = String(props.selectedValue).trim();
+      const matches = barLabel === filterValue || barLabel.toLowerCase() === filterValue.toLowerCase() || d.label == props.selectedValue;
       
       return matches ? 'drop-shadow(0 0 6px rgba(33, 150, 243, 0.6))' : 'none';
     })
         .on('click', function(event, d) {
       event.stopPropagation();
+      
       emit('segment-click', props.chartId, 'label', d.label);
     });
 
@@ -515,7 +524,7 @@ onMounted(() => {
   renderChart(props.data);
 });
 
-watch(() => [props.data, props.width, props.height, props.filterState], () => {
+watch(() => [props.data, props.width, props.height, props.selectedValue], () => {
   nextTick(() => renderChart(props.data));
 }, { deep: true });
 

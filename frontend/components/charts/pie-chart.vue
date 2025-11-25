@@ -27,6 +27,14 @@ const props = defineProps({
     type: String,
     default: 'Value',
   },
+  categoryColumn: {
+    type: String,
+    default: 'category',
+  },
+  selectedValue: {
+    type: String,
+    default: null,
+  },
   filterState: {
     type: Object,
     default: () => ({ activeFilter: null, isFiltering: false }),
@@ -38,11 +46,11 @@ watch(() => props.data, (newData) => {
   });
 });
 
-watch(() => props.filterState, () => {
+watch(() => props.selectedValue, () => {
   nextTick(() => {
     renderChart(props.data);
   });
-}, { deep: true });
+});
 let tooltipElement = null;
 
 function deleteSVGs() {
@@ -126,33 +134,34 @@ function renderSVG(chartData) {
         .style("cursor", "pointer")
         .style("opacity", d => {
           // Apply filtering logic with enhanced dimming
-          if (!props.filterState.isFiltering) return 1.0;
-          const matches = String(d.data.label) === String(props.filterState.activeFilter.value);
-          return matches ? 1.0 : 0.2;
+          if (!props.selectedValue) return 1.0;
+          const matches = String(d.data.label) === String(props.selectedValue);
+          return matches ? 1.0 : 0.3;
         })
         .style("transition", "all 0.3s ease")
         .attr("stroke", d => {
-          if (!props.filterState.isFiltering) return "white";
-          const matches = String(d.data.label) === String(props.filterState.activeFilter.value);
+          if (!props.selectedValue) return "white";
+          const matches = String(d.data.label) === String(props.selectedValue);
           return matches ? "#2196F3" : "white";
         })
         .attr("stroke-width", d => {
-          if (!props.filterState.isFiltering) return "1";
-          const matches = String(d.data.label) === String(props.filterState.activeFilter.value);
+          if (!props.selectedValue) return "1";
+          const matches = String(d.data.label) === String(props.selectedValue);
           return matches ? "4" : "1";
         })
         .style("filter", d => {
-          if (!props.filterState.isFiltering) return "none";
-          const matches = String(d.data.label) === String(props.filterState.activeFilter.value);
+          if (!props.selectedValue) return "none";
+          const matches = String(d.data.label) === String(props.selectedValue);
           return matches ? "drop-shadow(0 0 8px rgba(33, 150, 243, 0.6))" : "none";
         })
         .attr("class", d => {
-          if (!props.filterState.isFiltering) return "";
-          const matches = String(d.data.label) === String(props.filterState.activeFilter.value);
+          if (!props.selectedValue) return "";
+          const matches = String(d.data.label) === String(props.selectedValue);
           return matches ? "segment-selected" : "segment-normal";
         })
         .on("click", function(event, d) {
           event.stopPropagation();
+          
           emit('segment-click', props.chartId, 'label', d.data.label);
         })
         .on("mouseover", function(event, d) {

@@ -71,6 +71,10 @@ const props = defineProps({
     type: Object,
     default: () => ({ activeFilter: null, isFiltering: false }),
   },
+  selectedRowIndex: {
+    type: Number,
+    default: null,
+  },
 });
 
 // Computed properties
@@ -200,7 +204,13 @@ function rowMatchesFilter(row) {
 }
 
 function onRowClick(row, index, event) {
-  emit('segment-click', props.chartId, 'row', row.rowId || index);
+  // Get the first column name to use as filter key
+  const firstColumn = tableColumns.value[0];
+  const filterValue = row[firstColumn];
+  
+  if (firstColumn && filterValue !== undefined) {
+    emit('segment-click', props.chartId, firstColumn, filterValue);
+  }
 }
 
 // Virtual scrolling methods
@@ -407,8 +417,7 @@ onUnmounted(() => {
             :class="[
               alternateRowColors && (virtualScrolling ? row.originalIndex : index) % 2 === 1 ? 'bg-gray-50' : 'bg-white',
               'hover:bg-blue-50',
-              rowMatchesFilter(row) && props.filterState.isFiltering ? 'border-l-4 border-blue-500 bg-blue-50 font-semibold' : '',
-              !rowMatchesFilter(row) && props.filterState.isFiltering ? 'opacity-20' : 'opacity-100'
+              props.selectedRowIndex === (virtualScrolling ? row.originalIndex : index) ? 'border-l-4 border-blue-500 bg-blue-100 font-semibold' : ''
             ]"
             @click="onRowClick(row, virtualScrolling ? row.originalIndex : index, $event)"
             @mouseover="state.hoveredRow = virtualScrolling ? row.originalIndex : index"
