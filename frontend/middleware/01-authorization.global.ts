@@ -83,8 +83,8 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
       console.log(`[01-authorization] Public route detected, skipping token validation`)
     }
     
-    // If user has token and tries to access login/register, redirect to projects
-    if (token && (to.path === '/login' || to.path === '/register')) {
+    // If user has token and tries to access login/register/home, redirect to projects
+    if (token && (to.path === '/login' || to.path === '/register' || to.path === '/')) {
       return navigateTo('/projects');
     }
     

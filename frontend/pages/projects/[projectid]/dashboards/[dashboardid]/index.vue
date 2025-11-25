@@ -40,6 +40,7 @@ const state = reactive({
     sidebar_status: true,
     validation_status: null,
     show_validation_alert: false,
+    exportPreparation: null,
  });
 const project = computed(() => {
     return projectsStore.getSelectedProject();
@@ -215,9 +216,11 @@ function buildSQLQuery(chart) {
         return `${column.column_name}`;
     }).join(', ')}`;
     
-    sqlQuery += ` ${fromJoinClause.join(' ')}`;    
+    sqlQuery += ` ${fromJoinClause.join(' ')}`;
+    
     return sqlQuery;
 }
+
 async function executeQueryOnDataModels(chartId) {
     state.response_from_data_models_columns = [];
     state.response_from_data_models_rows = [];
@@ -941,6 +944,170 @@ async function openTableDialog(chartId) {
 function closeTableDialog() {
     state.show_table_dialog = false
 }
+
+// Helper functions for column name extraction
+function getChartColumnName(chart) {
+    if (!chart || !chart.columns || chart.columns.length < 2) return 'Value';
+    return chart.columns[1].column_name || 'Value';
+}
+
+function getChartCategoryName(chart) {
+    if (!chart || !chart.columns || chart.columns.length < 1) return 'Category';
+    return chart.columns[0].column_name || 'Category';
+}
+
+function getChartStackName(chart) {
+    if (!chart || !chart.columns || chart.columns.length < 3) return 'Stack';
+    return chart.columns[2].column_name || 'Stack';
+}
+
+function getChartXColumnName(chart) {
+    if (!chart || !chart.columns || chart.columns.length < 1) return 'X';
+    return chart.columns[0].column_name || 'X';
+}
+
+function getChartYColumnName(chart) {
+    if (!chart || !chart.columns || chart.columns.length < 2) return 'Y';
+    return chart.columns[1].column_name || 'Y';
+}
+
+function getChartSeriesName(chart) {
+    if (!chart || !chart.columns || chart.columns.length < 2) return 'Series';
+    return chart.columns[1].column_name || 'Series';
+}
+
+function getChartSizeColumnName(chart) {
+    if (!chart || !chart.columns || chart.columns.length < 3) return 'Size';
+    return chart.columns[2].column_name || 'Size';
+}
+
+function getChartLabelColumnName(chart) {
+    if (!chart || !chart.columns || chart.columns.length < 1) return 'Label';
+    return chart.columns[0].column_name || 'Label';
+}
+
+function getChartValueName(chart) {
+    if (!chart || !chart.columns || chart.columns.length < 2) return 'Value';
+    return chart.columns[1].column_name || 'Value';
+}
+
+// Export preparation and cleanup functions
+function prepareForExport() {
+    if (!import.meta.client) return null;
+    
+    const dashboardContainer = document.querySelector('.flex.flex-col.min-h-200.max-h-200.h-200.overflow-hidden.overflow-x-auto');
+    
+    if (!dashboardContainer) return null;
+    
+    const originalStyles = {
+        height: dashboardContainer.style.height || '',
+        maxHeight: dashboardContainer.style.maxHeight || '',
+        minHeight: dashboardContainer.style.minHeight || '',
+        overflow: dashboardContainer.style.overflow || '',
+        overflowX: dashboardContainer.style.overflowX || '',
+        overflowY: dashboardContainer.style.overflowY || ''
+    };
+    
+    const scrollHeight = dashboardContainer.scrollHeight;
+    
+    dashboardContainer.style.height = 'auto';
+    dashboardContainer.style.maxHeight = 'none';
+    dashboardContainer.style.minHeight = `${Math.max(scrollHeight, 400)}px`;
+    dashboardContainer.style.overflow = 'visible';
+    dashboardContainer.style.overflowX = 'visible';
+    dashboardContainer.style.overflowY = 'visible';
+    
+    return { 
+        dashboardContainer, 
+        originalStyles
+    };
+}
+
+function restoreOriginalStyles(preparation) {
+    if (!preparation || !preparation.dashboardContainer || !preparation.originalStyles) return;
+    
+    const { dashboardContainer, originalStyles } = preparation;
+    
+    dashboardContainer.style.height = originalStyles.height;
+    dashboardContainer.style.maxHeight = originalStyles.maxHeight;
+    dashboardContainer.style.minHeight = originalStyles.minHeight;
+    dashboardContainer.style.overflow = originalStyles.overflow;
+    dashboardContainer.style.overflowX = originalStyles.overflowX;
+    dashboardContainer.style.overflowY = originalStyles.overflowY;
+}
+
+function cleanupExportStyles() {
+    if (state.exportPreparation) {
+        restoreOriginalStyles(state.exportPreparation);
+        state.exportPreparation = null;
+    }
+}
+
+function cleanupAllTooltips() {
+    if (!import.meta.client) return;
+    
+    // Remove all chart tooltips by class
+    const d3 = useNuxtApp().$d3;
+    if (d3) {
+        d3.selectAll('.pie-chart-tooltip').remove();
+        d3.selectAll('.donut-chart-tooltip').remove();
+        d3.selectAll('.vertical-bar-tooltip').remove();
+        d3.selectAll('.horizontal-bar-tooltip').remove();
+        d3.selectAll('.stacked-bar-tooltip').remove();
+        d3.selectAll('.multiline-tooltip').remove();
+        d3.selectAll('.treemap-tooltip').remove();
+        d3.selectAll('.bubble-tooltip').remove();
+    }
+}
+
+function exportDashboardAsImage() {
+    if (!import.meta.client) return;
+    
+    const dashboardElement = document.querySelector('.data-research-analysis');
+    if (!dashboardElement) return;
+    
+    const preparation = prepareForExport();
+    state.exportPreparation = preparation;
+    
+    if (!preparation) {
+        console.error('Failed to prepare containers for export');
+        return;
+    }
+    
+    setTimeout(() => {
+        try {
+            const captureWidth = dashboardElement.scrollWidth;
+            const captureHeight = dashboardElement.scrollHeight;
+            
+            $htmlToImageToPng(dashboardElement, {
+                width: captureWidth,
+                height: captureHeight,
+                backgroundColor: '#ffffff',
+                useCORS: true,
+                allowTaint: true,
+                scrollX: 0,
+                scrollY: 0
+            }).then((dataUrl) => {
+                const link = document.createElement('a');
+                link.download = `${dashboard.value.name || 'dashboard'}.png`;
+                link.href = dataUrl;
+                link.click();
+            }).catch((error) => {
+                console.error('Export failed:', error);
+                $swal.fire({
+                    icon: 'error',
+                    title: 'Export Failed',
+                    text: 'Failed to export dashboard as image. Please try again.',
+                });
+            }).finally(() => {
+                cleanupExportStyles();
+            });
+        } catch (error) {
+            cleanupExportStyles();
+            console.error('Export preparation failed:', error);
+        }
+    }, 100);
+}
 async function exportAsWebPage(closeMenu) {
     console.log('exportAsWebPage called');
     
@@ -1033,11 +1200,33 @@ onMounted(async () => {
         };
     });
 });
+
+onBeforeUnmount(() => {
+    // Cleanup export styles before component unmounts
+    cleanupExportStyles();
+    
+    // Cleanup all chart tooltips
+    cleanupAllTooltips();
+    
+    // Remove event listeners
+    if (import.meta.client) {
+        document.removeEventListener('mousedown', mouseDown);
+        document.removeEventListener('mouseup', mouseUp);
+    }
+});
+
+onUnmounted(() => {
+    // Final cleanup to ensure styles are restored
+    cleanupExportStyles();
+    
+    // Final tooltip cleanup
+    cleanupAllTooltips();
+});
 </script>
 <template>
     <div>
         <div v-if="project && dashboard" class="flex flex-row">
-            <div class="w-1/6">
+            <div class="transition-all duration-300" :class="{ 'w-1/6': state.sidebar_status, 'w-0': !state.sidebar_status }">
                 <sidebar
                     :data-models="state.data_model_tables"
                     :selected-chart="state.selected_chart"
@@ -1046,28 +1235,17 @@ onMounted(async () => {
                     @toggleSidebar="toggleSidebars"
                 />
             </div>
-            <div class="flex flex-row" :class="{ 'w-5/6': state.sidebar_status, 'w-full': !state.sidebar_status }">
-            <div class="flex flex-col ml-2 mr-2" :class="{ 'w-5/6': state.sidebar_status, 'w-full': !state.sidebar_status }">
+            <div class="flex flex-row w-full">
+            <div class="flex flex-col ml-2 mr-2 w-full">
                 <div class="flex flex-row justify-between">
                     <tabs :project-id="project.id" class="mt-6" :class="{ 'ml-10': state.sidebar_status }"/>
                     <div class="flex flex-row">
                         <div @click="updateDashboard" class="flex flex-row items-center h-12 mr-2 mt-7 text-md text-white font-bold border border-white border-solid cursor-pointer select-none bg-primary-blue-100 hover:bg-primary-blue-400">
                             <h3 class="ml-2 mr-2">Update Dashboard</h3>
                         </div>
-                        <menu-dropdown offset-y="15">
-                            <template #menuItem="{ onClick }">
-                                <div @click="onClick" class="flex flex-row items-center h-12 mr-2 mt-7 text-md text-white font-bold border border-white border-solid cursor-pointer select-none bg-primary-blue-100 hover:bg-primary-blue-400">
-                                    <h3 class="ml-2 mr-2">Export Dashboard</h3>
-                                </div>
-                            </template>
-                            <template #dropdownMenu="{ onClick }">
-                                <div class="flex flex-col w-40 text-center">
-                                    <div @click="exportAsWebPage(onClick)" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer border-b-1 border-primary-blue-100 border-solid pt-1 pb-1">
-                                        As Publicly Accessible Web Page
-                                    </div>
-                                </div>
-                            </template>
-                        </menu-dropdown>
+                        <div @click="exportAsWebPage" class="flex flex-row items-center h-12 mr-2 mt-7 text-md text-white font-bold border border-white border-solid cursor-pointer select-none bg-primary-blue-100 hover:bg-primary-blue-400">
+                            <h3 class="ml-2 mr-2">Export Dashboard</h3>
+                        </div>
                     </div>
                 </div>
 
@@ -1137,7 +1315,10 @@ onMounted(async () => {
 
                 <div class="flex flex-col min-h-200 max-h-200 h-200 overflow-hidden overflow-x-auto mr-2 mb-10 border border-primary-blue-100 border-solid bg-gray-300"
                     :class="{'ml-10': state.sidebar_status}"
-                >                    
+                >
+                    <!-- Tooltip container for all charts - positioned above dashboard content -->
+                    <div class="dashboard-tooltip-container fixed inset-0 pointer-events-none" style="z-index: 9999;"></div>
+                    
                     <div class="w-full h-full bg-gray-300 draggable-div-container relative">
                         <div v-for="(chart, index) in charts"
                             class="w-50 flex flex-col justify-between cursor-pointer draggable-div absolute top-0 left-0"
@@ -1258,6 +1439,9 @@ onMounted(async () => {
                                                     :data="chart.data"
                                                     :width="1200"
                                                     :height="1200"
+                                                    :column-name="getChartColumnName(chart)"
+                                                    :category-column="getChartCategoryName(chart)"
+                                                    :enable-tooltips="true"
                                                     class="mt-5"
                                                 />
                                                 <donut-chart
@@ -1267,7 +1451,9 @@ onMounted(async () => {
                                                     :data="chart.data"
                                                     :width="1200"
                                                     :height="1200"
-                                                    class="mt-5"
+                                                    :column-name="getChartColumnName(chart)"
+                                                    :category-column="getChartCategoryName(chart)"
+                                                    :enable-tooltips="true"
                                                 />
                                                 <vertical-bar-chart
                                                     v-if="chart.chart_type === 'vertical_bar'"
@@ -1277,9 +1463,13 @@ onMounted(async () => {
                                                     :x-axis-label="chart.x_axis_label"
                                                     :y-axis-label="chart.y_axis_label"
                                                     :x-axis-rotation="-45"
-                                                    class="mt-5"
+                                                    :column-name="getChartColumnName(chart)"
+                                                    :category-name="getChartCategoryName(chart)"
+                                                    :category-column="getChartCategoryName(chart)"
+                                                    :enable-tooltips="true"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
+                                                    class="mt-5"
                                                 />
                                                 <horizontal-bar-chart
                                                     v-if="chart.chart_type === 'horizontal_bar'"
@@ -1288,9 +1478,13 @@ onMounted(async () => {
                                                     :data="chart.data"
                                                     :x-axis-label="chart.x_axis_label"
                                                     :y-axis-label="chart.y_axis_label"
-                                                    class="mt-5"
+                                                    :column-name="getChartColumnName(chart)"
+                                                    :category-name="getChartCategoryName(chart)"
+                                                    :category-column="getChartCategoryName(chart)"
+                                                    :enable-tooltips="true"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
+                                                    class="mt-5"
                                                 />
                                                 <vertical-bar-chart
                                                     v-if="chart.chart_type === 'vertical_bar_line'"
@@ -1303,9 +1497,10 @@ onMounted(async () => {
                                                     :line-data="chart.line_data"
                                                     :x-axis-rotation="-45"
                                                     line-color="#FF5733"
-                                                    class="mt-5"
+                                                    :enable-tooltips="true"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
+                                                    class="mt-5"
                                                 />
                                                 <stacked-bar-chart
                                                     v-if="chart.chart_type === 'stacked_bar'"
@@ -1317,8 +1512,12 @@ onMounted(async () => {
                                                     :show-legend="true"
                                                     :x-axis-label="chart.x_axis_label"
                                                     :y-axis-label="chart.y_axis_label"
-                                                    :x-axis-rotation="-45"                                                    
+                                                    :x-axis-rotation="-45"
+                                                    :column-name="getChartColumnName(chart)"
+                                                    :category-name="getChartCategoryName(chart)"
+                                                    :stack-name="getChartStackName(chart)"
                                                     :max-legend-width="350"
+                                                    :enable-tooltips="true"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
                                                 />
@@ -1339,6 +1538,9 @@ onMounted(async () => {
                                                     :legend-line-height="25"
                                                     :legend-item-spacing="25"
                                                     :x-axis-rotation="-45"
+                                                    :x-column-name="getChartXColumnName(chart)"
+                                                    :y-column-name="getChartYColumnName(chart)"
+                                                    :series-name="getChartSeriesName(chart)"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
                                                 />
@@ -1356,6 +1558,9 @@ onMounted(async () => {
                                                     :label-font-size="12"
                                                     :value-font-size="10"
                                                     :min-tile-size="30"
+                                                    :category-name="getChartCategoryName(chart)"
+                                                    :value-name="getChartValueName(chart)"
+                                                    :category-column="getChartCategoryName(chart)"
                                                     class="mt-2"
                                                 />
                                                 <bubble-chart
@@ -1365,6 +1570,11 @@ onMounted(async () => {
                                                     :data="chart.data"
                                                     :width="parseInt(chart.dimensions.widthDraggable.replace('px', '')) - 40"
                                                     :height="parseInt(chart.dimensions.heightDraggable.replace('px', '')) - 80"
+                                                    :x-column-name="getChartXColumnName(chart)"
+                                                    :y-column-name="getChartYColumnName(chart)"
+                                                    :size-column-name="getChartSizeColumnName(chart)"
+                                                    :label-column-name="getChartLabelColumnName(chart)"
+                                                    :enable-tooltips="true"
                                                     class="mt-2"
                                                 />
                                             </div>

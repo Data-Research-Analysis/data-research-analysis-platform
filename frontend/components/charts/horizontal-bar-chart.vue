@@ -1,8 +1,8 @@
 <script setup>
 import { x } from 'happy-dom/lib/PropertySymbol.js';
-import { onMounted, watch, nextTick } from 'vue';
+import { onMounted, watch, nextTick, onBeforeUnmount } from 'vue';
 const { $d3 } = useNuxtApp();
-const emit = defineEmits(['update:yAxisLabel', 'update:xAxisLabel']);
+const emit = defineEmits(['segment-click', 'update:yAxisLabel', 'update:xAxisLabel']);
 const state = reactive({
   xAxisLabelLocal: '',
   yAxisLabelLocal: ''
@@ -48,7 +48,28 @@ const props = defineProps({
     type: Object,
     default: () => ({ K: 'k', M: 'M', B: 'B', T: 'T' }),
   },
+  columnName: {
+    type: String,
+    default: 'Value',
+  },
+  categoryName: {
+    type: String,
+    default: 'Category',
+  },
+  categoryColumn: {
+    type: String,
+    default: 'category',
+  },
+  selectedValue: {
+    type: String,
+    default: null,
+  },
+  filterState: {
+    type: Object,
+    default: () => ({ activeFilter: null, isFiltering: false }),
+  },
 });
+let tooltipElement = null;
 
 // Utility function to format large numbers with shortened suffixes
 function formatTickValue(value) {
@@ -201,7 +222,15 @@ function calculateLabelPositions(margin, height, width) {
 }
 
 function deleteSVGs() {
-  $d3.select(`#vertical-bar-chart-1-${props.chartId}`).selectAll('svg').remove();
+  $d3.select(`#horizontal-bar-chart-1-${props.chartId}`).selectAll('svg').remove();
+  
+  // Remove tooltip explicitly
+  if (tooltipElement) {
+    tooltipElement.remove();
+    tooltipElement = null;
+  }
+  // Also remove by class as fallback
+  $d3.selectAll(`.horizontal-bar-tooltip-${props.chartId}`).remove();
 }
 
 function renderSVG(chartData) {
@@ -209,7 +238,7 @@ function renderSVG(chartData) {
   const svgHeight = props.height;
   
   // Create initial SVG for measurements
-  const svg = $d3.select(`#vertical-bar-chart-1-${props.chartId}`)
+  const svg = $d3.select(`#horizontal-bar-chart-1-${props.chartId}`)
     .append('svg')
     .attr('width', svgWidth)
     .attr('height', svgHeight)
@@ -266,54 +295,122 @@ function renderSVG(chartData) {
     .style('stroke', 'black');
 
   // Bars (horizontal orientation)
-  chartGroup.selectAll('rect')
+  chartGroup.selectAll('rect.bar')
     .data(chartData)
     .join('rect')
+    .attr('class', 'bar')
     .attr('y', d => y(d.label))
     .attr('x', 0)
     .attr('height', y.bandwidth())
     .attr('width', d => x(d.value))
-    .attr('fill', d => color(d.label));
+    .attr('fill', d => color(d.label))
+    .style('cursor', 'pointer')
+    .style('opacity', d => {
+      // Apply filtering logic with enhanced dimming
+      if (!props.selectedValue) return 1.0;
+      
+      const barLabel = String(d.label).trim();
+      const filterValue = String(props.selectedValue).trim();
+      
+      // Try multiple matching strategies
+      const exactMatch = barLabel === filterValue;
+      const caseInsensitiveMatch = barLabel.toLowerCase() === filterValue.toLowerCase();
+      const typeCoercedMatch = d.label == props.selectedValue;
+      const matches = exactMatch || caseInsensitiveMatch || typeCoercedMatch;
+      
+      return matches ? 1.0 : 0.3;
+    })
+    .style('transition', 'all 0.3s ease')
+    .attr('stroke', d => {
+      if (!props.selectedValue) return 'none';
+      
+      const barLabel = String(d.label).trim();
+      const filterValue = String(props.selectedValue).trim();
+      const matches = barLabel === filterValue || barLabel.toLowerCase() === filterValue.toLowerCase() || d.label == props.selectedValue;
+      
+      return matches ? '#2196F3' : 'none';
+    })
+    .attr('stroke-width', d => {
+      if (!props.selectedValue) return '0';
+      
+      const barLabel = String(d.label).trim();
+      const filterValue = String(props.selectedValue).trim();
+      const matches = barLabel === filterValue || barLabel.toLowerCase() === filterValue.toLowerCase() || d.label == props.selectedValue;
+      
+      return matches ? '3' : '0';
+    })
+    .style('filter', d => {
+      if (!props.selectedValue) return 'none';
+      
+      const barLabel = String(d.label).trim();
+      const filterValue = String(props.selectedValue).trim();
+      const matches = barLabel === filterValue || barLabel.toLowerCase() === filterValue.toLowerCase() || d.label == props.selectedValue;
+      
+      return matches ? 'drop-shadow(0 0 6px rgba(33, 150, 243, 0.6))' : 'none';
+    })
+    .on('click', function(event, d) {
+      event.stopPropagation();
+      
+      emit('segment-click', props.chartId, 'label', d.label);
+    });
 
-  // Enhanced tooltips with full values
-  chartGroup.selectAll('rect')
+  // Create custom tooltip for instant display in dashboard container
+  const tooltip = $d3.select('.dashboard-tooltip-container')
+    .append('div')
+    .attr('class', `horizontal-bar-tooltip horizontal-bar-tooltip-${props.chartId}`)
+    .style('position', 'absolute')
+    .style('background', 'rgba(0, 0, 0, 0.9)')
+    .style('color', 'white')
+    .style('padding', '12px 16px')
+    .style('border-radius', '6px')
+    .style('font-size', '14px')
+    .style('pointer-events', 'none')
+    .style('z-index', '10000')
+    .style('opacity', 0)
+    .style('box-shadow', '0 4px 6px rgba(0, 0, 0, 0.3)')
+    .style('line-height', '1.5');
+  
+  tooltipElement = tooltip;
+
+  // Enhanced tooltips with instant display
+  chartGroup.selectAll('rect.bar')
     .on('mouseover', function (event, d) {
       $d3.select(this).attr('fill', '#4682b4');
       
-      // Create tooltip
-      const tooltip = $d3.select('body').append('div')
-        .attr('class', 'chart-tooltip')
-        .style('position', 'absolute')
-        .style('background', 'rgba(0, 0, 0, 0.8)')
-        .style('color', 'white')
-        .style('padding', '8px 12px')
-        .style('border-radius', '4px')
-        .style('font-size', '12px')
-        .style('pointer-events', 'none')
-        .style('z-index', '1000')
-        .style('opacity', 0);
-      
-      tooltip.html(`
-        <div><strong>${d.label}</strong></div>
-        <div>Value: ${d.value.toLocaleString()}</div>
-      `)
-        .style('left', (event.pageX + 10) + 'px')
-        .style('top', (event.pageY - 10) + 'px')
-        .transition()
-        .duration(200)
+      // Show custom tooltip immediately
+      tooltip
+        .html(`
+          <div style="font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 6px;">
+            ${d.label}
+          </div>
+          <div style="margin-bottom: 4px;">
+            <span style="color: #94a3b8;">Category:</span> 
+            <span style="font-weight: 600;">${props.categoryName}</span>
+          </div>
+          <div style="margin-bottom: 4px;">
+            <span style="color: #94a3b8;">Column:</span> 
+            <span style="font-weight: 600;">${props.columnName}</span>
+          </div>
+          <div>
+            <span style="color: #94a3b8;">Value:</span> 
+            <span style="font-weight: 600;">${d.value.toLocaleString('en-US')}</span>
+          </div>
+        `)
+        .style('left', (event.clientX + 15) + 'px')
+        .style('top', (event.clientY - 10) + 'px')
         .style('opacity', 1);
     })
     .on('mouseout', function (event, d) {
       $d3.select(this).attr('fill', color(d.label));
       
-      // Remove tooltip
-      $d3.selectAll('.chart-tooltip').remove();
+      // Hide tooltip
+      tooltip.style('opacity', 0);
     })
     .on('mousemove', function (event, d) {
-      // Update tooltip position
-      $d3.selectAll('.chart-tooltip')
-        .style('left', (event.pageX + 10) + 'px')
-        .style('top', (event.pageY - 10) + 'px');
+      // Update tooltip position as mouse moves
+      tooltip
+        .style('left', (event.clientX + 15) + 'px')
+        .style('top', (event.clientY - 10) + 'px');
     });
 
   // Calculate optimal label positions
@@ -428,12 +525,23 @@ onMounted(() => {
   renderChart(props.data);
 });
 
-watch(() => [props.data, props.width, props.height], () => {
+watch(() => [props.data, props.width, props.height, props.selectedValue], () => {
   nextTick(() => renderChart(props.data));
+}, { deep: true });
+
+onBeforeUnmount(() => {
+  deleteSVGs();
 });
 </script>
 <template>
   <div>
-    <div :id="`vertical-bar-chart-1-${props.chartId}`"></div>
+    <div :id="`horizontal-bar-chart-1-${props.chartId}`"></div>
   </div>
 </template>
+
+<style scoped>
+@keyframes pulse-selected {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+</style>

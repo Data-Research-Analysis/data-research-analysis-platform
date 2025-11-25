@@ -62,7 +62,20 @@ export class DataSourceProcessor {
                 if (value.trim() === '' || value === '0000-00-00' || value === '0000-00-00 00:00:00') {
                     return 'null';
                 }
-                dateObj = new Date(value);
+                
+                // Handle JavaScript Date.toString() format
+                // e.g., "Sun Nov 23 2025 00:00:00 GMT+0000 (Coordinated Universal Time)"
+                if (value.includes('GMT')) {
+                    // Parse using Date constructor which handles this format
+                    dateObj = new Date(value);
+                    if (isNaN(dateObj.getTime())) {
+                        // If that fails, try to extract just the date portion
+                        const datePart = value.split(' GMT')[0];
+                        dateObj = new Date(datePart);
+                    }
+                } else {
+                    dateObj = new Date(value);
+                }
             } else if (typeof value === 'number') {
                 // Unix timestamp
                 dateObj = new Date(value);
@@ -600,6 +613,20 @@ export class DataSourceProcessor {
                         dataTypeString = `${dataType.type}`;
                     }
                     
+                    // Override data type if transform function is applied
+                    if (column.transform_function) {
+                        const transformFunc = column.transform_function.toUpperCase();
+                        if (transformFunc === 'DATE') {
+                            dataTypeString = 'DATE';
+                        } else if (transformFunc === 'YEAR' || transformFunc === 'MONTH' || transformFunc === 'DAY') {
+                            dataTypeString = 'INTEGER';
+                        } else if (transformFunc === 'UPPER' || transformFunc === 'LOWER' || transformFunc === 'TRIM') {
+                            dataTypeString = 'TEXT';
+                        } else if (transformFunc === 'ROUND') {
+                            dataTypeString = 'NUMERIC';
+                        }
+                    }
+                    
                     // Determine column name - use alias if provided, otherwise construct from schema_table_column
                     let columnName;
                     if (column.alias_name && column.alias_name !== '') {
@@ -666,6 +693,31 @@ export class DataSourceProcessor {
                     }
                 }
                 
+                // Handle GROUP BY aggregate expressions
+                if (sourceTable.query_options?.group_by?.aggregate_expressions && 
+                    sourceTable.query_options.group_by.aggregate_expressions.length > 0) {
+                    const validExpressions = sourceTable.query_options.group_by.aggregate_expressions.filter(
+                        (expr: any) => expr.column_alias_name && expr.column_alias_name !== ''
+                    );
+                    
+                    if (validExpressions.length > 0) {
+                        columns += ', ';
+                        insertQueryColumns += ', ';
+                        
+                        validExpressions.forEach((expr: any, index: number) => {
+                            const aliasName = expr.column_alias_name;
+                            
+                            if (index < validExpressions.length - 1) {
+                                columns += `${aliasName} NUMERIC, `;
+                                insertQueryColumns += `${aliasName}, `;
+                            } else {
+                                columns += `${aliasName} NUMERIC`;
+                                insertQueryColumns += `${aliasName}`;
+                            }
+                        });
+                    }
+                }
+                
                 createTableQuery += `(${columns})`;
 
                 await internalDbConnector.query(createTableQuery);
@@ -675,9 +727,14 @@ export class DataSourceProcessor {
                 // Track column data types for proper value formatting
                 const columnDataTypes = new Map<string, string>();
                 sourceTable.columns.forEach((column: any) => {
-                    let columnName = `${column.table_name}_${column.column_name}`;
-                    if (column && column.schema === 'dra_excel' || column.schema === 'dra_pdf') {
+                    // Use same column name construction logic as INSERT loop to ensure key match
+                    let columnName;
+                    if (column.alias_name && column.alias_name !== '') {
+                        columnName = column.alias_name;
+                    } else if (column && column.schema === 'dra_excel' || column.schema === 'dra_pdf') {
                         columnName = `${column.table_name}`.length > 20 ? `${column.table_name}`.slice(-20) + `_${column.column_name}` : `${column.table_name}` + `_${column.column_name}`;
+                    } else {
+                        columnName = `${column.schema}_${column.table_name}_${column.column_name}`;
                     }
                     const columnSize = column?.character_maximum_length ? `(${column?.character_maximum_length})` : '';
                     const columnType = `${column.data_type}${columnSize}`;
@@ -688,8 +745,32 @@ export class DataSourceProcessor {
                     } else {
                         dataTypeString = `${dataType.type}`;
                     }
+                    
+                    // Override data type if transform function is applied
+                    if (column.transform_function) {
+                        const transformFunc = column.transform_function.toUpperCase();
+                        if (transformFunc === 'DATE') {
+                            dataTypeString = 'DATE';
+                        } else if (transformFunc === 'YEAR' || transformFunc === 'MONTH' || transformFunc === 'DAY') {
+                            dataTypeString = 'INTEGER';
+                        } else if (transformFunc === 'UPPER' || transformFunc === 'LOWER' || transformFunc === 'TRIM') {
+                            dataTypeString = 'TEXT';
+                        } else if (transformFunc === 'ROUND') {
+                            dataTypeString = 'NUMERIC';
+                        }
+                    }
+                    
                     columnDataTypes.set(columnName, dataTypeString);
                 });
+                
+                // Add aggregate expressions to columnDataTypes map
+                if (sourceTable.query_options?.group_by?.aggregate_expressions) {
+                    sourceTable.query_options.group_by.aggregate_expressions.forEach((expr: any) => {
+                        if (expr.column_alias_name && expr.column_alias_name !== '') {
+                            columnDataTypes.set(expr.column_alias_name, 'NUMERIC');
+                        }
+                    });
+                }
                 
                 rowsFromDataSource.forEach((row: any, index: number) => {
                     let insertQuery = `INSERT INTO ${dataModelName} `;
@@ -706,7 +787,8 @@ export class DataSourceProcessor {
                             rowKey = columnName;
                         } else {
                             columnName = `${column.schema}_${column.table_name}_${column.column_name}`;
-                            rowKey = columnName;
+                            // When alias is empty, frontend generates alias as schema_table_column
+                            rowKey = `${column.schema}_${column.table_name}_${column.column_name}`;
                         }
                         
                         // Get the column data type and format the value accordingly
@@ -770,6 +852,28 @@ export class DataSourceProcessor {
                                     values += `'${row[rowKey] || 0}',`;
                                 } else {
                                     values += `'${row[rowKey] || 0}'`;
+                                }
+                            });
+                        }
+                    }
+                    
+                    // Handle aggregate expression values
+                    if (sourceTable.query_options?.group_by?.aggregate_expressions && 
+                        sourceTable.query_options.group_by.aggregate_expressions.length > 0) {
+                        const validExpressions = sourceTable.query_options.group_by.aggregate_expressions.filter(
+                            (expr: any) => expr.column_alias_name && expr.column_alias_name !== ''
+                        );
+                        
+                        if (validExpressions.length > 0) {
+                            values += ',';
+                            validExpressions.forEach((expr: any, index: number) => {
+                                const aliasName = expr.column_alias_name;
+                                const value = row[aliasName] || 0;
+                                
+                                if (index < validExpressions.length - 1) {
+                                    values += `'${value}',`;
+                                } else {
+                                    values += `'${value}'`;
                                 }
                             });
                         }
