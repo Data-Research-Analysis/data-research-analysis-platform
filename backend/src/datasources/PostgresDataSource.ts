@@ -9,8 +9,10 @@ import { DRADashboard } from "../models/DRADashboard.js";
 import { DRAArticle } from "../models/DRAArticle.js";
 import { DRAArticleCategory } from "../models/DRAArticleCategory.js";
 import { DRACategory } from "../models/DRACategory.js";
-import dotenv from 'dotenv';
 import { DRADashboardExportMetaData } from "../models/DRADashboardExportMetaData.js";
+import { DRAAIDataModelConversation } from "../models/DRAAIDataModelConversation.js";
+import { DRAAIDataModelMessage } from "../models/DRAAIDataModelMessage.js";
+import dotenv from 'dotenv';
 dotenv.config();
 
 export class PostgresDataSource {
@@ -33,7 +35,7 @@ export class PostgresDataSource {
             database: database,
             synchronize: false,
             logging: true,
-            entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRAPrivateBetaUsers, DRADashboard, DRAArticle, DRAArticleCategory, DRACategory, DRADashboardExportMetaData],
+            entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRAPrivateBetaUsers, DRADashboard, DRAArticle, DRAArticleCategory, DRACategory, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage],
             subscribers: [],
             // Only load TypeORM migration files (exclude utility scripts like migrate-articles-markdown.ts)
             migrations: ['./src/migrations/*.ts'],

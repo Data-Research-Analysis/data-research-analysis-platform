@@ -4,6 +4,7 @@ import { DRADataSource } from './DRADataSource.js';
 import { DRADataModel } from './DRADataModel.js';
 import { DRAVerificationCode } from './DRAVerificationCode.js';
 import { DRADashboard } from './DRADashboard.js';
+import { DRAAIDataModelConversation } from './DRAAIDataModelConversation.js';
 import { EUserType } from '../types/EUserType.js';
 import { DRAArticle } from './DRAArticle.js';
 import { DRACategory } from './DRACategory.js';
@@ -51,4 +52,7 @@ export class DRAUsersPlatform {
 
     @OneToMany(() => DRAArticleCategory, (articleCategory) => articleCategory.users_platform, { cascade: ["remove", "update"] })
     articles_categories!: Relation<DRAArticleCategory>[]
+
+    @OneToMany(() => DRAAIDataModelConversation, (conversation) => conversation.user)
+    ai_conversations!: Relation<DRAAIDataModelConversation>[];
 }

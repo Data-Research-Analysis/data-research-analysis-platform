@@ -2,6 +2,7 @@ import { Column, Entity, JoinColumn, JoinTable, ManyToOne, OneToMany, PrimaryGen
 import { DRAUsersPlatform } from './DRAUsersPlatform.js';
 import { DRADataModel } from './DRADataModel.js';
 import { DRAProject } from './DRAProject.js';
+import { DRAAIDataModelConversation } from './DRAAIDataModelConversation.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { IDBConnectionDetails } from '../types/IDBConnectionDetails.js';
 import { EncryptionService } from '../services/EncryptionService.js';
@@ -90,6 +91,9 @@ export class DRADataSource {
     
     @OneToMany(() => DRADataModel, (dataModel) => dataModel.data_source, { cascade: ["remove", "update"] })
     data_models!: Relation<DRADataModel>[]
+    
+    @OneToMany(() => DRAAIDataModelConversation, (conversation) => conversation.data_source)
+    ai_conversations!: Relation<DRAAIDataModelConversation>[];
     
     @ManyToOne(() => DRAProject, (project) => project.data_sources, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'project_id', referencedColumnName: 'id' })
