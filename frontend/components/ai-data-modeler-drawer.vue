@@ -25,7 +25,7 @@ function handleSendMessage(message: string) {
 
 function handleClose() {
     if (!aiDataModelerStore.isLoading && !aiDataModelerStore.isInitializing) {
-        aiDataModelerStore.closeDrawer(true);
+        aiDataModelerStore.closeDrawer(false);
     }
 }
 

@@ -248,7 +248,12 @@ const numericColumnsWithAggregates = computed(() => {
 
 function openAIDataModeler() {
     if (props.dataSource && props.dataSource.id) {
-        aiDataModelerStore.openDrawer(props.dataSource.id);
+        // If editing existing data model, pass its ID to load conversation from database
+        const dataModelId = props.isEditDataModel && props.dataModel?.id 
+            ? props.dataModel.id 
+            : undefined;
+        
+        aiDataModelerStore.openDrawer(props.dataSource.id, dataModelId);
     }
 }
 
@@ -1029,7 +1034,53 @@ async function saveDataModel() {
             data_model_id: props.isEditDataModel ? props.dataModel.id : null,
         })
     });
+    
+    const responseData = await response.json();
+    
     if (response.status === 200) {
+        // Save AI conversation if one exists
+        if (aiDataModelerStore.conversationId && aiDataModelerStore.messages.length > 0) {
+            try {
+                const dataModelId = props.isEditDataModel 
+                    ? props.dataModel.id 
+                    : responseData.data_model_id;
+                
+                if (dataModelId) {
+                    // Ensure currentDataSourceId is set before saving (it should be from initializeConversation)
+                    // But set it as fallback in case the drawer was closed
+                    if (!aiDataModelerStore.currentDataSourceId) {
+                        aiDataModelerStore.currentDataSourceId = Number(route.params.datasourceid);
+                    }
+                    
+                    console.log('Saving AI conversation with:', {
+                        dataSourceId: aiDataModelerStore.currentDataSourceId,
+                        dataModelId,
+                        title: state.data_table.table_name || 'AI Generated Model',
+                        messagesCount: aiDataModelerStore.messages.length
+                    });
+                    
+                    const saved = await aiDataModelerStore.saveConversation(
+                        dataModelId,
+                        state.data_table.table_name || 'AI Generated Model'
+                    );
+                    
+                    if (saved) {
+                        console.log('AI conversation saved successfully');
+                    } else {
+                        console.warn('AI conversation save returned false');
+                    }
+                }
+            } catch (error) {
+                // Log error but don't block the data model save success
+                console.error('Failed to save AI conversation:', error);
+            }
+        } else {
+            console.log('No AI conversation to save:', {
+                hasConversationId: !!aiDataModelerStore.conversationId,
+                messagesCount: aiDataModelerStore.messages.length
+            });
+        }
+        
         // enableRefreshDataFlag('clearDataModels');
         router.push(`/projects/${route.params.projectid}/data-sources/${route.params.datasourceid}/data-models`);
     } else {

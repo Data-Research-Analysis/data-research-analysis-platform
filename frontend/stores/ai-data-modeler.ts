@@ -26,11 +26,22 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
     /**
      * Open the AI drawer and initialize conversation
      */
-    async function openDrawer(dataSourceId: number) {
+    async function openDrawer(dataSourceId: number, dataModelId?: number) {
         isDrawerOpen.value = true;
         error.value = null;
         
-        // Initialize conversation with the data source
+        // If dataModelId is provided, try to load conversation from database first
+        if (dataModelId) {
+            const loaded = await loadSavedConversation(dataModelId);
+            if (loaded) {
+                console.log('[AI Store] Loaded conversation from database for data model:', dataModelId);
+                return;
+            }
+            // If loading failed, fall through to initialize new session
+            console.log('[AI Store] No conversation found for data model, initializing new session');
+        }
+        
+        // Initialize conversation with the data source (new or Redis session)
         await initializeConversation(dataSourceId);
     }
 
@@ -80,6 +91,14 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
             }
 
             const data = await response.json();
+            
+            console.log('[AI Store] Initialize response:', {
+                source: data.source,
+                conversationId: data.conversationId,
+                messageCount: data.messages?.length || 0,
+                messages: data.messages
+            });
+            
             conversationId.value = data.conversationId;
             sessionSource.value = data.source;
             modelDraft.value = data.modelDraft;
@@ -94,16 +113,14 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
                 }));
                 isRestored.value = true;
             } else {
-                // New session
+                // New session - messages already include initial welcome from backend
                 schemaSummary.value = data.schemaSummary;
-                messages.value = [
-                    {
-                        id: generateMessageId(),
-                        role: 'assistant',
-                        content: `Welcome! I've analyzed your database schema with **${data.schemaSummary.tableCount} tables** and **${data.schemaSummary.totalColumns} columns**.\n\nI can help you:\n• Identify analytical bottlenecks in your current schema\n• Propose optimized data models (Star Schema, OBT, etc.)\n• Suggest SQL implementation strategies\n• Recommend indexing for better query performance\n\nWhat would you like to analyze?`,
-                        timestamp: new Date()
-                    }
-                ];
+                messages.value = data.messages.map((msg: any) => ({
+                    id: generateMessageId(),
+                    role: msg.role,
+                    content: msg.content,
+                    timestamp: new Date(msg.timestamp)
+                }));
                 isRestored.value = false;
             }
 
@@ -325,8 +342,11 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
         try {
             const token = getAuthToken();
             if (!token) {
+                console.log('[AI Store] No auth token, cannot load conversation');
                 throw new Error('Authentication required');
             }
+
+            console.log('[AI Store] Attempting to load conversation for data model:', dataModelId);
 
             const url = `${baseUrl()}/ai-data-modeler/conversations/${dataModelId}`;
             const response = await fetch(url, {
@@ -337,13 +357,25 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
                 }
             });
 
+            console.log('[AI Store] Load conversation response status:', response.status);
+
             if (!response.ok) {
+                if (response.status === 404) {
+                    console.log('[AI Store] No conversation found for data model:', dataModelId);
+                    return false;
+                }
                 const errorData = await response.json();
                 throw new Error(errorData.error || 'Failed to load conversation');
             }
 
             const data = await response.json();
             const conversation = data.conversation;
+
+            console.log('[AI Store] Loaded conversation from database:', {
+                conversationId: conversation.id,
+                messageCount: conversation.messages?.length || 0,
+                dataSourceId: conversation.data_source_id
+            });
 
             conversationId.value = conversation.id.toString();
             currentDataSourceId.value = conversation.data_source_id;
@@ -357,10 +389,14 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
             }));
 
             isRestored.value = true;
+            isDirty.value = false;
             return true;
         } catch (err) {
-            error.value = err instanceof Error ? err.message : 'Failed to load conversation';
-            console.error('Error loading conversation:', err);
+            console.error('[AI Store] Error loading conversation:', err);
+            // Don't set error.value for 404s, just return false
+            if (err instanceof Error && !err.message.includes('404')) {
+                error.value = err.message;
+            }
             return false;
         } finally {
             isInitializing.value = false;

@@ -163,9 +163,9 @@ router.post('/build-data-model-on-query', async (req: Request, res: Response, ne
 }, validateJWT, validate([body('data_source_id').notEmpty().trim().escape().toInt(), body('query').notEmpty().trim(), body('query_json').notEmpty().trim(), body('data_model_name').notEmpty().trim().escape()]),
 async (req: Request, res: Response) => {
     const { data_source_id, query, query_json, data_model_name } = matchedData(req);
-    const response = await DataSourceProcessor.getInstance().buildDataModelOnQuery(data_source_id, query, query_json, data_model_name, req.body.tokenDetails);
-    if (response) {
-        res.status(200).send({message: 'The data model has been built.'}); 
+    const dataModelId = await DataSourceProcessor.getInstance().buildDataModelOnQuery(data_source_id, query, query_json, data_model_name, req.body.tokenDetails);
+    if (dataModelId) {
+        res.status(200).send({message: 'The data model has been built.', data_model_id: dataModelId}); 
     } else {
         res.status(400).send({message: 'The data model could not be built.'});
     }

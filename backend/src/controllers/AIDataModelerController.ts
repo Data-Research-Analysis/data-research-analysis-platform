@@ -32,6 +32,34 @@ export class AIDataModelerController {
 
             if (existingSession.metadata) {
                 // Session exists - restore it
+                console.log('[AIDataModelerController] Restoring session from Redis:', {
+                    conversationId: existingSession.metadata.conversationId,
+                    messageCount: existingSession.messages?.length || 0,
+                    hasModelDraft: !!existingSession.modelDraft,
+                    hasSchemaContext: !!existingSession.schemaContext
+                });
+
+                // If session exists but has no messages, add the welcome message
+                if (!existingSession.messages || existingSession.messages.length === 0) {
+                    console.log('[AIDataModelerController] Session has no messages, adding welcome message');
+                    
+                    // Get schema summary to create welcome message
+                    const schemaSummary = existingSession.schemaContext 
+                        ? SchemaFormatterUtility.getSchemaSummary(existingSession.schemaContext.tables)
+                        : { tableCount: 0, totalColumns: 0 };
+
+                    const welcomeMessage = `Welcome! I've analyzed your database schema with **${schemaSummary.tableCount} tables** and **${schemaSummary.totalColumns} columns**.\n\nI can help you:\n• Identify analytical bottlenecks in your current schema\n• Propose optimized data models (Star Schema, OBT, etc.)\n• Suggest SQL implementation strategies\n• Recommend indexing for better query performance\n\nWhat would you like to analyze?`;
+                    
+                    const initialMessage = await redisService.addMessage(
+                        dataSourceId,
+                        userId,
+                        'assistant',
+                        welcomeMessage
+                    );
+
+                    existingSession.messages = [initialMessage];
+                }
+
                 res.status(200).json({
                     conversationId: existingSession.metadata.conversationId,
                     messages: existingSession.messages,
@@ -90,9 +118,26 @@ export class AIDataModelerController {
             const geminiService = getGeminiService();
             await geminiService.initializeConversation(metadata.conversationId, schemaMarkdown);
 
+            // Create and save initial welcome message to Redis
+            const welcomeMessage = `Welcome! I've analyzed your database schema with **${schemaSummary.tableCount} tables** and **${schemaSummary.totalColumns} columns**.\n\nI can help you:\n• Identify analytical bottlenecks in your current schema\n• Propose optimized data models (Star Schema, OBT, etc.)\n• Suggest SQL implementation strategies\n• Recommend indexing for better query performance\n\nWhat would you like to analyze?`;
+            
+            const initialMessage = await redisService.addMessage(
+                dataSourceId,
+                userId,
+                'assistant',
+                welcomeMessage
+            );
+
+            console.log('[AIDataModelerController] New session created with initial message:', {
+                conversationId: metadata.conversationId,
+                messageCount: 1,
+                messageRole: initialMessage.role,
+                messageLength: initialMessage.content.length
+            });
+
             res.status(200).json({
                 conversationId: metadata.conversationId,
-                messages: [],
+                messages: [initialMessage],
                 modelDraft: null,
                 schemaContext,
                 schemaSummary,
@@ -249,7 +294,19 @@ export class AIDataModelerController {
             const tokenDetails = req.body.tokenDetails;
             const userId = tokenDetails?.user_id;
 
+            console.log('[AIDataModelerController] saveConversation called with:', {
+                dataSourceId,
+                dataModelId,
+                title,
+                userId
+            });
+
             if (!dataSourceId || !userId || !title) {
+                console.error('[AIDataModelerController] Missing required fields:', {
+                    hasDataSourceId: !!dataSourceId,
+                    hasUserId: !!userId,
+                    hasTitle: !!title
+                });
                 res.status(400).json({ error: 'dataSourceId, userId, and title are required' });
                 return;
             }
@@ -259,7 +316,14 @@ export class AIDataModelerController {
             // Get full session from Redis
             const session = await redisService.getFullSession(dataSourceId, userId);
             
+            console.log('[AIDataModelerController] Retrieved session from Redis:', {
+                hasMetadata: !!session.metadata,
+                messagesCount: session.messages?.length || 0,
+                conversationId: session.metadata?.conversationId
+            });
+            
             if (!session.metadata || !session.messages || session.messages.length === 0) {
+                console.error('[AIDataModelerController] No session data to save');
                 res.status(404).json({ error: 'No session data to save' });
                 return;
             }
@@ -304,12 +368,19 @@ export class AIDataModelerController {
 
             await manager.save(DRAAIDataModelMessage, messageEntities);
 
+            console.log('[AIDataModelerController] Saved conversation and messages:', {
+                conversationId: savedConversation.id,
+                messagesSaved: messageEntities.length
+            });
+
             // Clear Redis session
             await redisService.clearAllSessionData(dataSourceId, userId);
 
             // Destroy Gemini session
             const geminiService = getGeminiService();
             geminiService.destroyConversation(session.metadata.conversationId);
+
+            console.log('[AIDataModelerController] Cleared Redis and Gemini session');
 
             res.status(200).json({
                 conversationId: savedConversation.id,
@@ -379,7 +450,14 @@ export class AIDataModelerController {
             const tokenDetails = req.body.tokenDetails;
             const userId = tokenDetails?.user_id;
 
+            console.log('[AIDataModelerController] getSavedConversation called:', {
+                dataModelId,
+                userId,
+                hasTokenDetails: !!tokenDetails
+            });
+
             if (!dataModelId || !userId) {
+                console.log('[AIDataModelerController] Missing required parameters');
                 res.status(400).json({ error: 'dataModelId and userId are required' });
                 return;
             }
@@ -411,10 +489,21 @@ export class AIDataModelerController {
                 }
             });
 
+            console.log('[AIDataModelerController] Database query result:', {
+                found: !!conversation,
+                messageCount: conversation?.messages?.length || 0
+            });
+
             if (!conversation) {
+                console.log('[AIDataModelerController] No conversation found for data model:', dataModelId);
                 res.status(404).json({ error: 'Conversation not found' });
                 return;
             }
+
+            console.log('[AIDataModelerController] Returning conversation:', {
+                id: conversation.id,
+                messageCount: conversation.messages.length
+            });
 
             res.status(200).json({
                 conversation,
