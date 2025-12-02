@@ -14,6 +14,8 @@ You will be provided with a database schema containing:
 # Objective
 Analyze the provided schema to identify business domains and data flow. Based on this analysis, propose **new** data models specifically designed for data analysts. These models should prioritize query performance, readability, and the ability to answer complex business questions.
 
+**CRITICAL**: When proposing models that query multiple tables, you MUST analyze the relationship chain and include ALL necessary tables (especially junction/linking tables) in your column selections. Missing a linking table will cause SQL JOIN errors. Review the "Relationships" section of the schema carefully to identify which tables connect others.
+
 # Response Guidelines
 Your response must be structured into the following three sections:
 

@@ -100,6 +100,9 @@ const showDataModelControls = computed(() => {
 const saveButtonEnabled = computed(() => {
     return state && state.data_table && state.data_table.columns && state.data_table.columns.filter((column) => column.is_selected_column).length > 0;
 })
+const safeDataTableColumns = computed(() => {
+    return (state?.data_table?.columns && Array.isArray(state.data_table.columns)) ? state.data_table.columns : [];
+})
 const numericColumns = computed(() => {
     return [...state.data_table.columns.filter((column) => getDataType(column.data_type) === 'NUMBER').map((column) => {
         return {
@@ -323,6 +326,26 @@ watch(() => state.calculated_column.column_name, (value) => {
 watch(() => state.data_table.calculated_columns, async (value) => {
     // buildCalculatedColumn();
 }, { deep: true });
+
+// Watch for manual apply trigger from AI drawer
+watch(() => aiDataModelerStore.applyTrigger, (newValue, oldValue) => {
+    console.log('[Data Model Builder - applyTrigger watcher] Triggered', {
+        newValue,
+        oldValue,
+        changed: newValue !== oldValue,
+        hasModelDraft: !!aiDataModelerStore.modelDraft,
+        hasTables: !!aiDataModelerStore.modelDraft?.tables,
+        modelDraft: aiDataModelerStore.modelDraft
+    });
+    
+    if (newValue !== oldValue && aiDataModelerStore.modelDraft?.tables) {
+        console.log('[Data Model Builder] Manual apply trigger detected, applying AI model');
+        applyAIGeneratedModel(aiDataModelerStore.modelDraft.tables);
+    } else {
+        console.warn('[Data Model Builder] Trigger changed but conditions not met for applying model');
+    }
+});
+
 function getColumValue(value, dataType) {
     if (getDataType(dataType) === 'NUMBER' || getDataType(dataType) === 'BOOLEAN') {
         return `${value}`;
@@ -1110,7 +1133,20 @@ async function executeQueryOnExternalDataSource() {
             query: state.sql_query,
         })
     });
-    const data = await response.json();
+    
+    // Check if response has content before parsing JSON
+    if (!response.ok || response.status === 204) {
+        console.warn('[Data Model Builder] Query execution returned no content or error:', response.status);
+        return;
+    }
+    
+    const text = await response.text();
+    if (!text) {
+        console.warn('[Data Model Builder] Query execution returned empty response');
+        return;
+    }
+    
+    const data = JSON.parse(text);
     if (data && data.length) {
         // Check for array values in result (indicates potential cartesian product)
         const hasArrayValues = data.some(row => 
@@ -1162,6 +1198,316 @@ async function toggleColumnInDataModel(column, tableName) {
         await executeQueryOnExternalDataSource();
     }
 }
+
+/**
+ * Apply AI-generated data model to the builder
+ */
+async function applyAIGeneratedModel(model) {
+    try {
+        console.log('[Data Model Builder] Applying AI-generated model:', model);
+        
+        // Handle array of models (take first one, or latest)
+        let modelToApply = model;
+        if (Array.isArray(model)) {
+            if (model.length === 0) {
+                $swal.fire({
+                    title: 'No Model Found',
+                    text: 'The AI response does not contain any data models.',
+                    icon: 'warning'
+                });
+                return;
+            }
+            console.log(`[Data Model Builder] Multiple models detected (${model.length}), using the first one`);
+            modelToApply = model[0];
+        }
+        
+        // Validate and transform AI model to match builder structure
+        const transformedModel = validateAndTransformAIModel(modelToApply);
+        
+        if (!transformedModel) {
+            // Error already shown in validateAndTransformAIModel
+            return;
+        }
+        
+        // Store previous state for potential undo
+        const previousModel = JSON.parse(JSON.stringify(state.data_table));
+        
+        try {
+            // Apply the model - use Object.assign to avoid losing reactivity
+            Object.assign(state.data_table, transformedModel);
+            
+            // Wait for DOM update to complete
+            await nextTick();
+            
+            // Switch to advanced view if model has advanced features
+            if (hasAdvancedFields()) {
+                state.viewMode = 'advanced';
+            }
+            
+            // Execute query to populate preview
+            await executeQueryOnExternalDataSource();
+            
+            // Success notification
+            $swal.fire({
+                title: 'Applied!',
+                text: 'AI data model has been applied successfully',
+                icon: 'success',
+                timer: 2000,
+                showConfirmButton: false
+            });
+            
+        } catch (queryError) {
+            console.error('[Data Model Builder] Error executing query after model application:', queryError);
+            
+            // Revert to previous state
+            state.data_table = previousModel;
+            
+            $swal.fire({
+                title: 'Query Execution Failed',
+                text: 'The model was applied but the query could not be executed. Model has been reverted.',
+                icon: 'error',
+                confirmButtonText: 'Understood'
+            });
+        }
+        
+    } catch (error) {
+        console.error('[Data Model Builder] Unexpected error applying AI model:', error);
+        $swal.fire({
+            title: 'Unexpected Error',
+            text: `Failed to apply AI-generated model: ${error.message || 'Unknown error'}`,
+            icon: 'error'
+        });
+    }
+}
+
+/**
+ * Validate and transform AI model to builder format
+ */
+function validateAndTransformAIModel(aiModel) {
+    const errors = [];
+    
+    try {
+        // Validate model structure
+        if (!aiModel) {
+            errors.push('AI model is empty or undefined');
+            throw new Error('Empty model');
+        }
+        
+        // Validate required fields
+        if (!aiModel.table_name) {
+            errors.push('Missing table_name');
+        }
+        
+        if (!aiModel.columns) {
+            errors.push('Missing columns array');
+        } else if (!Array.isArray(aiModel.columns)) {
+            errors.push('Columns is not an array');
+        } else if (aiModel.columns.length === 0) {
+            errors.push('No columns specified');
+        }
+        
+        // If critical errors exist, show detailed message
+        if (errors.length > 0) {
+            console.error('[Data Model Builder] Validation errors:', errors);
+            $swal.fire({
+                title: 'Invalid AI Model',
+                html: `<div class="text-left"><p class="mb-2">The AI-generated model has the following issues:</p><ul class="list-disc pl-5">${errors.map(e => `<li>${e}</li>`).join('')}</ul></div>`,
+                icon: 'error',
+                confirmButtonText: 'Understood'
+            });
+            return null;
+        }
+        
+        // STEP 1: Detect and transform column format
+        // AI-generated models may use fully-qualified column names (schema.table.column)
+        // while the builder expects separate fields (schema, table_name, column_name)
+        console.log('[Data Model Builder] Raw columns from AI:', JSON.stringify(aiModel.columns, null, 2));
+        
+        const transformedColumns = aiModel.columns.map((col, index) => {
+            // Check if column uses fully-qualified format (schema.table.column)
+            if (col.column && typeof col.column === 'string' && !col.column_name) {
+                const parts = col.column.split('.');
+                
+                if (parts.length === 3) {
+                    // Parse: schema.table.column
+                    console.log(`[Data Model Builder] Transforming column ${index + 1}: ${col.column} → {schema: ${parts[0]}, table: ${parts[1]}, column: ${parts[2]}}`);
+                    return {
+                        schema: parts[0],
+                        table_name: parts[1],
+                        column_name: parts[2],
+                        data_type: col.data_type || 'text',
+                        is_selected_column: col.is_selected_column ?? true,
+                        alias_name: col.alias_name || '',
+                        transform_function: col.transform_function || '',
+                        character_maximum_length: col.character_maximum_length || null,
+                        reference: {
+                            foreign_table_schema: '',
+                            foreign_table_name: '',
+                            foreign_column_name: '',
+                            local_table_name: '',
+                            local_column_name: ''
+                        }
+                    };
+                } else if (parts.length === 2) {
+                    // Parse: table.column (assume default schema from model)
+                    console.log(`[Data Model Builder] Transforming column ${index + 1}: ${col.column} → {table: ${parts[0]}, column: ${parts[1]}}`);
+                    return {
+                        schema: aiModel.schema || 'public',
+                        table_name: parts[0],
+                        column_name: parts[1],
+                        data_type: col.data_type || 'text',
+                        is_selected_column: col.is_selected_column ?? true,
+                        alias_name: col.alias_name || '',
+                        transform_function: col.transform_function || '',
+                        character_maximum_length: col.character_maximum_length || null,
+                        reference: {
+                            foreign_table_schema: '',
+                            foreign_table_name: '',
+                            foreign_column_name: '',
+                            local_table_name: '',
+                            local_column_name: ''
+                        }
+                    };
+                } else {
+                    console.warn(`[Data Model Builder] Column ${index + 1} has invalid format: ${col.column}`);
+                    return null;
+                }
+            }
+            
+            // Column already in builder format - return as is
+            return col;
+        }).filter(col => col !== null);
+        
+        console.log('[Data Model Builder] Transformed columns:', transformedColumns.length);
+        
+        // Replace original columns with transformed ones
+        aiModel.columns = transformedColumns;
+        
+        // STEP 2: Validate and fix each column
+        const validColumns = [];
+        const columnErrors = [];
+        
+        for (let i = 0; i < aiModel.columns.length; i++) {
+            const col = aiModel.columns[i];
+            const colIndex = i + 1;
+            
+            if (!col.schema) {
+                columnErrors.push(`Column ${colIndex} (${col.column_name || col.column || 'unknown'}): Missing schema`);
+                continue;
+            }
+            if (!col.table_name) {
+                columnErrors.push(`Column ${colIndex} (${col.column_name || col.column || 'unknown'}): Missing table_name`);
+                continue;
+            }
+            if (!col.column_name) {
+                columnErrors.push(`Column ${colIndex} (${col.column || 'unknown'}): Missing column_name`);
+                continue;
+            }
+            
+            // Ensure required fields exist with defaults
+            col.is_selected_column = col.is_selected_column ?? true;
+            col.alias_name = col.alias_name || '';
+            col.transform_function = col.transform_function || '';
+            col.character_maximum_length = col.character_maximum_length || null;
+            col.data_type = col.data_type || 'text';
+            
+            // Initialize reference if not present
+            if (!col.reference) {
+                col.reference = {
+                    foreign_table_schema: '',
+                    foreign_table_name: '',
+                    foreign_column_name: '',
+                    local_table_name: '',
+                    local_column_name: ''
+                };
+            }
+            
+            validColumns.push(col);
+        }
+        
+        // If some columns had errors but we have valid ones, continue with warning
+        if (columnErrors.length > 0 && validColumns.length > 0) {
+            console.warn('[Data Model Builder] Column validation warnings:', columnErrors);
+            $swal.fire({
+                title: 'Model Applied with Warnings',
+                html: `<div class="text-left"><p class="mb-2">Some columns were skipped due to errors:</p><ul class="list-disc pl-5">${columnErrors.slice(0, 5).map(e => `<li>${e}</li>`).join('')}${columnErrors.length > 5 ? `<li>...and ${columnErrors.length - 5} more</li>` : ''}</ul></div>`,
+                icon: 'warning',
+                timer: 4000
+            });
+        } else if (validColumns.length === 0) {
+            $swal.fire({
+                title: 'No Valid Columns',
+                text: 'All columns in the AI model have validation errors. Cannot apply model.',
+                icon: 'error'
+            });
+            return null;
+        }
+        
+        aiModel.columns = validColumns;
+        
+        // Initialize query_options with validation
+        if (!aiModel.query_options) {
+            aiModel.query_options = {
+                where: [],
+                group_by: {},
+                order_by: [],
+                offset: -1,
+                limit: -1
+            };
+        } else {
+            // Validate and sanitize query_options
+            aiModel.query_options.where = Array.isArray(aiModel.query_options.where) ? aiModel.query_options.where : [];
+            aiModel.query_options.group_by = typeof aiModel.query_options.group_by === 'object' ? aiModel.query_options.group_by : {};
+            aiModel.query_options.order_by = Array.isArray(aiModel.query_options.order_by) ? aiModel.query_options.order_by : [];
+            aiModel.query_options.offset = typeof aiModel.query_options.offset === 'number' ? aiModel.query_options.offset : -1;
+            aiModel.query_options.limit = typeof aiModel.query_options.limit === 'number' ? aiModel.query_options.limit : -1;
+            
+            // CRITICAL: If group_by has aggregate_functions or aggregate_expressions, set the name flag
+            // This flag is required for the UI to show the GROUP BY section
+            if (aiModel.query_options.group_by && 
+                (aiModel.query_options.group_by.aggregate_functions?.length > 0 || 
+                 aiModel.query_options.group_by.aggregate_expressions?.length > 0)) {
+                aiModel.query_options.group_by.name = 'GROUP BY';
+                console.log('[Data Model Builder] Set group_by.name flag for UI visibility');
+            }
+        }
+        
+        // Initialize calculated_columns with validation
+        if (!aiModel.calculated_columns) {
+            aiModel.calculated_columns = [];
+        } else if (!Array.isArray(aiModel.calculated_columns)) {
+            console.warn('[Data Model Builder] calculated_columns is not an array, resetting to empty array');
+            aiModel.calculated_columns = [];
+        }
+        
+        // Ensure table_name exists
+        if (!aiModel.table_name) {
+            aiModel.table_name = 'ai_generated_model';
+        }
+        
+        // CRITICAL: Ensure columns array exists (required for draggable component)
+        if (!aiModel.columns) {
+            console.error('[Data Model Builder] Model has no columns array, creating empty array');
+            aiModel.columns = [];
+        } else if (!Array.isArray(aiModel.columns)) {
+            console.error('[Data Model Builder] Model columns is not an array, converting to array');
+            aiModel.columns = Array.isArray(validColumns) ? validColumns : [];
+        }
+        
+        console.log('[Data Model Builder] Model validated successfully:', aiModel);
+        return aiModel;
+        
+    } catch (error) {
+        console.error('[Data Model Builder] Critical error validating AI model:', error);
+        $swal.fire({
+            title: 'Validation Failed',
+            text: 'The AI model could not be validated. Please try generating a new model.',
+            icon: 'error'
+        });
+        return null;
+    }
+}
+
 onMounted(async () => {
     if (props.dataModel && props.dataModel.query) {
         state.data_table = props.dataModel.query;
@@ -1283,7 +1629,7 @@ onMounted(async () => {
                             Table Name: {{ table.table_name }}
                         </div>
                         <draggable
-                            :list="table.columns"
+                            :list="(table && table.columns) ? table.columns : []"
                             :group="{
                                 name: 'tables',
                                 pull: 'clone',
@@ -1341,7 +1687,7 @@ onMounted(async () => {
                         </div>
                         <draggable
                             class="min-h-1000 bg-gray-100"
-                            :list="state.data_table.columns"
+                            :list="safeDataTableColumns"
                             group="tables"
                             @change="changeDataModel"
                             itemKey="name"

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import type { IMessage, ISchemaSummary } from '~/types/IAIDataModeler';
+import type { IMessage, ISchemaSummary, ISchemaDetails } from '~/types/IAIDataModeler';
 
 interface ModelDraft {
     tables: any;
@@ -16,12 +16,16 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
     const isLoading = ref(false);
     const isInitializing = ref(false);
     const schemaSummary = ref<ISchemaSummary | null>(null);
+    const schemaDetails = ref<ISchemaDetails | null>(null);
     const error = ref<string | null>(null);
     const currentDataSourceId = ref<number | null>(null);
     const modelDraft = ref<ModelDraft | null>(null);
     const sessionSource = ref<'redis' | 'database' | 'new'>('new');
     const isDirty = ref(false);
     const isRestored = ref(false);
+    const applyTrigger = ref(0);
+    const modelHistory = ref<Array<{ model: ModelDraft; timestamp: string; messageId: string }>>([]);
+    const currentHistoryIndex = ref(-1);
 
     /**
      * Open the AI drawer and initialize conversation
@@ -54,6 +58,9 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
         if (cleanup && currentDataSourceId.value) {
             try {
                 await cancelSession();
+                // Clear history when cleaning up
+                modelHistory.value = [];
+                currentHistoryIndex.value = -1;
             } catch (err) {
                 console.error('Error cancelling session:', err);
             }
@@ -103,6 +110,11 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
             sessionSource.value = data.source;
             modelDraft.value = data.modelDraft;
             
+            // Store schema details for pattern detection
+            if (data.schemaDetails) {
+                schemaDetails.value = data.schemaDetails;
+            }
+            
             if (data.source === 'redis') {
                 // Restored from Redis
                 messages.value = data.messages.map((msg: any) => ({
@@ -111,6 +123,12 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
                     content: msg.content,
                     timestamp: new Date(msg.timestamp)
                 }));
+                
+                // Also store schemaSummary for Redis restored sessions
+                if (data.schemaSummary) {
+                    schemaSummary.value = data.schemaSummary;
+                }
+                
                 isRestored.value = true;
             } else {
                 // New session - messages already include initial welcome from backend
@@ -194,6 +212,37 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
                 timestamp: new Date(data.assistantMessage.timestamp)
             };
             messages.value.push(aiMessage);
+
+            // Check if AI generated a data model
+            console.log('[AI Store - sendMessage] Checking for dataModel in response:', {
+                hasDataModel: !!data.dataModel,
+                dataModel: data.dataModel
+            });
+            
+            if (data.dataModel) {
+                console.log('[AI Store] AI generated a data model:', data.dataModel);
+                // Wrap single dataModel in array if not already an array
+                const tablesArray = Array.isArray(data.dataModel) ? data.dataModel : [data.dataModel];
+                const newModelDraft = {
+                    tables: tablesArray,
+                    relationships: [],
+                    indexes: [],
+                    lastModified: new Date().toISOString(),
+                    version: 1
+                };
+                console.log('[AI Store] Setting modelDraft.value to:', newModelDraft);
+                modelDraft.value = newModelDraft;
+                console.log('[AI Store] modelDraft.value is now:', modelDraft.value);
+                
+                // Add to history
+                addModelToHistory(newModelDraft, aiMessage.id);
+                console.log('[AI Store] Added to history. History length:', modelHistory.value.length);
+                
+                // Save to Redis - pass the full modelDraft structure, not just data.dataModel
+                await updateModelDraft(newModelDraft);
+            } else {
+                console.warn('[AI Store] No dataModel in response. Response structure:', data);
+            }
 
             isDirty.value = true;
             return true;
@@ -410,6 +459,7 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
         conversationId.value = null;
         messages.value = [];
         schemaSummary.value = null;
+        schemaDetails.value = null;
         currentDataSourceId.value = null;
         modelDraft.value = null;
         sessionSource.value = 'new';
@@ -422,6 +472,93 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
      */
     function clearError() {
         error.value = null;
+    }
+
+    /**
+     * Manually trigger application of model draft to builder
+     */
+    function applyModelToBuilder() {
+        console.log('[AI Store - applyModelToBuilder] START');
+        console.log('[AI Store] Current applyTrigger value:', applyTrigger.value);
+        console.log('[AI Store] Current modelDraft:', modelDraft.value);
+        applyTrigger.value++;
+        console.log('[AI Store] New applyTrigger value:', applyTrigger.value);
+        console.log('[AI Store - applyModelToBuilder] END');
+    }
+
+    /**
+     * Add current model to history
+     */
+    function addModelToHistory(model: ModelDraft, messageId: string) {
+        const historyEntry = {
+            model: JSON.parse(JSON.stringify(model)), // Deep clone
+            timestamp: new Date().toISOString(),
+            messageId
+        };
+        
+        // If we're not at the end of history, remove future entries
+        if (currentHistoryIndex.value < modelHistory.value.length - 1) {
+            modelHistory.value = modelHistory.value.slice(0, currentHistoryIndex.value + 1);
+        }
+        
+        modelHistory.value.push(historyEntry);
+        currentHistoryIndex.value = modelHistory.value.length - 1;
+        
+        // Keep only last 10 models to avoid memory issues
+        if (modelHistory.value.length > 10) {
+            modelHistory.value.shift();
+            currentHistoryIndex.value--;
+        }
+        
+        console.log('[AI Store] Model added to history. Total:', modelHistory.value.length);
+    }
+
+    /**
+     * Revert to a previous model from history
+     */
+    function revertToHistoryModel(index: number) {
+        if (index >= 0 && index < modelHistory.value.length) {
+            const historyEntry = modelHistory.value[index];
+            modelDraft.value = JSON.parse(JSON.stringify(historyEntry.model)); // Deep clone
+            currentHistoryIndex.value = index;
+            console.log('[AI Store] Reverted to model at index:', index);
+        }
+    }
+
+    /**
+     * Go back to previous model
+     */
+    function goToPreviousModel() {
+        if (currentHistoryIndex.value > 0) {
+            revertToHistoryModel(currentHistoryIndex.value - 1);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Go forward to next model
+     */
+    function goToNextModel() {
+        if (currentHistoryIndex.value < modelHistory.value.length - 1) {
+            revertToHistoryModel(currentHistoryIndex.value + 1);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Check if can go back
+     */
+    function canGoBack() {
+        return currentHistoryIndex.value > 0;
+    }
+
+    /**
+     * Check if can go forward
+     */
+    function canGoForward() {
+        return currentHistoryIndex.value < modelHistory.value.length - 1;
     }
 
     /**
@@ -439,12 +576,16 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
         isLoading,
         isInitializing,
         schemaSummary,
+        schemaDetails,
         error,
         currentDataSourceId,
         modelDraft,
         sessionSource,
         isDirty,
         isRestored,
+        applyTrigger,
+        modelHistory,
+        currentHistoryIndex,
 
         // Actions
         openDrawer,
@@ -456,6 +597,14 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
         cancelSession,
         loadSavedConversation,
         resetState,
-        clearError
+        clearError,
+        applyModelToBuilder,
+        addModelToHistory,
+        revertToHistoryModel,
+        goToPreviousModel,
+        goToNextModel,
+        canGoBack,
+        canGoForward,
+        generateMessageId
     };
 });

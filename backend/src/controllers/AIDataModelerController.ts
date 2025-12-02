@@ -40,13 +40,17 @@ export class AIDataModelerController {
                 });
 
                 // If session exists but has no messages, add the welcome message
+                // Get schema summary and details
+                const schemaSummary = existingSession.schemaContext 
+                    ? SchemaFormatterUtility.getSchemaSummary(existingSession.schemaContext.tables)
+                    : { tableCount: 0, totalColumns: 0 };
+                
+                const schemaDetails = existingSession.schemaContext?.tables
+                    ? AIDataModelerController.extractSchemaDetails(existingSession.schemaContext.tables)
+                    : { tables: [] };
+                
                 if (!existingSession.messages || existingSession.messages.length === 0) {
                     console.log('[AIDataModelerController] Session has no messages, adding welcome message');
-                    
-                    // Get schema summary to create welcome message
-                    const schemaSummary = existingSession.schemaContext 
-                        ? SchemaFormatterUtility.getSchemaSummary(existingSession.schemaContext.tables)
-                        : { tableCount: 0, totalColumns: 0 };
 
                     const welcomeMessage = `Welcome! I've analyzed your database schema with **${schemaSummary.tableCount} tables** and **${schemaSummary.totalColumns} columns**.\n\nI can help you:\n• Identify analytical bottlenecks in your current schema\n• Propose optimized data models (Star Schema, OBT, etc.)\n• Suggest SQL implementation strategies\n• Recommend indexing for better query performance\n\nWhat would you like to analyze?`;
                     
@@ -65,6 +69,8 @@ export class AIDataModelerController {
                     messages: existingSession.messages,
                     modelDraft: existingSession.modelDraft,
                     schemaContext: existingSession.schemaContext,
+                    schemaDetails,
+                    schemaSummary,
                     source: 'redis',
                     message: 'Session restored from Redis'
                 });
@@ -99,6 +105,7 @@ export class AIDataModelerController {
             // Format schema to markdown
             const schemaMarkdown = SchemaFormatterUtility.formatSchemaToMarkdown(tables);
             const schemaSummary = SchemaFormatterUtility.getSchemaSummary(tables);
+            const schemaDetails = AIDataModelerController.extractSchemaDetails(tables);
 
             // Close the data source connection
             if (dataSource.isInitialized) {
@@ -114,12 +121,14 @@ export class AIDataModelerController {
             // Create session in Redis
             const metadata = await redisService.createSession(dataSourceId, userId, schemaContext);
 
-            // Initialize Gemini conversation
+            // Initialize Gemini conversation with data model instructions
             const geminiService = getGeminiService();
-            await geminiService.initializeConversation(metadata.conversationId, schemaMarkdown);
+            const dataModelInstructions = AIDataModelerController.getDataModelInstructions();
+            const fullContext = `${schemaMarkdown}\n\n${dataModelInstructions}`;
+            await geminiService.initializeConversation(metadata.conversationId, fullContext);
 
             // Create and save initial welcome message to Redis
-            const welcomeMessage = `Welcome! I've analyzed your database schema with **${schemaSummary.tableCount} tables** and **${schemaSummary.totalColumns} columns**.\n\nI can help you:\n• Identify analytical bottlenecks in your current schema\n• Propose optimized data models (Star Schema, OBT, etc.)\n• Suggest SQL implementation strategies\n• Recommend indexing for better query performance\n\nWhat would you like to analyze?`;
+            const welcomeMessage = `Welcome! I've analyzed your database schema with **${schemaSummary.tableCount} tables** and **${schemaSummary.totalColumns} columns**.\n\nI can help you:\n• Identify analytical bottlenecks in your current schema\n• Propose optimized data models (Star Schema, OBT, etc.)\n• Suggest SQL implementation strategies\n• Recommend indexing for better query performance\n\nLet me provide you with an initial analysis...`;
             
             const initialMessage = await redisService.addMessage(
                 dataSourceId,
@@ -128,19 +137,74 @@ export class AIDataModelerController {
                 welcomeMessage
             );
 
-            console.log('[AIDataModelerController] New session created with initial message:', {
-                conversationId: metadata.conversationId,
-                messageCount: 1,
-                messageRole: initialMessage.role,
-                messageLength: initialMessage.content.length
-            });
+            console.log('[AIDataModelerController] New session created, starting auto-analysis...');
+
+            // Automatically analyze the schema and provide recommendations
+            const analysisPrompt = `I'm reviewing this database schema for analytics purposes. Please provide:
+
+1. **Schema Overview**: What kind of system does this represent? (e-commerce, CRM, SaaS, etc.)
+
+2. **Key Entities**: Identify 3-5 most important tables for analytics
+
+3. **Recommended Data Model**: Suggest the best approach:
+   - Star Schema (if clear fact/dimension pattern exists)
+   - One Big Table (OBT) (if denormalized view would help)
+   - Snowflake Schema (if normalization is important)
+
+4. **Quick Wins**: 1-2 immediate optimizations for better query performance
+
+Keep it concise - aim for 200-300 words total.`;
+
+            let autoAnalysisMessage: any = null;
+            let autoPromptMessage: any = null;
+
+            try {
+                // Send auto-analysis prompt to Gemini
+                const analysisResponse = await geminiService.sendMessage(
+                    metadata.conversationId,
+                    analysisPrompt
+                );
+
+                // Save the auto-generated prompt to Redis
+                autoPromptMessage = await redisService.addMessage(
+                    dataSourceId,
+                    userId,
+                    'user',
+                    analysisPrompt
+                );
+
+                // Save AI's analysis response to Redis
+                autoAnalysisMessage = await redisService.addMessage(
+                    dataSourceId,
+                    userId,
+                    'assistant',
+                    analysisResponse
+                );
+
+                console.log('[AIDataModelerController] Auto-analysis completed:', {
+                    conversationId: metadata.conversationId,
+                    messageCount: 3,
+                    analysisLength: analysisResponse.length
+                });
+
+            } catch (error) {
+                console.error('[AIDataModelerController] Auto-analysis failed, continuing without it:', error);
+                // Don't fail initialization if auto-analysis fails
+            }
+
+            // Build messages array
+            const messages = [initialMessage];
+            if (autoPromptMessage && autoAnalysisMessage) {
+                messages.push(autoPromptMessage, autoAnalysisMessage);
+            }
 
             res.status(200).json({
                 conversationId: metadata.conversationId,
-                messages: [initialMessage],
+                messages: messages,
                 modelDraft: null,
                 schemaContext,
                 schemaSummary,
+                schemaDetails,
                 source: 'new',
                 message: 'New session initialized successfully'
             });
@@ -199,13 +263,17 @@ export class AIDataModelerController {
             // Send to Gemini
             const response = await geminiService.sendMessage(session.conversationId, message);
 
+            // Check if response contains data model JSON
+            const dataModelJSON = AIDataModelerController.extractDataModelJSON(response);
+
             // Save assistant message to Redis
             const assistantMessage = await redisService.addMessage(dataSourceId, userId, 'assistant', response);
 
             res.status(200).json({
                 userMessage,
                 assistantMessage,
-                conversationId: session.conversationId
+                conversationId: session.conversationId,
+                dataModel: dataModelJSON || null
             });
 
         } catch (error) {
@@ -437,6 +505,109 @@ export class AIDataModelerController {
                 error: 'Failed to cancel session',
                 details: error instanceof Error ? error.message : 'Unknown error'
             });
+        }
+    }
+
+    /**
+     * Get data model instructions for Gemini
+     */
+    private static getDataModelInstructions(): string {
+        return `
+IMPORTANT: Data Model Generation Capability
+
+When the user requests to "build", "create", or "generate" a data model, you MUST provide structured JSON that will automatically populate the visual data model builder.
+
+CRITICAL: When selecting columns from multiple tables, you MUST include ALL tables that participate in the relationships chain, including junction/linking tables. For example:
+- If selecting from "orders" and "products", you MUST include "order_items" (the junction table) in your columns
+- If selecting from "users", "orders", and "products", include columns from ALL FOUR tables: users, orders, order_items, products
+- Review the provided schema relationships to identify which tables link others together
+- Missing a linking table will cause SQL JOIN errors
+
+Use this EXACT JSON format (wrapped in \`\`\`json code block):
+
+\`\`\`json
+{
+  "action": "BUILD_DATA_MODEL",
+  "model": {
+    "table_name": "sales_analysis",
+    "columns": [
+      {
+        "schema": "public",
+        "table_name": "orders",
+        "column_name": "id",
+        "data_type": "integer",
+        "is_selected_column": true,
+        "alias_name": "order_id"
+      }
+    ],
+    "query_options": {
+      "where": [
+        {
+          "column": "public.orders.status",
+          "equality": 0,
+          "value": "completed",
+          "condition": 0
+        }
+      ],
+      "group_by": {
+        "aggregate_functions": [
+          {
+            "column": "public.orders.total",
+            "column_alias_name": "total_sales",
+            "aggregate_function": 0,
+            "use_distinct": false
+          }
+        ]
+      },
+      "order_by": [
+        {
+          "column": "public.orders.created_at",
+          "order": 1
+        }
+      ]
+    }
+  }
+}
+\`\`\`
+
+Key indexes:
+- equality: 0='=', 1='>', 2='<', 3='>=', 4='<=', 5='!=', 6='IN', 7='NOT IN'
+- condition: 0='AND', 1='OR'
+- aggregate_function: 0='SUM', 1='AVG', 2='COUNT', 3='MIN', 4='MAX'
+- order: 0='ASC', 1='DESC'
+
+ALWAYS include this JSON block when user uses phrases like:
+- "Build me a [type] model"
+- "Create a data model for [purpose]"
+- "Generate a [schema type]"
+- "Make a model to analyze [topic]"
+
+After the JSON, provide a brief explanation of the model.
+`;
+    }
+
+    /**
+     * Extract data model JSON from AI response
+     */
+    private static extractDataModelJSON(aiResponse: string): any | null {
+        try {
+            // Look for JSON code block
+            const jsonMatch = aiResponse.match(/```json\s*([\s\S]*?)\s*```/);
+            if (!jsonMatch) return null;
+            
+            const jsonString = jsonMatch[1];
+            const parsed = JSON.parse(jsonString);
+            
+            // Validate it's a data model action
+            if (parsed.action === 'BUILD_DATA_MODEL' && parsed.model) {
+                console.log('[AIDataModelerController] Extracted data model from AI response');
+                return parsed.model;
+            }
+            
+            return null;
+        } catch (error) {
+            console.error('[AIDataModelerController] Failed to parse data model JSON:', error);
+            return null;
         }
     }
 
@@ -748,5 +919,24 @@ export class AIDataModelerController {
             default:
                 throw new Error(`Unsupported database type: ${type}`);
         }
+    }
+
+    /**
+     * Extract simplified schema details for frontend pattern detection
+     */
+    private static extractSchemaDetails(tables: any[]): any {
+        return {
+            tables: tables.map(table => ({
+                name: table.tableName,
+                columnCount: table.columns?.length || 0,
+                hasTimestamps: table.columns?.some((col: any) => 
+                    col.column_name.toLowerCase().includes('created_at') ||
+                    col.column_name.toLowerCase().includes('updated_at') ||
+                    col.column_name.toLowerCase().includes('timestamp') ||
+                    col.data_type.toLowerCase().includes('timestamp')
+                ) || false,
+                foreignKeyReferences: table.foreignKeys?.map((fk: any) => fk.foreign_table_name) || []
+            }))
+        };
     }
 }

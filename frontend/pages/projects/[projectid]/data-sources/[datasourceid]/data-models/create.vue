@@ -1,9 +1,11 @@
 <script setup>
 import { useProjectsStore } from '@/stores/projects';
 import { useDataSourceStore } from '@/stores/data_sources';
+import { useAIDataModelerStore } from '@/stores/ai-data-modeler';
 
 const projectsStore = useProjectsStore();
 const dataSourceStore = useDataSourceStore();
+const aiDataModelerStore = useAIDataModelerStore();
 const route = useRoute();
 const state = reactive({
     data_source_tables: [],
@@ -31,6 +33,17 @@ async function getDataSourceTables(dataSourceId) {
 onMounted(async () => {
    const dataSourceId = route.params.datasourceid;
    await getDataSourceTables(dataSourceId);
+});
+
+onBeforeUnmount(() => {
+    // Clean up Redis session when leaving create page without saving
+    // Only cleanup if session exists and was not saved (source is not 'database')
+    if (aiDataModelerStore.currentDataSourceId && 
+        aiDataModelerStore.sessionSource !== 'database' &&
+        aiDataModelerStore.messages.length > 0) {
+        console.log('[Create Data Model] Cleaning up unsaved AI session');
+        aiDataModelerStore.cancelSession();
+    }
 });
 </script>
 <template>

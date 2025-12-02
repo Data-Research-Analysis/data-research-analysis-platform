@@ -11,3 +11,14 @@ export interface ISchemaSummary {
     totalForeignKeys: number;
     avgColumnsPerTable: number;
 }
+
+export interface ITableInfo {
+    name: string;
+    columnCount: number;
+    hasTimestamps: boolean;
+    foreignKeyReferences: string[];
+}
+
+export interface ISchemaDetails {
+    tables: ITableInfo[];
+}
