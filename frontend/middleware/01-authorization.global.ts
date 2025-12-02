@@ -58,12 +58,6 @@ function requiresAuthentication(path: string): boolean {
 }
 
 export default defineNuxtRouteMiddleware(async (to, from) => {
-  // INSTRUMENTATION: Track authorization middleware timing
-  const authStartTime = import.meta.client ? performance.now() : 0
-  if (import.meta.client) {
-    console.log(`[01-authorization] Started at ${authStartTime.toFixed(2)}ms`)
-  }
-  
   // Set batch context if batch ID exists (set by 00-route-loader)
   const batchId = to.meta.loaderBatchId as string | undefined
   if (batchId && import.meta.client) {
@@ -79,10 +73,6 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
   
   // OPTIMIZATION: Skip token validation for public routes
   if (isPublicRoute(to.path)) {
-    if (import.meta.client) {
-      console.log(`[01-authorization] Public route detected, skipping token validation`)
-    }
-    
     // If user has token and tries to access login/register/home, redirect to projects
     if (token && (to.path === '/login' || to.path === '/register' || to.path === '/')) {
       return navigateTo('/projects');
@@ -114,9 +104,6 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
         // OPTIMIZATION: Check cache first to avoid repeated API calls
         const cachedValidation = isTokenValidationCached(token);
         if (cachedValidation !== null) {
-          if (import.meta.client) {
-            console.log(`[01-authorization] Using cached validation (valid: ${cachedValidation})`)
-          }
           isAuthorized = cachedValidation;
           
           if (!isAuthorized) {
@@ -152,9 +139,6 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
             if (data?.message === "validated token") {
               isAuthorized = true;
               cacheTokenValidation(token, true);
-              if (import.meta.client) {
-                console.log(`[01-authorization] Token validated and cached`)
-              }
             } else {
               // Token is invalid - clear it and redirect to login
               cacheTokenValidation(token, false);
@@ -205,9 +189,6 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
   } else {
       // No token - check if route requires authentication
       if (requiresAuthentication(to.path)) {
-        if (import.meta.client) {
-          console.log(`[01-authorization] Protected route requires authentication`)
-        }
         return navigateTo("/login");
       }
       
@@ -238,13 +219,6 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     if (batchId && import.meta.client) {
       const { clearBatchContext } = useGlobalLoader()
       clearBatchContext()
-    }
-    
-    // INSTRUMENTATION: Track authorization middleware completion
-    if (import.meta.client) {
-      const authEndTime = performance.now()
-      const duration = authEndTime - authStartTime
-      console.log(`[01-authorization] Completed at ${authEndTime.toFixed(2)}ms (duration: ${duration.toFixed(2)}ms)`)
     }
   }
 });
