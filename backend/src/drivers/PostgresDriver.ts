@@ -99,7 +99,7 @@ export class PostgresDriver implements IDBDriver{
                            co.character_maximum_length
                            FROM information_schema.tables AS tb
                            JOIN information_schema.columns AS co
-                           ON tb.table_name = co.table_name
+                           ON tb.table_schema = co.table_schema AND tb.table_name = co.table_name
                            WHERE tb.table_schema = '${schema}'
                            AND tb.table_type = 'BASE TABLE'`;
             return resolve(query);

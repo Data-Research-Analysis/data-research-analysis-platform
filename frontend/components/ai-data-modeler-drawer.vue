@@ -2,8 +2,6 @@
 import { ref, watch, nextTick, onMounted, onUnmounted, computed } from 'vue';
 import { useAIDataModelerStore } from '~/stores/ai-data-modeler';
 import { usePresetGenerator } from '~/composables/usePresetGenerator';
-import AiChatMessage from './ai-chat-message.vue';
-import AiChatInput from './ai-chat-input.vue';
 
 const aiDataModelerStore = useAIDataModelerStore();
 
@@ -42,17 +40,18 @@ const lastMessageHasDataModel = computed(() => {
 
 // Computed property for showing error state
 const showModelError = computed(() => {
-    console.log('lastMessageHasDataModel.value', lastMessageHasDataModel.value)
-    return lastMessageHasDataModel.value && !hasValidModel.value;
+    const result = lastMessageHasDataModel.value && !hasValidModel.value;
+    console.log('[AI Drawer] showModelError:', result, { lastMessageHasDataModel: lastMessageHasDataModel.value, hasValidModel: hasValidModel.value });
+    return result;
 });
 
 // Computed property for showing success state
 const showModelSuccess = computed(() => {
-    return lastMessageHasDataModel.value && hasValidModel.value;
+    const result = lastMessageHasDataModel.value && hasValidModel.value;
+    console.log('[AI Drawer] showModelSuccess:', result, { lastMessageHasDataModel: lastMessageHasDataModel.value, hasValidModel: hasValidModel.value, modelDraft: aiDataModelerStore.modelDraft });
+    return result;
 });
 
-const messagesContainer = ref<HTMLDivElement | null>(null);
-const showChat = ref(false);
 const isApplyingModel = ref(false);
 const showModelPreview = ref(false);
 const buttonState = ref<'normal' | 'loading' | 'success'>('normal');
@@ -142,18 +141,6 @@ const presetModels = computed(() => {
     return generator.generatePresets();
 });
 
-// Auto-scroll to bottom when new messages arrive
-watch(
-    () => aiDataModelerStore.messages.length,
-    () => {
-        nextTick(() => {
-            if (messagesContainer.value) {
-                messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
-            }
-        });
-    }
-);
-
 // Save preview preference when changed
 watch(showModelPreview, (newValue) => {
     savePreference('ai-modeler-preview-expanded', newValue);
@@ -174,12 +161,15 @@ watch(
     { deep: true }
 );
 
-function handleSendMessage(message: string) {
-    aiDataModelerStore.sendMessage(message);
+function handlePresetModel(prompt: string) {
+    aiDataModelerStore.sendMessage(prompt);
 }
 
-function handlePresetModel(prompt: string) {
-    showChat.value = true;
+function handleGenerateAnotherRecommendation() {
+    // Generic prompt that lets AI be creative
+    const prompt = `Based on my database schema, please recommend and generate a data model that would provide valuable insights. Analyze the available tables and columns, then suggest a data model that combines relevant data in a meaningful way. Be creative and consider different analytical perspectives I might not have thought of. Include appropriate columns, joins, and any useful aggregations or filters.`;
+    
+    console.log('[AI Drawer] Generating another AI recommendation');
     aiDataModelerStore.sendMessage(prompt);
 }
 
@@ -230,8 +220,9 @@ async function handleApplyModel() {
         const isAutoApplying = autoApplyModels.value;
         console.log(`[AI Drawer] Applying model to builder (auto: ${isAutoApplying})`);
         console.log('[AI Drawer] Current applyTrigger value:', aiDataModelerStore.applyTrigger);
+        console.log('[AI Drawer] Model to apply:', JSON.stringify(aiDataModelerStore.modelDraft, null, 2));
         
-        // Trigger the manual application
+        // Trigger the manual application - this should replace existing model
         aiDataModelerStore.applyModelToBuilder();
         console.log('[AI Drawer] After applyModelToBuilder, new trigger value:', aiDataModelerStore.applyTrigger);
         
@@ -260,12 +251,29 @@ async function handleApplyModel() {
 function getTablesList(): string {
     if (!aiDataModelerStore.modelDraft?.tables?.[0]) return 'None';
     const table = aiDataModelerStore.modelDraft.tables[0];
-    return table.table_name || 'Unknown';
+    const tableName = table.table_name || 'Unknown';
+    console.log('[AI Drawer - getTablesList] Current model table:', tableName, 'Last modified:', aiDataModelerStore.modelDraft.lastModified);
+    return tableName;
 }
 
 function getColumnCount(): number {
     if (!aiDataModelerStore.modelDraft?.tables?.[0]?.columns) return 0;
-    return aiDataModelerStore.modelDraft.tables[0].columns.length;
+    const count = aiDataModelerStore.modelDraft.tables[0].columns.length;
+    console.log('[AI Drawer - getColumnCount] Column count:', count);
+    return count;
+}
+
+function getColumnNames(): string[] {
+    if (!aiDataModelerStore.modelDraft?.tables?.[0]?.columns) return [];
+    const columns = aiDataModelerStore.modelDraft.tables[0].columns;
+    
+    // Return column names with alias if available
+    return columns.map((col: any) => {
+        if (col.alias_name && col.alias_name.trim() !== '') {
+            return `${col.column_name} AS ${col.alias_name}`;
+        }
+        return col.column_name;
+    });
 }
 
 function hasWhereClause(): boolean {
@@ -341,10 +349,10 @@ function getOrderByColumns(): string[] {
                         <!-- Header -->
                         <div class="flex-shrink-0 px-6 py-5 border-b border-gray-200 flex justify-between items-start bg-gray-50">
                             <div class="flex-1">
-                                <h2 class="text-xl font-semibold text-gray-800 mb-1">AI Data Modeler</h2>
+                                <h2 class="text-xl font-semibold text-gray-800 mb-1">Choose a Data Model Template</h2>
                                 <div v-if="aiDataModelerStore.schemaSummary" class="text-[13px] text-gray-500">
                                     {{ aiDataModelerStore.schemaSummary.tableCount }} tables · 
-                                    {{ aiDataModelerStore.schemaSummary.totalColumns }} columns
+                                    {{ aiDataModelerStore.schemaSummary.totalColumns }} columns available
                                 </div>
                             </div>
                             <div class="flex items-center gap-2">
@@ -368,8 +376,8 @@ function getOrderByColumns(): string[] {
                                         leave-to-class="opacity-0 scale-95"
                                     >
                                         <div v-if="showPreferencesMenu" 
-                                             class="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-10 py-2"
-                                             @click.stop>
+                                            class="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-10 py-2"
+                                            @click.stop>
                                             <div class="px-4 py-2 border-b border-gray-100">
                                                 <div class="font-semibold text-sm text-gray-700">Preferences</div>
                                             </div>
@@ -384,9 +392,9 @@ function getOrderByColumns(): string[] {
                                                         <div class="relative inline-block w-10 h-5">
                                                             <input type="checkbox" :checked="autoApplyModels" class="sr-only" />
                                                             <div class="block w-10 h-5 rounded-full transition-colors"
-                                                                 :class="autoApplyModels ? 'bg-blue-600' : 'bg-gray-300'"></div>
+                                                                :class="autoApplyModels ? 'bg-blue-600' : 'bg-gray-300'"></div>
                                                             <div class="dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform"
-                                                                 :class="autoApplyModels ? 'transform translate-x-5' : ''"></div>
+                                                                :class="autoApplyModels ? 'transform translate-x-5' : ''"></div>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -423,23 +431,19 @@ function getOrderByColumns(): string[] {
                                 </button>
                             </div>
                         </div>
-
                         <!-- Loading State during initialization -->
                         <div v-if="aiDataModelerStore.isInitializing" class="flex-1 flex flex-col items-center justify-center py-12 px-6">
                             <div class="w-12 h-12 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin"></div>
                             <p class="mt-4 text-gray-500 text-sm">Analyzing your database schema...</p>
                         </div>
-
                         <!-- Error State -->
                         <div v-else-if="aiDataModelerStore.error" class="flex-1 flex flex-col items-center justify-center py-12 px-6 text-center">
                             <div class="w-12 h-12 text-red-600 mb-4">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-full h-full">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                                </svg>
+                                <font-awesome icon="fas fa-exclamation-triangle" class="w-full h-full" />
                             </div>
                             <p class="text-gray-500 text-sm mb-6 max-w-[400px]">{{ aiDataModelerStore.error }}</p>
                             <button 
-                                class="px-5 py-2.5 bg-blue-600 text-white border-0 rounded-lg text-sm font-medium cursor-pointer transition-colors duration-200 hover:bg-blue-700"
+                                class="px-5 py-2.5 bg-blue-600 text-white border-0 text-sm font-medium cursor-pointer transition-colors duration-200 hover:bg-blue-700"
                                 @click="handleRetry"
                             >
                                 Try Again
@@ -447,27 +451,16 @@ function getOrderByColumns(): string[] {
                         </div>
 
                         <!-- Main Content -->
-                        <template v-else>
-                            <!-- Quick Start Options (shown when chat not expanded) -->
-                            <div v-if="!showChat" class="flex-1 overflow-y-auto p-6 bg-gradient-to-b from-gray-50 to-white">
-                                <div class="max-w-[600px] mx-auto">
-                                    <!-- Primary: Auto-Generate -->
-                                    <div class="mb-8">
-                                        <h3 class="text-lg font-semibold text-gray-800 mb-3 text-center">Let AI analyze your data</h3>
-                                        <p class="text-sm text-gray-600 text-center mb-4">AI will automatically create the best data model for analytics</p>
-                                        <div class="text-center text-sm text-gray-500 italic mb-4">
-                                            (Auto-analysis already in progress...)
-                                        </div>
-                                    </div>
-
-                                    <!-- Divider -->
-                                    <div class="relative my-6">
-                                        <div class="absolute inset-0 flex items-center">
-                                            <div class="w-full border-t border-gray-300"></div>
-                                        </div>
-                                        <div class="relative flex justify-center text-sm">
-                                            <span class="px-4 bg-white text-gray-500">Or choose what you want to analyze</span>
-                                        </div>
+                        <div v-else class="flex-1 flex flex-col overflow-hidden">
+                            <!-- Preset Model Selection Interface -->
+                            <div class="min-h-0 flex-1 overflow-y-auto p-6 bg-gradient-to-b from-gray-50 to-white">
+                                <div class="max-w-[600px] mx-auto pb-6">
+                                    <!-- Instructions -->
+                                    <div class="mb-6">
+                                        <h3 class="text-lg font-semibold text-gray-800 mb-2 text-center">Select a Template</h3>
+                                        <p class="text-sm text-gray-600 text-center">
+                                            Choose the type of analysis you want to perform. AI will generate a ready-to-use data model.
+                                        </p>
                                     </div>
 
                                     <!-- Pre-set Model Types -->
@@ -477,7 +470,7 @@ function getOrderByColumns(): string[] {
                                             :key="model.title"
                                             @click="handlePresetModel(model.prompt)"
                                             :disabled="aiDataModelerStore.isLoading"
-                                            class="flex items-start gap-4 p-4 bg-white border-2 border-gray-200 rounded-lg hover:border-blue-400 hover:shadow-md transition-all duration-200 text-left disabled:opacity-50 disabled:cursor-not-allowed relative"
+                                            class="flex items-start gap-4 p-4 bg-white border-2 border-gray-200 hover:border-blue-400 hover:shadow-md transition-all duration-200 text-left disabled:opacity-50 disabled:cursor-not-allowed relative"
                                         >
                                             <!-- Confidence indicator for high-confidence matches -->
                                             <div 
@@ -499,213 +492,195 @@ function getOrderByColumns(): string[] {
                                                 </div>
                                                 <div class="text-sm text-gray-600">{{ model.description }}</div>
                                             </div>
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-gray-400 flex-shrink-0 mt-1" viewBox="0 0 20 20" fill="currentColor">
-                                                <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
-                                            </svg>
+                                            <font-awesome icon="fas fa-chevron-right" class="w-5 h-5 text-gray-400 flex-shrink-0 mt-1" />
                                         </button>
                                     </div>
 
-                                    <!-- Tertiary: Full Chat -->
-                                    <div class="text-center">
+                                    <!-- Generate Another Recommendation Button -->
+                                    <div class="mb-6">
                                         <button
-                                            @click="showChat = true"
-                                            class="text-sm text-blue-600 hover:text-blue-700 underline cursor-pointer"
+                                            @click="handleGenerateAnotherRecommendation"
+                                            :disabled="aiDataModelerStore.isLoading"
+                                            class="w-full flex items-center justify-center gap-3 p-4 bg-primary-blue-100 text-white border-0 hover:bg-primary-blue-300 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg font-medium cursor-pointer"
                                         >
-                                            Need something custom? Chat with AI →
+                                            <font-awesome icon="fas fa-sync-alt" class="w-5 h-5" />
+                                            <span>Generate Another AI Recommendation</span>
+                                            <span v-if="aiDataModelerStore.isLoading" class="ml-2">
+                                                <font-awesome icon="fas fa-spinner" class="fa-spin h-5 w-5" />
+                                            </span>
                                         </button>
+                                        <p class="text-xs text-gray-500 mt-2 text-center">
+                                            AI will analyze your database and suggest a custom data model
+                                        </p>
+                                    </div>
+
+                                    <!-- Info message -->
+                                    <div class="mt-6 p-4 bg-blue-50 border border-blue-100">
+                                        <div class="flex items-start gap-3">
+                                            <font-awesome icon="fas fa-info-circle" class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                                            <div class="text-sm text-blue-800">
+                                                <p class="font-medium mb-1">💡 Tip</p>
+                                                <p>Select a template above, or click "Generate Another AI Recommendation" to let AI surprise you with a custom data model suggestion. You can generate as many as you want!</p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-
-                            <!-- Messages Container (shown when chat is active) -->
-                            <div v-else ref="messagesContainer" class="flex-1 overflow-y-auto p-6 bg-white">
-                                <!-- Back to preset models button -->
-                                <div class="mb-4 pb-4 border-b border-gray-200">
-                                    <button
-                                        @click="showChat = false"
-                                        class="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 transition-colors"
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                                            <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
-                                        </svg>
-                                        <span>Back to Preset Models</span>
-                                    </button>
+                            <!-- Model Status Display -->
+                            <div v-if="showModelError" 
+                                class="mt-6 p-4 bg-yellow-50 border-2 border-yellow-300">
+                                <div class="flex items-center gap-2 text-yellow-700 font-medium mb-2">
+                                    <font-awesome icon="fas fa-exclamation-triangle" class="w-5 h-5" />
+                                    <span>Model Parse Error</span>
                                 </div>
-                                
-                                <AiChatMessage
-                                    v-for="message in aiDataModelerStore.messages"
-                                    :key="message.id"
-                                    :message="message"
-                                />
-
-                                <!-- Error State: Model Marker but Invalid Model -->
-                                <div v-if="showModelError" 
-                                     class="mt-4 p-4 bg-yellow-50 border-2 border-yellow-300 rounded-lg">
-                                    <div class="flex items-center gap-2 text-yellow-700 font-medium mb-2">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-                                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
-                                        </svg>
-                                        <span>Model Parse Error</span>
-                                    </div>
-                                    <p class="text-sm text-gray-700 mb-2">
-                                        AI generated a response but the model structure could not be parsed. This might be a temporary issue.
-                                    </p>
-                                    <p class="text-xs text-gray-600">
-                                        Try asking the AI to regenerate the model or be more specific about what you need.
-                                    </p>
-                                </div>
-                                
-                                <!-- Data Model Indicator -->
-                                <div v-if="showModelSuccess" 
-                                     class="mt-4 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
-                                    <div class="flex items-center justify-between gap-2 text-blue-700 font-medium mb-2">
-                                        <div class="flex items-center gap-2">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-                                                <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                                            </svg>
-                                            <span>Data Model Ready</span>
-                                        </div>
-                                        <button
-                                            @click="showModelPreview = !showModelPreview"
-                                            class="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                                        >
-                                            <span>{{ showModelPreview ? 'Hide' : 'Show' }} Preview</span>
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 transition-transform" :class="{ 'rotate-180': showModelPreview }" viewBox="0 0 20 20" fill="currentColor">
-                                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                    
-                                    <!-- Auto-apply info message -->
-                                    <div v-if="autoApplyModels" class="mb-3 p-2 bg-blue-100 border border-blue-200 rounded text-xs text-blue-800 flex items-center gap-2">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-                                        </svg>
-                                        <span>Auto-apply is enabled. This model will be applied automatically.</span>
-                                    </div>
-                                    
-                                    <p v-if="!autoApplyModels" class="text-sm text-gray-700 mb-3">
-                                        AI has generated a data model configuration. Review it above and click the button below to apply it to the builder.
-                                    </p>                                    
-                                    <!-- Model History Navigation -->
-                                    <div v-if="aiDataModelerStore.modelHistory.length > 1" class="mb-3 p-2 bg-gray-50 border border-gray-200 rounded-lg">
-                                        <div class="flex items-center justify-between gap-2">
-                                            <div class="text-xs text-gray-600 flex items-center gap-2">
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
-                                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" />
-                                                </svg>
-                                                <span>Model {{ aiDataModelerStore.currentHistoryIndex + 1 }} of {{ aiDataModelerStore.modelHistory.length }}</span>
-                                            </div>
-                                            <div class="flex items-center gap-1">
-                                                <button
-                                                    @click="aiDataModelerStore.goToPreviousModel()"
-                                                    :disabled="!aiDataModelerStore.canGoBack()"
-                                                    class="p-1 rounded hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                                                    title="Previous model (Alt + ←)"
-                                                    aria-label="Previous model"
-                                                >
-                                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-gray-700" viewBox="0 0 20 20" fill="currentColor">
-                                                        <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
-                                                    </svg>
-                                                </button>
-                                                <button
-                                                    @click="aiDataModelerStore.goToNextModel()"
-                                                    :disabled="!aiDataModelerStore.canGoForward()"
-                                                    class="p-1 rounded hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                                                    title="Next model (Alt + →)"
-                                                    aria-label="Next model"
-                                                >
-                                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-gray-700" viewBox="0 0 20 20" fill="currentColor">
-                                                        <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
-                                                    </svg>
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div class="text-[10px] text-gray-500 mt-1 flex items-center gap-1">
-                                            <span>💡 Use</span>
-                                            <kbd class="px-1 py-0.5 bg-white border border-gray-300 rounded text-[9px] font-mono">Alt+←</kbd>
-                                            <span>/</span>
-                                            <kbd class="px-1 py-0.5 bg-white border border-gray-300 rounded text-[9px] font-mono">Alt+→</kbd>
-                                            <span>to navigate</span>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Collapsible Preview Section -->
-                                    <Transition
-                                        enter-active-class="transition-all duration-200"
-                                        leave-active-class="transition-all duration-200"
-                                        enter-from-class="max-h-0 opacity-0"
-                                        leave-to-class="max-h-0 opacity-0"
-                                    >
-                                        <div v-if="showModelPreview" class="mb-3 p-3 bg-white rounded-lg border border-blue-100 text-xs">
-                                            <div class="grid grid-cols-2 gap-3">
-                                                <div>
-                                                    <div class="font-semibold text-gray-700 mb-1">Table</div>
-                                                    <div class="text-gray-600">{{ getTablesList() }}</div>
-                                                </div>
-                                                <div>
-                                                    <div class="font-semibold text-gray-700 mb-1">Columns</div>
-                                                    <div class="text-gray-600">{{ getColumnCount() }} selected</div>
-                                                </div>
-                                            </div>
-                                            
-                                            <div v-if="hasWhereClause() || hasGroupBy() || hasOrderBy()" class="mt-3 pt-3 border-t border-blue-100">
-                                                <div class="font-semibold text-gray-700 mb-2">Query Options</div>
-                                                <div class="space-y-1">
-                                                    <div v-if="hasWhereClause()" class="flex gap-2">
-                                                        <span class="text-gray-500 font-medium">WHERE:</span>
-                                                        <span class="text-gray-600">{{ getWhereConditions().join(', ') }}</span>
-                                                    </div>
-                                                    <div v-if="hasGroupBy()" class="flex gap-2">
-                                                        <span class="text-gray-500 font-medium">GROUP BY:</span>
-                                                        <span class="text-gray-600">{{ getGroupByColumns().join(', ') }}</span>
-                                                    </div>
-                                                    <div v-if="hasOrderBy()" class="flex gap-2">
-                                                        <span class="text-gray-500 font-medium">ORDER BY:</span>
-                                                        <span class="text-gray-600">{{ getOrderByColumns().join(', ') }}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </Transition>                                    
-                                    <button
-                                        v-if="!autoApplyModels"
-                                        @click="handleApplyModel"
-                                        :disabled="isApplyingModel"
-                                        class="w-full px-4 py-2.5 border-0 rounded-lg text-sm font-medium cursor-pointer transition-all duration-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                                        :class="{
-                                            'bg-blue-600 text-white hover:bg-blue-700': buttonState === 'normal',
-                                            'bg-blue-600 text-white opacity-70': buttonState === 'loading',
-                                            'bg-green-600 text-white': buttonState === 'success'
-                                        }"
-                                    >
-                                        <!-- Loading spinner -->
-                                        <svg v-if="buttonState === 'loading'" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                        </svg>
-                                        <!-- Success checkmark -->
-                                        <svg v-else-if="buttonState === 'success'" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                                        </svg>
-                                        <!-- Normal icon -->
-                                        <svg v-else xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                                            <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
-                                        </svg>
-                                        <!-- Button text -->
-                                        <span v-if="buttonState === 'loading'">Applying...</span>
-                                        <span v-else-if="buttonState === 'success'">Applied Successfully!</span>
-                                        <span v-else>Apply to Builder</span>
-                                    </button>
-                                </div>
+                                <p class="text-sm text-gray-700 mb-2">
+                                    AI generated a response but the model structure could not be parsed. This might be a temporary issue.
+                                </p>
+                                <p class="text-xs text-gray-600">
+                                    Try asking the AI to regenerate the model or be more specific about what you need.
+                                </p>
                             </div>
-
-                            <!-- Input Area -->
-                            <AiChatInput
-                                :disabled="aiDataModelerStore.isLoading"
-                                @send="handleSendMessage"
-                            />
-                        </template>
+                            <!-- Data Model Indicator -->
+                            <div v-if="showModelSuccess" 
+                                class="mt-6 p-4 bg-blue-50 border-2 border-blue-200">
+                                <div class="flex items-center justify-between gap-2 text-blue-700 font-medium mb-2">
+                                    <div class="flex items-center gap-2">
+                                        <font-awesome icon="fas fa-certificate" class="w-5 h-5" />
+                                        <span>Data Model Ready</span>
+                                        <span class="text-[10px] text-blue-500 font-normal">
+                                            (Model: {{ getTablesList() }})
+                                        </span>
+                                    </div>
+                                    <button
+                                        @click="showModelPreview = !showModelPreview"
+                                        class="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                                    >
+                                        <span>{{ showModelPreview ? 'Hide' : 'Show' }} Preview</span>
+                                        <font-awesome icon="fas fa-chevron-down" class="w-4 h-4 transition-transform" :class="{ 'rotate-180': showModelPreview }" />
+                                    </button>
+                                </div>                                <!-- Auto-apply info message -->
+                                <div v-if="autoApplyModels" class="mb-3 p-2 bg-blue-100 border border-blue-200 text-xs text-blue-800 flex items-center gap-2">
+                                    <font-awesome icon="fas fa-info-circle" class="w-4 h-4 flex-shrink-0" />
+                                    <span>Auto-apply is enabled. This model will be applied automatically.</span>
+                                </div>
+                                
+                                <p v-if="!autoApplyModels" class="text-sm text-gray-700 mb-3">
+                                    AI has generated a data model configuration. Review it above and click the button below to apply it to the builder.
+                                </p>                                    
+                                <!-- Model History Navigation -->
+                                <div v-if="aiDataModelerStore.modelHistory.length > 1" class="mb-3 p-2 bg-gray-50 border border-gray-200">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <div class="text-xs text-gray-600 flex items-center gap-2">
+                                            <font-awesome icon="fas fa-history" class="w-4 h-4 text-gray-500" />
+                                            <span>Model {{ aiDataModelerStore.currentHistoryIndex + 1 }} of {{ aiDataModelerStore.modelHistory.length }}</span>
+                                        </div>
+                                        <div class="flex items-center gap-1">
+                                            <button
+                                                @click="aiDataModelerStore.goToPreviousModel()"
+                                                :disabled="!aiDataModelerStore.canGoBack()"
+                                                class="p-1 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                                title="Previous model (Alt + ←)"
+                                                aria-label="Previous model"
+                                            >
+                                                <font-awesome icon="fas fa-chevron-left" class="w-4 h-4 text-gray-700" />
+                                            </button>
+                                            <button
+                                                @click="aiDataModelerStore.goToNextModel()"
+                                                :disabled="!aiDataModelerStore.canGoForward()"
+                                                class="p-1 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                                title="Next model (Alt + →)"
+                                                aria-label="Next model"
+                                            >
+                                                <font-awesome icon="fas fa-chevron-right" class="w-4 h-4 text-gray-700" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="text-[10px] text-gray-500 mt-1 flex items-center gap-1">
+                                        <span>Use</span>
+                                        <kbd class="px-1 py-0.5 bg-white border border-gray-300 text-[9px] font-mono">Alt+←</kbd>
+                                        <span>/</span>
+                                        <kbd class="px-1 py-0.5 bg-white border border-gray-300 text-[9px] font-mono">Alt+→</kbd>
+                                        <span>to navigate</span>
+                                    </div>
+                                </div>
+                                
+                                <!-- Collapsible Preview Section -->
+                                <Transition
+                                    enter-active-class="transition-all duration-200"
+                                    leave-active-class="transition-all duration-200"
+                                    enter-from-class="max-h-0 opacity-0"
+                                    leave-to-class="max-h-0 opacity-0"
+                                >
+                                    <div v-if="showModelPreview" class="mb-3 p-3 bg-white border border-blue-100 text-xs">
+                                        <div class="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <div class="font-semibold text-gray-700 mb-1">Table</div>
+                                                <div class="text-gray-600 font-mono bg-gray-50 px-2 py-1">{{ getTablesList() }}</div>
+                                            </div>
+                                            <div>
+                                                <div class="font-semibold text-gray-700 mb-1">Column Count</div>
+                                                <div class="text-gray-600">{{ getColumnCount() }} selected</div>
+                                            </div>
+                                            <div class="col-span-2">
+                                                <div class="font-semibold text-gray-700 mb-2">Selected Columns</div>
+                                                <div v-if="getColumnNames().length > 0" class="flex flex-wrap gap-1.5">
+                                                    <span 
+                                                        v-for="(columnName, index) in getColumnNames()" 
+                                                        :key="index"
+                                                        class="inline-flex items-center px-2 py-1 bg-blue-50 text-blue-700 text-[11px] font-mono border border-blue-200"
+                                                    >
+                                                        {{ columnName }}
+                                                    </span>
+                                                </div>
+                                                <div v-else class="text-gray-500 text-xs italic">
+                                                    No columns selected
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div v-if="hasWhereClause() || hasGroupBy() || hasOrderBy()" class="mt-3 pt-3 border-t border-blue-100">
+                                            <div class="font-semibold text-gray-700 mb-2">Query Options</div>
+                                            <div class="space-y-1">
+                                                <div v-if="hasWhereClause()" class="flex gap-2">
+                                                    <span class="text-gray-500 font-medium">WHERE:</span>
+                                                    <span class="text-gray-600">{{ getWhereConditions().join(', ') }}</span>
+                                                </div>
+                                                <div v-if="hasGroupBy()" class="flex gap-2">
+                                                    <span class="text-gray-500 font-medium">GROUP BY:</span>
+                                                    <span class="text-gray-600">{{ getGroupByColumns().join(', ') }}</span>
+                                                </div>
+                                                <div v-if="hasOrderBy()" class="flex gap-2">
+                                                    <span class="text-gray-500 font-medium">ORDER BY:</span>
+                                                    <span class="text-gray-600">{{ getOrderByColumns().join(', ') }}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </Transition>                                    
+                                <button
+                                    v-if="!autoApplyModels"
+                                    @click="handleApplyModel"
+                                    :disabled="isApplyingModel"
+                                    class="w-full px-4 py-2.5 border-0 text-sm font-medium cursor-pointer transition-all duration-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                    :class="{
+                                        'bg-blue-600 text-white hover:bg-blue-700': buttonState === 'normal',
+                                        'bg-blue-600 text-white opacity-70': buttonState === 'loading',
+                                        'bg-green-600 text-white': buttonState === 'success'
+                                    }"
+                                >
+                                    <!-- Loading spinner -->
+                                    <font-awesome v-if="buttonState === 'loading'" icon="fas fa-spinner" class="fa-spin h-4 w-4" />
+                                    <!-- Success checkmark -->
+                                    <font-awesome v-else-if="buttonState === 'success'" icon="fas fa-check-circle" class="w-5 h-5" />
+                                    <!-- Normal icon -->
+                                    <font-awesome v-else icon="fas fa-plus" class="w-4 h-4" />
+                                    <!-- Button text -->
+                                    <span v-if="buttonState === 'loading'">Applying...</span>
+                                    <span v-else-if="buttonState === 'success'">Applied Successfully!</span>
+                                    <span v-else>Apply to Builder</span>
+                                </button>
+                            </div>
+                         </div>
                     </div>
                 </Transition>
             </div>

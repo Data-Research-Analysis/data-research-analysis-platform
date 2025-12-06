@@ -397,6 +397,67 @@ export class DataSourceProcessor {
         });
     }
 
+    /**
+     * Validates that SQL aggregate queries have proper GROUP BY clauses
+     * When aggregate functions are used, all non-aggregated columns must appear in GROUP BY
+     * Uses group_by_columns array for GROUP BY column references
+     */
+    private validateGroupByRequirements(queryJSON: string): {valid: boolean, error?: string} {
+        try {
+            const sourceTable = JSON.parse(queryJSON);
+            const aggregateFunctions = sourceTable?.query_options?.group_by?.aggregate_functions || [];
+            const aggregateExpressions = sourceTable?.query_options?.group_by?.aggregate_expressions || [];
+            
+            // Check if any aggregation is being done
+            const hasAggregation = aggregateFunctions.length > 0 || 
+                                  (aggregateExpressions.length > 0 && typeof aggregateExpressions[0] === 'object');
+            
+            if (!hasAggregation) {
+                return {valid: true}; // No aggregates, no GROUP BY needed
+            }
+            
+            // Has aggregates - check GROUP BY exists
+            // Use group_by_columns (new field) for GROUP BY column references
+            const groupByColumns = sourceTable?.query_options?.group_by?.group_by_columns || [];
+            const columns = sourceTable?.columns || [];
+            
+            // Build list of aggregated column references from aggregate_functions
+            const aggregatedColumns = new Set(
+                aggregateFunctions.map((agg: any) => agg.column)
+            );
+            
+            // Find non-aggregated columns (columns that appear in SELECT but not in aggregate functions)
+            const nonAggregatedColumns = columns.filter((col: any) => {
+                const colRef = `${col.schema}.${col.table_name}.${col.column_name}`;
+                return !aggregatedColumns.has(colRef) && col.is_selected_column;
+            });
+            
+            // All non-aggregated columns must be in group_by_columns
+            const missingGroupBy = nonAggregatedColumns.filter((col: any) => {
+                const colRef = `${col.schema}.${col.table_name}.${col.column_name}`;
+                return !groupByColumns.includes(colRef);
+            });
+            
+            if (missingGroupBy.length > 0) {
+                const missingCols = missingGroupBy.map((col: any) => 
+                    `${col.schema}.${col.table_name}.${col.column_name}`
+                ).join(', ');
+                return {
+                    valid: false,
+                    error: `SQL aggregate validation error: Non-aggregated columns must appear in GROUP BY clause (group_by_columns array). Missing columns: ${missingCols}. Use actual schema name from data source.`
+                };
+            }
+            
+            return {valid: true};
+        } catch (error) {
+            console.error('[DataSourceProcessor] Error validating GROUP BY requirements:', error);
+            return {
+                valid: false,
+                error: `GROUP BY validation error: ${error.message}`
+            };
+        }
+    }
+
     public async getTablesFromDataSource(dataSourceId: number, tokenDetails: ITokenDetails): Promise<any> {
         return new Promise<any>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
@@ -455,9 +516,17 @@ export class DataSourceProcessor {
                     }
                 });
                 tables = _.uniqBy(tables, 'table_name');
+                
+                console.log('[DEBUG - DataSourceProcessor] Tables before column population:', tables.length);
+                
                 tables.forEach((table: any) => {
+                    const columnsBefore = table.columns.length;
                     tablesSchema.forEach((result: any) => {
-                        if (table?.table_name === result?.table_name || table?.table_name === result?.TABLE_NAME) {
+                        const resultTableName = result?.table_name || result?.TABLE_NAME;
+                        const resultSchema = result?.table_schema || result?.TABLE_SCHEMA;
+                        
+                        // Match on both table name AND schema to prevent cross-schema pollution
+                        if (table?.table_name === resultTableName && table?.schema === resultSchema) {
                             table.columns.push({
                                 column_name: result?.column_name || result?.COLUMN_NAME,
                                 data_type: result?.data_type || result?.DATA_TYPE,
@@ -478,6 +547,24 @@ export class DataSourceProcessor {
                             });
                         }
                     });
+                    
+                    // Defensive filter: Remove any columns that don't match the table's schema
+                    const beforeFilter = table.columns.length;
+                    table.columns = table.columns.filter((col: any) => col.schema === table.schema);
+                    const afterFilter = table.columns.length;
+                    
+                    if (beforeFilter !== afterFilter) {
+                        console.warn(`[DEBUG - DataSourceProcessor] ⚠️ SCHEMA MISMATCH: Filtered ${beforeFilter - afterFilter} columns with wrong schema from ${table.table_name}`);
+                    }
+                    
+                    console.log(`[DEBUG - DataSourceProcessor] Table ${table.table_name}: Added ${table.columns.length - columnsBefore} columns (total: ${table.columns.length})`);
+                    
+                    // Check for duplicate columns
+                    const columnNames = table.columns.map((c: any) => c.column_name);
+                    const duplicates = columnNames.filter((name: string, index: number) => columnNames.indexOf(name) !== index);
+                    if (duplicates.length > 0) {
+                        console.error(`[DEBUG - DataSourceProcessor] DUPLICATES FOUND in ${table.table_name}:`, [...new Set(duplicates)]);
+                    }
                 });
                 query = await externalDriver.getTablesRelationships(connection.schema);
                 if (connection.schema === 'dra_excel') {
@@ -486,6 +573,9 @@ export class DataSourceProcessor {
                     query += ` AND tc.table_name LIKE '%_data_source_${dataSource.id}_%'`;
                 }
                 tablesSchema = await dbConnector.query(query);
+                
+                console.log('[DEBUG - DataSourceProcessor] Foreign key relationships found:', tablesSchema.length);
+                
                 tablesSchema.forEach((result: any) => {
                     tables.forEach((table: any) => {
                         if (table?.table_name === result?.local_table_name || table?.table_name === result?.LOCAL_TABLE_NAME) {
@@ -504,6 +594,27 @@ export class DataSourceProcessor {
                         }
                     });
                 });
+                
+                // CRITICAL FIX: Deduplicate columns in each table
+                console.log('[DEBUG - DataSourceProcessor] Deduplicating columns...');
+                tables.forEach((table: any) => {
+                    const beforeCount = table.columns.length;
+                    table.columns = _.uniqBy(table.columns, (col: any) => 
+                        `${col.schema}.${col.table_name}.${col.column_name}`
+                    );
+                    const afterCount = table.columns.length;
+                    
+                    if (beforeCount !== afterCount) {
+                        console.log(`[DEBUG - DataSourceProcessor] ✓ Removed ${beforeCount - afterCount} duplicate columns from ${table.table_name}`);
+                    }
+                });
+                
+                // Final diagnostic before returning
+                console.log('[DEBUG - DataSourceProcessor] Final table summary:');
+                tables.forEach((table: any) => {
+                    console.log(`  - ${table.table_name}: ${table.columns.length} columns, ${table.references.length} foreign keys`);
+                });
+                
                 return resolve(tables);
             }
         });
@@ -548,9 +659,13 @@ export class DataSourceProcessor {
                 return resolve(false);
             }
             try {
+                console.log('[DataSourceProcessor] Executing query on external datasource:', query);
                 const results = await dbConnector.query(query);
+                console.log('[DataSourceProcessor] Query results count:', results?.length || 0);
                 return resolve(results);
             } catch (error) {
+                console.error('[DataSourceProcessor] Error executing query:', error);
+                console.error('[DataSourceProcessor] Failed query was:', query);
                 return resolve(null);
             }
         });
@@ -593,6 +708,13 @@ export class DataSourceProcessor {
                 return resolve(null);
             }
             try {
+                // Validate SQL aggregate correctness before executing query
+                const validation = this.validateGroupByRequirements(queryJSON);
+                if (!validation.valid) {
+                    console.error('[DataSourceProcessor] SQL validation failed:', validation.error);
+                    throw new Error(validation.error);
+                }
+                
                 dataModelName = UtilityService.getInstance().uniquiseName(dataModelName);
                 const selectTableQuery = `${query}`;
                 const rowsFromDataSource = await externalDBConnector.query(selectTableQuery);
@@ -693,7 +815,7 @@ export class DataSourceProcessor {
                     }
                 }
                 
-                // Handle GROUP BY aggregate expressions
+                // Handle GROUP BY aggregate expressions (complex expressions like quantity * price)
                 if (sourceTable.query_options?.group_by?.aggregate_expressions && 
                     sourceTable.query_options.group_by.aggregate_expressions.length > 0) {
                     const validExpressions = sourceTable.query_options.group_by.aggregate_expressions.filter(

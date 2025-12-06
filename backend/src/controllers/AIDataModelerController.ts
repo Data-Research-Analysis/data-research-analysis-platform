@@ -121,11 +121,9 @@ export class AIDataModelerController {
             // Create session in Redis
             const metadata = await redisService.createSession(dataSourceId, userId, schemaContext);
 
-            // Initialize Gemini conversation with data model instructions
+            // Initialize Gemini conversation (system prompt is handled by GeminiService)
             const geminiService = getGeminiService();
-            const dataModelInstructions = AIDataModelerController.getDataModelInstructions();
-            const fullContext = `${schemaMarkdown}\n\n${dataModelInstructions}`;
-            await geminiService.initializeConversation(metadata.conversationId, fullContext);
+            await geminiService.initializeConversation(metadata.conversationId, schemaMarkdown);
 
             // Create and save initial welcome message to Redis
             const welcomeMessage = `Welcome! I've analyzed your database schema with **${schemaSummary.tableCount} tables** and **${schemaSummary.totalColumns} columns**.\n\nI can help you:\n• Identify analytical bottlenecks in your current schema\n• Propose optimized data models (Star Schema, OBT, etc.)\n• Suggest SQL implementation strategies\n• Recommend indexing for better query performance\n\nLet me provide you with an initial analysis...`;
@@ -508,83 +506,7 @@ Keep it concise - aim for 200-300 words total.`;
         }
     }
 
-    /**
-     * Get data model instructions for Gemini
-     */
-    private static getDataModelInstructions(): string {
-        return `
-IMPORTANT: Data Model Generation Capability
 
-When the user requests to "build", "create", or "generate" a data model, you MUST provide structured JSON that will automatically populate the visual data model builder.
-
-CRITICAL: When selecting columns from multiple tables, you MUST include ALL tables that participate in the relationships chain, including junction/linking tables. For example:
-- If selecting from "orders" and "products", you MUST include "order_items" (the junction table) in your columns
-- If selecting from "users", "orders", and "products", include columns from ALL FOUR tables: users, orders, order_items, products
-- Review the provided schema relationships to identify which tables link others together
-- Missing a linking table will cause SQL JOIN errors
-
-Use this EXACT JSON format (wrapped in \`\`\`json code block):
-
-\`\`\`json
-{
-  "action": "BUILD_DATA_MODEL",
-  "model": {
-    "table_name": "sales_analysis",
-    "columns": [
-      {
-        "schema": "public",
-        "table_name": "orders",
-        "column_name": "id",
-        "data_type": "integer",
-        "is_selected_column": true,
-        "alias_name": "order_id"
-      }
-    ],
-    "query_options": {
-      "where": [
-        {
-          "column": "public.orders.status",
-          "equality": 0,
-          "value": "completed",
-          "condition": 0
-        }
-      ],
-      "group_by": {
-        "aggregate_functions": [
-          {
-            "column": "public.orders.total",
-            "column_alias_name": "total_sales",
-            "aggregate_function": 0,
-            "use_distinct": false
-          }
-        ]
-      },
-      "order_by": [
-        {
-          "column": "public.orders.created_at",
-          "order": 1
-        }
-      ]
-    }
-  }
-}
-\`\`\`
-
-Key indexes:
-- equality: 0='=', 1='>', 2='<', 3='>=', 4='<=', 5='!=', 6='IN', 7='NOT IN'
-- condition: 0='AND', 1='OR'
-- aggregate_function: 0='SUM', 1='AVG', 2='COUNT', 3='MIN', 4='MAX'
-- order: 0='ASC', 1='DESC'
-
-ALWAYS include this JSON block when user uses phrases like:
-- "Build me a [type] model"
-- "Create a data model for [purpose]"
-- "Generate a [schema type]"
-- "Make a model to analyze [topic]"
-
-After the JSON, provide a brief explanation of the model.
-`;
-    }
 
     /**
      * Extract data model JSON from AI response
