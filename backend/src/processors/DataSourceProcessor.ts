@@ -620,7 +620,7 @@ export class DataSourceProcessor {
         });
     }
 
-    public async executeQueryOnExternalDataSource(dataSourceId: number, query: string, tokenDetails: ITokenDetails): Promise<any> {
+    public async executeQueryOnExternalDataSource(dataSourceId: number, query: string, tokenDetails: ITokenDetails, queryJSON?: string): Promise<any> {
         return new Promise<any>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -659,8 +659,20 @@ export class DataSourceProcessor {
                 return resolve(false);
             }
             try {
-                console.log('[DataSourceProcessor] Executing query on external datasource:', query);
-                const results = await dbConnector.query(query);
+                // If JSON query is provided, reconstruct SQL from it (ensures JOINs are included)
+                let finalQuery = query;
+                if (queryJSON) {
+                    console.log('[DataSourceProcessor] Reconstructing query from JSON to ensure JOINs are included');
+                    finalQuery = this.reconstructSQLFromJSON(queryJSON);
+                    // Apply LIMIT from original query if present
+                    const limitMatch = query.match(/LIMIT\s+(\d+)(\s+OFFSET\s+(\d+))?/i);
+                    if (limitMatch) {
+                        finalQuery += ` ${limitMatch[0]}`;
+                    }
+                }
+                
+                console.log('[DataSourceProcessor] Executing query on external datasource:', finalQuery);
+                const results = await dbConnector.query(finalQuery);
                 console.log('[DataSourceProcessor] Query results count:', results?.length || 0);
                 return resolve(results);
             } catch (error) {
@@ -1609,5 +1621,279 @@ export class DataSourceProcessor {
         // If we can't determine the boolean value, default to NULL
         console.warn(`Unable to convert value "${value}" to boolean, using NULL`);
         return 'NULL';
+    }
+
+    /**
+     * Reconstruct SQL query from JSON query structure
+     * This ensures JOIN conditions are properly included when executing queries
+     */
+    public reconstructSQLFromJSON(queryJSON: any): string {
+        const query = typeof queryJSON === 'string' ? JSON.parse(queryJSON) : queryJSON;
+        
+        let sqlParts: string[] = [];
+        
+        // Build SELECT clause
+        const aggregateFunctions = ['SUM', 'AVG', 'COUNT', 'MIN', 'MAX'];
+        const aggregateColumns = new Set<string>();
+        
+        // Track columns used in aggregate functions
+        query?.query_options?.group_by?.aggregate_functions?.forEach((aggFunc: any) => {
+            if (aggFunc.column && aggFunc.aggregate_function !== '') {
+                aggregateColumns.add(aggFunc.column);
+            }
+        });
+        
+        // Build column selections (excluding aggregate-only columns)
+        const selectColumns: string[] = [];
+        
+        if (query.columns && Array.isArray(query.columns)) {
+            query.columns.forEach((column: any) => {
+                if (column.is_selected_column) {
+                    const columnFullPath = `${column.schema}.${column.table_name}.${column.column_name}`;
+                    const isAggregateOnly = aggregateColumns.has(columnFullPath);
+                    
+                    if (!isAggregateOnly) {
+                        const tableRef = column.table_alias || column.table_name;
+                        const aliasName = column?.alias_name && column.alias_name !== '' 
+                            ? column.alias_name 
+                            : `${column.schema}_${tableRef}_${column.column_name}`;
+                        
+                        let columnRef = column.table_alias
+                            ? `${column.schema}.${column.table_alias}.${column.column_name}`
+                            : `${column.schema}.${column.table_name}.${column.column_name}`;
+                        
+                        if (column.transform_function) {
+                            const closeParens = ')'.repeat(column.transform_close_parens || 1);
+                            columnRef = `${column.transform_function}(${columnRef}${closeParens}`;
+                        }
+                        
+                        selectColumns.push(`${columnRef} AS ${aliasName}`);
+                    }
+                }
+            });
+        }
+        
+        // Add aggregate functions to SELECT
+        query?.query_options?.group_by?.aggregate_functions?.forEach((aggFunc: any) => {
+            if (aggFunc.aggregate_function !== '' && aggFunc.column !== '') {
+                const distinctKeyword = aggFunc.use_distinct ? 'DISTINCT ' : '';
+                const aggregateFunc = aggregateFunctions[aggFunc.aggregate_function];
+                
+                let aliasName = aggFunc.column_alias_name;
+                if (!aliasName || aliasName === '') {
+                    const columnParts = aggFunc.column.split('.');
+                    const columnName = columnParts[columnParts.length - 1];
+                    aliasName = `${aggregateFunc.toLowerCase()}_${columnName}`;
+                }
+                
+                selectColumns.push(`${aggregateFunc}(${distinctKeyword}${aggFunc.column}) AS ${aliasName}`);
+            }
+        });
+        
+        // Add aggregate expressions to SELECT
+        query?.query_options?.group_by?.aggregate_expressions?.forEach((aggExpr: any) => {
+            if (aggExpr.aggregate_function !== '' && aggExpr.expression !== '') {
+                const distinctKeyword = aggExpr.use_distinct ? 'DISTINCT ' : '';
+                const aggregateFunc = aggregateFunctions[aggExpr.aggregate_function];
+                const aliasName = aggExpr?.column_alias_name !== '' ? aggExpr.column_alias_name : `agg_expr`;
+                selectColumns.push(`${aggregateFunc}(${distinctKeyword}${aggExpr.expression}) AS ${aliasName}`);
+            }
+        });
+        
+        // Add calculated columns to SELECT
+        if (query.calculated_columns && Array.isArray(query.calculated_columns)) {
+            query.calculated_columns.forEach((calcCol: any) => {
+                if (calcCol.column_expression && calcCol.column_name) {
+                    selectColumns.push(`${calcCol.column_expression} AS ${calcCol.column_name}`);
+                }
+            });
+        }
+        
+        sqlParts.push(`SELECT ${selectColumns.join(', ')}`);
+        
+        // Build FROM/JOIN clauses
+        if (query.join_conditions && Array.isArray(query.join_conditions) && query.join_conditions.length > 0) {
+            console.log('[DataSourceProcessor] Building FROM/JOIN clauses from join_conditions:', query.join_conditions.length);
+            
+            const fromJoinClauses: any[] = [];
+            
+            // Map join_conditions to the format expected
+            query.join_conditions.forEach((join: any) => {
+                fromJoinClauses.push({
+                    left_table_schema: join.left_table_schema,
+                    left_table_name: join.left_table_name,
+                    left_table_alias: join.left_table_alias,
+                    left_column_name: join.left_column_name,
+                    right_table_schema: join.right_table_schema,
+                    right_table_name: join.right_table_name,
+                    right_table_alias: join.right_table_alias,
+                    right_column_name: join.right_column_name,
+                    join_type: join.join_type || 'INNER',
+                    primary_operator: join.primary_operator || '=',
+                    additional_conditions: join.additional_conditions || []
+                });
+            });
+            
+            const fromJoinClause: string[] = [];
+            const addedTables = new Set<string>();
+            
+            // Get table aliases helper
+            const getTableAlias = (schema: string, tableName: string) => {
+                if (query.columns && Array.isArray(query.columns)) {
+                    const col = query.columns.find((c: any) => 
+                        c.schema === schema && c.table_name === tableName && c.table_alias
+                    );
+                    return col?.table_alias || null;
+                }
+                return null;
+            };
+            
+            fromJoinClauses.forEach((clause, index) => {
+                const leftAlias = clause.left_table_alias || getTableAlias(clause.left_table_schema, clause.left_table_name);
+                const rightAlias = clause.right_table_alias || getTableAlias(clause.right_table_schema, clause.right_table_name);
+                
+                const leftTableFull = `${clause.left_table_schema}.${clause.left_table_name}`;
+                const rightTableFull = `${clause.right_table_schema}.${clause.right_table_name}`;
+                
+                const leftTableSQL = leftAlias ? `${leftTableFull} AS ${leftAlias}` : leftTableFull;
+                const rightTableSQL = rightAlias ? `${rightTableFull} AS ${rightAlias}` : rightTableFull;
+                
+                const leftRef = leftAlias || clause.left_table_name;
+                const rightRef = rightAlias || clause.right_table_name;
+                
+                const joinType = clause.join_type || 'INNER';
+                
+                if (index === 0) {
+                    // First JOIN - establish FROM and first JOIN
+                    const operator = clause.primary_operator || '=';
+                    fromJoinClause.push(`FROM ${leftTableSQL}`);
+                    fromJoinClause.push(`${joinType} JOIN ${rightTableSQL}`);
+                    fromJoinClause.push(`ON ${clause.left_table_schema}.${leftRef}.${clause.left_column_name} ${operator} ${clause.right_table_schema}.${rightRef}.${clause.right_column_name}`);
+                    
+                    addedTables.add(leftTableFull);
+                    addedTables.add(rightTableFull);
+                    
+                    // Add additional conditions if present
+                    if (clause.additional_conditions && clause.additional_conditions.length > 0) {
+                        clause.additional_conditions.forEach((addCond: any) => {
+                            if (addCond.left_column && addCond.right_column && addCond.operator) {
+                                fromJoinClause.push(`${addCond.logic} ${clause.left_table_schema}.${leftRef}.${addCond.left_column} ${addCond.operator} ${clause.right_table_schema}.${rightRef}.${addCond.right_column}`);
+                            }
+                        });
+                    }
+                } else {
+                    // Subsequent JOINs
+                    const leftTableExists = addedTables.has(leftTableFull);
+                    const rightTableExists = addedTables.has(rightTableFull);
+                    
+                    const operator = clause.primary_operator || '=';
+                    const joinCondition = `${clause.left_table_schema}.${leftRef}.${clause.left_column_name} ${operator} ${clause.right_table_schema}.${rightRef}.${clause.right_column_name}`;
+                    
+                    if (!leftTableExists && !rightTableExists) {
+                        // Neither table exists - add right table
+                        fromJoinClause.push(`${joinType} JOIN ${rightTableSQL}`);
+                        fromJoinClause.push(`ON ${joinCondition}`);
+                        addedTables.add(rightTableFull);
+                    } else if (!leftTableExists) {
+                        // Only left table missing
+                        fromJoinClause.push(`${joinType} JOIN ${leftTableSQL}`);
+                        fromJoinClause.push(`ON ${joinCondition}`);
+                        addedTables.add(leftTableFull);
+                    } else if (!rightTableExists) {
+                        // Only right table missing
+                        fromJoinClause.push(`${joinType} JOIN ${rightTableSQL}`);
+                        fromJoinClause.push(`ON ${joinCondition}`);
+                        addedTables.add(rightTableFull);
+                    }
+                    
+                    // Add additional conditions if present
+                    if (clause.additional_conditions && clause.additional_conditions.length > 0) {
+                        clause.additional_conditions.forEach((addCond: any) => {
+                            if (addCond.left_column && addCond.right_column && addCond.operator) {
+                                fromJoinClause.push(`${addCond.logic} ${clause.left_table_schema}.${leftRef}.${addCond.left_column} ${addCond.operator} ${clause.right_table_schema}.${rightRef}.${addCond.right_column}`);
+                            }
+                        });
+                    }
+                }
+            });
+            
+            sqlParts.push(fromJoinClause.join(' '));
+        } else if (query.columns && query.columns.length > 0) {
+            // No JOINs - use simple FROM clause from first selected column
+            const firstColumn = query.columns.find((c: any) => c.is_selected_column);
+            if (firstColumn) {
+                sqlParts.push(`FROM ${firstColumn.schema}.${firstColumn.table_name}`);
+            }
+        }
+        
+        // Build WHERE clause
+        if (query.query_options?.where && Array.isArray(query.query_options.where) && query.query_options.where.length > 0) {
+            const whereClauses: string[] = [];
+            query.query_options.where.forEach((whereClause: any) => {
+                if (whereClause.column && whereClause.operator && whereClause.value) {
+                    whereClauses.push(`${whereClause.column} ${whereClause.operator} '${whereClause.value}'`);
+                }
+            });
+            if (whereClauses.length > 0) {
+                sqlParts.push(`WHERE ${whereClauses.join(' AND ')}`);
+            }
+        }
+        
+        // Build GROUP BY clause
+        if (query.query_options?.group_by?.name) {
+            const groupByColumns: string[] = [];
+            query.columns?.forEach((column: any) => {
+                if (column.is_selected_column) {
+                    const columnFullPath = `${column.schema}.${column.table_name}.${column.column_name}`;
+                    const isAggregateOnly = aggregateColumns.has(columnFullPath);
+                    if (!isAggregateOnly) {
+                        const tableRef = column.table_alias || column.table_name;
+                        groupByColumns.push(`${column.schema}.${tableRef}.${column.column_name}`);
+                    }
+                }
+            });
+            if (groupByColumns.length > 0) {
+                sqlParts.push(`GROUP BY ${groupByColumns.join(', ')}`);
+            }
+        }
+        
+        // Build HAVING clause
+        if (query.query_options?.group_by?.having_conditions && query.query_options.group_by.having_conditions.length > 0) {
+            const havingClauses: string[] = [];
+            query.query_options.group_by.having_conditions.forEach((havingClause: any) => {
+                if (havingClause.aggregate_function && havingClause.column && havingClause.operator && havingClause.value) {
+                    const aggregateFunc = aggregateFunctions[havingClause.aggregate_function];
+                    havingClauses.push(`${aggregateFunc}(${havingClause.column}) ${havingClause.operator} ${havingClause.value}`);
+                }
+            });
+            if (havingClauses.length > 0) {
+                sqlParts.push(`HAVING ${havingClauses.join(' AND ')}`);
+            }
+        }
+        
+        // Build ORDER BY clause
+        if (query.query_options?.order_by && Array.isArray(query.query_options.order_by) && query.query_options.order_by.length > 0) {
+            const orderByClauses: string[] = [];
+            query.query_options.order_by.forEach((orderBy: any) => {
+                if (orderBy.column && orderBy.direction) {
+                    orderByClauses.push(`${orderBy.column} ${orderBy.direction}`);
+                }
+            });
+            if (orderByClauses.length > 0) {
+                sqlParts.push(`ORDER BY ${orderByClauses.join(', ')}`);
+            }
+        }
+        
+        // Build LIMIT/OFFSET clause
+        if (query.query_options?.limit && query.query_options.limit !== -1) {
+            sqlParts.push(`LIMIT ${query.query_options.limit}`);
+        }
+        if (query.query_options?.offset && query.query_options.offset !== -1) {
+            sqlParts.push(`OFFSET ${query.query_options.offset}`);
+        }
+        
+        const finalSQL = sqlParts.join(' ');
+        console.log('[DataSourceProcessor] Reconstructed SQL from JSON:', finalSQL);
+        return finalSQL;
     }
 }

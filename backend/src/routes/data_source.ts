@@ -154,7 +154,8 @@ router.post('/execute-query-on-external-data-source', async (req: Request, res: 
 }, validateJWT, validate([body('data_source_id').notEmpty().trim().escape().toInt(), body('query').notEmpty().trim()]),
 async (req: Request, res: Response) => {
     const { data_source_id, query } = matchedData(req);
-    const response = await DataSourceProcessor.getInstance().executeQueryOnExternalDataSource(data_source_id, query, req.body.tokenDetails);
+    const query_json = req.body.query_json; // Optional JSON query for reconstruction
+    const response = await DataSourceProcessor.getInstance().executeQueryOnExternalDataSource(data_source_id, query, req.body.tokenDetails, query_json);
     res.status(200).send(response); 
 });
 

@@ -10,12 +10,26 @@ const state = reactive({
     show_dialog: false,
     show_calculated_column_dialog: false,
     show_alias_dialog: false,
+    show_join_dialog: false,
     viewMode: 'simple', // 'simple' or 'advanced'
     tables: [],
     table_aliases: [],
     alias_form: {
         table: '',
         alias: ''
+    },
+    join_conditions: [],
+    join_form: {
+        left_table: '',
+        left_table_alias: null,
+        left_column: '',
+        right_table: '',
+        right_table_alias: null,
+        right_column: '',
+        join_type: 'INNER',
+        primary_operator: '=',
+        join_logic: 'AND',
+        additional_conditions: []
     },
     manual_joins: [],
     data_table: {
@@ -303,6 +317,12 @@ function hasAdvancedFields() {
         if (hasTransforms) return true;
     }
     
+    // Check table aliases (for self-referencing relationships)
+    if (state.data_table.table_aliases && state.data_table.table_aliases.length > 0) return true;
+    
+    // Check JOIN conditions
+    if (state.data_table.join_conditions && state.data_table.join_conditions.length > 0) return true;
+    
     return false;
 }
 
@@ -332,6 +352,26 @@ watch(() => state.calculated_column.column_name, (value) => {
 }, { deep: true });
 watch(() => state.data_table.calculated_columns, async (value) => {
     // buildCalculatedColumn();
+}, { deep: true });
+
+// Watch for changes to join_conditions in data_table and sync to state-level array
+watch(() => state.data_table.join_conditions, (newValue) => {
+    if (newValue && newValue.length > 0) {
+        state.join_conditions = [...newValue];
+        console.log('[Data Model Builder] Synced join_conditions from data_table to state:', state.join_conditions.length);
+    } else {
+        state.join_conditions = [];
+    }
+}, { deep: true });
+
+// Watch for changes to table_aliases in data_table and sync to state-level array
+watch(() => state.data_table.table_aliases, (newValue) => {
+    if (newValue && newValue.length > 0) {
+        state.table_aliases = [...newValue];
+        console.log('[Data Model Builder] Synced table_aliases from data_table to state:', state.table_aliases.length);
+    } else {
+        state.table_aliases = [];
+    }
 }, { deep: true });
 
 // Watch for manual apply trigger from AI drawer
@@ -604,11 +644,90 @@ function removeTableAlias(index) {
 /**
  * Get combined list of regular tables and aliased tables for display
  */
+/**
+ * Get tables that are included via JOIN conditions
+ */
+function getTablesInJoins() {
+    const joinedTables = new Set();
+    
+    state.join_conditions.forEach(join => {
+        const leftKey = `${join.left_table_schema}.${join.left_table_name}`;
+        const rightKey = `${join.right_table_schema}.${join.right_table_name}`;
+        joinedTables.add(leftKey);
+        joinedTables.add(rightKey);
+    });
+    
+    return joinedTables;
+}
+
+/**
+ * Get columns used in aggregate functions (not regular SELECT columns)
+ */
+function getAggregateOnlyColumns() {
+    const aggregateColumns = [];
+    const selectedColumnPaths = new Set();
+    
+    // Track columns in regular SELECT
+    state.data_table.columns.forEach(col => {
+        if (col.is_selected_column) {
+            selectedColumnPaths.add(`${col.schema}.${col.table_name}.${col.column_name}`);
+        }
+    });
+    
+    // Find columns in aggregates that aren't in regular SELECT
+    const aggregateFunctions = state.data_table.query_options?.group_by?.aggregate_functions || [];
+    aggregateFunctions.forEach(aggFunc => {
+        if (aggFunc.column) {
+            // Parse column path: schema.table.column
+            const parts = aggFunc.column.split('.');
+            if (parts.length === 3) {
+                const [schema, table, column] = parts;
+                const fullPath = `${schema}.${table}.${column}`;
+                
+                if (!selectedColumnPaths.has(fullPath)) {
+                    aggregateColumns.push({
+                        schema,
+                        table_name: table,
+                        column_name: column,
+                        aggregate_function: ['SUM', 'AVG', 'COUNT', 'MIN', 'MAX'][aggFunc.aggregate_function],
+                        alias: aggFunc.column_alias_name,
+                        fullPath
+                    });
+                }
+            }
+        }
+    });
+    
+    return aggregateColumns;
+}
+
+/**
+ * Check if a table is included via JOINs or aggregates (even without regular columns)
+ */
+function isTableIncludedViaJoinOrAggregate(schema, tableName) {
+    const tableKey = `${schema}.${tableName}`;
+    const joinedTables = getTablesInJoins();
+    
+    if (joinedTables.has(tableKey)) {
+        return true;
+    }
+    
+    // Check if any aggregate functions use this table
+    const aggregateColumns = getAggregateOnlyColumns();
+    return aggregateColumns.some(aggCol => 
+        aggCol.schema === schema && aggCol.table_name === tableName
+    );
+}
+
 function getTablesWithAliases() {
     const result = [];
+    const joinedTables = getTablesInJoins();
     
     // Add regular tables
     state.tables.forEach(table => {
+        const tableKey = `${table.schema}.${table.table_name}`;
+        const isJoinedOrAggregate = isTableIncludedViaJoinOrAggregate(table.schema, table.table_name);
+        
         result.push({
             schema: table.schema,
             table_name: table.table_name,
@@ -617,7 +736,8 @@ function getTablesWithAliases() {
             references: table.references || [],
             isAlias: false,
             original_table: table.table_name,
-            table_alias: null
+            table_alias: null,
+            isJoinedOrAggregate: isJoinedOrAggregate
         });
     });
     
@@ -643,13 +763,520 @@ function getTablesWithAliases() {
                 columns: aliasedColumns,
                 references: originalTable.references || [],
                 isAlias: true,
-                original_table: alias.original_table
+                original_table: alias.original_table,
+                isJoinedOrAggregate: false // Aliases are explicit
             });
         }
     });
     
     return result;
 }
+
+/**
+ * Check if data model has multiple tables (JOINs needed)
+ */
+function hasMultipleTables() {
+    const tables = new Set();
+    state.data_table.columns.forEach(col => {
+        const tableKey = col.table_alias 
+            ? `${col.schema}.${col.table_name}::${col.table_alias}`
+            : `${col.schema}.${col.table_name}`;
+        tables.add(tableKey);
+    });
+    return tables.size > 1;
+}
+
+/**
+ * Get available tables for JOIN selection (from selected columns)
+ */
+function getAvailableTablesForJoin() {
+    const tables = new Map();
+    
+    state.data_table.columns.forEach(col => {
+        const key = col.table_alias 
+            ? `${col.schema}.${col.table_name}::${col.table_alias}`
+            : `${col.schema}.${col.table_name}`;
+        
+        const label = col.table_alias 
+            ? `${col.schema}.${col.table_alias} (${col.table_name})`
+            : `${col.schema}.${col.table_name}`;
+        
+        if (!tables.has(key)) {
+            tables.set(key, {
+                value: key,
+                label: label,
+                schema: col.schema,
+                table_name: col.table_name,
+                table_alias: col.table_alias || null
+            });
+        }
+    });
+    
+    return Array.from(tables.values());
+}
+
+/**
+ * Parse table key format "schema.table::alias" or "schema.table"
+ */
+function parseTableKey(tableKey) {
+    if (!tableKey) return { schema: '', table: '', alias: null };
+    
+    const hasAlias = tableKey.includes('::');
+    if (hasAlias) {
+        const [schemaTable, alias] = tableKey.split('::');
+        const [schema, table] = schemaTable.split('.');
+        return { schema, table, alias };
+    } else {
+        const [schema, table] = tableKey.split('.');
+        return { schema, table, alias: null };
+    }
+}
+
+/**
+ * Get columns for a specific table (for JOIN condition dropdowns)
+ */
+function getColumnsForTable(tableName, tableAlias = null) {
+    const columns = state.data_table.columns.filter(col => {
+        if (tableAlias) {
+            return col.table_alias === tableAlias;
+        }
+        return col.table_name === tableName && !col.table_alias;
+    });
+    
+    return columns.map(col => ({
+        value: col.column_name,
+        label: col.column_name,
+        data_type: col.data_type
+    }));
+}
+
+/**
+ * Open JOIN creation dialog
+ */
+function openJoinDialog() {
+    state.join_form = {
+        left_table: '',
+        left_table_alias: null,
+        left_column: '',
+        right_table: '',
+        right_table_alias: null,
+        right_column: '',
+        join_type: 'INNER',
+        primary_operator: '=',
+        join_logic: 'AND',
+        additional_conditions: []
+    };
+    state.show_join_dialog = true;
+}
+
+/**
+ * Close JOIN creation dialog
+ */
+function closeJoinDialog() {
+    state.show_join_dialog = false;
+}
+
+/**
+ * Handle left table selection in JOIN form
+ */
+function onJoinFormLeftTableChange() {
+    const tableInfo = parseTableKey(state.join_form.left_table);
+    state.join_form.left_table_alias = tableInfo.alias;
+    state.join_form.left_column = '';
+}
+
+/**
+ * Handle right table selection in JOIN form
+ */
+function onJoinFormRightTableChange() {
+    const tableInfo = parseTableKey(state.join_form.right_table);
+    state.join_form.right_table_alias = tableInfo.alias;
+    state.join_form.right_column = '';
+}
+
+/**
+ * Get columns for JOIN form dropdowns
+ */
+function getColumnsForJoinForm(side) {
+    const tableKey = side === 'left' ? state.join_form.left_table : state.join_form.right_table;
+    if (!tableKey) return [];
+    
+    const tableInfo = parseTableKey(tableKey);
+    return getColumnsForTable(tableInfo.table, tableInfo.alias);
+}
+
+/**
+ * Validate JOIN form
+ */
+function isJoinFormValid() {
+    return state.join_form.left_table && 
+           state.join_form.left_column && 
+           state.join_form.right_table && 
+           state.join_form.right_column;
+}
+
+/**
+ * Get preview of JOIN SQL
+ */
+function getJoinFormPreview() {
+    if (!isJoinFormValid()) {
+        return 'Select tables and columns to see preview...';
+    }
+    
+    const leftInfo = parseTableKey(state.join_form.left_table);
+    const rightInfo = parseTableKey(state.join_form.right_table);
+    
+    const leftRef = leftInfo.alias || leftInfo.table;
+    const rightRef = rightInfo.alias || rightInfo.table;
+    
+    return `${state.join_form.join_type} JOIN ${rightInfo.schema}.${rightInfo.table}${rightInfo.alias ? ` AS ${rightInfo.alias}` : ''} ON ${leftInfo.schema}.${leftRef}.${state.join_form.left_column} = ${rightInfo.schema}.${rightRef}.${state.join_form.right_column}`;
+}
+
+/**
+ * Create new JOIN condition
+ */
+async function createJoinCondition() {
+    if (!isJoinFormValid()) {
+        $swal.fire({
+            icon: 'error',
+            title: 'Incomplete JOIN',
+            text: 'Please select both tables and columns for the JOIN'
+        });
+        return;
+    }
+    
+    const leftInfo = parseTableKey(state.join_form.left_table);
+    const rightInfo = parseTableKey(state.join_form.right_table);
+    
+    // Check for duplicate JOIN
+    const isDuplicate = state.join_conditions.some(join => {
+        return (
+            join.left_table_name === leftInfo.table &&
+            join.left_column_name === state.join_form.left_column &&
+            join.right_table_name === rightInfo.table &&
+            join.right_column_name === state.join_form.right_column
+        );
+    });
+    
+    if (isDuplicate) {
+        $swal.fire({
+            icon: 'warning',
+            title: 'Duplicate JOIN',
+            text: 'This JOIN condition already exists'
+        });
+        return;
+    }
+    
+    // Add new JOIN condition
+    const newJoin = {
+        id: Date.now(),
+        left_table_schema: leftInfo.schema,
+        left_table_name: leftInfo.table,
+        left_table_alias: leftInfo.alias,
+        left_column_name: state.join_form.left_column,
+        
+        right_table_schema: rightInfo.schema,
+        right_table_name: rightInfo.table,
+        right_table_alias: rightInfo.alias,
+        right_column_name: state.join_form.right_column,
+        
+        join_type: state.join_form.join_type,
+        primary_operator: state.join_form.primary_operator || '=',
+        join_logic: state.join_form.join_logic || 'AND',
+        is_auto_detected: false,
+        additional_conditions: []
+    };
+    
+    state.join_conditions.push(newJoin);
+    
+    console.log('[createJoinCondition] Created new JOIN:', newJoin);
+    console.log('[createJoinCondition] Total JOINs now:', state.join_conditions.length);
+    
+    $swal.fire({
+        icon: 'success',
+        title: 'JOIN Created',
+        timer: 1500,
+        showConfirmButton: false
+    });
+    
+    closeJoinDialog();
+    await executeQueryOnExternalDataSource();
+}
+
+/**
+ * Remove JOIN condition
+ */
+async function removeJoinCondition(index) {
+    const join = state.join_conditions[index];
+    
+    const result = await $swal.fire({
+        title: 'Remove JOIN?',
+        html: `Remove JOIN between <strong>${join.left_table_name}</strong> and <strong>${join.right_table_name}</strong>?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Remove',
+        cancelButtonText: 'Cancel'
+    });
+    
+    if (result.isConfirmed) {
+        state.join_conditions.splice(index, 1);
+        // Sync to data_table for persistence
+        state.data_table.join_conditions = [...state.join_conditions];
+        console.log(`[removeJoinCondition] Removed JOIN at index ${index}`);
+        await executeQueryOnExternalDataSource();
+    }
+}
+
+/**
+ * Update primary operator for a JOIN condition
+ */
+async function updateJoinOperator(index, newOperator) {
+    if (state.join_conditions[index]) {
+        state.join_conditions[index].primary_operator = newOperator;
+        // Sync to data_table for persistence
+        state.data_table.join_conditions = [...state.join_conditions];
+        console.log(`[updateJoinOperator] Updated JOIN ${index} operator to: ${newOperator}`);
+        await executeQueryOnExternalDataSource();
+    }
+}
+
+/**
+ * Update logic connector (AND/OR) for a JOIN condition
+ */
+async function updateJoinLogic(index, newLogic) {
+    if (state.join_conditions[index]) {
+        state.join_conditions[index].join_logic = newLogic;
+        // Sync to data_table for persistence
+        state.data_table.join_conditions = [...state.join_conditions];
+        console.log(`[updateJoinLogic] Updated JOIN ${index} logic to: ${newLogic}`);
+        
+        if (newLogic === 'OR') {
+            console.warn('[updateJoinLogic] ⚠️ OR logic between JOINs has limitations in SQL. The query structure may need adjustment.');
+        }
+        
+        await executeQueryOnExternalDataSource();
+    }
+}
+
+/**
+ * Add additional condition to existing JOIN
+ */
+function addAdditionalCondition(joinIndex) {
+    if (!state.join_conditions[joinIndex].additional_conditions) {
+        state.join_conditions[joinIndex].additional_conditions = [];
+    }
+    
+    state.join_conditions[joinIndex].additional_conditions.push({
+        logic: 'AND',
+        left_column: '',
+        operator: '=',
+        right_column: ''
+    });
+}
+
+/**
+ * Remove additional condition from JOIN
+ */
+function removeAdditionalCondition(joinIndex, condIndex) {
+    state.join_conditions[joinIndex].additional_conditions.splice(condIndex, 1);
+    // Sync to data_table for persistence
+    state.data_table.join_conditions = [...state.join_conditions];
+}
+
+/**
+ * Update JOIN left table (when user changes selection)
+ */
+function updateJoinLeftTable(joinIndex) {
+    state.join_conditions[joinIndex].left_column_name = '';
+}
+
+/**
+ * Update JOIN right table (when user changes selection)
+ */
+function updateJoinRightTable(joinIndex) {
+    state.join_conditions[joinIndex].right_column_name = '';
+}
+
+/**
+ * Auto-detect JOIN conditions from foreign key relationships
+ */
+function autoDetectJoinConditions() {
+    console.log('[autoDetectJoinConditions] Starting auto-detection');
+    console.log('[autoDetectJoinConditions] Total columns in model:', state.data_table.columns.length);
+    
+    // Get unique tables from selected columns
+    const uniqueTables = new Map();
+    state.data_table.columns.forEach(col => {
+        const key = col.table_alias 
+            ? `${col.schema}.${col.table_name}::${col.table_alias}`
+            : `${col.schema}.${col.table_name}`;
+        
+        if (!uniqueTables.has(key)) {
+            uniqueTables.set(key, {
+                schema: col.schema,
+                table_name: col.table_name,
+                table_alias: col.table_alias || null
+            });
+        }
+    });
+    
+    const dataTables = Array.from(uniqueTables.values());
+    console.log('[autoDetectJoinConditions] Unique tables in model:', dataTables.length, 
+                dataTables.map(t => t.table_alias ? `${t.schema}.${t.table_name} AS ${t.table_alias}` : `${t.schema}.${t.table_name}`));
+    
+    if (dataTables.length < 2) {
+        console.log('[autoDetectJoinConditions] Less than 2 tables, no JOINs needed');
+        return;
+    }
+    
+    // Get all FK relationships from metadata
+    const relationshipReferences = state.tables
+        .filter(table => table.references && table.references.length > 0)
+        .flatMap(table => table.references);
+    
+    console.log('[autoDetectJoinConditions] Available FK relationships in metadata:', relationshipReferences.length);
+    if (relationshipReferences.length > 0) {
+        console.log('[autoDetectJoinConditions] FK relationships sample:', 
+                    relationshipReferences.slice(0, 3).map(r => 
+                        `${r.local_table_schema}.${r.local_table_name}.${r.local_column_name} → ${r.foreign_table_schema}.${r.foreign_table_name}.${r.foreign_column_name}`
+                    ));
+    }
+    
+    // Clear existing auto-detected JOINs (keep manual ones)
+    state.join_conditions = state.join_conditions.filter(join => !join.is_auto_detected);
+    
+    // Build JOIN conditions from FK relationships
+    const detectedJoins = [];
+    
+    // Track which table pairs are already connected (to prevent redundant JOINs)
+    const connectedPairs = new Set();
+    
+    // Helper to check if two tables are already connected
+    function areTablesConnected(schema1, table1, schema2, table2) {
+        const key1 = `${schema1}.${table1}::${schema2}.${table2}`;
+        const key2 = `${schema2}.${table2}::${schema1}.${table1}`;
+        return connectedPairs.has(key1) || connectedPairs.has(key2);
+    }
+    
+    // Helper to mark tables as connected
+    function markTablesConnected(schema1, table1, schema2, table2) {
+        const key = `${schema1}.${table1}::${schema2}.${table2}`;
+        connectedPairs.add(key);
+        console.log(`[autoDetectJoinConditions] Marked connected: ${key}`);
+    }
+    
+    for (let i = 0; i < dataTables.length; i++) {
+        for (let j = i + 1; j < dataTables.length; j++) {
+            const table1 = dataTables[i];
+            const table2 = dataTables[j];
+            
+            // Skip if tables are already connected
+            if (areTablesConnected(table1.schema, table1.table_name, table2.schema, table2.table_name)) {
+                console.log(`[autoDetectJoinConditions] Tables already connected, skipping: ${table1.schema}.${table1.table_name} ↔ ${table2.schema}.${table2.table_name}`);
+                continue;
+            }
+            
+            // Find ALL FK relationships between these tables (important for self-referencing)
+            const relationships = relationshipReferences.filter(ref => {
+                const matchForward = (
+                    ref.local_table_schema === table1.schema &&
+                    ref.local_table_name === table1.table_name &&
+                    ref.foreign_table_schema === table2.schema &&
+                    ref.foreign_table_name === table2.table_name
+                );
+                
+                const matchReverse = (
+                    ref.local_table_schema === table2.schema &&
+                    ref.local_table_name === table2.table_name &&
+                    ref.foreign_table_schema === table1.schema &&
+                    ref.foreign_table_name === table1.table_name
+                );
+                
+                return matchForward || matchReverse;
+            });
+            
+            if (relationships.length > 0) {
+                console.log(`[autoDetectJoinConditions] Found ${relationships.length} FK relationship(s): ${table1.schema}.${table1.table_name} ↔ ${table2.schema}.${table2.table_name}`);
+                
+                // Process each FK relationship
+                relationships.forEach((relationship, relIndex) => {
+                
+                // Check if JOIN already exists (avoid duplicates)
+                const joinExists = state.join_conditions.some(join => {
+                    return (
+                        (join.left_table_schema === relationship.local_table_schema &&
+                         join.left_table_name === relationship.local_table_name &&
+                         join.right_table_schema === relationship.foreign_table_schema &&
+                         join.right_table_name === relationship.foreign_table_name) ||
+                        (join.right_table_schema === relationship.local_table_schema &&
+                         join.right_table_name === relationship.local_table_name &&
+                         join.left_table_schema === relationship.foreign_table_schema &&
+                         join.left_table_name === relationship.foreign_table_name)
+                    );
+                });
+                
+                if (!joinExists) {
+                    // Determine correct alias assignment based on FK relationship direction
+                    let leftAlias, rightAlias;
+                    
+                    // Match the FK relationship direction to the correct table with its alias
+                    if (relationship.local_table_schema === table1.schema && 
+                        relationship.local_table_name === table1.table_name) {
+                        // table1 is the local (left) side
+                        leftAlias = table1.table_alias;
+                        rightAlias = table2.table_alias;
+                    } else {
+                        // table2 is the local (left) side
+                        leftAlias = table2.table_alias;
+                        rightAlias = table1.table_alias;
+                    }
+                    
+                    const newJoin = {
+                        id: Date.now() + detectedJoins.length,
+                        left_table_schema: relationship.local_table_schema,
+                        left_table_name: relationship.local_table_name,
+                        left_table_alias: leftAlias,
+                        left_column_name: relationship.local_column_name,
+                        
+                        right_table_schema: relationship.foreign_table_schema,
+                        right_table_name: relationship.foreign_table_name,
+                        right_table_alias: rightAlias,
+                        right_column_name: relationship.foreign_column_name,
+                        
+                        join_type: 'INNER',
+                        primary_operator: '=',
+                        join_logic: 'AND',
+                        is_auto_detected: true,
+                        additional_conditions: []
+                    };
+                    detectedJoins.push(newJoin);
+                    
+                    // Mark these tables as connected
+                    markTablesConnected(
+                        relationship.local_table_schema,
+                        relationship.local_table_name,
+                        relationship.foreign_table_schema,
+                        relationship.foreign_table_name
+                    );
+                    
+                    console.log(`[autoDetectJoinConditions] Created JOIN: ${relationship.local_table_schema}.${relationship.local_table_name}.${relationship.local_column_name} = ${relationship.foreign_table_schema}.${relationship.foreign_table_name}.${relationship.foreign_column_name}`);
+                } else {
+                    console.log(`[autoDetectJoinConditions] JOIN already exists, skipping duplicate`);
+                }
+                }); // End forEach relationships
+            } else {
+                console.log(`[autoDetectJoinConditions] No FK relationship found between ${table1.schema}.${table1.table_name} and ${table2.schema}.${table2.table_name}`);
+            }
+        }
+    }
+    
+    // Add detected JOINs to state
+    state.join_conditions.push(...detectedJoins);
+    
+    console.log(`[autoDetectJoinConditions] Auto-detected ${detectedJoins.length} JOIN conditions`);
+    console.log('[autoDetectJoinConditions] Total JOINs now:', state.join_conditions.length);
+}
+
 async function deleteColumn(columnName) {
     // Find the column being deleted to get its full reference
     const columnToDelete = state.data_table.columns.find(col => col.column_name === columnName);
@@ -782,6 +1409,29 @@ function isColumnInDataModel(columnName, tableIdentifier, tableAlias = null) {
         const checkIdentifier = tableAlias || tableIdentifier;
         return column.column_name === columnName && colIdentifier === checkIdentifier;
     });
+}
+
+/**
+ * Check if a column is used in an aggregate function (but not in regular SELECT)
+ */
+function isColumnUsedInAggregate(columnName, schema, tableName) {
+    const columnPath = `${schema}.${tableName}.${columnName}`;
+    
+    // Check if in regular SELECT
+    const inSelect = state.data_table.columns.some(col => 
+        col.schema === schema && 
+        col.table_name === tableName && 
+        col.column_name === columnName &&
+        col.is_selected_column
+    );
+    
+    if (inSelect) {
+        return false; // Already in regular SELECT
+    }
+    
+    // Check if used in aggregate functions
+    const aggregateFunctions = state.data_table.query_options?.group_by?.aggregate_functions || [];
+    return aggregateFunctions.some(aggFunc => aggFunc.column === columnPath);
 }
 function addQueryOption(queryOption) {
     if (queryOption === 'WHERE') {
@@ -1046,92 +1696,54 @@ function buildSQLQuery() {
             return `${columnRef} AS ${aliasName}`;
         }).join(', ')}`;
     } else {
-        for (let i = 0; i < dataTables.length; i++) {
-            for (let j = 0; j < dataTables.length; j++) {
-                if (dataTables[i] !== dataTables[j]) {
-                    tableCombinations.push(`${dataTables[i]}-${dataTables[j]}`);
-                }
-            }
-        }
-        const relationshipReferences = state.tables.filter((table) => {
-            return table.references.length > 0
-        }).map((table) => table.references);
-        console.log('[Data Model Builder - buildSQLQuery] state.tables:', state.tables.length);
-        console.log('[Data Model Builder - buildSQLQuery] state.tables sample:', state.tables.slice(0, 3));
-        console.log('[Data Model Builder - buildSQLQuery] relationshipReferences:', relationshipReferences);
-        console.log('[Data Model Builder - buildSQLQuery] tableCombinations:', tableCombinations);
-        relationshipReferences.forEach((references) => {
-            references.forEach((reference) => {
-                const tableCombinationString = `${reference.local_table_schema}.${reference.local_table_name}-${reference.foreign_table_schema}.${reference.foreign_table_name}`;
-                if (tableCombinations.includes(tableCombinationString)) {
-                    fromJoinClauses.push(reference);
-                }
-            });
-        });
-        console.log('[Data Model Builder - buildSQLQuery] fromJoinClauses after relationship matching:', fromJoinClauses);
-
-        // If no relationships found from metadata, try to infer them from column names
-        if (fromJoinClauses.length === 0 && dataTables.length > 1) {
-            console.log('[Data Model Builder - buildSQLQuery] No FK relationships found, attempting to infer from column names');
-            
-            // Try to find common columns between tables that might be foreign keys
-            for (let i = 0; i < dataTables.length; i++) {
-                for (let j = i + 1; j < dataTables.length; j++) {
-                    const table1 = dataTables[i];
-                    const table2 = dataTables[j];
-                    
-                    // Get columns for each table
-                    const table1Columns = state.data_table.columns
-                        .filter(col => `${col.schema}.${col.table_name}` === table1)
-                        .map(col => col.column_name);
-                    const table2Columns = state.data_table.columns
-                        .filter(col => `${col.schema}.${col.table_name}` === table2)
-                        .map(col => col.column_name);
-                    
-                    // Find common column names (likely foreign keys)
-                    const commonColumns = table1Columns.filter(col => table2Columns.includes(col));
-                    
-                    if (commonColumns.length > 0) {
-                        // Use the first common column as join key
-                        const joinColumn = commonColumns[0];
-                        const [schema1, tableName1] = table1.split('.');
-                        const [schema2, tableName2] = table2.split('.');
-                        
-                        fromJoinClauses.push({
-                            local_table_schema: schema1,
-                            local_table_name: tableName1,
-                            local_column_name: joinColumn,
-                            foreign_table_schema: schema2,
-                            foreign_table_name: tableName2,
-                            foreign_column_name: joinColumn
-                        });
-                        
-                        console.log(`[Data Model Builder - buildSQLQuery] Inferred relationship: ${table1}.${joinColumn} = ${table2}.${joinColumn}`);
-                    }
-                }
-            }
-        }
-
-        // Detect orphaned tables (tables with no relationships to other selected tables)
+        // Use state.join_conditions for JOIN generation
+        console.log('[Data Model Builder - buildSQLQuery] Using JOIN conditions from state:', state.join_conditions.length);
+        
+        // Convert state.join_conditions to fromJoinClauses format
+        fromJoinClauses = state.join_conditions.map(join => ({
+            local_table_schema: join.left_table_schema,
+            local_table_name: join.left_table_name,
+            local_table_alias: join.left_table_alias,
+            local_column_name: join.left_column_name,
+            foreign_table_schema: join.right_table_schema,
+            foreign_table_name: join.right_table_name,
+            foreign_table_alias: join.right_table_alias,
+            foreign_column_name: join.right_column_name,
+            join_type: join.join_type || 'INNER',
+            additional_conditions: join.additional_conditions || []
+        }));
+        
+        // Detect orphaned tables (tables with no JOINs to other selected tables)
         const tablesInJoins = new Set();
         fromJoinClauses.forEach(clause => {
-            tablesInJoins.add(`${clause.local_table_schema}.${clause.local_table_name}`);
-            tablesInJoins.add(`${clause.foreign_table_schema}.${clause.foreign_table_name}`);
+            const leftKey = clause.local_table_alias 
+                ? `${clause.local_table_schema}.${clause.local_table_name}::${clause.local_table_alias}`
+                : `${clause.local_table_schema}.${clause.local_table_name}`;
+            const rightKey = clause.foreign_table_alias
+                ? `${clause.foreign_table_schema}.${clause.foreign_table_name}::${clause.foreign_table_alias}`
+                : `${clause.foreign_table_schema}.${clause.foreign_table_name}`;
+            tablesInJoins.add(leftKey);
+            tablesInJoins.add(rightKey);
         });
 
-        const orphanedTables = dataTables.filter(table => !tablesInJoins.has(table));
+        const orphanedTables = dataTables.filter(table => {
+            // For tables with aliases, check with :: format
+            return !tablesInJoins.has(table);
+        });
+        
         console.log('[Data Model Builder - buildSQLQuery] Orphaned tables:', orphanedTables);
         if (orphanedTables.length > 0) {
             const orphanedAlert = {
                 type: 'error',
-                message: `Cannot create data model: The following tables have no foreign key relationships to other selected tables: ${orphanedTables.join(', ')}. Please remove columns from unrelated tables or select tables with defined relationships.`
+                message: `Cannot create data model: The following tables have no JOIN conditions to other selected tables: ${orphanedTables.join(', ')}. Please add JOIN conditions or remove columns from unrelated tables.`
             };
             console.error('[Data Model Builder - buildSQLQuery] ORPHANED TABLE ERROR:', orphanedAlert.message);
-            if (!state.alerts.find(a => a.type === 'error' && a.message.includes('no foreign key relationships'))) {
+            if (!state.alerts.find(a => a.type === 'error' && a.message.includes('no JOIN conditions'))) {
                 state.alerts.push(orphanedAlert);
             }
         } else {
             // Remove orphaned table error if it exists and no longer applies
+            state.alerts = state.alerts.filter(a => !(a.type === 'error' && a.message.includes('no JOIN conditions')));
             state.alerts = state.alerts.filter(a => !(a.type === 'error' && a.message.includes('no foreign key relationships')));
         }
 
@@ -1171,6 +1783,65 @@ function buildSQLQuery() {
         // If there are still unprocessed clauses, add them anyway (circular dependency case)
         sortedClauses.push(...clausesToProcess);
         fromJoinClauses = sortedClauses;
+        
+        // Determine primary table: the table with the most selected columns
+        const tableColumnCounts = {};
+        state.data_table.columns.filter(col => col.is_selected_column).forEach(col => {
+            const tableKey = `${col.schema}.${col.table_name}`;
+            tableColumnCounts[tableKey] = (tableColumnCounts[tableKey] || 0) + 1;
+        });
+        
+        let primaryTable = null;
+        let maxCount = 0;
+        for (const [table, count] of Object.entries(tableColumnCounts)) {
+            if (count > maxCount) {
+                maxCount = count;
+                primaryTable = table;
+            }
+        }
+        
+        console.log('[buildSQLQuery] Table column counts:', tableColumnCounts);
+        console.log('[buildSQLQuery] Primary table (most columns):', primaryTable);
+        
+        // Reorder fromJoinClauses to start with the primary table
+        if (primaryTable && fromJoinClauses.length > 0) {
+            const [primarySchema, primaryTableName] = primaryTable.split('.');
+            
+            // Find a JOIN that includes the primary table
+            const primaryJoinIndex = fromJoinClauses.findIndex(clause => 
+                (clause.local_table_schema === primarySchema && clause.local_table_name === primaryTableName) ||
+                (clause.foreign_table_schema === primarySchema && clause.foreign_table_name === primaryTableName)
+            );
+            
+            if (primaryJoinIndex > 0) {
+                // Move primary JOIN to the beginning
+                const primaryJoin = fromJoinClauses[primaryJoinIndex];
+                fromJoinClauses.splice(primaryJoinIndex, 1);
+                
+                // If primary table is on the right side, swap it to left
+                if (primaryJoin.foreign_table_schema === primarySchema && primaryJoin.foreign_table_name === primaryTableName) {
+                    const temp = {
+                        local_table_schema: primaryJoin.foreign_table_schema,
+                        local_table_name: primaryJoin.foreign_table_name,
+                        local_table_alias: primaryJoin.foreign_table_alias,
+                        local_column_name: primaryJoin.foreign_column_name,
+                        foreign_table_schema: primaryJoin.local_table_schema,
+                        foreign_table_name: primaryJoin.local_table_name,
+                        foreign_table_alias: primaryJoin.local_table_alias,
+                        foreign_column_name: primaryJoin.local_column_name,
+                        join_type: primaryJoin.join_type,
+                        primary_operator: primaryJoin.primary_operator,
+                        additional_conditions: primaryJoin.additional_conditions
+                    };
+                    fromJoinClauses.unshift(temp);
+                } else {
+                    fromJoinClauses.unshift(primaryJoin);
+                }
+                
+                console.log('[buildSQLQuery] Reordered JOINs to start with primary table');
+            }
+        }
+        
         // Helper function to find alias for a table in selected columns
         const getTableAlias = (schema, tableName) => {
             const col = state.data_table.columns.find(c => 
@@ -1195,10 +1866,23 @@ function buildSQLQuery() {
             const localRef = localAlias || clause.local_table_name;
             const foreignRef = foreignAlias || clause.foreign_table_name;
             
+            // Get JOIN type (default to INNER if not specified)
+            const joinType = clause.join_type || 'INNER';
+            
             if (index === 0) {
+                const operator = clause.primary_operator || '=';
                 fromJoinClause.push(`FROM ${localTableSQL}`)
-                fromJoinClause.push(`JOIN ${foreignTableSQL}`)
-                fromJoinClause.push(`ON ${clause.local_table_schema}.${localRef}.${clause.local_column_name} = ${clause.foreign_table_schema}.${foreignRef}.${clause.foreign_column_name}`)
+                fromJoinClause.push(`${joinType} JOIN ${foreignTableSQL}`)
+                fromJoinClause.push(`ON ${clause.local_table_schema}.${localRef}.${clause.local_column_name} ${operator} ${clause.foreign_table_schema}.${foreignRef}.${clause.foreign_column_name}`)
+                
+                // Add additional conditions if present
+                if (clause.additional_conditions && clause.additional_conditions.length > 0) {
+                    clause.additional_conditions.forEach(addCond => {
+                        if (addCond.left_column && addCond.right_column && addCond.operator) {
+                            fromJoinClause.push(`${addCond.logic} ${clause.local_table_schema}.${localRef}.${addCond.left_column} ${addCond.operator} ${clause.foreign_table_schema}.${foreignRef}.${addCond.right_column}`);
+                        }
+                    });
+                }
             } else {
                 // More precise table existence check - both tables must be added independently
                 const localTableRef = localAlias 
@@ -1222,35 +1906,65 @@ function buildSQLQuery() {
                 
                 if (!localTableExists && !foreignTableExists) {
                     // Neither table exists - add the foreign table (it will be the new join target)
-                    fromJoinClause.push(`JOIN ${foreignTableSQL}`);
+                    fromJoinClause.push(`${joinType} JOIN ${foreignTableSQL}`);
                     needsNewJoin = true;
                 } else if (!localTableExists) {
                     // Only local table missing - add it
-                    fromJoinClause.push(`JOIN ${localTableSQL}`);
+                    fromJoinClause.push(`${joinType} JOIN ${localTableSQL}`);
                     needsNewJoin = true;
                 } else if (!foreignTableExists) {
                     // Only foreign table missing - add it
-                    fromJoinClause.push(`JOIN ${foreignTableSQL}`);
+                    fromJoinClause.push(`${joinType} JOIN ${foreignTableSQL}`);
                     needsNewJoin = true;
                 }
                 
                 // Add the ON/AND condition using aliases if available
-                const joinCondition = `${clause.local_table_schema}.${localRef}.${clause.local_column_name} = ${clause.foreign_table_schema}.${foreignRef}.${clause.foreign_column_name}`;
+                const operator = clause.primary_operator || '=';
+                const joinCondition = `${clause.local_table_schema}.${localRef}.${clause.local_column_name} ${operator} ${clause.foreign_table_schema}.${foreignRef}.${clause.foreign_column_name}`;
                 
                 if (needsNewJoin) {
                     // New table was added, use ON
                     fromJoinClause.push(`ON ${joinCondition}`);
-                } else {
-                    // Both tables already exist, add as additional condition with AND
-                    if (!fromJoinClause.includes(`ON ${joinCondition}`) && !fromJoinClause.includes(`AND ${joinCondition}`)) {
-                        fromJoinClause.push(`AND ${joinCondition}`);
+                    
+                    // Add additional conditions if present
+                    if (clause.additional_conditions && clause.additional_conditions.length > 0) {
+                        clause.additional_conditions.forEach(addCond => {
+                            if (addCond.left_column && addCond.right_column && addCond.operator) {
+                                fromJoinClause.push(`${addCond.logic} ${clause.local_table_schema}.${localRef}.${addCond.left_column} ${addCond.operator} ${clause.foreign_table_schema}.${foreignRef}.${addCond.right_column}`);
+                            }
+                        });
                     }
+                } else {
+                    // Both tables already exist - this JOIN is redundant, skip it
+                    console.log(`[buildSQLQuery] Skipping redundant JOIN: both ${localTableFull} and ${foreignTableFull} already in FROM clause`);
+                    console.log(`[buildSQLQuery] This indicates tables are already connected through another path`);
                 }
             }
         });
         console.log('[Data Model Builder - buildSQLQuery] Final fromJoinClause array:', fromJoinClause);
+        
+        // Check if any JOINs use OR logic and log warning
+        const hasOrLogic = fromJoinClauses.some(clause => clause.join_logic === 'OR');
+        if (hasOrLogic) {
+            console.warn('[buildSQLQuery] ⚠️ One or more JOINs use OR logic. Note: SQL does not natively support OR between JOIN clauses. The query will execute with AND logic. Consider using UNION or subqueries for true OR behavior.');
+        }
 
-        sqlQuery = `SELECT ${state.data_table.columns.filter((column) => column.is_selected_column).map((column) => {
+        // Build set of columns used in aggregate functions (these should not appear in SELECT as regular columns)
+        const aggregateColumns = new Set();
+        state?.data_table?.query_options?.group_by?.aggregate_functions?.forEach((aggFunc) => {
+            if (aggFunc.column && aggFunc.aggregate_function !== '') {
+                aggregateColumns.add(aggFunc.column);
+            }
+        });
+        
+        console.log('[buildSQLQuery] Columns used in aggregates:', Array.from(aggregateColumns));
+
+        sqlQuery = `SELECT ${state.data_table.columns.filter((column) => {
+            // Exclude columns that are ONLY used in aggregates (not for grouping)
+            const columnFullPath = `${column.schema}.${column.table_name}.${column.column_name}`;
+            const isAggregateOnly = aggregateColumns.has(columnFullPath);
+            return column.is_selected_column && !isAggregateOnly;
+        }).map((column) => {
             const tableRef = column.table_alias || column.table_name;
             const aliasName = column?.alias_name !== '' ? column.alias_name : `${column.schema}_${tableRef}_${column.column_name}`;
             
@@ -1426,6 +2140,14 @@ function buildSQLQuery() {
     return sqlQuery;
 }
 async function saveDataModel() {
+    // Ensure JOIN conditions and table aliases are synced to data_table before save
+    state.data_table.join_conditions = [...state.join_conditions];
+    state.data_table.table_aliases = [...state.table_aliases];
+    console.log('[saveDataModel] Synced to data_table before save:', {
+        join_conditions: state.data_table.join_conditions.length,
+        table_aliases: state.data_table.table_aliases.length
+    });
+    
     let offsetStr = 'OFFSET 0';
     let limitStr = 'LIMIT 5';
     let sqlQuery = buildSQLQuery();
@@ -1466,11 +2188,30 @@ async function saveDataModel() {
         url = `${baseUrl()}/data-model/update-data-model-on-query`;
     }
     
-    // Filter to only include selected columns in the query JSON
+    // Build set of columns used ONLY in aggregate functions (should not be in columns list)
+    const aggregateColumns = new Set();
+    state?.data_table?.query_options?.group_by?.aggregate_functions?.forEach((aggFunc) => {
+        if (aggFunc.column && aggFunc.aggregate_function !== '') {
+            aggregateColumns.add(aggFunc.column);
+        }
+    });
+    
+    // Filter to only include selected columns that are NOT aggregate-only columns
     const dataTableForSave = {
         ...state.data_table,
-        columns: state.data_table.columns.filter(col => col.is_selected_column)
+        columns: state.data_table.columns.filter(col => {
+            const columnFullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
+            const isAggregateOnly = aggregateColumns.has(columnFullPath);
+            return col.is_selected_column && !isAggregateOnly;
+        })
     };
+    
+    console.log('[saveDataModel] Filtered columns for save:', {
+        total: state.data_table.columns.length,
+        selected: state.data_table.columns.filter(c => c.is_selected_column).length,
+        afterAggregateFilter: dataTableForSave.columns.length,
+        aggregateColumns: Array.from(aggregateColumns)
+    });
     
     const response = await fetch(url, {
         method: "POST",
@@ -1550,6 +2291,7 @@ async function executeQueryOnExternalDataSource() {
     state.sql_query = buildSQLQuery();
     state.sql_query += ` LIMIT 5 OFFSET 0`;
     console.log('[Data Model Builder - executeQueryOnExternalDataSource] SQL Query being sent:', state.sql_query);
+    console.log('[Data Model Builder - executeQueryOnExternalDataSource] JSON Query being sent:', JSON.stringify(state.data_table));
     const token = getAuthToken();
     const url = `${baseUrl()}/data-source/execute-query-on-external-data-source`;
     const response = await fetch(url, {
@@ -1562,6 +2304,7 @@ async function executeQueryOnExternalDataSource() {
         body: JSON.stringify({
             data_source_id: route.params.datasourceid,
             query: state.sql_query,
+            query_json: JSON.stringify(state.data_table),
         })
     });
     
@@ -1617,7 +2360,12 @@ async function toggleColumnInDataModel(column, tableName, tableAlias = null) {
             state.data_table.query_options.order_by = [];
             state.data_table.query_options.offset = -1;
             state.data_table.query_options.limit = -1;
+            state.join_conditions = [];  // Clear JOINs when no columns
         }
+        
+        // Re-detect JOIN conditions after column removal
+        autoDetectJoinConditions();
+        
         await executeQueryOnExternalDataSource();
     } else {
         // Add
@@ -1633,6 +2381,10 @@ async function toggleColumnInDataModel(column, tableName, tableAlias = null) {
         newColumn.transform_close_parens = 0;
         
         state.data_table.columns.push(newColumn);
+        
+        // Auto-detect JOIN conditions when columns are added
+        autoDetectJoinConditions();
+        
         await executeQueryOnExternalDataSource();
     }
 }
@@ -1695,11 +2447,102 @@ async function applyAIGeneratedModel(model) {
             // Now apply the new model - use Object.assign to maintain reactivity
             Object.assign(state.data_table, transformedModel);
             
+            // Initialize join_conditions and table_aliases arrays if not present
+            if (!state.data_table.join_conditions) {
+                state.data_table.join_conditions = [];
+            }
+            if (!state.data_table.table_aliases) {
+                state.data_table.table_aliases = [];
+            }
+            
             // Wait for DOM update to complete
             await nextTick();
             
+            // Register table aliases from AI model to state.data_table.table_aliases
+            const aliasMap = new Map();
+            state.data_table.columns.forEach(col => {
+                if (col.table_alias) {
+                    const key = `${col.schema}.${col.table_name}`;
+                    if (!aliasMap.has(key)) {
+                        aliasMap.set(key, new Set());
+                    }
+                    aliasMap.get(key).add(col.table_alias);
+                }
+            });
+            
+            // Add aliases to state if not already present
+            aliasMap.forEach((aliases, tableKey) => {
+                const [schema, table] = tableKey.split('.');
+                aliases.forEach(alias => {
+                    const exists = state.data_table.table_aliases.some(a => 
+                        a.schema === schema && a.original_table === table && a.alias === alias
+                    );
+                    if (!exists) {
+                        console.log(`[applyAIGeneratedModel] Registering table alias: ${schema}.${table} AS ${alias}`);
+                        state.data_table.table_aliases.push({
+                            schema: schema,
+                            original_table: table,
+                            alias: alias
+                        });
+                    }
+                });
+            });
+            
+            // DEFENSIVE FIX: Ensure aggregate-only columns are marked correctly
+            // This is a safety net in case validateAndTransformAIModel missed anything
+            if (state.data_table.query_options?.group_by?.aggregate_functions?.length > 0) {
+                const aggregateColumns = new Set();
+                state.data_table.query_options.group_by.aggregate_functions.forEach(aggFunc => {
+                    if (aggFunc.column) {
+                        aggregateColumns.add(aggFunc.column);
+                    }
+                });
+                
+                console.log('[applyAIGeneratedModel] Post-validation check - aggregate columns:', Array.from(aggregateColumns));
+                
+                state.data_table.columns.forEach(col => {
+                    const fullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
+                    if (aggregateColumns.has(fullPath) && col.is_selected_column === true) {
+                        console.warn(`[applyAIGeneratedModel] WARNING: ${fullPath} is aggregate-only but has is_selected_column=true, fixing...`);
+                        col.is_selected_column = false;
+                    }
+                });
+                
+                // DEFENSIVE FIX: Also filter GROUP BY columns array
+                if (state.data_table.query_options.group_by.group_by_columns) {
+                    const beforeCount = state.data_table.query_options.group_by.group_by_columns.length;
+                    state.data_table.query_options.group_by.group_by_columns = 
+                        state.data_table.query_options.group_by.group_by_columns.filter(col => 
+                            !aggregateColumns.has(col)
+                        );
+                    const afterCount = state.data_table.query_options.group_by.group_by_columns.length;
+                    if (beforeCount !== afterCount) {
+                        console.warn(`[applyAIGeneratedModel] DEFENSIVE: Filtered GROUP BY from ${beforeCount} to ${afterCount} columns`);
+                    }
+                }
+            }
+            
+            // Auto-detect JOIN conditions from foreign key relationships
+            console.log('[applyAIGeneratedModel] Auto-detecting JOIN conditions...');
+            autoDetectJoinConditions();
+            console.log(`[applyAIGeneratedModel] JOINs detected: ${state.join_conditions.length}`);
+            
+            // CRITICAL FIX: Sync JOIN conditions to data_table so backend receives them
+            // state.join_conditions is used by buildSQLQuery() for frontend display
+            // state.data_table.join_conditions is sent to backend in JSON
+            // Both must have the same data!
+            state.data_table.join_conditions = [...state.join_conditions];
+            console.log(`[applyAIGeneratedModel] Synced ${state.data_table.join_conditions.length} JOINs to data_table`);
+            
+            // Also sync table_aliases if they exist
+            if (state.table_aliases && state.table_aliases.length > 0) {
+                state.data_table.table_aliases = [...state.table_aliases];
+                console.log(`[applyAIGeneratedModel] Synced ${state.data_table.table_aliases.length} table aliases to data_table`);
+            }
+            
             // Switch to advanced view if model has advanced features
             if (hasAdvancedFields()) {
+                console.log('[applyAIGeneratedModel] Switching to advanced view (model has advanced features)');
                 state.viewMode = 'advanced';
             }
             
@@ -1780,7 +2623,14 @@ function validateAndTransformAIModel(aiModel) {
         // STEP 1: Detect and transform column format
         // AI-generated models may use fully-qualified column names (schema.table.column)
         // while the builder expects separate fields (schema, table_name, column_name)
+        console.log('[Data Model Builder] ===== RAW AI MODEL INPUT =====');
         console.log('[Data Model Builder] Raw columns from AI:', JSON.stringify(aiModel.columns, null, 2));
+        console.log('[Data Model Builder] Raw query_options:', JSON.stringify(aiModel.query_options, null, 2));
+        
+        // Log is_selected_column values before any processing
+        aiModel.columns.forEach((col, idx) => {
+            console.log(`[Data Model Builder] Column ${idx + 1} is_selected_column:`, col.is_selected_column);
+        });
         
         const transformedColumns = aiModel.columns.map((col, index) => {
             // Check if column uses fully-qualified format (schema.table.column)
@@ -1795,7 +2645,7 @@ function validateAndTransformAIModel(aiModel) {
                         table_name: parts[1],
                         column_name: parts[2],
                         data_type: col.data_type || 'text',
-                        is_selected_column: col.is_selected_column ?? true,
+                        is_selected_column: col.is_selected_column !== undefined ? col.is_selected_column : undefined,
                         alias_name: col.alias_name || '',
                         transform_function: col.transform_function || '',
                         character_maximum_length: col.character_maximum_length || null,
@@ -1815,7 +2665,7 @@ function validateAndTransformAIModel(aiModel) {
                         table_name: parts[0],
                         column_name: parts[1],
                         data_type: col.data_type || 'text',
-                        is_selected_column: col.is_selected_column ?? true,
+                        is_selected_column: col.is_selected_column !== undefined ? col.is_selected_column : undefined,
                         alias_name: col.alias_name || '',
                         transform_function: col.transform_function || '',
                         character_maximum_length: col.character_maximum_length || null,
@@ -1967,7 +2817,8 @@ function validateAndTransformAIModel(aiModel) {
             }
             
             // Ensure required fields exist with defaults
-            col.is_selected_column = col.is_selected_column ?? true;
+            // Note: Keep is_selected_column as undefined if not set - will be processed later
+            col.is_selected_column = col.is_selected_column !== undefined ? col.is_selected_column : undefined;
             col.alias_name = col.alias_name || '';
             col.transform_function = col.transform_function || '';
             col.character_maximum_length = col.character_maximum_length || null;
@@ -2031,8 +2882,64 @@ function validateAndTransformAIModel(aiModel) {
                  aiModel.query_options.group_by.aggregate_expressions?.length > 0)) {
                 aiModel.query_options.group_by.name = 'GROUP BY';
                 console.log('[Data Model Builder] Set group_by.name flag for UI visibility');
+                
+                // SOLUTION B: Mark columns that are ONLY used in aggregates (not in regular SELECT)
+                // Build a Set of columns used in aggregate functions
+                const aggregateColumns = new Set();
+                aiModel.query_options.group_by.aggregate_functions?.forEach(aggFunc => {
+                    if (aggFunc.column) {
+                        aggregateColumns.add(aggFunc.column);
+                    }
+                });
+                
+                // Process aggregate expressions that reference columns
+                aiModel.query_options.group_by.aggregate_expressions?.forEach(aggExpr => {
+                    if (aggExpr.expression) {
+                        // Extract column references from expressions like "schema.table.column"
+                        const columnMatches = aggExpr.expression.match(/\w+\.\w+\.\w+/g);
+                        if (columnMatches) {
+                            columnMatches.forEach(col => aggregateColumns.add(col));
+                        }
+                    }
+                });
+                
+                console.log('[Data Model Builder] Columns used in aggregates:', Array.from(aggregateColumns));
+                
+                // Mark columns that are ONLY in aggregates (set is_selected_column = false)
+                // These columns should NOT appear in SELECT or GROUP BY clauses
+                // FORCE override regardless of AI's value - aggregate-only means NOT in SELECT
+                aiModel.columns.forEach(col => {
+                    const fullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
+                    if (aggregateColumns.has(fullPath)) {
+                        const beforeValue = col.is_selected_column;
+                        // FORCE to false - this column is ONLY for aggregate functions
+                        col.is_selected_column = false;
+                        console.log(`[Data Model Builder] FORCED ${fullPath} to is_selected_column = false (was: ${beforeValue})`);
+                    }
+                });
+                
+                // CRITICAL FIX: Also filter these columns from group_by_columns array
+                // Backend uses this array to reconstruct GROUP BY clause
+                if (aiModel.query_options.group_by.group_by_columns) {
+                    const beforeCount = aiModel.query_options.group_by.group_by_columns.length;
+                    aiModel.query_options.group_by.group_by_columns = 
+                        aiModel.query_options.group_by.group_by_columns.filter(col => 
+                            !aggregateColumns.has(col)
+                        );
+                    const afterCount = aiModel.query_options.group_by.group_by_columns.length;
+                    console.log(`[Data Model Builder] Filtered GROUP BY columns: ${beforeCount} → ${afterCount}`);
+                    console.log('[Data Model Builder] Remaining GROUP BY columns:', aiModel.query_options.group_by.group_by_columns);
+                }
             }
         }
+        
+        // FINAL STEP: Default any remaining undefined is_selected_column to true (regular SELECT columns)
+        aiModel.columns.forEach(col => {
+            if (col.is_selected_column === undefined || col.is_selected_column === null) {
+                col.is_selected_column = true;
+                console.log(`[Data Model Builder] Defaulted ${col.schema}.${col.table_name}.${col.column_name} to regular SELECT column`);
+            }
+        });
         
         // Initialize calculated_columns with validation
         if (!aiModel.calculated_columns) {
@@ -2074,13 +2981,78 @@ onMounted(async () => {
     if (props.dataModel && props.dataModel.query) {
         state.data_table = props.dataModel.query;
         
-        // Auto-switch to advanced view if data model has advanced fields
-        if (hasAdvancedFields()) {
-            state.viewMode = 'advanced';
+        // Ensure join_conditions exists (for backward compatibility with older saved models)
+        if (!state.data_table.join_conditions) {
+            state.data_table.join_conditions = [];
+        }
+        
+        // Ensure table_aliases exists (for backward compatibility)
+        if (!state.data_table.table_aliases) {
+            state.data_table.table_aliases = [];
+        }
+        
+        // Migrate existing join_conditions to include primary_operator and join_logic if missing
+        if (state.data_table.join_conditions) {
+            state.data_table.join_conditions.forEach((join) => {
+                if (!join.primary_operator) {
+                    join.primary_operator = '=';
+                }
+                if (!join.join_logic) {
+                    join.join_logic = 'AND';
+                }
+            });
+        }
+        
+        // Copy JOIN conditions from data_table to state-level array for UI binding
+        if (state.data_table.join_conditions && state.data_table.join_conditions.length > 0) {
+            state.join_conditions = [...state.data_table.join_conditions];
+            console.log('[Data Model Builder] Loaded', state.join_conditions.length, 'JOIN conditions from saved model');
+        }
+        
+    // Copy table aliases from data_table to state-level array for UI binding
+    if (state.data_table.table_aliases && state.data_table.table_aliases.length > 0) {
+        state.table_aliases = [...state.data_table.table_aliases];
+        console.log('[Data Model Builder] Loaded', state.table_aliases.length, 'table aliases from saved model');
+    }
+    
+    // Ensure GROUP BY structure is properly initialized (for backward compatibility)
+    if (state.data_table.query_options?.group_by) {
+        // Ensure aggregate_functions array exists
+        if (!state.data_table.query_options.group_by.aggregate_functions) {
+            state.data_table.query_options.group_by.aggregate_functions = [];
+        }
+        
+        // Ensure aggregate_expressions array exists
+        if (!state.data_table.query_options.group_by.aggregate_expressions) {
+            state.data_table.query_options.group_by.aggregate_expressions = [];
+        }
+        
+        // Ensure having_conditions array exists
+        if (!state.data_table.query_options.group_by.having_conditions) {
+            state.data_table.query_options.group_by.having_conditions = [];
+        }
+        
+        // Ensure group_by_columns array exists
+        if (!state.data_table.query_options.group_by.group_by_columns) {
+            state.data_table.query_options.group_by.group_by_columns = [];
+        }
+        
+        // Log loaded aggregate functions if any
+        if (state.data_table.query_options.group_by.aggregate_functions.length > 0) {
+            console.log('[Data Model Builder] Loaded', state.data_table.query_options.group_by.aggregate_functions.length, 'aggregate functions from saved model');
+        }
+        
+        // Log loaded aggregate expressions if any
+        if (state.data_table.query_options.group_by.aggregate_expressions.length > 0) {
+            console.log('[Data Model Builder] Loaded', state.data_table.query_options.group_by.aggregate_expressions.length, 'aggregate expressions from saved model');
         }
     }
     
-    console.log('[DEBUG - Data Model Builder] Raw dataSourceTables received:', props.dataSourceTables.length, 'tables');
+    // Auto-switch to advanced view if data model has advanced fields
+    if (hasAdvancedFields()) {
+        state.viewMode = 'advanced';
+    }
+}    console.log('[DEBUG - Data Model Builder] Raw dataSourceTables received:', props.dataSourceTables.length, 'tables');
     
     // Diagnostic: Check each table for duplicates
     props.dataSourceTables.forEach((table, tIndex) => {
@@ -2175,18 +3147,17 @@ onMounted(async () => {
                     </tr>
                 </thead>
             </table>
+            <div class="w-full h-1 bg-blue-300 mt-5 mb-5"></div>
         </div>
-        
-        <div class="w-full h-1 bg-blue-300 mt-5 mb-5"></div>
-        
+                
         <!-- View Mode Toggle -->
         <div class="flex justify-end mb-4">
-            <div class="inline-flex rounded-md shadow-sm" role="group">
+            <div class="inline-flex shadow-sm" role="group">
                 <button 
                     type="button"
                     @click="state.viewMode = 'simple'"
                     :class="[
-                        'cursor-pointer px-4 py-2 text-sm font-medium transition-all duration-200',
+                        'cursor-pointer px-4 py-2 text-sm font-medium transition-all duration-200 border border-2 border-solid border-gray-200',
                         state.viewMode === 'simple' 
                             ? 'bg-blue-600 text-white border-blue-600' 
                             : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
@@ -2198,7 +3169,7 @@ onMounted(async () => {
                     type="button"
                     @click="state.viewMode = 'advanced'"
                     :class="[
-                        'cursor-pointer px-4 py-2 text-sm font-medium transition-all duration-200',
+                        'cursor-pointer px-4 py-2 text-sm font-medium transition-all duration-200 border border-2 border-solid border-gray-200',
                         state.viewMode === 'advanced' 
                             ? 'bg-blue-600 text-white border-blue-600' 
                             : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
@@ -2212,7 +3183,7 @@ onMounted(async () => {
         <div class="flex flex-row m-10">
             <div class="w-1/2 flex flex-col pr-5 mr-5 border-r-2 border-primary-blue-100">
                 <!-- Table Alias Manager -->
-                <div class="mb-6 p-4 border-2 border-blue-200 bg-blue-50">
+                <div v-if="state.viewMode === 'advanced'" class="mb-6 p-4 border-2 border-blue-200 bg-blue-50">
                     <h3 class="font-bold mb-3 flex items-center text-blue-800">
                         <font-awesome icon="fas fa-layer-group" class="mr-2" />
                         Table Aliases (For Self-Referencing Relationships)
@@ -2252,16 +3223,188 @@ onMounted(async () => {
                     </button>
                 </div>
                 
+                <!-- JOIN Conditions Manager -->
+                <div v-if="state.viewMode === 'advanced' && hasMultipleTables()" class="mb-6 p-4 border-2 border-green-200 bg-green-50">
+                    <h3 class="font-bold mb-3 flex items-center text-green-800">
+                        <font-awesome icon="fas fa-link" class="mr-2" />
+                        JOIN Conditions
+                    </h3>
+                    <p class="text-sm text-gray-700 mb-3">
+                        Manage how tables are joined together. Auto-detected JOINs are shown below, or create custom ones.
+                    </p>
+                    
+                    <div v-if="state.join_conditions.length === 0" class="text-gray-600 italic mb-3 text-sm">
+                        No JOIN conditions defined yet. Click "Add JOIN" or use AI to auto-detect from foreign keys.
+                    </div>
+                    
+                    <div v-else class="mb-3 space-y-3">
+                        <template v-for="(join, joinIndex) in state.join_conditions" :key="join.id">
+                        <!-- AND/OR Logic Connector (between JOINs) -->
+                        <div v-if="joinIndex > 0" class="flex justify-center items-center my-3">
+                            <div class="flex items-center gap-2 bg-yellow-50 border-2 border-yellow-400 px-4 py-2 rounded-lg shadow-sm">
+                                <font-awesome icon="fas fa-code-branch" class="text-yellow-700" />
+                                <span class="text-xs font-semibold text-gray-600">Connect with:</span>
+                                <select
+                                    :value="join.join_logic || 'AND'"
+                                    @change="updateJoinLogic(joinIndex, $event.target.value)"
+                                    class="px-3 py-1 border-2 border-yellow-500 rounded bg-white font-bold text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-yellow-600"
+                                >
+                                    <option value="AND">AND - Both conditions must match</option>
+                                    <option value="OR">OR - Either condition can match</option>
+                                </select>
+                                <span v-if="join.join_logic === 'OR'" class="text-xs text-orange-600 flex items-center gap-1">
+                                    <font-awesome icon="fas fa-exclamation-triangle" />
+                                    Complex query
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white p-4 border-2"
+                             :class="join.is_auto_detected ? 'border-purple-300' : 'border-green-400'">
+                            <!-- Main JOIN Condition -->
+                            <div class="flex items-start justify-between mb-3">
+                                <div class="flex-1">
+                                    <div class="flex items-center mb-2">
+                                        <span class="px-2 py-1 text-xs font-bold mr-2"
+                                              :class="join.join_type === 'INNER' ? 'bg-blue-200 text-blue-800' : 
+                                                     join.join_type === 'LEFT' ? 'bg-yellow-200 text-yellow-800' : 
+                                                     join.join_type === 'RIGHT' ? 'bg-orange-200 text-orange-800' : 
+                                                     'bg-purple-200 text-purple-800'">
+                                            {{ join.join_type }} JOIN
+                                        </span>
+                                        <span v-if="join.is_auto_detected" class="px-2 py-1 text-xs bg-purple-100 text-purple-700">
+                                            <font-awesome icon="fas fa-magic" class="mr-1" />
+                                            Auto-detected
+                                        </span>
+                                    </div>
+                                    
+                                    <div class="font-mono text-sm bg-gray-100 p-2 border border-gray-300 flex items-center">
+                                        <span class="font-semibold text-blue-700">
+                                            {{ join.left_table_schema }}.{{ join.left_table_alias || join.left_table_name }}.{{ join.left_column_name }}
+                                        </span>
+                                        <select
+                                            :value="join.primary_operator || '='"
+                                            @change="updateJoinOperator(joinIndex, $event.target.value)"
+                                            class="mx-2 px-2 py-1 border border-gray-400 rounded text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                                        >
+                                            <option value="=">=</option>
+                                            <option value="!=">!=</option>
+                                            <option value=">">&gt;</option>
+                                            <option value="<">&lt;</option>
+                                            <option value=">=">&gt;=</option>
+                                            <option value="<=">&lt;=</option>
+                                        </select>
+                                        <span class="font-semibold text-green-700">
+                                            {{ join.right_table_schema }}.{{ join.right_table_alias || join.right_table_name }}.{{ join.right_column_name }}
+                                        </span>
+                                    </div>
+                                    
+                                    <!-- Additional Conditions -->
+                                    <div v-if="join.additional_conditions && join.additional_conditions.length > 0" class="mt-2 ml-4">
+                                        <div v-for="(addCond, condIndex) in join.additional_conditions" :key="condIndex" 
+                                             class="flex items-center gap-2 mb-1 text-sm">
+                                            <select v-model="addCond.logic" class="px-2 py-1 border border-gray-300 text-xs">
+                                                <option value="AND">AND</option>
+                                                <option value="OR">OR</option>
+                                            </select>
+                                            
+                                            <select v-model="addCond.left_column" class="px-2 py-1 border border-gray-300 flex-1 text-xs">
+                                                <option value="">Select column...</option>
+                                                <option v-for="col in getColumnsForTable(join.left_table_name, join.left_table_alias)" 
+                                                        :key="col.value" :value="col.value">
+                                                    {{ col.label }}
+                                                </option>
+                                            </select>
+                                            
+                                            <select v-model="addCond.operator" class="px-2 py-1 border border-gray-300 text-xs">
+                                                <option value="=">=</option>
+                                                <option value="!=">!=</option>
+                                                <option value=">">></option>
+                                                <option value="<"><</option>
+                                                <option value=">=">>=</option>
+                                                <option value="<="><=</option>
+                                            </select>
+                                            
+                                            <select v-model="addCond.right_column" class="px-2 py-1 border border-gray-300 flex-1 text-xs">
+                                                <option value="">Select column...</option>
+                                                <option v-for="col in getColumnsForTable(join.right_table_name, join.right_table_alias)" 
+                                                        :key="col.value" :value="col.value">
+                                                    {{ col.label }}
+                                                </option>
+                                            </select>
+                                            
+                                            <button @click="removeAdditionalCondition(joinIndex, condIndex)" 
+                                                    class="bg-red-500 text-white px-2 py-1 text-xs hover:bg-red-600 cursor-pointer">
+                                                <font-awesome icon="fas fa-times" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <button @click="addAdditionalCondition(joinIndex)" 
+                                            class="mt-2 text-xs text-blue-600 hover:text-blue-800 cursor-pointer">
+                                        <font-awesome icon="fas fa-plus" class="mr-1" />
+                                        Add AND/OR condition
+                                    </button>
+                                </div>
+                                
+                                <button @click="removeJoinCondition(joinIndex)" 
+                                        class="bg-red-500 text-white px-3 py-1 text-sm hover:bg-red-600 transition-colors ml-2 cursor-pointer">
+                                    Remove
+                                </button>
+                            </div>
+                        </div>
+                        </template>
+                    </div>
+                    
+                    <button @click="openJoinDialog()" 
+                            class="bg-green-600 text-white px-4 py-2 hover:bg-green-700 transition-colors flex items-center gap-2 cursor-pointer">
+                        <font-awesome icon="fas fa-plus" />
+                        Add JOIN Condition
+                    </button>
+                </div>
+                
                 <h2 class="font-bold text-center mb-5">Tables</h2>
+                
+                <!-- Aggregate-Only Columns Info Box -->
+                <div v-if="getAggregateOnlyColumns().length > 0" class="mb-4 p-3 bg-purple-50 border-2 border-purple-300 rounded">
+                    <div class="flex items-center mb-2">
+                        <font-awesome icon="fas fa-calculator" class="text-purple-600 mr-2" />
+                        <h4 class="font-bold text-purple-800">Columns Used in Aggregates Only</h4>
+                    </div>
+                    <div class="text-sm text-gray-700 space-y-1">
+                        <p class="mb-2 italic">These columns are used in aggregate functions (COUNT, SUM, etc.) but not displayed as regular columns:</p>
+                        <div v-for="aggCol in getAggregateOnlyColumns()" :key="aggCol.fullPath" 
+                             class="bg-white p-2 border border-purple-200 rounded flex items-center justify-between">
+                            <span class="font-mono text-xs">
+                                <strong class="text-purple-700">{{ aggCol.aggregate_function }}</strong>(
+                                <span class="text-blue-600">{{ aggCol.schema }}.{{ aggCol.table_name }}.{{ aggCol.column_name }}</span>
+                                ) AS <strong>{{ aggCol.alias }}</strong>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                
                 <div class="grid grid-cols-1 sm:grid-cols-2 md:Grid-cols-3 md:gap-2">
                     <div v-for="tableOrAlias in getTablesWithAliases()" :key="`${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`" 
                          class="flex flex-col border border-solid p-1"
-                         :class="tableOrAlias.isAlias ? 'border-blue-400 bg-blue-50' : 'border-primary-blue-100'">
+                         :class="{
+                             'border-blue-400 bg-blue-50': tableOrAlias.isAlias,
+                             'border-green-400 bg-green-50': tableOrAlias.isJoinedOrAggregate && !tableOrAlias.isAlias,
+                             'border-primary-blue-100': !tableOrAlias.isAlias && !tableOrAlias.isJoinedOrAggregate
+                         }">
                         <h4 class="text-center font-bold p-1 mb-2 overflow-clip text-ellipsis wrap-anywhere"
-                            :class="tableOrAlias.isAlias ? 'bg-blue-200' : 'bg-gray-300'">
+                            :class="{
+                                'bg-blue-200': tableOrAlias.isAlias,
+                                'bg-green-200': tableOrAlias.isJoinedOrAggregate && !tableOrAlias.isAlias,
+                                'bg-gray-300': !tableOrAlias.isAlias && !tableOrAlias.isJoinedOrAggregate
+                            }">
                             {{ tableOrAlias.display_name }}
                             <span v-if="tableOrAlias.isAlias" class="text-xs text-blue-700 block mt-1">
                                 (Alias of {{ tableOrAlias.original_table }})
+                            </span>
+                            <span v-if="tableOrAlias.isJoinedOrAggregate && !tableOrAlias.isAlias" class="text-xs text-green-800 block mt-1 flex items-center justify-center gap-1">
+                                <font-awesome icon="fas fa-link" class="text-xs" />
+                                Joined/Aggregate Table
                             </span>
                         </h4>
                         <div class="p-1 m-2 p-2 wrap-anywhere"
@@ -2284,17 +3427,22 @@ onMounted(async () => {
                             <template #item="{ element, index }">
                                 <div class="cursor-pointer p-1 ml-2 mr-2"
                                     :class="{
-                                        'bg-gray-200': !element.reference.foreign_table_schema ? index % 2 === 0 : false,
+                                        'bg-gray-200': !element.reference.foreign_table_schema && !isColumnUsedInAggregate(element.column_name, tableOrAlias.schema, tableOrAlias.table_name) ? index % 2 === 0 : false,
                                         'bg-blue-100': tableOrAlias.isAlias && !element.reference.foreign_table_schema && index % 2 === 0,
                                         'bg-red-100 border-t-1 border-b-1 border-red-300': isColumnInDataModel(element.column_name, tableOrAlias.table_name, tableOrAlias.table_alias),
-                                        'hover:bg-green-100': !isColumnInDataModel(element.column_name, tableOrAlias.table_name, tableOrAlias.table_alias),
-                                        'bg-red-200': element.reference.foreign_table_schema,
-
+                                        'bg-purple-100 border-t-1 border-b-1 border-purple-300': isColumnUsedInAggregate(element.column_name, tableOrAlias.schema, tableOrAlias.table_name),
+                                        'hover:bg-green-100': !isColumnInDataModel(element.column_name, tableOrAlias.table_name, tableOrAlias.table_alias) && !isColumnUsedInAggregate(element.column_name, tableOrAlias.schema, tableOrAlias.table_name),
                                     }"
                                 >
                                     <div class="flex flex-row">
                                         <div class="w-2/3 ml-2 wrap-anywhere">
-                                            Column: <strong>{{ element.display_column_name || element.column_name }}</strong><br />
+                                            Column: <strong>{{ element.display_column_name || element.column_name }}</strong>
+                                            <span v-if="isColumnUsedInAggregate(element.column_name, tableOrAlias.schema, tableOrAlias.table_name)" 
+                                                  class="text-xs text-purple-700 ml-2 inline-flex items-center gap-1">
+                                                <font-awesome icon="fas fa-calculator" class="text-xs" />
+                                                Used in aggregate
+                                            </span>
+                                            <br />
                                             Column Data Type: {{ element.data_type }}<br />
                                             <div v-if="element.reference && element.reference.foreign_table_schema">
                                                 <strong>Foreign Key Relationship Reference:</strong><br />
@@ -2343,49 +3491,86 @@ onMounted(async () => {
                                 </div>
                             </template>
                             <template #item="{ element, index }">
-                                <div class="cursor-pointer p-1 ml-2 mr-2"
-                                    :class="{
-                                        'bg-gray-200': index % 2 === 0,
-                                    }"
-                                >
-                                    <div class="flex flex-row justify-around">
-                                        <div class="ml-2 wrap-anywhere w-1/6">
-                                            Table: {{ element.table_name }}<br />
-                                            <strong>Column: {{ element.column_name }}</strong><br />
-                                            Column Data Type: {{ element.data_type }}
+                                <div class="cursor-pointer p-1 ml-2 mr-2">
+                                    <div class="flex flex-col"
+                                        :class="{
+                                            'bg-gray-200': index % 2 === 0,
+                                        }"
+                                    >
+                                        <div class="m-2">
+                                             <table class="w-full border border-primary-blue-100 border-solid">
+                                                <thead>
+                                                    <tr>
+                                                        <th class="bg-blue-100 border border-primary-blue-100 border-solid p-2 text-center font-bold ">
+                                                            Table Name
+                                                        </th>
+                                                        <th class="bg-blue-100 border border-primary-blue-100 border-solid p-2 text-center font-bold ">
+                                                            Column Name
+                                                        </th>
+                                                        <th class="bg-blue-100 border border-primary-blue-100 border-solid p-2 text-center font-bold ">
+                                                            Column Data Type
+                                                        </th>
+                                                    </tr>
+                                                    <tr class="border border-primary-blue-100 border-solid p-2 text-center font-bold">
+                                                        <td class="border border-primary-blue-100 border-solid p-2 text-center">
+                                                            {{ element.table_name }}
+                                                        </td>
+                                                        <td class="border border-primary-blue-100 border-solid p-2 text-center">
+                                                            {{ element.column_name }}
+                                                        </td>
+                                                        <td class="border border-primary-blue-100 border-solid p-2 text-center">
+                                                            {{ element.data_type }}
+                                                        </td>
+
+                                                    </tr>
+                                                </thead>
+                                            </table>
                                         </div>
-                                        <Transition
-                                            enter-active-class="transition-all duration-300 ease-out"
-                                            leave-active-class="transition-all duration-200 ease-in"
-                                            enter-from-class="opacity-0 -translate-x-4"
-                                            enter-to-class="opacity-100 translate-x-0"
-                                            leave-from-class="opacity-100 translate-x-0"
-                                            leave-to-class="opacity-0 translate-x-4"
-                                        >
-                                            <div v-if="state.viewMode === 'advanced'" class="flex flex-col w-1/5 mr-2">
-                                                <h5 class="font-bold mb-2">Transform Function</h5>
-                                                <select 
-                                                    class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" 
-                                                    v-model="element.transform_function"
-                                                    @change="onTransformChange(element, $event)"
-                                                >
-                                                    <option v-for="func in state.transform_functions" :key="func.value" :value="func.value">
-                                                        {{ func.name }}
-                                                    </option>
-                                                </select>
-                                            </div>
-                                        </Transition>
-                                        <div class="flex flex-col w-1/4 mr-2">
-                                            <h5 class="font-bold mb-2">Column Alias Name</h5>
-                                            <input type="text" class="w-full border border-primary-blue-100 border-solid p-2" placeholder="Enter Column Alias Name" v-model="element.alias_name" />
-                                        </div>
-                                        <div class="flex flex-col justify-center mr-2">
-                                            <input type="checkbox" class="cursor-pointer scale-150" v-model="element.is_selected_column" v-tippy="{ content: element.is_selected_column ? 'Uncheck to prevent the column from being added to the data model' : 'Check to add the column to the data model', placement: 'top' }" />
-                                        </div>
-                                        <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold" @click="deleteColumn(element.column_name)">
-                                            Delete
+                                        <div class="m-2">
+                                            <table class="w-full border border-primary-blue-100 border-solid">
+                                                <thead>
+                                                    <tr>
+                                                        <th  v-if="state.viewMode === 'advanced'" class="bg-blue-100 border border-primary-blue-100 border-solid p-2 text-center font-bold ">
+                                                            Transform Function
+                                                        </th>
+                                                        <th class="bg-blue-100 border border-primary-blue-100 border-solid p-2 text-center font-bold ">
+                                                            Column Alias Name
+                                                        </th>
+                                                        <th class="bg-blue-100 border border-primary-blue-100 border-solid p-2 text-center font-bold ">
+                                                            Actions
+                                                        </th>
+                                                    </tr>
+                                                    <tr class="border border-primary-blue-100 border-solid p-2 text-center font-bold">
+                                                        <td  v-if="state.viewMode === 'advanced'" class="border border-primary-blue-100 border-solid p-2 text-center">
+                                                            <div class="flex flex-col mr-2">
+                                                                <select 
+                                                                    class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer" 
+                                                                    v-model="element.transform_function"
+                                                                    @change="onTransformChange(element, $event)"
+                                                                >
+                                                                    <option v-for="func in state.transform_functions" :key="func.value" :value="func.value">
+                                                                        {{ func.name }}
+                                                                    </option>
+                                                                </select>
+                                                            </div>
+                                                        </td>
+                                                        <td class="border border-primary-blue-100 border-solid p-2 text-center">
+                                                            <input type="text" class="w-full border border-primary-blue-100 border-solid p-2" placeholder="Enter Column Alias Name" v-model="element.alias_name" />
+                                                        </td>
+                                                        <td class="border border-primary-blue-100 border-solid p-2 text-center">
+                                                            <div class="flex flex-col justify-between">
+                                                                <input type="checkbox" class="cursor-pointer scale-150 mb-2" v-model="element.is_selected_column" v-tippy="{ content: element.is_selected_column ? 'Uncheck to prevent the column from being added to the data model' : 'Check to add the column to the data model', placement: 'top' }" />
+                                                                <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold" @click="deleteColumn(element.column_name)">
+                                                                    Delete
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                </thead>
+                                            </table>
                                         </div>
                                     </div>
+                                    <div class="w-full h-[3px] bg-blue-200 mt-4"></div>
                                 </div>
                             </template>
                             <template #footer>
@@ -2834,6 +4019,136 @@ onMounted(async () => {
         
         <!-- AI Data Modeler Drawer -->
         <AiDataModelerDrawer />
+        
+        <!-- JOIN Condition Creation Dialog -->
+        <div v-if="state.show_join_dialog" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white p-6 w-[600px] shadow-2xl max-h-[90vh] overflow-y-auto">
+                <h3 class="text-xl font-bold mb-4 text-gray-800 flex items-center">
+                    <font-awesome icon="fas fa-link" class="mr-2 text-green-600" />
+                    Create JOIN Condition
+                </h3>
+                
+                <p class="text-sm text-gray-600 mb-4">
+                    Define how two tables should be joined together. Select tables and columns that should match.
+                </p>
+                
+                <!-- JOIN Type Selection -->
+                <div class="mb-4">
+                    <label class="block mb-2 font-medium text-gray-700">JOIN Type:</label>
+                    <select v-model="state.join_form.join_type" class="w-full border border-gray-300 p-2 cursor-pointer focus:border-green-500 focus:ring-1 focus:ring-green-500">
+                        <option value="INNER">INNER JOIN - Only matching rows from both tables</option>
+                        <option value="LEFT">LEFT JOIN - All rows from left table + matching from right</option>
+                        <option value="RIGHT">RIGHT JOIN - All rows from right table + matching from left</option>
+                        <option value="FULL OUTER">FULL OUTER JOIN - All rows from both tables</option>
+                    </select>
+                </div>
+                
+                <!-- Primary Operator Selection -->
+                <div class="mb-4">
+                    <label class="block mb-2 font-medium text-gray-700">Primary Operator:</label>
+                    <select v-model="state.join_form.primary_operator" class="w-full border border-gray-300 p-2 cursor-pointer focus:border-green-500 focus:ring-1 focus:ring-green-500">
+                        <option value="=">=  (Equal to)</option>
+                        <option value="!=">!= (Not equal to)</option>
+                        <option value=">">&gt; (Greater than)</option>
+                        <option value="<">&lt; (Less than)</option>
+                        <option value=">=">&gt;= (Greater than or equal)</option>
+                        <option value="<=">&lt;= (Less than or equal)</option>
+                    </select>
+                </div>
+                
+                <!-- Left Table Selection -->
+                <div class="mb-4">
+                    <label class="block mb-2 font-medium text-gray-700">Left Table:</label>
+                    <select v-model="state.join_form.left_table" 
+                            @change="onJoinFormLeftTableChange()"
+                            class="w-full border border-gray-300 p-2 cursor-pointer focus:border-green-500 focus:ring-1 focus:ring-green-500">
+                        <option value="">-- Select Left Table --</option>
+                        <option v-for="table in getAvailableTablesForJoin()" 
+                                :key="table.value" 
+                                :value="table.value">
+                            {{ table.label }}
+                        </option>
+                    </select>
+                </div>
+                
+                <!-- Left Column Selection -->
+                <div class="mb-4">
+                    <label class="block mb-2 font-medium text-gray-700">Left Column:</label>
+                    <select v-model="state.join_form.left_column" 
+                            :disabled="!state.join_form.left_table"
+                            class="w-full border border-gray-300 p-2 cursor-pointer focus:border-green-500 focus:ring-1 focus:ring-green-500 disabled:bg-gray-100">
+                        <option value="">-- Select Left Column --</option>
+                        <option v-for="col in getColumnsForJoinForm('left')" 
+                                :key="col.value" 
+                                :value="col.value">
+                            {{ col.label }} ({{ col.data_type }})
+                        </option>
+                    </select>
+                </div>
+                
+                <div class="flex justify-center mb-4">
+                    <font-awesome icon="fas fa-equals" class="text-3xl text-gray-400" />
+                </div>
+                
+                <!-- Right Table Selection -->
+                <div class="mb-4">
+                    <label class="block mb-2 font-medium text-gray-700">Right Table:</label>
+                    <select v-model="state.join_form.right_table" 
+                            @change="onJoinFormRightTableChange()"
+                            class="w-full border border-gray-300 p-2 cursor-pointer focus:border-green-500 focus:ring-1 focus:ring-green-500">
+                        <option value="">-- Select Right Table --</option>
+                        <option v-for="table in getAvailableTablesForJoin()" 
+                                :key="table.value" 
+                                :value="table.value">
+                            {{ table.label }}
+                        </option>
+                    </select>
+                </div>
+                
+                <!-- Right Column Selection -->
+                <div class="mb-4">
+                    <label class="block mb-2 font-medium text-gray-700">Right Column:</label>
+                    <select v-model="state.join_form.right_column" 
+                            :disabled="!state.join_form.right_table"
+                            class="w-full border border-gray-300 p-2 cursor-pointer focus:border-green-500 focus:ring-1 focus:ring-green-500 disabled:bg-gray-100">
+                        <option value="">-- Select Right Column --</option>
+                        <option v-for="col in getColumnsForJoinForm('right')" 
+                                :key="col.value" 
+                                :value="col.value">
+                            {{ col.label }} ({{ col.data_type }})
+                        </option>
+                    </select>
+                </div>
+                
+                <!-- JOIN Preview -->
+                <div class="bg-green-50 border border-green-200 p-3 mb-4">
+                    <strong class="text-green-800 block mb-2">SQL Preview:</strong>
+                    <div class="font-mono text-sm text-gray-700 bg-white p-2 border border-gray-300 whitespace-pre-wrap break-all">
+                        {{ getJoinFormPreview() }}
+                    </div>
+                </div>
+                
+                <div class="bg-blue-50 border border-blue-200 p-3 mb-4 text-sm">
+                    <strong class="text-blue-800">Tip:</strong>
+                    <div class="mt-2 text-gray-700">
+                        • Most JOINs use INNER JOIN (only matching rows)<br />
+                        • Use LEFT JOIN to keep all rows from the left table even if no match<br />
+                        • For self-referencing relationships, use table aliases first
+                    </div>
+                </div>
+                
+                <div class="flex justify-end gap-2">
+                    <button @click="closeJoinDialog()" class="px-4 py-2 border border-gray-300 hover:bg-gray-50 transition-colors cursor-pointer">
+                        Cancel
+                    </button>
+                    <button @click="createJoinCondition()" 
+                            :disabled="!isJoinFormValid()"
+                            class="px-4 py-2 bg-green-600 text-white hover:bg-green-700 transition-colors cursor-pointer disabled:bg-gray-400 disabled:cursor-not-allowed">
+                        Create JOIN
+                    </button>
+                </div>
+            </div>
+        </div>
         
         <!-- Table Alias Creation Dialog -->
         <div v-if="state.show_alias_dialog" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

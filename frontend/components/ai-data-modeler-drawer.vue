@@ -31,17 +31,23 @@ const hasValidModel = computed(() => {
     return result;
 });
 
+// Track if user has actively requested model generation
+const userRequestedGeneration = ref(false);
+
 // Computed property for last message data model detection
 const lastMessageHasDataModel = computed(() => {
     if (aiDataModelerStore.messages.length === 0) return false;
     const lastMessage = aiDataModelerStore.messages[aiDataModelerStore.messages.length - 1];
+    // Only check if user has actively requested generation
+    if (!userRequestedGeneration.value) return false;
     return messageContainsDataModel(lastMessage.content);
 });
 
 // Computed property for showing error state
 const showModelError = computed(() => {
-    const result = lastMessageHasDataModel.value && !hasValidModel.value;
-    console.log('[AI Drawer] showModelError:', result, { lastMessageHasDataModel: lastMessageHasDataModel.value, hasValidModel: hasValidModel.value });
+    // Only show error if user explicitly requested generation
+    const result = userRequestedGeneration.value && lastMessageHasDataModel.value && !hasValidModel.value;
+    console.log('[AI Drawer] showModelError:', result, { userRequestedGeneration: userRequestedGeneration.value, lastMessageHasDataModel: lastMessageHasDataModel.value, hasValidModel: hasValidModel.value });
     return result;
 });
 
@@ -94,6 +100,15 @@ function toggleAutoApply() {
 
 // Keyboard navigation
 let keyboardHandler: ((e: KeyboardEvent) => void) | null = null;
+
+// Watch for drawer opening/closing to reset state
+watch(() => aiDataModelerStore.isDrawerOpen, (isOpen) => {
+    if (isOpen) {
+        // Reset flag when drawer opens - user hasn't requested generation yet
+        userRequestedGeneration.value = false;
+        console.log('[AI Drawer] Drawer opened, reset userRequestedGeneration flag');
+    }
+});
 
 onMounted(() => {
     loadPreferences();
@@ -162,6 +177,7 @@ watch(
 );
 
 function handlePresetModel(prompt: string) {
+    userRequestedGeneration.value = true;
     aiDataModelerStore.sendMessage(prompt);
 }
 
@@ -170,11 +186,14 @@ function handleGenerateAnotherRecommendation() {
     const prompt = `Based on my database schema, please recommend and generate a data model that would provide valuable insights. Analyze the available tables and columns, then suggest a data model that combines relevant data in a meaningful way. Be creative and consider different analytical perspectives I might not have thought of. Include appropriate columns, joins, and any useful aggregations or filters.`;
     
     console.log('[AI Drawer] Generating another AI recommendation');
+    userRequestedGeneration.value = true;
     aiDataModelerStore.sendMessage(prompt);
 }
 
 function handleClose() {
     if (!aiDataModelerStore.isLoading && !aiDataModelerStore.isInitializing) {
+        // Reset flag when closing drawer
+        userRequestedGeneration.value = false;
         aiDataModelerStore.closeDrawer(false);
     }
 }
