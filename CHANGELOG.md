@@ -6,6 +6,179 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## 2025-12-06
+
+### Added - Complete AI Data Modeler System (DRA-217)
+**Files:** 30+ modified/new (backend services, controllers, routes, models, migrations, frontend components, stores, documentation)
+- **AI-Powered Data Model Creation:** Integrated Google Gemini AI for intelligent, conversational data model building
+- **Redis Session Management:** 24-hour TTL for active sessions with automatic cleanup
+- **Database Persistence:** PostgreSQL tables for conversation history and model storage
+- **Chat Interface Components:**
+  - ai-data-modeler-drawer.vue: Main chat interface with navigation drawer
+  - ai-chat-input.vue: Message input with send functionality
+  - ai-chat-message.vue: Message display with user/assistant formatting
+  - Historical conversation loading and resumption
+- **Backend Services:**
+  - RedisAISessionService: Complete session lifecycle management (create, save, transfer, clear)
+  - GeminiService: AI integration with streaming responses
+  - SchemaCollectorService: Database schema extraction and context building
+  - AIDataModelerController: REST API endpoints for chat operations
+- **Database Schema:**
+  - dra_ai_data_model_conversations: Conversation metadata (draft/saved/archived status)
+  - dra_ai_data_model_messages: Individual messages with role and content
+  - Foreign keys and cascade deletion for data integrity
+- **Documentation:** ai-data-modeler-implementation.md, ai-data-modeler-quick-start.md (568+ lines)
+- **System Prompts:** Extensive AI roles for robust model generation with schema understanding
+- **Features:** Auto-detection of JOINs, aggregate functions, column selection, WHERE conditions
+
+### Fixed - Critical Query Reconstruction Issues (DRA-217)
+**Files:** DataSourceProcessor.ts, data-model-builder.vue, JSON-QUERY-RECONSTRUCTION-FIX.md (608 lines), join-conditions-manager-*.md
+- **JOIN Conditions Sync Issue:**
+  - Fixed dual state management where `state.join_conditions` (component) was not syncing to `state.data_table.join_conditions` (backend)
+  - Backend was receiving empty JOIN arrays causing PostgreSQL 42P01 errors
+  - Implemented explicit sync after auto-detection in `applyAIGeneratedModel()`
+  - Added sync verification with console logging
+- **Aggregate Column Handling:**
+  - Fixed GROUP BY containing aggregate-only columns (COUNT, SUM, AVG, etc.)
+  - Three-layer defense: validation filter, application filter, defensive check
+  - Columns used only in aggregates marked with `is_selected_column: false`
+  - Automatic filtering prevents PostgreSQL 42803 errors
+- **SQL Reconstruction from JSON:**
+  - Backend `reconstructSQLFromJSON()` method rebuilds complete SQL with proper JOINs
+  - Parses JSON query structure to construct FROM/JOIN clauses
+  - Handles table aliases, WHERE conditions, GROUP BY, HAVING, ORDER BY
+  - Prevents "missing FROM-clause entry for table" errors
+  - Comprehensive logging for debugging query construction
+- **Visual Indicators:**
+  - Green borders for tables included via JOINs
+  - Purple info boxes explaining aggregate-only column usage
+  - Calculator icons for columns in aggregate functions
+- **Documentation Updates:**
+  - JSON-QUERY-RECONSTRUCTION-FIX.md: Backend reconstruction details with examples
+  - join-conditions-manager-implementation.md: Full implementation guide (750+ lines)
+  - join-conditions-manager-quick-reference.md: Troubleshooting guide with console diagnostics
+
+### Enhanced - Data Model Builder Improvements (DRA-217)
+**Files:** data-model-builder.vue (4203 lines)
+- AI model application in edit mode with historical chat loading
+- System prompt improvements for context-aware model generation
+- Enhanced auto-detection algorithm for complex multi-table JOINs
+- Defensive programming patterns for robust error handling
+- Console diagnostic commands for debugging state synchronization
+
+---
+
+## 2025-12-03
+
+### Fixed - Data Sources Not Loading on Login (DRA-218)
+**Files:** Frontend pages/components, middleware
+- Data sources now load correctly when user selects a project
+- Eliminated need for manual page refresh after login
+- Removed unnecessary console.log statements for cleaner logs
+
+---
+
+## 2025-11-30
+
+### Enhanced - AI Data Modeler Integration
+**Files:** ai-data-modeler-drawer.vue, data-model-builder.vue
+- Integrated AI data modeler into edit data model page
+- Fixed bug where historical chat conversations were not loading in navigation drawer
+- Improved chat state management and conversation persistence
+
+---
+
+## 2025-11-26
+
+### Added - Advanced View in Data Model Builder (DRA-215)
+**Files:** data-model-builder.vue, related components
+- **Simple View:** Existing controls for basic users (backwards compatible)
+- **Advanced View:** Additional controls for power users
+  - Column transforms for data manipulation
+  - Aggregate column configuration (COUNT, SUM, AVG, MIN, MAX)
+  - Advanced filtering and grouping options
+  - Aggregate columns selectable in appropriate controls
+- View toggle allows users to switch between complexity levels
+- Enhanced query building capabilities with advanced SQL features
+
+### Enhanced - Chart Tooltips and Visualization (DRA-215)
+**Files:** Chart components
+- Added detailed tooltips to all chart types (table, pie, bar, line, etc.)
+- Improved data point clarity and user understanding
+- Enhanced hover interactions with contextual information
+- Better visualization of data relationships
+
+---
+
+## 2025-11-23
+
+### Fixed - Navigation and JOIN Detection Issues
+**Files:** Home page, data-model-builder.vue, middleware
+- **Home Page Redirect:** Logged-in users now properly redirected to projects page
+- **JOIN Detection Bug:** Fixed issue where multiple tables were not being correctly joined
+  - Auto-detection algorithm improved for complex schemas
+  - Multiple JOINs no longer missed or skipped
+  - Proper handling of multi-table relationships
+
+---
+
+## 2025-11-20
+
+### Added - Column Selection with Checkboxes (DRA-214)
+**Files:** data-model-builder.vue, table selection components
+- Checkbox added to each column in source tables for easy selection
+- Eliminates need to drag columns for model building
+- Improved user experience with faster column addition
+- Drag-and-drop still available for users who prefer it
+
+### Added - Chart Filtering Functionality (DRA-55)
+**Files:** Chart components (table, pie, bar charts)
+- Implemented filtering between table, pie chart, horizontal and vertical bar charts
+- Cross-chart filtering for interactive data exploration
+- Detailed tooltips added to all chart types
+- Additional chart types filtering in testing phase
+
+---
+
+## 2025-11-18
+
+### Fixed - Text Editor and Dashboard Issues (DRA-211)
+**Files:** text-editor.vue, edit dashboard components, public dashboard pages
+- Text content now loads correctly in edit dashboard text editor component
+- Fixed TipTap editor showing in public dashboard URLs (should be read-only HTML)
+- Removed unnecessary console.log statements
+
+### Added - Article Publishing Management (DRA-213)
+**Files:** Article edit pages, backend routes
+- Implemented unpublish article functionality
+- Added publish/unpublish toggle in edit article page
+- Improved article lifecycle management
+- Status tracking for published vs draft articles
+
+---
+
+## 2025-11-16
+
+### Fixed - Column Alias and Chart Rendering (DRA-212)
+**Files:** data-model-builder.vue, chart components, backend processors
+- Column alias names now properly considered when creating data models
+- Aliases reflected in query results and chart labels
+- Fixed boolean and numerical column types not rendering charts correctly
+- Chart type detection improved for all data types
+
+---
+
+## 2025-11-15
+
+### Fixed - Aggregate and Calculated Columns (DRA-208)
+**Files:** data-model-builder.vue, DataSourceProcessor.ts
+- Fixed bug where aggregate columns (COUNT, SUM, AVG) were not being handled correctly
+- Calculated columns now working properly in data model builder
+- Removed unnecessary code for cleaner implementation
+- Improved validation for aggregate function usage
+
+---
+
 ## 2025-11-14
 
 ### Added - Database Backup and Restore System (DRA-101)
