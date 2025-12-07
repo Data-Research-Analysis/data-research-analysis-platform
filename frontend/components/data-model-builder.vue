@@ -3581,13 +3581,13 @@ onMounted(async () => {
                                                         </th>
                                                     </tr>
                                                     <tr class="border border-primary-blue-100 border-solid p-2 text-center font-bold">
-                                                        <td class="border border-primary-blue-100 border-solid p-2 text-center">
+                                                        <td class="border border-primary-blue-100 border-solid p-2 text-center wrap-anywhere">
                                                             {{ element.table_name }}
                                                         </td>
-                                                        <td class="border border-primary-blue-100 border-solid p-2 text-center">
+                                                        <td class="border border-primary-blue-100 border-solid p-2 text-center wrap-anywhere">
                                                             {{ element.column_name }}
                                                         </td>
-                                                        <td class="border border-primary-blue-100 border-solid p-2 text-center">
+                                                        <td class="border border-primary-blue-100 border-solid p-2 text-center wrap-anywhere">
                                                             {{ element.data_type }}
                                                         </td>
 
