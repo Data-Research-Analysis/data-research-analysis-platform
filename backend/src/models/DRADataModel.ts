@@ -1,6 +1,7 @@
 import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, Relation } from 'typeorm';
 import { DRAUsersPlatform } from './DRAUsersPlatform.js';
 import { DRADataSource } from './DRADataSource.js';
+import { DRAAIDataModelConversation } from './DRAAIDataModelConversation.js';
 @Entity('dra_data_models')
 export class DRADataModel {
     @PrimaryGeneratedColumn()
@@ -21,4 +22,7 @@ export class DRADataModel {
     @ManyToOne(() => DRADataSource, (dataSource) => dataSource.data_models, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'data_source_id', referencedColumnName: 'id' })
     data_source!: Relation<DRADataSource>
+
+    @OneToMany(() => DRAAIDataModelConversation, (conversation) => conversation.data_model)
+    ai_conversations!: Relation<DRAAIDataModelConversation>[];
 }

@@ -9,8 +9,10 @@ import { DRADashboard } from "../models/DRADashboard.js";
 import { DRAArticle } from "../models/DRAArticle.js";
 import { DRAArticleCategory } from "../models/DRAArticleCategory.js";
 import { DRACategory } from "../models/DRACategory.js";
-import dotenv from 'dotenv';
 import { DRADashboardExportMetaData } from "../models/DRADashboardExportMetaData.js";
+import { DRAAIDataModelConversation } from "../models/DRAAIDataModelConversation.js";
+import { DRAAIDataModelMessage } from "../models/DRAAIDataModelMessage.js";
+import dotenv from 'dotenv';
 dotenv.config();
 
 const host = process.env.POSTGRESQL_HOST_MIGRATIONS;
@@ -27,7 +29,7 @@ export const PostgresDSMigrations = new DataSource({
     database: database,
     synchronize: false,
     logging: true,
-    entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRAPrivateBetaUsers, DRADashboard, DRAArticle, DRAArticleCategory, DRACategory, DRADashboardExportMetaData],
+    entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRAPrivateBetaUsers, DRADashboard, DRAArticle, DRAArticleCategory, DRACategory, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage],
     subscribers: [],
     migrations: ['./src/migrations/*.ts'],
 })
