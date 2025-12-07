@@ -62,40 +62,25 @@ const isApplyingModel = ref(false);
 const showModelPreview = ref(false);
 const buttonState = ref<'normal' | 'loading' | 'success'>('normal');
 
-// User preferences
-const autoApplyModels = ref(false);
-const showPreferencesMenu = ref(false);
-
-// Load preferences from localStorage
+// User preferences - Load preview preference from localStorage
 function loadPreferences() {
     try {
         const savedPreviewPreference = localStorage.getItem('ai-modeler-preview-expanded');
         if (savedPreviewPreference !== null) {
             showModelPreview.value = savedPreviewPreference === 'true';
         }
-        
-        const savedAutoApply = localStorage.getItem('ai-modeler-auto-apply');
-        if (savedAutoApply !== null) {
-            autoApplyModels.value = savedAutoApply === 'true';
-        }
     } catch (error) {
         console.error('[AI Drawer] Error loading preferences:', error);
     }
 }
 
-// Save preference to localStorage
+// Save preview preference to localStorage
 function savePreference(key: string, value: boolean) {
     try {
         localStorage.setItem(key, value.toString());
     } catch (error) {
         console.error('[AI Drawer] Error saving preference:', error);
     }
-}
-
-// Toggle preferences
-function toggleAutoApply() {
-    autoApplyModels.value = !autoApplyModels.value;
-    savePreference('ai-modeler-auto-apply', autoApplyModels.value);
 }
 
 // Keyboard navigation
@@ -161,20 +146,9 @@ watch(showModelPreview, (newValue) => {
     savePreference('ai-modeler-preview-expanded', newValue);
 });
 
-// Watch for new models and auto-apply if enabled
-watch(
-    () => aiDataModelerStore.modelDraft,
-    (newModel) => {
-        if (autoApplyModels.value && newModel && hasValidModel.value) {
-            console.log('[AI Drawer] Auto-apply enabled, applying model automatically');
-            // Delay slightly to ensure model is fully set
-            setTimeout(() => {
-                handleApplyModel();
-            }, 300);
-        }
-    },
-    { deep: true }
-);
+// AUTO-APPLY DISABLED: User must manually click "Apply" button
+// Previously auto-applied models on generation, causing infinite loops
+// Now models only apply when user explicitly clicks the Apply button
 
 function handlePresetModel(prompt: string) {
     userRequestedGeneration.value = true;
@@ -222,8 +196,7 @@ function messageContainsDataModel(content: string): boolean {
 async function handleApplyModel() {
     console.log('[AI Drawer - handleApplyModel] START', {
         hasValidModel: hasValidModel.value,
-        modelDraft: aiDataModelerStore.modelDraft,
-        autoApply: autoApplyModels.value
+        modelDraft: aiDataModelerStore.modelDraft
     });
     
     try {
@@ -236,8 +209,7 @@ async function handleApplyModel() {
         
         buttonState.value = 'loading';
         isApplyingModel.value = true;
-        const isAutoApplying = autoApplyModels.value;
-        console.log(`[AI Drawer] Applying model to builder (auto: ${isAutoApplying})`);
+        console.log('[AI Drawer] Applying model to builder');
         console.log('[AI Drawer] Current applyTrigger value:', aiDataModelerStore.applyTrigger);
         console.log('[AI Drawer] Model to apply:', JSON.stringify(aiDataModelerStore.modelDraft, null, 2));
         
@@ -375,62 +347,6 @@ function getOrderByColumns(): string[] {
                                 </div>
                             </div>
                             <div class="flex items-center gap-2">
-                                <!-- Preferences button -->
-                                <div class="relative">
-                                    <button 
-                                        class="flex-shrink-0 w-8 h-8 border-0 bg-transparent cursor-pointer text-gray-500 rounded-md flex items-center justify-center transition-all duration-200 hover:bg-gray-200 hover:text-gray-800"
-                                        @click="showPreferencesMenu = !showPreferencesMenu"
-                                        title="Preferences"
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-                                            <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
-                                        </svg>
-                                    </button>
-                                    
-                                    <!-- Preferences dropdown -->
-                                    <Transition
-                                        enter-active-class="transition-all duration-200"
-                                        leave-active-class="transition-all duration-200"
-                                        enter-from-class="opacity-0 scale-95"
-                                        leave-to-class="opacity-0 scale-95"
-                                    >
-                                        <div v-if="showPreferencesMenu" 
-                                            class="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-10 py-2"
-                                            @click.stop>
-                                            <div class="px-4 py-2 border-b border-gray-100">
-                                                <div class="font-semibold text-sm text-gray-700">Preferences</div>
-                                            </div>
-                                            
-                                            <div class="px-4 py-3 hover:bg-gray-50 cursor-pointer" @click="toggleAutoApply">
-                                                <div class="flex items-center justify-between">
-                                                    <div class="flex-1">
-                                                        <div class="text-sm font-medium text-gray-700">Auto-apply Models</div>
-                                                        <div class="text-xs text-gray-500 mt-0.5">Apply models automatically without confirmation</div>
-                                                    </div>
-                                                    <div class="flex-shrink-0 ml-3">
-                                                        <div class="relative inline-block w-10 h-5">
-                                                            <input type="checkbox" :checked="autoApplyModels" class="sr-only" />
-                                                            <div class="block w-10 h-5 rounded-full transition-colors"
-                                                                :class="autoApplyModels ? 'bg-blue-600' : 'bg-gray-300'"></div>
-                                                            <div class="dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform"
-                                                                :class="autoApplyModels ? 'transform translate-x-5' : ''"></div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            
-                                            <div class="px-4 py-2 border-t border-gray-100">
-                                                <button 
-                                                    @click="showPreferencesMenu = false"
-                                                    class="w-full text-xs text-gray-600 hover:text-gray-800 text-center py-1"
-                                                >
-                                                    Close
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </Transition>
-                                </div>
-                                
                                 <!-- Close button -->
                                 <button 
                                     class="flex-shrink-0 w-8 h-8 border-0 bg-transparent cursor-pointer text-gray-500 rounded-md flex items-center justify-center transition-all duration-200 hover:bg-gray-200 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
@@ -577,13 +493,9 @@ function getOrderByColumns(): string[] {
                                         <span>{{ showModelPreview ? 'Hide' : 'Show' }} Preview</span>
                                         <font-awesome icon="fas fa-chevron-down" class="w-4 h-4 transition-transform" :class="{ 'rotate-180': showModelPreview }" />
                                     </button>
-                                </div>                                <!-- Auto-apply info message -->
-                                <div v-if="autoApplyModels" class="mb-3 p-2 bg-blue-100 border border-blue-200 text-xs text-blue-800 flex items-center gap-2">
-                                    <font-awesome icon="fas fa-info-circle" class="w-4 h-4 flex-shrink-0" />
-                                    <span>Auto-apply is enabled. This model will be applied automatically.</span>
                                 </div>
                                 
-                                <p v-if="!autoApplyModels" class="text-sm text-gray-700 mb-3">
+                                <p class="text-sm text-gray-700 mb-3">
                                     AI has generated a data model configuration. Review it above and click the button below to apply it to the builder.
                                 </p>                                    
                                 <!-- Model History Navigation -->
@@ -675,9 +587,8 @@ function getOrderByColumns(): string[] {
                                             </div>
                                         </div>
                                     </div>
-                                </Transition>                                    
+                                </Transition>
                                 <button
-                                    v-if="!autoApplyModels"
                                     @click="handleApplyModel"
                                     :disabled="isApplyingModel"
                                     class="w-full px-4 py-2.5 border-0 text-sm font-medium cursor-pointer transition-all duration-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"

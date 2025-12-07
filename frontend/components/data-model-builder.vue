@@ -272,12 +272,23 @@ const numericColumnsWithAggregates = computed(() => {
 
 function openAIDataModeler() {
     if (props.dataSource && props.dataSource.id) {
+        // SET FLAG: Prevent watchers from triggering when drawer opens
+        console.log('[openAIDataModeler] Setting guard flag before opening drawer');
+        state.is_applying_ai_config = true;
+        
         // If editing existing data model, pass its ID to load conversation from database
         const dataModelId = props.isEditDataModel && props.dataModel?.id 
             ? props.dataModel.id 
             : undefined;
         
         aiDataModelerStore.openDrawer(props.dataSource.id, dataModelId);
+        
+        // CLEAR FLAG: Allow watchers after drawer is open (but before any model is applied)
+        // The flag will be set again when actually applying a model
+        setTimeout(() => {
+            state.is_applying_ai_config = false;
+            console.log('[openAIDataModeler] Guard flag cleared after drawer open');
+        }, 100);
     }
 }
 
@@ -2286,13 +2297,49 @@ async function saveDataModel() {
     }
 }
 async function executeQueryOnExternalDataSource() {
-    state.response_from_external_data_source_columns = [];
-    state.response_from_external_data_source_rows = [];
-    state.sql_query = buildSQLQuery();
-    state.sql_query += ` LIMIT 5 OFFSET 0`;
-    console.log('[Data Model Builder - executeQueryOnExternalDataSource] SQL Query being sent:', state.sql_query);
-    console.log('[Data Model Builder - executeQueryOnExternalDataSource] JSON Query being sent:', JSON.stringify(state.data_table));
-    const token = getAuthToken();
+    // Guard: Prevent concurrent executions
+    if (state.is_executing_query) {
+        console.log('[executeQuery] Already executing, skipping...');
+        console.trace('[executeQuery] Call stack:');
+        return;
+    }
+    
+    // Guard: Don't execute during AI configuration application
+    if (state.is_applying_ai_config) {
+        console.log('[executeQuery] AI config applying, skipping...');
+        console.trace('[executeQuery] Call stack:');
+        return;
+    }
+    
+    // Guard: Detect runaway loops
+    state.query_execution_count++;
+    console.log(`[executeQuery] Execution #${state.query_execution_count}`);
+    if (state.query_execution_count > 10) {
+        console.error('[CRITICAL] Too many query executions! Possible loop detected.');
+        console.trace('[executeQuery] Call stack:');
+        $swal.fire({
+            icon: 'error',
+            title: 'Too Many Queries',
+            text: 'Query execution loop detected. Please refresh the page.',
+        });
+        return;
+    }
+    
+    // Reset counter after 5 seconds
+    setTimeout(() => {
+        state.query_execution_count = 0;
+    }, 5000);
+    
+    state.is_executing_query = true;
+    
+    try {
+        state.response_from_external_data_source_columns = [];
+        state.response_from_external_data_source_rows = [];
+        state.sql_query = buildSQLQuery();
+        state.sql_query += ` LIMIT 5 OFFSET 0`;
+        console.log('[Data Model Builder - executeQueryOnExternalDataSource] SQL Query being sent:', state.sql_query);
+        console.log('[Data Model Builder - executeQueryOnExternalDataSource] JSON Query being sent:', JSON.stringify(state.data_table));
+        const token = getAuthToken();
     const url = `${baseUrl()}/data-source/execute-query-on-external-data-source`;
     const response = await fetch(url, {
         method: "POST",
@@ -2344,6 +2391,11 @@ async function executeQueryOnExternalDataSource() {
         state.response_from_external_data_source_columns = columns;
         state.response_from_external_data_source_rows = data;
     }
+    } catch (error) {
+        console.error('[executeQuery] Error:', error);
+    } finally {
+        state.is_executing_query = false;
+    }
 }
 async function toggleColumnInDataModel(column, tableName, tableAlias = null) {
     const identifier = tableAlias || tableName;
@@ -2393,6 +2445,11 @@ async function toggleColumnInDataModel(column, tableName, tableAlias = null) {
  * Apply AI-generated data model to the builder
  */
 async function applyAIGeneratedModel(model) {
+    // SET FLAG: Prevent watchers from triggering during config application
+    state.is_applying_ai_config = true;
+    state.loading = true;
+    console.log('[applyAIGeneratedModel] Guard flag SET');
+    
     try {
         console.log('[Data Model Builder] Applying AI-generated model:', model);
         
@@ -2546,17 +2603,9 @@ async function applyAIGeneratedModel(model) {
                 state.viewMode = 'advanced';
             }
             
-            // Execute query to populate preview
-            await executeQueryOnExternalDataSource();
-            
-            // Success notification
-            $swal.fire({
-                title: 'Applied!',
-                text: 'AI data model has been applied successfully',
-                icon: 'success',
-                timer: 2000,
-                showConfirmButton: false
-            });
+            // Wait for all reactive updates to complete before clearing flag
+            await nextTick();
+            console.log('[applyAIGeneratedModel] All reactive updates completed');
             
         } catch (queryError) {
             console.error('[Data Model Builder] Error executing query after model application:', queryError);
@@ -2570,6 +2619,7 @@ async function applyAIGeneratedModel(model) {
                 icon: 'error',
                 confirmButtonText: 'Understood'
             });
+            return;
         }
         
     } catch (error) {
@@ -2579,7 +2629,26 @@ async function applyAIGeneratedModel(model) {
             text: `Failed to apply AI-generated model: ${error.message || 'Unknown error'}`,
             icon: 'error'
         });
+        return;
+    } finally {
+        // CLEAR FLAG: Allow watchers to resume
+        state.is_applying_ai_config = false;
+        state.loading = false;
+        console.log('[applyAIGeneratedModel] Guard flag CLEARED');
     }
+    
+    // Execute query ONCE after all changes applied
+    console.log('[applyAIGeneratedModel] Executing query after model applied');
+    await executeQueryOnExternalDataSource();
+    
+    // Success notification
+    $swal.fire({
+        title: 'Applied!',
+        text: 'AI data model has been applied successfully',
+        icon: 'success',
+        timer: 2000,
+        showConfirmButton: false
+    });
 }
 
 /**
