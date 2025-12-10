@@ -20,13 +20,10 @@ import image from './routes/admin/image.js';
 import private_beta_users from './routes/admin/private-beta-users.js';
 import users from './routes/admin/users.js';
 import database from './routes/admin/database.js';
-import feature_flags from './routes/admin/feature_flags.js';
 import public_article from './routes/article.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-import cron from 'node-cron';
-import { FeatureFlagCleanupService } from './services/FeatureFlagCleanupService.js';
 
 console.log('Starting up Data Research Analysis API Server');
 const app = express();
@@ -65,7 +62,6 @@ app.use('/admin/image', image);
 app.use('/admin/private-beta-users', private_beta_users);
 app.use('/admin/users', users);
 app.use('/admin/database', database);
-app.use('/admin/feature-flags', feature_flags);
 app.use('/article', public_article);
 
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
@@ -78,13 +74,6 @@ try {
 } catch (error) {
   console.error('Failed to initialize Socket.IO server:', error);
 }
-
-// Setup cron job for feature flag cleanup (runs daily at 3 AM)
-cron.schedule('0 3 * * *', async () => {
-  console.log('[Cron] Running feature flag cleanup...');
-  await FeatureFlagCleanupService.getInstance().cleanupExpiredOverrides();
-});
-console.log('Feature flag cleanup cron job scheduled for 3 AM daily');
 
 // Start the HTTP server (handles both Express and Socket.IO)
 httpServer.listen(port, () => {
