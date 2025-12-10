@@ -4,7 +4,7 @@ import { DRADataModel } from './DRADataModel.js';
 import { DRAProject } from './DRAProject.js';
 import { DRAAIDataModelConversation } from './DRAAIDataModelConversation.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
-import { IDBConnectionDetails } from '../types/IDBConnectionDetails.js';
+import { IDBConnectionDetails, IConnectionDetails } from '../types/IDBConnectionDetails.js';
 import { EncryptionService } from '../services/EncryptionService.js';
 
 /**
@@ -78,10 +78,10 @@ export class DRADataSource {
     id!: number
     @Column({ type: 'varchar', length: 255 })
     name!: string
-    @Column({ type: 'enum', enum: [EDataSourceType.POSTGRESQL, EDataSourceType.MYSQL, EDataSourceType.MARIADB, EDataSourceType.MONGODB, EDataSourceType.CSV, EDataSourceType.EXCEL, EDataSourceType.PDF] })
+    @Column({ type: 'enum', enum: [EDataSourceType.POSTGRESQL, EDataSourceType.MYSQL, EDataSourceType.MARIADB, EDataSourceType.MONGODB, EDataSourceType.CSV, EDataSourceType.EXCEL, EDataSourceType.PDF, EDataSourceType.GOOGLE_ANALYTICS] })
     data_type!: EDataSourceType;
     @Column({ type: 'jsonb', transformer: connectionDetailsTransformer })
-    connection_details!: IDBConnectionDetails
+    connection_details!: IConnectionDetails
     @Column({ type: 'timestamp', nullable: true })
     created_at!: Date
 

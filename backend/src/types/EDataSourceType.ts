@@ -6,4 +6,5 @@ export enum EDataSourceType {
     MYSQL = 'mysql',
     MARIADB = 'mariadb',
     MONGODB = 'mongodb',
+    GOOGLE_ANALYTICS = 'google_analytics',
 }
