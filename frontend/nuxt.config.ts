@@ -59,7 +59,6 @@ export default defineNuxtConfig({
     { src: '~/plugins/htmlToImage.ts', mode: 'client' },
     { src: '~/plugins/sweetalert2.ts', mode: 'client' },
     { src: '~/plugins/vuetippy.client.ts', mode: 'client' },
-    { src: '~/plugins/feature-flags.ts', mode: 'client' },
     // fontawesome.ts is universal (works on server for SSR icons)
   ],
   modules: [
