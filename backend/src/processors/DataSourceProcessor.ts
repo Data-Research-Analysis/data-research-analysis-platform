@@ -218,7 +218,7 @@ export class DataSourceProcessor {
             if (!dataSourceType) {
                 return resolve(null);
             }
-            const externalDriver = await DBDriver.getInstance().getDriver(dataSourceType);
+            const externalDriver = await DBDriver.getInstance().getDriver(dataSourceType as any);
             if (!externalDriver) {
                 return resolve(null);
             }
@@ -350,7 +350,7 @@ export class DataSourceProcessor {
                     }
                 }
                 // Delete Excel schema tables
-                if (dataSource.connection_details?.schema === 'dra_excel') {
+                if ('schema' in dataSource.connection_details && dataSource.connection_details.schema === 'dra_excel') {
                     if (!dbConnector) {
                         return resolve(false);
                     }
@@ -370,7 +370,7 @@ export class DataSourceProcessor {
                 }
                 
                 // Delete PDF schema tables
-                if (dataSource.connection_details?.schema === 'dra_pdf') {
+                if ('schema' in dataSource.connection_details && dataSource.connection_details.schema === 'dra_pdf') {
                     if (!dbConnector) {
                         return resolve(false);
                     }
@@ -483,12 +483,16 @@ export class DataSourceProcessor {
             if (dataSource.data_type === EDataSourceType.MONGODB) {
                 //TODO: Leaving here for when MongoDB data source is implemented
             } else if (dataSource.data_type === EDataSourceType.POSTGRESQL || dataSource.data_type === EDataSourceType.MYSQL || dataSource.data_type === EDataSourceType.MARIADB || dataSource.data_type === EDataSourceType.EXCEL || dataSource.data_type === EDataSourceType.PDF) {
-                const connection: IDBConnectionDetails = dataSource.connection_details;
+                const connection = dataSource.connection_details;
+                // Skip API-based data sources
+                if ('oauth_access_token' in connection) {
+                    return resolve(null);
+                }
                 const dataSourceType = UtilityService.getInstance().getDataSourceType(connection.data_source_type);
                 if (!dataSourceType) {
                     return resolve(null);
                 }
-                const externalDriver = await DBDriver.getInstance().getDriver(dataSourceType);
+                const externalDriver = await DBDriver.getInstance().getDriver(dataSourceType as any);
                 if (!externalDriver) {
                     return resolve(null);
                 }
@@ -641,12 +645,16 @@ export class DataSourceProcessor {
             if (!dataSource) {
                 return resolve(null);
             }
-            const connection: IDBConnectionDetails = dataSource.connection_details;
+            const connection = dataSource.connection_details;
+            // Skip API-based data sources
+            if ('oauth_access_token' in connection) {
+                return resolve(null);
+            }
             const dataSourceType = UtilityService.getInstance().getDataSourceType(connection.data_source_type);
             if (!dataSourceType) {
                 return resolve(null);
             }
-            const externalDriver = await DBDriver.getInstance().getDriver(dataSourceType);
+            const externalDriver = await DBDriver.getInstance().getDriver(dataSourceType as any);
             if (!externalDriver) {
                 return resolve(null);
             }
@@ -708,12 +716,16 @@ export class DataSourceProcessor {
             if (!dataSource) {
                 return resolve(null);
             }
-            const connection: IDBConnectionDetails = dataSource.connection_details;
+            const connection = dataSource.connection_details;
+            // Skip API-based data sources
+            if ('oauth_access_token' in connection) {
+                return resolve(null);
+            }
             const dataSourceType = UtilityService.getInstance().getDataSourceType(connection.data_source_type);
             if (!dataSourceType) {
                 return resolve(null);
             }
-            const externalDriver = await DBDriver.getInstance().getDriver(dataSourceType);
+            const externalDriver = await DBDriver.getInstance().getDriver(dataSourceType as any);
             if (!externalDriver) {
                 return resolve(null);
             }

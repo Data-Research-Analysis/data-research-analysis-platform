@@ -77,7 +77,7 @@ export class ProjectProcessor {
                     for (const dataModel of dataModels) {
                         await dbConnector.query(`DROP TABLE IF EXISTS ${dataModel.schema}.${dataModel.name}`);
                     }
-                    if (dataSource.connection_details?.schema === 'dra_excel') {
+                    if ('schema' in dataSource.connection_details && dataSource.connection_details.schema === 'dra_excel') {
                         try {
                             const tables = await dbConnector.query(
                                 `SELECT table_name FROM information_schema.tables 
@@ -93,7 +93,7 @@ export class ProjectProcessor {
                             console.error(`Error deleting Excel tables:`, error);
                         }
                     }
-                    if (dataSource.connection_details?.schema === 'dra_pdf') {
+                    if ('schema' in dataSource.connection_details && dataSource.connection_details.schema === 'dra_pdf') {
                         try {
                             const tables = await dbConnector.query(
                                 `SELECT table_name FROM information_schema.tables 

@@ -367,12 +367,16 @@ export class DataModelProcessor {
             if (!dataSource) {
                 return resolve(false);
             }
-            const connection: IDBConnectionDetails = dataSource.connection_details;
+            const connection = dataSource.connection_details;
+            // Skip API-based data sources (like Google Analytics) - they don't support data models
+            if ('oauth_access_token' in connection) {
+                return resolve(false);
+            }
             const dataSourceType = UtilityService.getInstance().getDataSourceType(connection.data_source_type);
             if (!dataSourceType) {
                 return resolve(false);
             }
-            const externalDriver = await DBDriver.getInstance().getDriver(dataSourceType);
+            const externalDriver = await DBDriver.getInstance().getDriver(dataSourceType as any);
             if (!externalDriver) {
                 return resolve(false);
             }
