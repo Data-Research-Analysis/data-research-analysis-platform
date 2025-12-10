@@ -1,6 +1,7 @@
 import _ from "lodash";
 import { DBDriver } from "../drivers/DBDriver.js";
 import { IDBConnectionDetails } from "../types/IDBConnectionDetails.js";
+import { IAPIConnectionDetails } from "../types/IAPIConnectionDetails.js";
 import { DRADataSource } from "../models/DRADataSource.js";
 import { ITokenDetails } from "../types/ITokenDetails.js";
 import { DRAProject } from "../models/DRAProject.js";
@@ -15,6 +16,7 @@ import { IPDFDataSourceReturn } from "../types/IPDFDataSourceReturn.js";
 import { IExcelDataSourceReturn } from "../types/IExcelDataSourceReturn.js";
 import { FilesService } from "../services/FilesService.js";
 import { QueueService } from "../services/QueueService.js";
+import { GoogleAnalyticsDriver } from "../drivers/GoogleAnalyticsDriver.js";
 export class DataSourceProcessor {
     private static instance: DataSourceProcessor;
     private constructor() {}
@@ -1895,5 +1897,96 @@ export class DataSourceProcessor {
         const finalSQL = sqlParts.join(' ');
         console.log('[DataSourceProcessor] Reconstructed SQL from JSON:', finalSQL);
         return finalSQL;
+    }
+
+    /**
+     * Add Google Analytics data source
+     */
+    public async addGoogleAnalyticsDataSource(
+        name: string,
+        connectionDetails: IAPIConnectionDetails,
+        tokenDetails: ITokenDetails,
+        projectId: number
+    ): Promise<boolean> {
+        return new Promise<boolean>(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve(false);
+            }
+            const manager = (await driver.getConcreteDriver()).manager;
+            if (!manager) {
+                return resolve(false);
+            }
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!user) {
+                return resolve(false);
+            }
+            const project: DRAProject|null = await manager.findOne(DRAProject, {where: {id: projectId, users_platform: user}});
+            if (project) {
+                const dataSource = new DRADataSource();
+                dataSource.name = name;
+                dataSource.connection_details = connectionDetails;
+                dataSource.data_type = EDataSourceType.GOOGLE_ANALYTICS;
+                dataSource.project = project;
+                dataSource.users_platform = user;
+                dataSource.created_at = new Date();
+                await manager.save(dataSource);
+                
+                console.log('✅ Google Analytics data source added successfully');
+                return resolve(true);
+            }
+            return resolve(false);
+        });
+    }
+
+    /**
+     * Sync Google Analytics data source
+     */
+    public async syncGoogleAnalyticsDataSource(
+        dataSourceId: number,
+        tokenDetails: ITokenDetails
+    ): Promise<boolean> {
+        return new Promise<boolean>(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve(false);
+            }
+            const manager = (await driver.getConcreteDriver()).manager;
+            if (!manager) {
+                return resolve(false);
+            }
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!user) {
+                return resolve(false);
+            }
+            
+            // Get data source
+            const dataSource = await manager.findOne(DRADataSource, {
+                where: {id: dataSourceId, users_platform: user, data_type: EDataSourceType.GOOGLE_ANALYTICS}
+            });
+            
+            if (!dataSource) {
+                console.error('Data source not found or not a Google Analytics source');
+                return resolve(false);
+            }
+            
+            // Get connection details
+            const connectionDetails = dataSource.connection_details as IAPIConnectionDetails;
+            
+            // Trigger sync
+            const gaDriver = GoogleAnalyticsDriver.getInstance();
+            const syncResult = await gaDriver.syncToDatabase(dataSourceId, connectionDetails);
+            
+            if (syncResult) {
+                // Update last sync time in connection details
+                connectionDetails.api_config.last_sync = new Date();
+                dataSource.connection_details = connectionDetails;
+                await manager.save(dataSource);
+            }
+            
+            return resolve(syncResult);
+        });
     }
 }

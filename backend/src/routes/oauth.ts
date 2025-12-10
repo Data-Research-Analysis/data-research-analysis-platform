@@ -1,0 +1,188 @@
+import express, { Request, Response } from 'express';
+import { validateJWT } from '../middleware/authenticate.js';
+import { validate } from '../middleware/validator.js';
+import { body, query, matchedData } from 'express-validator';
+import { GoogleOAuthService } from '../services/GoogleOAuthService.js';
+import { GoogleAnalyticsService } from '../services/GoogleAnalyticsService.js';
+
+const router = express.Router();
+
+/**
+ * Generate Google OAuth authorization URL
+ * GET /api/oauth/google/auth-url?service=analytics
+ */
+router.get('/google/auth-url', 
+    async (req: Request, res: Response, next: any) => {
+        next();
+    },
+    validateJWT,
+    validate([
+        query('service').isIn(['analytics']).withMessage('Service must be analytics')
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const { service } = matchedData(req);
+            const oauthService = GoogleOAuthService.getInstance();
+            
+            if (!oauthService.isConfigured()) {
+                return res.status(500).send({
+                    message: 'Google OAuth not configured. Please contact administrator.'
+                });
+            }
+            
+            // Get appropriate scopes based on service
+            let scopes: string[] = [];
+            if (service === 'analytics') {
+                scopes = GoogleOAuthService.getGoogleAnalyticsScopes();
+            }
+            
+            // Generate state parameter for CSRF protection
+            const state = Buffer.from(JSON.stringify({
+                user_id: req.body.tokenDetails.user_id,
+                service: service,
+                timestamp: Date.now()
+            })).toString('base64');
+            
+            const authUrl = oauthService.generateAuthUrl(scopes, state);
+            
+            res.status(200).send({
+                auth_url: authUrl,
+                message: 'Authorization URL generated successfully'
+            });
+        } catch (error) {
+            console.error('Error generating OAuth URL:', error);
+            res.status(500).send({
+                message: 'Failed to generate authorization URL'
+            });
+        }
+    }
+);
+
+/**
+ * Handle Google OAuth callback
+ * POST /api/oauth/google/callback
+ */
+router.post('/google/callback',
+    async (req: Request, res: Response, next: any) => {
+        next();
+    },
+    validateJWT,
+    validate([
+        body('code').notEmpty().withMessage('Authorization code is required'),
+        body('state').optional()
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const { code, state } = matchedData(req);
+            const oauthService = GoogleOAuthService.getInstance();
+            
+            // Validate state parameter
+            if (state) {
+                try {
+                    const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
+                    if (stateData.user_id !== req.body.tokenDetails.user_id) {
+                        return res.status(400).send({
+                            message: 'Invalid state parameter'
+                        });
+                    }
+                } catch (error) {
+                    return res.status(400).send({
+                        message: 'Invalid state parameter'
+                    });
+                }
+            }
+            
+            // Exchange code for tokens
+            const tokens = await oauthService.exchangeCodeForTokens(code);
+            
+            res.status(200).send({
+                access_token: tokens.access_token,
+                refresh_token: tokens.refresh_token,
+                expires_in: tokens.expires_in,
+                token_type: tokens.token_type,
+                expiry_date: tokens.expiry_date,
+                message: 'Authentication successful'
+            });
+        } catch (error) {
+            console.error('Error in OAuth callback:', error);
+            res.status(500).send({
+                message: 'Failed to complete authentication'
+            });
+        }
+    }
+);
+
+/**
+ * Refresh access token
+ * POST /api/oauth/google/refresh
+ */
+router.post('/google/refresh',
+    async (req: Request, res: Response, next: any) => {
+        next();
+    },
+    validateJWT,
+    validate([
+        body('refresh_token').notEmpty().withMessage('Refresh token is required')
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const { refresh_token } = matchedData(req);
+            const oauthService = GoogleOAuthService.getInstance();
+            
+            const tokens = await oauthService.refreshAccessToken(refresh_token);
+            
+            res.status(200).send({
+                access_token: tokens.access_token,
+                refresh_token: tokens.refresh_token,
+                expires_in: tokens.expires_in,
+                token_type: tokens.token_type,
+                expiry_date: tokens.expiry_date,
+                message: 'Token refreshed successfully'
+            });
+        } catch (error) {
+            console.error('Error refreshing token:', error);
+            res.status(401).send({
+                message: 'Failed to refresh token. Please re-authenticate.'
+            });
+        }
+    }
+);
+
+/**
+ * Revoke OAuth token
+ * POST /api/oauth/google/revoke
+ */
+router.post('/google/revoke',
+    async (req: Request, res: Response, next: any) => {
+        next();
+    },
+    validateJWT,
+    validate([
+        body('access_token').notEmpty().withMessage('Access token is required')
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const { access_token } = matchedData(req);
+            const oauthService = GoogleOAuthService.getInstance();
+            
+            const revoked = await oauthService.revokeToken(access_token);
+            
+            if (revoked) {
+                res.status(200).send({
+                    message: 'Token revoked successfully'
+                });
+            } else {
+                res.status(500).send({
+                    message: 'Failed to revoke token'
+                });
+            }
+        } catch (error) {
+            console.error('Error revoking token:', error);
+            res.status(500).send({
+                message: 'Failed to revoke token'
+            });
+        }
+    }
+);
+
+export default router;

@@ -6,6 +6,7 @@ import excelImage from '/assets/images/excel.png';
 import postgresqlImage from '/assets/images/postgresql.png';
 import mysqlImage from '/assets/images/mysql.png';
 import mariadbImage from '/assets/images/mariadb.png';
+import googleAnalyticsImage from '/assets/images/google-analytics.png';
 
 const dataSourceStore = useDataSourceStore();
 const projectsStore = useProjectsStore();
@@ -60,6 +61,11 @@ const state = reactive({
             name: 'MariaDB',
             url: `${route.fullPath}/data-sources/connect/mariadb`,
             image_url: mariadbImage,
+        },
+        {
+            name: 'Google Analytics',
+            url: `${route.fullPath}/data-sources/connect/google-analytics`,
+            image_url: googleAnalyticsImage,
         },
     ],
     selected_tab: 'data_sources',

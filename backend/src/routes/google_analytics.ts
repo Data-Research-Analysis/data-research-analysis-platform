@@ -1,0 +1,262 @@
+import express, { Request, Response } from 'express';
+import { validateJWT } from '../middleware/authenticate.js';
+import { validate } from '../middleware/validator.js';
+import { body, param, matchedData } from 'express-validator';
+import { GoogleAnalyticsService } from '../services/GoogleAnalyticsService.js';
+import { GoogleAnalyticsDriver } from '../drivers/GoogleAnalyticsDriver.js';
+import { DataSourceProcessor } from '../processors/DataSourceProcessor.js';
+import { IAPIConnectionDetails } from '../types/IAPIConnectionDetails.js';
+import { EDataSourceType } from '../types/EDataSourceType.js';
+
+const router = express.Router();
+
+/**
+ * List accessible Google Analytics properties
+ * GET /api/google-analytics/properties
+ */
+router.get('/properties',
+    async (req: Request, res: Response, next: any) => {
+        next();
+    },
+    validateJWT,
+    validate([
+        body('access_token').notEmpty().withMessage('Access token is required')
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const { access_token } = matchedData(req);
+            const gaService = GoogleAnalyticsService.getInstance();
+            
+            const properties = await gaService.listProperties(access_token);
+            
+            res.status(200).send({
+                properties: properties,
+                count: properties.length,
+                message: 'Properties retrieved successfully'
+            });
+        } catch (error) {
+            console.error('Error listing GA properties:', error);
+            res.status(500).send({
+                message: 'Failed to retrieve Google Analytics properties'
+            });
+        }
+    }
+);
+
+/**
+ * Get metadata for a specific GA4 property
+ * GET /api/google-analytics/metadata/:propertyId
+ */
+router.get('/metadata/:propertyId',
+    async (req: Request, res: Response, next: any) => {
+        next();
+    },
+    validateJWT,
+    validate([
+        param('propertyId').notEmpty().withMessage('Property ID is required'),
+        body('access_token').notEmpty().withMessage('Access token is required'),
+        body('refresh_token').notEmpty().withMessage('Refresh token is required')
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const { propertyId, access_token, refresh_token } = matchedData(req);
+            const gaService = GoogleAnalyticsService.getInstance();
+            
+            // Create temporary connection details
+            const connectionDetails: IAPIConnectionDetails = {
+                data_source_type: EDataSourceType.GOOGLE_ANALYTICS,
+                oauth_access_token: access_token,
+                oauth_refresh_token: refresh_token,
+                token_expiry: new Date(Date.now() + 3600000), // 1 hour from now
+                api_config: {
+                    property_id: propertyId
+                }
+            };
+            
+            const metadata = await gaService.getMetadata(propertyId, connectionDetails);
+            
+            res.status(200).send({
+                metadata: metadata,
+                message: 'Metadata retrieved successfully'
+            });
+        } catch (error) {
+            console.error('Error getting GA metadata:', error);
+            res.status(500).send({
+                message: 'Failed to retrieve metadata'
+            });
+        }
+    }
+);
+
+/**
+ * Get available report presets
+ * GET /api/google-analytics/report-presets
+ */
+router.get('/report-presets',
+    async (req: Request, res: Response, next: any) => {
+        next();
+    },
+    validateJWT,
+    async (req: Request, res: Response) => {
+        try {
+            const presets = GoogleAnalyticsService.getReportPresets();
+            
+            res.status(200).send({
+                presets: presets,
+                message: 'Report presets retrieved successfully'
+            });
+        } catch (error) {
+            console.error('Error getting report presets:', error);
+            res.status(500).send({
+                message: 'Failed to retrieve report presets'
+            });
+        }
+    }
+);
+
+/**
+ * Add Google Analytics data source
+ * POST /api/google-analytics/add-data-source
+ */
+router.post('/add-data-source',
+    async (req: Request, res: Response, next: any) => {
+        next();
+    },
+    validateJWT,
+    validate([
+        body('name').notEmpty().trim().escape().withMessage('Data source name is required'),
+        body('property_id').notEmpty().withMessage('Property ID is required'),
+        body('access_token').notEmpty().withMessage('Access token is required'),
+        body('refresh_token').notEmpty().withMessage('Refresh token is required'),
+        body('token_expiry').notEmpty().withMessage('Token expiry is required'),
+        body('project_id').notEmpty().toInt().withMessage('Project ID is required'),
+        body('sync_frequency').optional().isIn(['hourly', 'daily', 'weekly', 'manual']),
+        body('account_name').optional().trim()
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const {
+                name,
+                property_id,
+                access_token,
+                refresh_token,
+                token_expiry,
+                project_id,
+                sync_frequency,
+                account_name
+            } = matchedData(req);
+            
+            // Create connection details
+            const connectionDetails: IAPIConnectionDetails = {
+                data_source_type: EDataSourceType.GOOGLE_ANALYTICS,
+                oauth_access_token: access_token,
+                oauth_refresh_token: refresh_token,
+                token_expiry: new Date(token_expiry),
+                api_config: {
+                    property_id: property_id,
+                    account_name: account_name,
+                    sync_frequency: sync_frequency || 'manual'
+                }
+            };
+            
+            // Add data source using processor
+            const result = await DataSourceProcessor.getInstance().addGoogleAnalyticsDataSource(
+                name,
+                connectionDetails,
+                req.body.tokenDetails,
+                project_id
+            );
+            
+            if (result) {
+                res.status(200).send({
+                    message: 'Google Analytics data source added successfully'
+                });
+            } else {
+                res.status(400).send({
+                    message: 'Failed to add Google Analytics data source'
+                });
+            }
+        } catch (error) {
+            console.error('Error adding GA data source:', error);
+            res.status(500).send({
+                message: 'Failed to add Google Analytics data source'
+            });
+        }
+    }
+);
+
+/**
+ * Trigger manual sync for Google Analytics data source
+ * POST /api/google-analytics/sync/:dataSourceId
+ */
+router.post('/sync/:dataSourceId',
+    async (req: Request, res: Response, next: any) => {
+        next();
+    },
+    validateJWT,
+    validate([
+        param('dataSourceId').notEmpty().toInt().withMessage('Data source ID is required')
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const { dataSourceId } = matchedData(req);
+            
+            // Trigger sync
+            const result = await DataSourceProcessor.getInstance().syncGoogleAnalyticsDataSource(
+                dataSourceId,
+                req.body.tokenDetails
+            );
+            
+            if (result) {
+                res.status(200).send({
+                    message: 'Sync completed successfully'
+                });
+            } else {
+                res.status(400).send({
+                    message: 'Sync failed'
+                });
+            }
+        } catch (error) {
+            console.error('Error syncing GA data:', error);
+            res.status(500).send({
+                message: 'Failed to sync Google Analytics data'
+            });
+        }
+    }
+);
+
+/**
+ * Get sync status and history
+ * GET /api/google-analytics/sync-status/:dataSourceId
+ */
+router.get('/sync-status/:dataSourceId',
+    async (req: Request, res: Response, next: any) => {
+        next();
+    },
+    validateJWT,
+    validate([
+        param('dataSourceId').notEmpty().toInt().withMessage('Data source ID is required')
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const { dataSourceId } = matchedData(req);
+            const gaDriver = GoogleAnalyticsDriver.getInstance();
+            
+            const lastSync = await gaDriver.getLastSyncTime(dataSourceId);
+            const history = await gaDriver.getSyncHistory(dataSourceId, 10);
+            
+            res.status(200).send({
+                last_sync: lastSync,
+                sync_history: history,
+                message: 'Sync status retrieved successfully'
+            });
+        } catch (error) {
+            console.error('Error getting sync status:', error);
+            res.status(500).send({
+                message: 'Failed to retrieve sync status'
+            });
+        }
+    }
+);
+
+export default router;

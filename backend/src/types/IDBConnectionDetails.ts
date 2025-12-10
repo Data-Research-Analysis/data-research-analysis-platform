@@ -1,4 +1,5 @@
 import { EDataSourceType } from "./EDataSourceType.js";
+import { IAPIConnectionDetails } from "./IAPIConnectionDetails.js";
 
 export interface IDBConnectionDetails {
     data_source_type: EDataSourceType;
@@ -9,3 +10,6 @@ export interface IDBConnectionDetails {
     username: string;
     password: string;
 }
+
+// Union type to support both database and API connections
+export type IConnectionDetails = IDBConnectionDetails | IAPIConnectionDetails;

@@ -1,5 +1,11 @@
 import {defineStore} from 'pinia'
 import type { IDataSource } from '~/types/IDataSource';
+import type { IOAuthTokens } from '~/types/IOAuthTokens';
+import type { 
+    IGoogleAnalyticsProperty, 
+    IGoogleAnalyticsSyncConfig,
+    IGoogleAnalyticsSyncStatus 
+} from '~/types/IGoogleAnalytics';
 export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     const dataSources = ref<IDataSource[]>([])
     const selectedDataSource = ref<IDataSource>()
@@ -79,6 +85,189 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         const data = await response.json();
         setDataSources(data)
     }
+
+    /**
+     * Google Analytics OAuth Methods
+     */
+
+    /**
+     * Initiate Google OAuth flow for Analytics
+     * Returns the authorization URL to redirect user to
+     */
+    async function initiateGoogleOAuth(): Promise<string | null> {
+        const token = getAuthToken();
+        if (!token) return null;
+
+        try {
+            const response = await fetch(`${baseUrl()}/oauth/google/auth-url?service=analytics`, {
+                method: "GET",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                return data.auth_url;
+            }
+            return null;
+        } catch (error) {
+            console.error('Error initiating Google OAuth:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Handle OAuth callback - exchange code for tokens
+     */
+    async function handleGoogleOAuthCallback(code: string, state: string): Promise<IOAuthTokens | null> {
+        const token = getAuthToken();
+        if (!token) return null;
+
+        try {
+            const response = await fetch(`${baseUrl()}/oauth/google/callback`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+                body: JSON.stringify({ code, state })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                return {
+                    access_token: data.access_token,
+                    refresh_token: data.refresh_token,
+                    token_type: data.token_type,
+                    expires_in: data.expires_in,
+                    expiry_date: data.expiry_date
+                };
+            }
+            return null;
+        } catch (error) {
+            console.error('Error handling OAuth callback:', error);
+            return null;
+        }
+    }
+
+    /**
+     * List Google Analytics properties accessible to the user
+     */
+    async function listGoogleAnalyticsProperties(accessToken: string): Promise<IGoogleAnalyticsProperty[]> {
+        const token = getAuthToken();
+        if (!token) return [];
+
+        try {
+            const response = await fetch(`${baseUrl()}/google-analytics/properties`, {
+                method: "GET",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+                body: JSON.stringify({ access_token: accessToken })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                return data.properties || [];
+            }
+            return [];
+        } catch (error) {
+            console.error('Error listing GA properties:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Add Google Analytics data source
+     */
+    async function addGoogleAnalyticsDataSource(config: IGoogleAnalyticsSyncConfig): Promise<boolean> {
+        const token = getAuthToken();
+        if (!token) return false;
+
+        try {
+            const response = await fetch(`${baseUrl()}/google-analytics/add-data-source`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+                body: JSON.stringify(config)
+            });
+
+            if (response.ok) {
+                // Refresh data sources list
+                await retrieveDataSources();
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.error('Error adding GA data source:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Trigger manual sync for Google Analytics data source
+     */
+    async function syncGoogleAnalytics(dataSourceId: number): Promise<boolean> {
+        const token = getAuthToken();
+        if (!token) return false;
+
+        try {
+            const response = await fetch(`${baseUrl()}/google-analytics/sync/${dataSourceId}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+            });
+
+            return response.ok;
+        } catch (error) {
+            console.error('Error syncing GA data:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Get sync status and history for Google Analytics data source
+     */
+    async function getGoogleAnalyticsSyncStatus(dataSourceId: number): Promise<IGoogleAnalyticsSyncStatus | null> {
+        const token = getAuthToken();
+        if (!token) return null;
+
+        try {
+            const response = await fetch(`${baseUrl()}/google-analytics/sync-status/${dataSourceId}`, {
+                method: "GET",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                return {
+                    last_sync: data.last_sync,
+                    sync_history: data.sync_history || []
+                };
+            }
+            return null;
+        } catch (error) {
+            console.error('Error getting sync status:', error);
+            return null;
+        }
+    }
+
     return {
         dataSources,
         selectedDataSource,
@@ -90,5 +279,12 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         getSelectedDataSource,
         clearSelectedDataSource,
         retrieveTablesFromDataSources,
+        // Google Analytics methods
+        initiateGoogleOAuth,
+        handleGoogleOAuthCallback,
+        listGoogleAnalyticsProperties,
+        addGoogleAnalyticsDataSource,
+        syncGoogleAnalytics,
+        getGoogleAnalyticsSyncStatus,
     }
 });
