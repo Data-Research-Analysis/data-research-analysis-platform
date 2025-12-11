@@ -16,7 +16,7 @@ export const useGoogleOAuth = () => {
     const initiateAuth = async (projectId?: string): Promise<void> => {
         try {
             // Get authorization URL from backend
-            const authUrl = await dataSourceStore.initiateGoogleOAuth();
+            const authUrl = await dataSourceStore.initiateGoogleOAuth(projectId);
             
             if (!authUrl) {
                 throw new Error('Failed to generate authorization URL');
