@@ -17,11 +17,14 @@ router.get('/google/auth-url',
     },
     validateJWT,
     validate([
-        query('service').isIn(['analytics']).withMessage('Service must be analytics')
+        query('service').isIn(['analytics']).withMessage('Service must be analytics'),
+        query('project_id').optional().isString()
     ]),
     async (req: Request, res: Response) => {
         try {
-            const { service } = matchedData(req);
+            const data = matchedData(req);
+            const service = data.service;
+            const projectId = data.project_id;
             const oauthService = GoogleOAuthService.getInstance();
             
             if (!oauthService.isConfigured()) {
@@ -40,6 +43,7 @@ router.get('/google/auth-url',
             const state = Buffer.from(JSON.stringify({
                 user_id: req.body.tokenDetails.user_id,
                 service: service,
+                project_id: projectId,
                 timestamp: Date.now()
             })).toString('base64');
             
@@ -59,7 +63,45 @@ router.get('/google/auth-url',
 );
 
 /**
- * Handle Google OAuth callback
+ * Handle Google OAuth callback (GET)
+ * This receives the redirect from Google after user authorizes
+ * GET /api/oauth/google/callback?code=xxx&state=xxx
+ */
+router.get('/google/callback',
+    validate([
+        query('code').notEmpty().withMessage('Authorization code is required'),
+        query('state').optional(),
+        query('error').optional()
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const { code, state, error } = req.query;
+            
+            // Handle OAuth errors
+            if (error) {
+                console.error('OAuth error from Google:', error);
+                const frontendUrl = process.env.SOCKETIO_CLIENT_URL || 'http://localhost:3000';
+                return res.redirect(`${frontendUrl}/oauth/error?error=${error}`);
+            }
+            
+            // Redirect to frontend with code and state
+            // Frontend will handle token exchange
+            const frontendUrl = process.env.SOCKETIO_CLIENT_URL || 'http://localhost:3000';
+            const redirectUrl = `${frontendUrl}/oauth/google/callback?code=${code}&state=${state || ''}`;
+            
+            console.log('✅ Redirecting to frontend with auth code');
+            res.redirect(redirectUrl);
+        } catch (error) {
+            console.error('Error in OAuth GET callback:', error);
+            const frontendUrl = process.env.SOCKETIO_CLIENT_URL || 'http://localhost:3000';
+            res.redirect(`${frontendUrl}/oauth/error?error=callback_failed`);
+        }
+    }
+);
+
+/**
+ * Handle Google OAuth callback (POST)
+ * Frontend uses this to exchange code for tokens
  * POST /api/oauth/google/callback
  */
 router.post('/google/callback',
