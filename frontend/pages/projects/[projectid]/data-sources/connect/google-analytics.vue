@@ -207,60 +207,60 @@ function cancel() {
 </script>
 
 <template>
-    <div class="google-analytics-connector">
-        <div class="connector-header">
-            <h1>Connect Google Analytics</h1>
-            <p>Import your website analytics data into the platform</p>
+    <div class="max-w-[900px] mx-auto py-10 px-5 sm:py-6 sm:px-4">
+        <div class="text-center mb-10">
+            <h1 class="text-4xl font-bold text-gray-900 mb-2">Connect Google Analytics</h1>
+            <p class="text-base text-gray-600">Import your website analytics data into the platform</p>
         </div>
 
         <!-- Step Indicator -->
-        <div class="step-indicator">
+        <div class="flex items-center justify-center mb-12 sm:mb-8">
             <div 
-                class="step" 
-                :class="{ active: state.currentStep === 1, completed: state.currentStep > 1 }"
+                class="flex flex-col items-center gap-2" 
+                :class="{ 'text-indigo-600': state.currentStep >= 1 }"
             >
-                <div class="step-number">1</div>
-                <div class="step-label">Authenticate</div>
+                <div class="w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300" :class="state.currentStep > 1 ? 'bg-green-500 text-white' : state.currentStep >= 1 ? 'bg-indigo-600 text-white' : 'bg-gray-300 text-gray-600'">1</div>
+                <div class="text-sm font-medium sm:text-xs" :class="state.currentStep >= 1 ? 'text-indigo-600' : 'text-gray-600'">Authenticate</div>
             </div>
-            <div class="step-line" :class="{ active: state.currentStep > 1 }"></div>
+            <div class="w-20 h-0.5 mx-4 transition-all duration-300 sm:w-10" :class="state.currentStep > 1 ? 'bg-green-500' : 'bg-gray-300'"></div>
             <div 
-                class="step" 
-                :class="{ active: state.currentStep === 2, completed: state.currentStep > 2 }"
+                class="flex flex-col items-center gap-2" 
+                :class="{ 'text-indigo-600': state.currentStep >= 2 }"
             >
-                <div class="step-number">2</div>
-                <div class="step-label">Select Property</div>
+                <div class="w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300" :class="state.currentStep > 2 ? 'bg-green-500 text-white' : state.currentStep >= 2 ? 'bg-indigo-600 text-white' : 'bg-gray-300 text-gray-600'">2</div>
+                <div class="text-sm font-medium sm:text-xs" :class="state.currentStep >= 2 ? 'text-indigo-600' : 'text-gray-600'">Select Property</div>
             </div>
-            <div class="step-line" :class="{ active: state.currentStep > 2 }"></div>
+            <div class="w-20 h-0.5 mx-4 transition-all duration-300 sm:w-10" :class="state.currentStep > 2 ? 'bg-green-500' : 'bg-gray-300'"></div>
             <div 
-                class="step" 
-                :class="{ active: state.currentStep === 3 }"
+                class="flex flex-col items-center gap-2" 
+                :class="{ 'text-indigo-600': state.currentStep >= 3 }"
             >
-                <div class="step-number">3</div>
-                <div class="step-label">Configure</div>
+                <div class="w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300" :class="state.currentStep >= 3 ? 'bg-indigo-600 text-white' : 'bg-gray-300 text-gray-600'">3</div>
+                <div class="text-sm font-medium sm:text-xs" :class="state.currentStep >= 3 ? 'text-indigo-600' : 'text-gray-600'">Configure</div>
             </div>
         </div>
 
         <!-- Step 1: Authentication -->
-        <div v-if="state.currentStep === 1" class="step-content">
-            <div class="step-card">
-                <h2>Step 1: Authenticate with Google</h2>
+        <div v-if="state.currentStep === 1" class="animate-fade-in">
+            <div class="bg-white rounded-xl p-8 shadow-sm sm:p-6">
+                <h2 class="text-2xl font-semibold text-gray-900 mb-6">Step 1: Authenticate with Google</h2>
                 
-                <div class="auth-info">
-                    <p>Connect your Google account to access Analytics data:</p>
-                    <ul>
-                        <li>✓ Secure OAuth 2.0 authentication</li>
-                        <li>✓ Read-only access to your data</li>
-                        <li>✓ No passwords stored</li>
-                        <li>✓ Revoke access anytime</li>
+                <div class="mb-8">
+                    <p class="text-base text-gray-700 mb-4">Connect your Google account to access Analytics data:</p>
+                    <ul class="list-none p-0">
+                        <li class="py-2 text-gray-800">✓ Secure OAuth 2.0 authentication</li>
+                        <li class="py-2 text-gray-800">✓ Read-only access to your data</li>
+                        <li class="py-2 text-gray-800">✓ No passwords stored</li>
+                        <li class="py-2 text-gray-800">✓ Revoke access anytime</li>
                     </ul>
                 </div>
 
                 <button 
                     @click="initiateGoogleSignIn" 
-                    class="google-signin-btn"
+                    class="flex items-center justify-center gap-3 w-full max-w-[300px] mx-auto mb-6 px-6 py-4 bg-white border-2 border-gray-300 rounded-lg text-base font-semibold text-gray-700 cursor-pointer transition-all duration-200 hover:border-gray-400 hover:shadow-lg hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed"
                     :disabled="state.loading"
                 >
-                    <svg class="google-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+                    <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
                         <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
                         <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
                         <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
@@ -270,8 +270,8 @@ function cancel() {
                     <span v-else>Redirecting...</span>
                 </button>
 
-                <div class="action-buttons">
-                    <button @click="cancel" class="btn btn-secondary">
+                <div class="flex gap-3 justify-end mt-8 sm:flex-col">
+                    <button @click="cancel" class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 sm:w-full">
                         Cancel
                     </button>
                 </div>
@@ -279,50 +279,50 @@ function cancel() {
         </div>
 
         <!-- Step 2: Property Selection -->
-        <div v-if="state.currentStep === 2" class="step-content">
-            <div class="step-card">
-                <h2>Step 2: Select Analytics Property</h2>
+        <div v-if="state.currentStep === 2" class="animate-fade-in">
+            <div class="bg-white rounded-xl p-8 shadow-sm sm:p-6">
+                <h2 class="text-2xl font-semibold text-gray-900 mb-6">Step 2: Select Analytics Property</h2>
 
-                <div v-if="state.loadingProperties" class="loading-state">
-                    <div class="spinner"></div>
+                <div v-if="state.loadingProperties" class="text-center py-12 px-6">
+                    <div class="w-12 h-12 border-4 border-gray-300 border-t-indigo-600 rounded-full animate-spin mx-auto mb-4"></div>
                     <p>Loading your Google Analytics properties...</p>
                 </div>
 
-                <div v-else-if="state.properties.length === 0" class="empty-state">
-                    <p>{{ state.error || 'No properties found' }}</p>
-                    <a href="https://analytics.google.com" target="_blank" class="btn btn-primary">
+                <div v-else-if="state.properties.length === 0" class="text-center py-12 px-6">
+                    <p class="text-gray-600">{{ state.error || 'No properties found' }}</p>
+                    <a href="https://analytics.google.com" target="_blank" class="inline-block px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-indigo-600 text-white hover:bg-indigo-700 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-400/40 mt-4">
                         Create GA4 Property
                     </a>
                 </div>
 
-                <div v-else class="properties-list">
+                <div v-else class="flex flex-col gap-3 mb-6">
                     <div 
                         v-for="property in state.properties" 
                         :key="property.name"
-                        class="property-card"
-                        :class="{ selected: state.selectedProperty?.name === property.name }"
+                        class="flex items-center gap-4 p-5 border-2 rounded-lg cursor-pointer transition-all duration-200"
+                        :class="state.selectedProperty?.name === property.name ? 'border-indigo-600 bg-indigo-50' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'"
                         @click="selectProperty(property)"
                     >
-                        <div class="property-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <div class="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
+                            <svg class="w-6 h-6 text-indigo-600 stroke-[2]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                 <path d="M3 3v18h18"/>
                                 <path d="m19 9-5 5-4-4-3 3"/>
                             </svg>
                         </div>
-                        <div class="property-info">
-                            <h3>{{ property.displayName }}</h3>
-                            <p>{{ property.name }}</p>
+                        <div class="flex-1">
+                            <h3 class="text-base font-semibold text-gray-900 m-0 mb-1">{{ property.displayName }}</h3>
+                            <p class="text-sm text-gray-600 m-0">{{ property.name }}</p>
                         </div>
-                        <div class="property-select">
-                            <svg v-if="state.selectedProperty?.name === property.name" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <div class="">
+                            <svg v-if="state.selectedProperty?.name === property.name" class="w-6 h-6 text-indigo-600 stroke-[3]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                 <polyline points="20 6 9 17 4 12"></polyline>
                             </svg>
                         </div>
                     </div>
                 </div>
 
-                <div class="action-buttons">
-                    <button @click="goBack" class="btn btn-secondary">
+                <div class="flex gap-3 justify-end mt-8 sm:flex-col">
+                    <button @click="goBack" class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 sm:w-full">
                         ← Back
                     </button>
                 </div>
@@ -330,73 +330,73 @@ function cancel() {
         </div>
 
         <!-- Step 3: Configuration -->
-        <div v-if="state.currentStep === 3" class="step-content">
-            <div class="step-card">
-                <h2>Step 3: Configure Data Sync</h2>
+        <div v-if="state.currentStep === 3" class="animate-fade-in">
+            <div class="bg-white rounded-xl p-8 shadow-sm sm:p-6">
+                <h2 class="text-2xl font-semibold text-gray-900 mb-6">Step 3: Configure Data Sync</h2>
 
-                <div class="form-group">
-                    <label for="datasource-name">Data Source Name *</label>
+                <div class="mb-6">
+                    <label for="datasource-name" class="block text-sm font-semibold text-gray-800 mb-2">Data Source Name *</label>
                     <input 
                         id="datasource-name"
                         v-model="state.dataSourceName" 
                         type="text"
-                        class="form-control"
+                        class="w-full px-4 py-3 text-base border-2 rounded-lg transition-all duration-200 focus:outline-none focus:border-indigo-600 focus:ring-4 focus:ring-indigo-100"
+                        :class="state.error && !state.dataSourceName ? 'border-red-500' : 'border-gray-300'"
                         placeholder="e.g., My Website Analytics"
-                        :class="{ error: state.error && !state.dataSourceName }"
                     />
-                    <small>This name will appear in your data sources list</small>
+                    <small class="block mt-1 text-xs text-gray-600">This name will appear in your data sources list</small>
                 </div>
 
-                <div class="form-group">
-                    <label>Sync Frequency</label>
-                    <div class="radio-group">
-                        <label class="radio-option">
-                            <input type="radio" v-model="state.syncFrequency" value="manual" />
+                <div class="mb-6">
+                    <label class="block text-sm font-semibold text-gray-800 mb-2">Sync Frequency</label>
+                    <div class="flex flex-col gap-3">
+                        <label class="flex items-center gap-2 p-3 border-2 border-gray-300 rounded-lg cursor-pointer transition-all duration-200 hover:border-gray-400 hover:bg-gray-50">
+                            <input type="radio" v-model="state.syncFrequency" value="manual" class="cursor-pointer" />
                             <span>Manual (sync on demand)</span>
                         </label>
-                        <label class="radio-option">
-                            <input type="radio" v-model="state.syncFrequency" value="daily" />
+                        <label class="flex items-center gap-2 p-3 border-2 border-gray-300 rounded-lg cursor-pointer transition-all duration-200 hover:border-gray-400 hover:bg-gray-50">
+                            <input type="radio" v-model="state.syncFrequency" value="daily" class="cursor-pointer" />
                             <span>Daily (every night at 2 AM)</span>
                         </label>
-                        <label class="radio-option">
-                            <input type="radio" v-model="state.syncFrequency" value="weekly" />
+                        <label class="flex items-center gap-2 p-3 border-2 border-gray-300 rounded-lg cursor-pointer transition-all duration-200 hover:border-gray-400 hover:bg-gray-50">
+                            <input type="radio" v-model="state.syncFrequency" value="weekly" class="cursor-pointer" />
                             <span>Weekly (every Sunday at 2 AM)</span>
                         </label>
-                        <label class="radio-option">
-                            <input type="radio" v-model="state.syncFrequency" value="hourly" />
+                        <label class="flex items-center gap-2 p-3 border-2 border-gray-300 rounded-lg cursor-pointer transition-all duration-200 hover:border-gray-400 hover:bg-gray-50">
+                            <input type="radio" v-model="state.syncFrequency" value="hourly" class="cursor-pointer" />
                             <span>Hourly</span>
                         </label>
                     </div>
                 </div>
 
-                <div class="info-box">
-                    <h4>📊 Data Reports Included</h4>
-                    <div class="reports-grid">
-                        <div class="report-item">✓ Traffic Overview</div>
-                        <div class="report-item">✓ Page Performance</div>
-                        <div class="report-item">✓ User Acquisition</div>
-                        <div class="report-item">✓ Geographic Data</div>
-                        <div class="report-item">✓ Device & Technology</div>
-                        <div class="report-item">✓ Events</div>
+                <div class="p-5 bg-indigo-50 rounded-lg mb-6">
+                    <h4 class="text-base font-semibold text-gray-900 mb-4">📊 Data Reports Included</h4>
+                    <div class="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-2">
+                        <div class="text-sm text-gray-800">✓ Traffic Overview</div>
+                        <div class="text-sm text-gray-800">✓ Page Performance</div>
+                        <div class="text-sm text-gray-800">✓ User Acquisition</div>
+                        <div class="text-sm text-gray-800">✓ Geographic Data</div>
+                        <div class="text-sm text-gray-800">✓ Device & Technology</div>
+                        <div class="text-sm text-gray-800">✓ Events</div>
                     </div>
                 </div>
 
-                <div class="selected-property-summary">
-                    <h4>Selected Property</h4>
-                    <div class="summary-content">
+                <div class="p-5 bg-gray-50 rounded-lg mb-6">
+                    <h4 class="text-sm font-semibold text-gray-600 mb-3">Selected Property</h4>
+                    <div>
                         <p><strong>{{ state.selectedProperty?.displayName }}</strong></p>
-                        <p class="text-muted">{{ state.selectedProperty?.name }}</p>
+                        <p class="text-gray-600 text-sm">{{ state.selectedProperty?.name }}</p>
                     </div>
                 </div>
 
-                <div class="action-buttons">
-                    <button @click="goBack" class="btn btn-secondary" :disabled="state.connecting">
+                <div class="flex gap-3 justify-end mt-8 sm:flex-col">
+                    <button @click="goBack" class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-60 disabled:cursor-not-allowed sm:w-full" :disabled="state.connecting">
                         ← Back
                     </button>
-                    <button @click="cancel" class="btn btn-secondary" :disabled="state.connecting">
+                    <button @click="cancel" class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-60 disabled:cursor-not-allowed sm:w-full" :disabled="state.connecting">
                         Cancel
                     </button>
-                    <button @click="connectAndSync" class="btn btn-primary" :disabled="state.connecting">
+                    <button @click="connectAndSync" class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed bg-indigo-600 text-white hover:bg-indigo-700 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-400/40 sm:w-full" :disabled="state.connecting">
                         <span v-if="!state.connecting">Connect & Sync →</span>
                         <span v-else>Connecting...</span>
                     </button>
@@ -405,443 +405,3 @@ function cancel() {
         </div>
     </div>
 </template>
-
-<style scoped>
-.google-analytics-connector {
-    max-width: 900px;
-    margin: 0 auto;
-    padding: 40px 20px;
-}
-
-.connector-header {
-    text-align: center;
-    margin-bottom: 40px;
-}
-
-.connector-header h1 {
-    font-size: 32px;
-    font-weight: 700;
-    color: #1a202c;
-    margin-bottom: 8px;
-}
-
-.connector-header p {
-    font-size: 16px;
-    color: #718096;
-}
-
-/* Step Indicator */
-.step-indicator {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 48px;
-}
-
-.step {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-}
-
-.step-number {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: #e2e8f0;
-    color: #718096;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 600;
-    transition: all 0.3s;
-}
-
-.step.active .step-number {
-    background: #667eea;
-    color: white;
-}
-
-.step.completed .step-number {
-    background: #48bb78;
-    color: white;
-}
-
-.step-label {
-    font-size: 14px;
-    color: #718096;
-    font-weight: 500;
-}
-
-.step.active .step-label {
-    color: #667eea;
-}
-
-.step-line {
-    width: 80px;
-    height: 2px;
-    background: #e2e8f0;
-    margin: 0 16px;
-    transition: all 0.3s;
-}
-
-.step-line.active {
-    background: #48bb78;
-}
-
-/* Step Cards */
-.step-content {
-    animation: fadeIn 0.3s ease-out;
-}
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-.step-card {
-    background: white;
-    border-radius: 12px;
-    padding: 32px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.step-card h2 {
-    font-size: 24px;
-    font-weight: 600;
-    color: #1a202c;
-    margin-bottom: 24px;
-}
-
-/* Authentication */
-.auth-info {
-    margin-bottom: 32px;
-}
-
-.auth-info p {
-    font-size: 16px;
-    color: #4a5568;
-    margin-bottom: 16px;
-}
-
-.auth-info ul {
-    list-style: none;
-    padding: 0;
-}
-
-.auth-info li {
-    padding: 8px 0;
-    color: #2d3748;
-}
-
-.google-signin-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    width: 100%;
-    max-width: 300px;
-    margin: 0 auto 24px;
-    padding: 16px 24px;
-    background: white;
-    border: 2px solid #e2e8f0;
-    border-radius: 8px;
-    font-size: 16px;
-    font-weight: 600;
-    color: #4a5568;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.google-signin-btn:hover:not(:disabled) {
-    border-color: #cbd5e0;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    transform: translateY(-2px);
-}
-
-.google-signin-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-
-.google-icon {
-    width: 24px;
-    height: 24px;
-}
-
-/* Properties List */
-.loading-state,
-.empty-state {
-    text-align: center;
-    padding: 48px 24px;
-}
-
-.spinner {
-    width: 48px;
-    height: 48px;
-    border: 4px solid #e2e8f0;
-    border-top-color: #667eea;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    margin: 0 auto 16px;
-}
-
-.properties-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    margin-bottom: 24px;
-}
-
-.property-card {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 20px;
-    border: 2px solid #e2e8f0;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.property-card:hover {
-    border-color: #cbd5e0;
-    background: #f7fafc;
-}
-
-.property-card.selected {
-    border-color: #667eea;
-    background: #eef2ff;
-}
-
-.property-icon {
-    width: 48px;
-    height: 48px;
-    background: #edf2f7;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.property-icon svg {
-    width: 24px;
-    height: 24px;
-    color: #667eea;
-    stroke-width: 2;
-}
-
-.property-info {
-    flex: 1;
-}
-
-.property-info h3 {
-    font-size: 16px;
-    font-weight: 600;
-    color: #1a202c;
-    margin: 0 0 4px;
-}
-
-.property-info p {
-    font-size: 14px;
-    color: #718096;
-    margin: 0;
-}
-
-.property-select svg {
-    width: 24px;
-    height: 24px;
-    color: #667eea;
-    stroke-width: 3;
-}
-
-/* Form Groups */
-.form-group {
-    margin-bottom: 24px;
-}
-
-.form-group label {
-    display: block;
-    font-size: 14px;
-    font-weight: 600;
-    color: #2d3748;
-    margin-bottom: 8px;
-}
-
-.form-control {
-    width: 100%;
-    padding: 12px 16px;
-    font-size: 16px;
-    border: 2px solid #e2e8f0;
-    border-radius: 8px;
-    transition: all 0.2s;
-}
-
-.form-control:focus {
-    outline: none;
-    border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-.form-control.error {
-    border-color: #f56565;
-}
-
-.form-group small {
-    display: block;
-    margin-top: 4px;
-    font-size: 13px;
-    color: #718096;
-}
-
-.radio-group {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.radio-option {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px;
-    border: 2px solid #e2e8f0;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.radio-option:hover {
-    border-color: #cbd5e0;
-    background: #f7fafc;
-}
-
-.radio-option input[type="radio"] {
-    cursor: pointer;
-}
-
-.info-box {
-    padding: 20px;
-    background: #eef2ff;
-    border-radius: 8px;
-    margin-bottom: 24px;
-}
-
-.info-box h4 {
-    font-size: 16px;
-    font-weight: 600;
-    color: #1a202c;
-    margin-bottom: 16px;
-}
-
-.reports-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 8px;
-}
-
-.report-item {
-    font-size: 14px;
-    color: #2d3748;
-}
-
-.selected-property-summary {
-    padding: 20px;
-    background: #f7fafc;
-    border-radius: 8px;
-    margin-bottom: 24px;
-}
-
-.selected-property-summary h4 {
-    font-size: 14px;
-    font-weight: 600;
-    color: #718096;
-    margin-bottom: 12px;
-}
-
-.text-muted {
-    color: #718096;
-    font-size: 14px;
-}
-
-/* Action Buttons */
-.action-buttons {
-    display: flex;
-    gap: 12px;
-    justify-content: flex-end;
-    margin-top: 32px;
-}
-
-.btn {
-    padding: 12px 24px;
-    border-radius: 8px;
-    font-size: 16px;
-    font-weight: 500;
-    border: none;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-
-.btn-primary {
-    background: #667eea;
-    color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-    background: #5568d3;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-}
-
-.btn-secondary {
-    background: #e2e8f0;
-    color: #4a5568;
-}
-
-.btn-secondary:hover:not(:disabled) {
-    background: #cbd5e0;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-    .google-analytics-connector {
-        padding: 24px 16px;
-    }
-    
-    .step-indicator {
-        margin-bottom: 32px;
-    }
-    
-    .step-line {
-        width: 40px;
-    }
-    
-    .step-label {
-        font-size: 12px;
-    }
-    
-    .step-card {
-        padding: 24px;
-    }
-    
-    .action-buttons {
-        flex-direction: column;
-    }
-    
-    .btn {
-        width: 100%;
-    }
-}
-</style>
