@@ -155,7 +155,7 @@ export class QueueService {
         return new Promise<void>(async (resolve, reject) => {
             await this.initializeQueues();
             setInterval(async () => {
-                console.log('--- Queue Status ---');
+                // console.log('--- Queue Status ---');
                 const numPDFConverion = await this.pdfConversionQueue.length();
                 if (numPDFConverion > 0) {
                     const job: Document | null = await this.pdfConversionQueue.dequeue();

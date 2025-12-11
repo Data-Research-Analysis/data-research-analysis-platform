@@ -110,6 +110,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
 
             if (response.ok) {
                 const data = await response.json();
+                console.log('Received Google OAuth URL:', data);
                 return data.auth_url;
             }
             return null;
