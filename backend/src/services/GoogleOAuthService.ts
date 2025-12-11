@@ -34,6 +34,9 @@ export class GoogleOAuthService {
             return;
         }
         
+        console.log('🔐 Initializing Google OAuth2 Client');
+        console.log('   - Client ID:', clientId);
+        console.log('   - Redirect URI:', redirectUri);
         this.oauth2Client = new google.auth.OAuth2(
             clientId,
             clientSecret,

@@ -20,6 +20,15 @@ module.exports = {
         "synced-blue": "#1E3050",
         "sync-failed": "#DC2626",
       },
+      animation: {
+        'fade-in': 'fadeIn 0.3s ease-out',
+      },
+      keyframes: {
+        fadeIn: {
+          'from': { opacity: '0', transform: 'translateY(20px)' },
+          'to': { opacity: '1', transform: 'translateY(0)' }
+        }
+      }
     },
   },
   plugins: [
