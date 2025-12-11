@@ -62,11 +62,11 @@ const state = reactive({
             url: `${route.fullPath}/data-sources/connect/mariadb`,
             image_url: mariadbImage,
         },
-        // {
-        //     name: 'Google Analytics',
-        //     url: `${route.fullPath}/data-sources/connect/google-analytics`,
-        //     image_url: googleAnalyticsImage,
-        // },
+        {
+            name: 'Google Analytics',
+            url: `${route.fullPath}/data-sources/connect/google-analytics`,
+            image_url: googleAnalyticsImage,
+        },
     ],
     selected_tab: 'data_sources',
 });
