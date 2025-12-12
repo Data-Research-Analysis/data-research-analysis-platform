@@ -387,7 +387,28 @@ export class DataSourceProcessor {
                     } catch (error) {
                         console.error(`Error deleting PDF tables:`, error);
                     }
-                }                
+                }
+                
+                // Delete Google Analytics schema tables
+                if ('schema' in dataSource.connection_details && dataSource.connection_details.schema === 'dra_google_analytics') {
+                    if (!dbConnector) {
+                        return resolve(false);
+                    }
+                    try {
+                        const query = `SELECT table_name FROM information_schema.tables WHERE table_schema = 'dra_google_analytics' AND table_name LIKE '%_${dataSource.id}'`;
+                        const tables = await dbConnector.query(query);
+                        console.log(`Found ${tables.length} Google Analytics tables to delete`);
+                        
+                        for (let i = 0; i < tables.length; i++) {
+                            const tableName = tables[i].table_name;
+                            await dbConnector.query(`DROP TABLE IF EXISTS dra_google_analytics.${tableName}`);
+                            console.log(`Dropped Google Analytics table: ${tableName}`);
+                        }
+                    } catch (error) {
+                        console.error(`Error deleting Google Analytics tables:`, error);
+                    }
+                }
+                
                 // Remove the data source record
                 await manager.remove(dataSource);
                 console.log(`Successfully deleted data source ${dataSourceId}`);
@@ -482,8 +503,10 @@ export class DataSourceProcessor {
 
             if (dataSource.data_type === EDataSourceType.MONGODB) {
                 //TODO: Leaving here for when MongoDB data source is implemented
-            } else if (dataSource.data_type === EDataSourceType.POSTGRESQL || dataSource.data_type === EDataSourceType.MYSQL || dataSource.data_type === EDataSourceType.MARIADB || dataSource.data_type === EDataSourceType.EXCEL || dataSource.data_type === EDataSourceType.PDF) {
+            } else if (dataSource.data_type === EDataSourceType.POSTGRESQL || dataSource.data_type === EDataSourceType.MYSQL || dataSource.data_type === EDataSourceType.MARIADB || dataSource.data_type === EDataSourceType.EXCEL || dataSource.data_type === EDataSourceType.PDF || dataSource.data_type === EDataSourceType.GOOGLE_ANALYTICS) {
                 const connection = dataSource.connection_details;
+                console.log('[DEBUG - DataSourceProcessor] Connecting to data source ID:', dataSource.id);
+                console.log('[DEBUG - DataSourceProcessor] Connection details:', connection);
                 // Skip API-based data sources
                 if ('oauth_access_token' in connection) {
                     return resolve(null);
@@ -511,6 +534,8 @@ export class DataSourceProcessor {
                     query += ` AND tb.table_name LIKE '%_data_source_${dataSource.id}_%'`;
                 } else if (connection.schema === 'dra_pdf') {
                     query += ` AND tb.table_name LIKE '%_data_source_${dataSource.id}_%'`;
+                } else if (connection.schema === 'dra_google_analytics') {
+                    query += ` AND tb.table_name LIKE '%_${dataSource.id}'`;
                 }
                 let tablesSchema = await dbConnector.query(query);
                 let tables = tablesSchema.map((table: any) => {
@@ -1919,36 +1944,60 @@ export class DataSourceProcessor {
         connectionDetails: IAPIConnectionDetails,
         tokenDetails: ITokenDetails,
         projectId: number
-    ): Promise<boolean> {
-        return new Promise<boolean>(async (resolve, reject) => {
+    ): Promise<number | null> {
+        return new Promise<number | null>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             if (!driver) {
-                return resolve(false);
+                return resolve(null);
             }
-            const manager = (await driver.getConcreteDriver()).manager;
+            const dbConnector = await driver.getConcreteDriver();
+            const manager = dbConnector.manager;
             if (!manager) {
-                return resolve(false);
+                return resolve(null);
             }
             const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
             if (!user) {
-                return resolve(false);
+                return resolve(null);
             }
             const project: DRAProject|null = await manager.findOne(DRAProject, {where: {id: projectId, users_platform: user}});
             if (project) {
+                // Create schema for Google Analytics data
+                const schemaName = 'dra_google_analytics';
+                await manager.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+                
+                // Get internal database connection details
+                const host = UtilityService.getInstance().getConstants('POSTGRESQL_HOST');
+                const port = UtilityService.getInstance().getConstants('POSTGRESQL_PORT');
+                const database = UtilityService.getInstance().getConstants('POSTGRESQL_DB_NAME');
+                const username = UtilityService.getInstance().getConstants('POSTGRESQL_USERNAME');
+                const password = UtilityService.getInstance().getConstants('POSTGRESQL_PASSWORD');
+                
+                // Create hybrid connection details: database connection + API connection
+                const hybridConnection: IDBConnectionDetails = {
+                    data_source_type: EDataSourceType.GOOGLE_ANALYTICS,
+                    host: host,
+                    port: parseInt(port),
+                    schema: schemaName,
+                    database: database,
+                    username: username,
+                    password: password,
+                    api_connection_details: connectionDetails
+                };
+                
                 const dataSource = new DRADataSource();
                 dataSource.name = name;
-                dataSource.connection_details = connectionDetails;
+                dataSource.connection_details = hybridConnection;
                 dataSource.data_type = EDataSourceType.GOOGLE_ANALYTICS;
                 dataSource.project = project;
                 dataSource.users_platform = user;
                 dataSource.created_at = new Date();
-                await manager.save(dataSource);
+                const savedDataSource = await manager.save(dataSource);
                 
-                console.log('✅ Google Analytics data source added successfully');
-                return resolve(true);
+                console.log('✅ Google Analytics data source added successfully with ID:', savedDataSource.id);
+                return resolve(savedDataSource.id);
             }
-            return resolve(false);
+            return resolve(null);
         });
     }
 
@@ -1984,17 +2033,24 @@ export class DataSourceProcessor {
                 return resolve(false);
             }
             
-            // Get connection details
-            const connectionDetails = dataSource.connection_details as IAPIConnectionDetails;
+            // Get connection details - extract API connection from hybrid structure
+            const connection = dataSource.connection_details;
+            if (!connection.api_connection_details) {
+                console.error('API connection details not found in data source');
+                return resolve(false);
+            }
+            
+            const apiConnectionDetails = connection.api_connection_details;
             
             // Trigger sync
             const gaDriver = GoogleAnalyticsDriver.getInstance();
-            const syncResult = await gaDriver.syncToDatabase(dataSourceId, connectionDetails);
+            const syncResult = await gaDriver.syncToDatabase(dataSourceId, apiConnectionDetails);
             
             if (syncResult) {
-                // Update last sync time in connection details
-                connectionDetails.api_config.last_sync = new Date();
-                dataSource.connection_details = connectionDetails;
+                // Update last sync time in API connection details
+                apiConnectionDetails.api_config.last_sync = new Date();
+                connection.api_connection_details = apiConnectionDetails;
+                dataSource.connection_details = connection;
                 await manager.save(dataSource);
             }
             

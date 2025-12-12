@@ -64,7 +64,6 @@ router.get('/metadata/:propertyId',
             
             // Create temporary connection details
             const connectionDetails: IAPIConnectionDetails = {
-                data_source_type: EDataSourceType.GOOGLE_ANALYTICS,
                 oauth_access_token: access_token,
                 oauth_refresh_token: refresh_token,
                 token_expiry: new Date(Date.now() + 3600000), // 1 hour from now
@@ -148,7 +147,6 @@ router.post('/add-data-source',
             
             // Create connection details
             const connectionDetails: IAPIConnectionDetails = {
-                data_source_type: EDataSourceType.GOOGLE_ANALYTICS,
                 oauth_access_token: access_token,
                 oauth_refresh_token: refresh_token,
                 token_expiry: new Date(token_expiry),
@@ -160,19 +158,22 @@ router.post('/add-data-source',
             };
             
             // Add data source using processor
-            const result = await DataSourceProcessor.getInstance().addGoogleAnalyticsDataSource(
+            const dataSourceId = await DataSourceProcessor.getInstance().addGoogleAnalyticsDataSource(
                 name,
                 connectionDetails,
                 req.body.tokenDetails,
                 project_id
             );
             
-            if (result) {
-                res.status(200).send({
+            if (dataSourceId) {
+                res.status(201).send({
+                    success: true,
+                    data_source_id: dataSourceId,
                     message: 'Google Analytics data source added successfully'
                 });
             } else {
                 res.status(400).send({
+                    success: false,
                     message: 'Failed to add Google Analytics data source'
                 });
             }

@@ -30,8 +30,8 @@ export const useGoogleAnalytics = () => {
      */
     const addDataSource = async (config: IGoogleAnalyticsSyncConfig): Promise<boolean> => {
         try {
-            const success = await dataSourceStore.addGoogleAnalyticsDataSource(config);
-            return success;
+            const success: number | null = await dataSourceStore.addGoogleAnalyticsDataSource(config);
+            return success !== null;
         } catch (error) {
             console.error('Failed to add data source:', error);
             return false;
@@ -43,6 +43,7 @@ export const useGoogleAnalytics = () => {
      */
     const syncNow = async (dataSourceId: number): Promise<boolean> => {
         try {
+            console.log('syncNow called with dataSourceId:', dataSourceId);
             const success = await dataSourceStore.syncGoogleAnalytics(dataSourceId);
             return success;
         } catch (error) {

@@ -5,7 +5,6 @@ import { EDataSourceType } from "./EDataSourceType.js";
  * Used for Google Analytics, Google Ads, and other OAuth-based services
  */
 export interface IAPIConnectionDetails {
-    data_source_type: EDataSourceType;
     oauth_access_token: string;
     oauth_refresh_token: string;
     token_expiry: Date;

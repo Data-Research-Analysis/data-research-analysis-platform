@@ -208,7 +208,6 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
                 screen_page_views INTEGER,
                 average_session_duration DECIMAL(10,2),
                 bounce_rate DECIMAL(5,2),
-                exit_rate DECIMAL(5,2),
                 synced_at TIMESTAMP DEFAULT NOW(),
                 UNIQUE(page_path)
             )
@@ -228,23 +227,21 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         for (const row of rows) {
             await manager.query(`
                 INSERT INTO ${tableName} 
-                (page_path, page_title, screen_page_views, average_session_duration, bounce_rate, exit_rate)
-                VALUES ($1, $2, $3, $4, $5, $6)
+                (page_path, page_title, screen_page_views, average_session_duration, bounce_rate)
+                VALUES ($1, $2, $3, $4, $5)
                 ON CONFLICT (page_path) 
                 DO UPDATE SET
                     page_title = EXCLUDED.page_title,
                     screen_page_views = EXCLUDED.screen_page_views,
                     average_session_duration = EXCLUDED.average_session_duration,
                     bounce_rate = EXCLUDED.bounce_rate,
-                    exit_rate = EXCLUDED.exit_rate,
                     synced_at = NOW()
             `, [
                 row.pagePath || '/',
                 row.pageTitle || 'Unknown',
                 row.screenPageViews || 0,
                 row.averageSessionDuration || 0,
-                row.bounceRate || 0,
-                row.exitRate || 0
+                row.bounceRate || 0
             ]);
         }
         
@@ -263,19 +260,22 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
     ): Promise<void> {
         const tableName = `${schemaName}.user_acquisition_${dataSourceId}`;
         
+        // Drop and recreate the table to ensure schema matches
+        await manager.query(`DROP TABLE IF EXISTS ${tableName}`);
+        
         await manager.query(`
-            CREATE TABLE IF NOT EXISTS ${tableName} (
+            CREATE TABLE ${tableName} (
                 id SERIAL PRIMARY KEY,
                 date DATE NOT NULL,
                 first_user_source VARCHAR(255),
                 first_user_medium VARCHAR(255),
-                first_user_campaign VARCHAR(255),
+                first_user_campaign_id VARCHAR(255),
                 new_users INTEGER,
                 sessions INTEGER,
                 engagement_rate DECIMAL(5,2),
                 conversions INTEGER,
                 synced_at TIMESTAMP DEFAULT NOW(),
-                UNIQUE(date, first_user_source, first_user_medium, first_user_campaign)
+                UNIQUE(date, first_user_source, first_user_medium, first_user_campaign_id)
             )
         `);
         
@@ -293,10 +293,10 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         for (const row of rows) {
             await manager.query(`
                 INSERT INTO ${tableName} 
-                (date, first_user_source, first_user_medium, first_user_campaign, 
+                (date, first_user_source, first_user_medium, first_user_campaign_id, 
                  new_users, sessions, engagement_rate, conversions)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                ON CONFLICT (date, first_user_source, first_user_medium, first_user_campaign) 
+                ON CONFLICT (date, first_user_source, first_user_medium, first_user_campaign_id) 
                 DO UPDATE SET
                     new_users = EXCLUDED.new_users,
                     sessions = EXCLUDED.sessions,
@@ -307,7 +307,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
                 row.date,
                 row.firstUserSource || 'direct',
                 row.firstUserMedium || 'none',
-                row.firstUserCampaign || '(not set)',
+                row.firstUserCampaignId || '(not set)',
                 row.newUsers || 0,
                 row.sessions || 0,
                 row.engagementRate || 0,
@@ -547,15 +547,48 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
     }
     
     /**
-     * Get last sync time
+     * Ensure schema and sync_history table exist
      */
-    public async getLastSyncTime(dataSourceId: number): Promise<Date | null> {
+    private async ensureSchemaAndSyncHistoryTable(): Promise<any> {
         try {
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             if (!driver) return null;
             
             const dbConnector = await driver.getConcreteDriver();
-            const result = await dbConnector.query(`
+            const manager = dbConnector.manager;
+            
+            // Create schema if it doesn't exist
+            await manager.query(`CREATE SCHEMA IF NOT EXISTS dra_google_analytics`);
+            
+            // Create sync_history table if it doesn't exist
+            await manager.query(`
+                CREATE TABLE IF NOT EXISTS dra_google_analytics.sync_history (
+                    id SERIAL PRIMARY KEY,
+                    data_source_id INTEGER NOT NULL,
+                    sync_started_at TIMESTAMP NOT NULL,
+                    sync_completed_at TIMESTAMP NOT NULL,
+                    status VARCHAR(50),
+                    rows_synced INTEGER,
+                    error_message TEXT
+                )
+            `);
+            
+            return manager;
+        } catch (error) {
+            console.error('Error ensuring schema and sync_history table:', error);
+            return null;
+        }
+    }
+    
+    /**
+     * Get last sync time
+     */
+    public async getLastSyncTime(dataSourceId: number): Promise<Date | null> {
+        try {
+            const manager = await this.ensureSchemaAndSyncHistoryTable();
+            if (!manager) return null;
+            
+            const result = await manager.query(`
                 SELECT sync_completed_at 
                 FROM dra_google_analytics.sync_history 
                 WHERE data_source_id = $1 
@@ -575,11 +608,10 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
      */
     public async getSyncHistory(dataSourceId: number, limit: number = 10): Promise<any[]> {
         try {
-            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-            if (!driver) return [];
+            const manager = await this.ensureSchemaAndSyncHistoryTable();
+            if (!manager) return [];
             
-            const dbConnector = await driver.getConcreteDriver();
-            const result = await dbConnector.query(`
+            const result = await manager.query(`
                 SELECT * 
                 FROM dra_google_analytics.sync_history 
                 WHERE data_source_id = $1 
