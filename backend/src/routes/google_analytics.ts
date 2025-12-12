@@ -12,9 +12,9 @@ const router = express.Router();
 
 /**
  * List accessible Google Analytics properties
- * GET /api/google-analytics/properties
+ * POST /api/google-analytics/properties
  */
-router.get('/properties',
+router.post('/properties',
     async (req: Request, res: Response, next: any) => {
         next();
     },
