@@ -191,9 +191,9 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     /**
      * Add Google Analytics data source
      */
-    async function addGoogleAnalyticsDataSource(config: IGoogleAnalyticsSyncConfig): Promise<boolean> {
+    async function addGoogleAnalyticsDataSource(config: IGoogleAnalyticsSyncConfig): Promise<number | null> {
         const token = getAuthToken();
-        if (!token) return false;
+        if (!token) return null;
 
         try {
             const response = await fetch(`${baseUrl()}/google-analytics/add-data-source`, {
@@ -207,14 +207,15 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
             });
 
             if (response.ok) {
+                const data = await response.json();
                 // Refresh data sources list
                 await retrieveDataSources();
-                return true;
+                return data.data_source_id || null;
             }
-            return false;
+            return null;
         } catch (error) {
             console.error('Error adding GA data source:', error);
-            return false;
+            return null;
         }
     }
 
@@ -223,9 +224,12 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
      */
     async function syncGoogleAnalytics(dataSourceId: number): Promise<boolean> {
         const token = getAuthToken();
+        console.log('syncGoogleAnalytics called with dataSourceId:', dataSourceId);
+        console.log('Auth token:', token);
         if (!token) return false;
 
         try {
+            console.log('Sending sync request to backend for dataSourceId:', dataSourceId);
             const response = await fetch(`${baseUrl()}/google-analytics/sync/${dataSourceId}`, {
                 method: "POST",
                 headers: {
@@ -233,6 +237,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
                 },
+                body: JSON.stringify({}), // Send empty body so validateJWT can add tokenDetails
             });
 
             return response.ok;

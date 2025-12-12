@@ -9,7 +9,10 @@ export interface IDBConnectionDetails {
     database: string;
     username: string;
     password: string;
+    
+    // Optional: For API-based sources that store data in database (e.g., Google Analytics)
+    api_connection_details?: IAPIConnectionDetails;
 }
 
-// Union type to support both database and API connections
-export type IConnectionDetails = IDBConnectionDetails | IAPIConnectionDetails;
+// Use IDBConnectionDetails for all connection types
+export type IConnectionDetails = IDBConnectionDetails;

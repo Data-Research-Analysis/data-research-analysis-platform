@@ -1,4 +1,3 @@
-import { BetaAnalyticsDataClient } from '@google-analytics/data';
 import { google } from 'googleapis';
 import { IAPIConnectionDetails } from '../types/IAPIConnectionDetails.js';
 import { GoogleOAuthService } from './GoogleOAuthService.js';
@@ -37,18 +36,20 @@ export class GoogleAnalyticsService {
     }
     
     /**
-     * Get authenticated GA4 Data API client
+     * Get authenticated GA4 Data API client using googleapis
      * @param connectionDetails - API connection details
-     * @returns BetaAnalyticsDataClient instance
+     * @returns Analytics Data API v1beta client
      */
-    private getGA4Client(connectionDetails: IAPIConnectionDetails): BetaAnalyticsDataClient {
+    private getGA4Client(connectionDetails: IAPIConnectionDetails): any {
         const oauthService = GoogleOAuthService.getInstance();
         const oauth2Client = oauthService.getAuthenticatedClient(
             connectionDetails.oauth_access_token,
             connectionDetails.oauth_refresh_token
         );
         
-        return new BetaAnalyticsDataClient({
+        // Use googleapis analyticsdata API instead of @google-analytics/data
+        return google.analyticsdata({
+            version: 'v1beta',
             auth: oauth2Client
         });
     }
@@ -147,20 +148,22 @@ export class GoogleAnalyticsService {
         try {
             const client = this.getGA4Client(connectionDetails);
             
-            const [response] = await client.runReport({
+            const response = await client.properties.runReport({
                 property: propertyId,
-                dimensions: dimensions.map(d => ({ name: d })),
-                metrics: metrics.map(m => ({ name: m })),
-                dateRanges: dateRanges,
-                limit: limit,
+                requestBody: {
+                    dimensions: dimensions.map(d => ({ name: d })),
+                    metrics: metrics.map(m => ({ name: m })),
+                    dateRanges: dateRanges,
+                    limit: limit,
+                }
             });
             
             console.log('✅ Successfully ran GA4 report');
-            console.log(`   - Rows returned: ${response.rows?.length || 0}`);
+            console.log(`   - Rows returned: ${response.data.rows?.length || 0}`);
             console.log(`   - Dimensions: ${dimensions.join(', ')}`);
             console.log(`   - Metrics: ${metrics.join(', ')}`);
             
-            return response;
+            return response.data;
         } catch (error) {
             console.error('❌ Failed to run GA4 report:', error);
             throw new Error('Failed to run Google Analytics report');
@@ -210,13 +213,13 @@ export class GoogleAnalyticsService {
             },
             user_acquisition: {
                 name: 'User Acquisition',
-                dimensions: ['date', 'firstUserSource', 'firstUserMedium', 'firstUserCampaign'],
+                dimensions: ['date', 'firstUserSource', 'firstUserMedium', 'firstUserCampaignId'],
                 metrics: ['newUsers', 'sessions', 'engagementRate', 'conversions']
             },
             page_performance: {
                 name: 'Page Performance',
                 dimensions: ['pagePath', 'pageTitle'],
-                metrics: ['screenPageViews', 'averageSessionDuration', 'bounceRate', 'exitRate']
+                metrics: ['screenPageViews', 'averageSessionDuration', 'bounceRate']
             },
             geographic: {
                 name: 'Geographic',

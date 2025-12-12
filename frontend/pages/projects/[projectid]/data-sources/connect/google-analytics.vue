@@ -167,19 +167,42 @@ async function connectAndSync() {
             account_name: state.selectedProperty!.displayName
         };
         
-        const success = await analytics.addDataSource(config);
+        const dataSourceId = await analytics.addDataSource(config);
         
-        if (success) {
+        if (dataSourceId) {
             // Clear stored tokens
             oauth.clearTokens();
             
-            // Show success message
-            await $swal.fire({
-                title: 'Connected Successfully!',
-                text: 'Your Google Analytics data source has been added and initial sync is starting.',
-                icon: 'success',
-                timer: 2000
+            // Show syncing message
+            $swal.fire({
+                title: 'Syncing Data...',
+                text: 'Please wait while we sync your Google Analytics data.',
+                icon: 'info',
+                allowOutsideClick: false,
+                showConfirmButton: false,
+                didOpen: () => {
+                    $swal.showLoading();
+                }
             });
+            
+            // Trigger initial sync
+            const syncSuccess = await analytics.syncNow(dataSourceId);
+            
+            if (syncSuccess) {
+                await $swal.fire({
+                    title: 'Connected Successfully!',
+                    text: 'Your Google Analytics data has been synced and is ready to use.',
+                    icon: 'success',
+                    timer: 2000
+                });
+            } else {
+                await $swal.fire({
+                    title: 'Connected with Warning',
+                    text: 'Data source added but initial sync failed. You can manually sync from the data sources page.',
+                    icon: 'warning',
+                    timer: 3000
+                });
+            }
             
             // Redirect to data sources list
             router.push(`/projects/${projectId}/data-sources`);
