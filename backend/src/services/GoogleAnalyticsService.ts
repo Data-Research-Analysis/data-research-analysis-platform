@@ -68,8 +68,9 @@ export class GoogleAnalyticsService {
                 auth: oauth2Client
             });
             
+            // List all properties accessible to the authenticated user
             const response = await analyticsAdmin.properties.list({
-                filter: 'parent:accounts/*'
+                pageSize: 200
             });
             
             console.log(`✅ Found ${response.data.properties?.length || 0} Google Analytics properties`);
