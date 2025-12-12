@@ -28,7 +28,7 @@ onMounted(() => {
         <h1>Terms and Conditions</h1>
         
         <p>
-            Last updated: February 21, 2025
+            Last updated: December 12, 2025
         </p>
         
         <p>
@@ -76,6 +76,16 @@ onMounted(() => {
             </li>
             <li>
                 <p>
+                    <strong>Connected Services</strong> refers to third-party services and data sources that You authorize to integrate with Our Service, including but not limited to Google Analytics, database systems, and API-based data sources.
+                </p>
+            </li>
+            <li>
+                <p>
+                    <strong>User Data</strong> refers to data You provide, upload, import, or authorize Us to access from Connected Services for the purpose of using Our data analysis features.
+                </p>
+            </li>
+            <li>
+                <p>
                     <strong>Terms and Conditions</strong> (also referred as &quot;Terms&quot;) mean these Terms and Conditions that form the entire agreement between You and the Company regarding the use of the Service. This Terms and Conditions agreement has been created with the help of the <a href="https://www.termsfeed.com/terms-conditions-generator/" target="_blank">Terms and Conditions Generator</a>.
                 </p>
             </li>
@@ -117,6 +127,79 @@ onMounted(() => {
         <p>
             Your access to and use of the Service is also conditioned on Your acceptance of and compliance with the Privacy Policy of the Company. Our Privacy Policy describes Our policies and procedures on the collection, use and disclosure of Your personal information when You use the Application or the Website and tells You about Your privacy rights and how the law protects You. Please read Our Privacy Policy carefully before using Our Service.
         </p>
+
+        <h2>Third-Party Integrations and Connected Services</h2>
+
+        <h3>Authorization and Access</h3>
+
+        <p>
+            Our Service allows You to connect third-party services, including Google Analytics, to import and analyze Your data. By connecting these services:
+        </p>
+
+        <ul>
+            <li>You authorize Us to access data from Your connected accounts on Your behalf</li>
+            <li>You represent that You have the legal right to grant such authorization</li>
+            <li>You understand that We will access only the data and permissions You explicitly authorize</li>
+            <li>You acknowledge that Our access is governed by the third-party service's terms and policies</li>
+        </ul>
+
+        <h3>Google Analytics Integration</h3>
+
+        <p>
+            When You connect Your Google Analytics account:
+        </p>
+
+        <ul>
+            <li>You grant Us read-only access to Your Google Analytics data</li>
+            <li>You acknowledge that We store encrypted OAuth tokens to maintain the integration</li>
+            <li>You can disconnect the integration at any time through Your account settings</li>
+            <li>You remain responsible for Your Google Analytics account and its compliance with Google's Terms of Service</li>
+            <li>We are not responsible for any changes, interruptions, or termination of Google Analytics services</li>
+        </ul>
+
+        <h3>Data Sync and Storage</h3>
+
+        <p>
+            For connected services:
+        </p>
+
+        <ul>
+            <li>We sync data according to the frequency You configure (manual, hourly, daily, or weekly)</li>
+            <li>Imported data is stored in Your projects and remains under Your control</li>
+            <li>You are responsible for managing data retention and deletion within Our Service</li>
+            <li>Disconnecting a service does not automatically delete previously imported data</li>
+        </ul>
+
+        <h3>Your Responsibilities</h3>
+
+        <p>
+            When using Connected Services, You agree to:
+        </p>
+
+        <ul>
+            <li>Comply with all terms, policies, and usage limits of the third-party services</li>
+            <li>Maintain the security of Your third-party service credentials</li>
+            <li>Only connect accounts and data You have authorization to access</li>
+            <li>Not use Connected Services to access data belonging to others without permission</li>
+            <li>Promptly notify Us if You believe Your connected account has been compromised</li>
+        </ul>
+
+        <h3>Service Limitations</h3>
+
+        <p>
+            We do not guarantee:
+        </p>
+
+        <ul>
+            <li>Continuous availability of third-party integrations</li>
+            <li>That integrated services will meet Your requirements</li>
+            <li>That data imports will be complete, accurate, or timely</li>
+            <li>That third-party services will not change their APIs or terms in ways that affect integrations</li>
+        </ul>
+
+        <p>
+            We reserve the right to suspend or terminate third-party integrations if required by the service provider or if We determine misuse has occurred.
+        </p>
         
         <h2>Links to Other Websites</h2>
         
@@ -157,6 +240,10 @@ onMounted(() => {
         </p>
         
         <h2>&quot;AS IS&quot; and &quot;AS AVAILABLE&quot; Disclaimer</h2>
+        
+        <p>
+            The Company shall not be liable for any loss, corruption, or unauthorized access to data imported from Connected Services, including Google Analytics, or for any interruption or termination of third-party integrations beyond Our control.
+        </p>
         
         <p>
             The Service is provided to You &quot;AS IS&quot; and &quot;AS AVAILABLE&quot; and with all faults and defects without warranty of any kind. To the maximum extent permitted under applicable law, the Company, on its own behalf and on behalf of its Affiliates and its and their respective licensors and service providers, expressly disclaims all warranties, whether express, implied, statutory or otherwise, with respect to the Service, including all implied warranties of merchantability, fitness for a particular purpose, title and non-infringement, and warranties that may arise out of course of dealing, course of performance, usage or trade practice. Without limitation to the foregoing, the Company provides no warranty or undertaking, and makes no representation of any kind that the Service will meet Your requirements, achieve any intended results, be compatible or work with any other software, applications, systems or services, operate without interruption, meet any performance or reliability standards or be error free or that any errors or defects can or will be corrected.

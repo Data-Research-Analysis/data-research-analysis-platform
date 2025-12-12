@@ -28,7 +28,7 @@ onMounted(() => {
         <h1>Privacy Policy</h1>
         
         <p>
-            Last updated: February 21, 2025
+            Last updated: December 12, 2025
         </p>
         <p>
             This Privacy Policy describes Our policies and procedures on the collection, use and disclosure of Your information when You use the Service and tells You about Your privacy rights and how the law protects You.
@@ -83,6 +83,16 @@ onMounted(() => {
             </li>
             <li>
                 <p>
+                    <strong>Google Analytics Data</strong> refers to website analytics data that You authorize Us to access from Your Google Analytics account, including but not limited to website traffic, user behavior, demographics, and performance metrics.
+                </p>
+            </li>
+            <li>
+                <p>
+                    <strong>Third-Party Services</strong> refers to external services and APIs that We integrate with, including Google Analytics, Google OAuth, and other third-party data sources that You connect to Our Service.
+                </p>
+            </li>
+            <li>
+                <p>
                     <strong>Personal Data</strong> is any information that relates to an identified or identifiable individual.
                 </p>
             </li>
@@ -129,6 +139,9 @@ onMounted(() => {
             <li>
                 <p>Usage Data</p>
             </li>
+            <li>
+                <p><strong>Third-Party Service Credentials:</strong> When You connect external services like Google Analytics, We collect and securely store encrypted OAuth tokens and service identifiers required to maintain the integration.</p>
+            </li>
         </ul>
         
         <h4>Usage Data</h4>
@@ -145,6 +158,98 @@ onMounted(() => {
         <p>
             We may also collect information that Your browser sends whenever You visit our Service or when You access the Service by or through a mobile device.
         </p>
+
+        <h2>Third-Party Service Integrations</h2>
+
+        <h3>Google Analytics Integration</h3>
+
+        <p>
+            Our Service allows You to connect Your Google Analytics account to import and analyze Your website data. When You choose to connect Google Analytics:
+        </p>
+
+        <ul>
+            <li>
+                <p>
+                    <strong>OAuth Authorization:</strong> We use Google OAuth 2.0 to securely authenticate Your Google account. We only request read-only access to Your Google Analytics data.
+                </p>
+            </li>
+            <li>
+                <p>
+                    <strong>Data Access:</strong> We access the following data from Your Google Analytics account with Your explicit permission:
+                </p>
+                <ul>
+                    <li>Analytics properties and account information</li>
+                    <li>Website traffic metrics (sessions, users, page views)</li>
+                    <li>User demographics and geographic data</li>
+                    <li>Device and technology information</li>
+                    <li>Traffic sources and acquisition data</li>
+                    <li>Event tracking and conversion data</li>
+                </ul>
+            </li>
+            <li>
+                <p>
+                    <strong>Token Storage:</strong> We store encrypted OAuth refresh tokens to maintain ongoing access to Your Google Analytics data. These tokens are:
+                </p>
+                <ul>
+                    <li>Encrypted using industry-standard encryption (AES-256)</li>
+                    <li>Stored securely in our database</li>
+                    <li>Only used to refresh access to Your connected analytics properties</li>
+                    <li>Can be revoked by You at any time through Your account settings or Google account permissions</li>
+                </ul>
+            </li>
+            <li>
+                <p>
+                    <strong>Data Processing:</strong> Analytics data imported from Your Google Analytics account is:
+                </p>
+                <ul>
+                    <li>Stored in our secure database for the duration You choose</li>
+                    <li>Used solely to provide analysis, reporting, and visualization features</li>
+                    <li>Not shared with third parties except as described in this Privacy Policy</li>
+                    <li>Processed in accordance with Google's API Services User Data Policy</li>
+                </ul>
+            </li>
+            <li>
+                <p>
+                    <strong>Your Control:</strong> You maintain full control over Your Google Analytics integration:
+                </p>
+                <ul>
+                    <li>You can disconnect Your Google Analytics account at any time</li>
+                    <li>You can configure sync frequency and data retention settings</li>
+                    <li>You can delete imported analytics data from Your projects</li>
+                    <li>Disconnecting removes our access but does not delete data already imported</li>
+                </ul>
+            </li>
+        </ul>
+
+        <h3>Google API Services User Data Policy</h3>
+
+        <p>
+            Our use of information received from Google APIs adheres to <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener">Google API Services User Data Policy</a>, including the Limited Use requirements. We:
+        </p>
+
+        <ul>
+            <li>Only request the minimum scopes necessary to provide Google Analytics integration features</li>
+            <li>Use Google user data solely to provide and improve features You have explicitly requested</li>
+            <li>Do not transfer Google user data to third parties except as necessary to provide the Service</li>
+            <li>Do not use Google user data for serving advertisements</li>
+            <li>Provide clear disclosure about how we access, use, store, and share Google user data</li>
+        </ul>
+
+        <h3>Revoking Access</h3>
+
+        <p>
+            You can revoke Our access to Your Google Analytics data at any time through:
+        </p>
+
+        <ul>
+            <li>Our Service: Navigate to Account Settings → Connected Services → Disconnect Google Analytics</li>
+            <li>Google Account: Visit <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">Google Account Permissions</a> and remove "Data Research Analysis" access</li>
+        </ul>
+
+        <p>
+            After revoking access, We will no longer be able to sync new data from Your Google Analytics account. Previously imported data will remain in Your projects unless You manually delete it.
+        </p>
+
         <h4>Tracking Technologies and Cookies</h4>
         <p>
             We use Cookies and similar tracking technologies to track the activity on Our Service and store certain information. Tracking technologies used are beacons, tags, and scripts to collect and track information and to improve and analyze Our Service. The technologies We use may include:
@@ -253,13 +358,19 @@ onMounted(() => {
                     <strong>For other purposes</strong>: We may use Your information for other purposes, such as data analysis, identifying usage trends, determining the effectiveness of our promotional campaigns and to evaluate and improve our Service, products, services, marketing and your experience.
                 </p>
             </li>
+            <li>
+                <p>
+                    <strong>To integrate with third-party services:</strong> To connect, authenticate, and synchronize data from external services You authorize, such as Google Analytics, enabling You to import and analyze Your data within Our platform.
+                </p>
+            </li>
         </ul>
         <p>
             We may share Your personal information in the following situations:
         </p>
         
         <ul>
-            <li><strong>With Service Providers:</strong> We may share Your personal information with Service Providers to monitor and analyze the use of our Service,  to contact You.</li>
+            <li><strong>With Service Providers:</strong> We may share Your personal information with Service Providers to monitor and analyze the use of our Service, to contact You. These Service Providers have access to Your Personal Data only to perform specific tasks on Our behalf and are obligated not to disclose or use it for other purposes.</li>
+            <li><strong>With Third-Party Service Providers:</strong> When You connect external services like Google Analytics, We exchange data with those services using secure APIs. We only access data You explicitly authorize and comply with each service provider's data policies.</li>
             <li><strong>For business transfers:</strong> We may share or transfer Your personal information in connection with, or during negotiations of, any merger, sale of Company assets, financing, or acquisition of all or a portion of Our business to another company.</li>
             <li><strong>With Affiliates:</strong> We may share Your information with Our affiliates, in which case we will require those affiliates to honor this Privacy Policy. Affiliates include Our parent company and any other subsidiaries, joint venture partners or other companies that We control or that are under common control with Us.</li>
             <li><strong>With business partners:</strong> We may share Your information with Our business partners to offer You certain products, services or promotions.</li>
