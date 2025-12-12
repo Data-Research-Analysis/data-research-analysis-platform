@@ -68,14 +68,30 @@ export class GoogleAnalyticsService {
                 auth: oauth2Client
             });
             
-            // List all properties accessible to the authenticated user
-            const response = await analyticsAdmin.properties.list({
+            // List account summaries which includes all accessible properties
+            const response = await analyticsAdmin.accountSummaries.list({
                 pageSize: 200
             });
             
-            console.log(`✅ Found ${response.data.properties?.length || 0} Google Analytics properties`);
+            // Extract properties from account summaries
+            const properties: any[] = [];
+            if (response.data.accountSummaries) {
+                for (const accountSummary of response.data.accountSummaries) {
+                    if (accountSummary.propertySummaries) {
+                        for (const propertySummary of accountSummary.propertySummaries) {
+                            properties.push({
+                                name: propertySummary.property,
+                                displayName: propertySummary.displayName,
+                                parent: propertySummary.parent
+                            });
+                        }
+                    }
+                }
+            }
             
-            return response.data.properties || [];
+            console.log(`✅ Found ${properties.length} Google Analytics properties`);
+            
+            return properties;
         } catch (error) {
             console.error('❌ Failed to list GA properties:', error);
             throw new Error('Failed to fetch Google Analytics properties');
