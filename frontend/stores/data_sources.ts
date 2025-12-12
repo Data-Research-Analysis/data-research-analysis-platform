@@ -168,7 +168,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
 
         try {
             const response = await fetch(`${baseUrl()}/google-analytics/properties`, {
-                method: "GET",
+                method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
