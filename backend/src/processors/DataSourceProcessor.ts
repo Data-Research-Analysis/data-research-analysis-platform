@@ -2009,21 +2009,33 @@ export class DataSourceProcessor {
         tokenDetails: ITokenDetails
     ): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
+            // Defensive validation at the start
+            if (!dataSourceId || isNaN(dataSourceId) || !Number.isInteger(dataSourceId) || dataSourceId < 1) {
+                console.error('[syncGoogleAnalyticsDataSource] Invalid data source ID:', dataSourceId, 'Type:', typeof dataSourceId);
+                return resolve(false);
+            }
+            
+            console.log('[syncGoogleAnalyticsDataSource] Starting sync for data source ID:', dataSourceId);
+            
             const { user_id } = tokenDetails;
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             if (!driver) {
+                console.error('[syncGoogleAnalyticsDataSource] Database driver not available');
                 return resolve(false);
             }
             const manager = (await driver.getConcreteDriver()).manager;
             if (!manager) {
+                console.error('[syncGoogleAnalyticsDataSource] Database manager not available');
                 return resolve(false);
             }
             const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
             if (!user) {
+                console.error('[syncGoogleAnalyticsDataSource] User not found:', user_id);
                 return resolve(false);
             }
             
             // Get data source
+            console.log('[syncGoogleAnalyticsDataSource] Fetching data source with ID:', dataSourceId);
             const dataSource = await manager.findOne(DRADataSource, {
                 where: {id: dataSourceId, users_platform: user, data_type: EDataSourceType.GOOGLE_ANALYTICS}
             });
