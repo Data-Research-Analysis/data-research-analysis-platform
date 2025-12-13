@@ -3,13 +3,14 @@ import { AuthProcessor } from '../processors/AuthProcessor.js';
 import { validateJWT } from '../middleware/authenticate.js';
 import { validate, validatePasswordStrength } from '../middleware/validator.js';
 import { body, param, matchedData } from 'express-validator';
+import { authLimiter } from '../middleware/rateLimit.js';
 
 const router = express.Router();
   
 /**
  * This route is used to register a user
  */
-router.post('/register', async (req: Request, res: Response, next: any) => {
+router.post('/register', authLimiter, async (req: Request, res: Response, next: any) => {
     next();
 }, validateJWT, validate([body('email').notEmpty().isEmail().trim().escape(),
     body('first_name').notEmpty().trim().escape(),
@@ -28,7 +29,7 @@ router.post('/register', async (req: Request, res: Response, next: any) => {
 /**
  * This route is used to login a user
  */
-router.post('/login', async (req: Request, res: Response, next: any) => {
+router.post('/login', authLimiter, async (req: Request, res: Response, next: any) => {
     next();
 }, validateJWT, validate([body('email').notEmpty(), body('password').notEmpty()]), async (req: Request, res: Response) => {
     const { email, password } = matchedData(req);

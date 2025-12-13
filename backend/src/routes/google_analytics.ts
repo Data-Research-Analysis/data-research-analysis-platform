@@ -7,6 +7,7 @@ import { GoogleAnalyticsDriver } from '../drivers/GoogleAnalyticsDriver.js';
 import { DataSourceProcessor } from '../processors/DataSourceProcessor.js';
 import { IAPIConnectionDetails } from '../types/IAPIConnectionDetails.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
+import { expensiveOperationsLimiter, oauthCallbackLimiter } from '../middleware/rateLimit.js';
 
 const router = express.Router();
 
@@ -118,6 +119,7 @@ router.get('/report-presets',
  * POST /api/google-analytics/add-data-source
  */
 router.post('/add-data-source',
+    expensiveOperationsLimiter,
     async (req: Request, res: Response, next: any) => {
         next();
     },
@@ -191,6 +193,7 @@ router.post('/add-data-source',
  * POST /api/google-analytics/sync/:dataSourceId
  */
 router.post('/sync/:dataSourceId',
+    expensiveOperationsLimiter,
     async (req: Request, res: Response, next: any) => {
         next();
     },

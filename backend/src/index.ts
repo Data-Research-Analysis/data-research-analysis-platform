@@ -5,6 +5,7 @@ import cors from 'cors';
 import { createServer } from 'http';
 import { UtilityService } from './services/UtilityService.js';
 import { SocketIODriver } from './drivers/SocketIODriver.js';
+import { generalApiLimiter } from './middleware/rateLimit.js';
 import home from './routes/home.js';
 import auth from './routes/auth.js';
 import project from './routes/project.js';
@@ -46,6 +47,10 @@ app.use(function(req, res, next) {
   res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept")
   next()
 });
+
+// Apply global rate limiter to all routes
+// Individual routes may have stricter limits
+app.use(generalApiLimiter);
 
 app.use('/', home);
 app.use('/auth', auth);

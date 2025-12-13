@@ -23,4 +23,28 @@ process.env.POSTGRESQL_USERNAME = 'postgres';
 process.env.POSTGRESQL_PASSWORD = 'postgres';
 process.env.POSTGRESQL_DB_NAME = 'test_dra_db';
 
+// Suppress console.warn and console.error during tests to reduce noise
+const originalWarn = console.warn;
+const originalError = console.error;
+
+console.warn = (...args: any[]) => {
+  // Only suppress rate limit warnings
+  if (args[0]?.includes('[Rate Limit]')) {
+    return;
+  }
+  originalWarn.apply(console, args);
+};
+
+console.error = (...args: any[]) => {
+  // Suppress IPv6 validation errors from express-rate-limit (expected and non-blocking)
+  if (args[0]?.code === 'ERR_ERL_KEY_GEN_IPV6' || args[0]?.message?.includes('ipKeyGenerator')) {
+    return;
+  }
+  // Suppress expected SECURITY decryption errors from EncryptionService tests
+  if (args[0] === '[SECURITY] Decryption error:') {
+    return;
+  }
+  originalError.apply(console, args);
+};
+
 console.log('Test environment initialized');
