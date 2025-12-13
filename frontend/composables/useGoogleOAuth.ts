@@ -45,38 +45,51 @@ export const useGoogleOAuth = () => {
     };
 
     /**
-     * Check if user is authenticated with Google
+     * Check if user has an active OAuth session
      */
     const isAuthenticated = (): boolean => {
         if (!import.meta.client) return false;
         
-        const tokens = sessionStorage.getItem('ga_oauth_tokens');
-        return !!tokens;
+        const sessionId = sessionStorage.getItem('ga_oauth_session');
+        return !!sessionId;
     };
 
     /**
-     * Get stored OAuth tokens
+     * Get stored OAuth tokens from backend session
      */
-    const getStoredTokens = (): IOAuthTokens | null => {
+    const getStoredTokens = async (): Promise<IOAuthTokens | null> => {
         if (!import.meta.client) return null;
         
-        const tokens = sessionStorage.getItem('ga_oauth_tokens');
-        if (!tokens) return null;
+        const sessionId = sessionStorage.getItem('ga_oauth_session');
+        if (!sessionId) return null;
         
         try {
-            return JSON.parse(tokens);
-        } catch {
+            const tokens = await dataSourceStore.getOAuthTokens(sessionId);
+            return tokens;
+        } catch (error) {
+            console.error('Failed to retrieve OAuth tokens:', error);
+            // Clear invalid session
+            clearTokens();
             return null;
         }
     };
 
     /**
-     * Clear stored OAuth tokens
+     * Clear OAuth session
      */
-    const clearTokens = (): void => {
-        if (import.meta.client) {
-            sessionStorage.removeItem('ga_oauth_tokens');
+    const clearTokens = async (): Promise<void> => {
+        if (!import.meta.client) return;
+        
+        const sessionId = sessionStorage.getItem('ga_oauth_session');
+        if (sessionId) {
+            try {
+                await dataSourceStore.deleteOAuthSession(sessionId);
+            } catch (error) {
+                console.error('Failed to delete OAuth session:', error);
+            }
         }
+        
+        sessionStorage.removeItem('ga_oauth_session');
     };
 
     /**

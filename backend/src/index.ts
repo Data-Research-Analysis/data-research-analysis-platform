@@ -35,6 +35,11 @@ const httpServer = createServer(app);
 // Initialize utility services
 await UtilityService.getInstance().initialize();
 
+// Initialize OAuth session service (starts cleanup scheduler)
+import { OAuthSessionService } from './services/OAuthSessionService.js';
+OAuthSessionService.getInstance();
+console.log('✅ OAuth session service initialized');
+
 const port = parseInt(UtilityService.getInstance().getConstants('PORT'));
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
