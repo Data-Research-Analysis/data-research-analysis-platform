@@ -1,4 +1,4 @@
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { Request, Response } from 'express';
 
 /**
@@ -63,8 +63,8 @@ export const expensiveOperationsLimiter = rateLimit({
         if (userId) {
             return userId.toString();
         }
-        // Return IP or unknown - express-rate-limit will handle IPv6 normalization
-        return req.ip || 'unknown';
+        // Use ipKeyGenerator helper for proper IPv6 handling
+        return ipKeyGenerator(req.ip || 'unknown');
     },
     handler: (req: Request, res: Response) => {
         const userId = req.body?.tokenDetails?.user_id;
@@ -98,8 +98,8 @@ export const generalApiLimiter = rateLimit({
         if (userId) {
             return userId.toString();
         }
-        // Return IP or unknown - express-rate-limit will handle IPv6 normalization
-        return req.ip || 'unknown';
+        // Use ipKeyGenerator helper for proper IPv6 handling
+        return ipKeyGenerator(req.ip || 'unknown');
     },
     handler: (req: Request, res: Response) => {
         const userId = req.body?.tokenDetails?.user_id;
@@ -158,8 +158,8 @@ export const aiOperationsLimiter = rateLimit({
         if (userId) {
             return userId.toString();
         }
-        // Return IP or unknown - express-rate-limit will handle IPv6 normalization
-        return req.ip || 'unknown';
+        // Use ipKeyGenerator helper for proper IPv6 handling
+        return ipKeyGenerator(req.ip || 'unknown');
     },
     handler: (req: Request, res: Response) => {
         const userId = req.body?.tokenDetails?.user_id;

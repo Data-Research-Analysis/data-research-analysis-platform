@@ -384,7 +384,7 @@ onUnmounted(() => {
                 maxWidth: maxColumnWidth 
               }"
             >
-              <span class="truncate" :title="column">
+              <span class="wrap-anywhere" :title="column">
                 {{ column }}
               </span>
             </th>

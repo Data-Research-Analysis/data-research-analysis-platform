@@ -6,6 +6,117 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## 2025-12-14
+
+### Fixed - Google Analytics Column Name Bug in Data Model Builder
+**Files:** DataSourceProcessor.ts, data-model-builder.vue
+- **Issue:** Google Analytics columns returned null values when creating data models due to column name mismatch between frontend query generation and backend data extraction
+- **Root Cause:** Table aliases caused inconsistent column naming - frontend used `table_alias` while backend used `table_name`, resulting in `row[wrongKey] = undefined`
+- **Solution:** Added `dra_google_analytics` to special schema handling (similar to `dra_excel` and `dra_pdf`)
+  - Backend: Modified 3 locations in `buildDataModelOnQuery()` to always use `table_name` for GA columns
+  - Frontend: Updated alias generation in `buildSQLQuery()` to match backend behavior
+  - Result: Consistent column names like `device_15_device_category` (preserves datasource IDs)
+- **Testing:** Added 17 comprehensive unit tests covering all schema types, edge cases, and consistency validation
+- **Impact:** Fixes null values in GA data models, maintains backward compatibility with Excel/PDF/regular database models
+
+---
+
+## 2025-12-13
+
+### Added - Rate Limiting System Implementation (PR #197)
+**Files:** rateLimit middleware, integration/unit tests, backend configuration
+- **User-Based Rate Limiting:** Authenticated requests tracked per user ID
+  - 100 requests per 15-minute window
+  - Comprehensive logging of violations
+- **IP-Based Rate Limiting:** Unauthenticated requests tracked by IP address
+  - Prevents abuse from non-authenticated endpoints
+- **Endpoint-Specific Limits:** Granular control for sensitive operations
+  - Different limits for high-traffic vs. critical endpoints
+- **Error Response Details:**
+  - `Retry-After` header for client retry logic
+  - Detailed error messages with rate limit information
+  - HTTP 429 (Too Many Requests) status code
+- **Development Bypass:** Environment variable to disable rate limiting during development
+- **Redis Integration:** Efficient distributed rate limiting using Redis counters
+- **Testing:** Complete unit and integration test suite (47/47 tests passing)
+
+### Fixed - OAuth Security Vulnerabilities (PR #198)
+**Files:** OAuthSessionService, GoogleController, session management
+- **Security Issues Resolved:**
+  - CWE-312: Cleartext Storage of Sensitive Information
+  - CWE-315: Cleartext Storage in a Cookie or on Disk
+  - CWE-359: Exposure of Private Personal Information
+- **OAuth Token Storage:**
+  - Moved from client-side cookies to server-side encrypted sessions
+  - AES-256-GCM encryption for sensitive session data
+  - Automatic cleanup of expired sessions
+- **Session Management:**
+  - Backend-only storage of OAuth tokens (access, refresh, ID tokens)
+  - Secure token lifecycle management
+  - Session-based authentication with encrypted payloads
+- **Production Ready:**
+  - 100% test pass rate (47/47 tests)
+  - Zero breaking changes to existing functionality
+  - Complete documentation and security audit compliance
+
+### Added - Google Analytics Data Source Integration (PRs #193, #194, #195)
+**Files:** GoogleController, GoogleAnalyticsProcessor, frontend components, database models
+- **Complete GA4 Integration:**
+  - OAuth 2.0 authentication flow with Google Analytics API
+  - Property and account selection interface
+  - Report dimension and metric configuration
+  - Date range selection for data extraction
+- **Data Storage:**
+  - PostgreSQL storage in `dra_google_analytics` schema
+  - Consistent with Excel (`dra_excel`) and PDF (`dra_pdf`) data sources
+  - Integration with AI Data Modeler for GA data analysis
+- **Backend Implementation:**
+  - New `/google/auth-url` endpoint for OAuth initialization
+  - Token management via OAuthSessionService
+  - Property listing using `accountSummaries.list()` API
+  - Report data extraction via Analytics Data API v1beta
+- **Frontend Features:**
+  - Google Analytics button in data sources page
+  - Multi-step connection wizard with property selection
+  - Report configuration interface with dimension/metric selection
+  - Preview and validation before data import
+- **Bug Fixes:**
+  - Fixed NaN values in numeric data processing
+  - Resolved property loading with correct API parameters
+  - Fixed authentication redirection flow
+  - Corrected filter parameters in API calls
+
+### Enhanced - Documentation and Policies
+**Files:** SECURITY.md, terms.md, privacy.md
+- **Security Policy Updates:**
+  - Detailed security commitment and guidelines
+  - Vulnerability reporting procedures with contact information
+  - Response timelines (24-48 hours acknowledgment, 7 days initial assessment)
+  - Best practices for users and developers
+- **Terms and Privacy Updates:**
+  - Added Google Analytics data source integration details
+  - Third-party service integration disclosures
+  - Data handling procedures for GA4 data
+  - User consent and data usage policies
+
+---
+
+## 2025-12-07
+
+### Fixed - Table Chart Display Issues
+**Files:** table-chart.vue
+- Changed column header text wrapping from `truncate` to `wrap-anywhere`
+- Fixes overflow issues with long column names
+- Improves readability in data model tables
+
+### Fixed - AI Data Modeler Loop Bug
+**Files:** data-model-builder.vue
+- Fixed infinite loop in create data model screen when AI modeler was opened
+- Improved initialization logic for AI modeler drawer
+- Enhanced error handling in modeler state management
+
+---
+
 ## 2025-12-06
 
 ### Added - Complete AI Data Modeler System (DRA-217)

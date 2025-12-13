@@ -1976,8 +1976,20 @@ function buildSQLQuery() {
             const isAggregateOnly = aggregateColumns.has(columnFullPath);
             return column.is_selected_column && !isAggregateOnly;
         }).map((column) => {
-            const tableRef = column.table_alias || column.table_name;
-            const aliasName = column?.alias_name !== '' ? column.alias_name : `${column.schema}_${tableRef}_${column.column_name}`;
+            // Generate alias name - special handling for dra_google_analytics, dra_excel, dra_pdf
+            let aliasName;
+            if (column.alias_name && column.alias_name !== '') {
+                aliasName = column.alias_name;
+            } else if (column.schema === 'dra_google_analytics' || column.schema === 'dra_excel' || column.schema === 'dra_pdf') {
+                // For special schemas, always use table_name (preserves datasource IDs like device_15)
+                aliasName = column.table_name.length > 20 
+                    ? `${column.table_name.slice(-20)}_${column.column_name}`
+                    : `${column.table_name}_${column.column_name}`;
+            } else {
+                // For regular schemas, use table_alias if available, otherwise table_name
+                const tableRef = column.table_alias || column.table_name;
+                aliasName = `${column.schema}_${tableRef}_${column.column_name}`;
+            }
             
             // Use table alias in column reference if it exists
             let columnRef = column.table_alias
