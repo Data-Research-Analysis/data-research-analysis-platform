@@ -12,6 +12,7 @@ import { dirname } from 'path';
 import { UtilityService } from '../services/UtilityService.js';
 import { ExcelFileService } from '../services/ExcelFileService.js';
 import { PDFService } from '../services/PDFService.js';
+import { expensiveOperationsLimiter } from '../middleware/rateLimit.js';
 
 const router = express.Router();
 
@@ -172,7 +173,7 @@ async (req: Request, res: Response) => {
     }
 });
 
-router.post('/add-excel-data-source', async (req: Request, res: Response, next: any) => {
+router.post('/add-excel-data-source', expensiveOperationsLimiter, async (req: Request, res: Response, next: any) => {
     next();
 }, validateJWT, validate([
     body('data_source_name').notEmpty().trim().escape(), 
@@ -215,7 +216,7 @@ async (req: Request, res: Response) => {
     }
 });
 
-router.post('/add-pdf-data-source', async (req: Request, res: Response, next: any) => {
+router.post('/add-pdf-data-source', expensiveOperationsLimiter, async (req: Request, res: Response, next: any) => {
     next();
 }, validateJWT, validate([
     body('data_source_name').notEmpty().trim().escape(), 

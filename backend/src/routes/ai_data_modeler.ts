@@ -3,6 +3,7 @@ import { validateJWT } from '../middleware/authenticate.js';
 import { validate } from '../middleware/validator.js';
 import { body, param } from 'express-validator';
 import { AIDataModelerController } from '../controllers/AIDataModelerController.js';
+import { aiOperationsLimiter } from '../middleware/rateLimit.js';
 
 const router = express.Router();
 
@@ -14,6 +15,7 @@ const router = express.Router();
  */
 router.post(
     '/session/initialize',
+    aiOperationsLimiter,
     validateJWT,
     validate([
         body('dataSourceId').notEmpty().isInt().withMessage('dataSourceId must be a valid integer')
@@ -29,6 +31,7 @@ router.post(
  */
 router.post(
     '/session/chat',
+    aiOperationsLimiter,
     validateJWT,
     validate([
         body('dataSourceId').notEmpty().isInt().withMessage('dataSourceId must be a valid integer'),
