@@ -196,11 +196,25 @@ router.post('/sync/:dataSourceId',
     },
     validateJWT,
     validate([
-        param('dataSourceId').notEmpty().toInt().withMessage('Data source ID is required')
+        param('dataSourceId')
+            .notEmpty().withMessage('Data source ID is required')
+            .isInt({ min: 1 }).withMessage('Data source ID must be a positive integer')
+            .toInt()
     ]),
     async (req: Request, res: Response) => {
         try {
             const { dataSourceId } = matchedData(req);
+            
+            // Defensive check for NaN or invalid ID
+            if (!dataSourceId || isNaN(dataSourceId) || !Number.isInteger(dataSourceId) || dataSourceId < 1) {
+                console.error('[Google Analytics Sync] Invalid data source ID:', dataSourceId);
+                return res.status(400).send({
+                    success: false,
+                    message: 'Invalid data source ID provided'
+                });
+            }
+            
+            console.log(`[Google Analytics Sync] Starting sync for data source ID: ${dataSourceId}`);
             
             // Trigger sync
             const result = await DataSourceProcessor.getInstance().syncGoogleAnalyticsDataSource(
@@ -209,18 +223,24 @@ router.post('/sync/:dataSourceId',
             );
             
             if (result) {
+                console.log(`[Google Analytics Sync] Sync completed successfully for data source ID: ${dataSourceId}`);
                 res.status(200).send({
+                    success: true,
                     message: 'Sync completed successfully'
                 });
             } else {
+                console.error(`[Google Analytics Sync] Sync failed for data source ID: ${dataSourceId}`);
                 res.status(400).send({
+                    success: false,
                     message: 'Sync failed'
                 });
             }
         } catch (error) {
-            console.error('Error syncing GA data:', error);
+            console.error('[Google Analytics Sync] Error syncing GA data:', error);
             res.status(500).send({
-                message: 'Failed to sync Google Analytics data'
+                success: false,
+                message: 'Failed to sync Google Analytics data',
+                error: error.message
             });
         }
     }
@@ -236,11 +256,22 @@ router.get('/sync-status/:dataSourceId',
     },
     validateJWT,
     validate([
-        param('dataSourceId').notEmpty().toInt().withMessage('Data source ID is required')
+        param('dataSourceId')
+            .notEmpty().withMessage('Data source ID is required')
+            .isInt({ min: 1 }).withMessage('Data source ID must be a positive integer')
+            .toInt()
     ]),
     async (req: Request, res: Response) => {
         try {
             const { dataSourceId } = matchedData(req);
+            
+            // Defensive check
+            if (!dataSourceId || isNaN(dataSourceId) || dataSourceId < 1) {
+                return res.status(400).send({
+                    message: 'Invalid data source ID provided'
+                });
+            }
+            
             const gaDriver = GoogleAnalyticsDriver.getInstance();
             
             const lastSync = await gaDriver.getLastSyncTime(dataSourceId);
