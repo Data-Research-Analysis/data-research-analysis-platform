@@ -59,7 +59,12 @@ export const expensiveOperationsLimiter = rateLimit({
     legacyHeaders: false,
     keyGenerator: (req: Request) => {
         // Use user ID if authenticated, otherwise use IP
-        return req.body?.tokenDetails?.user_id?.toString() || req.ip || 'unknown';
+        const userId = req.body?.tokenDetails?.user_id;
+        if (userId) {
+            return userId.toString();
+        }
+        // Return IP or unknown - express-rate-limit will handle IPv6 normalization
+        return req.ip || 'unknown';
     },
     handler: (req: Request, res: Response) => {
         const userId = req.body?.tokenDetails?.user_id;
@@ -89,7 +94,12 @@ export const generalApiLimiter = rateLimit({
     legacyHeaders: false,
     keyGenerator: (req: Request) => {
         // Use user ID if authenticated, otherwise use IP
-        return req.body?.tokenDetails?.user_id?.toString() || req.ip || 'unknown';
+        const userId = req.body?.tokenDetails?.user_id;
+        if (userId) {
+            return userId.toString();
+        }
+        // Return IP or unknown - express-rate-limit will handle IPv6 normalization
+        return req.ip || 'unknown';
     },
     handler: (req: Request, res: Response) => {
         const userId = req.body?.tokenDetails?.user_id;
@@ -144,7 +154,12 @@ export const aiOperationsLimiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: (req: Request) => {
-        return req.body?.tokenDetails?.user_id?.toString() || req.ip || 'unknown';
+        const userId = req.body?.tokenDetails?.user_id;
+        if (userId) {
+            return userId.toString();
+        }
+        // Return IP or unknown - express-rate-limit will handle IPv6 normalization
+        return req.ip || 'unknown';
     },
     handler: (req: Request, res: Response) => {
         const userId = req.body?.tokenDetails?.user_id;

@@ -236,8 +236,10 @@ describe('EncryptionService', () => {
       const encrypted = encryptionService.encrypt(sampleConnectionDetails);
       const parsed = JSON.parse(encrypted);
       
-      // Tamper with auth tag
-      parsed.authTag = parsed.authTag.slice(0, -1) + 'f';
+      // Tamper with auth tag - flip bits to ensure it's different
+      const authTagBuffer = Buffer.from(parsed.authTag, 'hex');
+      authTagBuffer[0] = authTagBuffer[0] ^ 0xFF; // XOR to flip all bits
+      parsed.authTag = authTagBuffer.toString('hex');
       const tamperedEncrypted = JSON.stringify(parsed);
       
       expect(() => {
