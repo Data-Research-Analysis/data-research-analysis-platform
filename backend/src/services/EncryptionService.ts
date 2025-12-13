@@ -167,6 +167,92 @@ export class EncryptionService {
     }
 
     /**
+     * Encrypt a string using AES-256-GCM
+     * @param plaintext - String to encrypt
+     * @returns Encrypted string with metadata
+     * @throws Error if encryption fails
+     */
+    public encryptString(plaintext: string): string {
+        try {
+            if (!plaintext) {
+                return null;
+            }
+
+            // Generate random IV for each encryption
+            const iv = crypto.randomBytes(this.ivLength);
+
+            // Create cipher
+            const cipher = crypto.createCipheriv(this.algorithm, this.encryptionKey, iv);
+
+            // Encrypt the string
+            let encrypted = cipher.update(plaintext, 'utf8', 'hex');
+            encrypted += cipher.final('hex');
+
+            // Get authentication tag
+            const authTag = cipher.getAuthTag();
+
+            // Create encrypted data object
+            const encryptedData: EncryptedData = {
+                version: this.currentVersion,
+                iv: iv.toString('hex'),
+                authTag: authTag.toString('hex'),
+                encrypted: encrypted
+            };
+
+            return JSON.stringify(encryptedData);
+
+        } catch (error) {
+            console.error('[SECURITY] String encryption error:', error.message);
+            throw new Error('Failed to encrypt string');
+        }
+    }
+
+    /**
+     * Decrypt an encrypted string
+     * @param encryptedString - Encrypted string with metadata
+     * @returns Decrypted plaintext string
+     * @throws Error if decryption fails
+     */
+    public decryptString(encryptedString: string): string {
+        try {
+            if (!encryptedString) {
+                return null;
+            }
+
+            // Parse encrypted data
+            const encryptedData: EncryptedData = JSON.parse(encryptedString);
+
+            // Validate version
+            if (encryptedData.version !== this.currentVersion) {
+                throw new Error(`Unsupported encryption version: ${encryptedData.version}`);
+            }
+
+            // Validate required fields
+            if (!encryptedData.iv || !encryptedData.authTag || !encryptedData.encrypted) {
+                throw new Error('Invalid encrypted data format');
+            }
+
+            // Convert hex strings back to buffers
+            const iv = Buffer.from(encryptedData.iv, 'hex');
+            const authTag = Buffer.from(encryptedData.authTag, 'hex');
+
+            // Create decipher
+            const decipher = crypto.createDecipheriv(this.algorithm, this.encryptionKey, iv);
+            decipher.setAuthTag(authTag);
+
+            // Decrypt the data
+            let decrypted = decipher.update(encryptedData.encrypted, 'hex', 'utf8');
+            decrypted += decipher.final('utf8');
+
+            return decrypted;
+
+        } catch (error) {
+            console.error('[SECURITY] String decryption error:', error.message);
+            throw new Error('Failed to decrypt string');
+        }
+    }
+
+    /**
      * Check if data is encrypted (has encryption metadata)
      * @param data - Data to check (string or object)
      * @returns true if data appears to be encrypted

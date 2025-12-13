@@ -41,15 +41,14 @@ onMounted(async () => {
 
     try {
         // Exchange authorization code for tokens
-        const tokens = await dataSourceStore.handleGoogleOAuthCallback(code, stateOAuth);
+        const response = await dataSourceStore.handleGoogleOAuthCallback(code, stateOAuth);
         
-        if (tokens) {
-            state.tokens = tokens;
+        if (response) {
             state.success = true;
             
-            // Store tokens temporarily in sessionStorage for the next step
-            if (import.meta.client) {
-                sessionStorage.setItem('ga_oauth_tokens', JSON.stringify(tokens));
+            // Store session ID securely (tokens are stored server-side in Redis)
+            if (import.meta.client && response.session_id) {
+                sessionStorage.setItem('ga_oauth_session', response.session_id);
             }
             
             // Redirect to property selection

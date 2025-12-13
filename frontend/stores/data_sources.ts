@@ -126,8 +126,9 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
 
     /**
      * Handle OAuth callback - exchange code for tokens
+     * Returns session info instead of tokens (tokens stored server-side)
      */
-    async function handleGoogleOAuthCallback(code: string, state: string): Promise<IOAuthTokens | null> {
+    async function handleGoogleOAuthCallback(code: string, state: string): Promise<any | null> {
         const token = getAuthToken();
         if (!token) return null;
 
@@ -145,6 +146,38 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
             if (response.ok) {
                 const data = await response.json();
                 return {
+                    session_id: data.session_id,
+                    expires_in: data.expires_in,
+                    token_type: data.token_type
+                };
+            }
+            return null;
+        } catch (error) {
+            console.error('Error handling OAuth callback:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Get OAuth tokens from session
+     */
+    async function getOAuthTokens(sessionId: string): Promise<IOAuthTokens | null> {
+        const token = getAuthToken();
+        if (!token) return null;
+
+        try {
+            const response = await fetch(`${baseUrl()}/oauth/session/${sessionId}`, {
+                method: "GET",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                return {
                     access_token: data.access_token,
                     refresh_token: data.refresh_token,
                     token_type: data.token_type,
@@ -154,8 +187,32 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
             }
             return null;
         } catch (error) {
-            console.error('Error handling OAuth callback:', error);
+            console.error('Error getting OAuth tokens:', error);
             return null;
+        }
+    }
+
+    /**
+     * Delete OAuth session
+     */
+    async function deleteOAuthSession(sessionId: string): Promise<boolean> {
+        const token = getAuthToken();
+        if (!token) return false;
+
+        try {
+            const response = await fetch(`${baseUrl()}/oauth/session/${sessionId}`, {
+                method: "DELETE",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+            });
+
+            return response.ok;
+        } catch (error) {
+            console.error('Error deleting OAuth session:', error);
+            return false;
         }
     }
 
@@ -292,6 +349,8 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         // Google Analytics methods
         initiateGoogleOAuth,
         handleGoogleOAuthCallback,
+        getOAuthTokens,
+        deleteOAuthSession,
         listGoogleAnalyticsProperties,
         addGoogleAnalyticsDataSource,
         syncGoogleAnalytics,

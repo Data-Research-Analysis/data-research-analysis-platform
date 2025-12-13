@@ -42,8 +42,8 @@ const state = reactive({
 onMounted(async () => {
     const stepParam = route.query.step as string;
     
-    // Check for stored OAuth tokens
-    const tokens = oauth.getStoredTokens();
+    // Check for stored OAuth session
+    const tokens = await oauth.getStoredTokens();
     if (tokens) {
         state.isAuthenticated = true;
         state.accessToken = tokens.access_token;
@@ -170,8 +170,8 @@ async function connectAndSync() {
         const dataSourceId = await analytics.addDataSource(config);
         
         if (dataSourceId) {
-            // Clear stored tokens
-            oauth.clearTokens();
+            // Clear stored tokens (async)
+            await oauth.clearTokens();
             
             // Show syncing message
             $swal.fire({

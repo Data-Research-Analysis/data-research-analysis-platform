@@ -4,6 +4,7 @@ import { validate } from '../middleware/validator.js';
 import { body, query, matchedData } from 'express-validator';
 import { GoogleOAuthService } from '../services/GoogleOAuthService.js';
 import { GoogleAnalyticsService } from '../services/GoogleAnalyticsService.js';
+import { OAuthSessionService } from '../services/OAuthSessionService.js';
 
 const router = express.Router();
 
@@ -137,12 +138,19 @@ router.post('/google/callback',
             // Exchange code for tokens
             const tokens = await oauthService.exchangeCodeForTokens(code);
             
+            // Store tokens securely in Redis
+            const oauthSessionService = OAuthSessionService.getInstance();
+            const projectId = state ? JSON.parse(Buffer.from(state, 'base64').toString()).project_id : 0;
+            const sessionId = await oauthSessionService.storeTokens(
+                req.body.tokenDetails.user_id,
+                parseInt(projectId) || 0,
+                tokens
+            );
+            
             res.status(200).send({
-                access_token: tokens.access_token,
-                refresh_token: tokens.refresh_token,
+                session_id: sessionId,
                 expires_in: tokens.expires_in,
                 token_type: tokens.token_type,
-                expiry_date: tokens.expiry_date,
                 message: 'Authentication successful'
             });
         } catch (error) {
@@ -222,6 +230,113 @@ router.post('/google/revoke',
             console.error('Error revoking token:', error);
             res.status(500).send({
                 message: 'Failed to revoke token'
+            });
+        }
+    }
+);
+
+/**
+ * Get OAuth tokens from session
+ * GET /api/oauth/session/:sessionId
+ */
+router.get('/session/:sessionId',
+    async (req: Request, res: Response, next: any) => {
+        next();
+    },
+    validateJWT,
+    async (req: Request, res: Response) => {
+        try {
+            const { sessionId } = req.params;
+            const oauthSessionService = OAuthSessionService.getInstance();
+            
+            const tokens = await oauthSessionService.getTokens(sessionId);
+            
+            if (!tokens) {
+                return res.status(404).send({
+                    message: 'Session not found or expired'
+                });
+            }
+            
+            res.status(200).send({
+                access_token: tokens.access_token,
+                refresh_token: tokens.refresh_token,
+                expires_in: tokens.expires_in,
+                token_type: tokens.token_type,
+                expiry_date: tokens.expiry_date,
+                message: 'Tokens retrieved successfully'
+            });
+        } catch (error) {
+            console.error('Error retrieving OAuth session:', error);
+            res.status(500).send({
+                message: 'Failed to retrieve session'
+            });
+        }
+    }
+);
+
+/**
+ * Delete OAuth session
+ * DELETE /api/oauth/session/:sessionId
+ */
+router.delete('/session/:sessionId',
+    async (req: Request, res: Response, next: any) => {
+        next();
+    },
+    validateJWT,
+    async (req: Request, res: Response) => {
+        try {
+            const { sessionId } = req.params;
+            const oauthSessionService = OAuthSessionService.getInstance();
+            
+            await oauthSessionService.deleteSession(sessionId);
+            
+            res.status(200).send({
+                message: 'Session deleted successfully'
+            });
+        } catch (error) {
+            console.error('Error deleting OAuth session:', error);
+            res.status(500).send({
+                message: 'Failed to delete session'
+            });
+        }
+    }
+);
+
+/**
+ * Get OAuth tokens by user and project
+ * GET /api/oauth/session/user/:projectId
+ */
+router.get('/session/user/:projectId',
+    async (req: Request, res: Response, next: any) => {
+        next();
+    },
+    validateJWT,
+    async (req: Request, res: Response) => {
+        try {
+            const { projectId } = req.params;
+            const userId = req.body.tokenDetails.user_id;
+            const oauthSessionService = OAuthSessionService.getInstance();
+            
+            const tokens = await oauthSessionService.getTokensByUser(userId, parseInt(projectId));
+            
+            if (!tokens) {
+                return res.status(404).send({
+                    message: 'Session not found or expired'
+                });
+            }
+            
+            res.status(200).send({
+                access_token: tokens.access_token,
+                refresh_token: tokens.refresh_token,
+                expires_in: tokens.expires_in,
+                token_type: tokens.token_type,
+                expiry_date: tokens.expiry_date,
+                message: 'Tokens retrieved successfully'
+            });
+        } catch (error) {
+            console.error('Error retrieving OAuth session by user:', error);
+            res.status(500).send({
+                message: 'Failed to retrieve session'
             });
         }
     }
