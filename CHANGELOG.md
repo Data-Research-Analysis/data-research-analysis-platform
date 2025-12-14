@@ -8,6 +8,92 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## 2025-12-14
 
+### Added - Google Ad Manager Integration - Sprint 3: Connection Wizard UI (Week 2 - Complete)
+**Phase:** User Interface & Integration
+**Files:** google-ad-manager.vue (wizard page), index.vue (data sources page)
+
+**Feature 3.1: Connection Wizard Page Structure**
+- Created 4-step wizard page at `/data-sources/connect/google-ad-manager`
+- Step indicator with progress tracking and visual feedback
+- Responsive design with mobile optimization
+- Follows Google Analytics wizard patterns for consistency
+
+**Feature 3.2: Step 1 - OAuth Authentication UI**
+- Google Sign-In button with OAuth 2.0 flow
+- Security feature list (read-only access, no passwords stored, revocable)
+- Loading states and error handling
+- Token storage for seamless navigation between steps
+
+**Feature 3.3: Step 2 - Network Selection UI**
+- Integrated `NetworkSelector` component from Sprint 2
+- Network loading with skeleton state
+- Error state with retry functionality
+- Displays network metadata (code, timezone, currency)
+- Search/filter for networks (5+ networks)
+
+**Feature 3.4: Step 3 - Configuration UI**
+- Data source name input with validation
+- Report type selection (checkboxes for 5 report types)
+  * Revenue Analysis
+  * Inventory Performance
+  * Orders & Line Items
+  * Geographic Distribution
+  * Device & Technology
+- Date range selection with 6 presets + custom range
+  * Last 7/30/90 days, Last 6 months, Last year, Custom
+- Custom date range picker with validation (max 365 days)
+- Sync frequency options (Manual, Daily, Weekly, Hourly)
+- Real-time validation with user-friendly error messages
+
+**Feature 3.5: Step 4 - Confirmation & Submit**
+- Review summary of all configuration choices
+- Network details display (name, code, currency)
+- Selected report types list
+- Date range display (formatted)
+- Sync frequency display
+- Connect & Sync button with loading state
+- Initial sync triggered automatically on connection
+- Success/warning alerts with appropriate actions
+- Redirect to data sources list on completion
+
+**Additional Updates:**
+- Added Google Ad Manager to available data sources list on project index page
+- Updated `syncDataSource()` to handle both GA and GAM
+- Updated `bulkSyncAllGA()` to sync both GA and GAM data sources
+- Updated `viewSyncHistory()` to fetch history for both GA and GAM
+- Updated `getLastSyncTime()`, `getSyncFrequency()`, `isRecentlySynced()` helpers
+- Imported `useGoogleAdManager` composable in project index
+
+**Sprint 3 Summary:**
+- ✅ 5/5 features completed
+- ✅ Full 4-step connection wizard functional
+- ✅ Integrated with existing NetworkSelector component
+- ✅ Comprehensive validation on all inputs
+- ✅ Project index page supports GAM data sources
+- ✅ 0 TypeScript compilation errors
+- 📦 Files created: 1 new page (google-ad-manager.vue)
+- 📝 Files modified: 1 file (index.vue)
+
+**User Flow:**
+1. User navigates to project → "Add Data Source" → "Google Ad Manager"
+2. Step 1: Authenticates with Google OAuth
+3. Step 2: Selects Ad Manager network
+4. Step 3: Configures reports, date range, sync frequency
+5. Step 4: Reviews and confirms
+6. System creates data source and triggers initial sync
+7. User redirected to data sources list
+
+**Next Sprint:** Sprint 4 - Revenue Report Implementation
+- Feature 4.1: Revenue report query builder
+- Feature 4.2: Data transformation layer
+- Feature 4.3: Database schema for revenue data
+- Feature 4.4: Sync pipeline implementation
+- Feature 4.5: Revenue data validation
+
+---
+
+## 2025-12-14
+
 ### Added - Google Ad Manager Integration - Sprint 2: Network Listing & API (Week 2 - Partial)
 **Phase:** API Connectivity & Frontend Foundation
 **Files:** google_ad_manager.ts (routes), useGoogleAdManager.ts, NetworkSelector.vue, data_sources store, IAPIConnectionDetails.ts, DataSourceProcessor.ts

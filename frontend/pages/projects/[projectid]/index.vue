@@ -2,16 +2,19 @@
 import { useDataSourceStore } from '@/stores/data_sources';
 import { useProjectsStore } from '@/stores/projects';
 import { useGoogleAnalytics } from '@/composables/useGoogleAnalytics';
+import { useGoogleAdManager } from '@/composables/useGoogleAdManager';
 import pdfImage from '/assets/images/pdf.png';
 import excelImage from '/assets/images/excel.png';
 import postgresqlImage from '/assets/images/postgresql.png';
 import mysqlImage from '/assets/images/mysql.png';
 import mariadbImage from '/assets/images/mariadb.png';
 import googleAnalyticsImage from '/assets/images/google-analytics.png';
+import googleAdManagerImage from '/assets/images/google-analytics.png';
 
 const dataSourceStore = useDataSourceStore();
 const projectsStore = useProjectsStore();
 const analytics = useGoogleAnalytics();
+const gam = useGoogleAdManager();
 const { $swal } = useNuxtApp();
 const route = useRoute();
 
@@ -73,6 +76,11 @@ const state = reactive({
             url: `${route.fullPath}/data-sources/connect/google-analytics`,
             image_url: googleAnalyticsImage,
         },
+        {
+            name: 'Google Ad Manager',
+            url: `${route.fullPath}/data-sources/connect/google-ad-manager`,
+            image_url: googleAdManagerImage,
+        },
     ],
     selected_tab: 'data_sources',
 });
@@ -122,15 +130,19 @@ async function setSelectedDataSource(dataSourceId) {
 }
 
 /**
- * Sync a single Google Analytics data source
+ * Sync a single Google Analytics or Google Ad Manager data source
  */
 async function syncDataSource(dataSourceId) {
     try {
         state.syncing[dataSourceId] = true;
         
+        const dataSource = state.data_sources.find(ds => ds.id === dataSourceId);
+        const isGAM = dataSource?.data_type === 'google_ad_manager';
+        const serviceName = isGAM ? 'Google Ad Manager' : 'Google Analytics';
+        
         $swal.fire({
             title: 'Syncing...',
-            text: 'Fetching latest data from Google Analytics',
+            text: `Fetching latest data from ${serviceName}`,
             icon: 'info',
             allowOutsideClick: false,
             showConfirmButton: false,
@@ -140,12 +152,12 @@ async function syncDataSource(dataSourceId) {
         });
         
         console.log('Starting sync for data source ID:', dataSourceId);
-        const success = await analytics.syncNow(dataSourceId);
+        const success = isGAM ? await gam.syncNow(dataSourceId) : await analytics.syncNow(dataSourceId);
         
         if (success) {
             await $swal.fire({
                 title: 'Sync Complete!',
-                text: 'Google Analytics data has been updated',
+                text: `${serviceName} data has been updated`,
                 icon: 'success',
                 timer: 2000
             });
@@ -155,7 +167,7 @@ async function syncDataSource(dataSourceId) {
         } else {
             await $swal.fire({
                 title: 'Sync Failed',
-                text: 'Could not sync Google Analytics data. Please try again.',
+                text: `Could not sync ${serviceName} data. Please try again.`,
                 icon: 'error'
             });
         }
@@ -171,23 +183,25 @@ async function syncDataSource(dataSourceId) {
 }
 
 /**
- * Bulk sync all Google Analytics data sources in project
+ * Bulk sync all Google Analytics and Google Ad Manager data sources in project
  */
 async function bulkSyncAllGA() {
-    const gaDataSources = state.data_sources.filter(ds => ds.data_type === 'google_analytics');
+    const googleDataSources = state.data_sources.filter(ds => 
+        ds.data_type === 'google_analytics' || ds.data_type === 'google_ad_manager'
+    );
     
-    if (gaDataSources.length === 0) {
+    if (googleDataSources.length === 0) {
         await $swal.fire({
-            title: 'No GA Data Sources',
-            text: 'There are no Google Analytics data sources to sync.',
+            title: 'No Google Data Sources',
+            text: 'There are no Google Analytics or Ad Manager data sources to sync.',
             icon: 'info'
         });
         return;
     }
     
     const { value: confirm } = await $swal.fire({
-        title: `Sync ${gaDataSources.length} Data Source${gaDataSources.length > 1 ? 's' : ''}?`,
-        text: 'This will sync all Google Analytics data sources in this project.',
+        title: `Sync ${googleDataSources.length} Data Source${googleDataSources.length > 1 ? 's' : ''}?`,
+        text: 'This will sync all Google Analytics and Ad Manager data sources in this project.',
         icon: 'question',
         showCancelButton: true,
         confirmButtonText: 'Yes, Sync All',
@@ -198,7 +212,7 @@ async function bulkSyncAllGA() {
     
     await $swal.fire({
         title: 'Syncing...',
-        html: `Syncing 0 of ${gaDataSources.length} data sources...`,
+        html: `Syncing 0 of ${googleDataSources.length} data sources...`,
         icon: 'info',
         allowOutsideClick: false,
         showConfirmButton: false,
@@ -210,13 +224,14 @@ async function bulkSyncAllGA() {
     let successCount = 0;
     let failCount = 0;
     
-    for (let i = 0; i < gaDataSources.length; i++) {
-        const ds = gaDataSources[i];
+    for (let i = 0; i < googleDataSources.length; i++) {
+        const ds = googleDataSources[i];
         $swal.update({
-            html: `Syncing ${i + 1} of ${gaDataSources.length} data sources...<br><small>${ds.name}</small>`
+            html: `Syncing ${i + 1} of ${googleDataSources.length} data sources...<br><small>${ds.name}</small>`
         });
         
-        const success = await analytics.syncNow(ds.id);
+        const isGAM = ds.data_type === 'google_ad_manager';
+        const success = isGAM ? await gam.syncNow(ds.id) : await analytics.syncNow(ds.id);
         if (success) {
             successCount++;
         } else {
@@ -239,6 +254,9 @@ async function bulkSyncAllGA() {
 async function viewSyncHistory(dataSourceId) {
     state.selected_data_source_for_history = dataSourceId;
     
+    const dataSource = state.data_sources.find(ds => ds.id === dataSourceId);
+    const isGAM = dataSource?.data_type === 'google_ad_manager';
+    
     // Show loading
     await $swal.fire({
         title: 'Loading...',
@@ -251,7 +269,7 @@ async function viewSyncHistory(dataSourceId) {
         }
     });
     
-    const status = await analytics.getSyncStatus(dataSourceId);
+    const status = isGAM ? await gam.getSyncStatus(dataSourceId) : await analytics.getSyncStatus(dataSourceId);
     
     $swal.close();
     
@@ -280,25 +298,27 @@ function closeSyncHistoryDialog() {
  * Get last sync time formatted
  */
 function getLastSyncTime(dataSource) {
-    if (dataSource.data_type !== 'google_analytics') return null;
+    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager') return null;
     const lastSync = dataSource.connection_details?.api_config?.last_sync;
-    return lastSync ? analytics.formatSyncTime(lastSync) : 'Never';
+    const isGAM = dataSource.data_type === 'google_ad_manager';
+    return lastSync ? (isGAM ? gam.formatSyncTime(lastSync) : analytics.formatSyncTime(lastSync)) : 'Never';
 }
 
 /**
  * Get sync frequency text
  */
 function getSyncFrequency(dataSource) {
-    if (dataSource.data_type !== 'google_analytics') return null;
+    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager') return null;
     const frequency = dataSource.connection_details?.api_config?.sync_frequency || 'manual';
-    return analytics.getSyncFrequencyText(frequency);
+    const isGAM = dataSource.data_type === 'google_ad_manager';
+    return isGAM ? gam.getSyncFrequencyText(frequency) : analytics.getSyncFrequencyText(frequency);
 }
 
 /**
  * Check if data source was recently synced (within 24 hours)
  */
 function isRecentlySynced(dataSource) {
-    if (dataSource.data_type !== 'google_analytics') return false;
+    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager') return false;
     const lastSync = dataSource.connection_details?.api_config?.last_sync;
     if (!lastSync) return false;
     const diffHours = (new Date().getTime() - new Date(lastSync).getTime()) / (1000 * 60 * 60);
