@@ -17,6 +17,7 @@ import { IExcelDataSourceReturn } from "../types/IExcelDataSourceReturn.js";
 import { FilesService } from "../services/FilesService.js";
 import { QueueService } from "../services/QueueService.js";
 import { GoogleAnalyticsDriver } from "../drivers/GoogleAnalyticsDriver.js";
+import { GoogleAdManagerDriver } from "../drivers/GoogleAdManagerDriver.js";
 export class DataSourceProcessor {
     private static instance: DataSourceProcessor;
     private constructor() {}
@@ -2062,6 +2063,140 @@ export class DataSourceProcessor {
             // Trigger sync
             const gaDriver = GoogleAnalyticsDriver.getInstance();
             const syncResult = await gaDriver.syncToDatabase(dataSourceId, apiConnectionDetails);
+            
+            if (syncResult) {
+                // Update last sync time in API connection details
+                apiConnectionDetails.api_config.last_sync = new Date();
+                connection.api_connection_details = apiConnectionDetails;
+                dataSource.connection_details = connection;
+                await manager.save(dataSource);
+            }
+            
+            return resolve(syncResult);
+        });
+    }
+
+    /**
+     * Add Google Ad Manager data source
+     */
+    public async addGoogleAdManagerDataSource(
+        name: string,
+        connectionDetails: IAPIConnectionDetails,
+        tokenDetails: ITokenDetails,
+        projectId: number
+    ): Promise<number | null> {
+        return new Promise<number | null>(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve(null);
+            }
+            const dbConnector = await driver.getConcreteDriver();
+            const manager = dbConnector.manager;
+            if (!manager) {
+                return resolve(null);
+            }
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!user) {
+                return resolve(null);
+            }
+            const project: DRAProject|null = await manager.findOne(DRAProject, {where: {id: projectId, users_platform: user}});
+            if (project) {
+                // Create schema for Google Ad Manager data
+                const schemaName = 'dra_google_ad_manager';
+                await manager.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+                
+                // Get internal database connection details
+                const host = UtilityService.getInstance().getConstants('POSTGRESQL_HOST');
+                const port = UtilityService.getInstance().getConstants('POSTGRESQL_PORT');
+                const database = UtilityService.getInstance().getConstants('POSTGRESQL_DB_NAME');
+                const username = UtilityService.getInstance().getConstants('POSTGRESQL_USERNAME');
+                const password = UtilityService.getInstance().getConstants('POSTGRESQL_PASSWORD');
+                
+                // Create hybrid connection details: database connection + API connection
+                const hybridConnection: IDBConnectionDetails = {
+                    data_source_type: EDataSourceType.GOOGLE_AD_MANAGER,
+                    host: host,
+                    port: parseInt(port),
+                    schema: schemaName,
+                    database: database,
+                    username: username,
+                    password: password,
+                    api_connection_details: connectionDetails
+                };
+                
+                const dataSource = new DRADataSource();
+                dataSource.name = name;
+                dataSource.connection_details = hybridConnection;
+                dataSource.data_type = EDataSourceType.GOOGLE_AD_MANAGER;
+                dataSource.project = project;
+                dataSource.users_platform = user;
+                dataSource.created_at = new Date();
+                const savedDataSource = await manager.save(dataSource);
+                
+                console.log('✅ Google Ad Manager data source added successfully with ID:', savedDataSource.id);
+                return resolve(savedDataSource.id);
+            }
+            return resolve(null);
+        });
+    }
+
+    /**
+     * Sync Google Ad Manager data source
+     */
+    public async syncGoogleAdManagerDataSource(
+        dataSourceId: number,
+        tokenDetails: ITokenDetails
+    ): Promise<boolean> {
+        return new Promise<boolean>(async (resolve, reject) => {
+            // Defensive validation at the start
+            if (!dataSourceId || isNaN(dataSourceId) || !Number.isInteger(dataSourceId) || dataSourceId < 1) {
+                console.error('[syncGoogleAdManagerDataSource] Invalid data source ID:', dataSourceId, 'Type:', typeof dataSourceId);
+                return resolve(false);
+            }
+            
+            console.log('[syncGoogleAdManagerDataSource] Starting sync for data source ID:', dataSourceId);
+            
+            const { user_id } = tokenDetails;
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                console.error('[syncGoogleAdManagerDataSource] Database driver not available');
+                return resolve(false);
+            }
+            const manager = (await driver.getConcreteDriver()).manager;
+            if (!manager) {
+                console.error('[syncGoogleAdManagerDataSource] Database manager not available');
+                return resolve(false);
+            }
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!user) {
+                console.error('[syncGoogleAdManagerDataSource] User not found:', user_id);
+                return resolve(false);
+            }
+            
+            // Get data source
+            console.log('[syncGoogleAdManagerDataSource] Fetching data source with ID:', dataSourceId);
+            const dataSource = await manager.findOne(DRADataSource, {
+                where: {id: dataSourceId, users_platform: user, data_type: EDataSourceType.GOOGLE_AD_MANAGER}
+            });
+            
+            if (!dataSource) {
+                console.error('Data source not found or not a Google Ad Manager source');
+                return resolve(false);
+            }
+            
+            // Get connection details - extract API connection from hybrid structure
+            const connection = dataSource.connection_details;
+            if (!connection.api_connection_details) {
+                console.error('API connection details not found in data source');
+                return resolve(false);
+            }
+            
+            const apiConnectionDetails = connection.api_connection_details;
+            
+            // Trigger sync
+            const gamDriver = GoogleAdManagerDriver.getInstance();
+            const syncResult = await gamDriver.syncToDatabase(dataSourceId, apiConnectionDetails);
             
             if (syncResult) {
                 // Update last sync time in API connection details
