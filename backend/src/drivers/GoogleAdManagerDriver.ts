@@ -7,6 +7,7 @@ import { SyncHistoryService } from '../services/SyncHistoryService.js';
 import { SyncType } from '../entities/SyncHistory.js';
 import { DBDriver } from './DBDriver.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
+import { RetryHandler } from '../utils/RetryHandler.js';
 import {
     IGAMReportQuery,
     IGAMReportResponse,
@@ -248,9 +249,20 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         
         console.log(`✅ Table ${fullTableName} ready`);
         
-        // Build and execute report query
+        // Build and execute report query with retry logic
         const reportQuery = this.gamService.buildRevenueReportQuery(networkCode, startDate, endDate);
-        const reportResponse = await this.gamService.runReport(reportQuery, connectionDetails);
+        
+        const reportResult = await RetryHandler.execute(
+            () => this.gamService.runReport(reportQuery, connectionDetails),
+            RetryHandler.getRecommendedConfig('rate_limit')
+        );
+        
+        if (!reportResult.success || !reportResult.data) {
+            console.error(`❌ Failed to fetch revenue report after ${reportResult.attempts} attempts:`, reportResult.error?.message);
+            throw reportResult.error || new Error('Failed to fetch revenue report');
+        }
+        
+        const reportResponse = reportResult.data;
         
         if (!reportResponse.rows || reportResponse.rows.length === 0) {
             console.log('ℹ️  No data returned from GAM for revenue report');
@@ -307,9 +319,20 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         
         console.log(`✅ Table ${fullTableName} ready`);
         
-        // Build and execute report query
+        // Build and execute report query with retry logic
         const reportQuery = this.gamService.buildInventoryReportQuery(networkCode, startDate, endDate);
-        const reportResponse = await this.gamService.runReport(reportQuery, connectionDetails);
+        
+        const reportResult = await RetryHandler.execute(
+            () => this.gamService.runReport(reportQuery, connectionDetails),
+            RetryHandler.getRecommendedConfig('rate_limit')
+        );
+        
+        if (!reportResult.success || !reportResult.data) {
+            console.error(`❌ Failed to fetch inventory report after ${reportResult.attempts} attempts:`, reportResult.error?.message);
+            throw reportResult.error || new Error('Failed to fetch inventory report');
+        }
+        
+        const reportResponse = reportResult.data;
         
         if (!reportResponse.rows || reportResponse.rows.length === 0) {
             console.log('ℹ️  No data returned from GAM for inventory report');
@@ -369,9 +392,20 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         
         console.log(`✅ Table ${fullTableName} ready`);
         
-        // Build and execute report query
+        // Build and execute report query with retry logic
         const reportQuery = this.gamService.buildOrdersReportQuery(networkCode, startDate, endDate);
-        const reportResponse = await this.gamService.runReport(reportQuery, connectionDetails);
+        
+        const reportResult = await RetryHandler.execute(
+            () => this.gamService.runReport(reportQuery, connectionDetails),
+            RetryHandler.getRecommendedConfig('rate_limit')
+        );
+        
+        if (!reportResult.success || !reportResult.data) {
+            console.error(`❌ Failed to fetch orders report after ${reportResult.attempts} attempts:`, reportResult.error?.message);
+            throw reportResult.error || new Error('Failed to fetch orders report');
+        }
+        
+        const reportResponse = reportResult.data;
         
         if (!reportResponse.rows || reportResponse.rows.length === 0) {
             console.log('ℹ️  No data returned from GAM for orders report');
@@ -420,9 +454,20 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         
         console.log(`✅ Table ${fullTableName} ready`);
         
-        // Build and execute report query
+        // Build and execute report query with retry logic
         const reportQuery = this.gamService.buildGeographyReportQuery(networkCode, startDate, endDate);
-        const reportResponse = await this.gamService.runReport(reportQuery, connectionDetails);
+        
+        const reportResult = await RetryHandler.execute(
+            () => this.gamService.runReport(reportQuery, connectionDetails),
+            RetryHandler.getRecommendedConfig('rate_limit')
+        );
+        
+        if (!reportResult.success || !reportResult.data) {
+            console.error(`❌ Failed to fetch geography report after ${reportResult.attempts} attempts:`, reportResult.error?.message);
+            throw reportResult.error || new Error('Failed to fetch geography report');
+        }
+        
+        const reportResponse = reportResult.data;
         
         if (!reportResponse.rows || reportResponse.rows.length === 0) {
             console.log('ℹ️  No data returned from GAM for geography report');
@@ -470,9 +515,20 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         
         console.log(`✅ Table ${fullTableName} ready`);
         
-        // Build and execute report query
+        // Build and execute report query with retry logic
         const reportQuery = this.gamService.buildDeviceReportQuery(networkCode, startDate, endDate);
-        const reportResponse = await this.gamService.runReport(reportQuery, connectionDetails);
+        
+        const reportResult = await RetryHandler.execute(
+            () => this.gamService.runReport(reportQuery, connectionDetails),
+            RetryHandler.getRecommendedConfig('rate_limit')
+        );
+        
+        if (!reportResult.success || !reportResult.data) {
+            console.error(`❌ Failed to fetch device report after ${reportResult.attempts} attempts:`, reportResult.error?.message);
+            throw reportResult.error || new Error('Failed to fetch device report');
+        }
+        
+        const reportResponse = reportResult.data;
         
         if (!reportResponse.rows || reportResponse.rows.length === 0) {
             console.log('ℹ️  No data returned from GAM for device report');
