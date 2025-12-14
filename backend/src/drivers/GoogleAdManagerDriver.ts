@@ -3,6 +3,8 @@ import { IAPIDriver } from '../interfaces/IAPIDriver.js';
 import { IAPIConnectionDetails } from '../types/IAPIConnectionDetails.js';
 import { GoogleAdManagerService } from '../services/GoogleAdManagerService.js';
 import { GoogleOAuthService } from '../services/GoogleOAuthService.js';
+import { SyncHistoryService } from '../services/SyncHistoryService.js';
+import { SyncType } from '../entities/SyncHistory.js';
 import { DBDriver } from './DBDriver.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import {
@@ -24,10 +26,12 @@ export class GoogleAdManagerDriver implements IAPIDriver {
     private static instance: GoogleAdManagerDriver;
     private gamService: GoogleAdManagerService;
     private oauthService: GoogleOAuthService;
+    private syncHistoryService: SyncHistoryService;
     
     private constructor() {
         this.gamService = GoogleAdManagerService.getInstance();
         this.oauthService = GoogleOAuthService.getInstance();
+        this.syncHistoryService = SyncHistoryService.getInstance();
     }
     
     public static getInstance(): GoogleAdManagerDriver {
@@ -78,8 +82,23 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         dataSourceId: number,
         connectionDetails: IAPIConnectionDetails
     ): Promise<boolean> {
+        // Create sync history record
+        const syncRecord = await this.syncHistoryService.createSyncRecord(
+            dataSourceId,
+            SyncType.MANUAL,
+            {
+                reportTypes: connectionDetails.api_config?.report_types || [],
+                startDate: connectionDetails.api_config?.start_date,
+                endDate: connectionDetails.api_config?.end_date,
+                networkCode: connectionDetails.api_config?.network_code,
+            }
+        );
+        
         try {
             console.log(`🔄 Starting Google Ad Manager sync for data source ${dataSourceId}`);
+            
+            // Mark as running
+            await this.syncHistoryService.markAsRunning(syncRecord.id);
             
             // Ensure authentication is valid
             const isAuthenticated = await this.authenticate(connectionDetails);
@@ -113,10 +132,15 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             console.log(`📅 Sync period: ${startDate} to ${endDate}`);
             console.log(`📊 Report types: ${reportTypes.join(', ')}`);
             
+            // Track sync results
+            let totalRecordsSynced = 0;
+            let totalRecordsFailed = 0;
+            const errors: string[] = [];
+            
             // Sync selected report types
             for (const reportType of reportTypes) {
                 try {
-                    await this.syncReportType(
+                    const result = await this.syncReportType(
                         manager,
                         schemaName,
                         networkCode,
@@ -125,16 +149,31 @@ export class GoogleAdManagerDriver implements IAPIDriver {
                         endDate,
                         connectionDetails
                     );
-                } catch (error) {
+                    
+                    totalRecordsSynced += result.recordsSynced;
+                    totalRecordsFailed += result.recordsFailed;
+                } catch (error: any) {
                     console.error(`❌ Failed to sync ${reportType} report:`, error);
+                    errors.push(`${reportType}: ${error.message}`);
+                    totalRecordsFailed++;
                     // Continue with other reports even if one fails
                 }
             }
             
+            // Complete sync record
+            const errorMessage = errors.length > 0 ? errors.join('; ') : undefined;
+            await this.syncHistoryService.completeSyncRecord(
+                syncRecord.id,
+                totalRecordsSynced,
+                totalRecordsFailed,
+                errorMessage
+            );
+            
             console.log(`✅ Google Ad Manager sync completed for data source ${dataSourceId}`);
             return true;
-        } catch (error) {
+        } catch (error: any) {
             console.error('❌ Google Ad Manager sync failed:', error);
+            await this.syncHistoryService.markAsFailed(syncRecord.id, error.message || 'Unknown error');
             return false;
         }
     }
@@ -150,29 +189,25 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
-    ): Promise<void> {
+    ): Promise<{ recordsSynced: number; recordsFailed: number }> {
         const reportType = this.gamService.getReportType(reportTypeString);
         
         console.log(`📊 Syncing ${reportType} report...`);
         
         switch (reportType) {
             case GAMReportType.REVENUE:
-                await this.syncRevenueData(manager, schemaName, networkCode, startDate, endDate, connectionDetails);
-                break;
+                return await this.syncRevenueData(manager, schemaName, networkCode, startDate, endDate, connectionDetails);
             case GAMReportType.INVENTORY:
-                await this.syncInventoryData(manager, schemaName, networkCode, startDate, endDate, connectionDetails);
-                break;
+                return await this.syncInventoryData(manager, schemaName, networkCode, startDate, endDate, connectionDetails);
             case GAMReportType.ORDERS:
-                await this.syncOrdersData(manager, schemaName, networkCode, startDate, endDate, connectionDetails);
-                break;
+                return await this.syncOrdersData(manager, schemaName, networkCode, startDate, endDate, connectionDetails);
             case GAMReportType.GEOGRAPHY:
-                await this.syncGeographyData(manager, schemaName, networkCode, startDate, endDate, connectionDetails);
-                break;
+                return await this.syncGeographyData(manager, schemaName, networkCode, startDate, endDate, connectionDetails);
             case GAMReportType.DEVICE:
-                await this.syncDeviceData(manager, schemaName, networkCode, startDate, endDate, connectionDetails);
-                break;
+                return await this.syncDeviceData(manager, schemaName, networkCode, startDate, endDate, connectionDetails);
             default:
                 console.warn(`⚠️  Unknown report type: ${reportType}`);
+                return { recordsSynced: 0, recordsFailed: 0 };
         }
     }
     
@@ -186,7 +221,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
-    ): Promise<void> {
+    ): Promise<{ recordsSynced: number; recordsFailed: number }> {
         const tableName = `revenue_${networkCode}`;
         const fullTableName = `${schemaName}.${tableName}`;
         
@@ -219,7 +254,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         
         if (!reportResponse.rows || reportResponse.rows.length === 0) {
             console.log('ℹ️  No data returned from GAM for revenue report');
-            return;
+            return { recordsSynced: 0, recordsFailed: 0 };
         }
         
         // Transform and insert data
@@ -235,6 +270,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'ad_unit_id', 'country_code']);
         
         console.log(`✅ Synced ${transformedData.length} revenue records`);
+        return { recordsSynced: transformedData.length, recordsFailed: 0 };
     }
     
     /**
@@ -247,7 +283,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
-    ): Promise<void> {
+    ): Promise<{ recordsSynced: number; recordsFailed: number }> {
         const tableName = `inventory_${networkCode}`;
         const fullTableName = `${schemaName}.${tableName}`;
         
@@ -277,7 +313,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         
         if (!reportResponse.rows || reportResponse.rows.length === 0) {
             console.log('ℹ️  No data returned from GAM for inventory report');
-            return;
+            return { recordsSynced: 0, recordsFailed: 0 };
         }
         
         // Transform and insert data
@@ -293,6 +329,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'ad_unit_id', 'device_category']);
         
         console.log(`✅ Synced ${transformedData.length} inventory records`);
+        return { recordsSynced: transformedData.length, recordsFailed: 0 };
     }
     
     /**
@@ -305,7 +342,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
-    ): Promise<void> {
+    ): Promise<{ recordsSynced: number; recordsFailed: number }> {
         const tableName = `orders_${networkCode}`;
         const fullTableName = `${schemaName}.${tableName}`;
         
@@ -338,7 +375,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         
         if (!reportResponse.rows || reportResponse.rows.length === 0) {
             console.log('ℹ️  No data returned from GAM for orders report');
-            return;
+            return { recordsSynced: 0, recordsFailed: 0 };
         }
         
         // Transform and insert data
@@ -346,6 +383,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'line_item_id']);
         
         console.log(`✅ Synced ${transformedData.length} orders records`);
+        return { recordsSynced: transformedData.length, recordsFailed: 0 };
     }
     
     /**
@@ -358,7 +396,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
-    ): Promise<void> {
+    ): Promise<{ recordsSynced: number; recordsFailed: number }> {
         const tableName = `geography_${networkCode}`;
         const fullTableName = `${schemaName}.${tableName}`;
         
@@ -388,7 +426,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         
         if (!reportResponse.rows || reportResponse.rows.length === 0) {
             console.log('ℹ️  No data returned from GAM for geography report');
-            return;
+            return { recordsSynced: 0, recordsFailed: 0 };
         }
         
         // Transform and insert data
@@ -396,6 +434,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'country_code', 'region', 'city']);
         
         console.log(`✅ Synced ${transformedData.length} geography records`);
+        return { recordsSynced: transformedData.length, recordsFailed: 0 };
     }
     
     /**
@@ -408,7 +447,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
-    ): Promise<void> {
+    ): Promise<{ recordsSynced: number; recordsFailed: number }> {
         const tableName = `device_${networkCode}`;
         const fullTableName = `${schemaName}.${tableName}`;
         
@@ -437,7 +476,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         
         if (!reportResponse.rows || reportResponse.rows.length === 0) {
             console.log('ℹ️  No data returned from GAM for device report');
-            return;
+            return { recordsSynced: 0, recordsFailed: 0 };
         }
         
         // Transform and insert data
@@ -445,6 +484,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'device_category', 'browser_name']);
         
         console.log(`✅ Synced ${transformedData.length} device records`);
+        return { recordsSynced: transformedData.length, recordsFailed: 0 };
     }
     
     /**
@@ -906,9 +946,6 @@ export class GoogleAdManagerDriver implements IAPIDriver {
      * Get sync history for a data source
      */
     public async getSyncHistory(dataSourceId: number, limit: number = 10): Promise<any[]> {
-        // TODO: Implement sync history tracking
-        // This will require a separate sync_history table
-        console.log('📝 getSyncHistory - placeholder implementation');
-        return [];
+        return await this.syncHistoryService.getSyncHistory(dataSourceId, limit);
     }
 }
