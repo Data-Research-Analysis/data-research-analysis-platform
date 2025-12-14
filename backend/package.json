@@ -59,6 +59,7 @@
     "@google/genai": "^1.30.0",
     "@jorgebodega/typeorm-seeding": "^7.1.0",
     "@types/node-fetch": "^2.6.13",
+    "@types/ws": "^8.18.1",
     "adm-zip": "^0.5.16",
     "archiver": "^7.0.1",
     "aws-sdk": "^2.1692.0",
@@ -89,6 +90,7 @@
     "turndown": "^7.2.2",
     "typeorm": "^0.3.27",
     "uuid": "^11.1.0",
-    "winston": "^3.17.0"
+    "winston": "^3.17.0",
+    "ws": "^8.18.3"
   }
 }

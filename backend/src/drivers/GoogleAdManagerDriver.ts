@@ -8,6 +8,7 @@ import { SyncType } from '../entities/SyncHistory.js';
 import { DBDriver } from './DBDriver.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { RetryHandler } from '../utils/RetryHandler.js';
+import { SyncEventEmitter } from '../events/SyncEventEmitter.js';
 import {
     IGAMReportQuery,
     IGAMReportResponse,
@@ -28,11 +29,13 @@ export class GoogleAdManagerDriver implements IAPIDriver {
     private gamService: GoogleAdManagerService;
     private oauthService: GoogleOAuthService;
     private syncHistoryService: SyncHistoryService;
+    private syncEventEmitter: SyncEventEmitter;
     
     private constructor() {
         this.gamService = GoogleAdManagerService.getInstance();
         this.oauthService = GoogleOAuthService.getInstance();
         this.syncHistoryService = SyncHistoryService.getInstance();
+        this.syncEventEmitter = SyncEventEmitter.getInstance();
     }
     
     public static getInstance(): GoogleAdManagerDriver {
@@ -95,11 +98,22 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             }
         );
         
+        const syncStartTime = Date.now();
+        
         try {
             console.log(`🔄 Starting Google Ad Manager sync for data source ${dataSourceId}`);
             
             // Mark as running
             await this.syncHistoryService.markAsRunning(syncRecord.id);
+            
+            // Emit sync started event
+            const reportTypes = connectionDetails.api_config?.report_types || ['revenue'];
+            this.syncEventEmitter.emitSyncStarted({
+                dataSourceId,
+                syncId: syncRecord.id,
+                reportTypes,
+                startedAt: new Date(),
+            });
             
             // Ensure authentication is valid
             const isAuthenticated = await this.authenticate(connectionDetails);
@@ -125,8 +139,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             await manager.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
             console.log(`✅ Schema ${schemaName} ready`);
             
-            // Get sync configuration
-            const reportTypes = connectionDetails.api_config?.report_types || ['revenue'];
+            // Get sync configuration (reportTypes already declared above)
             const startDate = connectionDetails.api_config?.start_date || this.getDefaultStartDate();
             const endDate = connectionDetails.api_config?.end_date || this.getDefaultEndDate();
             
@@ -139,7 +152,10 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             const errors: string[] = [];
             
             // Sync selected report types
-            for (const reportType of reportTypes) {
+            for (let i = 0; i < reportTypes.length; i++) {
+                const reportType = reportTypes[i];
+                const reportStartTime = Date.now();
+                
                 try {
                     const result = await this.syncReportType(
                         manager,
@@ -153,16 +169,36 @@ export class GoogleAdManagerDriver implements IAPIDriver {
                     
                     totalRecordsSynced += result.recordsSynced;
                     totalRecordsFailed += result.recordsFailed;
+                    
+                    // Emit report completed event
+                    this.syncEventEmitter.emitReportCompleted({
+                        dataSourceId,
+                        syncId: syncRecord.id,
+                        reportType,
+                        recordsSynced: result.recordsSynced,
+                        recordsFailed: result.recordsFailed,
+                        durationMs: Date.now() - reportStartTime,
+                    });
                 } catch (error: any) {
                     console.error(`❌ Failed to sync ${reportType} report:`, error);
                     errors.push(`${reportType}: ${error.message}`);
                     totalRecordsFailed++;
+                    
+                    // Emit report failed event
+                    this.syncEventEmitter.emitReportFailed({
+                        dataSourceId,
+                        syncId: syncRecord.id,
+                        reportType,
+                        error: error.message,
+                        attempt: 1,
+                    });
                     // Continue with other reports even if one fails
                 }
             }
             
             // Complete sync record
             const errorMessage = errors.length > 0 ? errors.join('; ') : undefined;
+            const syncEndTime = Date.now();
             await this.syncHistoryService.completeSyncRecord(
                 syncRecord.id,
                 totalRecordsSynced,
@@ -170,11 +206,41 @@ export class GoogleAdManagerDriver implements IAPIDriver {
                 errorMessage
             );
             
+            // Determine final status
+            let finalStatus: 'COMPLETED' | 'PARTIAL' | 'FAILED';
+            if (totalRecordsFailed === 0) {
+                finalStatus = 'COMPLETED';
+            } else if (totalRecordsSynced > 0) {
+                finalStatus = 'PARTIAL';
+            } else {
+                finalStatus = 'FAILED';
+            }
+            
+            // Emit sync completed event
+            this.syncEventEmitter.emitSyncCompleted({
+                dataSourceId,
+                syncId: syncRecord.id,
+                status: finalStatus,
+                totalRecordsSynced,
+                totalRecordsFailed,
+                durationMs: syncEndTime - syncStartTime,
+                completedAt: new Date(),
+            });
+            
             console.log(`✅ Google Ad Manager sync completed for data source ${dataSourceId}`);
             return true;
         } catch (error: any) {
             console.error('❌ Google Ad Manager sync failed:', error);
             await this.syncHistoryService.markAsFailed(syncRecord.id, error.message || 'Unknown error');
+            
+            // Emit sync failed event
+            this.syncEventEmitter.emitSyncFailed({
+                dataSourceId,
+                syncId: syncRecord.id,
+                error: error.message || 'Unknown error',
+                failedAt: new Date(),
+            });
+            
             return false;
         }
     }
