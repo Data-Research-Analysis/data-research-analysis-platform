@@ -224,6 +224,14 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         
         // Transform and insert data
         const transformedData = this.transformRevenueData(reportResponse, networkCode);
+        
+        // Validate data before inserting
+        const validation = this.validateRevenueData(transformedData);
+        if (!validation.isValid) {
+            console.error('❌ Revenue data validation failed:', validation.errors);
+            throw new Error(`Data validation failed: ${validation.errors.slice(0, 3).join(', ')}`);
+        }
+        
         await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'ad_unit_id', 'country_code']);
         
         console.log(`✅ Synced ${transformedData.length} revenue records`);
@@ -262,7 +270,29 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         `);
         
         console.log(`✅ Table ${fullTableName} ready`);
-        console.log('ℹ️  Inventory sync - placeholder (will implement with actual API)');
+        
+        // Build and execute report query
+        const reportQuery = this.gamService.buildInventoryReportQuery(networkCode, startDate, endDate);
+        const reportResponse = await this.gamService.runReport(reportQuery, connectionDetails);
+        
+        if (!reportResponse.rows || reportResponse.rows.length === 0) {
+            console.log('ℹ️  No data returned from GAM for inventory report');
+            return;
+        }
+        
+        // Transform and insert data
+        const transformedData = this.transformInventoryData(reportResponse, networkCode);
+        
+        // Validate data before inserting
+        const validation = this.validateInventoryData(transformedData);
+        if (!validation.isValid) {
+            console.error('❌ Inventory data validation failed:', validation.errors);
+            throw new Error(`Data validation failed: ${validation.errors.slice(0, 3).join(', ')}`);
+        }
+        
+        await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'ad_unit_id', 'device_category']);
+        
+        console.log(`✅ Synced ${transformedData.length} inventory records`);
     }
     
     /**
@@ -301,7 +331,21 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         `);
         
         console.log(`✅ Table ${fullTableName} ready`);
-        console.log('ℹ️  Orders sync - placeholder (will implement with actual API)');
+        
+        // Build and execute report query
+        const reportQuery = this.gamService.buildOrdersReportQuery(networkCode, startDate, endDate);
+        const reportResponse = await this.gamService.runReport(reportQuery, connectionDetails);
+        
+        if (!reportResponse.rows || reportResponse.rows.length === 0) {
+            console.log('ℹ️  No data returned from GAM for orders report');
+            return;
+        }
+        
+        // Transform and insert data
+        const transformedData = this.transformOrdersData(reportResponse, networkCode);
+        await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'line_item_id']);
+        
+        console.log(`✅ Synced ${transformedData.length} orders records`);
     }
     
     /**
@@ -337,7 +381,21 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         `);
         
         console.log(`✅ Table ${fullTableName} ready`);
-        console.log('ℹ️  Geography sync - placeholder (will implement with actual API)');
+        
+        // Build and execute report query
+        const reportQuery = this.gamService.buildGeographyReportQuery(networkCode, startDate, endDate);
+        const reportResponse = await this.gamService.runReport(reportQuery, connectionDetails);
+        
+        if (!reportResponse.rows || reportResponse.rows.length === 0) {
+            console.log('ℹ️  No data returned from GAM for geography report');
+            return;
+        }
+        
+        // Transform and insert data
+        const transformedData = this.transformGeographyData(reportResponse, networkCode);
+        await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'country_code', 'region', 'city']);
+        
+        console.log(`✅ Synced ${transformedData.length} geography records`);
     }
     
     /**
@@ -372,7 +430,21 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         `);
         
         console.log(`✅ Table ${fullTableName} ready`);
-        console.log('ℹ️  Device sync - placeholder (will implement with actual API)');
+        
+        // Build and execute report query
+        const reportQuery = this.gamService.buildDeviceReportQuery(networkCode, startDate, endDate);
+        const reportResponse = await this.gamService.runReport(reportQuery, connectionDetails);
+        
+        if (!reportResponse.rows || reportResponse.rows.length === 0) {
+            console.log('ℹ️  No data returned from GAM for device report');
+            return;
+        }
+        
+        // Transform and insert data
+        const transformedData = this.transformDeviceData(reportResponse, networkCode);
+        await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'device_category', 'browser_name']);
+        
+        console.log(`✅ Synced ${transformedData.length} device records`);
     }
     
     /**
@@ -404,6 +476,119 @@ export class GoogleAdManagerDriver implements IAPIDriver {
                 cpm: parseFloat(cpm.toFixed(2)),
                 ctr: parseFloat(ctr.toFixed(4)),
                 fill_rate: 0, // Will be calculated if ad_requests data available
+                network_code: networkCode,
+            };
+        });
+    }
+    
+    /**
+     * Transform GAM inventory report data to PostgreSQL format
+     */
+    private transformInventoryData(reportResponse: IGAMReportResponse, networkCode: string): any[] {
+        if (!reportResponse.rows) {
+            return [];
+        }
+        
+        return reportResponse.rows.map(row => {
+            const adRequests = row.metrics['TOTAL_AD_REQUESTS'] || 0;
+            const matchedRequests = row.metrics['TOTAL_MATCHED_REQUESTS'] || 0;
+            const impressions = row.metrics['TOTAL_IMPRESSIONS'] || 0;
+            
+            // Calculate fill rate
+            const fillRate = adRequests > 0 ? (impressions / adRequests) * 100 : 0;
+            
+            return {
+                date: row.dimensions['DATE'],
+                ad_unit_id: row.dimensions['AD_UNIT_ID'] || null,
+                ad_unit_name: row.dimensions['AD_UNIT_NAME'] || null,
+                device_category: row.dimensions['DEVICE_CATEGORY_NAME'] || null,
+                ad_requests: adRequests,
+                matched_requests: matchedRequests,
+                impressions,
+                fill_rate: parseFloat(fillRate.toFixed(4)),
+                network_code: networkCode,
+            };
+        });
+    }
+    
+    /**
+     * Transform GAM orders report data to PostgreSQL format
+     */
+    private transformOrdersData(reportResponse: IGAMReportResponse, networkCode: string): any[] {
+        if (!reportResponse.rows) {
+            return [];
+        }
+        
+        return reportResponse.rows.map(row => {
+            const impressions = row.metrics['TOTAL_LINE_ITEM_LEVEL_IMPRESSIONS'] || 0;
+            const clicks = row.metrics['TOTAL_LINE_ITEM_LEVEL_CLICKS'] || 0;
+            const revenue = row.metrics['TOTAL_LINE_ITEM_LEVEL_CPM_AND_CPC_REVENUE'] || 0;
+            
+            return {
+                date: row.dimensions['DATE'],
+                order_id: row.dimensions['ORDER_ID'] || null,
+                order_name: row.dimensions['ORDER_NAME'] || null,
+                line_item_id: row.dimensions['LINE_ITEM_ID'] || null,
+                line_item_name: row.dimensions['LINE_ITEM_NAME'] || null,
+                advertiser_id: row.dimensions['ADVERTISER_ID'] || null,
+                advertiser_name: row.dimensions['ADVERTISER_NAME'] || null,
+                impressions,
+                clicks,
+                revenue: parseFloat(revenue.toString()),
+                delivery_status: 'ACTIVE', // Placeholder - actual status from API
+                network_code: networkCode,
+            };
+        });
+    }
+    
+    /**
+     * Transform GAM geography report data to PostgreSQL format
+     */
+    private transformGeographyData(reportResponse: IGAMReportResponse, networkCode: string): any[] {
+        if (!reportResponse.rows) {
+            return [];
+        }
+        
+        return reportResponse.rows.map(row => {
+            const impressions = row.metrics['TOTAL_LINE_ITEM_LEVEL_IMPRESSIONS'] || 0;
+            const clicks = row.metrics['TOTAL_LINE_ITEM_LEVEL_CLICKS'] || 0;
+            const revenue = row.metrics['TOTAL_LINE_ITEM_LEVEL_CPM_AND_CPC_REVENUE'] || 0;
+            
+            return {
+                date: row.dimensions['DATE'],
+                country_code: row.dimensions['COUNTRY_CODE'] || null,
+                country_name: row.dimensions['COUNTRY_NAME'] || null,
+                region: row.dimensions['REGION_NAME'] || null,
+                city: row.dimensions['CITY_NAME'] || null,
+                impressions,
+                clicks,
+                revenue: parseFloat(revenue.toString()),
+                network_code: networkCode,
+            };
+        });
+    }
+    
+    /**
+     * Transform GAM device report data to PostgreSQL format
+     */
+    private transformDeviceData(reportResponse: IGAMReportResponse, networkCode: string): any[] {
+        if (!reportResponse.rows) {
+            return [];
+        }
+        
+        return reportResponse.rows.map(row => {
+            const impressions = row.metrics['TOTAL_LINE_ITEM_LEVEL_IMPRESSIONS'] || 0;
+            const clicks = row.metrics['TOTAL_LINE_ITEM_LEVEL_CLICKS'] || 0;
+            const revenue = row.metrics['TOTAL_LINE_ITEM_LEVEL_CPM_AND_CPC_REVENUE'] || 0;
+            
+            return {
+                date: row.dimensions['DATE'],
+                device_category: row.dimensions['DEVICE_CATEGORY_NAME'] || null,
+                browser_name: row.dimensions['BROWSER_NAME'] || null,
+                operating_system: row.dimensions['OPERATING_SYSTEM_NAME'] || null,
+                impressions,
+                clicks,
+                revenue: parseFloat(revenue.toString()),
                 network_code: networkCode,
             };
         });
@@ -452,6 +637,111 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             
             await manager.query(query, values);
         }
+    }
+    
+    /**
+     * Validate revenue data before sync
+     * @param data - Revenue data to validate
+     * @returns Validation result with errors
+     */
+    public validateRevenueData(data: any[]): { isValid: boolean; errors: string[] } {
+        const errors: string[] = [];
+        
+        if (!data || data.length === 0) {
+            errors.push('No data to validate');
+            return { isValid: false, errors };
+        }
+        
+        data.forEach((row, index) => {
+            // Required fields
+            if (!row.date) {
+                errors.push(`Row ${index}: Missing required field 'date'`);
+            }
+            
+            if (!row.network_code) {
+                errors.push(`Row ${index}: Missing required field 'network_code'`);
+            }
+            
+            // Numeric validations
+            if (row.impressions < 0) {
+                errors.push(`Row ${index}: Impressions cannot be negative`);
+            }
+            
+            if (row.clicks < 0) {
+                errors.push(`Row ${index}: Clicks cannot be negative`);
+            }
+            
+            if (row.revenue < 0) {
+                errors.push(`Row ${index}: Revenue cannot be negative`);
+            }
+            
+            // Logical validations
+            if (row.clicks > row.impressions) {
+                errors.push(`Row ${index}: Clicks (${row.clicks}) cannot exceed impressions (${row.impressions})`);
+            }
+            
+            // Date format validation
+            if (row.date && !/^\d{4}-\d{2}-\d{2}$/.test(row.date)) {
+                errors.push(`Row ${index}: Invalid date format '${row.date}' (expected YYYY-MM-DD)`);
+            }
+        });
+        
+        return {
+            isValid: errors.length === 0,
+            errors
+        };
+    }
+    
+    /**
+     * Validate inventory data before sync
+     * @param data - Inventory data to validate
+     * @returns Validation result with errors
+     */
+    public validateInventoryData(data: any[]): { isValid: boolean; errors: string[] } {
+        const errors: string[] = [];
+        
+        if (!data || data.length === 0) {
+            errors.push('No data to validate');
+            return { isValid: false, errors };
+        }
+        
+        data.forEach((row, index) => {
+            // Required fields
+            if (!row.date) {
+                errors.push(`Row ${index}: Missing required field 'date'`);
+            }
+            
+            // Numeric validations
+            if (row.ad_requests < 0) {
+                errors.push(`Row ${index}: Ad requests cannot be negative`);
+            }
+            
+            if (row.matched_requests < 0) {
+                errors.push(`Row ${index}: Matched requests cannot be negative`);
+            }
+            
+            if (row.impressions < 0) {
+                errors.push(`Row ${index}: Impressions cannot be negative`);
+            }
+            
+            // Logical validations
+            if (row.matched_requests > row.ad_requests) {
+                errors.push(`Row ${index}: Matched requests cannot exceed ad requests`);
+            }
+            
+            if (row.impressions > row.matched_requests) {
+                errors.push(`Row ${index}: Impressions cannot exceed matched requests`);
+            }
+            
+            if (row.fill_rate < 0 || row.fill_rate > 100) {
+                errors.push(`Row ${index}: Fill rate must be between 0 and 100`);
+            }
+        });
+        
+        return {
+            isValid: errors.length === 0,
+            errors
+        };
     }
     
     /**
