@@ -9,6 +9,7 @@ import { DBDriver } from './DBDriver.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { RetryHandler } from '../utils/RetryHandler.js';
 import { SyncEventEmitter } from '../events/SyncEventEmitter.js';
+import { PerformanceMetrics, globalPerformanceAggregator } from '../utils/PerformanceMetrics.js';
 import {
     IGAMReportQuery,
     IGAMReportResponse,
@@ -100,14 +101,22 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         
         const syncStartTime = Date.now();
         
+        // Initialize performance tracking
+        const perfMetrics = new PerformanceMetrics(`GAM Sync - DS ${dataSourceId}`);
+        perfMetrics.addMetadata('dataSourceId', dataSourceId);
+        perfMetrics.addMetadata('syncId', syncRecord.id);
+        
         try {
             console.log(`🔄 Starting Google Ad Manager sync for data source ${dataSourceId}`);
             
             // Mark as running
+            perfMetrics.startTimer('mark-running');
             await this.syncHistoryService.markAsRunning(syncRecord.id);
+            perfMetrics.stopTimer('mark-running');
             
             // Emit sync started event
             const reportTypes = connectionDetails.api_config?.report_types || ['revenue'];
+            perfMetrics.addMetadata('reportTypes', reportTypes);
             this.syncEventEmitter.emitSyncStarted({
                 dataSourceId,
                 syncId: syncRecord.id,
@@ -116,7 +125,9 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             });
             
             // Ensure authentication is valid
+            perfMetrics.startTimer('authentication');
             const isAuthenticated = await this.authenticate(connectionDetails);
+            perfMetrics.stopTimer('authentication');
             if (!isAuthenticated) {
                 throw new Error('Authentication failed');
             }
@@ -125,8 +136,10 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             if (!networkCode) {
                 throw new Error('Network code not configured');
             }
+            perfMetrics.addMetadata('networkCode', networkCode);
             
             // Get database connection
+            perfMetrics.startTimer('database-setup');
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             if (!driver) {
                 throw new Error('Database driver not available');
@@ -137,6 +150,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             // Create schema if it doesn't exist
             const schemaName = 'dra_google_ad_manager';
             await manager.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+            perfMetrics.stopTimer('database-setup');
             console.log(`✅ Schema ${schemaName} ready`);
             
             // Get sync configuration (reportTypes already declared above)
@@ -155,6 +169,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             for (let i = 0; i < reportTypes.length; i++) {
                 const reportType = reportTypes[i];
                 const reportStartTime = Date.now();
+                perfMetrics.startTimer(`report-${reportType}`);
                 
                 try {
                     const result = await this.syncReportType(
@@ -167,6 +182,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
                         connectionDetails
                     );
                     
+                    perfMetrics.stopTimer(`report-${reportType}`);
                     totalRecordsSynced += result.recordsSynced;
                     totalRecordsFailed += result.recordsFailed;
                     
@@ -181,6 +197,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
                     });
                 } catch (error: any) {
                     console.error(`❌ Failed to sync ${reportType} report:`, error);
+                    perfMetrics.stopTimer(`report-${reportType}`);
                     errors.push(`${reportType}: ${error.message}`);
                     totalRecordsFailed++;
                     
@@ -199,12 +216,15 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             // Complete sync record
             const errorMessage = errors.length > 0 ? errors.join('; ') : undefined;
             const syncEndTime = Date.now();
+            
+            perfMetrics.startTimer('complete-sync-record');
             await this.syncHistoryService.completeSyncRecord(
                 syncRecord.id,
                 totalRecordsSynced,
                 totalRecordsFailed,
                 errorMessage
             );
+            perfMetrics.stopTimer('complete-sync-record');
             
             // Determine final status
             let finalStatus: 'COMPLETED' | 'PARTIAL' | 'FAILED';
@@ -215,6 +235,19 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             } else {
                 finalStatus = 'FAILED';
             }
+            
+            // Add final metrics
+            perfMetrics.addMetadata('finalStatus', finalStatus);
+            perfMetrics.addMetadata('totalRecordsSynced', totalRecordsSynced);
+            perfMetrics.addMetadata('totalRecordsFailed', totalRecordsFailed);
+            perfMetrics.addMetadata('errorCount', errors.length);
+            
+            // Complete performance tracking and store
+            const perfSnapshot = perfMetrics.complete();
+            globalPerformanceAggregator.addSnapshot(perfSnapshot);
+            
+            // Log performance summary
+            console.log(PerformanceMetrics.formatSnapshot(perfSnapshot));
             
             // Emit sync completed event
             this.syncEventEmitter.emitSyncCompleted({
@@ -231,6 +264,16 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             return true;
         } catch (error: any) {
             console.error('❌ Google Ad Manager sync failed:', error);
+            
+            // Add error to metrics
+            perfMetrics.addMetadata('error', error.message || 'Unknown error');
+            perfMetrics.addMetadata('errorStack', error.stack);
+            
+            // Complete performance tracking even on failure
+            const perfSnapshot = perfMetrics.complete();
+            globalPerformanceAggregator.addSnapshot(perfSnapshot);
+            console.log(PerformanceMetrics.formatSnapshot(perfSnapshot));
+            
             await this.syncHistoryService.markAsFailed(syncRecord.id, error.message || 'Unknown error');
             
             // Emit sync failed event
