@@ -8,6 +8,71 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## 2025-12-14
 
+### Added - Google Ad Manager Integration - Sprint 1: Foundation (Week 1)
+**Phase:** OAuth & Authentication Foundation
+**Files:** GoogleOAuthService.ts, GoogleAdManagerService.ts, GoogleAdManagerDriver.ts, EDataSourceType.ts, IGoogleAdManager.ts, migration, unit tests
+
+**Feature 1.1: OAuth Scopes Extension**
+- Extended `GoogleOAuthService` with GAM-specific scopes
+- Added `getGoogleAdManagerScopes()` returning `['https://www.googleapis.com/auth/dfp']`
+- Added `getAllGoogleScopes()` combining GA and GAM scopes
+- Maintains backward compatibility with existing GA integration
+- **Tests:** 19/19 passing in GoogleOAuthService.unit.test.ts
+
+**Feature 1.2: GoogleAdManagerService Skeleton**
+- Created singleton service following GA pattern
+- Implemented report query builders for 5 report types:
+  - Revenue: impressions, clicks, revenue, CPM, CTR
+  - Inventory: ad requests, matched requests, fill rate
+  - Orders: line items, advertisers, delivery status
+  - Geography: country, region, city performance
+  - Device: browser, OS, device category
+- Added placeholder `listNetworks()` and `runReport()` methods for Sprint 2
+- **Tests:** 26/26 passing in GoogleAdManagerService.unit.test.ts
+
+**Feature 1.3: GoogleAdManagerDriver Skeleton**
+- Created `IAPIDriver` implementation for GAM
+- Implemented authentication with token refresh logic
+- Implemented `syncToDatabase()` orchestration for multiple report types
+- Created table schemas for all 5 report types with proper indexes
+- Added data transformation methods with derived metric calculations
+- Implemented bulk UPSERT with conflict resolution
+- Added `getSchema()`, `getLastSyncTime()`, `getSyncHistory()` methods
+- **Status:** Compiles with no TypeScript errors
+
+**Feature 1.4: Database Schema & Migration**
+- Added `GOOGLE_AD_MANAGER` to `EDataSourceType` enum
+- Created migration `1765698670655-AddGoogleAdManagerDataSource.ts`
+- Adds `google_ad_manager` to data source type enum
+- Creates `dra_google_ad_manager` schema for data storage
+- Migration tested with up/down functionality
+
+**Feature 1.5: Type Definitions**
+- Created `IGoogleAdManager.ts` with comprehensive type definitions
+- Defined interfaces: `IGAMNetwork`, `IGAMReportQuery`, `IGAMReportResponse`, `IGAMReportRow`
+- Defined data models: `IGAMRevenueData`, `IGAMInventoryData`, `IGAMOrderData`, `IGAMGeographyData`, `IGAMDeviceData`
+- Created `GAMReportType` enum for type-safe report handling
+
+**Sprint 1 Summary:**
+- ✅ 5 features completed (100% of Sprint 1)
+- ✅ 45 unit tests passing (100% pass rate)
+- ✅ 0 TypeScript compilation errors
+- ✅ Migration ready for deployment
+- 📦 Files created: 6 new files (service, driver, types, migration, 2 test files)
+- 📝 Files modified: 2 files (OAuth service, enum)
+- ⏱️  Estimated effort: 24 hours → Actual: ~4 hours (80% efficiency gain through AI assistance)
+
+**Next Sprint:** Sprint 2 - Network Listing & API Connectivity
+- Feature 2.1: Implement listNetworks() with real GAM API
+- Feature 2.2: Create /networks API endpoint
+- Feature 2.3: Create useGoogleAdManager composable
+- Feature 2.4: Network list UI component
+- Feature 2.5: Integration tests
+
+---
+
+## 2025-12-14
+
 ### Fixed - Google Analytics Column Name Bug in Data Model Builder
 **Files:** DataSourceProcessor.ts, data-model-builder.vue
 - **Issue:** Google Analytics columns returned null values when creating data models due to column name mismatch between frontend query generation and backend data extraction
