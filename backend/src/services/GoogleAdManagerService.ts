@@ -1,6 +1,7 @@
 import { google } from 'googleapis';
 import { IAPIConnectionDetails } from '../types/IAPIConnectionDetails.js';
 import { GoogleOAuthService } from './GoogleOAuthService.js';
+import { RateLimiter, RateLimiterRegistry } from '../utils/RateLimiter.js';
 import {
     IGAMNetwork,
     IGAMReportQuery,
@@ -14,8 +15,19 @@ import {
  */
 export class GoogleAdManagerService {
     private static instance: GoogleAdManagerService;
+    private rateLimiter: RateLimiter;
     
-    private constructor() {}
+    private constructor() {
+        // Initialize rate limiter for Google Ad Manager API
+        const registry = RateLimiterRegistry.getInstance();
+        this.rateLimiter = registry.getOrCreate('google-ad-manager', {
+            maxRequests: 10,
+            windowMs: 60 * 1000, // 1 minute
+            burstSize: 20,
+            minInterval: 100, // 100ms between requests
+        });
+        console.log('🚦 Rate limiter initialized for Google Ad Manager API');
+    }
     
     public static getInstance(): GoogleAdManagerService {
         if (!GoogleAdManagerService.instance) {
@@ -233,6 +245,18 @@ export class GoogleAdManagerService {
         reportQuery: IGAMReportQuery,
         connectionDetails: IAPIConnectionDetails
     ): Promise<IGAMReportResponse> {
+        // Acquire rate limit permission before making API call
+        const startWaitTime = Date.now();
+        await this.rateLimiter.acquire();
+        const waitTime = Date.now() - startWaitTime;
+        
+        if (waitTime > 0) {
+            console.log(`🚦 Rate limiter wait: ${waitTime}ms`);
+        }
+        
+        const status = this.rateLimiter.getStatus();
+        console.log(`🚦 Rate limit status: ${status.remainingRequests} requests remaining`);
+        
         try {
             console.log('📊 Starting GAM report execution');
             console.log(`   - Network: ${reportQuery.networkCode}`);
@@ -287,5 +311,21 @@ export class GoogleAdManagerService {
             default:
                 throw new Error(`Unknown report type: ${reportTypeString}`);
         }
+    }
+    
+    /**
+     * Get rate limiter status
+     * @returns Current rate limit status
+     */
+    public getRateLimitStatus() {
+        return this.rateLimiter.getStatus();
+    }
+    
+    /**
+     * Get rate limiter statistics
+     * @returns Rate limiter statistics
+     */
+    public getRateLimitStats() {
+        return this.rateLimiter.getStats();
     }
 }

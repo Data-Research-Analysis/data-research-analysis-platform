@@ -367,4 +367,36 @@ router.delete('/data-source/:dataSourceId',
     }
 );
 
+/**
+ * Get rate limit status for Google Ad Manager API
+ * GET /api/google-ad-manager/rate-limit
+ */
+router.get('/rate-limit',
+    async (req: Request, res: Response, next: any) => {
+        next();
+    },
+    validateJWT,
+    async (req: Request, res: Response) => {
+        try {
+            const gamService = GoogleAdManagerService.getInstance();
+            const status = gamService.getRateLimitStatus();
+            const stats = gamService.getRateLimitStats();
+            
+            res.status(200).send({
+                success: true,
+                data: {
+                    status,
+                    stats
+                }
+            });
+        } catch (error) {
+            console.error('❌ Error retrieving rate limit status:', error);
+            res.status(500).send({
+                success: false,
+                message: 'Failed to retrieve rate limit status'
+            });
+        }
+    }
+);
+
 export default router;
