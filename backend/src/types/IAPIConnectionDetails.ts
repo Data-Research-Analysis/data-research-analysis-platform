@@ -1,4 +1,5 @@
 import { EDataSourceType } from "./EDataSourceType.js";
+import { AdvancedSyncConfig } from "./IAdvancedSyncConfig.js";
 
 /**
  * Connection details for API-based data sources (OAuth)
@@ -22,6 +23,9 @@ export interface IAPIConnectionDetails {
         report_types?: string[];
         start_date?: string;
         end_date?: string;
+        
+        // Advanced sync configuration (Sprint 6 Feature 6.1)
+        advanced_sync_config?: AdvancedSyncConfig;
         
         // Future: Google Ads specific
         customer_id?: string;

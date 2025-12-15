@@ -399,4 +399,99 @@ router.get('/rate-limit',
     }
 );
 
+/**
+ * Get date range presets
+ * GET /api/google-ad-manager/date-presets
+ */
+router.get('/date-presets',
+    async (req: Request, res: Response, next: any) => {
+        next();
+    },
+    validateJWT,
+    async (req: Request, res: Response) => {
+        try {
+            const { DATE_RANGE_PRESETS } = await import('../types/IAdvancedSyncConfig.js');
+            
+            const presets = DATE_RANGE_PRESETS.map(preset => ({
+                id: preset.id,
+                label: preset.label,
+                description: preset.description,
+                dates: preset.id !== 'custom' ? preset.getDates() : null
+            }));
+            
+            res.status(200).send({
+                success: true,
+                data: presets
+            });
+        } catch (error) {
+            console.error('❌ Error retrieving date presets:', error);
+            res.status(500).send({
+                success: false,
+                message: 'Failed to retrieve date presets'
+            });
+        }
+    }
+);
+
+/**
+ * Get available dimensions and metrics for report types
+ * GET /api/google-ad-manager/report-fields
+ */
+router.get('/report-fields',
+    async (req: Request, res: Response, next: any) => {
+        next();
+    },
+    validateJWT,
+    async (req: Request, res: Response) => {
+        try {
+            const { REPORT_DIMENSIONS, REPORT_METRICS } = await import('../types/IAdvancedSyncConfig.js');
+            
+            res.status(200).send({
+                success: true,
+                data: {
+                    dimensions: REPORT_DIMENSIONS,
+                    metrics: REPORT_METRICS
+                }
+            });
+        } catch (error) {
+            console.error('❌ Error retrieving report fields:', error);
+            res.status(500).send({
+                success: false,
+                message: 'Failed to retrieve report fields'
+            });
+        }
+    }
+);
+
+/**
+ * Validate advanced sync configuration
+ * POST /api/google-ad-manager/validate-config
+ */
+router.post('/validate-config',
+    async (req: Request, res: Response, next: any) => {
+        next();
+    },
+    validateJWT,
+    async (req: Request, res: Response) => {
+        try {
+            const { SyncConfigValidator } = await import('../types/IAdvancedSyncConfig.js');
+            const config = req.body;
+            
+            const validation = SyncConfigValidator.validate(config);
+            
+            res.status(200).send({
+                success: true,
+                valid: validation.valid,
+                errors: validation.errors
+            });
+        } catch (error) {
+            console.error('❌ Error validating config:', error);
+            res.status(500).send({
+                success: false,
+                message: 'Failed to validate configuration'
+            });
+        }
+    }
+);
+
 export default router;
