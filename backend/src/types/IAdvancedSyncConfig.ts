@@ -302,24 +302,34 @@ export class SyncConfigValidator {
      */
     static validate(config: AdvancedSyncConfig): { valid: boolean; errors: string[] } {
         const errors: string[] = [];
+        
+        const validReportTypes = ['revenue', 'inventory', 'orders', 'geography', 'device'];
+        const validDimensionOperators = ['equals', 'notEquals', 'contains', 'notContains', 'in', 'notIn'];
+        const validMetricOperators = ['greaterThan', 'lessThan', 'equals', 'between'];
 
-        // Validate date range
-        if (config.dateRangePreset === 'custom') {
-            if (!config.startDate || !config.endDate) {
-                errors.push('Start date and end date are required for custom range');
-            } else if (new Date(config.startDate) > new Date(config.endDate)) {
-                errors.push('Start date must be before or equal to end date');
-            }
+        // Validate network code
+        if (!config.networkCode) {
+            errors.push('Network code is required');
         }
 
         // Validate report types
         if (!config.reportTypes || config.reportTypes.length === 0) {
             errors.push('At least one report type must be selected');
+        } else {
+            for (const reportType of config.reportTypes) {
+                if (!validReportTypes.includes(reportType)) {
+                    errors.push(`Invalid report type: ${reportType}`);
+                }
+            }
         }
 
-        // Validate network code
-        if (!config.networkCode) {
-            errors.push('Network code is required');
+        // Validate date range
+        if (config.dateRangePreset === 'custom') {
+            if (!config.startDate || !config.endDate) {
+                errors.push('Start date and end date are required for custom date range');
+            } else if (new Date(config.startDate) > new Date(config.endDate)) {
+                errors.push('Start date must be before end date');
+            }
         }
 
         // Validate report field configs
@@ -337,8 +347,15 @@ export class SyncConfigValidator {
         // Validate dimension filters
         if (config.dimensionFilters) {
             for (const filter of config.dimensionFilters) {
-                if (!filter.dimension || !filter.operator || !filter.values || filter.values.length === 0) {
-                    errors.push('Dimension filter must have dimension, operator, and values');
+                if (!filter.dimension || !filter.operator) {
+                    errors.push('Dimension filter must have dimension and operator');
+                } else {
+                    if (!validDimensionOperators.includes(filter.operator)) {
+                        errors.push(`Invalid dimension filter operator: ${filter.operator}`);
+                    }
+                    if (!filter.values || filter.values.length === 0) {
+                        errors.push(`Dimension filter for ${filter.dimension} must have at least one value`);
+                    }
                 }
             }
         }
@@ -348,36 +365,50 @@ export class SyncConfigValidator {
             for (const filter of config.metricFilters) {
                 if (!filter.metric || !filter.operator || filter.value === undefined) {
                     errors.push('Metric filter must have metric, operator, and value');
-                }
-                if (filter.operator === 'between' && filter.maxValue === undefined) {
-                    errors.push('Max value required for "between" operator');
+                } else {
+                    if (!validMetricOperators.includes(filter.operator)) {
+                        errors.push(`Invalid metric filter operator: ${filter.operator}`);
+                    }
+                    if (filter.operator === 'between' && filter.maxValue === undefined) {
+                        errors.push('Metric filter with between operator must have maxValue');
+                    }
                 }
             }
         }
 
         // Validate frequency
-        if (config.frequency && config.frequency.type !== 'manual') {
-            if (config.frequency.type === 'weekly' && config.frequency.dayOfWeek === undefined) {
+        if (config.frequency) {
+            if (config.frequency.type === 'hourly') {
+                const interval = config.frequency.interval ?? 1;
+                if (interval < 1 || interval > 24) {
+                    errors.push('Hourly frequency interval must be between 1 and 24');
+                }
+            } else if (config.frequency.type === 'weekly' && config.frequency.dayOfWeek === undefined) {
                 errors.push('Day of week required for weekly frequency');
-            }
-            if (config.frequency.type === 'monthly' && config.frequency.dayOfMonth === undefined) {
+            } else if (config.frequency.type === 'monthly' && config.frequency.dayOfMonth === undefined) {
                 errors.push('Day of month required for monthly frequency');
             }
         }
 
-        // Validate notification emails
-        if (config.notificationEmails && config.notificationEmails.length > 0) {
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            for (const email of config.notificationEmails) {
-                if (!emailRegex.test(email)) {
-                    errors.push(`Invalid email address: ${email}`);
-                }
+        // Validate max records
+        if (config.maxRecordsPerReport !== undefined) {
+            if (config.maxRecordsPerReport < 100 || config.maxRecordsPerReport > 1000000) {
+                errors.push('maxRecordsPerReport must be between 100 and 1,000,000');
             }
         }
 
-        // Validate max records
-        if (config.maxRecordsPerReport !== undefined && config.maxRecordsPerReport < 1) {
-            errors.push('Max records per report must be at least 1');
+        // Validate notification emails
+        if ((config.notifyOnComplete || config.notifyOnFailure)) {
+            if (!config.notificationEmails || config.notificationEmails.length === 0) {
+                errors.push('At least one notification email is required when notifications are enabled');
+            } else {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                for (const email of config.notificationEmails) {
+                    if (email && !emailRegex.test(email)) {
+                        errors.push(`Invalid email address: ${email}`);
+                    }
+                }
+            }
         }
 
         return {

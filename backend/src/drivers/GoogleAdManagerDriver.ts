@@ -10,6 +10,7 @@ import { EDataSourceType } from '../types/EDataSourceType.js';
 import { RetryHandler } from '../utils/RetryHandler.js';
 import { SyncEventEmitter } from '../events/SyncEventEmitter.js';
 import { PerformanceMetrics, globalPerformanceAggregator } from '../utils/PerformanceMetrics.js';
+import { AdvancedSyncConfig, SyncConfigValidator } from '../types/IAdvancedSyncConfig.js';
 import {
     IGAMReportQuery,
     IGAMReportResponse,
@@ -153,12 +154,17 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             perfMetrics.stopTimer('database-setup');
             console.log(`✅ Schema ${schemaName} ready`);
             
+            // Get advanced sync configuration
+            const advancedConfig = connectionDetails.api_config?.advanced_sync_config;
+            
             // Get sync configuration (reportTypes already declared above)
-            const startDate = connectionDetails.api_config?.start_date || this.getDefaultStartDate();
-            const endDate = connectionDetails.api_config?.end_date || this.getDefaultEndDate();
+            const { startDate, endDate } = this.getDateRangeFromConfig(advancedConfig, connectionDetails);
             
             console.log(`📅 Sync period: ${startDate} to ${endDate}`);
             console.log(`📊 Report types: ${reportTypes.join(', ')}`);
+            if (advancedConfig) {
+                console.log(`⚙️  Advanced config enabled: incremental=${advancedConfig.incrementalSync}, dedup=${advancedConfig.deduplication}, validation=${advancedConfig.dataValidation}`);
+            }
             
             // Track sync results
             let totalRecordsSynced = 0;
@@ -179,7 +185,8 @@ export class GoogleAdManagerDriver implements IAPIDriver {
                         reportType,
                         startDate,
                         endDate,
-                        connectionDetails
+                        connectionDetails,
+                        advancedConfig
                     );
                     
                     perfMetrics.stopTimer(`report-${reportType}`);
@@ -297,8 +304,8 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         networkCode: string,
         reportTypeString: string,
         startDate: string,
-        endDate: string,
-        connectionDetails: IAPIConnectionDetails
+        endDate: string,,
+        advancedConfig?: AdvancedSyncConfig
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
         const reportType = this.gamService.getReportType(reportTypeString);
         
@@ -306,14 +313,15 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         
         switch (reportType) {
             case GAMReportType.REVENUE:
-                return await this.syncRevenueData(manager, schemaName, networkCode, startDate, endDate, connectionDetails);
+                return await this.syncRevenueData(manager, schemaName, networkCode, startDate, endDate, connectionDetails, advancedConfig);
             case GAMReportType.INVENTORY:
-                return await this.syncInventoryData(manager, schemaName, networkCode, startDate, endDate, connectionDetails);
+                return await this.syncInventoryData(manager, schemaName, networkCode, startDate, endDate, connectionDetails, advancedConfig);
             case GAMReportType.ORDERS:
-                return await this.syncOrdersData(manager, schemaName, networkCode, startDate, endDate, connectionDetails);
+                return await this.syncOrdersData(manager, schemaName, networkCode, startDate, endDate, connectionDetails, advancedConfig);
             case GAMReportType.GEOGRAPHY:
-                return await this.syncGeographyData(manager, schemaName, networkCode, startDate, endDate, connectionDetails);
+                return await this.syncGeographyData(manager, schemaName, networkCode, startDate, endDate, connectionDetails, advancedConfig);
             case GAMReportType.DEVICE:
+                return await this.syncDeviceData(manager, schemaName, networkCode, startDate, endDate, connectionDetails, advancedConfig
                 return await this.syncDeviceData(manager, schemaName, networkCode, startDate, endDate, connectionDetails);
             default:
                 console.warn(`⚠️  Unknown report type: ${reportType}`);
@@ -329,7 +337,8 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         schemaName: string,
         networkCode: string,
         startDate: string,
-        endDate: string,
+        endDate: string,,
+        advancedConfig?: AdvancedSyncConfig
         connectionDetails: IAPIConnectionDetails
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
         const tableName = `revenue_${networkCode}`;
@@ -377,18 +386,37 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             console.log('ℹ️  No data returned from GAM for revenue report');
             return { recordsSynced: 0, recordsFailed: 0 };
         }
+        let transformedData = this.transformRevenueData(reportResponse, networkCode);
         
-        // Transform and insert data
-        const transformedData = this.transformRevenueData(reportResponse, networkCode);
-        
-        // Validate data before inserting
-        const validation = this.validateRevenueData(transformedData);
-        if (!validation.isValid) {
-            console.error('❌ Revenue data validation failed:', validation.errors);
-            throw new Error(`Data validation failed: ${validation.errors.slice(0, 3).join(', ')}`);
+        // Apply advanced filters if configured
+        if (advancedConfig) {
+            transformedData = this.applyAdvancedFilters(transformedData, advancedConfig, 'revenue');
+            
+            // Apply max records limit
+            if (advancedConfig.maxRecordsPerReport && transformedData.length > advancedConfig.maxRecordsPerReport) {
+                console.log(`⚠️  Limiting records from ${transformedData.length} to ${advancedConfig.maxRecordsPerReport}`);
+                transformedData = transformedData.slice(0, advancedConfig.maxRecordsPerReport);
+            }
         }
         
-        await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'ad_unit_id', 'country_code']);
+        // Validate data before inserting (if enabled)
+        if (!advancedConfig || advancedConfig.dataValidation !== false) {
+            const validation = this.validateRevenueData(transformedData);
+            if (!validation.isValid) {
+                console.error('❌ Revenue data validation failed:', validation.errors);
+                throw new Error(`Data validation failed: ${validation.errors.slice(0, 3).join(', ')}`);
+            }
+        }
+        
+        // Apply deduplication if enabled
+        if (advancedConfig?.deduplication !== false) {
+            await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'ad_unit_id', 'country_code']);
+        } else {
+            // Insert without deduplication (may cause duplicates if not handled)
+            for (const record of transformedData) {
+                await manager.query(`INSERT INTO ${fullTableName} (${Object.keys(record).join(', ')}) VALUES (${Object.keys(record).map((_, i) => `$${i + 1}`).join(', ')})`, Object.values(record));
+            }
+        }
         
         console.log(`✅ Synced ${transformedData.length} revenue records`);
         return { recordsSynced: transformedData.length, recordsFailed: 0 };
@@ -403,7 +431,8 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         networkCode: string,
         startDate: string,
         endDate: string,
-        connectionDetails: IAPIConnectionDetails
+        connectionDetails: IAPIConnectionDetails,
+        advancedConfig?: AdvancedSyncConfig
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
         const tableName = `inventory_${networkCode}`;
         const fullTableName = `${schemaName}.${tableName}`;
@@ -449,16 +478,33 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         }
         
         // Transform and insert data
-        const transformedData = this.transformInventoryData(reportResponse, networkCode);
+        let transformedData = this.transformInventoryData(reportResponse, networkCode);
         
-        // Validate data before inserting
-        const validation = this.validateInventoryData(transformedData);
-        if (!validation.isValid) {
-            console.error('❌ Inventory data validation failed:', validation.errors);
-            throw new Error(`Data validation failed: ${validation.errors.slice(0, 3).join(', ')}`);
+        // Apply advanced filters if configured
+        if (advancedConfig) {
+            transformedData = this.applyAdvancedFilters(transformedData, advancedConfig, 'inventory');
+            if (advancedConfig.maxRecordsPerReport && transformedData.length > advancedConfig.maxRecordsPerReport) {
+                transformedData = transformedData.slice(0, advancedConfig.maxRecordsPerReport);
+            }
         }
         
-        await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'ad_unit_id', 'device_category']);
+        // Validate data before inserting (if enabled)
+        if (!advancedConfig || advancedConfig.dataValidation !== false) {
+            const validation = this.validateInventoryData(transformedData);
+            if (!validation.isValid) {
+                console.error('❌ Inventory data validation failed:', validation.errors);
+                throw new Error(`Data validation failed: ${validation.errors.slice(0, 3).join(', ')}`);
+            }
+        }
+        
+        // Apply deduplication if enabled
+        if (advancedConfig?.deduplication !== false) {
+            await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'ad_unit_id', 'device_category']);
+        } else {
+            for (const record of transformedData) {
+                await manager.query(`INSERT INTO ${fullTableName} (${Object.keys(record).join(', ')}) VALUES (${Object.keys(record).map((_, i) => `$${i + 1}`).join(', ')})`, Object.values(record));
+            }
+        }
         
         console.log(`✅ Synced ${transformedData.length} inventory records`);
         return { recordsSynced: transformedData.length, recordsFailed: 0 };
@@ -473,7 +519,8 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         networkCode: string,
         startDate: string,
         endDate: string,
-        connectionDetails: IAPIConnectionDetails
+        connectionDetails: IAPIConnectionDetails,
+        advancedConfig?: AdvancedSyncConfig
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
         const tableName = `orders_${networkCode}`;
         const fullTableName = `${schemaName}.${tableName}`;
@@ -522,8 +569,24 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         }
         
         // Transform and insert data
-        const transformedData = this.transformOrdersData(reportResponse, networkCode);
-        await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'line_item_id']);
+        let transformedData = this.transformOrdersData(reportResponse, networkCode);
+        
+        // Apply advanced filters if configured
+        if (advancedConfig) {
+            transformedData = this.applyAdvancedFilters(transformedData, advancedConfig, 'orders');
+            if (advancedConfig.maxRecordsPerReport && transformedData.length > advancedConfig.maxRecordsPerReport) {
+                transformedData = transformedData.slice(0, advancedConfig.maxRecordsPerReport);
+            }
+        }
+        
+        // Apply deduplication if enabled
+        if (advancedConfig?.deduplication !== false) {
+            await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'line_item_id']);
+        } else {
+            for (const record of transformedData) {
+                await manager.query(`INSERT INTO ${fullTableName} (${Object.keys(record).join(', ')}) VALUES (${Object.keys(record).map((_, i) => `$${i + 1}`).join(', ')})`, Object.values(record));
+            }
+        }
         
         console.log(`✅ Synced ${transformedData.length} orders records`);
         return { recordsSynced: transformedData.length, recordsFailed: 0 };
@@ -538,7 +601,8 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         networkCode: string,
         startDate: string,
         endDate: string,
-        connectionDetails: IAPIConnectionDetails
+        connectionDetails: IAPIConnectionDetails,
+        advancedConfig?: AdvancedSyncConfig
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
         const tableName = `geography_${networkCode}`;
         const fullTableName = `${schemaName}.${tableName}`;
@@ -584,8 +648,24 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         }
         
         // Transform and insert data
-        const transformedData = this.transformGeographyData(reportResponse, networkCode);
-        await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'country_code', 'region', 'city']);
+        let transformedData = this.transformGeographyData(reportResponse, networkCode);
+        
+        // Apply advanced filters if configured
+        if (advancedConfig) {
+            transformedData = this.applyAdvancedFilters(transformedData, advancedConfig, 'geography');
+            if (advancedConfig.maxRecordsPerReport && transformedData.length > advancedConfig.maxRecordsPerReport) {
+                transformedData = transformedData.slice(0, advancedConfig.maxRecordsPerReport);
+            }
+        }
+        
+        // Apply deduplication if enabled
+        if (advancedConfig?.deduplication !== false) {
+            await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'country_code', 'region', 'city']);
+        } else {
+            for (const record of transformedData) {
+                await manager.query(`INSERT INTO ${fullTableName} (${Object.keys(record).join(', ')}) VALUES (${Object.keys(record).map((_, i) => `$${i + 1}`).join(', ')})`, Object.values(record));
+            }
+        }
         
         console.log(`✅ Synced ${transformedData.length} geography records`);
         return { recordsSynced: transformedData.length, recordsFailed: 0 };
@@ -600,7 +680,8 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         networkCode: string,
         startDate: string,
         endDate: string,
-        connectionDetails: IAPIConnectionDetails
+        connectionDetails: IAPIConnectionDetails,
+        advancedConfig?: AdvancedSyncConfig
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
         const tableName = `device_${networkCode}`;
         const fullTableName = `${schemaName}.${tableName}`;
@@ -645,8 +726,24 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         }
         
         // Transform and insert data
-        const transformedData = this.transformDeviceData(reportResponse, networkCode);
-        await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'device_category', 'browser_name']);
+        let transformedData = this.transformDeviceData(reportResponse, networkCode);
+        
+        // Apply advanced filters if configured
+        if (advancedConfig) {
+            transformedData = this.applyAdvancedFilters(transformedData, advancedConfig, 'device');
+            if (advancedConfig.maxRecordsPerReport && transformedData.length > advancedConfig.maxRecordsPerReport) {
+                transformedData = transformedData.slice(0, advancedConfig.maxRecordsPerReport);
+            }
+        }
+        
+        // Apply deduplication if enabled
+        if (advancedConfig?.deduplication !== false) {
+            await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'device_category', 'browser_name']);
+        } else {
+            for (const record of transformedData) {
+                await manager.query(`INSERT INTO ${fullTableName} (${Object.keys(record).join(', ')}) VALUES (${Object.keys(record).map((_, i) => `$${i + 1}`).join(', ')})`, Object.values(record));
+            }
+        }
         
         console.log(`✅ Synced ${transformedData.length} device records`);
         return { recordsSynced: transformedData.length, recordsFailed: 0 };
@@ -1112,5 +1209,129 @@ export class GoogleAdManagerDriver implements IAPIDriver {
      */
     public async getSyncHistory(dataSourceId: number, limit: number = 10): Promise<any[]> {
         return await this.syncHistoryService.getSyncHistory(dataSourceId, limit);
+    }
+    
+    /**
+     * Extract date range from advanced config or fallback to connection details
+     */
+    private getDateRangeFromConfig(
+        advancedConfig: AdvancedSyncConfig | undefined,
+        connectionDetails: IAPIConnectionDetails
+    ): { startDate: string; endDate: string } {
+        if (advancedConfig) {
+            // Use advanced config dates if available
+            if (advancedConfig.dateRangePreset && advancedConfig.dateRangePreset !== 'custom') {
+                const dateRange = SyncConfigValidator.getDateRange(advancedConfig);
+                if (dateRange) {
+                    return dateRange;
+                }
+            } else if (advancedConfig.startDate && advancedConfig.endDate) {
+                return {
+                    startDate: advancedConfig.startDate,
+                    endDate: advancedConfig.endDate
+                };
+            }
+        }
+        
+        // Fallback to connection details or defaults
+        return {
+            startDate: connectionDetails.api_config?.start_date || this.getDefaultStartDate(),
+            endDate: connectionDetails.api_config?.end_date || this.getDefaultEndDate()
+        };
+    }
+    
+    /**
+     * Apply advanced filters to transformed data
+     */
+    private applyAdvancedFilters(
+        data: any[],
+        advancedConfig: AdvancedSyncConfig,
+        reportType: string
+    ): any[] {
+        let filteredData = data;
+        
+        // Apply dimension filters
+        if (advancedConfig.dimensionFilters && advancedConfig.dimensionFilters.length > 0) {
+            for (const filter of advancedConfig.dimensionFilters) {
+                filteredData = this.applyDimensionFilter(filteredData, filter);
+            }
+        }
+        
+        // Apply metric filters
+        if (advancedConfig.metricFilters && advancedConfig.metricFilters.length > 0) {
+            for (const filter of advancedConfig.metricFilters) {
+                filteredData = this.applyMetricFilter(filteredData, filter);
+            }
+        }
+        
+        return filteredData;
+    }
+    
+    /**
+     * Apply a single dimension filter to data
+     */
+    private applyDimensionFilter(data: any[], filter: any): any[] {
+        const fieldName = filter.dimension.toLowerCase().replace(/_/g, '_');
+        
+        return data.filter(record => {
+            const value = record[fieldName];
+            
+            if (value === null || value === undefined) {
+                return false;
+            }
+            
+            const stringValue = String(value);
+            
+            switch (filter.operator) {
+                case 'equals':
+                    return filter.values.includes(stringValue);
+                case 'notEquals':
+                    return !filter.values.includes(stringValue);
+                case 'contains':
+                    return filter.values.some((filterValue: string) => stringValue.includes(filterValue));
+                case 'notContains':
+                    return !filter.values.some((filterValue: string) => stringValue.includes(filterValue));
+                case 'in':
+                    return filter.values.includes(stringValue);
+                case 'notIn':
+                    return !filter.values.includes(stringValue);
+                default:
+                    return true;
+            }
+        });
+    }
+    
+    /**
+     * Apply a single metric filter to data
+     */
+    private applyMetricFilter(data: any[], filter: any): any[] {
+        const fieldName = filter.metric.toLowerCase().replace(/total_|_level/g, '').replace(/_/g, '_');
+        
+        return data.filter(record => {
+            const value = record[fieldName];
+            
+            if (value === null || value === undefined) {
+                return false;
+            }
+            
+            const numValue = typeof value === 'number' ? value : parseFloat(value);
+            
+            if (isNaN(numValue)) {
+                return false;
+            }
+            
+            switch (filter.operator) {
+                case 'greaterThan':
+                    return numValue > filter.value;
+                case 'lessThan':
+                    return numValue < filter.value;
+                case 'equals':
+                    return numValue === filter.value;
+                case 'between':
+                    return numValue >= filter.value && numValue <= (filter.maxValue || Infinity);
+                default:
+                    return true;
+            }
+        });
     }
 }

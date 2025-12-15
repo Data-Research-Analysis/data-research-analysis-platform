@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { useGoogleOAuth } from '@/composables/useGoogleOAuth';
 import { useGoogleAdManager } from '@/composables/useGoogleAdManager';
+import { useAdvancedSyncConfig, type AdvancedSyncConfig } from '@/composables/useAdvancedSyncConfig';
 import type { IGAMNetwork, IGAMReportType } from '~/types/IGoogleAdManager';
+import AdvancedSyncConfigComponent from '@/components/AdvancedSyncConfig.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -9,6 +11,7 @@ const { $swal } = useNuxtApp() as any;
 
 const oauth = useGoogleOAuth();
 const gam = useGoogleAdManager();
+const advancedSyncConfig = useAdvancedSyncConfig();
 
 const projectId = route.params.projectid as string;
 
@@ -35,6 +38,7 @@ const state = reactive({
     customStartDate: '',
     customEndDate: '',
     syncFrequency: 'weekly' as 'hourly' | 'daily' | 'weekly' | 'manual',
+    advancedConfig: null as AdvancedSyncConfig | null,
     
     // UI state
     loading: false,
@@ -123,6 +127,10 @@ async function retryLoadNetworks() {
 function selectNetwork(network: IGAMNetwork) {
     state.selectedNetwork = network;
     state.dataSourceName = `${network.displayName} Ad Manager`;
+    
+    // Initialize advanced config with defaults
+    state.advancedConfig = advancedSyncConfig.createDefaultConfig(network.networkCode);
+    
     state.currentStep = 3;
 }
 
@@ -293,7 +301,8 @@ async function connectAndSync() {
             refresh_token: state.refreshToken,
             token_expiry: state.tokenExpiry,
             project_id: parseInt(projectId),
-            sync_frequency: state.syncFrequency
+            sync_frequency: state.syncFrequency,
+            advanced_sync_config: state.advancedConfig
         };
         
         const dataSourceId = await gam.addDataSource(config);
@@ -563,6 +572,13 @@ function cancel() {
                         </label>
                     </div>
                 </div>
+
+                <!-- Advanced Sync Configuration -->
+                <AdvancedSyncConfigComponent
+                    v-if="state.advancedConfig"
+                    v-model="state.advancedConfig"
+                    :report-types="state.selectedReportTypes"
+                />
 
                 <div class="flex gap-3 justify-end mt-8 sm:flex-col">
                     <button @click="goBack" class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 sm:w-full">
