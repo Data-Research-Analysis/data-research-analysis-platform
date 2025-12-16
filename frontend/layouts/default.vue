@@ -29,11 +29,15 @@ const isUserAdmin = computed(() => {
 const isInPublicDashboard = computed(() => {
     return route.name === 'public-dashboard-dashboardkey';
 });
+
+const isInOauthCallback = computed(() => {
+    return route.path.startsWith('/oauth/');
+});
 </script>
 <template>
     <div class="relative data-research-analysis">
         <header-nav />
-        <breadcrumbs v-if="state.authenticated && !isInPublicDashboard" />
+        <breadcrumbs v-if="state.authenticated && !isInPublicDashboard && !isInOauthCallback" />
         <div class="flex "
         :class="{
             'flex-row': state.authenticated,

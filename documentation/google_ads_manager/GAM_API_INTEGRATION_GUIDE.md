@@ -145,149 +145,91 @@ Content-Type: application/json
 
 ### Connection Management
 
-#### Create Connection
+#### Add Data Source
 
-**Endpoint:** `POST /google-ad-manager/connections`
+**Endpoint:** `POST /google-ad-manager/add-data-source`
 
-Create a new GAM connection with OAuth tokens and configuration.
+Create a new GAM data source connection with OAuth tokens and configuration.
 
 **Request:**
 ```http
-POST /api/google-ad-manager/connections HTTP/1.1
+POST /api/google-ad-manager/add-data-source HTTP/1.1
 Host: localhost:3002
 Authorization: Bearer <jwt_token>
 Content-Type: application/json
 
 {
-  "project_id": 1,
-  "connection_name": "Main GAM Network",
+  "name": "Main GAM Network",
   "network_code": "12345678",
+  "network_id": "12345678",
+  "network_name": "Main Network",
   "access_token": "ya29.a0AfH6SMB...",
   "refresh_token": "1//0gHr-xyz...",
-  "token_expiry": 1702821600000,
-  "api_config": {
-    "report_types": ["revenue", "inventory", "geography"],
-    "date_range": {
-      "start": "2025-11-16",
-      "end": "2025-12-16"
-    }
-  }
+  "token_expiry": "2025-12-17T15:30:00Z",
+  "project_id": 1,
+  "report_types": ["revenue", "inventory", "geography"],
+  "start_date": "2025-11-16",
+  "end_date": "2025-12-16",
+  "sync_frequency": "daily"
 }
 ```
 
-**Response:**
+**Request Validation:**
+- `name`: Required, non-empty string
+- `network_code`: Required
+- `network_id`: Required
+- `access_token`: Required
+- `refresh_token`: Required
+- `token_expiry`: Required
+- `project_id`: Required, positive integer
+- `report_types`: Required array with at least 1 report type
+- `sync_frequency`: Optional, one of: hourly, daily, weekly, manual
+
+**Response (201 Created):**
 ```json
 {
   "success": true,
-  "message": "GAM connection created successfully",
-  "data_source": {
-    "id": 42,
-    "project_id": 1,
-    "connection_name": "Main GAM Network",
-    "type": "google-ad-manager",
-    "status": "connected",
-    "api_config": {
-      "network_code": "12345678",
-      "report_types": ["revenue", "inventory", "geography"],
-      "date_range": {
-        "start": "2025-11-16",
-        "end": "2025-12-16"
-      }
-    },
-    "created_at": "2025-12-16T14:30:00Z",
-    "updated_at": "2025-12-16T14:30:00Z"
-  }
+  "data_source_id": 42,
+  "message": "Google Ad Manager data source added successfully"
 }
 ```
 
-#### Get Connections
+#### List Networks
 
-**Endpoint:** `GET /google-ad-manager/connections`
+**Endpoint:** `POST /google-ad-manager/networks`
 
-List all GAM connections for a project.
-
-**Request:**
-```http
-GET /api/google-ad-manager/connections?project_id=1 HTTP/1.1
-Host: localhost:3002
-Authorization: Bearer <jwt_token>
-```
-
-**Query Parameters:**
-- `project_id` (required): Project ID
-
-**Response:**
-```json
-{
-  "success": true,
-  "connections": [
-    {
-      "id": 42,
-      "project_id": 1,
-      "connection_name": "Main GAM Network",
-      "type": "google-ad-manager",
-      "status": "connected",
-      "api_config": {
-        "network_code": "12345678",
-        "report_types": ["revenue", "inventory"]
-      },
-      "last_sync": "2025-12-16T14:00:00Z",
-      "created_at": "2025-12-15T10:00:00Z"
-    }
-  ]
-}
-```
-
-#### Update Connection
-
-**Endpoint:** `PUT /google-ad-manager/connections/:id`
-
-Update GAM connection configuration.
+List all accessible Google Ad Manager networks for the authenticated user.
 
 **Request:**
 ```http
-PUT /api/google-ad-manager/connections/42 HTTP/1.1
+POST /api/google-ad-manager/networks HTTP/1.1
 Host: localhost:3002
 Authorization: Bearer <jwt_token>
 Content-Type: application/json
 
 {
-  "connection_name": "Updated GAM Network",
-  "api_config": {
-    "report_types": ["revenue", "inventory", "geography", "device"],
-    "date_range": {
-      "start": "2025-12-01",
-      "end": "2025-12-16"
-    }
-  }
+  "access_token": "ya29.a0AfH6SMB..."
 }
 ```
 
 **Response:**
 ```json
 {
-  "success": true,
-  "message": "Connection updated successfully",
-  "data_source": {
-    "id": 42,
-    "connection_name": "Updated GAM Network",
-    "api_config": {
-      "report_types": ["revenue", "inventory", "geography", "device"]
-    },
-    "updated_at": "2025-12-16T15:00:00Z"
-  }
+  "networks": [],
+  "count": 0,
+  "message": "Networks retrieved successfully"
 }
 ```
 
-#### Delete Connection
+#### Delete Data Source
 
-**Endpoint:** `DELETE /google-ad-manager/connections/:id`
+**Endpoint:** `DELETE /google-ad-manager/data-source/:dataSourceId`
 
-Delete a GAM connection and all associated data.
+Delete a GAM data source and all associated data.
 
 **Request:**
 ```http
-DELETE /api/google-ad-manager/connections/42 HTTP/1.1
+DELETE /api/google-ad-manager/data-source/42 HTTP/1.1
 Host: localhost:3002
 Authorization: Bearer <jwt_token>
 ```
@@ -296,7 +238,7 @@ Authorization: Bearer <jwt_token>
 ```json
 {
   "success": true,
-  "message": "GAM connection deleted successfully"
+  "message": "Data source deleted successfully"
 }
 ```
 
@@ -306,9 +248,9 @@ Authorization: Bearer <jwt_token>
 
 #### Trigger Sync
 
-**Endpoint:** `POST /google-ad-manager/sync/:id`
+**Endpoint:** `POST /google-ad-manager/sync/:dataSourceId`
 
-Manually trigger a data sync for a GAM connection.
+Manually trigger a data sync for a GAM data source.
 
 **Request:**
 ```http
@@ -316,42 +258,30 @@ POST /api/google-ad-manager/sync/42 HTTP/1.1
 Host: localhost:3002
 Authorization: Bearer <jwt_token>
 Content-Type: application/json
-
-{
-  "report_types": ["revenue", "inventory"],
-  "date_range": {
-    "start": "2025-12-01",
-    "end": "2025-12-16"
-  },
-  "incremental": true
-}
 ```
 
-**Request Body:**
-- `report_types` (optional): Array of report types to sync
-- `date_range` (optional): Custom date range
-- `incremental` (optional): Only sync new/changed data
+**URL Parameters:**
+- `dataSourceId`: Data source ID (positive integer)
+
+**Request Body:** Empty ({})
 
 **Response:**
 ```json
 {
   "success": true,
-  "message": "Sync started",
-  "sync_id": "sync_abc123xyz",
-  "status": "running",
-  "started_at": "2025-12-16T15:00:00Z"
+  "message": "Sync completed successfully"
 }
 ```
 
 #### Get Sync Status
 
-**Endpoint:** `GET /google-ad-manager/sync/:id/status`
+**Endpoint:** `GET /google-ad-manager/sync-status/:dataSourceId`
 
-Check the status of an ongoing or completed sync.
+Check the sync status and history for a GAM data source.
 
 **Request:**
 ```http
-GET /api/google-ad-manager/sync/42/status HTTP/1.1
+GET /api/google-ad-manager/sync-status/42 HTTP/1.1
 Host: localhost:3002
 Authorization: Bearer <jwt_token>
 ```
@@ -359,43 +289,22 @@ Authorization: Bearer <jwt_token>
 **Response:**
 ```json
 {
-  "success": true,
-  "sync": {
-    "id": "sync_abc123xyz",
-    "data_source_id": 42,
-    "status": "completed",
-    "started_at": "2025-12-16T15:00:00Z",
-    "completed_at": "2025-12-16T15:04:32Z",
-    "duration_seconds": 272,
-    "records_synced": 45230,
-    "report_statuses": {
-      "revenue": {
-        "status": "completed",
-        "records": 12500,
-        "duration": 120
-      },
-      "inventory": {
-        "status": "completed",
-        "records": 32730,
-        "duration": 152
-      }
+  "last_sync": "2025-12-16T15:04:32Z",
+  "sync_history": [
+    {
+      "data_source_id": 42,
+      "synced_at": "2025-12-16T15:04:32Z",
+      "status": "success"
+    },
+    {
+      "data_source_id": 42,
+      "synced_at": "2025-12-15T14:00:00Z",
+      "status": "success"
     }
-  }
+  ],
+  "message": "Sync status retrieved successfully"
 }
 ```
-
-**Sync Status Values:**
-- `pending`: Queued but not started
-- `running`: Currently syncing
-- `completed`: Successfully completed
-- `failed`: Encountered errors
-- `partial`: Some reports failed
-
-#### Get Sync History
-
-**Endpoint:** `GET /google-ad-manager/sync/:id/history`
-
-Retrieve historical sync operations.
 
 **Request:**
 ```http
