@@ -40,6 +40,14 @@ const state = reactive({
                 { id: 3, name: 'Restore Database', path: '/admin/database/restore' },
             ],
         },
+        {
+            id: 5,
+            menu_name: 'Google Ad Manager',
+            show_menu: true,
+            sub_menus: [
+                { id: 1, name: 'GAM Dashboard', path: '/admin/gam-dashboard' },
+            ],
+        },
     ],
 })
 const props = defineProps({

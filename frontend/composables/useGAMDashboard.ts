@@ -102,7 +102,7 @@ export const useGAMDashboard = () => {
             isLoading.value = true;
             error.value = null;
 
-            const response = await fetch(`${API_BASE_URL}/google-ad-manager/dashboard/stats`, {
+            const response = await fetch(`/api/google-ad-manager/dashboard/stats`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -140,7 +140,7 @@ export const useGAMDashboard = () => {
         }
 
         try {
-            const response = await fetch(`${API_BASE_URL}/google-ad-manager/dashboard/recent-syncs?limit=${limit}`, {
+            const response = await fetch(`/api/google-ad-manager/dashboard/recent-syncs?limit=${limit}`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -149,7 +149,7 @@ export const useGAMDashboard = () => {
             });
 
             if (!response.ok) {
-                throw new Error(`Failed to fetch recent syncs: ${response.statusText}`);
+                throw new Error(`Page not found: ${response.url}`);
             }
 
             const result = await response.json();
@@ -176,7 +176,7 @@ export const useGAMDashboard = () => {
         }
 
         try {
-            const response = await fetch(`${API_BASE_URL}/google-ad-manager/dashboard/health`, {
+            const response = await fetch(`/api/google-ad-manager/dashboard/health`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -212,7 +212,7 @@ export const useGAMDashboard = () => {
         }
 
         try {
-            const response = await fetch(`${API_BASE_URL}/google-ad-manager/dashboard/activity?limit=${limit}`, {
+            const response = await fetch(`/api/google-ad-manager/dashboard/activity?limit=${limit}`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
