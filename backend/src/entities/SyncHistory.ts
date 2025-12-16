@@ -21,7 +21,7 @@ export class SyncHistory {
     @PrimaryGeneratedColumn()
     id!: number;
 
-    @Column({ name: 'data_source_id' })
+    @Column({ type: 'integer', name: 'data_source_id' })
     dataSourceId!: number;
 
     @ManyToOne(() => DRADataSource, { onDelete: 'CASCADE' })
