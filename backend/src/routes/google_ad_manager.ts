@@ -494,4 +494,157 @@ router.post('/validate-config',
     }
 );
 
+/**
+ * Dashboard Statistics
+ * GET /api/google-ad-manager/dashboard/stats
+ */
+router.get('/dashboard/stats',
+    async (req: Request, res: Response, next: any) => {
+        next();
+    },
+    validateJWT,
+    async (req: Request, res: Response) => {
+        try {
+            const processor = await DataSourceProcessor.getInstance();
+            const userId = (req as any).user?.id || 1;
+            
+            // Get all GAM data sources for user
+            const dataSources = await processor.listProjectDataSources(
+                0, // Will need actual project ID from query
+                EDataSourceType.GOOGLE_AD_MANAGER
+            );
+            
+            // Calculate statistics (placeholder - would query actual sync history)
+            const stats = {
+                totalDataSources: dataSources.length,
+                activeDataSources: dataSources.filter((ds: any) => ds.status === 'connected').length,
+                totalSyncs: 0, // Would query sync_history table
+                successfulSyncs: 0,
+                failedSyncs: 0,
+                totalRecordsSynced: 0,
+                totalExports: 0,
+                avgSyncDuration: 0
+            };
+            
+            res.status(200).send({
+                success: true,
+                data: stats
+            });
+        } catch (error) {
+            console.error('❌ Error fetching dashboard stats:', error);
+            res.status(500).send({
+                success: false,
+                message: 'Failed to fetch dashboard statistics'
+            });
+        }
+    }
+);
+
+/**
+ * Recent Syncs
+ * GET /api/google-ad-manager/dashboard/recent-syncs
+ */
+router.get('/dashboard/recent-syncs',
+    async (req: Request, res: Response, next: any) => {
+        next();
+    },
+    validateJWT,
+    async (req: Request, res: Response) => {
+        try {
+            const limit = parseInt(req.query.limit as string) || 10;
+            
+            // Placeholder - would query sync_history table
+            const recentSyncs = [];
+            
+            res.status(200).send({
+                success: true,
+                data: recentSyncs
+            });
+        } catch (error) {
+            console.error('❌ Error fetching recent syncs:', error);
+            res.status(500).send({
+                success: false,
+                message: 'Failed to fetch recent syncs'
+            });
+        }
+    }
+);
+
+/**
+ * Data Source Health
+ * GET /api/google-ad-manager/dashboard/health
+ */
+router.get('/dashboard/health',
+    async (req: Request, res: Response, next: any) => {
+        next();
+    },
+    validateJWT,
+    async (req: Request, res: Response) => {
+        try {
+            const processor = await DataSourceProcessor.getInstance();
+            
+            // Get all GAM data sources
+            const dataSources = await processor.listProjectDataSources(
+                0,
+                EDataSourceType.GOOGLE_AD_MANAGER
+            );
+            
+            // Calculate health metrics for each data source
+            const healthData = dataSources.map((ds: any) => ({
+                id: ds.id,
+                name: ds.connection_name,
+                networkCode: ds.connection_details?.networkCode || 'N/A',
+                status: ds.status === 'connected' ? 'healthy' : 'inactive',
+                lastSyncAt: ds.last_synced_at,
+                lastSyncStatus: 'COMPLETED', // Placeholder
+                totalSyncs: 0, // Would query sync_history
+                successRate: 100, // Would calculate from sync_history
+                avgDuration: 0, // Would calculate from sync_history
+                nextScheduledSync: null // Would get from scheduler
+            }));
+            
+            res.status(200).send({
+                success: true,
+                data: healthData
+            });
+        } catch (error) {
+            console.error('❌ Error fetching data source health:', error);
+            res.status(500).send({
+                success: false,
+                message: 'Failed to fetch data source health'
+            });
+        }
+    }
+);
+
+/**
+ * Recent Activity
+ * GET /api/google-ad-manager/dashboard/activity
+ */
+router.get('/dashboard/activity',
+    async (req: Request, res: Response, next: any) => {
+        next();
+    },
+    validateJWT,
+    async (req: Request, res: Response) => {
+        try {
+            const limit = parseInt(req.query.limit as string) || 20;
+            
+            // Placeholder - would query activity log or sync_history
+            const recentActivity = [];
+            
+            res.status(200).send({
+                success: true,
+                data: recentActivity
+            });
+        } catch (error) {
+            console.error('❌ Error fetching recent activity:', error);
+            res.status(500).send({
+                success: false,
+                message: 'Failed to fetch recent activity'
+            });
+        }
+    }
+);
+
 export default router;
