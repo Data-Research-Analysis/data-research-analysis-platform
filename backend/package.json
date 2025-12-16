@@ -59,6 +59,7 @@
     "@google/genai": "^1.30.0",
     "@jorgebodega/typeorm-seeding": "^7.1.0",
     "@types/json2csv": "^5.0.7",
+    "@types/node-cron": "^3.0.11",
     "@types/node-fetch": "^2.6.13",
     "@types/ws": "^8.18.1",
     "adm-zip": "^0.5.16",

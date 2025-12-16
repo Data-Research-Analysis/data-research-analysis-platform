@@ -278,7 +278,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
                     await this.emailService.sendSyncCompleteEmail(
                         advancedConfig.notificationEmails,
                         {
-                            dataSourceName: connectionDetails.connection_name || `Data Source ${dataSourceId}`,
+                            dataSourceName: `Data Source ${dataSourceId}`,
                             reportType: reportTypes.join(', '),
                             networkCode,
                             recordCount: totalRecordsSynced,
@@ -292,7 +292,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
                     await this.emailService.sendSyncFailureEmail(
                         advancedConfig.notificationEmails,
                         {
-                            dataSourceName: connectionDetails.connection_name || `Data Source ${dataSourceId}`,
+                            dataSourceName: `Data Source ${dataSourceId}`,
                             reportType: reportTypes.join(', '),
                             networkCode,
                             error: errorMessage || 'Partial sync completed with some failures',
@@ -327,11 +327,15 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             });
             
             // Send failure email notification if configured
+            const advancedConfig = connectionDetails.api_config?.advanced_sync_config;
             if (advancedConfig?.notificationEmails && advancedConfig.notificationEmails.length > 0 && advancedConfig.notifyOnFailure) {
+                const reportTypes = connectionDetails.api_config?.report_types || ['revenue'];
+                const networkCode = connectionDetails.api_config?.network_code || 'unknown';
+                
                 await this.emailService.sendSyncFailureEmail(
                     advancedConfig.notificationEmails,
                     {
-                        dataSourceName: connectionDetails.connection_name || `Data Source ${dataSourceId}`,
+                        dataSourceName: `Data Source ${dataSourceId}`,
                         reportType: reportTypes.join(', '),
                         networkCode,
                         error: error.message || 'Unknown error',
@@ -353,7 +357,8 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         networkCode: string,
         reportTypeString: string,
         startDate: string,
-        endDate: string,,
+        endDate: string,
+        connectionDetails: IAPIConnectionDetails,
         advancedConfig?: AdvancedSyncConfig
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
         const reportType = this.gamService.getReportType(reportTypeString);
@@ -370,8 +375,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             case GAMReportType.GEOGRAPHY:
                 return await this.syncGeographyData(manager, schemaName, networkCode, startDate, endDate, connectionDetails, advancedConfig);
             case GAMReportType.DEVICE:
-                return await this.syncDeviceData(manager, schemaName, networkCode, startDate, endDate, connectionDetails, advancedConfig
-                return await this.syncDeviceData(manager, schemaName, networkCode, startDate, endDate, connectionDetails);
+                return await this.syncDeviceData(manager, schemaName, networkCode, startDate, endDate, connectionDetails, advancedConfig);
             default:
                 console.warn(`⚠️  Unknown report type: ${reportType}`);
                 return { recordsSynced: 0, recordsFailed: 0 };
@@ -386,9 +390,9 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         schemaName: string,
         networkCode: string,
         startDate: string,
-        endDate: string,,
+        endDate: string,
+        connectionDetails: IAPIConnectionDetails,
         advancedConfig?: AdvancedSyncConfig
-        connectionDetails: IAPIConnectionDetails
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
         const tableName = `revenue_${networkCode}`;
         const fullTableName = `${schemaName}.${tableName}`;
