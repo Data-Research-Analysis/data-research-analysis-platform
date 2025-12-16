@@ -11,6 +11,7 @@ import { RetryHandler } from '../utils/RetryHandler.js';
 import { SyncEventEmitter } from '../events/SyncEventEmitter.js';
 import { PerformanceMetrics, globalPerformanceAggregator } from '../utils/PerformanceMetrics.js';
 import { AdvancedSyncConfig, SyncConfigValidator } from '../types/IAdvancedSyncConfig.js';
+import { emailService } from '../services/EmailService.js';
 import {
     IGAMReportQuery,
     IGAMReportResponse,
@@ -32,6 +33,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
     private oauthService: GoogleOAuthService;
     private syncHistoryService: SyncHistoryService;
     private syncEventEmitter: SyncEventEmitter;
+    private emailService = emailService;
     
     private constructor() {
         this.gamService = GoogleAdManagerService.getInstance();
@@ -267,6 +269,39 @@ export class GoogleAdManagerDriver implements IAPIDriver {
                 completedAt: new Date(),
             });
             
+            // Send email notifications if configured
+            if (advancedConfig?.notificationEmails && advancedConfig.notificationEmails.length > 0) {
+                const duration = Math.floor((syncEndTime - syncStartTime) / 1000); // Convert to seconds
+                
+                if (finalStatus === 'COMPLETED' && advancedConfig.notifyOnComplete) {
+                    // Send success notification
+                    await this.emailService.sendSyncCompleteEmail(
+                        advancedConfig.notificationEmails,
+                        {
+                            dataSourceName: connectionDetails.connection_name || `Data Source ${dataSourceId}`,
+                            reportType: reportTypes.join(', '),
+                            networkCode,
+                            recordCount: totalRecordsSynced,
+                            duration,
+                            startDate,
+                            endDate,
+                        }
+                    );
+                } else if ((finalStatus === 'FAILED' || finalStatus === 'PARTIAL') && advancedConfig.notifyOnFailure) {
+                    // Send failure notification
+                    await this.emailService.sendSyncFailureEmail(
+                        advancedConfig.notificationEmails,
+                        {
+                            dataSourceName: connectionDetails.connection_name || `Data Source ${dataSourceId}`,
+                            reportType: reportTypes.join(', '),
+                            networkCode,
+                            error: errorMessage || 'Partial sync completed with some failures',
+                            timestamp: new Date().toISOString(),
+                        }
+                    );
+                }
+            }
+            
             console.log(`✅ Google Ad Manager sync completed for data source ${dataSourceId}`);
             return true;
         } catch (error: any) {
@@ -290,6 +325,20 @@ export class GoogleAdManagerDriver implements IAPIDriver {
                 error: error.message || 'Unknown error',
                 failedAt: new Date(),
             });
+            
+            // Send failure email notification if configured
+            if (advancedConfig?.notificationEmails && advancedConfig.notificationEmails.length > 0 && advancedConfig.notifyOnFailure) {
+                await this.emailService.sendSyncFailureEmail(
+                    advancedConfig.notificationEmails,
+                    {
+                        dataSourceName: connectionDetails.connection_name || `Data Source ${dataSourceId}`,
+                        reportType: reportTypes.join(', '),
+                        networkCode,
+                        error: error.message || 'Unknown error',
+                        timestamp: new Date().toISOString(),
+                    }
+                );
+            }
             
             return false;
         }

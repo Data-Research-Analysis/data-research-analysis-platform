@@ -4,8 +4,7 @@
  */
 
 import { ref, computed } from 'vue';
-import { useAuthToken } from '~/composables/AuthToken';
-
+import { getAuthToken } from '~/composables/AuthToken';
 export interface DateRangePreset {
     id: string;
     label: string;
@@ -67,7 +66,6 @@ export interface AdvancedSyncConfig {
 }
 
 export const useAdvancedSyncConfig = () => {
-    const { getToken } = useAuthToken();
     const runtimeConfig = useRuntimeConfig();
     const API_BASE_URL = runtimeConfig.public.apiUrl;
 
@@ -84,7 +82,7 @@ export const useAdvancedSyncConfig = () => {
      * Fetch date range presets
      */
     const fetchDatePresets = async (): Promise<void> => {
-        const token = getToken();
+        const token = getAuthToken();
         if (!token) {
             error.value = 'Authentication required';
             return;

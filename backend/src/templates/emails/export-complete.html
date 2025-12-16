@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Export Ready</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f3f4f6;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 20px 0;">
+        <tr>
+            <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                    <!-- Header -->
+                    <tr>
+                        <td style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); padding: 30px 40px; text-align: center;">
+                            <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: bold;">
+                                📊 Export Ready for Download
+                            </h1>
+                        </td>
+                    </tr>
+                    
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 40px;">
+                            <p style="margin: 0 0 20px 0; color: #4b5563; font-size: 16px; line-height: 1.6;">
+                                Your data export has been completed successfully and is ready for download.
+                            </p>
+                            
+                            <h2 style="color: #1f2937; font-size: 20px; margin: 0 0 20px 0;">
+                                Export Details
+                            </h2>
+                            
+                            <table width="100%" cellpadding="8" cellspacing="0" style="border-collapse: collapse;">
+                                <tr>
+                                    <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
+                                        <strong style="color: #6b7280;">Report Type:</strong>
+                                    </td>
+                                    <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                                        <span style="color: #1f2937;">{{reportType}}</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
+                                        <strong style="color: #6b7280;">Format:</strong>
+                                    </td>
+                                    <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                                        <span style="color: #1f2937; text-transform: uppercase; font-weight: bold;">{{format}}</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
+                                        <strong style="color: #6b7280;">File Name:</strong>
+                                    </td>
+                                    <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                                        <span style="color: #1f2937; font-family: monospace;">{{fileName}}</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
+                                        <strong style="color: #6b7280;">File Size:</strong>
+                                    </td>
+                                    <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                                        <span style="color: #1f2937;">{{formatFileSize fileSize}}</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
+                                        <strong style="color: #6b7280;">Record Count:</strong>
+                                    </td>
+                                    <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                                        <span style="color: #2563eb; font-size: 18px; font-weight: bold;">{{formatNumber recordCount}}</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
+                                        <strong style="color: #6b7280;">Expires:</strong>
+                                    </td>
+                                    <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                                        <span style="color: #1f2937;">{{formatDate expiresAt}}</span>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <!-- Download button -->
+                            <div style="text-align: center; margin-top: 40px;">
+                                <a href="{{downloadUrl}}" style="display: inline-block; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: #ffffff; padding: 16px 40px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(37, 99, 235, 0.3);">
+                                    ⬇️ Download Export
+                                </a>
+                            </div>
+                            
+                            <!-- Expiration notice -->
+                            <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; margin-top: 30px; border-radius: 4px;">
+                                <p style="margin: 0; color: #92400e; font-size: 14px;">
+                                    <strong>⚠️ Important:</strong> This file will be automatically deleted after 7 days. Please download it before {{formatDate expiresAt}}.
+                                </p>
+                            </div>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color: #f9fafb; padding: 20px 40px; text-align: center; border-top: 1px solid #e5e7eb;">
+                            <p style="margin: 0; color: #6b7280; font-size: 12px;">
+                                This is an automated notification from <strong>Data Research Analysis System</strong>
+                            </p>
+                            <p style="margin: 10px 0 0 0; color: #9ca3af; font-size: 11px;">
+                                To manage your notification preferences, please visit your account settings.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

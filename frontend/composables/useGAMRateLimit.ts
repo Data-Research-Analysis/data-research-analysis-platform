@@ -4,8 +4,7 @@
  */
 
 import { ref, computed, onUnmounted } from 'vue';
-import { useAuthToken } from '~/composables/AuthToken';
-
+import { getAuthToken } from '~/composables/AuthToken';
 export interface RateLimitStatus {
     remainingRequests: number;
     resetTime: string;
@@ -31,7 +30,6 @@ export interface RateLimitData {
 }
 
 export const useGAMRateLimit = () => {
-    const { getToken } = useAuthToken();
     const runtimeConfig = useRuntimeConfig();
     const API_BASE_URL = runtimeConfig.public.apiUrl;
 
@@ -90,7 +88,7 @@ export const useGAMRateLimit = () => {
      * Fetch current rate limit status
      */
     const fetchRateLimitStatus = async (): Promise<void> => {
-        const token = getToken();
+        const token = getAuthToken();
         if (!token) {
             error.value = 'Authentication required';
             return;

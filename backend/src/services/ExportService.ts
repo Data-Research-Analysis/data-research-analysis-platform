@@ -4,6 +4,7 @@ import { EDataSourceType } from '../types/EDataSourceType.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Parser } from 'json2csv';
+import { emailService } from './EmailService.js';
 
 /**
  * Export formats supported
@@ -98,7 +99,8 @@ export class ExportService {
     public async exportData(
         dataSourceId: number,
         options: ExportOptions,
-        userId: number
+        userId: number,
+        userEmail?: string
     ): Promise<ExportResult> {
         try {
             console.log(`📤 Starting export for data source ${dataSourceId}, format: ${options.format}`);
@@ -148,6 +150,22 @@ export class ExportService {
             });
             
             console.log(`✅ Export completed: ${fileName} (${fileSize} bytes, ${data.length} records)`);
+            
+            // Send email notification if user email provided
+            if (userEmail && emailService.isConfigured()) {
+                const expiresAt = new Date();
+                expiresAt.setDate(expiresAt.getDate() + 7); // 7 days from now
+                
+                await emailService.sendExportCompleteEmail(userEmail, {
+                    reportType: options.reportType,
+                    format: options.format,
+                    fileName,
+                    fileSize,
+                    recordCount: data.length,
+                    downloadUrl: `${process.env.APP_URL || 'http://localhost:3000'}/api/exports/download/${fileName}`,
+                    expiresAt: expiresAt.toISOString(),
+                });
+            }
             
             return {
                 success: true,

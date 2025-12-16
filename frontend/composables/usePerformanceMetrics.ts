@@ -4,7 +4,7 @@
  */
 
 import { ref, computed } from 'vue';
-import { useAuthToken } from '~/composables/AuthToken';
+import { getAuthToken } from '~/composables/AuthToken';
 
 export interface AggregatedMetrics {
     operationName: string;
@@ -50,7 +50,6 @@ export interface BottleneckAnalysis {
 }
 
 export const usePerformanceMetrics = () => {
-    const { getToken } = useAuthToken();
     const runtimeConfig = useRuntimeConfig();
     const API_BASE_URL = runtimeConfig.public.apiUrl;
 
@@ -105,7 +104,7 @@ export const usePerformanceMetrics = () => {
      * Fetch all performance metrics
      */
     const fetchAllMetrics = async (): Promise<void> => {
-        const token = getToken();
+        const token = getAuthToken();
         if (!token) {
             error.value = 'Authentication required';
             return;
@@ -146,7 +145,7 @@ export const usePerformanceMetrics = () => {
      * Fetch metrics for a specific operation
      */
     const fetchOperationMetrics = async (operationName: string): Promise<AggregatedMetrics | null> => {
-        const token = getToken();
+        const token = getAuthToken();
         if (!token) {
             error.value = 'Authentication required';
             return null;
@@ -194,7 +193,7 @@ export const usePerformanceMetrics = () => {
      * Fetch slowest operations
      */
     const fetchSlowestOperations = async (limit: number = 10): Promise<void> => {
-        const token = getToken();
+        const token = getAuthToken();
         if (!token) {
             error.value = 'Authentication required';
             return;
@@ -238,7 +237,7 @@ export const usePerformanceMetrics = () => {
      * Fetch bottleneck analysis
      */
     const fetchBottlenecks = async (): Promise<void> => {
-        const token = getToken();
+        const token = getAuthToken();
         if (!token) {
             error.value = 'Authentication required';
             return;
@@ -290,7 +289,7 @@ export const usePerformanceMetrics = () => {
      * Clear performance metrics
      */
     const clearMetrics = async (operationName?: string): Promise<void> => {
-        const token = getToken();
+        const token = getAuthToken();
         if (!token) {
             error.value = 'Authentication required';
             return;

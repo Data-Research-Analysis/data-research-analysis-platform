@@ -40,8 +40,9 @@ router.post('/create', async (req: Request, res: Response) => {
             });
         }
         
-        // Get user ID from session/auth (placeholder - should come from auth middleware)
+        // Get user ID and email from session/auth (placeholder - should come from auth middleware)
         const userId = (req as any).user?.id || 1;
+        const userEmail = (req as any).user?.email;
         
         const options: ExportOptions = {
             format,
@@ -54,7 +55,7 @@ router.post('/create', async (req: Request, res: Response) => {
             includeHeaders
         };
         
-        const result = await exportService.exportData(dataSourceId, options, userId);
+        const result = await exportService.exportData(dataSourceId, options, userId, userEmail);
         
         if (result.success) {
             return res.status(200).json({

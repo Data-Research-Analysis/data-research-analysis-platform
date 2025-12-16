@@ -4,8 +4,7 @@
  */
 
 import { ref } from 'vue';
-import { useAuthToken } from '~/composables/AuthToken';
-
+import { getAuthToken } from '~/composables/AuthToken';
 export type ExportFormat = 'csv' | 'json' | 'xlsx';
 
 export interface ExportOptions {
@@ -49,7 +48,6 @@ export interface ExportHistoryEntry {
 }
 
 export const useGAMExport = () => {
-    const { getToken } = useAuthToken();
     const runtimeConfig = useRuntimeConfig();
     const API_BASE_URL = runtimeConfig.public.apiUrl;
 
@@ -63,7 +61,7 @@ export const useGAMExport = () => {
      * Create an export
      */
     const createExport = async (options: ExportOptions): Promise<ExportResult> => {
-        const token = getToken();
+        const token = getAuthToken();
         if (!token) {
             return {
                 success: false,
@@ -116,7 +114,7 @@ export const useGAMExport = () => {
      * Download an export file
      */
     const downloadExport = async (fileName: string): Promise<void> => {
-        const token = getToken();
+        const token = getAuthToken();
         if (!token) {
             error.value = 'Authentication required';
             return;
@@ -158,7 +156,7 @@ export const useGAMExport = () => {
      * Fetch export history for a data source
      */
     const fetchExportHistory = async (dataSourceId: number, limit: number = 20): Promise<void> => {
-        const token = getToken();
+        const token = getAuthToken();
         if (!token) {
             error.value = 'Authentication required';
             return;
@@ -196,7 +194,7 @@ export const useGAMExport = () => {
      * Get available columns for a report type
      */
     const getAvailableColumns = async (reportType: string, networkCode: string): Promise<string[]> => {
-        const token = getToken();
+        const token = getAuthToken();
         if (!token) {
             error.value = 'Authentication required';
             return [];
@@ -233,7 +231,7 @@ export const useGAMExport = () => {
      * Delete an export file
      */
     const deleteExport = async (fileName: string): Promise<boolean> => {
-        const token = getToken();
+        const token = getAuthToken();
         if (!token) {
             error.value = 'Authentication required';
             return false;

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sync Failed</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f3f4f6;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 20px 0;">
+        <tr>
+            <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                    <!-- Header -->
+                    <tr>
+                        <td style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); padding: 30px 40px; text-align: center;">
+                            <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: bold;">
+                                ❌ Sync Failed
+                            </h1>
+                        </td>
+                    </tr>
+                    
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 40px;">
+                            <h2 style="color: #1f2937; font-size: 20px; margin: 0 0 20px 0;">
+                                Failure Details
+                            </h2>
+                            
+                            <table width="100%" cellpadding="8" cellspacing="0" style="border-collapse: collapse;">
+                                <tr>
+                                    <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
+                                        <strong style="color: #6b7280;">Data Source:</strong>
+                                    </td>
+                                    <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                                        <span style="color: #1f2937;">{{dataSourceName}}</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
+                                        <strong style="color: #6b7280;">Report Type:</strong>
+                                    </td>
+                                    <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                                        <span style="color: #1f2937;">{{reportType}}</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
+                                        <strong style="color: #6b7280;">Network Code:</strong>
+                                    </td>
+                                    <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                                        <span style="color: #1f2937;">{{networkCode}}</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
+                                        <strong style="color: #6b7280;">Timestamp:</strong>
+                                    </td>
+                                    <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                                        <span style="color: #1f2937;">{{formatDate timestamp}}</span>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <!-- Error message -->
+                            <div style="background-color: #fee2e2; border-left: 4px solid #ef4444; padding: 16px; margin-top: 30px; border-radius: 4px;">
+                                <h3 style="margin: 0 0 10px 0; color: #991b1b; font-size: 16px;">
+                                    Error Message:
+                                </h3>
+                                <pre style="margin: 0; color: #7f1d1d; font-family: 'Courier New', monospace; font-size: 13px; white-space: pre-wrap; word-break: break-word; background-color: #fef2f2; padding: 12px; border-radius: 4px;">{{error}}</pre>
+                            </div>
+                            
+                            <!-- Action items -->
+                            <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; margin-top: 20px; border-radius: 4px;">
+                                <h3 style="margin: 0 0 10px 0; color: #92400e; font-size: 16px;">
+                                    Recommended Actions:
+                                </h3>
+                                <ul style="margin: 0; padding-left: 20px; color: #78350f;">
+                                    <li style="margin-bottom: 8px;">Check your Google Ad Manager API credentials</li>
+                                    <li style="margin-bottom: 8px;">Verify network code and report configuration</li>
+                                    <li style="margin-bottom: 8px;">Review API quota limits and usage</li>
+                                    <li style="margin-bottom: 0;">Contact support if the issue persists</li>
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color: #f9fafb; padding: 20px 40px; text-align: center; border-top: 1px solid #e5e7eb;">
+                            <p style="margin: 0; color: #6b7280; font-size: 12px;">
+                                This is an automated notification from <strong>Data Research Analysis System</strong>
+                            </p>
+                            <p style="margin: 10px 0 0 0; color: #9ca3af; font-size: 11px;">
+                                To manage your notification preferences, please visit your account settings.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
