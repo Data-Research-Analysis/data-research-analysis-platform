@@ -219,7 +219,7 @@ router.post('/send-export-complete', async (req: Request, res: Response) => {
             fileName: 'gam_revenue_12345678_2024-01-01.csv',
             fileSize: 2457600, // ~2.4 MB
             recordCount: 15234,
-            downloadUrl: 'http://localhost:3000/api/exports/download/gam_revenue_12345678_2024-01-01.csv',
+            downloadUrl: 'https://example.com/downloads/gam_revenue_12345678_2024-01-01.csv',
             expiresAt: expiresAt.toISOString()
         });
         
