@@ -797,7 +797,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
      * Apply a single metric filter to data
      */
     private applyMetricFilter(data: any[], filter: any): any[] {
-        const fieldName = filter.metric.toLowerCase().replace(/total_|_level/g, '').replace(/_/g, '_');
+        const fieldName = filter.metric.toLowerCase().replace(/total_|_level/g, '');
         
         return data.filter(record => {
             const value = record[fieldName];
