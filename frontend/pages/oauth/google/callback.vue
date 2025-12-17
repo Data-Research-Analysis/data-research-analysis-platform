@@ -87,181 +87,41 @@ function getProjectIdFromState(stateParam: string): string {
 </script>
 
 <template>
-    <div class="oauth-callback-container">
-        <div class="oauth-callback-card">
+    <div class="min-h-screen flex items-center justify-center bg-white p-5">
+        <div class="bg-white rounded-xl p-12 shadow-2xl max-w-lg w-full text-center sm:p-8">
             <!-- Loading State -->
-            <div v-if="state.loading" class="callback-state loading">
-                <div class="spinner"></div>
-                <h2>Completing Authentication...</h2>
-                <p>Please wait while we verify your Google account</p>
+            <div v-if="state.loading" class="flex flex-col items-center gap-5">
+                <div class="w-15 h-15 border-4 border-gray-200 border-t-indigo-500 rounded-full animate-spin"></div>
+                <h2 class="text-2xl font-semibold text-gray-900 m-0 sm:text-xl">Completing Authentication...</h2>
+                <p class="text-base text-gray-600 m-0 sm:text-sm">Please wait while we verify your Google account</p>
             </div>
 
             <!-- Success State -->
-            <div v-else-if="state.success" class="callback-state success">
-                <div class="success-icon">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <div v-else-if="state.success" class="flex flex-col items-center gap-5">
+                <div class="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center animate-bounce">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-10 h-10 text-white">
                         <polyline points="20 6 9 17 4 12"></polyline>
                     </svg>
                 </div>
-                <h2>Authentication Successful!</h2>
-                <p>Redirecting to property selection...</p>
+                <h2 class="text-2xl font-semibold text-gray-900 m-0 sm:text-xl">Authentication Successful!</h2>
+                <p class="text-base text-gray-600 m-0 sm:text-sm">Redirecting to property selection...</p>
             </div>
 
             <!-- Error State -->
-            <div v-else-if="state.error" class="callback-state error">
-                <div class="error-icon">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <div v-else-if="state.error" class="flex flex-col items-center gap-5">
+                <div class="w-20 h-20 bg-red-500 rounded-full flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-10 h-10 text-white">
                         <circle cx="12" cy="12" r="10"></circle>
                         <line x1="15" y1="9" x2="9" y2="15"></line>
                         <line x1="9" y1="9" x2="15" y2="15"></line>
                     </svg>
                 </div>
-                <h2>Authentication Failed</h2>
-                <p>{{ state.error }}</p>
-                <button @click="router.back()" class="btn btn-primary">
+                <h2 class="text-2xl font-semibold text-gray-900 m-0 sm:text-xl">Authentication Failed</h2>
+                <p class="text-base text-gray-600 m-0 sm:text-sm">{{ state.error }}</p>
+                <button @click="router.back()" class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 mt-4 bg-indigo-500 text-white hover:bg-indigo-600 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-500/40">
                     Go Back
                 </button>
             </div>
         </div>
     </div>
 </template>
-
-<style scoped>
-.oauth-callback-container {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    padding: 20px;
-}
-
-.oauth-callback-card {
-    background: white;
-    border-radius: 12px;
-    padding: 48px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-    max-width: 500px;
-    width: 100%;
-    text-align: center;
-}
-
-.callback-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 20px;
-}
-
-.callback-state h2 {
-    font-size: 24px;
-    font-weight: 600;
-    color: #1a202c;
-    margin: 0;
-}
-
-.callback-state p {
-    font-size: 16px;
-    color: #718096;
-    margin: 0;
-}
-
-/* Loading Spinner */
-.spinner {
-    width: 60px;
-    height: 60px;
-    border: 4px solid #e2e8f0;
-    border-top-color: #667eea;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-
-/* Success Icon */
-.success-icon {
-    width: 80px;
-    height: 80px;
-    background: #48bb78;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    animation: scaleIn 0.5s ease-out;
-}
-
-.success-icon svg {
-    width: 40px;
-    height: 40px;
-    color: white;
-    stroke-width: 3;
-}
-
-@keyframes scaleIn {
-    from {
-        transform: scale(0);
-        opacity: 0;
-    }
-    to {
-        transform: scale(1);
-        opacity: 1;
-    }
-}
-
-/* Error Icon */
-.error-icon {
-    width: 80px;
-    height: 80px;
-    background: #f56565;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.error-icon svg {
-    width: 40px;
-    height: 40px;
-    color: white;
-}
-
-/* Button */
-.btn {
-    padding: 12px 24px;
-    border-radius: 8px;
-    font-size: 16px;
-    font-weight: 500;
-    border: none;
-    cursor: pointer;
-    transition: all 0.2s;
-    margin-top: 16px;
-}
-
-.btn-primary {
-    background: #667eea;
-    color: white;
-}
-
-.btn-primary:hover {
-    background: #5568d3;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-}
-
-/* Responsive */
-@media (max-width: 640px) {
-    .oauth-callback-card {
-        padding: 32px 24px;
-    }
-    
-    .callback-state h2 {
-        font-size: 20px;
-    }
-    
-    .callback-state p {
-        font-size: 14px;
-    }
-}
-</style>

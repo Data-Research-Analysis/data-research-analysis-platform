@@ -15,6 +15,14 @@ export interface IAPIConnectionDetails {
         property_id?: string;
         view_id?: string;
         
+        // Google Ad Manager specific
+        network_code?: string;
+        network_id?: string;
+        network_name?: string;
+        report_types?: string[];
+        start_date?: string;
+        end_date?: string;
+        
         // Future: Google Ads specific
         customer_id?: string;
         developer_token?: string;

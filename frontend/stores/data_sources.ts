@@ -335,6 +335,123 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         }
     }
 
+    /**
+     * List Google Ad Manager networks accessible to the user
+     */
+    async function listGoogleAdManagerNetworks(accessToken: string): Promise<any[]> {
+        const token = getAuthToken();
+        if (!token) return [];
+
+        try {
+            const response = await fetch(`${baseUrl()}/google-ad-manager/networks`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+                body: JSON.stringify({ access_token: accessToken })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                return data.networks || [];
+            }
+            return [];
+        } catch (error) {
+            console.error('Error listing GAM networks:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Add Google Ad Manager data source
+     */
+    async function addGoogleAdManagerDataSource(config: any): Promise<number | null> {
+        const token = getAuthToken();
+        if (!token) return null;
+
+        try {
+            const response = await fetch(`${baseUrl()}/google-ad-manager/add-data-source`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+                body: JSON.stringify(config)
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                // Refresh data sources list
+                await retrieveDataSources();
+                return data.data_source_id || null;
+            }
+            return null;
+        } catch (error) {
+            console.error('Error adding GAM data source:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Trigger manual sync for Google Ad Manager data source
+     */
+    async function syncGoogleAdManager(dataSourceId: number): Promise<boolean> {
+        const token = getAuthToken();
+        console.log('syncGoogleAdManager called with dataSourceId:', dataSourceId);
+        if (!token) return false;
+
+        try {
+            const response = await fetch(`${baseUrl()}/google-ad-manager/sync/${dataSourceId}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+                body: JSON.stringify({}), // Send empty body so validateJWT can add tokenDetails
+            });
+
+            return response.ok;
+        } catch (error) {
+            console.error('Error syncing GAM data:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Get sync status and history for Google Ad Manager data source
+     */
+    async function getGoogleAdManagerSyncStatus(dataSourceId: number): Promise<any | null> {
+        const token = getAuthToken();
+        if (!token) return null;
+
+        try {
+            const response = await fetch(`${baseUrl()}/google-ad-manager/sync-status/${dataSourceId}`, {
+                method: "GET",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                return {
+                    last_sync: data.last_sync,
+                    sync_history: data.sync_history || []
+                };
+            }
+            return null;
+        } catch (error) {
+            console.error('Error getting GAM sync status:', error);
+            return null;
+        }
+    }
+
     return {
         dataSources,
         selectedDataSource,
@@ -355,5 +472,10 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         addGoogleAnalyticsDataSource,
         syncGoogleAnalytics,
         getGoogleAnalyticsSyncStatus,
+        // Google Ad Manager methods
+        listGoogleAdManagerNetworks,
+        addGoogleAdManagerDataSource,
+        syncGoogleAdManager,
+        getGoogleAdManagerSyncStatus,
     }
 });

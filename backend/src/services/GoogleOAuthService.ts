@@ -201,6 +201,27 @@ export class GoogleOAuthService {
     }
     
     /**
+     * Get Google Ad Manager scopes
+     * @returns Array of required scopes for Google Ad Manager
+     */
+    public static getGoogleAdManagerScopes(): string[] {
+        return [
+            'https://www.googleapis.com/auth/dfp', // DoubleClick for Publishers (Ad Manager)
+        ];
+    }
+    
+    /**
+     * Get combined scopes for both Google Analytics and Google Ad Manager
+     * @returns Array of all required Google API scopes
+     */
+    public static getAllGoogleScopes(): string[] {
+        return [
+            ...GoogleOAuthService.getGoogleAnalyticsScopes(),
+            ...GoogleOAuthService.getGoogleAdManagerScopes(),
+        ];
+    }
+    
+    /**
      * Validate OAuth configuration
      * @returns True if OAuth is properly configured
      */
