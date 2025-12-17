@@ -126,7 +126,9 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             
             // Get sync configuration (simplified - no advanced config)
             const reportTypes = connectionDetails.api_config?.report_types || ['revenue'];
-            const { startDate, endDate } = this.getDateRangeFromConfig(null, connectionDetails);
+            // Get date range from connection details or use defaults
+            const startDate = connectionDetails.api_config?.start_date || this.getDefaultStartDate();
+            const endDate = connectionDetails.api_config?.end_date || this.getDefaultEndDate();
             
             console.log(`📅 Sync period: ${startDate} to ${endDate}`);
             console.log(`📊 Report types: ${reportTypes.join(', ')}`);
