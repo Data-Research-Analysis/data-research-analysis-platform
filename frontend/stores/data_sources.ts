@@ -91,17 +91,17 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
      */
 
     /**
-     * Initiate Google OAuth flow for Analytics
+     * Initiate Google OAuth flow for Analytics or Ad Manager
      * Returns the authorization URL to redirect user to
      */
-    async function initiateGoogleOAuth(projectId?: string): Promise<string | null> {
+    async function initiateGoogleOAuth(projectId?: string, serviceType: 'analytics' | 'ad_manager' = 'analytics'): Promise<string | null> {
         const token = getAuthToken();
         if (!token) return null;
 
         try {
             const url = projectId 
-                ? `${baseUrl()}/oauth/google/auth-url?service=analytics&project_id=${projectId}`
-                : `${baseUrl()}/oauth/google/auth-url?service=analytics`;
+                ? `${baseUrl()}/oauth/google/auth-url?service=${serviceType}&project_id=${projectId}`
+                : `${baseUrl()}/oauth/google/auth-url?service=${serviceType}`;
                 
             const response = await fetch(url, {
                 method: "GET",

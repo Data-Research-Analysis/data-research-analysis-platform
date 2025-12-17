@@ -71,7 +71,9 @@ async function initiateGoogleSignIn() {
     try {
         state.loading = true;
         state.error = null;
-        await oauth.initiateAuth(projectId);
+        
+        // Pass 'ad_manager' as service type to request GAM scopes
+        await oauth.initiateAuth(projectId, 'ad_manager');
     } catch (error: any) {
         state.error = error.message || 'Failed to start authentication';
         $swal.fire({
