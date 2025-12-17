@@ -18,7 +18,7 @@ router.get('/google/auth-url',
     },
     validateJWT,
     validate([
-        query('service').isIn(['analytics']).withMessage('Service must be analytics'),
+        query('service').isIn(['analytics', 'ad_manager']).withMessage('Service must be analytics or ad_manager'),
         query('project_id').optional().isString()
     ]),
     async (req: Request, res: Response) => {
@@ -38,6 +38,8 @@ router.get('/google/auth-url',
             let scopes: string[] = [];
             if (service === 'analytics') {
                 scopes = GoogleOAuthService.getGoogleAnalyticsScopes();
+            } else if (service === 'ad_manager') {
+                scopes = GoogleOAuthService.getGoogleAdManagerScopes();
             }
             
             // Generate state parameter for CSRF protection

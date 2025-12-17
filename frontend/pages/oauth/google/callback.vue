@@ -51,10 +51,18 @@ onMounted(async () => {
                 sessionStorage.setItem('ga_oauth_session', response.session_id);
             }
             
-            // Redirect to property selection
+            // Extract service type and project ID from state parameter
             const projectId = getProjectIdFromState(stateOAuth);
+            const serviceType = getServiceTypeFromState(stateOAuth);
+            
+            // Redirect based on service type
             setTimeout(() => {
-                router.push(`/projects/${projectId}/data-sources/connect/google-analytics?step=2`);
+                if (serviceType === 'ad_manager') {
+                    router.push(`/projects/${projectId}/data-sources/connect/google-ad-manager?step=2`);
+                } else {
+                    // Default to analytics
+                    router.push(`/projects/${projectId}/data-sources/connect/google-analytics?step=2`);
+                }
             }, 1500);
         } else {
             state.error = 'Failed to exchange authorization code. Please try again.';
@@ -82,6 +90,19 @@ function getProjectIdFromState(stateParam: string): string {
             return project.id;
         }
         return 'unknown';
+    }
+}
+
+/**
+ * Extract service type from state parameter
+ */
+function getServiceTypeFromState(stateParam: string): 'analytics' | 'ad_manager' {
+    try {
+        const decoded = JSON.parse(atob(stateParam));
+        return decoded.service || 'analytics';
+    } catch {
+        // Default to analytics if state cannot be decoded
+        return 'analytics';
     }
 }
 </script>
