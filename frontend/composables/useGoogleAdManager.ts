@@ -50,13 +50,13 @@ export const useGoogleAdManager = () => {
     /**
      * Add Google Ad Manager data source
      */
-    const addDataSource = async (config: IGAMSyncConfig): Promise<boolean> => {
+    const addDataSource = async (config: IGAMSyncConfig): Promise<number | null> => {
         try {
-            const success: number | null = await dataSourceStore.addGoogleAdManagerDataSource(config);
-            return success !== null;
+            const dataSourceId = await dataSourceStore.addGoogleAdManagerDataSource(config);
+            return dataSourceId;
         } catch (error) {
             console.error('Failed to add GAM data source:', error);
-            return false;
+            return null;
         }
     };
 
