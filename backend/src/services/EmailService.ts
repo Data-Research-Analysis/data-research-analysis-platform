@@ -41,15 +41,7 @@ export interface SyncFailureEmailData {
     timestamp: string;
 }
 
-export interface ExportCompleteEmailData {
-    reportType: string;
-    format: string;
-    fileName: string;
-    fileSize: number;
-    recordCount: number;
-    downloadUrl: string;
-    expiresAt: string;
-}
+
 
 export class EmailService {
     private transporter: Transporter | null = null;
@@ -115,8 +107,7 @@ export class EmailService {
     private loadTemplates(): void {
         const templateFiles = [
             'sync-complete.html',
-            'sync-failure.html',
-            'export-complete.html'
+            'sync-failure.html'
         ];
 
         templateFiles.forEach(templateFile => {
@@ -155,13 +146,7 @@ export class EmailService {
             return `${minutes}m ${remainingSeconds}s`;
         });
 
-        Handlebars.registerHelper('formatFileSize', (bytes: number) => {
-            if (bytes === 0) return '0 Bytes';
-            const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
-        });
+
 
         Handlebars.registerHelper('formatDate', (dateString: string) => {
             const date = new Date(dateString);
@@ -229,32 +214,7 @@ export class EmailService {
         }
     }
 
-    /**
-     * Send export completion email
-     */
-    async sendExportCompleteEmail(
-        to: string | string[],
-        data: ExportCompleteEmailData
-    ): Promise<boolean> {
-        if (!this.transporter || !this.emailConfig) {
-            console.warn('⚠️  Email service not configured. Skipping email notification.');
-            return false;
-        }
 
-        try {
-            const template = this.templates.get('export-complete');
-            const html = template ? template(data) : this.getDefaultExportCompleteTemplate(data);
-
-            const subject = `📊 Export Ready: ${data.reportType} (${data.format.toUpperCase()})`;
-
-            await this.sendEmail(to, subject, html);
-            console.log(`✅ Sent export complete email to ${Array.isArray(to) ? to.join(', ') : to}`);
-            return true;
-        } catch (error) {
-            console.error('❌ Failed to send export complete email:', error);
-            return false;
-        }
-    }
 
     /**
      * Send email using configured transporter
@@ -413,56 +373,7 @@ export class EmailService {
         `;
     }
 
-    /**
-     * Default export complete template (fallback)
-     */
-    private getDefaultExportCompleteTemplate(data: ExportCompleteEmailData): string {
-        return `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <div style="background-color: #2563eb; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
-                    <h2 style="margin: 0;">📊 Export Ready for Download</h2>
-                </div>
-                <div style="background-color: #f9fafb; padding: 20px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-                    <h3 style="color: #1f2937; margin-top: 0;">Export Details</h3>
-                    <table style="width: 100%; border-collapse: collapse;">
-                        <tr>
-                            <td style="padding: 8px 0; color: #6b7280; font-weight: bold;">Report Type:</td>
-                            <td style="padding: 8px 0; color: #1f2937;">${data.reportType}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px 0; color: #6b7280; font-weight: bold;">Format:</td>
-                            <td style="padding: 8px 0; color: #1f2937;">${data.format.toUpperCase()}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px 0; color: #6b7280; font-weight: bold;">File Name:</td>
-                            <td style="padding: 8px 0; color: #1f2937;">${data.fileName}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px 0; color: #6b7280; font-weight: bold;">File Size:</td>
-                            <td style="padding: 8px 0; color: #1f2937;">${this.formatFileSize(data.fileSize)}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px 0; color: #6b7280; font-weight: bold;">Record Count:</td>
-                            <td style="padding: 8px 0; color: #1f2937;">${data.recordCount.toLocaleString()}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px 0; color: #6b7280; font-weight: bold;">Expires:</td>
-                            <td style="padding: 8px 0; color: #1f2937;">${data.expiresAt}</td>
-                        </tr>
-                    </table>
-                    <div style="text-align: center; margin-top: 30px;">
-                        <a href="${data.downloadUrl}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">
-                            Download Export
-                        </a>
-                    </div>
-                    <p style="color: #6b7280; font-size: 12px; margin-top: 30px; text-align: center;">
-                        This file will be automatically deleted after 7 days<br>
-                        This is an automated notification from Data Research Analysis System
-                    </p>
-                </div>
-            </div>
-        `;
-    }
+
 
     /**
      * Format duration helper
@@ -474,16 +385,7 @@ export class EmailService {
         return `${minutes}m ${remainingSeconds}s`;
     }
 
-    /**
-     * Format file size helper
-     */
-    private formatFileSize(bytes: number): string {
-        if (bytes === 0) return '0 Bytes';
-        const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
-    }
+
 
     /**
      * Check if email service is configured

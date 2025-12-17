@@ -187,63 +187,6 @@ router.post('/send-sync-failure', async (req: Request, res: Response) => {
 });
 
 /**
- * POST /api/email/send-export-complete
- * Send an export completion test email
- */
-router.post('/send-export-complete', async (req: Request, res: Response) => {
-    try {
-        const { email } = req.body;
-        
-        if (!email) {
-            return res.status(400).json({
-                success: false,
-                message: 'Email address is required'
-            });
-        }
-        
-        if (!emailService.isConfigured()) {
-            return res.status(503).json({
-                success: false,
-                message: 'Email service not configured'
-            });
-        }
-        
-        // Calculate expiration date (7 days from now)
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 7);
-        
-        // Send test export complete email with sample data
-        const result = await emailService.sendExportCompleteEmail(email, {
-            reportType: 'Revenue',
-            format: 'csv',
-            fileName: 'gam_revenue_12345678_2024-01-01.csv',
-            fileSize: 2457600, // ~2.4 MB
-            recordCount: 15234,
-            downloadUrl: 'https://example.com/downloads/gam_revenue_12345678_2024-01-01.csv',
-            expiresAt: expiresAt.toISOString()
-        });
-        
-        if (result) {
-            return res.status(200).json({
-                success: true,
-                message: `Export complete email sent to ${email}`
-            });
-        } else {
-            return res.status(500).json({
-                success: false,
-                message: 'Failed to send export complete email'
-            });
-        }
-    } catch (error: any) {
-        console.error('❌ Failed to send export complete email:', error);
-        return res.status(500).json({
-            success: false,
-            message: error.message || 'Failed to send export complete email'
-        });
-    }
-});
-
-/**
  * GET /api/email/status
  * Get email service status and configuration
  */
