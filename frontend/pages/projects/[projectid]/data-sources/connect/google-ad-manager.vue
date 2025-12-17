@@ -130,8 +130,7 @@ function selectNetwork(network: IGAMNetwork) {
 /**
  * Handle network selection from NetworkSelector component
  */
-function onNetworkSelected(networkCode: string) {
-    const network = state.networks.find(n => n.networkCode === networkCode);
+function onNetworkSelected(network: IGAMNetwork | null) {
     if (network) {
         selectNetwork(network);
     }
@@ -213,31 +212,29 @@ function validate(): boolean {
         state.error = 'Please enter a data source name';
         return false;
     }
-    return false;
-}
 
-// Validate report types
-if (state.selectedReportTypes.length === 0) {
-    state.error = 'Please select at least one report type';
-    return false;
-}
-
-// Validate custom date range if selected
-if (state.dateRange === 'custom') {
-    if (!state.customStartDate || !state.customEndDate) {
-        state.error = 'Please select both start and end dates';
+    // Validate report types
+    if (state.selectedReportTypes.length === 0) {
+        state.error = 'Please select at least one report type';
         return false;
     }
 
-    const validation = gam.validateDateRange(state.customStartDate, state.customEndDate);
-    if (!validation.isValid) {
-        state.error = validation.error || 'Invalid date range';
-        return false;
-    }
-}
+    // Validate custom date range if selected
+    if (state.dateRange === 'custom') {
+        if (!state.customStartDate || !state.customEndDate) {
+            state.error = 'Please select both start and end dates';
+            return false;
+        }
 
-return true;
+        const validation = gam.validateDateRange(state.customStartDate, state.customEndDate);
+        if (!validation.isValid) {
+            state.error = validation.error || 'Invalid date range';
+            return false;
+        }
     }
+
+    return true;
+}
 
 /**
  * Cancel and return to data sources
@@ -421,7 +418,7 @@ async function connect() {
                 <h2 class="text-2xl font-semibold text-gray-900 mb-6">Step 2: Select Ad Manager Network</h2>
 
                 <NetworkSelector :networks="state.networks" :is-loading="state.loadingNetworks" :error="state.error"
-                    :model-value="state.selectedNetwork?.networkCode || ''" @update:model-value="onNetworkSelected"
+                    :model-value="state.selectedNetwork" @update:model-value="onNetworkSelected"
                     @retry="retryLoadNetworks" />
 
                 <div class="flex gap-3 justify-end mt-8 sm:flex-col">
@@ -606,7 +603,7 @@ async function connect() {
                         :disabled="state.connecting">
                         Cancel
                     </button>
-                    <button @click="connectAndSync"
+                    <button @click="connect"
                         class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed bg-indigo-600 text-white hover:bg-indigo-700 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-400/40 sm:w-full"
                         :disabled="state.connecting">
                         <span v-if="!state.connecting">Connect & Sync →</span>
