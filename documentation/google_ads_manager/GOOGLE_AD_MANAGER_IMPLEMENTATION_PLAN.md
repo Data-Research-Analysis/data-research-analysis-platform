@@ -1,5 +1,31 @@
 # Google Ad Manager Integration - Complete Implementation Plan
 
+> **Implementation Status**: This document describes the Google Ad Manager integration. The **current simplified implementation** focuses on core functionality.
+> 
+> ## What is Currently Implemented ✅
+> - ✅ OAuth 2.0 authentication
+> - ✅ Network selection
+> - ✅ **2 Report Types**: Revenue and Geography reports only
+> - ✅ Date range: Last 30 days (preset)
+> - ✅ Sync frequencies: Daily, Weekly, Manual
+> - ✅ PostgreSQL storage in `dra_google_ad_manager` schema
+> - ✅ AI Data Modeler integration
+>
+> ## What is NOT Currently Implemented ⏸️
+> - ⏸️ Inventory, Orders, Device reports (code exists but not exposed in UI)
+> - ⏸️ Advanced sync configuration
+> - ⏸️ Hourly sync frequency
+> - ⏸️ Custom date ranges
+> - ⏸️ Ad unit filtering
+>
+> ## What is Not Included ❌
+> - ❌ Admin dashboard (use AI Data Modeler instead)
+> - ❌ Export panel (use platform's standard export)
+>
+> For detailed current implementation status, see [`CURRENT_IMPLEMENTATION_STATUS.md`](./CURRENT_IMPLEMENTATION_STATUS.md)
+
+---
+
 ## Executive Summary
 
 This document outlines the comprehensive implementation plan for integrating Google Ad Manager (GAM) as a data source in the Data Research Analysis Platform. This integration will enable marketing executives to import their advertising performance data, inventory metrics, and revenue analytics directly into the platform for unified analysis and visualization.
