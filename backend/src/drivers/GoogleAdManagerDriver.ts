@@ -295,175 +295,9 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         return { recordsSynced: transformedData.length, recordsFailed: 0 };
     }
     
-    /**
-     * Sync inventory report data
-     */
-    private async syncInventoryData(
-        manager: any,
-        schemaName: string,
-        networkCode: string,
-        startDate: string,
-        endDate: string,
-        connectionDetails: IAPIConnectionDetails,
-        advancedConfig?: AdvancedSyncConfig
-    ): Promise<{ recordsSynced: number; recordsFailed: number }> {
-        const tableName = `inventory_${networkCode}`;
-        const fullTableName = `${schemaName}.${tableName}`;
-        
-        // Create table if not exists
-        await manager.query(`
-            CREATE TABLE IF NOT EXISTS ${fullTableName} (
-                id SERIAL PRIMARY KEY,
-                date DATE NOT NULL,
-                ad_unit_id VARCHAR(255),
-                ad_unit_name TEXT,
-                device_category VARCHAR(100),
-                ad_requests BIGINT DEFAULT 0,
-                matched_requests BIGINT DEFAULT 0,
-                impressions BIGINT DEFAULT 0,
-                fill_rate DECIMAL(10,4) DEFAULT 0,
-                network_code VARCHAR(255) NOT NULL,
-                synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(date, ad_unit_id, device_category)
-            )
-        `);
-        
-        console.log(`✅ Table ${fullTableName} ready`);
-        
-        // Build and execute report query with retry logic
-        const reportQuery = this.gamService.buildInventoryReportQuery(networkCode, startDate, endDate);
-        
-        const reportResult = await RetryHandler.execute(
-            () => this.gamService.runReport(reportQuery, connectionDetails),
-            RetryHandler.getRecommendedConfig('rate_limit')
-        );
-        
-        if (!reportResult.success || !reportResult.data) {
-            console.error(`❌ Failed to fetch inventory report after ${reportResult.attempts} attempts:`, reportResult.error?.message);
-            throw reportResult.error || new Error('Failed to fetch inventory report');
-        }
-        
-        const reportResponse = reportResult.data;
-        
-        if (!reportResponse.rows || reportResponse.rows.length === 0) {
-            console.log('ℹ️  No data returned from GAM for inventory report');
-            return { recordsSynced: 0, recordsFailed: 0 };
-        }
-        
-        // Transform and insert data
-        let transformedData = this.transformInventoryData(reportResponse, networkCode);
-        
-        // Apply advanced filters if configured
-        if (advancedConfig) {
-            transformedData = this.applyAdvancedFilters(transformedData, advancedConfig, 'inventory');
-            if (advancedConfig.maxRecordsPerReport && transformedData.length > advancedConfig.maxRecordsPerReport) {
-                transformedData = transformedData.slice(0, advancedConfig.maxRecordsPerReport);
-            }
-        }
-        
-        // Validate data before inserting (if enabled)
-        if (!advancedConfig || advancedConfig.dataValidation !== false) {
-            const validation = this.validateInventoryData(transformedData);
-            if (!validation.isValid) {
-                console.error('❌ Inventory data validation failed:', validation.errors);
-                throw new Error(`Data validation failed: ${validation.errors.slice(0, 3).join(', ')}`);
-            }
-        }
-        
-        // Apply deduplication if enabled
-        if (advancedConfig?.deduplication !== false) {
-            await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'ad_unit_id', 'device_category']);
-        } else {
-            for (const record of transformedData) {
-                await manager.query(`INSERT INTO ${fullTableName} (${Object.keys(record).join(', ')}) VALUES (${Object.keys(record).map((_, i) => `$${i + 1}`).join(', ')})`, Object.values(record));
-            }
-        }
-        
-        console.log(`✅ Synced ${transformedData.length} inventory records`);
-        return { recordsSynced: transformedData.length, recordsFailed: 0 };
-    }
+
     
-    /**
-     * Sync orders & line items data
-     */
-    private async syncOrdersData(
-        manager: any,
-        schemaName: string,
-        networkCode: string,
-        startDate: string,
-        endDate: string,
-        connectionDetails: IAPIConnectionDetails,
-        advancedConfig?: AdvancedSyncConfig
-    ): Promise<{ recordsSynced: number; recordsFailed: number }> {
-        const tableName = `orders_${networkCode}`;
-        const fullTableName = `${schemaName}.${tableName}`;
-        
-        // Create table if not exists
-        await manager.query(`
-            CREATE TABLE IF NOT EXISTS ${fullTableName} (
-                id SERIAL PRIMARY KEY,
-                date DATE NOT NULL,
-                order_id VARCHAR(255),
-                order_name TEXT,
-                line_item_id VARCHAR(255),
-                line_item_name TEXT,
-                advertiser_id VARCHAR(255),
-                advertiser_name TEXT,
-                impressions BIGINT DEFAULT 0,
-                clicks BIGINT DEFAULT 0,
-                revenue DECIMAL(15,2) DEFAULT 0,
-                delivery_status VARCHAR(100),
-                network_code VARCHAR(255) NOT NULL,
-                synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(date, line_item_id)
-            )
-        `);
-        
-        console.log(`✅ Table ${fullTableName} ready`);
-        
-        // Build and execute report query with retry logic
-        const reportQuery = this.gamService.buildOrdersReportQuery(networkCode, startDate, endDate);
-        
-        const reportResult = await RetryHandler.execute(
-            () => this.gamService.runReport(reportQuery, connectionDetails),
-            RetryHandler.getRecommendedConfig('rate_limit')
-        );
-        
-        if (!reportResult.success || !reportResult.data) {
-            console.error(`❌ Failed to fetch orders report after ${reportResult.attempts} attempts:`, reportResult.error?.message);
-            throw reportResult.error || new Error('Failed to fetch orders report');
-        }
-        
-        const reportResponse = reportResult.data;
-        
-        if (!reportResponse.rows || reportResponse.rows.length === 0) {
-            console.log('ℹ️  No data returned from GAM for orders report');
-            return { recordsSynced: 0, recordsFailed: 0 };
-        }
-        
-        // Transform and insert data
-        let transformedData = this.transformOrdersData(reportResponse, networkCode);
-        
-        // Apply advanced filters if configured
-        if (advancedConfig) {
-            transformedData = this.applyAdvancedFilters(transformedData, advancedConfig, 'orders');
-            if (advancedConfig.maxRecordsPerReport && transformedData.length > advancedConfig.maxRecordsPerReport) {
-                transformedData = transformedData.slice(0, advancedConfig.maxRecordsPerReport);
-            }
-        }
-        
-        // Apply deduplication if enabled
-        if (advancedConfig?.deduplication !== false) {
-            await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'line_item_id']);
-        } else {
-            for (const record of transformedData) {
-                await manager.query(`INSERT INTO ${fullTableName} (${Object.keys(record).join(', ')}) VALUES (${Object.keys(record).map((_, i) => `$${i + 1}`).join(', ')})`, Object.values(record));
-            }
-        }
-        
-        console.log(`✅ Synced ${transformedData.length} orders records`);
-        return { recordsSynced: transformedData.length, recordsFailed: 0 };
-    }
+
     
     /**
      * Sync geography report data (simplified - always validates and deduplicates)
@@ -535,83 +369,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         return { recordsSynced: transformedData.length, recordsFailed: 0 };
     }
     
-    /**
-     * Sync device & browser data
-     */
-    private async syncDeviceData(
-        manager: any,
-        schemaName: string,
-        networkCode: string,
-        startDate: string,
-        endDate: string,
-        connectionDetails: IAPIConnectionDetails,
-        advancedConfig?: AdvancedSyncConfig
-    ): Promise<{ recordsSynced: number; recordsFailed: number }> {
-        const tableName = `device_${networkCode}`;
-        const fullTableName = `${schemaName}.${tableName}`;
-        
-        // Create table if not exists
-        await manager.query(`
-            CREATE TABLE IF NOT EXISTS ${fullTableName} (
-                id SERIAL PRIMARY KEY,
-                date DATE NOT NULL,
-                device_category VARCHAR(100),
-                browser_name VARCHAR(100),
-                operating_system VARCHAR(100),
-                impressions BIGINT DEFAULT 0,
-                clicks BIGINT DEFAULT 0,
-                revenue DECIMAL(15,2) DEFAULT 0,
-                network_code VARCHAR(255) NOT NULL,
-                synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(date, device_category, browser_name)
-            )
-        `);
-        
-        console.log(`✅ Table ${fullTableName} ready`);
-        
-        // Build and execute report query with retry logic
-        const reportQuery = this.gamService.buildDeviceReportQuery(networkCode, startDate, endDate);
-        
-        const reportResult = await RetryHandler.execute(
-            () => this.gamService.runReport(reportQuery, connectionDetails),
-            RetryHandler.getRecommendedConfig('rate_limit')
-        );
-        
-        if (!reportResult.success || !reportResult.data) {
-            console.error(`❌ Failed to fetch device report after ${reportResult.attempts} attempts:`, reportResult.error?.message);
-            throw reportResult.error || new Error('Failed to fetch device report');
-        }
-        
-        const reportResponse = reportResult.data;
-        
-        if (!reportResponse.rows || reportResponse.rows.length === 0) {
-            console.log('ℹ️  No data returned from GAM for device report');
-            return { recordsSynced: 0, recordsFailed: 0 };
-        }
-        
-        // Transform and insert data
-        let transformedData = this.transformDeviceData(reportResponse, networkCode);
-        
-        // Apply advanced filters if configured
-        if (advancedConfig) {
-            transformedData = this.applyAdvancedFilters(transformedData, advancedConfig, 'device');
-            if (advancedConfig.maxRecordsPerReport && transformedData.length > advancedConfig.maxRecordsPerReport) {
-                transformedData = transformedData.slice(0, advancedConfig.maxRecordsPerReport);
-            }
-        }
-        
-        // Apply deduplication if enabled
-        if (advancedConfig?.deduplication !== false) {
-            await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'device_category', 'browser_name']);
-        } else {
-            for (const record of transformedData) {
-                await manager.query(`INSERT INTO ${fullTableName} (${Object.keys(record).join(', ')}) VALUES (${Object.keys(record).map((_, i) => `$${i + 1}`).join(', ')})`, Object.values(record));
-            }
-        }
-        
-        console.log(`✅ Synced ${transformedData.length} device records`);
-        return { recordsSynced: transformedData.length, recordsFailed: 0 };
-    }
+
     
     /**
      * Transform GAM revenue report data to PostgreSQL format
@@ -647,65 +405,9 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         });
     }
     
-    /**
-     * Transform GAM inventory report data to PostgreSQL format
-     */
-    private transformInventoryData(reportResponse: IGAMReportResponse, networkCode: string): any[] {
-        if (!reportResponse.rows) {
-            return [];
-        }
-        
-        return reportResponse.rows.map(row => {
-            const adRequests = row.metrics['TOTAL_AD_REQUESTS'] || 0;
-            const matchedRequests = row.metrics['TOTAL_MATCHED_REQUESTS'] || 0;
-            const impressions = row.metrics['TOTAL_IMPRESSIONS'] || 0;
-            
-            // Calculate fill rate
-            const fillRate = adRequests > 0 ? (impressions / adRequests) * 100 : 0;
-            
-            return {
-                date: row.dimensions['DATE'],
-                ad_unit_id: row.dimensions['AD_UNIT_ID'] || null,
-                ad_unit_name: row.dimensions['AD_UNIT_NAME'] || null,
-                device_category: row.dimensions['DEVICE_CATEGORY_NAME'] || null,
-                ad_requests: adRequests,
-                matched_requests: matchedRequests,
-                impressions,
-                fill_rate: parseFloat(fillRate.toFixed(4)),
-                network_code: networkCode,
-            };
-        });
-    }
+
     
-    /**
-     * Transform GAM orders report data to PostgreSQL format
-     */
-    private transformOrdersData(reportResponse: IGAMReportResponse, networkCode: string): any[] {
-        if (!reportResponse.rows) {
-            return [];
-        }
-        
-        return reportResponse.rows.map(row => {
-            const impressions = row.metrics['TOTAL_LINE_ITEM_LEVEL_IMPRESSIONS'] || 0;
-            const clicks = row.metrics['TOTAL_LINE_ITEM_LEVEL_CLICKS'] || 0;
-            const revenue = row.metrics['TOTAL_LINE_ITEM_LEVEL_CPM_AND_CPC_REVENUE'] || 0;
-            
-            return {
-                date: row.dimensions['DATE'],
-                order_id: row.dimensions['ORDER_ID'] || null,
-                order_name: row.dimensions['ORDER_NAME'] || null,
-                line_item_id: row.dimensions['LINE_ITEM_ID'] || null,
-                line_item_name: row.dimensions['LINE_ITEM_NAME'] || null,
-                advertiser_id: row.dimensions['ADVERTISER_ID'] || null,
-                advertiser_name: row.dimensions['ADVERTISER_NAME'] || null,
-                impressions,
-                clicks,
-                revenue: parseFloat(revenue.toString()),
-                delivery_status: 'ACTIVE', // Placeholder - actual status from API
-                network_code: networkCode,
-            };
-        });
-    }
+
     
     /**
      * Transform GAM geography report data to PostgreSQL format
@@ -734,31 +436,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         });
     }
     
-    /**
-     * Transform GAM device report data to PostgreSQL format
-     */
-    private transformDeviceData(reportResponse: IGAMReportResponse, networkCode: string): any[] {
-        if (!reportResponse.rows) {
-            return [];
-        }
-        
-        return reportResponse.rows.map(row => {
-            const impressions = row.metrics['TOTAL_LINE_ITEM_LEVEL_IMPRESSIONS'] || 0;
-            const clicks = row.metrics['TOTAL_LINE_ITEM_LEVEL_CLICKS'] || 0;
-            const revenue = row.metrics['TOTAL_LINE_ITEM_LEVEL_CPM_AND_CPC_REVENUE'] || 0;
-            
-            return {
-                date: row.dimensions['DATE'],
-                device_category: row.dimensions['DEVICE_CATEGORY_NAME'] || null,
-                browser_name: row.dimensions['BROWSER_NAME'] || null,
-                operating_system: row.dimensions['OPERATING_SYSTEM_NAME'] || null,
-                impressions,
-                clicks,
-                revenue: parseFloat(revenue.toString()),
-                network_code: networkCode,
-            };
-        });
-    }
+
     
     /**
      * Bulk upsert data into table
@@ -858,57 +536,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         };
     }
     
-    /**
-     * Validate inventory data before sync
-     * @param data - Inventory data to validate
-     * @returns Validation result with errors
-     */
-    public validateInventoryData(data: any[]): { isValid: boolean; errors: string[] } {
-        const errors: string[] = [];
-        
-        if (!data || data.length === 0) {
-            errors.push('No data to validate');
-            return { isValid: false, errors };
-        }
-        
-        data.forEach((row, index) => {
-            // Required fields
-            if (!row.date) {
-                errors.push(`Row ${index}: Missing required field 'date'`);
-            }
-            
-            // Numeric validations
-            if (row.ad_requests < 0) {
-                errors.push(`Row ${index}: Ad requests cannot be negative`);
-            }
-            
-            if (row.matched_requests < 0) {
-                errors.push(`Row ${index}: Matched requests cannot be negative`);
-            }
-            
-            if (row.impressions < 0) {
-                errors.push(`Row ${index}: Impressions cannot be negative`);
-            }
-            
-            // Logical validations
-            if (row.matched_requests > row.ad_requests) {
-                errors.push(`Row ${index}: Matched requests cannot exceed ad requests`);
-            }
-            
-            if (row.impressions > row.matched_requests) {
-                errors.push(`Row ${index}: Impressions cannot exceed matched requests`);
-            }
-            
-            if (row.fill_rate < 0 || row.fill_rate > 100) {
-                errors.push(`Row ${index}: Fill rate must be between 0 and 100`);
-            }
-        });
-        
-        return {
-            isValid: errors.length === 0,
-            errors
-        };
-    }
+
     
     /**
      * Get default start date (30 days ago)
