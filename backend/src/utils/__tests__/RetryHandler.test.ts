@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import { RetryHandler, RetryConfig } from '../RetryHandler.js';
 
@@ -11,11 +12,11 @@ describe('RetryHandler', () => {
         jest.useRealTimers();
     });
 
-    describe('execute', () => {
-        it('should succeed on first attempt', async () => {
-            const fn = jest.fn().mockResolvedValue('success');
+    describe('Basic Retry Functionality', () => {
+        it('should execute function successfully without retry', async () => {
+            const fn = jest.fn<() => Promise<string>>().mockResolvedValue('success');
 
-            const promise = RetryHandler.execute(fn);
+            const promise = RetryHandler.execute(fn as () => Promise<unknown>);
             await jest.runAllTimersAsync();
             const result = await promise;
 
