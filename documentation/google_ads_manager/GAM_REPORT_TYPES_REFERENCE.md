@@ -2,16 +2,29 @@
 
 **Comprehensive Guide to GAM Data Structure and Schema**
 
+> **Current Implementation Status**: Only **Revenue** and **Geography** reports are available in v1.0.
+>
+> ### Available Report Types ✅
+> - ✅ **Revenue & Earnings** - Active and documented below
+> - ✅ **Geography Performance** - Active and documented below
+>
+> ### Planned for Future Releases ⏸️
+> - ⏸️ **Inventory Performance** - Code exists but not exposed in UI
+> - ⏸️ **Orders & Line Items** - Code exists but not exposed in UI
+> - ⏸️ **Device & Browser** - Code exists but not exposed in UI
+>
+> For current implementation details, see [`CURRENT_IMPLEMENTATION_STATUS.md`](./CURRENT_IMPLEMENTATION_STATUS.md)
+
 ---
 
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Revenue & Earnings Report](#revenue--earnings-report)
-3. [Inventory Performance Report](#inventory-performance-report)
-4. [Orders & Line Items Report](#orders--line-items-report)
-5. [Geography Performance Report](#geography-performance-report)
-6. [Device & Browser Report](#device--browser-report)
+2. [Revenue & Earnings Report](#revenue--earnings-report) ✅ **Available Now**
+3. [Geography Performance Report](#geography-performance-report) ✅ **Available Now**
+4. [Inventory Performance Report](#inventory-performance-report) ⏸️ Planned
+5. [Orders & Line Items Report](#orders--line-items-report) ⏸️ Planned
+6. [Device & Browser Report](#device--browser-report) ⏸️ Planned
 7. [Data Dictionary](#data-dictionary)
 8. [Sample Queries](#sample-queries)
 9. [Best Practices](#best-practices)
@@ -20,21 +33,21 @@
 
 ## Overview
 
-The Google Ad Manager integration imports five standardized report types, each stored in dedicated database tables. All reports follow a consistent naming pattern:
+The Google Ad Manager integration currently imports **two standardized report types** in v1.0, with additional reports planned for future releases. All reports follow a consistent naming pattern:
 
 ```
 dra_google_ad_manager.{report_type}_{network_id}
 ```
 
-### Report Type Summary
+### Report Type Summary (Current Implementation)
 
-| Report Type | Purpose | Key Metrics | Update Frequency |
-|------------|---------|-------------|------------------|
-| **Revenue** | Financial performance | Earnings, eCPM, RPM | Hourly/Daily |
-| **Inventory** | Ad inventory utilization | Fill rate, available impressions | Daily |
-| **Orders** | Campaign delivery | Delivery %, pacing | Daily |
-| **Geography** | Geographic performance | Revenue by country | Daily/Weekly |
-| **Device** | Device/browser analysis | Performance by platform | Daily/Weekly |
+| Report Type | Status | Purpose | Key Metrics |
+|------------|--------|---------|-------------|
+| **Revenue** | ✅ Available | Financial performance | Earnings, CPM, CTR |
+| **Geography** | ✅ Available | Geographic performance | Revenue by country/region/city |
+| **Inventory** | ⏸️ Planned | Ad inventory utilization | Fill rate, available impressions |
+| **Orders** | ⏸️ Planned | Campaign delivery | Delivery %, pacing |
+| **Device** | ⏸️ Planned | Device/browser analysis | Performance by platform |
 
 ### Common Fields Across All Reports
 
@@ -179,20 +192,24 @@ FROM current_month, previous_month;
 
 ---
 
-## Inventory Performance Report
+## Inventory Performance Report ⏸️ **Not Currently Available**
+
+> **Status**: Implementation exists in codebase but not exposed in UI. Planned for future release.
+> 
+> The information below describes the schema that will be used when this report becomes available.
 
 ### Description
 
-The Inventory report tracks ad unit utilization, showing fill rates, available impressions, and delivery performance across your inventory.
+The Inventory report will track ad unit utilization, showing fill rates, available impressions, and delivery performance across your inventory.
 
-**Business Use Cases:**
+**Business Use Cases** (Future):
 - Inventory optimization
 - Yield management
 - Capacity planning
 - Pricing strategy
 - Ad unit performance
 
-### Database Schema
+### Database Schema (When Available)
 
 **Table Name:** `dra_google_ad_manager.inventory_{network_id}`
 
@@ -285,13 +302,17 @@ ORDER BY total_impressions DESC;
 
 ---
 
-## Orders & Line Items Report
+## Orders & Line Items Report ⏸️ **Not Currently Available**
+
+> **Status**: Implementation exists in codebase but not exposed in UI. Planned for future release.
+> 
+> The information below describes the schema that will be used when this report becomes available.
 
 ### Description
 
-The Orders report tracks campaign delivery, pacing, and performance for advertisers and line items.
+The Orders report will track campaign delivery, pacing, and performance for advertisers and line items.
 
-**Business Use Cases:**
+**Business Use Cases** (Future):
 - Campaign monitoring
 - Delivery tracking
 - Pacing analysis
@@ -389,13 +410,17 @@ LIMIT 20;
 
 ---
 
-## Device & Browser Report
+## Device & Browser Report ⏸️ **Not Currently Available**
+
+> **Status**: Implementation exists in codebase but not exposed in UI. Planned for future release.
+> 
+> The information below describes the schema that will be used when this report becomes available.
 
 ### Description
 
-The Device report analyzes performance across different devices, browsers, and operating systems.
+The Device report will analyze performance across different devices, browsers, and operating systems.
 
-**Business Use Cases:**
+**Business Use Cases** (Future):
 - Mobile optimization
 - Browser compatibility
 - Platform strategy
