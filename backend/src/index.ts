@@ -17,8 +17,6 @@ import oauth from './routes/oauth.js';
 import google_analytics from './routes/google_analytics.js';
 import google_ad_manager from './routes/google_ad_manager.js';
 import performance from './routes/performance.js';
-import email from './routes/email.js';
-import scheduler from './routes/scheduler.js';
 import article from './routes/admin/article.js';
 import category from './routes/admin/category.js';
 import image from './routes/admin/image.js';
@@ -44,10 +42,7 @@ import { OAuthSessionService } from './services/OAuthSessionService.js';
 OAuthSessionService.getInstance();
 console.log('✅ OAuth session service initialized');
 
-// Initialize Scheduler service (starts scheduled syncs)
-import { schedulerService } from './services/SchedulerService.js';
-await schedulerService.initialize();
-console.log('✅ Scheduler service initialized');
+
 
 const port = parseInt(UtilityService.getInstance().getConstants('PORT'));
 const __filename = fileURLToPath(import.meta.url);
@@ -77,8 +72,6 @@ app.use('/oauth', oauth);
 app.use('/google-analytics', google_analytics);
 app.use('/google-ad-manager', google_ad_manager);
 app.use('/performance', performance);
-app.use('/email', email);
-app.use('/scheduler', scheduler);
 app.use('/admin/article', article);
 app.use('/admin/category', category);
 app.use('/admin/image', image);
