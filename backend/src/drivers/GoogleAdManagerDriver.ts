@@ -763,7 +763,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
      * Apply a single dimension filter to data
      */
     private applyDimensionFilter(data: any[], filter: any): any[] {
-        const fieldName = filter.dimension.toLowerCase().replace(/_/g, '_');
+        const fieldName = filter.dimension.toLowerCase();
         
         return data.filter(record => {
             const value = record[fieldName];
