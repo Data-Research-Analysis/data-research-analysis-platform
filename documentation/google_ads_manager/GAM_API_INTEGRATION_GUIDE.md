@@ -1,6 +1,10 @@
-# Google Ad Manager API Integration Guide
+# Google Ad Manager - API Integration Guide
 
-**Developer Documentation for GAM Integration Endpoints**
+**Technical Reference for GAM Integration**
+
+> **Current Implementation**: This guide documents the **simplified v1.0 API**.
+>
+> For complete feature status, see [`CURRENT_IMPLEMENTATION_STATUS.md`](./CURRENT_IMPLEMENTATION_STATUS.md)
 
 ---
 
@@ -9,37 +13,34 @@
 1. [Overview](#overview)
 2. [Authentication](#authentication)
 3. [API Endpoints](#api-endpoints)
-4. [Request/Response Formats](#requestresponse-formats)
+4. [Database Schema](#database-schema)
 5. [Error Handling](#error-handling)
 6. [Rate Limiting](#rate-limiting)
-7. [WebSocket Events](#websocket-events)
-8. [Code Examples](#code-examples)
-9. [SDK Integration](#sdk-integration)
+7. [Code Examples](#code-examples)
 
 ---
 
 ## Overview
 
-The Google Ad Manager integration provides RESTful API endpoints for managing GAM connections, syncing data, scheduling automated syncs, and exporting reports.
+The Google Ad Manager integration provides RESTful API endpoints for:
+- OAuth 2.0 authentication
+- Network listing and selection
+- Data source configuration
+- Data synchronization
+- Sync status monitoring
 
 ### Base URL
 
 ```
-http://localhost:3002/api
+https://your-platform.com/api/google-ad-manager
 ```
 
-### API Version
+### Available Report Types (v1.0)
 
-Current version: **v1**  
-All endpoints are prefixed with `/api`
+- `revenue` - Ad revenue, impressions, clicks, CPM, CTR
+- `geography` - Country, region, city performance
 
-### Content Type
-
-All requests and responses use `application/json` unless otherwise specified.
-
-### Authentication
-
-All API endpoints require authentication using JWT tokens in the Authorization header.
+**Not Available**: `inventory`, `orders`, `device` (planned for future)
 
 ---
 
@@ -47,194 +48,237 @@ All API endpoints require authentication using JWT tokens in the Authorization h
 
 ### OAuth 2.0 Flow
 
-The GAM integration uses Google OAuth 2.0 for authentication.
+The integration uses Google OAuth 2.0 for authentication.
 
-#### 1. Initiate OAuth Flow
+#### Required Scope
 
-**Endpoint:** `GET /google-ad-manager/oauth/url`
-
-Generates the Google OAuth authorization URL.
-
-**Request:**
-```http
-GET /api/google-ad-manager/oauth/url HTTP/1.1
-Host: localhost:3002
-Authorization: Bearer <jwt_token>
+```
+https://www.googleapis.com/auth/dfp
 ```
 
-**Response:**
-```json
-{
-  "success": true,
-  "authUrl": "https://accounts.google.com/o/oauth2/v2/auth?client_id=...&redirect_uri=...&scope=https://www.googleapis.com/auth/dfp&response_type=code&access_type=offline&prompt=consent"
-}
-```
+#### OAuth Flow Steps
 
-**Parameters in Auth URL:**
-- `client_id`: OAuth client ID
-- `redirect_uri`: Callback URL
-- `scope`: `https://www.googleapis.com/auth/dfp` (Google Ad Manager API)
-- `access_type`: `offline` (to receive refresh token)
-- `prompt`: `consent` (force consent screen)
+1. **Initiate OAuth**:
+   - Frontend redirects to Google OAuth consent screen
+   - User grants permissions
+   - Google redirects back with authorization code
 
-#### 2. Handle OAuth Callback
+2. **Exchange Code for Tokens**:
+   - Backend exchanges code for access + refresh tokens
+   - Tokens encrypted and stored server-side
+   - Access token used for GAM API calls
 
-**Endpoint:** `GET /google-ad-manager/oauth/callback`
+3. **Token Refresh**:
+   - Access tokens expire after 1 hour
+   - Refresh tokens used to obtain new access tokens
+   - Automatic refresh handled by backend
 
-Receives the authorization code from Google and exchanges it for tokens.
+#### Security
 
-**Request:**
-```http
-GET /api/google-ad-manager/oauth/callback?code=<auth_code>&state=<state_token> HTTP/1.1
-Host: localhost:3002
-```
-
-**Query Parameters:**
-- `code`: Authorization code from Google
-- `state`: State token for CSRF protection
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "OAuth authentication successful",
-  "tokens": {
-    "access_token": "ya29.a0AfH6SMB...",
-    "refresh_token": "1//0gHr-xyz...",
-    "expiry_date": 1702821600000
-  }
-}
-```
-
-#### 3. Fetch GAM Networks
-
-**Endpoint:** `GET /google-ad-manager/networks`
-
-Retrieve available GAM networks for the authenticated user.
-
-**Request:**
-```http
-GET /api/google-ad-manager/networks HTTP/1.1
-Host: localhost:3002
-Authorization: Bearer <jwt_token>
-Content-Type: application/json
-
-{
-  "access_token": "ya29.a0AfH6SMB..."
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "networks": [
-    {
-      "network_code": "12345678",
-      "network_name": "Example Publisher Network",
-      "display_name": "Example Publisher",
-      "time_zone": "America/New_York"
-    }
-  ]
-}
-```
+- ✅ Tokens stored encrypted in database (backend only)
+- ✅ Never exposed to frontend/client
+- ✅ Automatic refresh before expiration
+- ✅ Secure HTTPS communication only
 
 ---
 
 ## API Endpoints
 
-### Connection Management
+### 1. List Networks
 
-#### Add Data Source
+Get list of GAM networks accessible to authenticated user.
 
-**Endpoint:** `POST /google-ad-manager/add-data-source`
+**Endpoint**: `GET /api/google-ad-manager/networks`
 
-Create a new GAM data source connection with OAuth tokens and configuration.
-
-**Request:**
+**Headers**:
 ```http
-POST /api/google-ad-manager/add-data-source HTTP/1.1
-Host: localhost:3002
-Authorization: Bearer <jwt_token>
-Content-Type: application/json
+Authorization: Bearer {your_jwt_token}
+```
 
+**Query Parameters**:
+```
+access_token (required): Google OAuth access token
+```
+
+**Response** (200 OK):
+```json
 {
-  "name": "Main GAM Network",
-  "network_code": "12345678",
-  "network_id": "12345678",
-  "network_name": "Main Network",
-  "access_token": "ya29.a0AfH6SMB...",
-  "refresh_token": "1//0gHr-xyz...",
-  "token_expiry": "2025-12-17T15:30:00Z",
-  "project_id": 1,
-  "report_types": ["revenue", "inventory", "geography"],
-  "start_date": "2025-11-16",
-  "end_date": "2025-12-16",
-  "sync_frequency": "daily"
+  "success": true,
+  "networks": [
+    {
+      "networkCode": "12345678",
+      "networkName": "My Publisher Network",
+      "displayName": "Publisher Network Prod",
+      "timeZone": "America/New_York"
+    }
+  ]
 }
 ```
 
-**Request Validation:**
-- `name`: Required, non-empty string
-- `network_code`: Required
-- `network_id`: Required
-- `access_token`: Required
-- `refresh_token`: Required
-- `token_expiry`: Required
-- `project_id`: Required, positive integer
-- `report_types`: Required array with at least 1 report type
-- `sync_frequency`: Optional, one of: hourly, daily, weekly, manual
+**Error Response** (401):
+```json
+{
+  "success": false,
+  "error": "Invalid or expired access token"
+}
+```
 
-**Response (201 Created):**
+---
+
+### 2. Add Data Source
+
+Create new GAM data source connection.
+
+**Endpoint**: `POST /api/google-ad-manager/add-data-source`
+
+**Headers**:
+```http
+Authorization: Bearer {your_jwt_token}
+Content-Type: application/json
+```
+
+**Request Body**:
+```json
+{
+  "name": "Production Network Revenue",
+  "network_code": "12345678",
+  "report_types": ["revenue", "geography"],
+  "start_date": "2024-11-17",
+  "end_date": "2024-12-17",
+  "sync_frequency": "daily",
+  "access_token": "ya29.a0...",
+  "refresh_token": "1//0...",
+  "token_expiry": "2024-12-18T10:00:00Z",
+  "project_id": 123
+}
+```
+
+**Field Validation**:
+- `report_types`: Must be array containing only `"revenue"` and/or `"geography"`
+- `sync_frequency`: Must be `"daily"`, `"weekly"`, or `"manual"`
+- `start_date`, `end_date`: ISO 8601 format (YYYY-MM-DD)
+- Date range is fixed to last 30 days in v1.0
+
+**Response** (200 OK):
 ```json
 {
   "success": true,
   "data_source_id": 42,
-  "message": "Google Ad Manager data source added successfully"
+  "message": "Data source created successfully"
 }
 ```
 
-#### List Networks
+**Error Responses**:
 
-**Endpoint:** `POST /google-ad-manager/networks`
-
-List all accessible Google Ad Manager networks for the authenticated user.
-
-**Request:**
-```http
-POST /api/google-ad-manager/networks HTTP/1.1
-Host: localhost:3002
-Authorization: Bearer <jwt_token>
-Content-Type: application/json
-
-{
-  "access_token": "ya29.a0AfH6SMB..."
-}
-```
-
-**Response:**
+400 Bad Request:
 ```json
 {
-  "networks": [],
-  "count": 0,
-  "message": "Networks retrieved successfully"
+  "success": false,
+  "error": "Invalid report type. Only 'revenue' and 'geography' are supported."
 }
 ```
 
-#### Delete Data Source
-
-**Endpoint:** `DELETE /google-ad-manager/data-source/:dataSourceId`
-
-Delete a GAM data source and all associated data.
-
-**Request:**
-```http
-DELETE /api/google-ad-manager/data-source/42 HTTP/1.1
-Host: localhost:3002
-Authorization: Bearer <jwt_token>
+401 Unauthorized:
+```json
+{
+  "success": false,
+  "error": "Authentication required"
+}
 ```
 
-**Response:**
+---
+
+### 3. Trigger Manual Sync
+
+Manually trigger data synchronization.
+
+**Endpoint**: `POST /api/google-ad-manager/sync/:dataSourceId`
+
+**Headers**:
+```http
+Authorization: Bearer {your_jwt_token}
+```
+
+**URL Parameters**:
+- `dataSourceId` (required): Data source ID
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "message": "Sync started",
+  "sync_id": 456
+}
+```
+
+**Error Response** (404):
+```json
+{
+  "success": false,
+  "error": "Data source not found"
+}
+```
+
+---
+
+### 4. Get Sync Status
+
+Retrieve synchronization status and history.
+
+**Endpoint**: `GET /api/google-ad-manager/sync-status/:dataSourceId`
+
+**Headers**:
+```http
+Authorization: Bearer {your_jwt_token}
+```
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "dataSourceId": 42,
+  "lastSync": {
+    "id": 456,
+    "startedAt": "2024-12-17T02:00:00Z",
+    "completedAt": "2024-12-17T02:04:32Z",
+    "status": "COMPLETED",
+    "recordsSynced": 1250,
+    "recordsFailed": 0,
+    "error": null
+  },
+  "history": [
+    {
+      "id": 455,
+      "startedAt": "2024-12-16T02:00:00Z",
+      "completedAt": "2024-12-16T02:03:15Z",
+      "status": "COMPLETED",
+      "recordsSynced": 1180
+    }
+  ]
+}
+```
+
+**Status Values**:
+- `PENDING`: Waiting to start
+- `RUNNING`: Sync in progress
+- `COMPLETED`: Finished successfully
+- `FAILED`: Encountered errors
+- `PARTIAL`: Some reports failed
+
+---
+
+### 5. Delete Data Source
+
+Remove data source connection.
+
+**Endpoint**: `DELETE /api/google-ad-manager/:dataSourceId`
+
+**Headers**:
+```http
+Authorization: Bearer {your_jwt_token}
+```
+
+**Response** (200 OK):
 ```json
 {
   "success": true,
@@ -244,835 +288,187 @@ Authorization: Bearer <jwt_token>
 
 ---
 
-### Data Synchronization
+## Database Schema
 
-#### Trigger Sync
+All GAM data is stored in the `dra_google_ad_manager` PostgreSQL schema.
 
-**Endpoint:** `POST /google-ad-manager/sync/:dataSourceId`
+### Schema Naming Convention
 
-Manually trigger a data sync for a GAM data source.
-
-**Request:**
-```http
-POST /api/google-ad-manager/sync/42 HTTP/1.1
-Host: localhost:3002
-Authorization: Bearer <jwt_token>
-Content-Type: application/json
+Tables use a special column naming convention:
+```
+{table_name}_{column_name}
 ```
 
-**URL Parameters:**
-- `dataSourceId`: Data source ID (positive integer)
+Example:
+- Table: `revenue_12345678`
+- Column: `revenue_12345678_impressions`
 
-**Request Body:** Empty ({})
+This allows the AI Data Modeler to properly identify and query the data.
 
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Sync completed successfully"
-}
+### Revenue Table
+
+**Table Name**: `dra_google_ad_manager.revenue_{network_id}`
+
+**Schema**:
+```sql
+CREATE TABLE dra_google_ad_manager.revenue_12345678 (
+    id SERIAL PRIMARY KEY,
+    date DATE NOT NULL,
+    ad_unit_id VARCHAR(255),
+    ad_unit_name TEXT,
+    country_code VARCHAR(10),
+    country_name VARCHAR(255),
+    impressions BIGINT DEFAULT 0,
+    clicks BIGINT DEFAULT 0,
+    revenue DECIMAL(15,2) DEFAULT 0,
+    cpm DECIMAL(10,2) DEFAULT 0,
+    ctr DECIMAL(10,4) DEFAULT 0,
+    fill_rate DECIMAL(10,4) DEFAULT 0,
+    network_code VARCHAR(255) NOT NULL,
+    synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(date, ad_unit_id, country_code)
+);
 ```
 
-#### Get Sync Status
-
-**Endpoint:** `GET /google-ad-manager/sync-status/:dataSourceId`
-
-Check the sync status and history for a GAM data source.
-
-**Request:**
-```http
-GET /api/google-ad-manager/sync-status/42 HTTP/1.1
-Host: localhost:3002
-Authorization: Bearer <jwt_token>
-```
-
-**Response:**
-```json
-{
-  "last_sync": "2025-12-16T15:04:32Z",
-  "sync_history": [
-    {
-      "data_source_id": 42,
-      "synced_at": "2025-12-16T15:04:32Z",
-      "status": "success"
-    },
-    {
-      "data_source_id": 42,
-      "synced_at": "2025-12-15T14:00:00Z",
-      "status": "success"
-    }
-  ],
-  "message": "Sync status retrieved successfully"
-}
-```
-
-**Request:**
-```http
-GET /api/google-ad-manager/sync/42/history?limit=20&status=completed HTTP/1.1
-Host: localhost:3002
-Authorization: Bearer <jwt_token>
-```
-
-**Query Parameters:**
-- `limit` (optional): Number of records (default: 50)
-- `status` (optional): Filter by status
-- `start_date` (optional): Filter from date
-- `end_date` (optional): Filter to date
-
-**Response:**
-```json
-{
-  "success": true,
-  "history": [
-    {
-      "id": "sync_abc123xyz",
-      "status": "completed",
-      "started_at": "2025-12-16T15:00:00Z",
-      "completed_at": "2025-12-16T15:04:32Z",
-      "records_synced": 45230,
-      "duration_seconds": 272
-    },
-    {
-      "id": "sync_def456uvw",
-      "status": "completed",
-      "started_at": "2025-12-16T14:00:00Z",
-      "completed_at": "2025-12-16T14:03:15Z",
-      "records_synced": 43100,
-      "duration_seconds": 195
-    }
-  ],
-  "pagination": {
-    "total": 150,
-    "page": 1,
-    "limit": 20
-  }
-}
-```
+**Indexes**:
+- Primary key on `id`
+- Unique constraint on `(date, ad_unit_id, country_code)`
+- Automatic indexing on unique constraint columns
 
 ---
 
-### Advanced Sync Configuration
-
-#### Update Advanced Configuration
-
-**Endpoint:** `PUT /google-ad-manager/connections/:id/advanced-config`
-
-Configure advanced sync settings including scheduling.
-
-**Request:**
-```http
-PUT /api/google-ad-manager/connections/42/advanced-config HTTP/1.1
-Host: localhost:3002
-Authorization: Bearer <jwt_token>
-Content-Type: application/json
-
-{
-  "advanced_sync_config": {
-    "frequency": {
-      "type": "hourly"
-    },
-    "date_range_preset": "last_30_days",
-    "dimensions": {
-      "include": ["date", "ad_unit_id", "ad_unit_name", "country"],
-      "exclude": []
-    },
-    "metrics": {
-      "include": ["total_earnings", "impressions", "clicks", "ctr", "ecpm"],
-      "exclude": []
-    },
-    "filters": {
-      "ad_unit_name": {
-        "contains": "Homepage"
-      },
-      "country": {
-        "in": ["US", "CA", "GB"]
-      }
-    },
-    "validation": {
-      "incremental_sync": true,
-      "deduplication": true,
-      "data_validation": true,
-      "max_records": 1000000
-    },
-    "notifications": {
-      "notify_on_completion": true,
-      "notify_on_failure": true,
-      "email_recipients": ["admin@example.com"]
-    }
-  }
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Advanced configuration saved and scheduler updated",
-  "data_source": {
-    "id": 42,
-    "api_config": {
-      "advanced_sync_config": {
-        "frequency": {
-          "type": "hourly"
-        }
-      }
-    }
-  },
-  "scheduler": {
-    "job_created": true,
-    "cron_expression": "0 * * * *",
-    "next_run": "2025-12-16T16:00:00Z"
-  }
-}
-```
-
----
-
-### Scheduler Management
-
-#### Get Scheduled Jobs
-
-**Endpoint:** `GET /scheduler/jobs`
-
-List all scheduled sync jobs.
-
-**Request:**
-```http
-GET /api/scheduler/jobs HTTP/1.1
-Host: localhost:3002
-Authorization: Bearer <jwt_token>
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "jobs": [
-    {
-      "dataSourceId": 42,
-      "dataSourceName": "Main GAM Network",
-      "schedule": "0 * * * *",
-      "frequency": "hourly",
-      "status": "active",
-      "nextRun": "2025-12-16T16:00:00Z",
-      "lastRun": "2025-12-16T15:00:00Z",
-      "runCount": 125
-    }
-  ]
-}
-```
-
-#### Get Specific Job
-
-**Endpoint:** `GET /scheduler/jobs/:dataSourceId`
-
-Get details for a specific scheduled job.
-
-**Request:**
-```http
-GET /api/scheduler/jobs/42 HTTP/1.1
-Host: localhost:3002
-Authorization: Bearer <jwt_token>
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "job": {
-    "dataSourceId": 42,
-    "dataSourceName": "Main GAM Network",
-    "schedule": "0 * * * *",
-    "frequency": "hourly",
-    "status": "active",
-    "nextRun": "2025-12-16T16:00:00Z",
-    "lastRun": "2025-12-16T15:00:00Z",
-    "runCount": 125,
-    "connectionDetails": {
-      "network_code": "12345678",
-      "report_types": ["revenue", "inventory"]
-    }
-  }
-}
-```
-
-#### Schedule Job
-
-**Endpoint:** `POST /scheduler/jobs/:dataSourceId`
-
-Create or update a scheduled sync job.
-
-**Request:**
-```http
-POST /api/scheduler/jobs/42 HTTP/1.1
-Host: localhost:3002
-Authorization: Bearer <jwt_token>
-Content-Type: application/json
-
-{
-  "frequency": "daily",
-  "report_types": ["revenue", "inventory", "geography"]
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Job scheduled successfully",
-  "job": {
-    "dataSourceId": 42,
-    "schedule": "0 0 * * *",
-    "frequency": "daily",
-    "status": "active",
-    "nextRun": "2025-12-17T00:00:00Z"
-  }
-}
-```
-
-#### Update Job Schedule
-
-**Endpoint:** `PUT /scheduler/jobs/:dataSourceId`
-
-Update the schedule for an existing job.
-
-**Request:**
-```http
-PUT /api/scheduler/jobs/42 HTTP/1.1
-Host: localhost:3002
-Authorization: Bearer <jwt_token>
-Content-Type: application/json
-
-{
-  "frequency": "hourly"
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Schedule updated successfully",
-  "job": {
-    "dataSourceId": 42,
-    "schedule": "0 * * * *",
-    "frequency": "hourly",
-    "nextRun": "2025-12-16T16:00:00Z"
-  }
-}
-```
-
-#### Pause Job
-
-**Endpoint:** `POST /scheduler/jobs/:dataSourceId/pause`
-
-Pause a scheduled job temporarily.
-
-**Request:**
-```http
-POST /api/scheduler/jobs/42/pause HTTP/1.1
-Host: localhost:3002
-Authorization: Bearer <jwt_token>
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Job paused successfully",
-  "job": {
-    "dataSourceId": 42,
-    "status": "paused"
-  }
-}
-```
-
-#### Resume Job
-
-**Endpoint:** `POST /scheduler/jobs/:dataSourceId/resume`
-
-Resume a paused job.
-
-**Request:**
-```http
-POST /api/scheduler/jobs/42/resume HTTP/1.1
-Host: localhost:3002
-Authorization: Bearer <jwt_token>
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Job resumed successfully",
-  "job": {
-    "dataSourceId": 42,
-    "status": "active",
-    "nextRun": "2025-12-16T16:00:00Z"
-  }
-}
-```
-
-#### Cancel Job
-
-**Endpoint:** `DELETE /scheduler/jobs/:dataSourceId`
-
-Cancel and remove a scheduled job.
-
-**Request:**
-```http
-DELETE /api/scheduler/jobs/42 HTTP/1.1
-Host: localhost:3002
-Authorization: Bearer <jwt_token>
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Job cancelled successfully"
-}
-```
-
-#### Trigger Job Manually
-
-**Endpoint:** `POST /scheduler/jobs/:dataSourceId/trigger`
-
-Execute a job immediately, bypassing the schedule.
-
-**Request:**
-```http
-POST /api/scheduler/jobs/42/trigger HTTP/1.1
-Host: localhost:3002
-Authorization: Bearer <jwt_token>
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Job triggered successfully",
-  "sync_id": "sync_ghi789rst"
-}
-```
-
-#### Get Scheduler Statistics
-
-**Endpoint:** `GET /scheduler/stats`
-
-Get overall scheduler health and statistics.
-
-**Request:**
-```http
-GET /api/scheduler/stats HTTP/1.1
-Host: localhost:3002
-Authorization: Bearer <jwt_token>
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "stats": {
-    "totalJobs": 15,
-    "activeJobs": 12,
-    "pausedJobs": 3,
-    "totalRuns": 3450
-  }
-}
-```
-
----
-
-### Data Export
-
-#### Generate Export
-
-**Endpoint:** `POST /google-ad-manager/export/:id`
-
-Generate a data export in CSV, Excel, or JSON format.
-
-**Request:**
-```http
-POST /api/google-ad-manager/export/42 HTTP/1.1
-Host: localhost:3002
-Authorization: Bearer <jwt_token>
-Content-Type: application/json
-
-{
-  "format": "csv",
-  "report_type": "revenue",
-  "date_range": {
-    "start": "2025-12-01",
-    "end": "2025-12-16"
-  },
-  "fields": ["date", "ad_unit_name", "total_earnings", "impressions", "ecpm"],
-  "filters": {
-    "country": ["US", "CA"]
-  }
-}
-```
-
-**Request Body:**
-- `format` (required): `csv`, `excel`, or `json`
-- `report_type` (required): Report type to export
-- `date_range` (optional): Date range filter
-- `fields` (optional): Specific fields to include
-- `filters` (optional): Dimension filters
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Export generated successfully",
-  "export": {
-    "id": "export_jkl012mno",
-    "format": "csv",
-    "file_size": 2458624,
-    "record_count": 45230,
-    "download_url": "/api/google-ad-manager/export/42/download/export_jkl012mno",
-    "expires_at": "2025-12-23T15:00:00Z"
-  }
-}
-```
-
-#### Download Export
-
-**Endpoint:** `GET /google-ad-manager/export/:id/download/:exportId`
-
-Download a generated export file.
-
-**Request:**
-```http
-GET /api/google-ad-manager/export/42/download/export_jkl012mno HTTP/1.1
-Host: localhost:3002
-Authorization: Bearer <jwt_token>
-```
-
-**Response:**
-- Content-Type: `text/csv`, `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, or `application/json`
-- Content-Disposition: `attachment; filename="gam_revenue_20251216.csv"`
-- Body: File data
-
-#### Get Export History
-
-**Endpoint:** `GET /google-ad-manager/export/:id/history`
-
-List past exports for a connection.
-
-**Request:**
-```http
-GET /api/google-ad-manager/export/42/history HTTP/1.1
-Host: localhost:3002
-Authorization: Bearer <jwt_token>
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "exports": [
-    {
-      "id": "export_jkl012mno",
-      "format": "csv",
-      "report_type": "revenue",
-      "file_size": 2458624,
-      "created_at": "2025-12-16T15:00:00Z",
-      "download_url": "/api/google-ad-manager/export/42/download/export_jkl012mno",
-      "expires_at": "2025-12-23T15:00:00Z"
-    }
-  ]
-}
-```
-
----
-
-### Dashboard & Analytics
-
-#### Get Dashboard Statistics
-
-**Endpoint:** `GET /google-ad-manager/dashboard/:id/stats`
-
-Get aggregated statistics for dashboard display.
-
-**Request:**
-```http
-GET /api/google-ad-manager/dashboard/42/stats HTTP/1.1
-Host: localhost:3002
-Authorization: Bearer <jwt_token>
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "stats": {
-    "revenue": {
-      "today": 1250.50,
-      "yesterday": 1180.25,
-      "this_month": 38500.75,
-      "last_month": 35200.00,
-      "growth_pct": 9.38
-    },
-    "impressions": {
-      "today": 450000,
-      "yesterday": 420000,
-      "this_month": 13500000,
-      "last_month": 12800000
-    },
-    "top_ad_units": [
-      {
-        "name": "Homepage - ATF",
-        "revenue": 8500.50,
-        "impressions": 2500000
-      }
-    ],
-    "top_countries": [
-      {
-        "country": "US",
-        "revenue": 25000.00,
-        "impressions": 8000000
-      }
-    ]
-  }
-}
-```
-
----
-
-## Request/Response Formats
-
-### Standard Success Response
-
-```json
-{
-  "success": true,
-  "message": "Operation completed successfully",
-  "data": {
-    // Response data
-  }
-}
-```
-
-### Standard Error Response
-
-```json
-{
-  "success": false,
-  "error": {
-    "code": "ERROR_CODE",
-    "message": "Human-readable error message",
-    "details": {
-      // Additional error context
-    }
-  }
-}
+### Geography Table
+
+**Table Name**: `dra_google_ad_manager.geography_{network_id}`
+
+**Schema**:
+```sql
+CREATE TABLE dra_google_ad_manager.geography_12345678 (
+    id SERIAL PRIMARY KEY,
+    date DATE NOT NULL,
+    country_code VARCHAR(10),
+    country_name VARCHAR(255),
+    region VARCHAR(255),
+    city VARCHAR(255),
+    impressions BIGINT DEFAULT 0,
+    clicks BIGINT DEFAULT 0,
+    revenue DECIMAL(15,2) DEFAULT 0,
+    network_code VARCHAR(255) NOT NULL,
+    synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(date, country_code, region, city)
+);
 ```
 
 ---
 
 ## Error Handling
 
-### HTTP Status Codes
+### Error Response Format
 
-| Status Code | Description |
-|-------------|-------------|
-| 200 | Success |
-| 201 | Created |
-| 400 | Bad Request |
-| 401 | Unauthorized |
-| 403 | Forbidden |
-| 404 | Not Found |
-| 409 | Conflict |
-| 429 | Too Many Requests (Rate Limited) |
-| 500 | Internal Server Error |
-| 503 | Service Unavailable |
-
-### Error Codes
-
-| Code | Description |
-|------|-------------|
-| `AUTH_FAILED` | Authentication failed |
-| `INVALID_TOKEN` | JWT token invalid or expired |
-| `OAUTH_ERROR` | OAuth flow error |
-| `NETWORK_NOT_FOUND` | GAM network not found |
-| `CONNECTION_EXISTS` | Connection already exists |
-| `SYNC_IN_PROGRESS` | Sync already running |
-| `RATE_LIMIT_EXCEEDED` | API rate limit exceeded |
-| `VALIDATION_ERROR` | Request validation failed |
-| `DATABASE_ERROR` | Database operation failed |
-
-### Example Error Response
+All error responses follow this structure:
 
 ```json
 {
   "success": false,
-  "error": {
-    "code": "RATE_LIMIT_EXCEEDED",
-    "message": "API rate limit exceeded. Please try again later.",
-    "details": {
-      "limit": 100,
-      "remaining": 0,
-      "reset_at": "2025-12-16T16:00:00Z"
-    }
-  }
+  "error": "Error message description",
+  "code": "ERROR_CODE",
+  "details": {}
 }
 ```
+
+### Common Error Codes
+
+| Code | HTTP Status | Description |
+|------|-------------|-------------|
+| `AUTH_REQUIRED` | 401 | No authentication token provided |
+| `AUTH_INVALID` | 401 | Invalid or expired token |
+| `INVALID_NETWORK` | 400 | Network code not found or invalid |
+| `INVALID_REPORT_TYPE` | 400 | Unsupported report type |
+| `RATE_LIMIT` | 429 | Too many requests |
+| `GAM_API_ERROR` | 502 | Google Ad Manager API error |
+| `DATABASE_ERROR` | 500 | Internal database error |
+
+### Retry Logic
+
+The backend automatically retries failed API calls:
+- **Attempts**: 3
+- **Strategy**: Exponential backoff
+- **Initial Delay**: 1 second
+- **Max Delay**: 10 seconds
 
 ---
 
 ## Rate Limiting
 
-### Limits
+### Platform Rate Limits
 
-- **Global:** 1000 requests per hour per user
-- **Sync Operations:** 10 concurrent syncs per connection
-- **OAuth:** 100 requests per hour
-- **Exports:** 50 exports per day per connection
+| Endpoint | Limit | Window |
+|----------|-------|--------|
+| `/networks` | 10 requests | 1 minute |
+| `/add-data-source` | 5 requests | 1 minute |
+| `/sync/:id` | 3 requests | 1 minute |
+| `/sync-status/:id` | 20 requests | 1 minute |
 
-### Rate Limit Headers
+### Google Ad Manager API Limits
 
-```http
-X-RateLimit-Limit: 1000
-X-RateLimit-Remaining: 750
-X-RateLimit-Reset: 1702821600
-```
+Google imposes its own rate limits:
+- **Default**: 10 requests/second
+- **Daily Quota**: Varies by account
 
-### Handling Rate Limits
-
-When rate limited (429 status):
-
-```json
-{
-  "success": false,
-  "error": {
-    "code": "RATE_LIMIT_EXCEEDED",
-    "message": "Rate limit exceeded",
-    "details": {
-      "retry_after": 3600
-    }
-  }
-}
-```
-
-Implement exponential backoff:
-```javascript
-const delay = Math.min(1000 * Math.pow(2, attemptNumber), 30000);
-await new Promise(resolve => setTimeout(resolve, delay));
-```
-
----
-
-## WebSocket Events
-
-### Connecting to WebSocket
-
-```javascript
-const socket = io('http://localhost:3002', {
-  auth: {
-    token: 'your_jwt_token'
-  }
-});
-```
-
-### Sync Progress Events
-
-**Event:** `sync:progress`
-
-Emitted during sync operations with real-time progress.
-
-```javascript
-socket.on('sync:progress', (data) => {
-  console.log('Sync progress:', data);
-});
-```
-
-**Payload:**
-```json
-{
-  "sync_id": "sync_abc123xyz",
-  "data_source_id": 42,
-  "status": "running",
-  "progress": 45,
-  "current_report": "revenue",
-  "records_synced": 20500,
-  "estimated_completion": "2025-12-16T15:03:00Z"
-}
-```
-
-### Sync Completion Events
-
-**Event:** `sync:completed`
-
-```javascript
-socket.on('sync:completed', (data) => {
-  console.log('Sync completed:', data);
-});
-```
-
-**Payload:**
-```json
-{
-  "sync_id": "sync_abc123xyz",
-  "data_source_id": 42,
-  "status": "completed",
-  "records_synced": 45230,
-  "duration_seconds": 272
-}
-```
-
-### Sync Error Events
-
-**Event:** `sync:error`
-
-```javascript
-socket.on('sync:error', (data) => {
-  console.error('Sync error:', data);
-});
-```
-
-**Payload:**
-```json
-{
-  "sync_id": "sync_abc123xyz",
-  "data_source_id": 42,
-  "status": "failed",
-  "error": {
-    "code": "RATE_LIMIT_EXCEEDED",
-    "message": "GAM API rate limit exceeded"
-  }
-}
-```
+**Best Practices**:
+- Use scheduled daily sync instead of frequent manual syncs
+- Avoid polling sync-status endpoint too frequently
+- Implement exponential backoff on failures
 
 ---
 
 ## Code Examples
 
-### JavaScript/Node.js
-
-#### Create Connection
+### JavaScript/Node.js - List Networks
 
 ```javascript
 const axios = require('axios');
 
-const createGAMConnection = async (projectId, connectionData) => {
+async function listGAMNetworks(accessToken, jwtToken) {
+  try {
+    const response = await axios.get(
+      'https://your-platform.com/api/google-ad-manager/networks',
+      {
+        params: { access_token: accessToken },
+        headers: {
+          'Authorization': `Bearer ${jwtToken}`
+        }
+      }
+    );
+    
+    return response.data.networks;
+  } catch (error) {
+    console.error('Failed to list networks:', error.response.data);
+    throw error;
+  }
+}
+```
+
+---
+
+### JavaScript/Node.js - Add Data Source
+
+```javascript
+async function addGAMDataSource(config, jwtToken) {
   try {
     const response = await axios.post(
-      'http://localhost:3002/api/google-ad-manager/connections',
+      'https://your-platform.com/api/google-ad-manager/add-data-source',
       {
-        project_id: projectId,
-        connection_name: connectionData.name,
-        network_code: connectionData.networkCode,
-        access_token: connectionData.accessToken,
-        refresh_token: connectionData.refreshToken,
-        token_expiry: connectionData.tokenExpiry,
-        api_config: {
-          report_types: ['revenue', 'inventory'],
-          date_range: {
-            start: '2025-11-16',
-            end: '2025-12-16'
-          }
-        }
+        name: config.name,
+        network_code: config.networkCode,
+        report_types: ['revenue', 'geography'],
+        start_date: '2024-11-17',
+        end_date: '2024-12-17',
+        sync_frequency: 'daily',
+        access_token: config.accessToken,
+        refresh_token: config.refreshToken,
+        token_expiry: config.tokenExpiry,
+        project_id: config.projectId
       },
       {
         headers: {
@@ -1082,243 +478,88 @@ const createGAMConnection = async (projectId, connectionData) => {
       }
     );
     
-    console.log('Connection created:', response.data);
-    return response.data;
+    return response.data.data_source_id;
   } catch (error) {
-    console.error('Error creating connection:', error.response.data);
+    console.error('Failed to add data source:', error.response.data);
     throw error;
   }
-};
+}
 ```
 
-#### Trigger Sync
+---
 
-```javascript
-const triggerSync = async (dataSourceId) => {
-  try {
-    const response = await axios.post(
-      `http://localhost:3002/api/google-ad-manager/sync/${dataSourceId}`,
-      {
-        report_types: ['revenue', 'inventory'],
-        incremental: true
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${jwtToken}`
-        }
-      }
-    );
-    
-    console.log('Sync started:', response.data.sync_id);
-    return response.data;
-  } catch (error) {
-    console.error('Error triggering sync:', error.response.data);
-    throw error;
-  }
-};
-```
-
-#### Monitor Sync with WebSocket
-
-```javascript
-const io = require('socket.io-client');
-
-const monitorSync = (dataSourceId) => {
-  const socket = io('http://localhost:3002', {
-    auth: {
-      token: jwtToken
-    }
-  });
-  
-  socket.on('connect', () => {
-    console.log('Connected to WebSocket');
-  });
-  
-  socket.on('sync:progress', (data) => {
-    if (data.data_source_id === dataSourceId) {
-      console.log(`Sync progress: ${data.progress}%`);
-      console.log(`Records synced: ${data.records_synced}`);
-    }
-  });
-  
-  socket.on('sync:completed', (data) => {
-    if (data.data_source_id === dataSourceId) {
-      console.log('Sync completed!');
-      console.log(`Total records: ${data.records_synced}`);
-      socket.disconnect();
-    }
-  });
-  
-  socket.on('sync:error', (data) => {
-    if (data.data_source_id === dataSourceId) {
-      console.error('Sync failed:', data.error.message);
-      socket.disconnect();
-    }
-  });
-};
-```
-
-### Python
-
-#### Create Connection
+### Python - Trigger Sync
 
 ```python
 import requests
 
-def create_gam_connection(project_id, connection_data, jwt_token):
-    url = 'http://localhost:3002/api/google-ad-manager/connections'
-    
-    payload = {
-        'project_id': project_id,
-        'connection_name': connection_data['name'],
-        'network_code': connection_data['network_code'],
-        'access_token': connection_data['access_token'],
-        'refresh_token': connection_data['refresh_token'],
-        'token_expiry': connection_data['token_expiry'],
-        'api_config': {
-            'report_types': ['revenue', 'inventory'],
-            'date_range': {
-                'start': '2025-11-16',
-                'end': '2025-12-16'
-            }
-        }
-    }
-    
-    headers = {
-        'Authorization': f'Bearer {jwt_token}',
-        'Content-Type': 'application/json'
-    }
-    
-    response = requests.post(url, json=payload, headers=headers)
-    
-    if response.status_code == 201:
-        print('Connection created:', response.json())
-        return response.json()
-    else:
-        print('Error:', response.json())
-        raise Exception(response.json())
-```
-
-#### Trigger Sync
-
-```python
-def trigger_sync(data_source_id, jwt_token):
-    url = f'http://localhost:3002/api/google-ad-manager/sync/{data_source_id}'
-    
-    payload = {
-        'report_types': ['revenue', 'inventory'],
-        'incremental': True
-    }
+def trigger_gam_sync(data_source_id, jwt_token):
+    url = f'https://your-platform.com/api/google-ad-manager/sync/{data_source_id}'
     
     headers = {
         'Authorization': f'Bearer {jwt_token}'
     }
     
-    response = requests.post(url, json=payload, headers=headers)
+    response = requests.post(url, headers=headers)
     
     if response.status_code == 200:
-        sync_data = response.json()
-        print('Sync started:', sync_data['sync_id'])
-        return sync_data
+        data = response.json()
+        print(f"Sync started: {data['sync_id']}")
+        return data['sync_id']
     else:
-        print('Error:', response.json())
-        raise Exception(response.json())
-```
-
-### cURL
-
-#### Create Connection
-
-```bash
-curl -X POST http://localhost:3002/api/google-ad-manager/connections \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "project_id": 1,
-    "connection_name": "Main GAM Network",
-    "network_code": "12345678",
-    "access_token": "ya29.a0AfH6SMB...",
-    "refresh_token": "1//0gHr-xyz...",
-    "token_expiry": 1702821600000,
-    "api_config": {
-      "report_types": ["revenue", "inventory"],
-      "date_range": {
-        "start": "2025-11-16",
-        "end": "2025-12-16"
-      }
-    }
-  }'
-```
-
-#### Trigger Sync
-
-```bash
-curl -X POST http://localhost:3002/api/google-ad-manager/sync/42 \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "report_types": ["revenue", "inventory"],
-    "incremental": true
-  }'
-```
-
-#### Get Sync Status
-
-```bash
-curl -X GET http://localhost:3002/api/google-ad-manager/sync/42/status \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+        error = response.json()
+        print(f"Sync failed: {error['error']}")
+        return None
 ```
 
 ---
 
-## SDK Integration
+### SQL - Query Revenue Data
 
-### TypeScript SDK (Recommended)
-
-```typescript
-import { GAMClient } from '@dataresearchanalysis/sdk';
-
-const client = new GAMClient({
-  baseUrl: 'http://localhost:3002',
-  apiKey: 'your_jwt_token'
-});
-
-// Create connection
-const connection = await client.connections.create({
-  projectId: 1,
-  connectionName: 'Main GAM Network',
-  networkCode: '12345678',
-  accessToken: 'ya29.a0AfH6SMB...',
-  refreshToken: '1//0gHr-xyz...',
-  tokenExpiry: 1702821600000,
-  apiConfig: {
-    reportTypes: ['revenue', 'inventory'],
-    dateRange: {
-      start: '2025-11-16',
-      end: '2025-12-16'
-    }
-  }
-});
-
-// Trigger sync
-const sync = await client.sync.trigger(connection.id, {
-  reportTypes: ['revenue', 'inventory'],
-  incremental: true
-});
-
-// Monitor sync
-client.sync.on('progress', (data) => {
-  console.log(`Progress: ${data.progress}%`);
-});
-
-client.sync.on('completed', (data) => {
-  console.log('Sync completed!');
-});
+```sql
+-- Top ad units by revenue
+SELECT 
+  ad_unit_name,
+  SUM(revenue) as total_revenue,
+  SUM(impressions) as total_impressions,
+  ROUND(AVG(cpm), 2) as avg_cpm
+FROM dra_google_ad_manager.revenue_12345678
+WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+GROUP BY ad_unit_name
+ORDER BY total_revenue DESC
+LIMIT 10;
 ```
 
 ---
 
-**Document Version:** 1.0  
-**Last Updated:** December 16, 2025  
-**Maintained By:** Data Research Analysis Team
+## Deprecated/Removed Endpoints
 
+The following endpoints were planned but  **not implemented** in v1.0:
+
+❌ `GET /api/google-ad-manager/dashboard/stats`  
+❌ `GET /api/google-ad-manager/dashboard/recent-syncs`  
+❌ `GET /api/google-ad-manager/dashboard/health`  
+❌ `GET /api/google-ad-manager/dashboard/activity`
+
+**Reason**: Dashboard features not included. Use AI Data Modeler for custom dashboards.
+
+---
+
+## Support and Resources
+
+**Documentation**:
+- [Current Implementation Status](./CURRENT_IMPLEMENTATION_STATUS.md)
+- [User Guide](./GAM_USER_GUIDE.md)
+- [Report Types Reference](./GAM_REPORT_TYPES_REFERENCE.md)
+- [Troubleshooting Guide](./GAM_TROUBLESHOOTING_GUIDE.md)
+
+**API Support**:
+- Technical Documentation: This guide
+- Email: api-support@dataresearchanalysis.com
+- Developer Forum: https://developers.dataresearchanalysis.com
+
+---
+
+**Document Version**: 2.0 (Updated for Simplified Release)  
+**Last Updated**: December 17, 2025  
+**Status**: Current Implementation
