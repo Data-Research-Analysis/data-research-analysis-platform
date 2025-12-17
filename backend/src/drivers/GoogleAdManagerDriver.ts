@@ -8,18 +8,11 @@ import { SyncType } from '../entities/SyncHistory.js';
 import { DBDriver } from './DBDriver.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { RetryHandler } from '../utils/RetryHandler.js';
-import { SyncEventEmitter } from '../events/SyncEventEmitter.js';
-import { PerformanceMetrics, globalPerformanceAggregator } from '../utils/PerformanceMetrics.js';
-import { AdvancedSyncConfig, SyncConfigValidator } from '../types/IAdvancedSyncConfig.js';
-import { emailService } from '../services/EmailService.js';
 import {
     IGAMReportQuery,
     IGAMReportResponse,
     IGAMRevenueData,
-    IGAMInventoryData,
-    IGAMOrderData,
     IGAMGeographyData,
-    IGAMDeviceData,
     GAMReportType,
 } from '../types/IGoogleAdManager.js';
 
@@ -32,14 +25,11 @@ export class GoogleAdManagerDriver implements IAPIDriver {
     private gamService: GoogleAdManagerService;
     private oauthService: GoogleOAuthService;
     private syncHistoryService: SyncHistoryService;
-    private syncEventEmitter: SyncEventEmitter;
-    private emailService = emailService;
     
     private constructor() {
         this.gamService = GoogleAdManagerService.getInstance();
         this.oauthService = GoogleOAuthService.getInstance();
         this.syncHistoryService = SyncHistoryService.getInstance();
-        this.syncEventEmitter = SyncEventEmitter.getInstance();
     }
     
     public static getInstance(): GoogleAdManagerDriver {
@@ -104,33 +94,14 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         
         const syncStartTime = Date.now();
         
-        // Initialize performance tracking
-        const perfMetrics = new PerformanceMetrics(`GAM Sync - DS ${dataSourceId}`);
-        perfMetrics.addMetadata('dataSourceId', dataSourceId);
-        perfMetrics.addMetadata('syncId', syncRecord.id);
-        
         try {
             console.log(`🔄 Starting Google Ad Manager sync for data source ${dataSourceId}`);
             
             // Mark as running
-            perfMetrics.startTimer('mark-running');
             await this.syncHistoryService.markAsRunning(syncRecord.id);
-            perfMetrics.stopTimer('mark-running');
-            
-            // Emit sync started event
-            const reportTypes = connectionDetails.api_config?.report_types || ['revenue'];
-            perfMetrics.addMetadata('reportTypes', reportTypes);
-            this.syncEventEmitter.emitSyncStarted({
-                dataSourceId,
-                syncId: syncRecord.id,
-                reportTypes,
-                startedAt: new Date(),
-            });
             
             // Ensure authentication is valid
-            perfMetrics.startTimer('authentication');
             const isAuthenticated = await this.authenticate(connectionDetails);
-            perfMetrics.stopTimer('authentication');
             if (!isAuthenticated) {
                 throw new Error('Authentication failed');
             }
@@ -139,10 +110,8 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             if (!networkCode) {
                 throw new Error('Network code not configured');
             }
-            perfMetrics.addMetadata('networkCode', networkCode);
             
             // Get database connection
-            perfMetrics.startTimer('database-setup');
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             if (!driver) {
                 throw new Error('Database driver not available');
@@ -153,20 +122,14 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             // Create schema if it doesn't exist
             const schemaName = 'dra_google_ad_manager';
             await manager.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
-            perfMetrics.stopTimer('database-setup');
             console.log(`✅ Schema ${schemaName} ready`);
             
-            // Get advanced sync configuration
-            const advancedConfig = connectionDetails.api_config?.advanced_sync_config;
-            
-            // Get sync configuration (reportTypes already declared above)
-            const { startDate, endDate } = this.getDateRangeFromConfig(advancedConfig, connectionDetails);
+            // Get sync configuration (simplified - no advanced config)
+            const reportTypes = connectionDetails.api_config?.report_types || ['revenue'];
+            const { startDate, endDate } = this.getDateRangeFromConfig(null, connectionDetails);
             
             console.log(`📅 Sync period: ${startDate} to ${endDate}`);
             console.log(`📊 Report types: ${reportTypes.join(', ')}`);
-            if (advancedConfig) {
-                console.log(`⚙️  Advanced config enabled: incremental=${advancedConfig.incrementalSync}, dedup=${advancedConfig.deduplication}, validation=${advancedConfig.dataValidation}`);
-            }
             
             // Track sync results
             let totalRecordsSynced = 0;
@@ -177,7 +140,6 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             for (let i = 0; i < reportTypes.length; i++) {
                 const reportType = reportTypes[i];
                 const reportStartTime = Date.now();
-                perfMetrics.startTimer(`report-${reportType}`);
                 
                 try {
                     const result = await this.syncReportType(
@@ -187,37 +149,17 @@ export class GoogleAdManagerDriver implements IAPIDriver {
                         reportType,
                         startDate,
                         endDate,
-                        connectionDetails,
-                        advancedConfig
+                        connectionDetails
                     );
                     
-                    perfMetrics.stopTimer(`report-${reportType}`);
                     totalRecordsSynced += result.recordsSynced;
                     totalRecordsFailed += result.recordsFailed;
                     
-                    // Emit report completed event
-                    this.syncEventEmitter.emitReportCompleted({
-                        dataSourceId,
-                        syncId: syncRecord.id,
-                        reportType,
-                        recordsSynced: result.recordsSynced,
-                        recordsFailed: result.recordsFailed,
-                        durationMs: Date.now() - reportStartTime,
-                    });
+                    console.log(`✅ ${reportType} report completed: ${result.recordsSynced} records synced`);
                 } catch (error: any) {
                     console.error(`❌ Failed to sync ${reportType} report:`, error);
-                    perfMetrics.stopTimer(`report-${reportType}`);
                     errors.push(`${reportType}: ${error.message}`);
                     totalRecordsFailed++;
-                    
-                    // Emit report failed event
-                    this.syncEventEmitter.emitReportFailed({
-                        dataSourceId,
-                        syncId: syncRecord.id,
-                        reportType,
-                        error: error.message,
-                        attempt: 1,
-                    });
                     // Continue with other reports even if one fails
                 }
             }
@@ -226,14 +168,12 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             const errorMessage = errors.length > 0 ? errors.join('; ') : undefined;
             const syncEndTime = Date.now();
             
-            perfMetrics.startTimer('complete-sync-record');
             await this.syncHistoryService.completeSyncRecord(
                 syncRecord.id,
                 totalRecordsSynced,
                 totalRecordsFailed,
                 errorMessage
             );
-            perfMetrics.stopTimer('complete-sync-record');
             
             // Determine final status
             let finalStatus: 'COMPLETED' | 'PARTIAL' | 'FAILED';
@@ -245,111 +185,21 @@ export class GoogleAdManagerDriver implements IAPIDriver {
                 finalStatus = 'FAILED';
             }
             
-            // Add final metrics
-            perfMetrics.addMetadata('finalStatus', finalStatus);
-            perfMetrics.addMetadata('totalRecordsSynced', totalRecordsSynced);
-            perfMetrics.addMetadata('totalRecordsFailed', totalRecordsFailed);
-            perfMetrics.addMetadata('errorCount', errors.length);
-            
-            // Complete performance tracking and store
-            const perfSnapshot = perfMetrics.complete();
-            globalPerformanceAggregator.addSnapshot(perfSnapshot);
-            
-            // Log performance summary
-            console.log(PerformanceMetrics.formatSnapshot(perfSnapshot));
-            
-            // Emit sync completed event
-            this.syncEventEmitter.emitSyncCompleted({
-                dataSourceId,
-                syncId: syncRecord.id,
-                status: finalStatus,
-                totalRecordsSynced,
-                totalRecordsFailed,
-                durationMs: syncEndTime - syncStartTime,
-                completedAt: new Date(),
-            });
-            
-            // Send email notifications if configured
-            if (advancedConfig?.notificationEmails && advancedConfig.notificationEmails.length > 0) {
-                const duration = Math.floor((syncEndTime - syncStartTime) / 1000); // Convert to seconds
-                
-                if (finalStatus === 'COMPLETED' && advancedConfig.notifyOnComplete) {
-                    // Send success notification
-                    await this.emailService.sendSyncCompleteEmail(
-                        advancedConfig.notificationEmails,
-                        {
-                            dataSourceName: `Data Source ${dataSourceId}`,
-                            reportType: reportTypes.join(', '),
-                            networkCode,
-                            recordCount: totalRecordsSynced,
-                            duration,
-                            startDate,
-                            endDate,
-                        }
-                    );
-                } else if ((finalStatus === 'FAILED' || finalStatus === 'PARTIAL') && advancedConfig.notifyOnFailure) {
-                    // Send failure notification
-                    await this.emailService.sendSyncFailureEmail(
-                        advancedConfig.notificationEmails,
-                        {
-                            dataSourceName: `Data Source ${dataSourceId}`,
-                            reportType: reportTypes.join(', '),
-                            networkCode,
-                            error: errorMessage || 'Partial sync completed with some failures',
-                            timestamp: new Date().toISOString(),
-                        }
-                    );
-                }
-            }
-            
             console.log(`✅ Google Ad Manager sync completed for data source ${dataSourceId}`);
+            console.log(`   Status: ${finalStatus}, Records: ${totalRecordsSynced}, Failed: ${totalRecordsFailed}`);
+            
             return true;
         } catch (error: any) {
             console.error('❌ Google Ad Manager sync failed:', error);
             
-            // Add error to metrics
-            perfMetrics.addMetadata('error', error.message || 'Unknown error');
-            perfMetrics.addMetadata('errorStack', error.stack);
-            
-            // Complete performance tracking even on failure
-            const perfSnapshot = perfMetrics.complete();
-            globalPerformanceAggregator.addSnapshot(perfSnapshot);
-            console.log(PerformanceMetrics.formatSnapshot(perfSnapshot));
-            
             await this.syncHistoryService.markAsFailed(syncRecord.id, error.message || 'Unknown error');
-            
-            // Emit sync failed event
-            this.syncEventEmitter.emitSyncFailed({
-                dataSourceId,
-                syncId: syncRecord.id,
-                error: error.message || 'Unknown error',
-                failedAt: new Date(),
-            });
-            
-            // Send failure email notification if configured
-            const advancedConfig = connectionDetails.api_config?.advanced_sync_config;
-            if (advancedConfig?.notificationEmails && advancedConfig.notificationEmails.length > 0 && advancedConfig.notifyOnFailure) {
-                const reportTypes = connectionDetails.api_config?.report_types || ['revenue'];
-                const networkCode = connectionDetails.api_config?.network_code || 'unknown';
-                
-                await this.emailService.sendSyncFailureEmail(
-                    advancedConfig.notificationEmails,
-                    {
-                        dataSourceName: `Data Source ${dataSourceId}`,
-                        reportType: reportTypes.join(', '),
-                        networkCode,
-                        error: error.message || 'Unknown error',
-                        timestamp: new Date().toISOString(),
-                    }
-                );
-            }
             
             return false;
         }
     }
     
     /**
-     * Sync a specific report type
+     * Dispatch to appropriate sync method based on report type (simplified - only revenue and geography)
      */
     private async syncReportType(
         manager: any,
@@ -358,32 +208,23 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         reportTypeString: string,
         startDate: string,
         endDate: string,
-        connectionDetails: IAPIConnectionDetails,
-        advancedConfig?: AdvancedSyncConfig
+        connectionDetails: IAPIConnectionDetails
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
         const reportType = this.gamService.getReportType(reportTypeString);
-        
-        console.log(`📊 Syncing ${reportType} report...`);
-        
+
         switch (reportType) {
             case GAMReportType.REVENUE:
-                return await this.syncRevenueData(manager, schemaName, networkCode, startDate, endDate, connectionDetails, advancedConfig);
-            case GAMReportType.INVENTORY:
-                return await this.syncInventoryData(manager, schemaName, networkCode, startDate, endDate, connectionDetails, advancedConfig);
-            case GAMReportType.ORDERS:
-                return await this.syncOrdersData(manager, schemaName, networkCode, startDate, endDate, connectionDetails, advancedConfig);
+                return await this.syncRevenueData(manager, schemaName, networkCode, startDate, endDate, connectionDetails);
             case GAMReportType.GEOGRAPHY:
-                return await this.syncGeographyData(manager, schemaName, networkCode, startDate, endDate, connectionDetails, advancedConfig);
-            case GAMReportType.DEVICE:
-                return await this.syncDeviceData(manager, schemaName, networkCode, startDate, endDate, connectionDetails, advancedConfig);
+                return await this.syncGeographyData(manager, schemaName, networkCode, startDate, endDate, connectionDetails);
             default:
-                console.warn(`⚠️  Unknown report type: ${reportType}`);
+                console.warn(`⚠️  Unsupported report type: ${reportType}. Only 'revenue' and 'geography' are supported.`);
                 return { recordsSynced: 0, recordsFailed: 0 };
         }
     }
     
     /**
-     * Sync revenue report data
+     * Sync revenue report data (simplified - always validates and deduplicates)
      */
     private async syncRevenueData(
         manager: any,
@@ -391,8 +232,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         networkCode: string,
         startDate: string,
         endDate: string,
-        connectionDetails: IAPIConnectionDetails,
-        advancedConfig?: AdvancedSyncConfig
+        connectionDetails: IAPIConnectionDetails
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
         const tableName = `revenue_${networkCode}`;
         const fullTableName = `${schemaName}.${tableName}`;
@@ -441,35 +281,15 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         }
         let transformedData = this.transformRevenueData(reportResponse, networkCode);
         
-        // Apply advanced filters if configured
-        if (advancedConfig) {
-            transformedData = this.applyAdvancedFilters(transformedData, advancedConfig, 'revenue');
-            
-            // Apply max records limit
-            if (advancedConfig.maxRecordsPerReport && transformedData.length > advancedConfig.maxRecordsPerReport) {
-                console.log(`⚠️  Limiting records from ${transformedData.length} to ${advancedConfig.maxRecordsPerReport}`);
-                transformedData = transformedData.slice(0, advancedConfig.maxRecordsPerReport);
-            }
+        // Always validate data before inserting
+        const validation = this.validateRevenueData(transformedData);
+        if (!validation.isValid) {
+            console.error('❌ Revenue data validation failed:', validation.errors);
+            throw new Error(`Data validation failed: ${validation.errors.slice(0, 3).join(', ')}`);
         }
         
-        // Validate data before inserting (if enabled)
-        if (!advancedConfig || advancedConfig.dataValidation !== false) {
-            const validation = this.validateRevenueData(transformedData);
-            if (!validation.isValid) {
-                console.error('❌ Revenue data validation failed:', validation.errors);
-                throw new Error(`Data validation failed: ${validation.errors.slice(0, 3).join(', ')}`);
-            }
-        }
-        
-        // Apply deduplication if enabled
-        if (advancedConfig?.deduplication !== false) {
-            await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'ad_unit_id', 'country_code']);
-        } else {
-            // Insert without deduplication (may cause duplicates if not handled)
-            for (const record of transformedData) {
-                await manager.query(`INSERT INTO ${fullTableName} (${Object.keys(record).join(', ')}) VALUES (${Object.keys(record).map((_, i) => `$${i + 1}`).join(', ')})`, Object.values(record));
-            }
-        }
+        // Always use upsert for deduplication
+        await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'ad_unit_id', 'country_code']);
         
         console.log(`✅ Synced ${transformedData.length} revenue records`);
         return { recordsSynced: transformedData.length, recordsFailed: 0 };
@@ -646,7 +466,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
     }
     
     /**
-     * Sync geography performance data
+     * Sync geography report data (simplified - always validates and deduplicates)
      */
     private async syncGeographyData(
         manager: any,
@@ -654,8 +474,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         networkCode: string,
         startDate: string,
         endDate: string,
-        connectionDetails: IAPIConnectionDetails,
-        advancedConfig?: AdvancedSyncConfig
+        connectionDetails: IAPIConnectionDetails
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
         const tableName = `geography_${networkCode}`;
         const fullTableName = `${schemaName}.${tableName}`;
@@ -700,25 +519,17 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             return { recordsSynced: 0, recordsFailed: 0 };
         }
         
-        // Transform and insert data
         let transformedData = this.transformGeographyData(reportResponse, networkCode);
         
-        // Apply advanced filters if configured
-        if (advancedConfig) {
-            transformedData = this.applyAdvancedFilters(transformedData, advancedConfig, 'geography');
-            if (advancedConfig.maxRecordsPerReport && transformedData.length > advancedConfig.maxRecordsPerReport) {
-                transformedData = transformedData.slice(0, advancedConfig.maxRecordsPerReport);
-            }
+        // Always validate data
+        const validation = this.validateGeographyData(transformedData);
+        if (!validation.isValid) {
+            console.error('❌ Geography data validation failed:', validation.errors);
+            throw new Error(`Data validation failed: ${validation.errors.slice(0, 3).join(', ')}`);
         }
         
-        // Apply deduplication if enabled
-        if (advancedConfig?.deduplication !== false) {
-            await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'country_code', 'region', 'city']);
-        } else {
-            for (const record of transformedData) {
-                await manager.query(`INSERT INTO ${fullTableName} (${Object.keys(record).join(', ')}) VALUES (${Object.keys(record).map((_, i) => `$${i + 1}`).join(', ')})`, Object.values(record));
-            }
-        }
+        // Always use upsert for deduplication
+        await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'country_code', 'region', 'city']);
         
         console.log(`✅ Synced ${transformedData.length} geography records`);
         return { recordsSynced: transformedData.length, recordsFailed: 0 };

@@ -26,7 +26,7 @@ export const useGoogleAdManager = () => {
     };
 
     /**
-     * Get available report types
+     * Get available report types (simplified to essential reports only)
      */
     const getReportTypes = (): IGAMReportType[] => {
         return [
@@ -38,31 +38,10 @@ export const useGoogleAdManager = () => {
                 metrics: ['Impressions', 'Clicks', 'Revenue', 'CPM', 'CTR']
             },
             {
-                id: 'inventory',
-                name: 'Inventory Report',
-                description: 'Ad inventory performance including requests, matched requests, and fill rates',
-                dimensions: ['Date', 'Ad Unit', 'Device Category'],
-                metrics: ['Ad Requests', 'Matched Requests', 'Impressions', 'Fill Rate']
-            },
-            {
-                id: 'orders',
-                name: 'Orders & Line Items',
-                description: 'Campaign delivery tracking by order, line item, and advertiser',
-                dimensions: ['Date', 'Order', 'Line Item', 'Advertiser'],
-                metrics: ['Impressions', 'Clicks', 'Revenue', 'Delivery Status']
-            },
-            {
                 id: 'geography',
                 name: 'Geographic Performance',
                 description: 'Ad performance broken down by country, region, and city',
                 dimensions: ['Date', 'Country', 'Region', 'City'],
-                metrics: ['Impressions', 'Clicks', 'Revenue']
-            },
-            {
-                id: 'device',
-                name: 'Device & Browser',
-                description: 'Performance by device category, browser, and operating system',
-                dimensions: ['Date', 'Device Category', 'Browser', 'Operating System'],
                 metrics: ['Impressions', 'Clicks', 'Revenue']
             }
         ];
@@ -145,33 +124,21 @@ export const useGoogleAdManager = () => {
     };
 
     /**
-     * Calculate date range presets
+     * Calculate date range presets (simplified)
      */
     const getDateRangePresets = () => {
         const today = new Date();
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
-        
-        const last7Days = new Date(today);
-        last7Days.setDate(last7Days.getDate() - 7);
         
         const last30Days = new Date(today);
         last30Days.setDate(last30Days.getDate() - 30);
         
-        const last90Days = new Date(today);
-        last90Days.setDate(last90Days.getDate() - 90);
-        
-        const thisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-        const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-        const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
-        
         return [
-            { label: 'Yesterday', start: yesterday, end: yesterday },
-            { label: 'Last 7 days', start: last7Days, end: today },
-            { label: 'Last 30 days', start: last30Days, end: today },
-            { label: 'Last 90 days', start: last90Days, end: today },
-            { label: 'This month', start: thisMonth, end: today },
-            { label: 'Last month', start: lastMonth, end: lastMonthEnd }
+            { 
+                value: 'last_30_days',
+                label: 'Last 30 days', 
+                startDate: formatDateISO(last30Days), 
+                endDate: formatDateISO(today) 
+            }
         ];
     };
 
@@ -183,21 +150,24 @@ export const useGoogleAdManager = () => {
     };
 
     /**
-     * Validate date range (max 365 days)
+     * Validate custom date range
      */
-    const validateDateRange = (startDate: Date, endDate: Date): { valid: boolean; error?: string } => {
-        if (startDate > endDate) {
-            return { valid: false, error: 'Start date must be before end date' };
+    const validateDateRange = (startDate: string, endDate: string): { isValid: boolean; error?: string } => {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        
+        if (start > end) {
+            return { isValid: false, error: 'Start date must be before end date' };
         }
         
-        const diffMs = endDate.getTime() - startDate.getTime();
+        const diffMs = end.getTime() - start.getTime();
         const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
         
         if (diffDays > 365) {
-            return { valid: false, error: 'Date range cannot exceed 365 days' };
+            return { isValid: false, error: 'Date range cannot exceed 365 days' };
         }
         
-        return { valid: true };
+        return { isValid: true };
     };
 
     return {

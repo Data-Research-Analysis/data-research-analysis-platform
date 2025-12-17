@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { useGoogleOAuth } from '@/composables/useGoogleOAuth';
 import { useGoogleAdManager } from '@/composables/useGoogleAdManager';
-import { useAdvancedSyncConfig, type AdvancedSyncConfig } from '@/composables/useAdvancedSyncConfig';
 import type { IGAMNetwork, IGAMReportType } from '~/types/IGoogleAdManager';
-import AdvancedSyncConfigComponent from '@/components/AdvancedSyncConfig.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -11,25 +9,24 @@ const { $swal } = useNuxtApp() as any;
 
 const oauth = useGoogleOAuth();
 const gam = useGoogleAdManager();
-const advancedSyncConfig = useAdvancedSyncConfig();
 
 const projectId = route.params.projectid as string;
 
 const state = reactive({
     // Step tracking
     currentStep: 1,
-    
+
     // OAuth state
     isAuthenticated: false,
     accessToken: '',
     refreshToken: '',
     tokenExpiry: '',
-    
+
     // Network selection
     networks: [] as IGAMNetwork[],
     selectedNetwork: null as IGAMNetwork | null,
     loadingNetworks: false,
-    
+
     // Configuration
     dataSourceName: '',
     selectedReportTypes: [] as string[],
@@ -37,9 +34,8 @@ const state = reactive({
     dateRange: 'last_30_days' as string,
     customStartDate: '',
     customEndDate: '',
-    syncFrequency: 'weekly' as 'hourly' | 'daily' | 'weekly' | 'manual',
-    advancedConfig: null as AdvancedSyncConfig | null,
-    
+    syncFrequency: 'daily' as 'daily' | 'weekly' | 'manual',
+
     // UI state
     loading: false,
     error: null as string | null,
@@ -51,7 +47,7 @@ const state = reactive({
 onMounted(async () => {
     const stepParam = route.query.step as string;
     state.reportTypes = gam.getReportTypes();
-    
+
     // Check for stored OAuth session
     const tokens = await oauth.getStoredTokens();
     if (tokens) {
@@ -59,7 +55,7 @@ onMounted(async () => {
         state.accessToken = tokens.access_token;
         state.refreshToken = tokens.refresh_token || '';
         state.tokenExpiry = tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : '';
-        
+
         // If step 2, load networks
         if (stepParam === '2') {
             state.currentStep = 2;
@@ -95,10 +91,10 @@ async function loadNetworks() {
     try {
         state.loadingNetworks = true;
         state.error = null;
-        
+
         const networks = await gam.listNetworks(state.accessToken);
         state.networks = networks;
-        
+
         if (networks.length === 0) {
             state.error = 'No Google Ad Manager networks found. Please ensure you have access to at least one network.';
         }
@@ -127,10 +123,7 @@ async function retryLoadNetworks() {
 function selectNetwork(network: IGAMNetwork) {
     state.selectedNetwork = network;
     state.dataSourceName = `${network.displayName} Ad Manager`;
-    
-    // Initialize advanced config with defaults
-    state.advancedConfig = advancedSyncConfig.createDefaultConfig(network.networkCode);
-    
+
     state.currentStep = 3;
 }
 
@@ -166,22 +159,22 @@ function getDateRange(): { startDate: string; endDate: string } {
             endDate: state.customEndDate
         };
     }
-    
+
     const presets = gam.getDateRangePresets();
     const preset = presets.find(p => p.value === state.dateRange);
-    
+
     if (preset) {
         return {
             startDate: preset.startDate,
             endDate: preset.endDate
         };
     }
-    
+
     // Default to last 30 days
     const end = new Date();
     const start = new Date();
     start.setDate(start.getDate() - 30);
-    
+
     return {
         startDate: gam.formatDateISO(start),
         endDate: gam.formatDateISO(end)
@@ -198,97 +191,75 @@ function goBack() {
 }
 
 /**
- * Move to next step
+ * Move to next step with validation
  */
 function nextStep() {
-    if (state.currentStep === 3) {
-        // Validate configuration before moving to confirmation
-        if (!validateConfiguration()) {
-            return;
-        }
+    if (state.currentStep === 3 && !validate()) {
+        return;
     }
-    
     if (state.currentStep < 4) {
         state.currentStep++;
     }
 }
 
 /**
- * Validate configuration
+ * Validate configuration (consolidated)
  */
-function validateConfiguration(): boolean {
+function validate(): boolean {
     state.error = null;
-    
-    if (!state.dataSourceName.trim()) {
+
+    // Validate data source name
+    if (!state.dataSourceName?.trim()) {
         state.error = 'Please enter a data source name';
-        $swal.fire({
-            title: 'Validation Error',
-            text: state.error,
-            icon: 'warning'
-        });
         return false;
     }
-    
-    if (state.dataSourceName.length < 3) {
-        state.error = 'Data source name must be at least 3 characters';
-        $swal.fire({
-            title: 'Validation Error',
-            text: state.error,
-            icon: 'warning'
-        });
+    return false;
+}
+
+// Validate report types
+if (state.selectedReportTypes.length === 0) {
+    state.error = 'Please select at least one report type';
+    return false;
+}
+
+// Validate custom date range if selected
+if (state.dateRange === 'custom') {
+    if (!state.customStartDate || !state.customEndDate) {
+        state.error = 'Please select both start and end dates';
         return false;
     }
-    
-    if (state.selectedReportTypes.length === 0) {
-        state.error = 'Please select at least one report type';
-        $swal.fire({
-            title: 'Validation Error',
-            text: state.error,
-            icon: 'warning'
-        });
+
+    const validation = gam.validateDateRange(state.customStartDate, state.customEndDate);
+    if (!validation.isValid) {
+        state.error = validation.error || 'Invalid date range';
         return false;
     }
-    
-    if (state.dateRange === 'custom') {
-        if (!state.customStartDate || !state.customEndDate) {
-            state.error = 'Please select both start and end dates';
-            $swal.fire({
-                title: 'Validation Error',
-                text: state.error,
-                icon: 'warning'
-            });
-            return false;
-        }
-        
-        const validation = gam.validateDateRange(state.customStartDate, state.customEndDate);
-        if (!validation.isValid) {
-            state.error = validation.error || 'Invalid date range';
-            $swal.fire({
-                title: 'Validation Error',
-                text: state.error,
-                icon: 'warning'
-            });
-            return false;
-        }
+}
+
+return true;
     }
-    
-    return true;
+
+/**
+ * Cancel and return to data sources
+ */
+function cancel() {
+    router.push(`/projects/${projectId}/data-sources`);
 }
 
 /**
- * Final step: Connect and sync
+ * Connect data source
  */
-async function connectAndSync() {
-    if (!validateConfiguration()) {
+async function connect() {
+    if (!validate()) {
         return;
     }
-    
+
     try {
         state.connecting = true;
         state.error = null;
-        
+
         const { startDate, endDate } = getDateRange();
-        
+
         const config = {
             name: state.dataSourceName,
             network_code: state.selectedNetwork!.networkCode,
@@ -301,16 +272,15 @@ async function connectAndSync() {
             refresh_token: state.refreshToken,
             token_expiry: state.tokenExpiry,
             project_id: parseInt(projectId),
-            sync_frequency: state.syncFrequency,
-            advanced_sync_config: state.advancedConfig
+            sync_frequency: state.syncFrequency
         };
-        
+
         const dataSourceId = await gam.addDataSource(config);
-        
+
         if (dataSourceId) {
             // Clear stored tokens
             await oauth.clearTokens();
-            
+
             // Show syncing message
             $swal.fire({
                 title: 'Syncing Data...',
@@ -322,10 +292,10 @@ async function connectAndSync() {
                     $swal.showLoading();
                 }
             });
-            
+
             // Trigger initial sync
             const syncSuccess = await gam.syncNow(dataSourceId);
-            
+
             if (syncSuccess) {
                 await $swal.fire({
                     title: 'Connected Successfully!',
@@ -341,7 +311,7 @@ async function connectAndSync() {
                     timer: 3000
                 });
             }
-            
+
             // Redirect to data sources list
             router.push(`/projects/${projectId}/data-sources`);
         } else {
@@ -358,13 +328,6 @@ async function connectAndSync() {
         state.connecting = false;
     }
 }
-
-/**
- * Cancel and go back
- */
-function cancel() {
-    router.push(`/projects/${projectId}/data-sources`);
-}
 </script>
 
 <template>
@@ -376,36 +339,38 @@ function cancel() {
 
         <!-- Step Indicator -->
         <div class="flex items-center justify-center mb-12 sm:mb-8">
-            <div 
-                class="flex flex-col items-center gap-2" 
-                :class="{ 'text-indigo-600': state.currentStep >= 1 }"
-            >
-                <div class="w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300" :class="state.currentStep > 1 ? 'bg-green-500 text-white' : state.currentStep >= 1 ? 'bg-indigo-600 text-white' : 'bg-gray-300 text-gray-600'">1</div>
-                <div class="text-sm font-medium sm:text-xs" :class="state.currentStep >= 1 ? 'text-indigo-600' : 'text-gray-600'">Authenticate</div>
+            <div class="flex flex-col items-center gap-2" :class="{ 'text-indigo-600': state.currentStep >= 1 }">
+                <div class="w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300"
+                    :class="state.currentStep > 1 ? 'bg-green-500 text-white' : state.currentStep >= 1 ? 'bg-indigo-600 text-white' : 'bg-gray-300 text-gray-600'">
+                    1</div>
+                <div class="text-sm font-medium sm:text-xs"
+                    :class="state.currentStep >= 1 ? 'text-indigo-600' : 'text-gray-600'">Authenticate</div>
             </div>
-            <div class="w-16 h-0.5 mx-2 transition-all duration-300 sm:w-8" :class="state.currentStep > 1 ? 'bg-green-500' : 'bg-gray-300'"></div>
-            <div 
-                class="flex flex-col items-center gap-2" 
-                :class="{ 'text-indigo-600': state.currentStep >= 2 }"
-            >
-                <div class="w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300" :class="state.currentStep > 2 ? 'bg-green-500 text-white' : state.currentStep >= 2 ? 'bg-indigo-600 text-white' : 'bg-gray-300 text-gray-600'">2</div>
-                <div class="text-sm font-medium sm:text-xs" :class="state.currentStep >= 2 ? 'text-indigo-600' : 'text-gray-600'">Select Network</div>
+            <div class="w-16 h-0.5 mx-2 transition-all duration-300 sm:w-8"
+                :class="state.currentStep > 1 ? 'bg-green-500' : 'bg-gray-300'"></div>
+            <div class="flex flex-col items-center gap-2" :class="{ 'text-indigo-600': state.currentStep >= 2 }">
+                <div class="w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300"
+                    :class="state.currentStep > 2 ? 'bg-green-500 text-white' : state.currentStep >= 2 ? 'bg-indigo-600 text-white' : 'bg-gray-300 text-gray-600'">
+                    2</div>
+                <div class="text-sm font-medium sm:text-xs"
+                    :class="state.currentStep >= 2 ? 'text-indigo-600' : 'text-gray-600'">Select Network</div>
             </div>
-            <div class="w-16 h-0.5 mx-2 transition-all duration-300 sm:w-8" :class="state.currentStep > 2 ? 'bg-green-500' : 'bg-gray-300'"></div>
-            <div 
-                class="flex flex-col items-center gap-2" 
-                :class="{ 'text-indigo-600': state.currentStep >= 3 }"
-            >
-                <div class="w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300" :class="state.currentStep > 3 ? 'bg-green-500 text-white' : state.currentStep >= 3 ? 'bg-indigo-600 text-white' : 'bg-gray-300 text-gray-600'">3</div>
-                <div class="text-sm font-medium sm:text-xs" :class="state.currentStep >= 3 ? 'text-indigo-600' : 'text-gray-600'">Configure</div>
+            <div class="w-16 h-0.5 mx-2 transition-all duration-300 sm:w-8"
+                :class="state.currentStep > 2 ? 'bg-green-500' : 'bg-gray-300'"></div>
+            <div class="flex flex-col items-center gap-2" :class="{ 'text-indigo-600': state.currentStep >= 3 }">
+                <div class="w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300"
+                    :class="state.currentStep > 3 ? 'bg-green-500 text-white' : state.currentStep >= 3 ? 'bg-indigo-600 text-white' : 'bg-gray-300 text-gray-600'">
+                    3</div>
+                <div class="text-sm font-medium sm:text-xs"
+                    :class="state.currentStep >= 3 ? 'text-indigo-600' : 'text-gray-600'">Configure</div>
             </div>
-            <div class="w-16 h-0.5 mx-2 transition-all duration-300 sm:w-8" :class="state.currentStep > 3 ? 'bg-green-500' : 'bg-gray-300'"></div>
-            <div 
-                class="flex flex-col items-center gap-2" 
-                :class="{ 'text-indigo-600': state.currentStep >= 4 }"
-            >
-                <div class="w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300" :class="state.currentStep >= 4 ? 'bg-indigo-600 text-white' : 'bg-gray-300 text-gray-600'">4</div>
-                <div class="text-sm font-medium sm:text-xs" :class="state.currentStep >= 4 ? 'text-indigo-600' : 'text-gray-600'">Confirm</div>
+            <div class="w-16 h-0.5 mx-2 transition-all duration-300 sm:w-8"
+                :class="state.currentStep > 3 ? 'bg-green-500' : 'bg-gray-300'"></div>
+            <div class="flex flex-col items-center gap-2" :class="{ 'text-indigo-600': state.currentStep >= 4 }">
+                <div class="w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300"
+                    :class="state.currentStep >= 4 ? 'bg-indigo-600 text-white' : 'bg-gray-300 text-gray-600'">4</div>
+                <div class="text-sm font-medium sm:text-xs"
+                    :class="state.currentStep >= 4 ? 'text-indigo-600' : 'text-gray-600'">Confirm</div>
             </div>
         </div>
 
@@ -413,7 +378,7 @@ function cancel() {
         <div v-if="state.currentStep === 1" class="animate-fade-in">
             <div class="bg-white rounded-xl p-8 shadow-sm sm:p-6">
                 <h2 class="text-2xl font-semibold text-gray-900 mb-6">Step 1: Authenticate with Google</h2>
-                
+
                 <div class="mb-8">
                     <p class="text-base text-gray-700 mb-4">Connect your Google account to access Ad Manager data:</p>
                     <ul class="list-none p-0">
@@ -424,23 +389,26 @@ function cancel() {
                     </ul>
                 </div>
 
-                <button 
-                    @click="initiateGoogleSignIn" 
+                <button @click="initiateGoogleSignIn"
                     class="flex items-center justify-center gap-3 w-full max-w-[300px] mx-auto mb-6 px-6 py-4 bg-white border-2 border-gray-300 rounded-lg text-base font-semibold text-gray-700 cursor-pointer transition-all duration-200 hover:border-gray-400 hover:shadow-lg hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed"
-                    :disabled="state.loading"
-                >
+                    :disabled="state.loading">
                     <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-                        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-                        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-                        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-                        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                        <path fill="#EA4335"
+                            d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+                        <path fill="#4285F4"
+                            d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+                        <path fill="#FBBC05"
+                            d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+                        <path fill="#34A853"
+                            d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
                     </svg>
                     <span v-if="!state.loading">Sign in with Google</span>
                     <span v-else>Redirecting...</span>
                 </button>
 
                 <div class="flex gap-3 justify-end mt-8 sm:flex-col">
-                    <button @click="cancel" class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 sm:w-full">
+                    <button @click="cancel"
+                        class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 sm:w-full">
                         Cancel
                     </button>
                 </div>
@@ -452,17 +420,13 @@ function cancel() {
             <div class="bg-white rounded-xl p-8 shadow-sm sm:p-6">
                 <h2 class="text-2xl font-semibold text-gray-900 mb-6">Step 2: Select Ad Manager Network</h2>
 
-                <NetworkSelector 
-                    :networks="state.networks"
-                    :is-loading="state.loadingNetworks"
-                    :error="state.error"
-                    :model-value="state.selectedNetwork?.networkCode || ''"
-                    @update:model-value="onNetworkSelected"
-                    @retry="retryLoadNetworks"
-                />
+                <NetworkSelector :networks="state.networks" :is-loading="state.loadingNetworks" :error="state.error"
+                    :model-value="state.selectedNetwork?.networkCode || ''" @update:model-value="onNetworkSelected"
+                    @retry="retryLoadNetworks" />
 
                 <div class="flex gap-3 justify-end mt-8 sm:flex-col">
-                    <button @click="goBack" class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 sm:w-full">
+                    <button @click="goBack"
+                        class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 sm:w-full">
                         ← Back
                     </button>
                 </div>
@@ -476,34 +440,25 @@ function cancel() {
 
                 <!-- Data Source Name -->
                 <div class="mb-6">
-                    <label for="datasource-name" class="block text-sm font-semibold text-gray-800 mb-2">Data Source Name *</label>
-                    <input 
-                        id="datasource-name"
-                        v-model="state.dataSourceName" 
-                        type="text"
+                    <label for="datasource-name" class="block text-sm font-semibold text-gray-800 mb-2">Data Source Name
+                        *</label>
+                    <input id="datasource-name" v-model="state.dataSourceName" type="text"
                         class="w-full px-4 py-3 text-base border-2 rounded-lg transition-all duration-200 focus:outline-none focus:border-indigo-600 focus:ring-4 focus:ring-indigo-100"
                         :class="state.error && !state.dataSourceName ? 'border-red-500' : 'border-gray-300'"
-                        placeholder="e.g., My Ad Network Revenue"
-                    />
-                    <small class="block mt-1 text-xs text-gray-600">This name will appear in your data sources list</small>
+                        placeholder="e.g., My Ad Network Revenue" />
+                    <small class="block mt-1 text-xs text-gray-600">This name will appear in your data sources
+                        list</small>
                 </div>
 
                 <!-- Report Types -->
                 <div class="mb-6">
                     <label class="block text-sm font-semibold text-gray-800 mb-2">Select Report Types *</label>
                     <div class="flex flex-col gap-3">
-                        <label 
-                            v-for="reportType in state.reportTypes" 
-                            :key="reportType.id"
+                        <label v-for="reportType in state.reportTypes" :key="reportType.id"
                             class="flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-all duration-200"
-                            :class="state.selectedReportTypes.includes(reportType.id) ? 'border-indigo-600 bg-indigo-50' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'"
-                        >
-                            <input 
-                                type="checkbox" 
-                                :checked="state.selectedReportTypes.includes(reportType.id)"
-                                @change="toggleReportType(reportType.id)"
-                                class="mt-1 cursor-pointer" 
-                            />
+                            :class="state.selectedReportTypes.includes(reportType.id) ? 'border-indigo-600 bg-indigo-50' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'">
+                            <input type="checkbox" :checked="state.selectedReportTypes.includes(reportType.id)"
+                                @change="toggleReportType(reportType.id)" class="mt-1 cursor-pointer" />
                             <div class="flex-1">
                                 <div class="font-semibold text-gray-900">{{ reportType.name }}</div>
                                 <div class="text-sm text-gray-600 mt-1">{{ reportType.description }}</div>
@@ -515,10 +470,8 @@ function cancel() {
                 <!-- Date Range -->
                 <div class="mb-6">
                     <label class="block text-sm font-semibold text-gray-800 mb-2">Date Range *</label>
-                    <select 
-                        v-model="state.dateRange"
-                        class="w-full px-4 py-3 text-base border-2 border-gray-300 rounded-lg transition-all duration-200 focus:outline-none focus:border-indigo-600 focus:ring-4 focus:ring-indigo-100"
-                    >
+                    <select v-model="state.dateRange"
+                        class="w-full px-4 py-3 text-base border-2 border-gray-300 rounded-lg transition-all duration-200 focus:outline-none focus:border-indigo-600 focus:ring-4 focus:ring-indigo-100">
                         <option value="last_7_days">Last 7 Days</option>
                         <option value="last_30_days">Last 30 Days</option>
                         <option value="last_90_days">Last 90 Days</option>
@@ -531,22 +484,15 @@ function cancel() {
                 <!-- Custom Date Range -->
                 <div v-if="state.dateRange === 'custom'" class="mb-6 grid grid-cols-2 gap-4">
                     <div>
-                        <label for="start-date" class="block text-sm font-semibold text-gray-800 mb-2">Start Date *</label>
-                        <input 
-                            id="start-date"
-                            v-model="state.customStartDate"
-                            type="date"
-                            class="w-full px-4 py-3 text-base border-2 border-gray-300 rounded-lg transition-all duration-200 focus:outline-none focus:border-indigo-600 focus:ring-4 focus:ring-indigo-100"
-                        />
+                        <label for="start-date" class="block text-sm font-semibold text-gray-800 mb-2">Start Date
+                            *</label>
+                        <input id="start-date" v-model="state.customStartDate" type="date"
+                            class="w-full px-4 py-3 text-base border-2 border-gray-300 rounded-lg transition-all duration-200 focus:outline-none focus:border-indigo-600 focus:ring-4 focus:ring-indigo-100" />
                     </div>
                     <div>
                         <label for="end-date" class="block text-sm font-semibold text-gray-800 mb-2">End Date *</label>
-                        <input 
-                            id="end-date"
-                            v-model="state.customEndDate"
-                            type="date"
-                            class="w-full px-4 py-3 text-base border-2 border-gray-300 rounded-lg transition-all duration-200 focus:outline-none focus:border-indigo-600 focus:ring-4 focus:ring-indigo-100"
-                        />
+                        <input id="end-date" v-model="state.customEndDate" type="date"
+                            class="w-full px-4 py-3 text-base border-2 border-gray-300 rounded-lg transition-all duration-200 focus:outline-none focus:border-indigo-600 focus:ring-4 focus:ring-indigo-100" />
                     </div>
                 </div>
 
@@ -554,40 +500,37 @@ function cancel() {
                 <div class="mb-6">
                     <label class="block text-sm font-semibold text-gray-800 mb-2">Sync Frequency</label>
                     <div class="flex flex-col gap-3">
-                        <label class="flex items-center gap-2 p-3 border-2 border-gray-300 rounded-lg cursor-pointer transition-all duration-200 hover:border-gray-400 hover:bg-gray-50">
+                        <label
+                            class="flex items-center gap-2 p-3 border-2 border-gray-300 rounded-lg cursor-pointer transition-all duration-200 hover:border-gray-400 hover:bg-gray-50">
                             <input type="radio" v-model="state.syncFrequency" value="manual" class="cursor-pointer" />
                             <span>Manual (sync on demand)</span>
                         </label>
-                        <label class="flex items-center gap-2 p-3 border-2 border-gray-300 rounded-lg cursor-pointer transition-all duration-200 hover:border-gray-400 hover:bg-gray-50">
+                        <label
+                            class="flex items-center gap-2 p-3 border-2 border-gray-300 rounded-lg cursor-pointer transition-all duration-200 hover:border-gray-400 hover:bg-gray-50">
                             <input type="radio" v-model="state.syncFrequency" value="daily" class="cursor-pointer" />
                             <span>Daily (every night at 2 AM)</span>
                         </label>
-                        <label class="flex items-center gap-2 p-3 border-2 border-gray-300 rounded-lg cursor-pointer transition-all duration-200 hover:border-gray-400 hover:bg-gray-50">
+                        <label
+                            class="flex items-center gap-2 p-3 border-2 border-gray-300 rounded-lg cursor-pointer transition-all duration-200 hover:border-gray-400 hover:bg-gray-50">
                             <input type="radio" v-model="state.syncFrequency" value="weekly" class="cursor-pointer" />
                             <span>Weekly (every Sunday at 2 AM)</span>
-                        </label>
-                        <label class="flex items-center gap-2 p-3 border-2 border-gray-300 rounded-lg cursor-pointer transition-all duration-200 hover:border-gray-400 hover:bg-gray-50">
-                            <input type="radio" v-model="state.syncFrequency" value="hourly" class="cursor-pointer" />
-                            <span>Hourly</span>
                         </label>
                     </div>
                 </div>
 
-                <!-- Advanced Sync Configuration -->
-                <AdvancedSyncConfigComponent
-                    v-if="state.advancedConfig"
-                    v-model="state.advancedConfig"
-                    :report-types="state.selectedReportTypes"
-                />
+
 
                 <div class="flex gap-3 justify-end mt-8 sm:flex-col">
-                    <button @click="goBack" class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 sm:w-full">
+                    <button @click="goBack"
+                        class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 sm:w-full">
                         ← Back
                     </button>
-                    <button @click="cancel" class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 sm:w-full">
+                    <button @click="cancel"
+                        class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 sm:w-full">
                         Cancel
                     </button>
-                    <button @click="nextStep" class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-indigo-600 text-white hover:bg-indigo-700 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-400/40 sm:w-full">
+                    <button @click="nextStep"
+                        class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-indigo-600 text-white hover:bg-indigo-700 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-400/40 sm:w-full">
                         Continue →
                     </button>
                 </div>
@@ -618,14 +561,11 @@ function cancel() {
 
                     <!-- Selected Reports -->
                     <div class="p-5 bg-gray-50 rounded-lg">
-                        <h4 class="text-sm font-semibold text-gray-600 mb-3">Report Types ({{ state.selectedReportTypes.length }})</h4>
+                        <h4 class="text-sm font-semibold text-gray-600 mb-3">Report Types ({{
+                            state.selectedReportTypes.length }})</h4>
                         <div class="grid grid-cols-1 gap-2">
-                            <div 
-                                v-for="reportId in state.selectedReportTypes" 
-                                :key="reportId"
-                                class="text-gray-800"
-                            >
-                                ✓ {{ state.reportTypes.find(r => r.id === reportId)?.name }}
+                            <div v-for="reportId in state.selectedReportTypes" :key="reportId" class="text-gray-800">
+                                ✓ {{state.reportTypes.find(r => r.id === reportId)?.name}}
                             </div>
                         </div>
                     </div>
@@ -634,8 +574,8 @@ function cancel() {
                     <div class="p-5 bg-gray-50 rounded-lg">
                         <h4 class="text-sm font-semibold text-gray-600 mb-3">Date Range</h4>
                         <p class="text-gray-900">
-                            {{ gam.formatDateISO(new Date(getDateRange().startDate)) }} 
-                            to 
+                            {{ gam.formatDateISO(new Date(getDateRange().startDate)) }}
+                            to
                             {{ gam.formatDateISO(new Date(getDateRange().endDate)) }}
                         </p>
                     </div>
@@ -649,19 +589,26 @@ function cancel() {
 
                 <div class="p-5 bg-indigo-50 rounded-lg mb-8">
                     <p class="text-sm text-gray-800">
-                        <strong>Note:</strong> The initial sync may take several minutes depending on the amount of data. 
+                        <strong>Note:</strong> The initial sync may take several minutes depending on the amount of
+                        data.
                         You can continue working while the sync completes in the background.
                     </p>
                 </div>
 
                 <div class="flex gap-3 justify-end mt-8 sm:flex-col">
-                    <button @click="goBack" class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-60 disabled:cursor-not-allowed sm:w-full" :disabled="state.connecting">
+                    <button @click="goBack"
+                        class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-60 disabled:cursor-not-allowed sm:w-full"
+                        :disabled="state.connecting">
                         ← Back
                     </button>
-                    <button @click="cancel" class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-60 disabled:cursor-not-allowed sm:w-full" :disabled="state.connecting">
+                    <button @click="cancel"
+                        class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-60 disabled:cursor-not-allowed sm:w-full"
+                        :disabled="state.connecting">
                         Cancel
                     </button>
-                    <button @click="connectAndSync" class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed bg-indigo-600 text-white hover:bg-indigo-700 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-400/40 sm:w-full" :disabled="state.connecting">
+                    <button @click="connectAndSync"
+                        class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed bg-indigo-600 text-white hover:bg-indigo-700 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-400/40 sm:w-full"
+                        :disabled="state.connecting">
                         <span v-if="!state.connecting">Connect & Sync →</span>
                         <span v-else>Connecting...</span>
                     </button>
