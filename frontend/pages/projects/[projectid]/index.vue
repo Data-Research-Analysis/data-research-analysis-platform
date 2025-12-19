@@ -299,7 +299,7 @@ function closeSyncHistoryDialog() {
  */
 function getLastSyncTime(dataSource) {
     if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager') return null;
-    const lastSync = dataSource.connection_details?.api_config?.last_sync;
+    const lastSync = dataSource.connection_details?.api_connection_details?.api_config?.last_sync;
     const isGAM = dataSource.data_type === 'google_ad_manager';
     return lastSync ? (isGAM ? gam.formatSyncTime(lastSync) : analytics.formatSyncTime(lastSync)) : 'Never';
 }
@@ -309,7 +309,7 @@ function getLastSyncTime(dataSource) {
  */
 function getSyncFrequency(dataSource) {
     if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager') return null;
-    const frequency = dataSource.connection_details?.api_config?.sync_frequency || 'manual';
+    const frequency = dataSource.connection_details?.api_connection_details?.api_config?.sync_frequency || 'manual';
     const isGAM = dataSource.data_type === 'google_ad_manager';
     return isGAM ? gam.getSyncFrequencyText(frequency) : analytics.getSyncFrequencyText(frequency);
 }
@@ -319,7 +319,7 @@ function getSyncFrequency(dataSource) {
  */
 function isRecentlySynced(dataSource) {
     if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager') return false;
-    const lastSync = dataSource.connection_details?.api_config?.last_sync;
+    const lastSync = dataSource.connection_details?.api_connection_details?.api_config?.last_sync;
     if (!lastSync) return false;
     const diffHours = (new Date().getTime() - new Date(lastSync).getTime()) / (1000 * 60 * 60);
     return diffHours < 24;
