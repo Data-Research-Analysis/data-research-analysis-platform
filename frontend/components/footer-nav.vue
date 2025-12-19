@@ -1,14 +1,13 @@
 <script setup>
-const state = reactive({
-    authenticated: false,
-})
+// Get auth token as reactive reference (matches header pattern)
+const authToken = useCookie('dra_auth_token');
+
 const route = useRoute();
-watch(
-  route,
-  (value, oldValue) => {
-    state.authenticated = isAuthenticated();
-  },
-);
+
+// Computed property for authentication state based on cookie
+const authenticated = computed(() => {
+    return !!authToken.value;
+});
 
 const isHomePage = computed(() => {
     return route.name === "index";
@@ -25,7 +24,6 @@ function scrollToTop() {
 }
 
 onMounted(() => {
-    state.authenticated = isAuthenticated();
     // Only access window/document on client side for SSR compatibility
     if (import.meta.client) {
         document.addEventListener("scroll", () => {
@@ -58,10 +56,10 @@ onMounted(() => {
                     <div class="w-1/2 flex flex-row justify-end mr-8">
                         <div v-if="!isPublicDashboard" class="w-1/4 flex flex-col">
                             <span>Important Links</span>
-                            <span v-if="isPlatformEnabled() && isPlatformRegistrationEnabled() && !state.authenticated" class="text-base mt-2 mb-2">
+                            <span v-if="isPlatformEnabled() && isPlatformRegistrationEnabled() && !authenticated" class="text-base mt-2 mb-2">
                                 <NuxtLink to="/register" class="hover:text-gray-300">Register</NuxtLink>
                             </span>
-                            <span v-if="isPlatformEnabled() && isPlatformLoginEnabled() && !state.authenticated" class="text-base mt-2 mb-2">
+                            <span v-if="isPlatformEnabled() && isPlatformLoginEnabled() && !authenticated" class="text-base mt-2 mb-2">
                                 <NuxtLink to="/login" class="hover:text-gray-300">Login</NuxtLink>
                             </span>
                             <span class="text-base mt-2 mb-2">

@@ -27,6 +27,7 @@ const state = reactive({
     selected_data_source_for_history: null,
     syncing: {},
     sync_history: [],
+    loading: true,
     data_sources: computed(() => {
         const allDataSources = dataSourceStore.getDataSources();
         // Filter data sources by project ID
@@ -332,9 +333,16 @@ function formatSyncDate(dateString) {
     const date = new Date(dateString);
     return date.toLocaleString();
 }
+
+// Hide loading once data is available
+onMounted(() => {
+    nextTick(() => {
+        state.loading = false;
+    });
+});
 </script>
 <template>
-    <div v-if="project" class="flex flex-col">
+    <div class="flex flex-col">
         <tabs v-if="project && project.id" :project-id="project.id"/>
         
         <!-- Data Sources Content -->
@@ -348,12 +356,28 @@ function formatSyncDate(dateString) {
             <div class="text-lg font3-bold mt-5">
                 Project Description
             </div>
-            <div class="text-md">
+            <div v-if="project" class="text-md">
                 {{project.description}}
             </div>
             
+            <!-- Skeleton loader for loading state -->
+            <div v-if="state.loading" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5">
+                <div v-for="i in 6" :key="i" class="mt-10">
+                    <div class="border border-primary-blue-100 border-solid p-6 shadow-md bg-white min-h-[180px]">
+                        <div class="animate-pulse">
+                            <div class="h-6 bg-gray-300 rounded w-3/4 mb-4"></div>
+                            <div class="space-y-2">
+                                <div class="h-4 bg-gray-200 rounded w-full"></div>
+                                <div class="h-4 bg-gray-200 rounded w-5/6"></div>
+                                <div class="h-4 bg-gray-200 rounded w-4/5"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             <!-- Bulk Sync Button for Google Analytics -->
-            <div v-if="state.data_sources.some(ds => ds.data_type === 'google_analytics')" class="mt-5 mb-2">
+            <div v-if="!state.loading && state.data_sources.some(ds => ds.data_type === 'google_analytics')" class="mt-5 mb-2">
                 <button
                     @click="bulkSyncAllGA"
                     class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors duration-200 flex items-center gap-2"
@@ -363,7 +387,8 @@ function formatSyncDate(dateString) {
                 </button>
             </div>
             
-            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5">
+            <!-- Actual content -->
+            <div v-else class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5">
                 <notched-card class="justify-self-center mt-10">
                     <template #body="{ onClick }">
                         <div class="flex flex-col justify-center text-md font-bold cursor-pointer items-center" @click="openDialog">
