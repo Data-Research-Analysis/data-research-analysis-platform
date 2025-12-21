@@ -531,7 +531,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
     /**
      * Get schema metadata
      */
-    public async getSchema(connectionDetails: IAPIConnectionDetails): Promise<any> {
+    public async getSchema(dataSourceId: number, connectionDetails: IAPIConnectionDetails): Promise<any> {
         // Return schema structure of synced tables
         return {
             schema: 'dra_google_analytics',

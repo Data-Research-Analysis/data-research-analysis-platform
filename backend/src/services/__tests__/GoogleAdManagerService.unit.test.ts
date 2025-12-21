@@ -52,9 +52,9 @@ describe('GoogleAdManagerService', () => {
         });
     });
     
-    describe('Inventory Report Query Building', () => {
-        it('should build inventory report query with correct structure', () => {
-            const query = gamService.buildInventoryReportQuery('67890', '2025-02-01', '2025-02-28');
+    describe('Ad Unit Report Query Building', () => {
+        it('should build ad unit report query with correct structure', () => {
+            const query = gamService.buildAdUnitReportQuery('67890', '2025-02-01', '2025-02-28');
             
             expect(query).toBeDefined();
             expect(query.networkCode).toBe('67890');
@@ -62,27 +62,26 @@ describe('GoogleAdManagerService', () => {
             expect(query.endDate).toBe('2025-02-28');
         });
         
-        it('should include required inventory dimensions', () => {
-            const query = gamService.buildInventoryReportQuery('67890', '2025-02-01', '2025-02-28');
+        it('should include required ad unit dimensions', () => {
+            const query = gamService.buildAdUnitReportQuery('67890', '2025-02-01', '2025-02-28');
             
             expect(query.dimensions).toContain('DATE');
             expect(query.dimensions).toContain('AD_UNIT_ID');
             expect(query.dimensions).toContain('AD_UNIT_NAME');
-            expect(query.dimensions).toContain('DEVICE_CATEGORY_NAME');
         });
         
-        it('should include required inventory metrics', () => {
-            const query = gamService.buildInventoryReportQuery('67890', '2025-02-01', '2025-02-28');
+        it('should include required ad unit metrics', () => {
+            const query = gamService.buildAdUnitReportQuery('67890', '2025-02-01', '2025-02-28');
             
-            expect(query.metrics).toContain('TOTAL_AD_REQUESTS');
-            expect(query.metrics).toContain('TOTAL_MATCHED_REQUESTS');
-            expect(query.metrics).toContain('TOTAL_IMPRESSIONS');
+            expect(query.metrics).toContain('TOTAL_LINE_ITEM_LEVEL_IMPRESSIONS');
+            expect(query.metrics).toContain('TOTAL_LINE_ITEM_LEVEL_CLICKS');
+            expect(query.metrics).toContain('TOTAL_LINE_ITEM_LEVEL_CPM_AND_CPC_REVENUE');
         });
     });
     
-    describe('Orders Report Query Building', () => {
-        it('should build orders report query with correct structure', () => {
-            const query = gamService.buildOrdersReportQuery('11111', '2025-03-01', '2025-03-31');
+    describe('Advertiser Report Query Building', () => {
+        it('should build advertiser report query with correct structure', () => {
+            const query = gamService.buildAdvertiserReportQuery('11111', '2025-03-01', '2025-03-31');
             
             expect(query).toBeDefined();
             expect(query.networkCode).toBe('11111');
@@ -90,8 +89,8 @@ describe('GoogleAdManagerService', () => {
             expect(query.endDate).toBe('2025-03-31');
         });
         
-        it('should include required order dimensions', () => {
-            const query = gamService.buildOrdersReportQuery('11111', '2025-03-01', '2025-03-31');
+        it('should include required advertiser dimensions', () => {
+            const query = gamService.buildAdvertiserReportQuery('11111', '2025-03-01', '2025-03-31');
             
             expect(query.dimensions).toContain('DATE');
             expect(query.dimensions).toContain('ORDER_ID');
@@ -102,8 +101,8 @@ describe('GoogleAdManagerService', () => {
             expect(query.dimensions).toContain('ADVERTISER_NAME');
         });
         
-        it('should include required order metrics', () => {
-            const query = gamService.buildOrdersReportQuery('11111', '2025-03-01', '2025-03-31');
+        it('should include required advertiser metrics', () => {
+            const query = gamService.buildAdvertiserReportQuery('11111', '2025-03-01', '2025-03-31');
             
             expect(query.metrics).toContain('TOTAL_LINE_ITEM_LEVEL_IMPRESSIONS');
             expect(query.metrics).toContain('TOTAL_LINE_ITEM_LEVEL_CLICKS');
@@ -158,14 +157,14 @@ describe('GoogleAdManagerService', () => {
             expect(reportType).toBe(GAMReportType.REVENUE);
         });
         
-        it('should convert "inventory" string to INVENTORY enum', () => {
-            const reportType = gamService.getReportType('inventory');
-            expect(reportType).toBe(GAMReportType.INVENTORY);
+        it('should convert "ad_unit" string to AD_UNIT enum', () => {
+            const reportType = gamService.getReportType('ad_unit');
+            expect(reportType).toBe(GAMReportType.AD_UNIT);
         });
         
-        it('should convert "orders" string to ORDERS enum', () => {
-            const reportType = gamService.getReportType('orders');
-            expect(reportType).toBe(GAMReportType.ORDERS);
+        it('should convert "advertiser" string to ADVERTISER enum', () => {
+            const reportType = gamService.getReportType('advertiser');
+            expect(reportType).toBe(GAMReportType.ADVERTISER);
         });
         
         it('should convert "geography" string to GEOGRAPHY enum', () => {

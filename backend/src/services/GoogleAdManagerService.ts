@@ -136,13 +136,13 @@ export class GoogleAdManagerService {
     }
     
     /**
-     * Build inventory report query
+     * Build ad unit performance report query
      * @param networkCode - GAM network code
      * @param startDate - Start date (YYYY-MM-DD)
      * @param endDate - End date (YYYY-MM-DD)
      * @returns Report query configuration
      */
-    public buildInventoryReportQuery(
+    public buildAdUnitReportQuery(
         networkCode: string,
         startDate: string,
         endDate: string
@@ -155,24 +155,25 @@ export class GoogleAdManagerService {
                 'DATE',
                 'AD_UNIT_ID',
                 'AD_UNIT_NAME',
-                'DEVICE_CATEGORY_NAME',
             ],
             metrics: [
-                'TOTAL_AD_REQUESTS',
-                'TOTAL_MATCHED_REQUESTS',
-                'TOTAL_IMPRESSIONS',
+                'TOTAL_LINE_ITEM_LEVEL_IMPRESSIONS',
+                'TOTAL_LINE_ITEM_LEVEL_CLICKS',
+                'TOTAL_LINE_ITEM_LEVEL_CPM_AND_CPC_REVENUE',
+                'AD_SERVER_IMPRESSIONS',
+                'AD_SERVER_CLICKS',
             ],
         };
     }
     
     /**
-     * Build orders & line items report query
+     * Build advertiser performance report query
      * @param networkCode - GAM network code
      * @param startDate - Start date (YYYY-MM-DD)
      * @param endDate - End date (YYYY-MM-DD)
      * @returns Report query configuration
      */
-    public buildOrdersReportQuery(
+    public buildAdvertiserReportQuery(
         networkCode: string,
         startDate: string,
         endDate: string
@@ -183,17 +184,44 @@ export class GoogleAdManagerService {
             endDate,
             dimensions: [
                 'DATE',
+                'ADVERTISER_ID',
+                'ADVERTISER_NAME',
                 'ORDER_ID',
                 'ORDER_NAME',
                 'LINE_ITEM_ID',
                 'LINE_ITEM_NAME',
-                'ADVERTISER_ID',
-                'ADVERTISER_NAME',
             ],
             metrics: [
                 'TOTAL_LINE_ITEM_LEVEL_IMPRESSIONS',
                 'TOTAL_LINE_ITEM_LEVEL_CLICKS',
                 'TOTAL_LINE_ITEM_LEVEL_CPM_AND_CPC_REVENUE',
+            ],
+        };
+    }
+    
+    /**
+     * Build time series report query (daily aggregates)
+     * @param networkCode - GAM network code
+     * @param startDate - Start date (YYYY-MM-DD)
+     * @param endDate - End date (YYYY-MM-DD)
+     * @returns Report query configuration
+     */
+    public buildTimeSeriesReportQuery(
+        networkCode: string,
+        startDate: string,
+        endDate: string
+    ): IGAMReportQuery {
+        return {
+            networkCode,
+            startDate,
+            endDate,
+            dimensions: ['DATE'],
+            metrics: [
+                'TOTAL_LINE_ITEM_LEVEL_IMPRESSIONS',
+                'TOTAL_LINE_ITEM_LEVEL_CLICKS',
+                'TOTAL_LINE_ITEM_LEVEL_CPM_AND_CPC_REVENUE',
+                'UNFILLED_IMPRESSIONS',
+                'AD_REQUESTS',
             ],
         };
     }
@@ -356,26 +384,21 @@ export class GoogleAdManagerService {
     }
     
     /**
-     * Get report type from string
+     * Map report type string to enum value
      * @param reportTypeString - Report type as string
      * @returns GAMReportType enum value
      */
     public getReportType(reportTypeString: string): GAMReportType {
-        const reportType = reportTypeString.toLowerCase();
-        switch (reportType) {
-            case 'revenue':
-                return GAMReportType.REVENUE;
-            case 'inventory':
-                return GAMReportType.INVENTORY;
-            case 'orders':
-                return GAMReportType.ORDERS;
-            case 'geography':
-                return GAMReportType.GEOGRAPHY;
-            case 'device':
-                return GAMReportType.DEVICE;
-            default:
-                throw new Error(`Unknown report type: ${reportTypeString}`);
-        }
+        const typeMap: { [key: string]: GAMReportType } = {
+            'revenue': GAMReportType.REVENUE,
+            'geography': GAMReportType.GEOGRAPHY,
+            'device': GAMReportType.DEVICE,
+            'ad_unit': GAMReportType.AD_UNIT,
+            'advertiser': GAMReportType.ADVERTISER,
+            'time_series': GAMReportType.TIME_SERIES,
+        };
+        
+        return typeMap[reportTypeString.toLowerCase()] || GAMReportType.REVENUE;
     }
     
     /**
