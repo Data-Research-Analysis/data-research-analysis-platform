@@ -794,21 +794,29 @@ Keep it concise - aim for 200-300 words total.`;
         const connectionDetails = dataSource.connection_details;
         
         // Determine correct schema based on data source type
-        // API-integrated sources store data in dedicated schemas
         let schema = connectionDetails.schema;
+        
         if (!schema) {
-            const schemaMap: Record<string, string> = {
-                'postgresql': 'public',
+            // Only API-integrated sources have fixed schemas
+            // User databases (PostgreSQL, MySQL, MariaDB) should use connection_details.schema
+            const apiSourceSchemas: Record<string, string> = {
                 'google_analytics': 'dra_google_analytics',
                 'google_ad_manager': 'dra_google_ad_manager',
                 'excel': 'dra_excel',
-                'pdf': 'dra_pdf',
-                'mysql': 'public', // MySQL uses database names, not schemas
-                'mariadb': 'public' // MariaDB uses database names, not schemas
+                'pdf': 'dra_pdf'
             };
             
-            schema = schemaMap[dataSource.data_type] || 'public';
-            console.log(`[AIDataModelerController] Mapped data source type '${dataSource.data_type}' to schema '${schema}'`);
+            // Check if this is an API-integrated source
+            if (apiSourceSchemas[dataSource.data_type]) {
+                schema = apiSourceSchemas[dataSource.data_type];
+                console.log(`[AIDataModelerController] Using fixed schema for API source '${dataSource.data_type}': '${schema}'`);
+            } else {
+                // For user databases, default to 'public' only if no schema specified
+                schema = 'public';
+                console.log(`[AIDataModelerController] Using default schema 'public' for '${dataSource.data_type}'`);
+            }
+        } else {
+            console.log(`[AIDataModelerController] Using schema from connection details: '${schema}'`);
         }
         
         return {

@@ -119,6 +119,11 @@ export class SchemaFormatterUtility {
      * Format data type with length if applicable
      */
     private static formatDataType(column: TableColumn): string {
+        // Handle undefined or null data_type
+        if (!column.data_type) {
+            return 'UNKNOWN';
+        }
+        
         let dataType = column.data_type.toUpperCase();
         
         if (column.character_maximum_length) {
