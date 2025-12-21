@@ -3354,7 +3354,7 @@ onMounted(async () => {
                                             class="font-mono text-sm bg-gray-100 p-2 border border-gray-300 flex items-center">
                                             <span class="font-semibold text-blue-700">
                                                 {{ join.left_table_schema }}.{{ join.left_table_alias ||
-                                                join.left_table_name }}.{{ join.left_column_name }}
+                                                    join.left_table_name }}.{{ join.left_column_name }}
                                             </span>
                                             <select :value="join.primary_operator || '='"
                                                 @change="updateJoinOperator(joinIndex, $event.target.value)"
@@ -3368,7 +3368,7 @@ onMounted(async () => {
                                             </select>
                                             <span class="font-semibold text-green-700">
                                                 {{ join.right_table_schema }}.{{ join.right_table_alias ||
-                                                join.right_table_name }}.{{ join.right_column_name }}
+                                                    join.right_table_name }}.{{ join.right_column_name }}
                                             </span>
                                         </div>
 
@@ -3397,12 +3397,10 @@ onMounted(async () => {
                                                     class="px-2 py-1 border border-gray-300 text-xs">
                                                     <option value="=">=</option>
                                                     <option value="!=">!=</option>
-                                                    <option value=">">></option>
-                                                    <option value="<">
-                                                        << /option>
-                                                    <option value=">=">>=</option>
-                                                    <option value="<=">
-                                                        <=< /option>
+                                                    <option value=">">&gt;</option>
+                                                    <option value="<">&lt;</option>
+                                                    <option value=">=">&gt;=</option>
+                                                    <option value="<=">&lt;=</option>
                                                 </select>
 
                                                 <select v-model="addCond.right_column"
@@ -3517,7 +3515,7 @@ onMounted(async () => {
                                     <div class="flex flex-row">
                                         <div class="w-2/3 ml-2 wrap-anywhere">
                                             Column: <strong>{{ element.display_column_name || element.column_name
-                                                }}</strong>
+                                            }}</strong>
                                             <span
                                                 v-if="isColumnUsedInAggregate(element.column_name, tableOrAlias.schema, tableOrAlias.table_name)"
                                                 class="text-xs text-purple-700 ml-2 inline-flex items-center gap-1">
@@ -3531,7 +3529,7 @@ onMounted(async () => {
                                                 <div class="border border-primary-blue-100 border-solid p-2 m-1">
                                                     Foreign Table Name: <strong>{{
                                                         element.reference.foreign_table_schema }}.{{
-                                                        element.reference.foreign_table_name }}</strong><br />
+                                                            element.reference.foreign_table_name }}</strong><br />
                                                     Foreign Column Name: <strong>{{
                                                         element.reference.foreign_column_name }}</strong><br />
                                                 </div>
@@ -3786,7 +3784,7 @@ onMounted(async () => {
                                                                     :key="`${column.schema}.${column.table_name}.${column.column_name}`"
                                                                     :value="`${column.schema}.${column.table_name}.${column.column_name}`">
                                                                     {{
-                                                                    `${column.schema}.${column.table_name}.${column.column_name}`
+                                                                        `${column.schema}.${column.table_name}.${column.column_name}`
                                                                     }}</option>
                                                             </select>
                                                         </div>
