@@ -793,6 +793,24 @@ Keep it concise - aim for 200-300 words total.`;
         // Extract connection details (already decrypted by transformer)
         const connectionDetails = dataSource.connection_details;
         
+        // Determine correct schema based on data source type
+        // API-integrated sources store data in dedicated schemas
+        let schema = connectionDetails.schema;
+        if (!schema) {
+            const schemaMap: Record<string, string> = {
+                'postgresql': 'public',
+                'google_analytics': 'dra_google_analytics',
+                'google_ad_manager': 'dra_google_ad_manager',
+                'excel': 'dra_excel',
+                'pdf': 'dra_pdf',
+                'mysql': 'public', // MySQL uses database names, not schemas
+                'mariadb': 'public' // MariaDB uses database names, not schemas
+            };
+            
+            schema = schemaMap[dataSource.data_type] || 'public';
+            console.log(`[AIDataModelerController] Mapped data source type '${dataSource.data_type}' to schema '${schema}'`);
+        }
+        
         return {
             type: dataSource.data_type,
             host: connectionDetails.host,
@@ -800,7 +818,7 @@ Keep it concise - aim for 200-300 words total.`;
             database: connectionDetails.database,
             username: connectionDetails.username,
             password: connectionDetails.password,
-            schema: connectionDetails.schema || 'public'
+            schema: schema
         };
     }
 
