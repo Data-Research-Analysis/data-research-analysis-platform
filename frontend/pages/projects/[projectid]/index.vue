@@ -186,7 +186,7 @@ async function syncDataSource(dataSourceId) {
 /**
  * Bulk sync all Google Analytics and Google Ad Manager data sources in project
  */
-async function bulkSyncAllGA() {
+async function bulkSyncAllGoogleDataSources() {
     const googleDataSources = state.data_sources.filter(ds =>
         ds.data_type === 'google_analytics' || ds.data_type === 'google_ad_manager'
     );
@@ -380,13 +380,20 @@ onMounted(() => {
                 </div>
             </div>
 
-            <!-- Bulk Sync Button for Google Analytics -->
-            <div v-if="!state.loading && state.data_sources.some(ds => ds.data_type === 'google_analytics')"
+            <!-- Bulk Sync Button for Google Data Sources -->
+            <div v-if="!state.loading && state.data_sources.some(ds => ds.data_type === 'google_analytics' || ds.data_type === 'google_ad_manager')"
                 class="mt-5 mb-2">
-                <button @click="bulkSyncAllGA"
+                <button @click="bulkSyncAllGoogleDataSources"
                     class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors duration-200 flex items-center gap-2">
                     <font-awesome icon="fas fa-sync" />
-                    Sync All Google Analytics Data Sources
+                    {{
+                        state.data_sources.some(ds => ds.data_type === 'google_analytics') && state.data_sources.some(ds =>
+                            ds.data_type === 'google_ad_manager')
+                            ? 'Sync All Google Data Sources'
+                            : state.data_sources.some(ds => ds.data_type === 'google_analytics')
+                                ? 'Sync All Google Analytics Data Sources'
+                                : 'Sync All Google Ad Manager Data Sources'
+                    }}
                 </button>
             </div>
 
@@ -418,8 +425,9 @@ onMounted(() => {
                                             {{ dataSource.name }}
                                         </div>
 
-                                        <!-- Google Analytics sync status -->
-                                        <div v-if="dataSource.data_type === 'google_analytics'" class="mt-auto">
+                                        <!-- Google Analytics & Google Ad Manager sync status -->
+                                        <div v-if="dataSource.data_type === 'google_analytics' || dataSource.data_type === 'google_ad_manager'"
+                                            class="mt-auto">
                                             <div class="text-xs text-gray-500 mb-2">
                                                 <div class="flex items-center gap-1 mb-1">
                                                     <font-awesome icon="fas fa-clock" class="text-[10px]" />
@@ -457,14 +465,16 @@ onMounted(() => {
                         class="absolute top-16 -right-2 z-10 bg-blue-500 hover:bg-blue-600 border border-blue-500 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer"
                         v-tippy="{ content: 'Edit Data Source' }">
                         <font-awesome icon="fas fa-pen" class="text-sm text-white" />
-                    </NuxtLink> <button v-if="dataSource.data_type === 'google_analytics'"
+                    </NuxtLink> <button
+                        v-if="dataSource.data_type === 'google_analytics' || dataSource.data_type === 'google_ad_manager'"
                         @click.stop="syncDataSource(dataSource.id)" :disabled="state.syncing[dataSource.id]"
                         class="absolute top-[68px] -right-2 z-10 bg-indigo-600 hover:bg-indigo-700 border border-indigo-600 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         v-tippy="{ content: state.syncing[dataSource.id] ? 'Syncing...' : 'Sync Now' }">
                         <font-awesome :icon="state.syncing[dataSource.id] ? 'fas fa-spinner' : 'fas fa-sync'"
                             :class="{ 'fa-spin': state.syncing[dataSource.id] }" class="text-sm text-white" />
                     </button>
-                    <button v-if="dataSource.data_type === 'google_analytics'"
+                    <button
+                        v-if="dataSource.data_type === 'google_analytics' || dataSource.data_type === 'google_ad_manager'"
                         @click.stop="viewSyncHistory(dataSource.id)"
                         class="absolute top-[124px] -right-2 z-10 bg-gray-500 hover:bg-gray-600 border border-gray-500 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer"
                         v-tippy="{ content: 'View Sync History' }">
