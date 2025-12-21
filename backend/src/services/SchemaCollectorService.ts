@@ -159,7 +159,16 @@ export class SchemaCollectorService {
                 ORDER BY ordinal_position
             `;
             
-            const columns = await dataSource.query(columnQuery, [databaseName, tableName]);
+            const columnResults = await dataSource.query(columnQuery, [databaseName, tableName]);
+            
+            // Normalize column metadata for MySQL/MariaDB (returns UPPERCASE keys)
+            const columns = columnResults.map((col: any) => ({
+                column_name: col.column_name || col.COLUMN_NAME,
+                data_type: col.data_type || col.DATA_TYPE,
+                is_nullable: col.is_nullable || col.IS_NULLABLE,
+                column_default: col.column_default || col.COLUMN_DEFAULT,
+                character_maximum_length: col.character_maximum_length || col.CHARACTER_MAXIMUM_LENGTH
+            }));
             
             // Get primary keys
             const pkQuery = `
@@ -187,7 +196,16 @@ export class SchemaCollectorService {
                     AND kcu.referenced_table_name IS NOT NULL
             `;
             
-            const foreignKeys = await dataSource.query(fkQuery, [databaseName, tableName]);
+            const fkResults = await dataSource.query(fkQuery, [databaseName, tableName]);
+            
+            // Normalize foreign key metadata
+            const foreignKeys = fkResults.map((fk: any) => ({
+                constraint_name: fk.constraint_name || fk.CONSTRAINT_NAME,
+                table_name: fk.table_name || fk.TABLE_NAME,
+                column_name: fk.column_name || fk.COLUMN_NAME,
+                foreign_table_name: fk.foreign_table_name || fk.FOREIGN_TABLE_NAME,
+                foreign_column_name: fk.foreign_column_name || fk.FOREIGN_COLUMN_NAME
+            }));
             
             tables.push({
                 schema: databaseName,
