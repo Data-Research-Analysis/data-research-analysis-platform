@@ -43,6 +43,34 @@ export const useGoogleAdManager = () => {
                 description: 'Ad performance broken down by country, region, and city',
                 dimensions: ['Date', 'Country', 'Region', 'City'],
                 metrics: ['Impressions', 'Clicks', 'Revenue']
+            },
+            {
+                id: 'device',
+                name: 'Device & Browser Analysis',
+                description: 'Performance metrics by device category, browser, and operating system',
+                dimensions: ['Date', 'Device Category', 'Browser', 'Operating System'],
+                metrics: ['Impressions', 'Clicks', 'Revenue', 'CTR', 'CPM']
+            },
+            {
+                id: 'ad_unit',
+                name: 'Ad Unit Performance',
+                description: 'Detailed ad unit metrics including fill rates and eCPM',
+                dimensions: ['Date', 'Ad Unit ID', 'Ad Unit Name'],
+                metrics: ['Impressions', 'Clicks', 'Revenue', 'Fill Rate', 'eCPM', 'CTR']
+            },
+            {
+                id: 'advertiser',
+                name: 'Advertiser Performance',
+                description: 'Performance by advertiser, order, and line item',
+                dimensions: ['Date', 'Advertiser', 'Order', 'Line Item'],
+                metrics: ['Impressions', 'Clicks', 'Revenue', 'CTR', 'CPM']
+            },
+            {
+                id: 'time_series',
+                name: 'Daily Aggregates',
+                description: 'Daily performance totals including ad requests and fill rates',
+                dimensions: ['Date'],
+                metrics: ['Impressions', 'Clicks', 'Revenue', 'Ad Requests', 'Fill Rate', 'eCPM', 'CTR']
             }
         ];
     };
