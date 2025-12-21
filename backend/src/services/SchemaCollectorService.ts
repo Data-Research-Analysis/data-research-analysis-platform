@@ -17,6 +17,7 @@ interface ForeignKey {
 }
 
 interface TableSchema {
+    schema: string;
     tableName: string;
     columns: TableColumn[];
     primaryKeys: string[];
@@ -114,6 +115,7 @@ export class SchemaCollectorService {
             const foreignKeys = await dataSource.query(fkQuery, [schemaName, tableName]);
             
             tables.push({
+                schema: schemaName,
                 tableName,
                 columns,
                 primaryKeys,
@@ -188,6 +190,7 @@ export class SchemaCollectorService {
             const foreignKeys = await dataSource.query(fkQuery, [databaseName, tableName]);
             
             tables.push({
+                schema: databaseName,
                 tableName,
                 columns,
                 primaryKeys,

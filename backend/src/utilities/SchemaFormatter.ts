@@ -15,6 +15,7 @@ interface ForeignKey {
 }
 
 interface TableSchema {
+    schema: string;
     tableName: string;
     columns: TableColumn[];
     primaryKeys: string[];
@@ -40,7 +41,7 @@ export class SchemaFormatterUtility {
         markdown += '## Tables\n\n';
         
         for (const table of tables) {
-            markdown += `### Table: ${table.tableName}\n`;
+            markdown += `### Table: ${table.schema}.${table.tableName}\n`;
             markdown += '| Column Name | Data Type | Constraints |\n';
             markdown += '|-------------|-----------|-------------|\n';
             
