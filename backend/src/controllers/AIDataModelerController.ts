@@ -813,6 +813,7 @@ Keep it concise - aim for 200-300 words total.`;
         switch (type) {
             case 'postgresql':
             case 'google_analytics':  // Google Analytics data stored in PostgreSQL
+            case 'google_ad_manager': // Google Ad Manager data stored in PostgreSQL
             case 'excel':             // Excel data stored in PostgreSQL (dra_excel schema)
             case 'pdf':               // PDF data stored in PostgreSQL (dra_pdf schema)
                 return PostgresDataSource.getInstance().getDataSource(
