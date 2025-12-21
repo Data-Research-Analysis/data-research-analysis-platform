@@ -1,4 +1,5 @@
 import { google } from 'googleapis';
+import { NetworkServiceClient, ReportServiceClient } from '@google-ads/admanager';
 import { IAPIConnectionDetails } from '../types/IAPIConnectionDetails.js';
 import { GoogleOAuthService } from './GoogleOAuthService.js';
 import { RateLimiter, RateLimiterRegistry } from '../utils/RateLimiter.js';
@@ -7,6 +8,7 @@ import {
     IGAMReportQuery,
     IGAMReportResponse,
     GAMReportType,
+    IGAMReportRow,
 } from '../types/IGoogleAdManager.js';
 
 /**
@@ -61,20 +63,42 @@ export class GoogleAdManagerService {
             const oauthService = GoogleOAuthService.getInstance();
             const oauth2Client = oauthService.getAuthenticatedClient(accessToken);
             
-            // TODO: Implement actual GAM API call
-            // For now, return placeholder
-            // Will implement in next phase with actual API integration
-            console.log('📝 listNetworks called - placeholder implementation');
-            console.log('   Note: Real GAM API integration requires SOAP client or REST API when available');
+            // Initialize Network Service client with OAuth credentials
+            const networkClient = new NetworkServiceClient({
+                auth: oauth2Client as any
+            });
             
-            // Placeholder return
-            const networks: IGAMNetwork[] = [];
+            // Apply rate limiting
+            await this.rateLimiter.acquire();
             
-            console.log(`✅ Found ${networks.length} Google Ad Manager networks`);
+            console.log('📊 Fetching Google Ad Manager networks via API');
             
-            return networks;
-        } catch (error) {
+            // Call list networks method - returns [response, request, apiResponse]
+            const [response] = await networkClient.listNetworks({});
+            
+            // Extract networks from response
+            const networksArray = response?.networks || [];
+            
+            // Transform API response to our format
+            const gamNetworks: IGAMNetwork[] = networksArray.map((network: any) => ({
+                networkCode: network.networkCode || '',
+                networkId: network.name?.split('/').pop() || '',
+                displayName: network.displayName || '',
+                currencyCode: network.currencyCode,
+                timeZone: network.timeZone
+            }));
+            
+            console.log(`✅ Found ${gamNetworks.length} Google Ad Manager networks`);
+            
+            return gamNetworks;
+        } catch (error: any) {
             console.error('❌ Failed to list GAM networks:', error);
+            
+            // Provide user-friendly error messages
+            if (error.code === 7 || error.code === 16) { // PERMISSION_DENIED or UNAUTHENTICATED
+                throw new Error('Authentication failed. Please reconnect your Google account.');
+            }
+            
             throw new Error('Failed to fetch Google Ad Manager networks');
         }
     }
@@ -264,28 +288,69 @@ export class GoogleAdManagerService {
             console.log(`   - Dimensions: ${reportQuery.dimensions.join(', ')}`);
             console.log(`   - Metrics: ${reportQuery.metrics.join(', ')}`);
             
-            // TODO: Implement actual GAM API report execution
-            // This will involve:
-            // 1. Create report job via GAM API
-            // 2. Poll for report completion (can take 30s - 2min)
-            // 3. Download report results
-            // 4. Parse CSV/JSON response
+            // Get authenticated OAuth2 client
+            const oauthService = GoogleOAuthService.getInstance();
+            const oauth2Client = oauthService.getAuthenticatedClient(
+                connectionDetails.oauth_access_token,
+                connectionDetails.oauth_refresh_token
+            );
             
-            console.log('📝 runReport called - placeholder implementation');
-            console.log('   Note: Real implementation will use GAM ReportService SOAP API');
+            // Initialize Report Service client
+            const reportClient = new ReportServiceClient({
+                auth: oauth2Client as any
+            });
             
-            // Placeholder response
-            const response: IGAMReportResponse = {
-                reportId: 'placeholder-report-id',
-                status: 'COMPLETED',
-                rows: [],
+            // Step 1: Create report with dimensions and metrics
+            const reportRequest: any = {
+                parent: `networks/${reportQuery.networkCode}`,
+                report: {
+                    dimensions: reportQuery.dimensions,
+                    metrics: reportQuery.metrics,
+                    dateRange: {
+                        startDate: this.formatDateForAPI(reportQuery.startDate),
+                        endDate: this.formatDateForAPI(reportQuery.endDate)
+                    }
+                }
             };
             
-            console.log('✅ Report execution completed');
+            console.log('📝 Creating report job...');
+            const createResponse = await reportClient.createReport(reportRequest);
+            const report = Array.isArray(createResponse) ? createResponse[0] : createResponse;
+            const reportName = report.name!;
+            
+            console.log(`📋 Report created: ${reportName}`);
+            
+            // Step 2: Run the report (initiates async generation)
+            console.log('🚀 Starting report generation...');
+            await reportClient.runReport({ name: reportName });
+            
+            // Step 3: Poll for completion with exponential backoff
+            await this.pollReportCompletion(reportClient, reportName, 300000); // 5 min timeout
+            
+            // Step 4: Fetch report results
+            const rows = await this.fetchReportResults(reportClient, reportName);
+            
+            const response: IGAMReportResponse = {
+                reportId: reportName,
+                status: 'COMPLETED',
+                rows: rows
+            };
+            
+            console.log(`✅ Report execution completed with ${rows.length} rows`);
             
             return response;
-        } catch (error) {
+        } catch (error: any) {
             console.error('❌ Failed to run GAM report:', error);
+            
+            // Provide user-friendly error messages
+            if (error.code === 7 || error.code === 16) {
+                throw new Error('Authentication failed. Please reconnect your Google account.');
+            }
+            
+            if (error.message?.includes('timeout')) {
+                throw new Error('Report generation timed out. Please try a smaller date range.');
+            }
+            
             throw new Error('Failed to execute Google Ad Manager report');
         }
     }
@@ -311,6 +376,127 @@ export class GoogleAdManagerService {
             default:
                 throw new Error(`Unknown report type: ${reportTypeString}`);
         }
+    }
+    
+    /**
+     * Poll for report completion with exponential backoff
+     * @private
+     */
+    private async pollReportCompletion(
+        client: ReportServiceClient,
+        reportName: string,
+        maxWaitMs: number
+    ): Promise<void> {
+        const startTime = Date.now();
+        let attempt = 0;
+        
+        while (Date.now() - startTime < maxWaitMs) {
+            const getResponse = await client.getReport({ name: reportName });
+            const report: any = Array.isArray(getResponse) ? getResponse[0] : getResponse;
+            
+            console.log(`   Polling attempt ${attempt + 1}, state: ${report.state}`);
+            
+            if (report.state === 'DONE' || report.state === 'SUCCEEDED') {
+                console.log('✅ Report generation completed');
+                return;
+            }
+            
+            if (report.state === 'FAILED' || report.state === 'ERROR') {
+                throw new Error(`Report generation failed: ${report.error?.message || 'Unknown error'}`);
+            }
+            
+            // Exponential backoff: 5s, 10s, 20s, 40s, 60s (max)
+            const waitMs = Math.min(5000 * Math.pow(2, attempt), 60000);
+            console.log(`   Waiting ${waitMs}ms before next check...`);
+            await this.sleep(waitMs);
+            attempt++;
+        }
+        
+        throw new Error('Report generation timeout after 5 minutes');
+    }
+    
+    /**
+     * Fetch report results from completed report
+     * @private
+     */
+    private async fetchReportResults(
+        client: ReportServiceClient,
+        reportName: string
+    ): Promise<IGAMReportRow[]> {
+        console.log('📥 Fetching report results...');
+        
+        const rows: IGAMReportRow[] = [];
+        
+        // Fetch results with pagination
+        const request = { name: reportName };
+        const iterable = client.fetchReportResultRowsAsync(request);
+        
+        for await (const row of iterable) {
+            const rowData: any = row; // Type assertion for API compatibility
+            rows.push({
+                dimensions: this.parseDimensions(rowData.dimensionValues),
+                metrics: this.parseMetrics(rowData.metricValues)
+            });
+        }
+        
+        console.log(`✅ Fetched ${rows.length} result rows`);
+        return rows;
+    }
+    
+    /**
+     * Format date string to API format
+     * @private
+     */
+    private formatDateForAPI(dateString: string): { year: number; month: number; day: number } {
+        const [year, month, day] = dateString.split('-').map(Number);
+        return { year, month, day };
+    }
+    
+    /**
+     * Parse dimension values from API response
+     * @private
+     */
+    private parseDimensions(dimensionValues: any): { [key: string]: string | number } {
+        const dimensions: { [key: string]: string | number } = {};
+        
+        if (dimensionValues) {
+            Object.keys(dimensionValues).forEach(key => {
+                const value = dimensionValues[key];
+                // Handle structured date values
+                if (value && typeof value === 'object' && 'year' in value) {
+                    dimensions[key] = `${value.year}-${String(value.month).padStart(2, '0')}-${String(value.day).padStart(2, '0')}`;
+                } else {
+                    dimensions[key] = value || '';
+                }
+            });
+        }
+        
+        return dimensions;
+    }
+    
+    /**
+     * Parse metric values from API response
+     * @private
+     */
+    private parseMetrics(metricValues: any): { [key: string]: number } {
+        const metrics: { [key: string]: number } = {};
+        
+        if (metricValues) {
+            Object.keys(metricValues).forEach(key => {
+                const value = metricValues[key];
+                metrics[key] = typeof value === 'number' ? value : parseFloat(value) || 0;
+            });
+        }
+        
+        return metrics;
+    }
+    
+    /**
+     * Sleep utility for polling delays
+     * @private
+     */
+    private sleep(ms: number): Promise<void> {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
     
     /**
