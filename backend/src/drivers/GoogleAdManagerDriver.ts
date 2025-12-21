@@ -147,7 +147,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
                     const result = await this.syncReportType(
                         manager,
                         schemaName,
-                        networkCode,
+                        dataSourceId,
                         reportType,
                         startDate,
                         endDate,
@@ -206,7 +206,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
     private async syncReportType(
         manager: any,
         schemaName: string,
-        networkCode: string,
+        dataSourceId: number,
         reportTypeString: string,
         startDate: string,
         endDate: string,
@@ -216,11 +216,19 @@ export class GoogleAdManagerDriver implements IAPIDriver {
 
         switch (reportType) {
             case GAMReportType.REVENUE:
-                return await this.syncRevenueData(manager, schemaName, networkCode, startDate, endDate, connectionDetails);
+                return await this.syncRevenueData(manager, schemaName, dataSourceId, startDate, endDate, connectionDetails);
             case GAMReportType.GEOGRAPHY:
-                return await this.syncGeographyData(manager, schemaName, networkCode, startDate, endDate, connectionDetails);
+                return await this.syncGeographyData(manager, schemaName, dataSourceId, startDate, endDate, connectionDetails);
+            case GAMReportType.DEVICE:
+                return await this.syncDeviceData(manager, schemaName, dataSourceId, startDate, endDate, connectionDetails);
+            case GAMReportType.AD_UNIT:
+                return await this.syncAdUnitData(manager, schemaName, dataSourceId, startDate, endDate, connectionDetails);
+            case GAMReportType.ADVERTISER:
+                return await this.syncAdvertiserData(manager, schemaName, dataSourceId, startDate, endDate, connectionDetails);
+            case GAMReportType.TIME_SERIES:
+                return await this.syncTimeSeriesData(manager, schemaName, dataSourceId, startDate, endDate, connectionDetails);
             default:
-                console.warn(`⚠️  Unsupported report type: ${reportType}. Only 'revenue' and 'geography' are supported.`);
+                console.warn(`⚠️  Unsupported report type: ${reportType}`);
                 return { recordsSynced: 0, recordsFailed: 0 };
         }
     }
@@ -231,12 +239,12 @@ export class GoogleAdManagerDriver implements IAPIDriver {
     private async syncRevenueData(
         manager: any,
         schemaName: string,
-        networkCode: string,
+        dataSourceId: number,
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
-        const tableName = `revenue_${networkCode}`;
+        const tableName = `revenue_${dataSourceId}`;
         const fullTableName = `${schemaName}.${tableName}`;
         
         // Create table if not exists
@@ -261,6 +269,12 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         `);
         
         console.log(`✅ Table ${fullTableName} ready`);
+        
+        // Get network code for API calls
+        const networkCode = connectionDetails.api_config?.network_code;
+        if (!networkCode) {
+            throw new Error('Network code not configured');
+        }
         
         // Build and execute report query with retry logic
         const reportQuery = this.gamService.buildRevenueReportQuery(networkCode, startDate, endDate);
@@ -307,12 +321,12 @@ export class GoogleAdManagerDriver implements IAPIDriver {
     private async syncGeographyData(
         manager: any,
         schemaName: string,
-        networkCode: string,
+        dataSourceId: number,
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
-        const tableName = `geography_${networkCode}`;
+        const tableName = `geography_${dataSourceId}`;
         const fullTableName = `${schemaName}.${tableName}`;
         
         // Create table if not exists
@@ -334,6 +348,12 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         `);
         
         console.log(`✅ Table ${fullTableName} ready`);
+        
+        // Get network code for API calls
+        const networkCode = connectionDetails.api_config?.network_code;
+        if (!networkCode) {
+            throw new Error('Network code not configured');
+        }
         
         // Build and execute report query with retry logic
         const reportQuery = this.gamService.buildGeographyReportQuery(networkCode, startDate, endDate);
@@ -363,6 +383,293 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         console.log(`✅ Synced ${transformedData.length} geography records`);
         return { recordsSynced: transformedData.length, recordsFailed: 0 };
     }
+    /**
+     * Sync device & browser report data
+     */
+    private async syncDeviceData(
+        manager: any,
+        schemaName: string,
+        dataSourceId: number,
+        startDate: string,
+        endDate: string,
+        connectionDetails: IAPIConnectionDetails
+    ): Promise<{ recordsSynced: number; recordsFailed: number }> {
+        const tableName = `device_${dataSourceId}`;
+        const fullTableName = `${schemaName}.${tableName}`;
+        
+        // Create table if not exists
+        await manager.query(`
+            CREATE TABLE IF NOT EXISTS ${fullTableName} (
+                id SERIAL PRIMARY KEY,
+                date DATE NOT NULL,
+                device_category VARCHAR(50),
+                browser_name VARCHAR(100),
+                operating_system VARCHAR(100),
+                impressions BIGINT DEFAULT 0,
+                clicks BIGINT DEFAULT 0,
+                revenue DECIMAL(15,2) DEFAULT 0,
+                ctr DECIMAL(10,4) DEFAULT 0,
+                cpm DECIMAL(10,2) DEFAULT 0,
+                network_code VARCHAR(255) NOT NULL,
+                synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(date, device_category, browser_name, operating_system)
+            )
+        `);
+        
+        console.log(`✅ Table ${fullTableName} ready`);
+        
+        // Get network code for API calls
+        const networkCode = connectionDetails.api_config?.network_code;
+        if (!networkCode) {
+            throw new Error('Network code not configured');
+        }
+        
+        // Build and execute report query with retry logic
+       const reportQuery = this.gamService.buildDeviceReportQuery(networkCode, startDate, endDate);
+        
+        const reportResult = await RetryHandler.execute(
+            () => this.gamService.runReport(reportQuery, connectionDetails),
+            RetryHandler.getRecommendedConfig('rate_limit')
+        );
+        
+        if (!reportResult.success || !reportResult.data) {
+            console.error(`❌ Failed to fetch device report after ${reportResult.attempts} attempts:`, reportResult.error?.message);
+            throw reportResult.error || new Error('Failed to fetch device report');
+        }
+        
+        const reportResponse = reportResult.data;
+        
+        if (!reportResponse.rows || reportResponse.rows.length === 0) {
+            console.log('ℹ️  No data returned from GAM for device report');
+            return { recordsSynced: 0, recordsFailed: 0 };
+        }
+        
+        const transformedData = this.transformDeviceData(reportResponse, networkCode);
+        
+        // Always use upsert for deduplication
+        await this.bulkUpsert(manager, fullTableName, transformedData, 
+            ['date', 'device_category', 'browser_name', 'operating_system']);
+        
+        console.log(`✅ Synced ${transformedData.length} device records`);
+        return { recordsSynced: transformedData.length, recordsFailed: 0 };
+    }
+    
+    /**
+     * Sync ad unit performance report data
+     */
+    private async syncAdUnitData(
+        manager: any,
+        schemaName: string,
+        dataSourceId: number,
+        startDate: string,
+        endDate: string,
+        connectionDetails: IAPIConnectionDetails
+    ): Promise<{ recordsSynced: number; recordsFailed: number }> {
+        const tableName = `ad_unit_${dataSourceId}`;
+        const fullTableName = `${schemaName}.${tableName}`;
+        
+        // Create table if not exists
+        await manager.query(`
+            CREATE TABLE IF NOT EXISTS ${fullTableName} (
+                id SERIAL PRIMARY KEY,
+                date DATE NOT NULL,
+                ad_unit_id VARCHAR(255),
+                ad_unit_name TEXT,
+                impressions BIGINT DEFAULT 0,
+                clicks BIGINT DEFAULT 0,
+                revenue DECIMAL(15,2) DEFAULT 0,
+                ad_server_impressions BIGINT DEFAULT 0,
+                ad_server_clicks BIGINT DEFAULT 0,
+                ctr DECIMAL(10,4) DEFAULT 0,
+                fill_rate DECIMAL(10,4) DEFAULT 0,
+                ecpm DECIMAL(10,2) DEFAULT 0,
+                network_code VARCHAR(255) NOT NULL,
+                synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(date, ad_unit_id)
+            )
+        `);
+        
+        console.log(`✅ Table ${fullTableName} ready`);
+        
+        // Get network code for API calls
+        const networkCode = connectionDetails.api_config?.network_code;
+        if (!networkCode) {
+            throw new Error('Network code not configured');
+        }
+        
+        // Build and execute report query with retry logic
+        const reportQuery = this.gamService.buildAdUnitReportQuery(networkCode, startDate, endDate);
+        
+        const reportResult = await RetryHandler.execute(
+            () => this.gamService.runReport(reportQuery, connectionDetails),
+            RetryHandler.getRecommendedConfig('rate_limit')
+        );
+        
+        if (!reportResult.success || !reportResult.data) {
+            console.error(`❌ Failed to fetch ad unit report after ${reportResult.attempts} attempts:`, reportResult.error?.message);
+            throw reportResult.error || new Error('Failed to fetch ad unit report');
+        }
+        
+        const reportResponse = reportResult.data;
+        
+        if (!reportResponse.rows || reportResponse.rows.length === 0) {
+            console.log('ℹ️  No data returned from GAM for ad unit report');
+            return { recordsSynced: 0, recordsFailed: 0 };
+        }
+        
+        const transformedData = this.transformAdUnitData(reportResponse, networkCode);
+        
+        // Always use upsert for deduplication
+        await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'ad_unit_id']);
+        
+        console.log(`✅ Synced ${transformedData.length} ad unit records`);
+        return { recordsSynced: transformedData.length, recordsFailed: 0 };
+    }
+    
+    /**
+     * Sync advertiser performance report data
+     */
+    private async syncAdvertiserData(
+        manager: any,
+        schemaName: string,
+        dataSourceId: number,
+        startDate: string,
+        endDate: string,
+        connectionDetails: IAPIConnectionDetails
+    ): Promise<{ recordsSynced: number; recordsFailed: number }> {
+        const tableName = `advertiser_${dataSourceId}`;
+        const fullTableName = `${schemaName}.${tableName}`;
+        
+        // Create table if not exists
+        await manager.query(`
+            CREATE TABLE IF NOT EXISTS ${fullTableName} (
+                id SERIAL PRIMARY KEY,
+                date DATE NOT NULL,
+                advertiser_id VARCHAR(255),
+                advertiser_name TEXT,
+                order_id VARCHAR(255),
+                order_name TEXT,
+                line_item_id VARCHAR(255),
+                line_item_name TEXT,
+                impressions BIGINT DEFAULT 0,
+                clicks BIGINT DEFAULT 0,
+                revenue DECIMAL(15,2) DEFAULT 0,
+                ctr DECIMAL(10,4) DEFAULT 0,
+                cpm DECIMAL(10,2) DEFAULT 0,
+                network_code VARCHAR(255) NOT NULL,
+                synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(date, advertiser_id, order_id, line_item_id)
+            )
+        `);
+        
+        console.log(`✅ Table ${fullTableName} ready`);
+        
+        // Get network code for API calls
+        const networkCode = connectionDetails.api_config?.network_code;
+        if (!networkCode) {
+            throw new Error('Network code not configured');
+        }
+        
+        // Build and execute report query with retry logic
+        const reportQuery = this.gamService.buildAdvertiserReportQuery(networkCode, startDate, endDate);
+        
+        const reportResult = await RetryHandler.execute(
+            () => this.gamService.runReport(reportQuery, connectionDetails),
+            RetryHandler.getRecommendedConfig('rate_limit')
+        );
+        
+        if (!reportResult.success || !reportResult.data) {
+            console.error(`❌ Failed to fetch advertiser report after ${reportResult.attempts} attempts:`, reportResult.error?.message);
+            throw reportResult.error || new Error('Failed to fetch advertiser report');
+        }
+        
+        const reportResponse = reportResult.data;
+        
+        if (!reportResponse.rows || reportResponse.rows.length === 0) {
+            console.log('ℹ️  No data returned from GAM for advertiser report');
+            return { recordsSynced: 0, recordsFailed: 0 };
+        }
+        
+        const transformedData = this.transformAdvertiserData(reportResponse, networkCode);
+        
+        // Always use upsert for deduplication
+        await this.bulkUpsert(manager, fullTableName, transformedData, 
+            ['date', 'advertiser_id', 'order_id', 'line_item_id']);
+        
+        console.log(`✅ Synced ${transformedData.length} advertiser records`);
+        return { recordsSynced: transformedData.length, recordsFailed: 0 };
+    }
+    
+    /**
+     * Sync time series (daily aggregates) report data
+     */
+    private async syncTimeSeriesData(
+        manager: any,
+        schemaName: string,
+        dataSourceId: number,
+        startDate: string,
+        endDate: string,
+        connectionDetails: IAPIConnectionDetails
+    ): Promise<{ recordsSynced: number; recordsFailed: number }> {
+        const tableName = `time_series_${dataSourceId}`;
+        const fullTableName = `${schemaName}.${tableName}`;
+        
+        // Create table if not exists
+        await manager.query(`
+            CREATE TABLE IF NOT EXISTS ${fullTableName} (
+                id SERIAL PRIMARY KEY,
+                date DATE NOT NULL UNIQUE,
+                impressions BIGINT DEFAULT 0,
+                clicks BIGINT DEFAULT 0,
+                revenue DECIMAL(15,2) DEFAULT 0,
+                unfilled_impressions BIGINT DEFAULT 0,
+                ad_requests BIGINT DEFAULT 0,
+                ctr DECIMAL(10,4) DEFAULT 0,
+                fill_rate DECIMAL(10,4) DEFAULT 0,
+                ecpm DECIMAL(10,2) DEFAULT 0,
+                network_code VARCHAR(255) NOT NULL,
+                synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        
+        console.log(`✅ Table ${fullTableName} ready`);
+        
+        // Get network code for API calls
+        const networkCode = connectionDetails.api_config?.network_code;
+        if (!networkCode) {
+            throw new Error('Network code not configured');
+        }
+        
+        // Build and execute report query with retry logic
+        const reportQuery = this.gamService.buildTimeSeriesReportQuery(networkCode, startDate, endDate);
+        
+        const reportResult = await RetryHandler.execute(
+            () => this.gamService.runReport(reportQuery, connectionDetails),
+            RetryHandler.getRecommendedConfig('rate_limit')
+        );
+        
+        if (!reportResult.success || !reportResult.data) {
+            console.error(`❌ Failed to fetch time series report after ${reportResult.attempts} attempts:`, reportResult.error?.message);
+            throw reportResult.error || new Error('Failed to fetch time series report');
+        }
+        
+        const reportResponse = reportResult.data;
+        
+        if (!reportResponse.rows || reportResponse.rows.length === 0) {
+            console.log('ℹ️  No data returned from GAM for time series report');
+            return { recordsSynced: 0, recordsFailed: 0 };
+        }
+        
+        const transformedData = this.transformTimeSeriesData(reportResponse, networkCode);
+        
+        // Always use upsert for deduplication
+        await this.bulkUpsert(manager, fullTableName, transformedData, ['date']);
+        
+        console.log(`✅ Synced ${transformedData.length} time series records`);
+        return { recordsSynced: transformedData.length, recordsFailed: 0 };
+    }
+
+    
     
 
     
@@ -430,7 +737,143 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             };
         });
     }
+
+        /**
+     * Transform device & browser report data to PostgreSQL format
+     */
+    private transformDeviceData(reportResponse: IGAMReportResponse, networkCode: string): any[] {
+        if (!reportResponse.rows) {
+            return [];
+        }
+        
+        return reportResponse.rows.map(row => {
+            const impressions = row.metrics['TOTAL_LINE_ITEM_LEVEL_IMPRESSIONS'] || 0;
+            const clicks = row.metrics['TOTAL_LINE_ITEM_LEVEL_CLICKS'] || 0;
+            const revenue = row.metrics['TOTAL_LINE_ITEM_LEVEL_CPM_AND_CPC_REVENUE'] || 0;
+            
+            const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
+            const cpm = impressions > 0 ? (revenue / impressions) * 1000 : 0;
+            
+            return {
+                date: row.dimensions['DATE'],
+                device_category: row.dimensions['DEVICE_CATEGORY_NAME'] || 'Unknown',
+                browser_name: row.dimensions['BROWSER_NAME'] || 'Unknown',
+                operating_system: row.dimensions['OPERATING_SYSTEM_NAME'] || 'Unknown',
+                impressions,
+                clicks,
+                revenue: parseFloat(revenue.toString()),
+                ctr: parseFloat(ctr.toFixed(4)),
+                cpm: parseFloat(cpm.toFixed(2)),
+                network_code: networkCode,
+            };
+        });
+    }
     
+    /**
+     * Transform ad unit performance report data to PostgreSQL format
+     */
+    private transformAdUnitData(reportResponse: IGAMReportResponse, networkCode: string): any[] {
+        if (!reportResponse.rows) {
+            return [];
+        }
+        
+        return reportResponse.rows.map(row => {
+            const impressions = row.metrics['TOTAL_LINE_ITEM_LEVEL_IMPRESSIONS'] || 0;
+            const clicks = row.metrics['TOTAL_LINE_ITEM_LEVEL_CLICKS'] || 0;
+            const revenue = row.metrics['TOTAL_LINE_ITEM_LEVEL_CPM_AND_CPC_REVENUE'] || 0;
+            const adServerImpressions = row.metrics['AD_SERVER_IMPRESSIONS'] || 0;
+            const adServerClicks = row.metrics['AD_SERVER_CLICKS'] || 0;
+            
+            const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
+            const fillRate = adServerImpressions > 0 ? (impressions / adServerImpressions) * 100 : 0;
+            const ecpm = impressions > 0 ? (revenue / impressions) * 1000 : 0;
+            
+            return {
+                date: row.dimensions['DATE'],
+                ad_unit_id: row.dimensions['AD_UNIT_ID'] || null,
+                ad_unit_name: row.dimensions['AD_UNIT_NAME'] || null,
+                impressions,
+                clicks,
+                revenue: parseFloat(revenue.toString()),
+                ad_server_impressions: adServerImpressions,
+                ad_server_clicks: adServerClicks,
+                ctr: parseFloat(ctr.toFixed(4)),
+                fill_rate: parseFloat(fillRate.toFixed(4)),
+                ecpm: parseFloat(ecpm.toFixed(2)),
+                network_code: networkCode,
+            };
+        });
+    }
+    
+    /**
+     * Transform advertiser performance report data to PostgreSQL format
+     */
+    private transformAdvertiserData(reportResponse: IGAMReportResponse, networkCode: string): any[] {
+        if (!reportResponse.rows) {
+            return [];
+        }
+        
+        return reportResponse.rows.map(row => {
+            const impressions = row.metrics['TOTAL_LINE_ITEM_LEVEL_IMPRESSIONS'] || 0;
+            const clicks = row.metrics['TOTAL_LINE_ITEM_LEVEL_CLICKS'] || 0;
+            const revenue = row.metrics['TOTAL_LINE_ITEM_LEVEL_CPM_AND_CPC_REVENUE'] || 0;
+            
+            const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
+            const cpm = impressions > 0 ? (revenue / impressions) * 1000 : 0;
+            
+            return {
+                date: row.dimensions['DATE'],
+                advertiser_id: row.dimensions['ADVERTISER_ID'] || null,
+                advertiser_name: row.dimensions['ADVERTISER_NAME'] || null,
+                order_id: row.dimensions['ORDER_ID'] || null,
+                order_name: row.dimensions['ORDER_NAME'] || null,
+                line_item_id: row.dimensions['LINE_ITEM_ID'] || null,
+                line_item_name: row.dimensions['LINE_ITEM_NAME'] || null,
+                impressions,
+                clicks,
+                revenue: parseFloat(revenue.toString()),
+                ctr: parseFloat(ctr.toFixed(4)),
+                cpm: parseFloat(cpm.toFixed(2)),
+                network_code: networkCode,
+            };
+        });
+    }
+    
+    /**
+     * Transform time series report data to PostgreSQL format
+     */
+    private transformTimeSeriesData(reportResponse: IGAMReportResponse, networkCode: string): any[] {
+        if (!reportResponse.rows) {
+            return [];
+        }
+        
+        return reportResponse.rows.map(row => {
+            const impressions = row.metrics['TOTAL_LINE_ITEM_LEVEL_IMPRESSIONS'] || 0;
+            const clicks = row.metrics['TOTAL_LINE_ITEM_LEVEL_CLICKS'] || 0;
+            const revenue = row.metrics['TOTAL_LINE_ITEM_LEVEL_CPM_AND_CPC_REVENUE'] || 0;
+            const unfilledImpressions = row.metrics['UNFILLED_IMPRESSIONS'] || 0;
+            const adRequests = row.metrics['AD_REQUESTS'] || 0;
+            
+            const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
+            const fillRate = adRequests > 0 ? (impressions / adRequests) * 100 : 0;
+            const ecpm = impressions > 0 ? (revenue / impressions) * 1000 : 0;
+            
+            return {
+                date: row.dimensions['DATE'],
+                impressions,
+                clicks,
+                revenue: parseFloat(revenue.toString()),
+                unfilled_impressions: unfilledImpressions,
+                ad_requests: adRequests,
+                ctr: parseFloat(ctr.toFixed(4)),
+                fill_rate: parseFloat(fillRate.toFixed(4)),
+                ecpm: parseFloat(ecpm.toFixed(2)),
+                network_code: networkCode,
+            };
+        });
+    }
+
+        
 
     
     /**
@@ -553,17 +996,12 @@ export class GoogleAdManagerDriver implements IAPIDriver {
      * Get schema metadata for GAM data source
      * Returns table/column structure for all synced GAM tables
      */
-    public async getSchema(connectionDetails: IAPIConnectionDetails): Promise<any> {
-        const networkCode = connectionDetails.api_config?.network_code;
-        if (!networkCode) {
-            throw new Error('Network code not configured');
-        }
-        
+    public async getSchema(dataSourceId: number, connectionDetails: IAPIConnectionDetails): Promise<any> {
         const reportTypes = connectionDetails.api_config?.report_types || ['revenue'];
         const schemaName = 'dra_google_ad_manager';
         
         const tables = reportTypes.map((reportType: string) => {
-            const tableName = `${reportType}_${networkCode}`;
+            const tableName = `${reportType}_${dataSourceId}`;
             return {
                 schema: schemaName,
                 table: tableName,

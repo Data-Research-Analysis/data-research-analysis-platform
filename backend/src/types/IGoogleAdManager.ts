@@ -137,8 +137,9 @@ export interface IGAMDeviceData {
  */
 export enum GAMReportType {
     REVENUE = 'revenue',
-    INVENTORY = 'inventory',
-    ORDERS = 'orders',
     GEOGRAPHY = 'geography',
     DEVICE = 'device',
+    AD_UNIT = 'ad_unit',
+    ADVERTISER = 'advertiser',
+    TIME_SERIES = 'time_series',
 }

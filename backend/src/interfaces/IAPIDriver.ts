@@ -21,12 +21,13 @@ export interface IAPIDriver {
     syncToDatabase(dataSourceId: number, connectionDetails: IAPIConnectionDetails): Promise<boolean>;
     
     /**
-     * Get schema metadata for the API data source
+     * Get schema metadata for the API data source  
      * Returns table/column structure that matches synced data in PostgreSQL
+     * @param dataSourceId - ID of the data source
      * @param connectionDetails - API connection details
      * @returns Schema metadata
      */
-    getSchema(connectionDetails: IAPIConnectionDetails): Promise<any>;
+    getSchema(dataSourceId: number, connectionDetails: IAPIConnectionDetails): Promise<any>;
     
     /**
      * Get last sync timestamp
