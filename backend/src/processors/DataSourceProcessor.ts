@@ -429,6 +429,25 @@ export class DataSourceProcessor {
                     }
                 }
                 
+                // Delete Google Ads schema tables
+                if ('schema' in dataSource.connection_details && dataSource.connection_details.schema === 'dra_google_ads') {
+                    if (!dbConnector) {
+                        return resolve(false);
+                    }
+                    try {
+                        const query = `SELECT table_name FROM information_schema.tables WHERE table_schema = 'dra_google_ads' AND table_name LIKE '%_${dataSource.id}'`;
+                        const tables = await dbConnector.query(query);
+                        
+                        for (const table of tables) {
+                            const tableName = table.table_name;
+                            await dbConnector.query(`DROP TABLE IF EXISTS dra_google_ads.${tableName}`);
+                            console.log('Dropped Google Ads table:', tableName);
+                        }
+                    } catch (error) {
+                        console.error('Error dropping Google Ads tables:', error);
+                    }
+                }
+                
                 // Remove the data source record
                 await manager.remove(dataSource);
                 console.log(`Successfully deleted data source ${dataSourceId}`);
@@ -523,7 +542,7 @@ export class DataSourceProcessor {
 
             if (dataSource.data_type === EDataSourceType.MONGODB) {
                 //TODO: Leaving here for when MongoDB data source is implemented
-            } else if (dataSource.data_type === EDataSourceType.POSTGRESQL || dataSource.data_type === EDataSourceType.MYSQL || dataSource.data_type === EDataSourceType.MARIADB || dataSource.data_type === EDataSourceType.EXCEL || dataSource.data_type === EDataSourceType.PDF || dataSource.data_type === EDataSourceType.GOOGLE_ANALYTICS || dataSource.data_type === EDataSourceType.GOOGLE_AD_MANAGER) {
+            } else if (dataSource.data_type === EDataSourceType.POSTGRESQL || dataSource.data_type === EDataSourceType.MYSQL || dataSource.data_type === EDataSourceType.MARIADB || dataSource.data_type === EDataSourceType.EXCEL || dataSource.data_type === EDataSourceType.PDF || dataSource.data_type === EDataSourceType.GOOGLE_ANALYTICS || dataSource.data_type === EDataSourceType.GOOGLE_AD_MANAGER || dataSource.data_type === EDataSourceType.GOOGLE_ADS) {
                 const connection = dataSource.connection_details;
                 console.log('[DEBUG - DataSourceProcessor] Connecting to data source ID:', dataSource.id);
                 console.log('[DEBUG - DataSourceProcessor] Connection details:', connection);
@@ -557,6 +576,8 @@ export class DataSourceProcessor {
                 } else if (connection.schema === 'dra_google_analytics') {
                     query += ` AND tb.table_name LIKE '%_${dataSource.id}'`;
                 } else if (connection.schema === 'dra_google_ad_manager') {
+                    query += ` AND tb.table_name LIKE '%_${dataSource.id}'`;
+                } else if (connection.schema === 'dra_google_ads') {
                     query += ` AND tb.table_name LIKE '%_${dataSource.id}'`;
                 }
                 let tablesSchema = await dbConnector.query(query);
@@ -826,8 +847,8 @@ export class DataSourceProcessor {
                     let columnName;
                     if (column.alias_name && column.alias_name !== '') {
                         columnName = column.alias_name;
-                    } else if (column && (column.schema === 'dra_excel' || column.schema === 'dra_pdf' || column.schema === 'dra_google_analytics' || column.schema === 'dra_google_ad_manager')) {
-                        // For special schemas (Excel, PDF, GA, GAM), always use table_name regardless of aliases
+                    } else if (column && (column.schema === 'dra_excel' || column.schema === 'dra_pdf' || column.schema === 'dra_google_analytics' || column.schema === 'dra_google_ad_manager' || column.schema === 'dra_google_ads')) {
+                        // For special schemas (Excel, PDF, GA, GAM, Google Ads), always use table_name regardless of aliases
                         // This preserves datasource IDs in table names (e.g., device_15, sheet_123, revenue_12345_7)
                         columnName = `${column.table_name}`.length > 20 ? `${column.table_name}`.slice(-20) + `_${column.column_name}` : `${column.table_name}` + `_${column.column_name}`;
                     } else {
@@ -928,8 +949,8 @@ export class DataSourceProcessor {
                     let columnName;
                     if (column.alias_name && column.alias_name !== '') {
                         columnName = column.alias_name;
-                    } else if (column && (column.schema === 'dra_excel' || column.schema === 'dra_pdf' || column.schema === 'dra_google_analytics' || column.schema === 'dra_google_ad_manager')) {
-                        // For special schemas (Excel, PDF, GA, GAM), always use table_name regardless of aliases
+                    } else if (column && (column.schema === 'dra_excel' || column.schema === 'dra_pdf' || column.schema === 'dra_google_analytics' || column.schema === 'dra_google_ad_manager' || column.schema === 'dra_google_ads')) {
+                        // For special schemas (Excel, PDF, GA, GAM, Google Ads), always use table_name regardless of aliases
                         columnName = `${column.table_name}`.length > 20 ? `${column.table_name}`.slice(-20) + `_${column.column_name}` : `${column.table_name}` + `_${column.column_name}`;
                     } else {
                         columnName = `${column.schema}_${column.table_name}_${column.column_name}`;
@@ -980,8 +1001,8 @@ export class DataSourceProcessor {
                         if (column.alias_name && column.alias_name !== '') {
                             rowKey = column.alias_name;
                             columnName = column.alias_name;
-                        } else if (column && (column.schema === 'dra_excel' || column.schema === 'dra_pdf' || column.schema === 'dra_google_analytics' || column.schema === 'dra_google_ad_manager')) {
-                            // For special schemas (Excel, PDF, GA), always use table_name regardless of aliases
+                        } else if (column && (column.schema === 'dra_excel' || column.schema === 'dra_pdf' || column.schema === 'dra_google_analytics' || column.schema === 'dra_google_ad_manager' || column.schema === 'dra_google_ads')) {
+                            // For special schemas (Excel, PDF, GA, GAM, Google Ads), always use table_name regardless of aliases
                             // This preserves datasource IDs in table names and ensures frontend-backend consistency
                             columnName = `${column.table_name}`.length > 20 ? `${column.table_name}`.slice(-20) + `_${column.column_name}` : `${column.table_name}` + `_${column.column_name}`;
                             rowKey = columnName;
