@@ -13,7 +13,7 @@ import { IAPIConnectionDetails } from '../types/IAPIConnectionDetails.js';
  */
 export class GoogleAdsService {
     private static instance: GoogleAdsService;
-    private static readonly API_VERSION = 'v16';  // Google Ads API version
+    private static readonly API_VERSION = 'v22';  // Google Ads API version (updated to current stable)
     private static readonly BASE_URL = 'https://googleads.googleapis.com';
     
     private constructor() {}
