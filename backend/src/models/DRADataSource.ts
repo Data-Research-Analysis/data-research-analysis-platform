@@ -78,7 +78,7 @@ export class DRADataSource {
     id!: number
     @Column({ type: 'varchar', length: 255 })
     name!: string
-    @Column({ type: 'enum', enum: [EDataSourceType.POSTGRESQL, EDataSourceType.MYSQL, EDataSourceType.MARIADB, EDataSourceType.MONGODB, EDataSourceType.CSV, EDataSourceType.EXCEL, EDataSourceType.PDF, EDataSourceType.GOOGLE_ANALYTICS] })
+    @Column({ type: 'enum', enum: [EDataSourceType.POSTGRESQL, EDataSourceType.MYSQL, EDataSourceType.MARIADB, EDataSourceType.MONGODB, EDataSourceType.CSV, EDataSourceType.EXCEL, EDataSourceType.PDF, EDataSourceType.GOOGLE_ANALYTICS, EDataSourceType.GOOGLE_AD_MANAGER, EDataSourceType.GOOGLE_ADS] })
     data_type!: EDataSourceType;
     @Column({ type: 'jsonb', transformer: connectionDetailsTransformer })
     connection_details!: IConnectionDetails
