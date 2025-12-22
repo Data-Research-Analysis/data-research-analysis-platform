@@ -28,13 +28,13 @@ export const useGoogleAnalytics = () => {
     /**
      * Add Google Analytics data source
      */
-    const addDataSource = async (config: IGoogleAnalyticsSyncConfig): Promise<boolean> => {
+    const addDataSource = async (config: IGoogleAnalyticsSyncConfig): Promise<number | null> => {
         try {
-            const success: number | null = await dataSourceStore.addGoogleAnalyticsDataSource(config);
-            return success !== null;
+            const dataSourceId: number | null = await dataSourceStore.addGoogleAnalyticsDataSource(config);
+            return dataSourceId;
         } catch (error) {
             console.error('Failed to add data source:', error);
-            return false;
+            return null;
         }
     };
 

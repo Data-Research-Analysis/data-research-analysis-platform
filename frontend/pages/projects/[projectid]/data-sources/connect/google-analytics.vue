@@ -169,7 +169,7 @@ async function connectAndSync() {
         
         const dataSourceId = await analytics.addDataSource(config);
         
-        if (dataSourceId) {
+        if (dataSourceId !== null) {
             // Clear stored tokens (async)
             await oauth.clearTokens();
             
