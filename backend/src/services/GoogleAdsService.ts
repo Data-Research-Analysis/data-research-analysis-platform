@@ -68,15 +68,42 @@ export class GoogleAdsService {
         
         // Fetch details for each customer
         const accounts: IGoogleAdsAccount[] = [];
+        let hasTestTokenError = false;
+        
         for (const resourceName of data.resourceNames) {
             const customerId = resourceName.split('/')[1];
             try {
                 const details = await this.getAccountDetails(customerId, accessToken);
                 accounts.push(details);
-            } catch (error) {
-                console.error(`Failed to get details for customer ${customerId}:`, error);
-                // Skip this account and continue
+            } catch (error: any) {
+                const errorMessage = error.message || '';
+                
+                // Check if it's a test token limitation error
+                if (errorMessage.includes('DEVELOPER_TOKEN_NOT_APPROVED') || 
+                    errorMessage.includes('only approved for use with test accounts')) {
+                    hasTestTokenError = true;
+                    console.warn(`⚠️  Test developer token - skipping non-test account ${customerId}`);
+                    
+                    // Return basic account info without detailed fetch
+                    accounts.push({
+                        customerId,
+                        descriptiveName: `Account ${customerId} (Test Token - Limited Access)`,
+                        currencyCode: 'USD',
+                        timeZone: 'America/New_York'
+                    });
+                } else {
+                    console.error(`Failed to get details for customer ${customerId}:`, error);
+                    // Skip accounts with other errors
+                }
             }
+        }
+        
+        // If test token error occurred, log a warning
+        if (hasTestTokenError) {
+            console.warn(`\n⚠️  DEVELOPER TOKEN LIMITATION DETECTED`);
+            console.warn(`Your developer token is only approved for test accounts.`);
+            console.warn(`To access production accounts, apply for Basic or Standard access at:`);
+            console.warn(`https://ads.google.com/aw/apicenter\n`);
         }
         
         return accounts;

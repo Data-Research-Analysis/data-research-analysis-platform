@@ -122,6 +122,22 @@ async function loadAccounts() {
 function selectAccount(account: IGoogleAdsAccount) {
     state.selectedAccount = account;
     state.dataSourceName = `Google Ads - ${account.descriptiveName}`;
+    
+    // Check if this is a test token limited account
+    if (account.descriptiveName.includes('Test Token - Limited Access')) {
+        $swal.fire({
+            title: 'Test Developer Token',
+            html: `
+                <p class="mb-2">This account has limited access with your current developer token.</p>
+                <p class="mb-2"><strong>Data sync may fail</strong> if this is not a test account.</p>
+                <p>To access production accounts, apply for Basic or Standard access at:</p>
+                <a href="https://ads.google.com/aw/apicenter" target="_blank" class="text-indigo-600 hover:underline">Google Ads API Center</a>
+            `,
+            icon: 'warning',
+            confirmButtonText: 'Continue Anyway'
+        });
+    }
+    
     state.currentStep = 3;
 }
 
@@ -234,11 +250,14 @@ async function connectDataSource() {
             endDate: dateRange.endDate
         };
 
+        console.log('[Wizard] Calling addDataSource with config:', dataSourceConfig);
         const dataSourceId = await ads.addDataSource(dataSourceConfig);
 
         if (!dataSourceId) {
-            throw new Error('Failed to create data source');
+            throw new Error('Failed to create data source - no ID returned');
         }
+        
+        console.log('[Wizard] Data source created successfully:', dataSourceId);
 
         // Update progress
         $swal.update({
@@ -252,7 +271,9 @@ async function connectDataSource() {
         });
 
         // Trigger initial sync
+        console.log('[Wizard] Triggering initial sync...');
         const syncSuccess = await ads.syncNow(dataSourceId);
+        console.log('[Wizard] Sync result:', syncSuccess);
 
         // Final progress update
         $swal.update({
@@ -286,12 +307,15 @@ async function connectDataSource() {
         await router.push(`/projects/${projectId}`);
 
     } catch (error: any) {
-        console.error('Connection error:', error);
+        console.error('[Wizard] Connection error:', error);
         state.error = error.message || 'Failed to connect data source';
 
         await $swal.fire({
             title: 'Connection Failed',
-            text: state.error,
+            html: `
+                <p class="mb-2">Failed to connect Google Ads account:</p>
+                <p class="text-sm text-red-600">${state.error}</p>
+            `,
             icon: 'error'
         });
     } finally {
