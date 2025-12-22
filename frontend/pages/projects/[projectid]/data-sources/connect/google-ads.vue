@@ -222,8 +222,8 @@ async function connectDataSource() {
 
         const dateRange = getDateRange();
 
-        // Show progress dialog
-        await $swal.fire({
+        // Show progress dialog (don't await - continue execution)
+        $swal.fire({
             title: 'Connecting...',
             html: `
                 <div class="text-left">

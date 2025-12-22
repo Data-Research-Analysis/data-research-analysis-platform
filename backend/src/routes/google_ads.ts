@@ -92,10 +92,14 @@ router.get('/report-types', async (req, res) => {
  * POST /api/google-ads/add
  */
 router.post('/add', async (req, res) => {
+    console.log('🔵 [GoogleAds] /add endpoint called');
+    console.log('🔵 Request body:', req.body);
+    
     try {
         const user_id = (req as any).user?.id;
         
         if (!user_id) {
+            console.log('❌ No user_id found in request');
             return res.status(401).json({
                 success: false,
                 error: 'Unauthorized'
