@@ -43,10 +43,13 @@ export class GoogleAdsService {
         const url = `${GoogleAdsService.BASE_URL}/${GoogleAdsService.API_VERSION}/customers:listAccessibleCustomers`;
         
         const response = await fetch(url, {
+            method: 'POST',  // Google Ads API requires POST for listAccessibleCustomers
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
-                'developer-token': this.getDeveloperToken()
-            }
+                'developer-token': this.getDeveloperToken(),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({})  // Empty body required
         });
         
         if (!response.ok) {
