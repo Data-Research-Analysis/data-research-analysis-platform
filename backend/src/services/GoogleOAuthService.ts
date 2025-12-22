@@ -211,13 +211,24 @@ export class GoogleOAuthService {
     }
     
     /**
-     * Get combined scopes for both Google Analytics and Google Ad Manager
+     * Get Google Ads scopes
+     * @returns Array of required scopes for Google Ads
+     */
+    public static getGoogleAdsScopes(): string[] {
+        return [
+            'https://www.googleapis.com/auth/adwords', // Google Ads API access
+        ];
+    }
+    
+    /**
+     * Get combined scopes for all Google APIs (Analytics, Ad Manager, Ads)
      * @returns Array of all required Google API scopes
      */
     public static getAllGoogleScopes(): string[] {
         return [
             ...GoogleOAuthService.getGoogleAnalyticsScopes(),
             ...GoogleOAuthService.getGoogleAdManagerScopes(),
+            ...GoogleOAuthService.getGoogleAdsScopes(),
         ];
     }
     

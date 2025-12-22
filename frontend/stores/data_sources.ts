@@ -6,6 +6,11 @@ import type {
     IGoogleAnalyticsSyncConfig,
     IGoogleAnalyticsSyncStatus 
 } from '~/types/IGoogleAnalytics';
+import type {
+    IGoogleAdsAccount,
+    IGoogleAdsSyncConfig,
+    IGoogleAdsSyncStatus
+} from '~/types/IGoogleAds';
 export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     const dataSources = ref<IDataSource[]>([])
     const selectedDataSource = ref<IDataSource>()
@@ -91,10 +96,10 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
      */
 
     /**
-     * Initiate Google OAuth flow for Analytics or Ad Manager
+     * Initiate Google OAuth flow for Analytics, Ad Manager, or Google Ads
      * Returns the authorization URL to redirect user to
      */
-    async function initiateGoogleOAuth(projectId?: string, serviceType: 'analytics' | 'ad_manager' = 'analytics'): Promise<string | null> {
+    async function initiateGoogleOAuth(projectId?: string, serviceType: 'analytics' | 'ad_manager' | 'google_ads' = 'analytics'): Promise<string | null> {
         const token = getAuthToken();
         if (!token) return null;
 
@@ -452,6 +457,120 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         }
     }
 
+    /**
+     * List Google Ads accounts accessible to the user
+     */
+    async function listGoogleAdsAccounts(accessToken: string): Promise<IGoogleAdsAccount[]> {
+        const token = getAuthToken();
+        if (!token) return [];
+
+        try {
+            const response = await fetch(`${baseUrl()}/google-ads/accounts`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+                body: JSON.stringify({ accessToken })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                return data.accounts || [];
+            }
+            return [];
+        } catch (error) {
+            console.error('Error listing Google Ads accounts:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Add Google Ads data source
+     */
+    async function addGoogleAdsDataSource(config: IGoogleAdsSyncConfig): Promise<number | null> {
+        const token = getAuthToken();
+        if (!token) return null;
+
+        try {
+            const response = await fetch(`${baseUrl()}/google-ads/add`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+                body: JSON.stringify(config)
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                // Refresh data sources list
+                await retrieveDataSources();
+                return data.dataSourceId || null;
+            }
+            return null;
+        } catch (error) {
+            console.error('Error adding Google Ads data source:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Trigger manual sync for Google Ads data source
+     */
+    async function syncGoogleAds(dataSourceId: number): Promise<boolean> {
+        const token = getAuthToken();
+        console.log('syncGoogleAds called with dataSourceId:', dataSourceId);
+        if (!token) return false;
+
+        try {
+            const response = await fetch(`${baseUrl()}/google-ads/sync/${dataSourceId}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+                body: JSON.stringify({}),
+            });
+
+            return response.ok;
+        } catch (error) {
+            console.error('Error syncing Google Ads data:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Get sync status and history for Google Ads data source
+     */
+    async function getGoogleAdsSyncStatus(dataSourceId: number): Promise<IGoogleAdsSyncStatus | null> {
+        const token = getAuthToken();
+        if (!token) return null;
+
+        try {
+            const response = await fetch(`${baseUrl()}/google-ads/status/${dataSourceId}`, {
+                method: "GET",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                return data.status || null;
+            }
+            return null;
+        } catch (error) {
+            console.error('Error getting Google Ads sync status:', error);
+            return null;
+        }
+    }
+
     return {
         dataSources,
         selectedDataSource,
@@ -477,5 +596,10 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         addGoogleAdManagerDataSource,
         syncGoogleAdManager,
         getGoogleAdManagerSyncStatus,
+        // Google Ads methods
+        listGoogleAdsAccounts,
+        addGoogleAdsDataSource,
+        syncGoogleAds,
+        getGoogleAdsSyncStatus,
     }
 });

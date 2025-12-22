@@ -802,6 +802,7 @@ Keep it concise - aim for 200-300 words total.`;
             const apiSourceSchemas: Record<string, string> = {
                 'google_analytics': 'dra_google_analytics',
                 'google_ad_manager': 'dra_google_ad_manager',
+                'google_ads': 'dra_google_ads',
                 'excel': 'dra_excel',
                 'pdf': 'dra_pdf'
             };
@@ -840,6 +841,7 @@ Keep it concise - aim for 200-300 words total.`;
             case 'postgresql':
             case 'google_analytics':  // Google Analytics data stored in PostgreSQL
             case 'google_ad_manager': // Google Ad Manager data stored in PostgreSQL
+            case 'google_ads':        // Google Ads data stored in PostgreSQL
             case 'excel':             // Excel data stored in PostgreSQL (dra_excel schema)
             case 'pdf':               // PDF data stored in PostgreSQL (dra_pdf schema)
                 return PostgresDataSource.getInstance().getDataSource(

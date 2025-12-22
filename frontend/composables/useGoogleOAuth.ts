@@ -13,7 +13,7 @@ export const useGoogleOAuth = () => {
      * Initiate Google OAuth flow
      * Opens authorization URL in current window or popup
      */
-    const initiateAuth = async (projectId?: string, serviceType: 'analytics' | 'ad_manager' = 'analytics'): Promise<void> => {
+    const initiateAuth = async (projectId?: string, serviceType: 'analytics' | 'ad_manager' | 'google_ads' = 'analytics'): Promise<void> => {
         try {
             // Get authorization URL from backend
             const authUrl = await dataSourceStore.initiateGoogleOAuth(projectId, serviceType);
