@@ -1,4 +1,5 @@
 import express from 'express';
+import { validateJWT } from '../middleware/authenticate.js';
 import { DataSourceProcessor } from '../processors/DataSourceProcessor.js';
 import { GoogleAdsService } from '../services/GoogleAdsService.js';
 import { GoogleAdsDriver } from '../drivers/GoogleAdsDriver.js';
@@ -10,7 +11,7 @@ const router = express.Router();
  * List accessible Google Ads accounts
  * POST /api/google-ads/accounts
  */
-router.post('/accounts', async (req, res) => {
+router.post('/accounts', validateJWT, async (req, res) => {
     try {
         const { accessToken } = req.body;
         
@@ -91,15 +92,16 @@ router.get('/report-types', async (req, res) => {
  * Add Google Ads data source
  * POST /api/google-ads/add
  */
-router.post('/add', async (req, res) => {
+router.post('/add', validateJWT, async (req, res) => {
     console.log('🔵 [GoogleAds] /add endpoint called');
     console.log('🔵 Request body:', req.body);
     
     try {
-        const user_id = (req as any).user?.id;
+        const user_id = req.body?.tokenDetails?.user_id;
         
         if (!user_id) {
             console.log('❌ No user_id found in request');
+            console.log('req.body.tokenDetails:', req.body?.tokenDetails);
             return res.status(401).json({
                 success: false,
                 error: 'Unauthorized'
@@ -138,9 +140,9 @@ router.post('/add', async (req, res) => {
  * Trigger sync for Google Ads data source
  * POST /api/google-ads/sync/:id
  */
-router.post('/sync/:id', async (req, res) => {
+router.post('/sync/:id', validateJWT, async (req, res) => {
     try {
-        const user_id = (req as any).user?.id;
+        const user_id = req.body?.tokenDetails?.user_id;
         
         if (!user_id) {
             return res.status(401).json({
@@ -182,9 +184,9 @@ router.post('/sync/:id', async (req, res) => {
  * Get sync status for Google Ads data source
  * GET /api/google-ads/status/:id
  */
-router.get('/status/:id', async (req, res) => {
+router.get('/status/:id', validateJWT, async (req, res) => {
     try {
-        const user_id = (req as any).user?.id;
+        const user_id = req.body?.tokenDetails?.user_id;
         
         if (!user_id) {
             return res.status(401).json({
