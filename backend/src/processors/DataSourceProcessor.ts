@@ -2230,4 +2230,148 @@ export class DataSourceProcessor {
             return resolve(syncResult);
         });
     }
+
+    /**
+     * Add Google Ads data source
+     */
+    public async addGoogleAdsDataSource(
+        user_id: number,
+        syncConfig: any
+    ): Promise<number | null> {
+        return new Promise<number | null>(async (resolve, reject) => {
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve(null);
+            }
+            const dbConnector = await driver.getConcreteDriver();
+            const manager = dbConnector.manager;
+            if (!manager) {
+                return resolve(null);
+            }
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!user) {
+                return resolve(null);
+            }
+            
+            const project: DRAProject|null = await manager.findOne(DRAProject, {where: {users_platform: user}});
+            if (project) {
+                // Create schema for Google Ads data
+                const schemaName = 'dra_google_ads';
+                await manager.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+                
+                // Get internal database connection details
+                const host = UtilityService.getInstance().getConstants('POSTGRESQL_HOST');
+                const port = UtilityService.getInstance().getConstants('POSTGRESQL_PORT');
+                const database = UtilityService.getInstance().getConstants('POSTGRESQL_DB_NAME');
+                const username = UtilityService.getInstance().getConstants('POSTGRESQL_USERNAME');
+                const password = UtilityService.getInstance().getConstants('POSTGRESQL_PASSWORD');
+                
+                // Prepare API connection details
+                const apiConnectionDetails: IAPIConnectionDetails = {
+                    oauth_access_token: syncConfig.accessToken,
+                    oauth_refresh_token: syncConfig.refreshToken,
+                    token_expiry: new Date(Date.now() + 3600 * 1000), // 1 hour from now
+                    api_config: {
+                        customer_id: syncConfig.customerId,
+                        report_types: syncConfig.reportTypes || ['campaign'],
+                        start_date: syncConfig.startDate,
+                        end_date: syncConfig.endDate
+                    }
+                };
+                
+                // Create hybrid connection details: database connection + API connection
+                const hybridConnection: IDBConnectionDetails = {
+                    data_source_type: EDataSourceType.GOOGLE_ADS,
+                    host: host,
+                    port: parseInt(port),
+                    schema: schemaName,
+                    database: database,
+                    username: username,
+                    password: password,
+                    api_connection_details: apiConnectionDetails
+                };
+                
+                const dataSource = new DRADataSource();
+                dataSource.name = syncConfig.name;
+                dataSource.connection_details = hybridConnection;
+                dataSource.data_type = EDataSourceType.GOOGLE_ADS;
+                dataSource.project = project;
+                dataSource.users_platform = user;
+                dataSource.created_at = new Date();
+                const savedDataSource = await manager.save(dataSource);
+                
+                console.log('✅ Google Ads data source added successfully with ID:', savedDataSource.id);
+                return resolve(savedDataSource.id);
+            }
+            return resolve(null);
+        });
+    }
+
+    /**
+     * Sync Google Ads data source
+     */
+    public async syncGoogleAdsDataSource(
+        dataSourceId: number,
+        user_id: number
+    ): Promise<boolean> {
+        return new Promise<boolean>(async (resolve, reject) => {
+            if (!dataSourceId || isNaN(dataSourceId) || !Number.isInteger(dataSourceId) || dataSourceId < 1) {
+                console.error('[syncGoogleAdsDataSource] Invalid data source ID:', dataSourceId);
+                return resolve(false);
+            }
+            
+            console.log('[syncGoogleAdsDataSource] Starting sync for data source ID:', dataSourceId);
+            
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                console.error('[syncGoogleAdsDataSource] Database driver not available');
+                return resolve(false);
+            }
+            const manager = (await driver.getConcreteDriver()).manager;
+            if (!manager) {
+                console.error('[syncGoogleAdsDataSource] Database manager not available');
+                return resolve(false);
+            }
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!user) {
+                console.error('[syncGoogleAdsDataSource] User not found:', user_id);
+                return resolve(false);
+            }
+            
+            // Get data source
+            console.log('[syncGoogleAdsDataSource] Fetching data source with ID:', dataSourceId);
+            const dataSource = await manager.findOne(DRADataSource, {
+                where: {id: dataSourceId, users_platform: user, data_type: EDataSourceType.GOOGLE_ADS}
+            });
+            
+            if (!dataSource) {
+                console.error('Data source not found or not a Google Ads source');
+                return resolve(false);
+            }
+            
+            // Get connection details - extract API connection from hybrid structure
+            const connection = dataSource.connection_details;
+            if (!connection.api_connection_details) {
+                console.error('API connection details not found in data source');
+                return resolve(false);
+            }
+            
+            const apiConnectionDetails = connection.api_connection_details;
+            
+            // Trigger sync
+            const { GoogleAdsDriver } = await import('../drivers/GoogleAdsDriver.js');
+            const adsDriver = GoogleAdsDriver.getInstance();
+            const syncResult = await adsDriver.syncToDatabase(dataSourceId, apiConnectionDetails);
+            
+            if (syncResult) {
+                // Update last sync time in API connection details
+                apiConnectionDetails.api_config.last_sync = new Date();
+                connection.api_connection_details = apiConnectionDetails;
+                dataSource.connection_details = connection;
+                await manager.save(dataSource);
+            }
+            
+            return resolve(syncResult);
+        });
+    }
 }

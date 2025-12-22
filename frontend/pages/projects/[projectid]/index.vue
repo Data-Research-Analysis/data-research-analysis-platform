@@ -3,6 +3,7 @@ import { useDataSourceStore } from '@/stores/data_sources';
 import { useProjectsStore } from '@/stores/projects';
 import { useGoogleAnalytics } from '@/composables/useGoogleAnalytics';
 import { useGoogleAdManager } from '@/composables/useGoogleAdManager';
+import { useGoogleAds } from '@/composables/useGoogleAds';
 import pdfImage from '/assets/images/pdf.png';
 import excelImage from '/assets/images/excel.png';
 import postgresqlImage from '/assets/images/postgresql.png';
@@ -10,11 +11,13 @@ import mysqlImage from '/assets/images/mysql.png';
 import mariadbImage from '/assets/images/mariadb.png';
 import googleAnalyticsImage from '/assets/images/google-analytics.png';
 import googleAdManagerImage from '/assets/images/google-ad-manager.png';
+import googleAdsImage from '/assets/images/google-ads.png';
 
 const dataSourceStore = useDataSourceStore();
 const projectsStore = useProjectsStore();
 const analytics = useGoogleAnalytics();
 const gam = useGoogleAdManager();
+const ads = useGoogleAds();
 const { $swal } = useNuxtApp();
 const route = useRoute();
 
@@ -82,6 +85,11 @@ const state = reactive({
             url: `${route.fullPath}/data-sources/connect/google-ad-manager`,
             image_url: googleAdManagerImage,
         },
+        {
+            name: 'Google Ads',
+            url: `${route.fullPath}/data-sources/connect/google-ads`,
+            image_url: googleAdsImage, // Reusing GAM image for now
+        },
     ],
     selected_tab: 'data_sources',
 });
@@ -139,7 +147,8 @@ async function syncDataSource(dataSourceId) {
 
         const dataSource = state.data_sources.find(ds => ds.id === dataSourceId);
         const isGAM = dataSource?.data_type === 'google_ad_manager';
-        const serviceName = isGAM ? 'Google Ad Manager' : 'Google Analytics';
+        const isAds = dataSource?.data_type === 'google_ads';
+        const serviceName = isAds ? 'Google Ads' : (isGAM ? 'Google Ad Manager' : 'Google Analytics');
 
         $swal.fire({
             title: 'Syncing...',
@@ -153,7 +162,7 @@ async function syncDataSource(dataSourceId) {
         });
 
         console.log('Starting sync for data source ID:', dataSourceId);
-        const success = isGAM ? await gam.syncNow(dataSourceId) : await analytics.syncNow(dataSourceId);
+        const success = isAds ? await ads.syncNow(dataSourceId) : (isGAM ? await gam.syncNow(dataSourceId) : await analytics.syncNow(dataSourceId));
 
         if (success) {
             await $swal.fire({
@@ -188,7 +197,7 @@ async function syncDataSource(dataSourceId) {
  */
 async function bulkSyncAllGoogleDataSources() {
     const googleDataSources = state.data_sources.filter(ds =>
-        ds.data_type === 'google_analytics' || ds.data_type === 'google_ad_manager'
+        ds.data_type === 'google_analytics' || ds.data_type === 'google_ad_manager' || ds.data_type === 'google_ads'
     );
 
     if (googleDataSources.length === 0) {
@@ -202,7 +211,7 @@ async function bulkSyncAllGoogleDataSources() {
 
     const { value: confirm } = await $swal.fire({
         title: `Sync ${googleDataSources.length} Data Source${googleDataSources.length > 1 ? 's' : ''}?`,
-        text: 'This will sync all Google Analytics and Ad Manager data sources in this project.',
+        text: 'This will sync all Google Analytics, Ad Manager, and Ads data sources in this project.',
         icon: 'question',
         showCancelButton: true,
         confirmButtonText: 'Yes, Sync All',
@@ -232,7 +241,8 @@ async function bulkSyncAllGoogleDataSources() {
         });
 
         const isGAM = ds.data_type === 'google_ad_manager';
-        const success = isGAM ? await gam.syncNow(ds.id) : await analytics.syncNow(ds.id);
+        const isAds = ds.data_type === 'google_ads';
+        const success = isAds ? await ads.syncNow(ds.id) : (isGAM ? await gam.syncNow(ds.id) : await analytics.syncNow(ds.id));
         if (success) {
             successCount++;
         } else {
@@ -257,6 +267,7 @@ async function viewSyncHistory(dataSourceId) {
 
     const dataSource = state.data_sources.find(ds => ds.id === dataSourceId);
     const isGAM = dataSource?.data_type === 'google_ad_manager';
+    const isAds = dataSource?.data_type === 'google_ads';
 
     // Show loading
     await $swal.fire({
@@ -270,7 +281,7 @@ async function viewSyncHistory(dataSourceId) {
         }
     });
 
-    const status = isGAM ? await gam.getSyncStatus(dataSourceId) : await analytics.getSyncStatus(dataSourceId);
+    const status = isAds ? await ads.getSyncStatus(dataSourceId) : (isGAM ? await gam.getSyncStatus(dataSourceId) : await analytics.getSyncStatus(dataSourceId));
 
     $swal.close();
 
@@ -299,27 +310,29 @@ function closeSyncHistoryDialog() {
  * Get last sync time formatted
  */
 function getLastSyncTime(dataSource) {
-    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager') return null;
+    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager' && dataSource.data_type !== 'google_ads') return null;
     const lastSync = dataSource.connection_details?.api_connection_details?.api_config?.last_sync;
     const isGAM = dataSource.data_type === 'google_ad_manager';
-    return lastSync ? (isGAM ? gam.formatSyncTime(lastSync) : analytics.formatSyncTime(lastSync)) : 'Never';
+    const isAds = dataSource.data_type === 'google_ads';
+    return lastSync ? (isAds ? ads.formatSyncTime(lastSync) : (isGAM ? gam.formatSyncTime(lastSync) : analytics.formatSyncTime(lastSync))) : 'Never';
 }
 
 /**
  * Get sync frequency text
  */
 function getSyncFrequency(dataSource) {
-    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager') return null;
+    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager' && dataSource.data_type !== 'google_ads') return null;
     const frequency = dataSource.connection_details?.api_connection_details?.api_config?.sync_frequency || 'manual';
     const isGAM = dataSource.data_type === 'google_ad_manager';
-    return isGAM ? gam.getSyncFrequencyText(frequency) : analytics.getSyncFrequencyText(frequency);
+    const isAds = dataSource.data_type === 'google_ads';
+    return isAds ? 'Manual' : (isGAM ? gam.getSyncFrequencyText(frequency) : analytics.getSyncFrequencyText(frequency));
 }
 
 /**
  * Check if data source was recently synced (within 24 hours)
  */
 function isRecentlySynced(dataSource) {
-    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager') return false;
+    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager' && dataSource.data_type !== 'google_ads') return false;
     const lastSync = dataSource.connection_details?.api_connection_details?.api_config?.last_sync;
     if (!lastSync) return false;
     const diffHours = (new Date().getTime() - new Date(lastSync).getTime()) / (1000 * 60 * 60);
@@ -381,7 +394,7 @@ onMounted(() => {
             </div>
 
             <!-- Bulk Sync Button for Google Data Sources -->
-            <div v-if="!state.loading && state.data_sources.some(ds => ds.data_type === 'google_analytics' || ds.data_type === 'google_ad_manager')"
+            <div v-if="!state.loading && state.data_sources.some(ds => ds.data_type === 'google_analytics' || ds.data_type === 'google_ad_manager' || ds.data_type === 'google_ads')"
                 class="mt-5 mb-2">
                 <button @click="bulkSyncAllGoogleDataSources"
                     class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors duration-200 flex items-center gap-2">
@@ -425,8 +438,8 @@ onMounted(() => {
                                             {{ dataSource.name }}
                                         </div>
 
-                                        <!-- Google Analytics & Google Ad Manager sync status -->
-                                        <div v-if="dataSource.data_type === 'google_analytics' || dataSource.data_type === 'google_ad_manager'"
+                                        <!-- Google Analytics, Google Ad Manager & Google Ads sync status -->
+                                        <div v-if="dataSource.data_type === 'google_analytics' || dataSource.data_type === 'google_ad_manager' || dataSource.data_type === 'google_ads'"
                                             class="mt-auto">
                                             <div class="text-xs text-gray-500 mb-2">
                                                 <div class="flex items-center gap-1 mb-1">
@@ -474,7 +487,7 @@ onMounted(() => {
                             :class="{ 'fa-spin': state.syncing[dataSource.id] }" class="text-sm text-white" />
                     </button>
                     <button
-                        v-if="dataSource.data_type === 'google_analytics' || dataSource.data_type === 'google_ad_manager'"
+                        v-if="dataSource.data_type === 'google_analytics' || dataSource.data_type === 'google_ad_manager' || dataSource.data_type === 'google_ads'"
                         @click.stop="viewSyncHistory(dataSource.id)"
                         class="absolute top-[124px] -right-2 z-10 bg-gray-500 hover:bg-gray-600 border border-gray-500 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer"
                         v-tippy="{ content: 'View Sync History' }">
