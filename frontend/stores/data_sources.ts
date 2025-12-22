@@ -494,6 +494,8 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         if (!token) return null;
 
         try {
+            console.log('[Store] Calling /google-ads/add with config:', config);
+            
             const response = await fetch(`${baseUrl()}/google-ads/add`, {
                 method: "POST",
                 headers: {
@@ -504,16 +506,25 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                 body: JSON.stringify(config)
             });
 
+            console.log('[Store] Response status:', response.status);
+
             if (response.ok) {
                 const data = await response.json();
+                console.log('[Store] Success! Data source ID:', data.dataSourceId);
                 // Refresh data sources list
                 await retrieveDataSources();
                 return data.dataSourceId || null;
             }
-            return null;
+            
+            // Read and throw error response
+            const errorData = await response.json();
+            const errorMessage = errorData.error || `HTTP ${response.status}: Failed to create data source`;
+            console.error('[Store] API Error:', errorMessage);
+            throw new Error(errorMessage);
+            
         } catch (error) {
             console.error('Error adding Google Ads data source:', error);
-            return null;
+            throw error;  // Re-throw instead of returning null
         }
     }
 
