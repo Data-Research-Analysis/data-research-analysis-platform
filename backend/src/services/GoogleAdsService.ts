@@ -42,18 +42,21 @@ export class GoogleAdsService {
     public async listAccounts(accessToken: string): Promise<IGoogleAdsAccount[]> {
         const url = `${GoogleAdsService.BASE_URL}/${GoogleAdsService.API_VERSION}/customers:listAccessibleCustomers`;
         
+        console.log('[GoogleAds] Calling listAccessibleCustomers:', url);
+        
         const response = await fetch(url, {
-            method: 'POST',  // Google Ads API requires POST for listAccessibleCustomers
+            method: 'GET',  // Must use GET for listAccessibleCustomers
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
-                'developer-token': this.getDeveloperToken(),
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({})  // Empty body required
+                'developer-token': this.getDeveloperToken()
+            }
         });
+        
+        console.log('[GoogleAds] Response status:', response.status);
         
         if (!response.ok) {
             const error = await response.text();
+            console.error('[GoogleAds] Error response:', error);
             throw new Error(`Failed to list accounts: ${error}`);
         }
         
