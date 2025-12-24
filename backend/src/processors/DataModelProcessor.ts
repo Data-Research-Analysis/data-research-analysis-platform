@@ -10,6 +10,7 @@ import { DataSource } from "typeorm";
 import { EDataSourceType } from "../types/EDataSourceType.js";
 import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
 import { DRAProject } from "../models/DRAProject.js";
+import { DRADataModelSource } from "../models/DRADataModelSource.js";
 
 export class DataModelProcessor {
     private static instance: DataModelProcessor;
@@ -363,6 +364,25 @@ export class DataModelProcessor {
             if (!user) {
                 return resolve(false);
             }
+
+            // CROSS-SOURCE DETECTION: Parse query to identify involved data sources
+            let isCrossSource = false;
+            let involvedDataSourceIds = new Set<number>();
+            try {
+                const sourceTable = JSON.parse(queryJSON);
+                if (sourceTable.columns && Array.isArray(sourceTable.columns)) {
+                    sourceTable.columns.forEach((column: any) => {
+                        if (column.data_source_id) {
+                            involvedDataSourceIds.add(column.data_source_id);
+                        }
+                    });
+                }
+                isCrossSource = involvedDataSourceIds.size > 1;
+                console.log(`[DataModelProcessor] Cross-source detection: ${isCrossSource ? 'YES' : 'NO'}, sources: ${Array.from(involvedDataSourceIds).join(', ')}`);
+            } catch (error) {
+                console.error('[DataModelProcessor] Error parsing queryJSON for cross-source detection:', error);
+            }
+
             const dataSource: DRADataSource|null = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}, relations: ['data_models']});
             if (!dataSource) {
                 return resolve(false);
