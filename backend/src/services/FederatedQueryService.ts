@@ -374,14 +374,67 @@ export class FederatedQueryService {
     }
 
     /**
-     * Execute cross-source federated query (main entry point)
-     * This is a skeleton - full implementation to be completed in next commits
+     * Build final JOIN SQL across temporary tables
+     */
+    private buildFinalJoinSQL(
+        stagedTables: Array<{ name: string; columns: IQueryColumn[]; dataSourceId: number }>,
+        joins: IJoinCondition[]
+    ): string {
+        if (stagedTables.length === 0) {
+            throw new Error('No staged tables to join');
+        }
+
+        // Start with first table
+        let sql = `SELECT * FROM ${stagedTables[0].name}`;
+
+        // Add JOINs for cross-source joins
+        for (const join of joins) {
+            // Find which staged tables contain the join tables
+            const leftTableInfo = stagedTables.find(st => 
+                st.columns.some(c => `${c.schema}.${c.tableName}` === join.leftTable)
+            );
+            const rightTableInfo = stagedTables.find(st =>
+                st.columns.some(c => `${c.schema}.${c.tableName}` === join.rightTable)
+            );
+
+            if (!leftTableInfo || !rightTableInfo) {
+                console.warn(`[FederatedQuery] Could not find staged tables for join: ${join.leftTable} -> ${join.rightTable}`);
+                continue;
+            }
+
+            // Only add cross-source joins (same-source joins already handled in subqueries)
+            if (leftTableInfo.dataSourceId !== rightTableInfo.dataSourceId) {
+                // Find column aliases in staged tables
+                const leftCol = leftTableInfo.columns.find(c => 
+                    c.tableName === join.leftTable.split('.')[1] && c.columnName === join.leftColumn
+                );
+                const rightCol = rightTableInfo.columns.find(c =>
+                    c.tableName === join.rightTable.split('.')[1] && c.columnName === join.rightColumn
+                );
+
+                if (leftCol && rightCol) {
+                    const leftAlias = leftCol.aliasName || `${leftCol.schema}_${leftCol.tableName}_${leftCol.columnName}`;
+                    const rightAlias = rightCol.aliasName || `${rightCol.schema}_${rightCol.tableName}_${rightCol.columnName}`;
+
+                    sql += ` ${join.joinType} JOIN ${rightTableInfo.name}`;
+                    sql += ` ON ${leftTableInfo.name}."${leftAlias}" ${join.operator} ${rightTableInfo.name}."${rightAlias}"`;
+                }
+            }
+        }
+
+        return sql;
+    }
+
+    /**
+     * Execute cross-source federated query (FULL IMPLEMENTATION)
      */
     public async executeFederatedQuery(
         queryJSON: any,
         dataSourceConnections: Map<number, IDBConnectionDetails>
     ): Promise<IFederatedQueryResult> {
         const startTime = Date.now();
+        const stagedTables: Array<{ name: string; columns: IQueryColumn[]; dataSourceId: number }> = [];
+        let pgConnector: DataSource | null = null;
 
         try {
             // 1. Parse query
@@ -392,22 +445,114 @@ export class FederatedQueryService {
             const subQueries = this.partitionQuery(parsedQuery);
             console.log(`[FederatedQuery] Created ${subQueries.length} subqueries`);
 
-            // 3. Execute subqueries in parallel (placeholder - to be implemented)
-            // TODO: Actual parallel execution in next iteration
+            // 3. Get PostgreSQL connection for staging
+            const pgDriver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!pgDriver) {
+                throw new Error('PostgreSQL driver not available for result staging');\n            }
+            pgConnector = await pgDriver.getConcreteDriver();
 
-            // 4. Stage results and JOIN (placeholder - to be implemented)
-            // TODO: Implement staging and final join
+            // 4. Execute subqueries in PARALLEL
+            console.log('[FederatedQuery] Starting parallel subquery execution...');
+            const subQueryPromises = subQueries.map(async (subQuery, index) => {
+                const connectionDetails = dataSourceConnections.get(subQuery.dataSourceId);
+                if (!connectionDetails) {
+                    throw new Error(`Connection details not found for data source ${subQuery.dataSourceId}`);
+                }
 
-            const executionTime = Date.now() - startTime;
+                const subStartTime = Date.now();
+                const results = await this.executeSubQuery(subQuery, connectionDetails);
+                const executionTime = Date.now() - subStartTime;
+
+                // Generate unique temp table name
+                const tempTableName = `temp_xsource_${subQuery.dataSourceId}_${Date.now()}_${index}`;
+
+                return {
+                    subQuery,
+                    results,
+                    tempTableName,
+                    executionTime
+                };
+            });
+
+            const subQueryResults = await Promise.all(subQueryPromises);
+            console.log(`[FederatedQuery] Completed ${subQueryResults.length} subqueries in parallel`);
+
+            // 5. Stage results in PostgreSQL temporary tables
+            console.log('[FederatedQuery] Staging results in PostgreSQL...');
+            const subQueryMetadata: ISubQueryResult[] = [];
+
+            for (const { subQuery, results, tempTableName, executionTime } of subQueryResults) {
+                await this.stageResultsInPostgres(
+                    results,
+                    subQuery.columns,
+                    tempTableName,
+                    pgConnector
+                );
+
+                stagedTables.push({
+                    name: tempTableName,
+                    columns: subQuery.columns,
+                    dataSourceId: subQuery.dataSourceId
+                });
+
+                subQueryMetadata.push({
+                    dataSourceId: subQuery.dataSourceId,
+                    tempTableName,
+                    rowCount: results.length,
+                    columns: subQuery.columns.map(c => c.aliasName || `${c.schema}_${c.tableName}_${c.columnName}`),
+                    executionTimeMs: executionTime
+                });
+            }
+
+            // 6. Execute final JOIN across staged tables
+            console.log('[FederatedQuery] Executing final cross-source JOIN...');
+            let finalResults: any[] = [];
+
+            if (stagedTables.length === 1) {
+                // Single source - just return staged results
+                const sql = `SELECT * FROM ${stagedTables[0].name}`;
+                finalResults = await pgConnector.query(sql);
+            } else {
+                // Multiple sources - execute cross-source JOIN
+                const joinSQL = this.buildFinalJoinSQL(stagedTables, parsedQuery.joins);
+                console.log('[FederatedQuery] Final JOIN SQL:', joinSQL);
+                finalResults = await pgConnector.query(joinSQL);
+            }
+
+            // 7. Cleanup temporary tables
+            console.log('[FederatedQuery] Cleaning up temporary tables...');
+            for (const table of stagedTables) {
+                try {
+                    await pgConnector.query(`DROP TABLE IF EXISTS ${table.name}`);
+                } catch (error) {
+                    console.warn(`[FederatedQuery] Error dropping temp table ${table.name}:`, error);
+                }
+            }
+
+            const totalExecutionTime = Date.now() - startTime;
+            console.log(`[FederatedQuery] Federated query completed successfully in ${totalExecutionTime}ms, final rows: ${finalResults.length}`);
 
             return {
                 success: true,
-                rowCount: 0,
-                executionTimeMs: executionTime,
-                subQueries: []
+                rowCount: finalResults.length,
+                executionTimeMs: totalExecutionTime,
+                subQueries: subQueryMetadata
             };
         } catch (error) {
             console.error('[FederatedQuery] Error executing federated query:', error);
+
+            // Cleanup on error
+            if (pgConnector && stagedTables.length > 0) {
+                console.log('[FederatedQuery] Cleaning up after error...');
+                for (const table of stagedTables) {
+                    try {
+                        await pgConnector.query(`DROP TABLE IF EXISTS ${table.name}`);
+                    } catch (cleanupError) {
+                        console.warn(`[FederatedQuery] Error during cleanup:`, cleanupError);
+                    }
+                }
+            }
+
             return {
                 success: false,
                 rowCount: 0,
