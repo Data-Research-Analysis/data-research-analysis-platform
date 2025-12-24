@@ -37,7 +37,7 @@
             <div v-if="stats" class="flex flex-wrap -mx-4 mb-6">
                 <div class="w-auto px-4">
                     <span class="inline-flex items-center px-3 py-1 rounded-md text-sm font-medium bg-blue-50 text-blue-700 border border-blue-200">
-                        <font-awesome icon="fas fa-database-multiple" class="mr-2" />
+                        <font-awesome icon="fas fa-server" class="mr-2" />
                         {{ stats.sourceCount }} Data Sources
                     </span>
                 </div>
