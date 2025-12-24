@@ -7,7 +7,8 @@
                     <div class="d-flex align-center mb-2">
                         <v-icon color="secondary" size="large" class="mr-3">mdi-link-variant</v-icon>
                         <h1 class="text-h4">Create Cross-Source Data Model</h1>
-                    </v-col>
+                    </div>
+                </v-col>
             </v-row>
 
             <v-row>
