@@ -180,16 +180,15 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useDataModelsStore } from '~/stores/data_models';
-import { useDataSourcesStore } from '~/stores/data_sources';
 
 const router = useRouter();
 const route = useRoute();
 const dataModelsStore = useDataModelsStore();
-const dataSourcesStore = useDataSourcesStore();
 
 const projectId = computed(() => parseInt(route.params.projectid as string));
 const search = ref('');
 const loading = ref(false);
+const dataSources = ref<any[]>([]);
 
 const headers = [
   { title: 'Name', key: 'name', sortable: true },
@@ -198,7 +197,6 @@ const headers = [
   { title: 'Actions', key: 'actions', sortable: false, align: 'end' }
 ];
 
-const dataSources = computed(() => dataSourcesStore.dataSources);
 const dataModels = computed(() => dataModelsStore.dataModels);
 
 const filteredModels = computed(() => {
@@ -213,10 +211,23 @@ const filteredModels = computed(() => {
 onMounted(async () => {
   loading.value = true;
   try {
-    await Promise.all([
-      dataSourcesStore.fetchDataSources(projectId.value),
-      dataModelsStore.fetchDataModels()
-    ]);
+    // Fetch data models
+    await dataModelsStore.fetchDataModels();
+    
+    // Fetch data sources - use the all-tables endpoint to get sources
+    try {
+      const response = await dataModelsStore.fetchAllProjectTables(projectId.value);
+      if (response && Array.isArray(response)) {
+        dataSources.value = response.map((source: any) => ({
+          id: source.dataSourceId,
+          name: source.dataSourceName,
+          data_type: source.dataSourceType
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching data sources:', error);
+      dataSources.value = [];
+    }
   } finally {
     loading.value = false;
   }
