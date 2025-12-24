@@ -148,8 +148,27 @@ const fetchAllTables = async () => {
         const response = await dataModelsStore.fetchAllProjectTables(projectId.value);
         
         if (response && response.length > 0) {
-            dataSourceTables.value = response;
-            console.log('[CrossSource] Loaded tables from', response.length, 'data sources');
+            // Transform the response: flatten the tables array from each data source
+            // The API returns: [{dataSourceId, dataSourceName, dataSourceType, tables: [...]}]
+            // The data-model-builder expects: [...tables with data_source info]
+            const allTables: any[] = [];
+            
+            response.forEach((dataSource: any) => {
+                if (dataSource.tables && Array.isArray(dataSource.tables)) {
+                    dataSource.tables.forEach((table: any) => {
+                        // Add data source metadata to each table if not already present
+                        allTables.push({
+                            ...table,
+                            data_source_id: table.data_source_id || dataSource.dataSourceId,
+                            data_source_name: table.data_source_name || dataSource.dataSourceName,
+                            data_source_type: table.data_source_type || dataSource.dataSourceType
+                        });
+                    });
+                }
+            });
+            
+            dataSourceTables.value = allTables;
+            console.log('[CrossSource] Loaded', allTables.length, 'tables from', response.length, 'data sources');
         } else {
             console.warn('[CrossSource] No data sources found for project');
             dataSourceTables.value = [];
