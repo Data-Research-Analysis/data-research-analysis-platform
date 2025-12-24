@@ -5,7 +5,7 @@
             <div class="flex flex-wrap -mx-4">
                 <div class="w-full px-4">
                     <div class="flex items-center mb-4">
-                        <font-awesome icon="fas fa-link-variant" class="text-gray-600 text-3xl mr-3" />
+                        <font-awesome icon="fas fa-link" class="text-gray-600 text-3xl mr-3" />
                         <h1 class="text-3xl font-bold text-gray-900">Create Cross-Source Data Model</h1>
                     </div>
                 </div>
@@ -96,7 +96,7 @@
             <div class="flex justify-center">
                 <div class="w-full md:w-2/3 lg:w-1/2">
                     <div class="bg-white rounded-lg shadow-md p-8 text-center">
-                        <font-awesome icon="fas fa-database-off" class="text-gray-400 text-6xl mb-4" />
+                        <font-awesome icon="fas fa-database" class="text-gray-400 text-6xl mb-4" />
                         <h3 class="text-xl font-semibold text-gray-900 mt-4">No Data Sources Found</h3>
                         <p class="text-sm text-gray-500 mt-2">
                             Add at least 2 data sources to your project to create cross-source data models.

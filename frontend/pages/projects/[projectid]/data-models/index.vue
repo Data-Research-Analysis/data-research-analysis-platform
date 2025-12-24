@@ -59,7 +59,7 @@
                 ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
                 : 'bg-gray-100 text-gray-400 cursor-not-allowed'
             ]">
-            <font-awesome icon="fas fa-link-variant" class="mr-2" />
+            <font-awesome icon="fas fa-link" class="mr-2" />
             Create Cross-Source Model
           </button>
         </div>
@@ -117,7 +117,7 @@
                     <span 
                       v-if="item.is_cross_source"
                       class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                      <font-awesome icon="fas fa-link-variant" class="mr-1 text-[10px]" />
+                      <font-awesome icon="fas fa-link" class="mr-1 text-[10px]" />
                       Multi-Source
                     </span>
                   </div>
@@ -172,7 +172,7 @@
 
           <!-- Empty State -->
           <div v-else class="text-center py-12">
-            <font-awesome icon="fas fa-table-off" class="text-gray-400 text-6xl mb-4" />
+            <font-awesome icon="fas fa-table" class="text-gray-400 text-6xl mb-4" />
             <p class="text-xl font-semibold text-gray-900">No data models yet</p>
             <p class="text-sm text-gray-500 mt-2">
               Create your first data model to get started
