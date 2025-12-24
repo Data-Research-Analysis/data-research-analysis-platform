@@ -200,6 +200,22 @@ onMounted(() => {
             <li>Disconnecting a service does not automatically delete previously imported data</li>
         </ul>
 
+        <h3>Database Connections and File Uploads</h3>
+
+        <p>
+            Our Service allows You to connect Your own databases and upload files for analysis:
+        </p>
+
+        <ul>
+            <li>You may connect external databases (PostgreSQL, MySQL, MariaDB, MongoDB) by providing connection credentials</li>
+            <li>You may upload files (Excel, CSV, PDF) for data extraction and analysis</li>
+            <li>You represent that You have authorization to connect the databases and upload the files You specify</li>
+            <li>You are responsible for the security, validity, and compliance of the data You provide or connect</li>
+            <li>We encrypt and securely store database credentials using industry-standard encryption (AES-256)</li>
+            <li>You can disconnect databases or delete uploaded files at any time through Your account settings</li>
+            <li>You acknowledge that database connectivity may be affected by network conditions, firewall settings, or database availability beyond Our control</li>
+        </ul>
+
         <h3>Your Responsibilities</h3>
 
         <p>

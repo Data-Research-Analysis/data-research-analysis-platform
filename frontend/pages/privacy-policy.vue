@@ -152,6 +152,12 @@ onMounted(() => {
             <li>
                 <p><strong>Third-Party Service Credentials:</strong> When You connect external services like Google Analytics, We collect and securely store encrypted OAuth tokens and service identifiers required to maintain the integration.</p>
             </li>
+            <li>
+                <p><strong>Database Connection Credentials:</strong> When You connect external databases (PostgreSQL, MySQL, MariaDB, MongoDB), We collect and securely store encrypted connection credentials (host, port, database name, username, password) that You provide.</p>
+            </li>
+            <li>
+                <p><strong>Uploaded Files:</strong> When You upload files (Excel, CSV, PDF), We store and process the file contents You provide for data extraction, analysis, and visualization purposes.</p>
+            </li>
         </ul>
         
         <h4>Usage Data</h4>
@@ -394,6 +400,37 @@ onMounted(() => {
         <p>
             After revoking access, We will no longer be able to sync new data from Your Google accounts. Previously imported data will remain in Your projects unless You manually delete it.
         </p>
+
+        <h3>Database and File Upload Data Handling</h3>
+
+        <p>
+            Our Service allows You to connect Your own databases and upload files for analysis purposes:
+        </p>
+
+        <ul>
+            <li>
+                <p>
+                    <strong>Database Connections:</strong> When You connect external databases (PostgreSQL, MySQL, MariaDB, MongoDB):
+                </p>
+                <ul>
+                    <li>We store Your connection credentials encrypted using AES-256 encryption</li>
+                    <li>We use these credentials only to query data You authorize for Your projects</li>
+                    <li>Credentials are stored securely in our database and never shared with third parties</li>
+                    <li>You can disconnect databases and delete credentials at any time through Your account settings</li>
+                </ul>
+            </li>
+            <li>
+                <p>
+                    <strong>File Uploads:</strong> When You upload files (Excel, CSV, PDF):
+                </p>
+                <ul>
+                    <li>Files are processed to extract data for analysis within Your projects</li>
+                    <li>Uploaded files are stored securely and only accessible by You and authorized project members</li>
+                    <li>We do not use uploaded file contents for any purpose other than providing analysis features to You</li>
+                    <li>You can delete uploaded files and extracted data at any time through Your account settings</li>
+                </ul>
+            </li>
+        </ul>
 
         <h4>Tracking Technologies and Cookies</h4>
         <p>
