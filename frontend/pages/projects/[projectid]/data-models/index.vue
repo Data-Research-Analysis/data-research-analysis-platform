@@ -211,9 +211,6 @@ const filteredModels = computed(() => {
 onMounted(async () => {
   loading.value = true;
   try {
-    // Fetch data models
-    await dataModelsStore.fetchDataModels();
-    
     // Fetch data sources - use the all-tables endpoint to get sources
     try {
       const response = await dataModelsStore.fetchAllProjectTables(projectId.value);
