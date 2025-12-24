@@ -763,8 +763,8 @@ export class DataSourceProcessor {
                             const firstDataSourceId = parsedQuery.columns[0].data_source_id;
                             if (firstDataSourceId) {
                                 console.log('[DataSourceProcessor] Executing sample query on data source:', firstDataSourceId);
-                                // Recursively call this method with the specific data source ID
-                                return this.executeQueryOnExternalDataSource(
+                                // Execute on the specific data source and return results
+                                const results = await this.executeQueryOnExternalDataSource(
                                     firstDataSourceId,
                                     query,
                                     tokenDetails,
@@ -772,6 +772,7 @@ export class DataSourceProcessor {
                                     false, // Not cross-source anymore
                                     undefined
                                 );
+                                return resolve(results);
                             }
                         }
                     }
