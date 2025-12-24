@@ -26,6 +26,11 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
     const applyTrigger = ref(0);
     const modelHistory = ref<Array<{ model: ModelDraft; timestamp: string; messageId: string }>>([]);
     const currentHistoryIndex = ref(-1);
+    
+    // Cross-source properties
+    const isCrossSource = ref(false);
+    const projectId = ref<number | null>(null);
+    const dataSources = ref<Array<{ id: number; name: string; type: string }>>([]);
 
     /**
      * Open the AI drawer and initialize conversation
@@ -47,6 +52,40 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
         
         // Initialize conversation with the data source (new or Redis session)
         await initializeConversation(dataSourceId);
+    }
+
+    /**
+     * Open the AI drawer for cross-source mode
+     */
+    async function openDrawerCrossSource(
+        projectIdValue: number, 
+        dataSourcesArray: Array<{ id: number; name: string; type: string }>,
+        dataModelId?: number
+    ) {
+        isDrawerOpen.value = true;
+        error.value = null;
+        isCrossSource.value = true;
+        projectId.value = projectIdValue;
+        dataSources.value = dataSourcesArray;
+        
+        console.log('[AI Store] Opening cross-source drawer:', {
+            projectId: projectIdValue,
+            dataSourceCount: dataSourcesArray.length,
+            dataSources: dataSourcesArray
+        });
+        
+        // If dataModelId is provided, try to load conversation from database first
+        if (dataModelId) {
+            const loaded = await loadSavedConversation(dataModelId);
+            if (loaded) {
+                console.log('[AI Store] Loaded conversation from database for data model:', dataModelId);
+                return;
+            }
+            console.log('[AI Store] No conversation found for data model, initializing new session');
+        }
+        
+        // Initialize cross-source conversation
+        await initializeCrossSourceConversation(projectIdValue, dataSourcesArray);
     }
 
     /**
@@ -146,6 +185,70 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
         } catch (err) {
             error.value = err instanceof Error ? err.message : 'Failed to initialize session';
             console.error('Error initializing session:', err);
+            return false;
+        } finally {
+            isInitializing.value = false;
+        }
+    }
+
+    /**
+     * Initialize cross-source conversation
+     */
+    async function initializeCrossSourceConversation(
+        projectIdValue: number,
+        dataSourcesArray: Array<{ id: number; name: string; type: string }>
+    ) {
+        isInitializing.value = true;
+        error.value = null;
+        
+        try {
+            const token = getAuthToken();
+            if (!token) {
+                throw new Error('Authentication required');
+            }
+
+            const url = `${baseUrl()}/ai-data-modeler/session/initialize-cross-source`;
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                    'Authorization-Type': 'auth'
+                },
+                body: JSON.stringify({ 
+                    projectId: projectIdValue,
+                    dataSources: dataSourcesArray 
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to initialize cross-source session');
+            }
+
+            const data = await response.json();
+            
+            console.log('[AI Store] Initialize cross-source response:', {
+                conversationId: data.conversationId,
+                messageCount: data.messages?.length || 0
+            });
+            
+            conversationId.value = data.conversationId;
+            sessionSource.value = 'new';
+            schemaSummary.value = data.schemaSummary;
+            
+            messages.value = data.messages.map((msg: any) => ({
+                id: generateMessageId(),
+                role: msg.role,
+                content: msg.content,
+                timestamp: new Date(msg.timestamp)
+            }));
+            
+            isRestored.value = false;
+            return true;
+        } catch (err) {
+            error.value = err instanceof Error ? err.message : 'Failed to initialize cross-source session';
+            console.error('Error initializing cross-source session:', err);
             return false;
         } finally {
             isInitializing.value = false;
@@ -586,11 +689,16 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
         applyTrigger,
         modelHistory,
         currentHistoryIndex,
+        isCrossSource,
+        projectId,
+        dataSources,
 
         // Actions
         openDrawer,
+        openDrawerCrossSource,
         closeDrawer,
         initializeConversation,
+        initializeCrossSourceConversation,
         sendMessage,
         updateModelDraft,
         saveConversation,

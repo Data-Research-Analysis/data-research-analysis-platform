@@ -282,25 +282,47 @@ const numericColumnsWithAggregates = computed(() => {
 });
 
 function openAIDataModeler() {
-    if (props.dataSource && props.dataSource.id) {
-        // SET FLAG: Prevent watchers from triggering when drawer opens
-        console.log('[openAIDataModeler] Setting guard flag before opening drawer');
-        state.is_applying_ai_config = true;
+    // SET FLAG: Prevent watchers from triggering when drawer opens
+    console.log('[openAIDataModeler] Setting guard flag before opening drawer');
+    state.is_applying_ai_config = true;
 
-        // If editing existing data model, pass its ID to load conversation from database
-        const dataModelId = props.isEditDataModel && props.dataModel?.id
-            ? props.dataModel.id
-            : undefined;
+    // If editing existing data model, pass its ID to load conversation from database
+    const dataModelId = props.isEditDataModel && props.dataModel?.id
+        ? props.dataModel.id
+        : undefined;
 
+    if (props.isCrossSource && props.projectId) {
+        // Cross-source mode: Pass project ID and data sources
+        console.log('[openAIDataModeler] Opening in cross-source mode for project:', props.projectId);
+        
+        // Extract data source information from tables
+        const dataSources = [];
+        const seenSourceIds = new Set();
+        
+        state.tables.forEach(table => {
+            if (table.data_source_id && !seenSourceIds.has(table.data_source_id)) {
+                seenSourceIds.add(table.data_source_id);
+                dataSources.push({
+                    id: table.data_source_id,
+                    name: table.data_source_name,
+                    type: table.data_source_type
+                });
+            }
+        });
+        
+        aiDataModelerStore.openDrawerCrossSource(props.projectId, dataSources, dataModelId);
+    } else if (props.dataSource && props.dataSource.id) {
+        // Single-source mode: Use existing logic
+        console.log('[openAIDataModeler] Opening in single-source mode for data source:', props.dataSource.id);
         aiDataModelerStore.openDrawer(props.dataSource.id, dataModelId);
-
-        // CLEAR FLAG: Allow watchers after drawer is open (but before any model is applied)
-        // The flag will be set again when actually applying a model
-        setTimeout(() => {
-            state.is_applying_ai_config = false;
-            console.log('[openAIDataModeler] Guard flag cleared after drawer open');
-        }, 100);
     }
+
+    // CLEAR FLAG: Allow watchers after drawer is open (but before any model is applied)
+    // The flag will be set again when actually applying a model
+    setTimeout(() => {
+        state.is_applying_ai_config = false;
+        console.log('[openAIDataModeler] Guard flag cleared after drawer open');
+    }, 100);
 }
 
 function hasAdvancedFields() {
@@ -3198,7 +3220,7 @@ onMounted(async () => {
             <div class="font-bold text-2xl">
                 Create A Data Model from the Connected Data Source
             </div>
-            <button v-if="props.dataSource && props.dataSource.id" @click="openAIDataModeler"
+            <button v-if="(props.dataSource && props.dataSource.id) || (props.isCrossSource && props.projectId)" @click="openAIDataModeler"
                 class="flex items-center gap-2 px-4 py-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 transition-colors duration-200 font-medium shadow-md cursor-pointer">
                 <font-awesome icon="fas fa-wand-magic-sparkles" class="w-5 h-5" />
                 Build with AI
