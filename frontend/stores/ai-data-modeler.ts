@@ -259,7 +259,8 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
      * Send a message to the AI (saves to Redis)
      */
     async function sendMessage(message: string) {
-        if (!currentDataSourceId.value) {
+        // Check if we have an active session (either single-source or cross-source)
+        if (!currentDataSourceId.value && !isCrossSource.value) {
             error.value = 'No active session';
             return false;
         }
@@ -286,7 +287,21 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
                 throw new Error('Authentication required');
             }
 
+            // For cross-source, use conversationId directly instead of dataSourceId
             const url = `${baseUrl()}/ai-data-modeler/session/chat`;
+            const requestBody: any = {
+                message: message.trim()
+            };
+
+            if (isCrossSource.value) {
+                // Cross-source mode: send conversationId
+                requestBody.conversationId = conversationId.value;
+                requestBody.isCrossSource = true;
+            } else {
+                // Single-source mode: send dataSourceId
+                requestBody.dataSourceId = currentDataSourceId.value;
+            }
+
             const response = await fetch(url, {
                 method: 'POST',
                 headers: {
@@ -294,10 +309,7 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth'
                 },
-                body: JSON.stringify({
-                    dataSourceId: currentDataSourceId.value,
-                    message: message.trim()
-                })
+                body: JSON.stringify(requestBody)
             });
 
             if (!response.ok) {
