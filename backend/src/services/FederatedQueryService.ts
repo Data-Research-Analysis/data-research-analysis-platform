@@ -448,7 +448,8 @@ export class FederatedQueryService {
             // 3. Get PostgreSQL connection for staging
             const pgDriver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             if (!pgDriver) {
-                throw new Error('PostgreSQL driver not available for result staging');\n            }
+                throw new Error('PostgreSQL driver not available for result staging');
+            }
             pgConnector = await pgDriver.getConcreteDriver();
 
             // 4. Execute subqueries in PARALLEL
