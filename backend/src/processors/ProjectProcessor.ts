@@ -104,6 +104,10 @@ export class ProjectProcessor {
                 if (!project) {
                     return resolve(false);
                 }
+                
+                // Use the already validated concreteDriver for query execution
+                const dbConnector = concreteDriver;
+                
                 // Get all data sources for this project and also get the data model
                 const dataSources = project.data_sources;
                 // For each data source, delete all related entities
