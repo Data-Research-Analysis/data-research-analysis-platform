@@ -52,8 +52,21 @@ export class ProjectProcessor {
     async getProjects(tokenDetails: ITokenDetails): Promise<DRAProject[]> {
         return new Promise<DRAProject[]>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
-            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-            const manager = (await driver.getConcreteDriver()).manager;
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve([]);
+            }
+            
+            const concreteDriver = await driver.getConcreteDriver();
+            if (!concreteDriver) {
+                return resolve([]);
+            }
+            
+            const manager = concreteDriver.manager;
+            if (!manager) {
+                return resolve([]);
+            }
+            
             const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
             if (!user) {
                 return resolve([]);
@@ -67,9 +80,20 @@ export class ProjectProcessor {
         return new Promise<boolean>(async (resolve, reject) => {
             try {
                 const { user_id } = tokenDetails;
-                let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-                const manager = (await driver.getConcreteDriver()).manager;
-                const dbConnector = await driver.getConcreteDriver();
+                const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+                if (!driver) {
+                    return resolve(false);
+                }
+                
+                const concreteDriver = await driver.getConcreteDriver();
+                if (!concreteDriver) {
+                    return resolve(false);
+                }
+                
+                const manager = concreteDriver.manager;
+                if (!manager) {
+                    return resolve(false);
+                }
                 
                 const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
                 if (!user) {
