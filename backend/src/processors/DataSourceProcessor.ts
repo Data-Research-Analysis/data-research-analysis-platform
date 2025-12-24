@@ -726,7 +726,14 @@ export class DataSourceProcessor {
         });
     }
 
-    public async executeQueryOnExternalDataSource(dataSourceId: number, query: string, tokenDetails: ITokenDetails, queryJSON?: string): Promise<any> {
+    public async executeQueryOnExternalDataSource(
+        dataSourceId: number, 
+        query: string, 
+        tokenDetails: ITokenDetails, 
+        queryJSON?: string,
+        isCrossSource?: boolean,
+        projectId?: number
+    ): Promise<any> {
         return new Promise<any>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -741,6 +748,22 @@ export class DataSourceProcessor {
             if (!user) {
                 return resolve(null);
             }
+
+            // Handle cross-source queries using FederatedQueryService
+            if (isCrossSource && projectId) {
+                console.log('[DataSourceProcessor] Executing cross-source query for project:', projectId);
+                try {
+                    const federatedQueryService = FederatedQueryService.getInstance();
+                    const results = await federatedQueryService.executeFederatedQuery(projectId, query, user_id);
+                    console.log('[DataSourceProcessor] Cross-source query results count:', results?.length || 0);
+                    return resolve(results);
+                } catch (error) {
+                    console.error('[DataSourceProcessor] Error executing cross-source query:', error);
+                    return resolve(null);
+                }
+            }
+
+            // Handle single-source queries (original logic)
             const dataSource: DRADataSource|null = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}});
             if (!dataSource) {
                 return resolve(null);
