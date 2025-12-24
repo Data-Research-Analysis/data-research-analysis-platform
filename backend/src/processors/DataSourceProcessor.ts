@@ -750,14 +750,34 @@ export class DataSourceProcessor {
                 return resolve(null);
             }
 
-            // Handle cross-source queries using FederatedQueryService
+            // Handle cross-source queries
             if (isCrossSource && projectId) {
                 console.log('[DataSourceProcessor] Executing cross-source query for project:', projectId);
                 try {
-                    const federatedQueryService = FederatedQueryService.getInstance();
-                    const results = await federatedQueryService.executeFederatedQuery(projectId, query, user_id);
-                    console.log('[DataSourceProcessor] Cross-source query results count:', results?.length || 0);
-                    return resolve(results);
+                    // For sample row queries (LIMIT 5), we can execute on the first table's data source
+                    // since we're just previewing data, not doing actual cross-source JOINs
+                    if (queryJSON) {
+                        const parsedQuery = JSON.parse(queryJSON);
+                        if (parsedQuery.columns && parsedQuery.columns.length > 0) {
+                            // Get the first column's data source ID
+                            const firstDataSourceId = parsedQuery.columns[0].data_source_id;
+                            if (firstDataSourceId) {
+                                console.log('[DataSourceProcessor] Executing sample query on data source:', firstDataSourceId);
+                                // Recursively call this method with the specific data source ID
+                                return this.executeQueryOnExternalDataSource(
+                                    firstDataSourceId,
+                                    query,
+                                    tokenDetails,
+                                    queryJSON,
+                                    false, // Not cross-source anymore
+                                    undefined
+                                );
+                            }
+                        }
+                    }
+                    // If we can't determine a data source, return empty
+                    console.warn('[DataSourceProcessor] Could not determine data source for cross-source sample query');
+                    return resolve([]);
                 } catch (error) {
                     console.error('[DataSourceProcessor] Error executing cross-source query:', error);
                     return resolve(null);
