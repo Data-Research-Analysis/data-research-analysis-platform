@@ -105,6 +105,17 @@ const props = defineProps({
         required: false,
         default: false,
     },
+    // NEW: Cross-source support
+    isCrossSource: {
+        type: Boolean,
+        required: false,
+        default: false,
+    },
+    projectId: {
+        type: Number,
+        required: false,
+        default: null,
+    },
 });
 const showWhereClause = computed(() => {
     return state?.data_table?.query_options?.where?.length > 0;
