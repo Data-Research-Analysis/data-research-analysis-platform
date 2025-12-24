@@ -18,6 +18,7 @@ import { FilesService } from "../services/FilesService.js";
 import { QueueService } from "../services/QueueService.js";
 import { GoogleAnalyticsDriver } from "../drivers/GoogleAnalyticsDriver.js";
 import { GoogleAdManagerDriver } from "../drivers/GoogleAdManagerDriver.js";
+import { FederatedQueryService } from "../services/FederatedQueryService.js";
 export class DataSourceProcessor {
     private static instance: DataSourceProcessor;
     private constructor() {}
