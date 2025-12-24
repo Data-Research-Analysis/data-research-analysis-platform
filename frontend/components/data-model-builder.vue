@@ -2255,11 +2255,13 @@ async function saveDataModel() {
             "Authorization-Type": "auth",
         },
         body: JSON.stringify({
-            data_source_id: route.params.datasourceid,
+            data_source_id: props.isCrossSource ? null : route.params.datasourceid,
+            project_id: props.isCrossSource ? props.projectId : null,
             query: state.sql_query,
             query_json: JSON.stringify(dataTableForSave),
             data_model_name: state.data_table.table_name,
             data_model_id: props.isEditDataModel ? props.dataModel.id : null,
+            is_cross_source: props.isCrossSource || false,
         })
     });
 
@@ -2364,6 +2366,21 @@ async function executeQueryOnExternalDataSource() {
         console.log('[Data Model Builder - executeQueryOnExternalDataSource] JSON Query being sent:', JSON.stringify(state.data_table));
         const token = getAuthToken();
         const url = `${baseUrl()}/data-source/execute-query-on-external-data-source`;
+        // For cross-source, we need to use the federated query endpoint
+        const requestBody = {
+            query: state.sql_query,
+            query_json: JSON.stringify(state.data_table),
+        };
+
+        if (props.isCrossSource) {
+            // In cross-source mode, send project_id instead of data_source_id
+            requestBody.project_id = props.projectId;
+            requestBody.is_cross_source = true;
+        } else {
+            // In single-source mode, use data_source_id from route
+            requestBody.data_source_id = route.params.datasourceid;
+        }
+
         const response = await fetch(url, {
             method: "POST",
             headers: {
@@ -2371,11 +2388,7 @@ async function executeQueryOnExternalDataSource() {
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
-            body: JSON.stringify({
-                data_source_id: route.params.datasourceid,
-                query: state.sql_query,
-                query_json: JSON.stringify(state.data_table),
-            })
+            body: JSON.stringify(requestBody)
         });
 
         // Check if response has content before parsing JSON
