@@ -51,7 +51,9 @@ router.post(
     aiOperationsLimiter,
     validateJWT,
     validate([
-        body('dataSourceId').notEmpty().isInt().withMessage('dataSourceId must be a valid integer'),
+        body('dataSourceId').optional().isInt().withMessage('dataSourceId must be a valid integer'),
+        body('conversationId').optional().isUUID().withMessage('conversationId must be a valid UUID'),
+        body('isCrossSource').optional().isBoolean().withMessage('isCrossSource must be a boolean'),
         body('message').notEmpty().trim().withMessage('message is required')
     ]),
     async (req: Request, res: Response) => {

@@ -239,9 +239,7 @@ Keep it concise - aim for 200-300 words total.`;
 
             // Use project ID as session key for cross-source
             const sessionKey = `cross_source_${projectId}`;
-            const redisService = new RedisAI
-
-SessionService();
+            const redisService = new RedisAISessionService();
 
             // Fetch schemas from ALL data sources in parallel
             const schemaPromises = dataSources.map(async (ds: any) => {
@@ -366,12 +364,53 @@ SessionService();
      */
     static async sendMessageWithRedis(req: Request, res: Response): Promise<void> {
         try {
-            const { dataSourceId, message } = req.body;
+            const { dataSourceId, conversationId, isCrossSource, message } = req.body;
             const tokenDetails = req.body.tokenDetails;
             const userId = tokenDetails?.user_id;
 
-            if (!dataSourceId || !userId || !message) {
-                res.status(400).json({ error: 'dataSourceId, userId, and message are required' });
+            if (!userId || !message) {
+                res.status(400).json({ error: 'userId and message are required' });
+                return;
+            }
+
+            // Cross-source mode: use conversationId directly with Gemini
+            if (isCrossSource && conversationId) {
+                console.log('[AIDataModelerController] Handling cross-source chat:', { conversationId });
+
+                const geminiService = getGeminiService();
+                if (!geminiService.sessionExists(conversationId)) {
+                    res.status(404).json({ error: 'Cross-source conversation not found. Please reinitialize.' });
+                    return;
+                }
+
+                // Send to Gemini
+                const response = await geminiService.sendMessage(conversationId, message);
+
+                // Check if response contains data model JSON
+                const dataModelJSON = AIDataModelerController.extractDataModelJSON(response);
+
+                res.status(200).json({
+                    userMessage: {
+                        id: `msg_${Date.now()}_user`,
+                        role: 'user',
+                        content: message,
+                        timestamp: new Date()
+                    },
+                    assistantMessage: {
+                        id: `msg_${Date.now()}_assistant`,
+                        role: 'assistant',
+                        content: response,
+                        timestamp: new Date()
+                    },
+                    conversationId,
+                    dataModel: dataModelJSON || null
+                });
+                return;
+            }
+
+            // Single-source mode: use Redis
+            if (!dataSourceId) {
+                res.status(400).json({ error: 'dataSourceId is required for single-source mode' });
                 return;
             }
 
