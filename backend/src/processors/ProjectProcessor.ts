@@ -21,9 +21,20 @@ export class ProjectProcessor {
     async addProject(project_name: string, description: string | undefined, tokenDetails: ITokenDetails): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
-            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-            console.log((await driver.getConcreteDriver()))
-            const manager = (await driver.getConcreteDriver()).manager;
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+        if (!driver) {
+            throw new Error('PostgreSQL driver not available');
+        }
+
+        const concreteDriver = await driver.getConcreteDriver();
+        if (!concreteDriver) {
+            throw new Error('Failed to get PostgreSQL connection');
+        }
+
+        const manager = concreteDriver.manager;
+        if (!manager) {
+            throw new Error('Database manager not available');
+        }
             const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
             if (!user) {
                 return resolve(false);
