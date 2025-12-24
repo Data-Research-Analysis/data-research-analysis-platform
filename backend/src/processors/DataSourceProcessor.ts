@@ -209,6 +209,38 @@ export class DataSourceProcessor {
         });
     }
 
+    /**
+     * Get all data sources for a specific project
+     * Used for cross-data-source feature to fetch all tables across sources
+     */
+    async getDataSourcesByProject(projectId: number, tokenDetails: ITokenDetails): Promise<DRADataSource[]> {
+        return new Promise<DRADataSource[]>(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve([]);
+            }
+            const manager = (await driver.getConcreteDriver()).manager;
+            if (!manager) {
+                return resolve([]);
+            }
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!user) {
+                return resolve([]);
+            }
+            const project = await manager.findOne(DRAProject, {
+                where: {id: projectId, users_platform: user}
+            });
+            if (!project) {
+                return resolve([]);
+            }
+            const dataSources = await manager.find(DRADataSource, {
+                where: {project: project, users_platform: user}
+            });
+            return resolve(dataSources);
+        });
+    }
+
     public async connectToDataSource(connection: IDBConnectionDetails): Promise<DataSource> {
         return new Promise<DataSource>(async (resolve, reject) => {
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
