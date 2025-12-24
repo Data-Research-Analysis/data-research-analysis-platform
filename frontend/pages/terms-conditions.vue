@@ -28,7 +28,7 @@ onMounted(() => {
         <h1>Terms and Conditions</h1>
         
         <p>
-            Last updated: December 12, 2025
+            Last updated: December 24, 2025
         </p>
         
         <p>
@@ -76,7 +76,7 @@ onMounted(() => {
             </li>
             <li>
                 <p>
-                    <strong>Connected Services</strong> refers to third-party services and data sources that You authorize to integrate with Our Service, including but not limited to Google Analytics, database systems, and API-based data sources.
+                    <strong>Connected Services</strong> refers to third-party services and data sources that You authorize to integrate with Our Service, including but not limited to Google Analytics, Google Ad Manager, Google Ads, database systems, and API-based data sources.
                 </p>
             </li>
             <li>
@@ -133,7 +133,7 @@ onMounted(() => {
         <h3>Authorization and Access</h3>
 
         <p>
-            Our Service allows You to connect third-party services, including Google Analytics, to import and analyze Your data. By connecting these services:
+            Our Service allows You to connect third-party services, including Google Analytics, Google Ad Manager, and Google Ads, to import and analyze Your data. By connecting these services:
         </p>
 
         <ul>
@@ -155,6 +155,36 @@ onMounted(() => {
             <li>You can disconnect the integration at any time through Your account settings</li>
             <li>You remain responsible for Your Google Analytics account and its compliance with Google's Terms of Service</li>
             <li>We are not responsible for any changes, interruptions, or termination of Google Analytics services</li>
+        </ul>
+
+        <h3>Google Ad Manager Integration</h3>
+
+        <p>
+            When You connect Your Google Ad Manager account:
+        </p>
+
+        <ul>
+            <li>You grant Us read-only access to Your Google Ad Manager data</li>
+            <li>You acknowledge that We store encrypted OAuth tokens to maintain the integration</li>
+            <li>You can disconnect the integration at any time through Your account settings</li>
+            <li>You remain responsible for Your Google Ad Manager account and its compliance with Google's Terms of Service</li>
+            <li>We are not responsible for any changes, interruptions, or termination of Google Ad Manager services</li>
+            <li>You understand that We access advertising performance data, revenue metrics, and inventory information from Your selected Ad Manager network</li>
+        </ul>
+
+        <h3>Google Ads Integration</h3>
+
+        <p>
+            When You connect Your Google Ads account:
+        </p>
+
+        <ul>
+            <li>You grant Us read-only access to Your Google Ads data</li>
+            <li>You acknowledge that We store encrypted OAuth tokens to maintain the integration</li>
+            <li>You can disconnect the integration at any time through Your account settings</li>
+            <li>You remain responsible for Your Google Ads account and its compliance with Google's Terms of Service</li>
+            <li>We are not responsible for any changes, interruptions, or termination of Google Ads services</li>
+            <li>You understand that We access campaign performance data, ad metrics, and cost information from Your selected customer accounts</li>
         </ul>
 
         <h3>Data Sync and Storage</h3>
@@ -242,7 +272,7 @@ onMounted(() => {
         <h2>&quot;AS IS&quot; and &quot;AS AVAILABLE&quot; Disclaimer</h2>
         
         <p>
-            The Company shall not be liable for any loss, corruption, or unauthorized access to data imported from Connected Services, including Google Analytics, or for any interruption or termination of third-party integrations beyond Our control.
+            The Company shall not be liable for any loss, corruption, or unauthorized access to data imported from Connected Services, including Google Analytics, Google Ad Manager, and Google Ads, or for any interruption or termination of third-party integrations beyond Our control.
         </p>
         
         <p>

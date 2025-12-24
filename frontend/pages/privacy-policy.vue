@@ -28,7 +28,7 @@ onMounted(() => {
         <h1>Privacy Policy</h1>
         
         <p>
-            Last updated: December 12, 2025
+            Last updated: December 24, 2025
         </p>
         <p>
             This Privacy Policy describes Our policies and procedures on the collection, use and disclosure of Your information when You use the Service and tells You about Your privacy rights and how the law protects You.
@@ -88,7 +88,17 @@ onMounted(() => {
             </li>
             <li>
                 <p>
-                    <strong>Third-Party Services</strong> refers to external services and APIs that We integrate with, including Google Analytics, Google OAuth, and other third-party data sources that You connect to Our Service.
+                    <strong>Google Ad Manager Data</strong> refers to advertising performance data that You authorize Us to access from Your Google Ad Manager account, including but not limited to ad impressions, clicks, revenue metrics, inventory data, and performance analytics.
+                </p>
+            </li>
+            <li>
+                <p>
+                    <strong>Google Ads Data</strong> refers to advertising campaign data that You authorize Us to access from Your Google Ads account, including but not limited to campaign performance metrics, ad statistics, keyword data, costs, conversions, and audience targeting information.
+                </p>
+            </li>
+            <li>
+                <p>
+                    <strong>Third-Party Services</strong> refers to external services and APIs that We integrate with, including Google Analytics, Google Ad Manager, Google Ads, Google OAuth, and other third-party data sources that You connect to Our Service.
                 </p>
             </li>
             <li>
@@ -228,7 +238,7 @@ onMounted(() => {
         </p>
 
         <ul>
-            <li>Only request the minimum scopes necessary to provide Google Analytics integration features</li>
+            <li>Only request the minimum scopes necessary to provide Google Analytics, Google Ad Manager, and Google Ads integration features</li>
             <li>Use Google user data solely to provide and improve features You have explicitly requested</li>
             <li>Do not transfer Google user data to third parties except as necessary to provide the Service</li>
             <li>Do not use Google user data for serving advertisements</li>
@@ -248,6 +258,141 @@ onMounted(() => {
 
         <p>
             After revoking access, We will no longer be able to sync new data from Your Google Analytics account. Previously imported data will remain in Your projects unless You manually delete it.
+        </p>
+
+        <h3>Google Ad Manager Integration</h3>
+
+        <p>
+            Our Service allows You to connect Your Google Ad Manager account to import and analyze Your advertising performance data. When You choose to connect Google Ad Manager:
+        </p>
+
+        <ul>
+            <li>
+                <p>
+                    <strong>OAuth Authorization:</strong> We use Google OAuth 2.0 to securely authenticate Your Google account. We only request read-only access to Your Google Ad Manager data.
+                </p>
+            </li>
+            <li>
+                <p>
+                    <strong>Data Access:</strong> We access the following data from Your Google Ad Manager account with Your explicit permission:
+                </p>
+                <ul>
+                    <li>Ad Manager network and account information</li>
+                    <li>Ad revenue and performance metrics (impressions, clicks, viewability)</li>
+                    <li>Inventory and line item data</li>
+                    <li>Geographic and device performance breakdowns</li>
+                    <li>Ad unit and advertiser performance statistics</li>
+                    <li>Time series revenue and performance data</li>
+                </ul>
+            </li>
+            <li>
+                <p>
+                    <strong>Token Storage:</strong> We store encrypted OAuth refresh tokens to maintain ongoing access to Your Google Ad Manager data. These tokens are:
+                </p>
+                <ul>
+                    <li>Encrypted using industry-standard encryption (AES-256)</li>
+                    <li>Stored securely in our database</li>
+                    <li>Only used to refresh access to Your connected Ad Manager networks</li>
+                    <li>Can be revoked by You at any time through Your account settings or Google account permissions</li>
+                </ul>
+            </li>
+            <li>
+                <p>
+                    <strong>Data Processing:</strong> Advertising data imported from Your Google Ad Manager account is:
+                </p>
+                <ul>
+                    <li>Stored in our secure database for the duration You choose</li>
+                    <li>Used solely to provide analysis, reporting, and visualization features</li>
+                    <li>Not shared with third parties except as described in this Privacy Policy</li>
+                    <li>Processed in accordance with Google's API Services User Data Policy</li>
+                </ul>
+            </li>
+            <li>
+                <p>
+                    <strong>Your Control:</strong> You maintain full control over Your Google Ad Manager integration:
+                </p>
+                <ul>
+                    <li>You can disconnect Your Google Ad Manager account at any time</li>
+                    <li>You can configure sync frequency and data retention settings</li>
+                    <li>You can delete imported advertising data from Your projects</li>
+                    <li>Disconnecting removes our access but does not delete data already imported</li>
+                </ul>
+            </li>
+        </ul>
+
+        <h3>Google Ads Integration</h3>
+
+        <p>
+            Our Service allows You to connect Your Google Ads account to import and analyze Your advertising campaign data. When You choose to connect Google Ads:
+        </p>
+
+        <ul>
+            <li>
+                <p>
+                    <strong>OAuth Authorization:</strong> We use Google OAuth 2.0 to securely authenticate Your Google account. We only request read-only access to Your Google Ads data.
+                </p>
+            </li>
+            <li>
+                <p>
+                    <strong>Data Access:</strong> We access the following data from Your Google Ads account with Your explicit permission:
+                </p>
+                <ul>
+                    <li>Customer account and campaign information</li>
+                    <li>Campaign performance metrics (impressions, clicks, conversions, costs)</li>
+                    <li>Ad group and individual ad statistics</li>
+                    <li>Keyword and search term performance data</li>
+                    <li>Geographic and demographic targeting performance</li>
+                    <li>Device type and audience segment data</li>
+                </ul>
+            </li>
+            <li>
+                <p>
+                    <strong>Token Storage:</strong> We store encrypted OAuth refresh tokens to maintain ongoing access to Your Google Ads data. These tokens are:
+                </p>
+                <ul>
+                    <li>Encrypted using industry-standard encryption (AES-256)</li>
+                    <li>Stored securely in our database</li>
+                    <li>Only used to refresh access to Your connected customer accounts</li>
+                    <li>Can be revoked by You at any time through Your account settings or Google account permissions</li>
+                </ul>
+            </li>
+            <li>
+                <p>
+                    <strong>Data Processing:</strong> Campaign data imported from Your Google Ads account is:
+                </p>
+                <ul>
+                    <li>Stored in our secure database for the duration You choose</li>
+                    <li>Used solely to provide analysis, reporting, and visualization features</li>
+                    <li>Not shared with third parties except as described in this Privacy Policy</li>
+                    <li>Processed in accordance with Google's API Services User Data Policy</li>
+                </ul>
+            </li>
+            <li>
+                <p>
+                    <strong>Your Control:</strong> You maintain full control over Your Google Ads integration:
+                </p>
+                <ul>
+                    <li>You can disconnect Your Google Ads account at any time</li>
+                    <li>You can configure sync frequency and data retention settings</li>
+                    <li>You can delete imported campaign data from Your projects</li>
+                    <li>Disconnecting removes our access but does not delete data already imported</li>
+                </ul>
+            </li>
+        </ul>
+
+        <h3>Revoking Access to Google Services</h3>
+
+        <p>
+            You can revoke Our access to Your Google Analytics, Google Ad Manager, or Google Ads data at any time through:
+        </p>
+
+        <ul>
+            <li>Our Service: Navigate to Account Settings → Connected Services → Disconnect the respective Google service</li>
+            <li>Google Account: Visit <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">Google Account Permissions</a> and remove "Data Research Analysis" access</li>
+        </ul>
+
+        <p>
+            After revoking access, We will no longer be able to sync new data from Your Google accounts. Previously imported data will remain in Your projects unless You manually delete it.
         </p>
 
         <h4>Tracking Technologies and Cookies</h4>
@@ -360,7 +505,7 @@ onMounted(() => {
             </li>
             <li>
                 <p>
-                    <strong>To integrate with third-party services:</strong> To connect, authenticate, and synchronize data from external services You authorize, such as Google Analytics, enabling You to import and analyze Your data within Our platform.
+                    <strong>To integrate with third-party services:</strong> To connect, authenticate, and synchronize data from external services You authorize, such as Google Analytics, Google Ad Manager, and Google Ads, enabling You to import and analyze Your data within Our platform.
                 </p>
             </li>
         </ul>
@@ -370,7 +515,7 @@ onMounted(() => {
         
         <ul>
             <li><strong>With Service Providers:</strong> We may share Your personal information with Service Providers to monitor and analyze the use of our Service, to contact You. These Service Providers have access to Your Personal Data only to perform specific tasks on Our behalf and are obligated not to disclose or use it for other purposes.</li>
-            <li><strong>With Third-Party Service Providers:</strong> When You connect external services like Google Analytics, We exchange data with those services using secure APIs. We only access data You explicitly authorize and comply with each service provider's data policies.</li>
+            <li><strong>With Third-Party Service Providers:</strong> When You connect external services like Google Analytics, Google Ad Manager, or Google Ads, We exchange data with those services using secure APIs. We only access data You explicitly authorize and comply with each service provider's data policies.</li>
             <li><strong>For business transfers:</strong> We may share or transfer Your personal information in connection with, or during negotiations of, any merger, sale of Company assets, financing, or acquisition of all or a portion of Our business to another company.</li>
             <li><strong>With Affiliates:</strong> We may share Your information with Our affiliates, in which case we will require those affiliates to honor this Privacy Policy. Affiliates include Our parent company and any other subsidiaries, joint venture partners or other companies that We control or that are under common control with Us.</li>
             <li><strong>With business partners:</strong> We may share Your information with Our business partners to offer You certain products, services or promotions.</li>
