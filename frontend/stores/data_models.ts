@@ -98,6 +98,114 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         }
     }
     
+    /**
+     * NEW METHODS FOR CROSS-DATA-SOURCE SUPPORT
+     */
+    
+    /**
+     * Fetch tables from all data sources in a project
+     * Used for cross-source data model building
+     */
+    async function fetchAllProjectTables(projectId: number) {
+        const token = getAuthToken();
+        if (!token) {
+            console.error('[CrossSource] No auth token available');
+            return [];
+        }
+        
+        try {
+            const url = `${baseUrl()}/data-model/projects/${projectId}/all-tables`;
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                    'Authorization-Type': 'auth',
+                },
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Failed to fetch tables: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('[CrossSource] Error fetching all project tables:', error);
+            return [];
+        }
+    }
+    
+    /**
+     * Get join suggestions between two tables
+     */
+    async function suggestJoins(leftTable: any, rightTable: any) {
+        const token = getAuthToken();
+        if (!token) {
+            console.error('[CrossSource] No auth token available');
+            return [];
+        }
+        
+        try {
+            const url = `${baseUrl()}/data-model/suggest-joins`;
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                    'Authorization-Type': 'auth',
+                },
+                body: JSON.stringify({
+                    leftTable,
+                    rightTable
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Failed to suggest joins: ${response.statusText}`);
+            }
+            
+            const suggestions = await response.json();
+            return suggestions;
+        } catch (error) {
+            console.error('[CrossSource] Error suggesting joins:', error);
+            return [];
+        }
+    }
+    
+    /**
+     * Save a successful join to the catalog for future reuse
+     */
+    async function saveJoinToCatalog(joinDefinition: any) {
+        const token = getAuthToken();
+        if (!token) {
+            console.error('[CrossSource] No auth token available');
+            return false;
+        }
+        
+        try {
+            const url = `${baseUrl()}/data-model/save-join-to-catalog`;
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                    'Authorization-Type': 'auth',
+                },
+                body: JSON.stringify(joinDefinition)
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Failed to save join: ${response.statusText}`);
+            }
+            
+            return true;
+        } catch (error) {
+            console.error('[CrossSource] Error saving join to catalog:', error);
+            return false;
+        }
+    }
+    
     return {
         dataModels,
         selectedDataModel,
@@ -111,5 +219,9 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         clearDataModels,
         getSelectedDataModel,
         clearSelectedDataModel,
+        // Cross-source methods
+        fetchAllProjectTables,
+        suggestJoins,
+        saveJoinToCatalog,
     }
 });
