@@ -137,7 +137,7 @@
 
                 <!-- Created date -->
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {{ formatDate(item.created_at) }}
+                  {{ item.created_at ? formatDate(item.created_at) : 'N/A' }}
                 </td>
 
                 <!-- Actions -->

@@ -108,8 +108,8 @@ onMounted(() => {
             </div>
 
             <!-- Empty State -->
-            <div v-else class="ml-10 mr-10 mt-10">
-                <div class="bg-white rounded-lg shadow-md p-8 text-center max-w-2xl">
+            <div v-else class="flex items-center justify-center min-h-96 mt-10">
+                <div class="bg-white rounded-lg shadow-md p-8 text-center max-w-2xl mx-auto">
                     <font-awesome icon="fas fa-database" class="text-gray-400 text-6xl mb-4" />
                     <h3 class="text-xl font-semibold text-gray-900 mt-4">No Data Sources Found</h3>
                     <p class="text-sm text-gray-500 mt-2">
