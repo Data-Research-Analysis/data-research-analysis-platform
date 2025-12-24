@@ -217,6 +217,150 @@ Keep it concise - aim for 200-300 words total.`;
     }
 
     /**
+     * Initialize cross-source AI session with schemas from multiple data sources
+     * POST /api/ai-data-modeler/session/initialize-cross-source
+     */
+    static async initializeCrossSourceSession(req: Request, res: Response): Promise<void> {
+        try {
+            const { projectId, dataSources } = req.body;
+            const tokenDetails = req.body.tokenDetails;
+            const userId = tokenDetails?.user_id;
+
+            console.log('[AIDataModelerController] Initializing cross-source session:', {
+                projectId,
+                dataSourceCount: dataSources?.length || 0,
+                userId
+            });
+
+            if (!projectId || !userId || !dataSources || dataSources.length === 0) {
+                res.status(400).json({ error: 'projectId, userId, and dataSources are required' });
+                return;
+            }
+
+            // Use project ID as session key for cross-source
+            const sessionKey = `cross_source_${projectId}`;
+            const redisService = new RedisAI
+
+SessionService();
+
+            // Fetch schemas from ALL data sources in parallel
+            const schemaPromises = dataSources.map(async (ds: any) => {
+                try {
+                    const dataSourceDetails = await AIDataModelerController.getDataSourceDetails(
+                        ds.id,
+                        tokenDetails
+                    );
+
+                    if (!dataSourceDetails) {
+                        console.warn(`[Cross-Source] Data source ${ds.id} not found or access denied`);
+                        return null;
+                    }
+
+                    const dataSource = await AIDataModelerController.createDataSource(dataSourceDetails);
+                    if (!dataSource.isInitialized) {
+                        await dataSource.initialize();
+                    }
+
+                    const schemaCollector = new SchemaCollectorService();
+                    const tables = await schemaCollector.collectSchema(
+                        dataSource,
+                        dataSourceDetails.schema
+                    );
+
+                    await dataSource.destroy();
+
+                    return {
+                        dataSourceId: ds.id,
+                        dataSourceName: ds.name,
+                        dataSourceType: ds.type,
+                        tables: tables
+                    };
+                } catch (error) {
+                    console.error(`[Cross-Source] Error fetching schema for data source ${ds.id}:`, error);
+                    return null;
+                }
+            });
+
+            const schemas = (await Promise.all(schemaPromises)).filter(s => s !== null);
+
+            if (schemas.length === 0) {
+                res.status(404).json({ error: 'No accessible data sources found' });
+                return;
+            }
+
+            console.log(`[Cross-Source] Collected schemas from ${schemas.length} data sources`);
+
+            // Build cross-source markdown with source prefixes
+            let crossSourceMarkdown = '# Cross-Source Database Schema\n\n';
+            crossSourceMarkdown += `Analyzing **${schemas.length}** data sources for cross-source analytics.\n\n`;
+
+            let totalTables = 0;
+            let totalColumns = 0;
+
+            schemas.forEach((schema: any) => {
+                crossSourceMarkdown += `## Data Source: ${schema.dataSourceName} (${schema.dataSourceType})\n\n`;
+                const sourceMarkdown = SchemaFormatterUtility.formatSchemaToMarkdown(schema.tables);
+                crossSourceMarkdown += sourceMarkdown;
+                crossSourceMarkdown += '\n---\n\n';
+                
+                totalTables += schema.tables.length;
+                schema.tables.forEach((t: any) => totalColumns += t.columns?.length || 0);
+            });
+
+            const schemaSummary = {
+                dataSourceCount: schemas.length,
+                tableCount: totalTables,
+                totalColumns: totalColumns
+            };
+
+            // Create schema context with all sources
+            const schemaContext = {
+                sources: schemas,
+                relationships: []
+            };
+
+            // Create session with special cross-source conversation ID
+            const conversationId = uuidv4();
+            const metadata = {
+                conversationId,
+                projectId,
+                isCrossSource: true,
+                dataSourceIds: dataSources.map((ds: any) => ds.id),
+                startedAt: new Date().toISOString()
+            };
+
+            // Initialize Gemini with cross-source context
+            const geminiService = getGeminiService();
+            await geminiService.initializeConversation(conversationId, crossSourceMarkdown);
+
+            // Welcome message for cross-source
+            const welcomeMessage = `Welcome to **Cross-Source Analytics**! I've analyzed schemas from **${schemas.length} data sources** with **${totalTables} tables** and **${totalColumns} columns**.\n\nI can help you:\n• Design cross-source data models with JOINs across databases\n• Identify relationships between tables from different sources\n• Suggest optimal query strategies for federated analytics\n• Recommend data integration patterns\n\nWhat cross-source analysis would you like to create?`;
+
+            res.status(200).json({
+                conversationId,
+                messages: [{
+                    id: `msg_${Date.now()}`,
+                    role: 'assistant',
+                    content: welcomeMessage,
+                    timestamp: new Date()
+                }],
+                modelDraft: null,
+                schemaContext,
+                schemaSummary,
+                source: 'new',
+                message: 'Cross-source session initialized successfully'
+            });
+
+        } catch (error) {
+            console.error('Error initializing cross-source session:', error);
+            res.status(500).json({
+                error: 'Failed to initialize cross-source session',
+                details: error instanceof Error ? error.message : 'Unknown error'
+            });
+        }
+    }
+
+    /**
      * Send a message and save to Redis
      * POST /api/ai-data-modeler/session/chat
      */
