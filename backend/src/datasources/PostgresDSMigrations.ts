@@ -1,6 +1,8 @@
 import { DataSource } from "typeorm";
 import { DRAPrivateBetaUsers } from "../models/DRAPrivateBetaUsers.js";
 import { DRADataModel } from "../models/DRADataModel.js";
+import { DRADataModelSource } from "../models/DRADataModelSource.js";
+import { DRACrossSourceJoinCatalog } from "../models/DRACrossSourceJoinCatalog.js";
 import { DRADataSource } from "../models/DRADataSource.js";
 import { DRAVerificationCode } from "../models/DRAVerificationCode.js";
 import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
@@ -30,7 +32,7 @@ export const PostgresDSMigrations = new DataSource({
     database: database,
     synchronize: false,
     logging: true,
-    entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRAPrivateBetaUsers, DRADashboard, DRAArticle, DRAArticleCategory, DRACategory, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, SyncHistory],
+    entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelSource, DRACrossSourceJoinCatalog, DRAPrivateBetaUsers, DRADashboard, DRAArticle, DRAArticleCategory, DRACategory, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, SyncHistory],
     subscribers: [],
     migrations: ['./src/migrations/*.ts'],
 })
