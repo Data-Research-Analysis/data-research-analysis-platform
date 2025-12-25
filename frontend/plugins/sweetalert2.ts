@@ -17,8 +17,8 @@ export default defineNuxtPlugin((nuxtApp) => {
     // Default options for all SweetAlert2 dialogs
     customClass: {
       popup: 'rounded-lg shadow-xl',
-      confirmButton: 'bg-primary-blue-500 hover:bg-primary-blue-600 text-white font-bold py-2 px-4 rounded',
-      cancelButton: 'bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded ml-2',
+      confirmButton: 'bg-primary-blue-300 hover:bg-primary-blue-400 text-white font-bold py-2 px-4 rounded cursor-pointer',
+      cancelButton: 'bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded ml-2 cursor-pointer',
     },
     buttonsStyling: false,
   });

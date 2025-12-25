@@ -1,13 +1,6 @@
 import { defineStore } from 'pinia';
 import type { IMessage, ISchemaSummary, ISchemaDetails } from '~/types/IAIDataModeler';
-
-interface ModelDraft {
-    tables: any;
-    relationships: any[];
-    indexes: any[];
-    lastModified: string;
-    version: number;
-}
+import type { IModelDraft } from '~/types/IModelDraft';
 
 export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
     const isDrawerOpen = ref(false);
@@ -19,12 +12,12 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
     const schemaDetails = ref<ISchemaDetails | null>(null);
     const error = ref<string | null>(null);
     const currentDataSourceId = ref<number | null>(null);
-    const modelDraft = ref<ModelDraft | null>(null);
+    const modelDraft = ref<IModelDraft | null>(null);
     const sessionSource = ref<'redis' | 'database' | 'new'>('new');
     const isDirty = ref(false);
     const isRestored = ref(false);
     const applyTrigger = ref(0);
-    const modelHistory = ref<Array<{ model: ModelDraft; timestamp: string; messageId: string }>>([]);
+    const modelHistory = ref<Array<{ model: IModelDraft; timestamp: string; messageId: string }>>([]);
     const currentHistoryIndex = ref(-1);
     
     // Cross-source properties
@@ -377,7 +370,7 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
     /**
      * Update model draft in Redis
      */
-    async function updateModelDraft(modelState: Partial<ModelDraft>) {
+    async function updateModelDraft(modelState: Partial<IModelDraft>) {
         if (!currentDataSourceId.value) {
             return false;
         }
@@ -411,7 +404,7 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
                 ...modelState,
                 lastModified: data.lastModified,
                 version: data.version
-            } as ModelDraft;
+            } as IModelDraft;
 
             isDirty.value = true;
             return true;
@@ -604,7 +597,7 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
     /**
      * Add current model to history
      */
-    function addModelToHistory(model: ModelDraft, messageId: string) {
+    function addModelToHistory(model: IModelDraft, messageId: string) {
         const historyEntry = {
             model: JSON.parse(JSON.stringify(model)), // Deep clone
             timestamp: new Date().toISOString(),

@@ -150,9 +150,12 @@
                   </button>
                   <button 
                     @click="refreshModel(item)"
-                    class="text-green-600 hover:text-green-900 mr-3 cursor-pointer"
+                    :disabled="refreshingModelId === item.id"
+                    class="text-green-600 hover:text-green-900 mr-3 cursor-pointer disabled:text-gray-400 disabled:cursor-not-allowed"
                     v-tippy="{ content: 'Refresh' }">
-                    <font-awesome icon="fas fa-refresh" />
+                    <font-awesome 
+                      :icon="refreshingModelId === item.id ? 'fas fa-spinner' : 'fas fa-refresh'" 
+                      :class="refreshingModelId === item.id ? 'animate-spin' : ''" />
                   </button>
                   <button 
                     @click="deleteModel(item)"
@@ -192,12 +195,14 @@ import { useDataModelsStore } from '~/stores/data_models';
 const router = useRouter();
 const route = useRoute();
 const dataModelsStore = useDataModelsStore();
+const { $swal }: any = useNuxtApp();
 
 const projectId = computed(() => parseInt(route.params.projectid as string));
 const search = ref('');
 const loading = ref(false);
 const dataSources = ref<any[]>([]);
 const dropdownOpen = ref(false);
+const refreshingModelId = ref<number | null>(null);
 
 const headers = [
   { title: 'Name', key: 'name', sortable: true },
@@ -220,6 +225,9 @@ const filteredModels = computed(() => {
 onMounted(async () => {
   loading.value = true;
   try {
+    // Fetch data models
+    await dataModelsStore.retrieveDataModels();
+    
     // Fetch data sources
     try {
       const response = await dataModelsStore.fetchAllProjectTables(projectId.value);
@@ -295,14 +303,116 @@ function formatDate(date: string): string {
 }
 
 function viewModel(model: any) {
-  console.log('View model:', model);
+  // Navigate to edit page
+  if (model.is_cross_source) {
+    // Cross-source model - navigate to cross-source edit page
+    router.push(`/projects/${projectId.value}/data-models/${model.id}/edit`);
+  } else {
+    // Single-source model - navigate to data source specific edit page
+    const dataSourceId = model.data_source?.id;
+    if (dataSourceId) {
+      router.push(`/projects/${projectId.value}/data-sources/${dataSourceId}/data-models/${model.id}/edit`);
+    } else {
+      $swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'Unable to determine data source for this model.',
+      });
+    }
+  }
 }
 
-function refreshModel(model: any) {
-  console.log('Refresh model:', model);
+async function refreshModel(model: any) {
+  // Confirmation dialog
+  const { value: confirmRefresh } = await $swal.fire({
+    title: `Refresh Data Model "${model.name}"?`,
+    text: 'This will update the data model with the latest data from the external source.',
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Yes, refresh now!',
+  });
+  
+  if (!confirmRefresh) return;
+  
+  // Set loading state
+  refreshingModelId.value = model.id;
+  
+  try {
+    const token = getAuthToken();
+    const response = await fetch(
+      `${baseUrl()}/data-model/refresh/${model.id}`, 
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'Authorization-Type': 'auth',
+        },
+      }
+    );
+    
+    if (response.status === 200) {
+      await $swal.fire({
+        icon: 'success',
+        title: 'Refreshed!',
+        text: 'The data model has been updated with the latest data.',
+      });
+      
+      // Reload data models to reflect any changes
+      await dataModelsStore.retrieveDataModels();
+    } else {
+      throw new Error('Refresh failed');
+    }
+  } catch (error) {
+    await $swal.fire({
+      icon: 'error',
+      title: 'Refresh Failed',
+      text: 'There was an error refreshing the data model. Please try again.',
+    });
+  } finally {
+    refreshingModelId.value = null;
+  }
 }
 
-function deleteModel(model: any) {
-  console.log('Delete model:', model);
+async function deleteModel(model: any) {
+  const { value: confirmDelete } = await $swal.fire({
+    title: 'Are you sure you want to delete this data model?',
+    text: "You won't be able to revert this!",
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'Yes, delete it!',
+  });
+  
+  if (!confirmDelete) {
+    return;
+  }
+  
+  const token = getAuthToken();
+  const requestOptions = {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      'Authorization-Type': 'auth',
+    },
+  };
+  
+  const response = await fetch(`${baseUrl()}/data-model/delete/${model.id}`, requestOptions);
+  
+  if (response && response.status === 200) {
+    await $swal.fire({
+      icon: 'success',
+      title: 'Deleted!',
+      text: 'The data model has been deleted successfully.',
+    });
+  } else {
+    await $swal.fire({
+      icon: 'error',
+      title: 'Error',
+      text: 'There was an error deleting the data model.',
+    });
+  }
+  
+  await dataModelsStore.retrieveDataModels();
 }
 </script>
