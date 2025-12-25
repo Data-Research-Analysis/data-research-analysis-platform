@@ -602,21 +602,8 @@ export class DataSourceProcessor {
                     console.log('Error connecting to external DB', error);
                     return resolve(false);
                 }
-                let query = await externalDriver.getTablesColumnDetails(connection.schema);
-                if (connection.schema === 'dra_excel') {
-                    query += ` AND tb.table_name LIKE '%_data_source_${dataSource.id}_%'`;
-                } else if (connection.schema === 'dra_pdf') {
-                    query += ` AND tb.table_name LIKE '%_data_source_${dataSource.id}_%'`;
-                } else if (connection.schema === 'dra_google_analytics') {
-                    query += ` AND tb.table_name LIKE '%_${dataSource.id}'`;
-                } else if (connection.schema === 'dra_google_ad_manager') {
-                    query += ` AND tb.table_name LIKE '%_${dataSource.id}'`;
-                } else if (connection.schema === 'dra_google_ads') {
-                    query += ` AND tb.table_name LIKE '%_${dataSource.id}'`;
-                }
-                let tablesSchema = await dbConnector.query(query);
                 
-                // Fetch table metadata for logical names
+                // Fetch table metadata first to get physical table names
                 let tableMetadata: any[] = [];
                 try {
                     const metadataQuery = `
@@ -634,6 +621,33 @@ export class DataSourceProcessor {
                 } catch (error) {
                     console.error('[DEBUG] Error fetching table metadata:', error);
                 }
+                
+                // Build the base query
+                let query = await externalDriver.getTablesColumnDetails(connection.schema);
+                
+                // If we have metadata, use physical_table_names; otherwise fall back to old pattern
+                if (tableMetadata.length > 0) {
+                    const physicalTableNames = tableMetadata.map(m => m.physical_table_name);
+                    const tableNamesList = physicalTableNames.map(name => `'${name}'`).join(',');
+                    query += ` AND tb.table_name IN (${tableNamesList})`;
+                    console.log(`[DEBUG] Using metadata-based filter for ${physicalTableNames.length} tables`);
+                } else {
+                    // Fallback to old naming pattern for tables without metadata
+                    console.log(`[DEBUG] No metadata found, using legacy naming pattern`);
+                    if (connection.schema === 'dra_excel') {
+                        query += ` AND tb.table_name LIKE '%_data_source_${dataSource.id}_%'`;
+                    } else if (connection.schema === 'dra_pdf') {
+                        query += ` AND tb.table_name LIKE '%_data_source_${dataSource.id}_%'`;
+                    } else if (connection.schema === 'dra_google_analytics') {
+                        query += ` AND tb.table_name LIKE '%_${dataSource.id}'`;
+                    } else if (connection.schema === 'dra_google_ad_manager') {
+                        query += ` AND tb.table_name LIKE '%_${dataSource.id}'`;
+                    } else if (connection.schema === 'dra_google_ads') {
+                        query += ` AND tb.table_name LIKE '%_${dataSource.id}'`;
+                    }
+                }
+                
+                let tablesSchema = await dbConnector.query(query);
                 
                 // Create metadata lookup map
                 const metadataMap = new Map();
