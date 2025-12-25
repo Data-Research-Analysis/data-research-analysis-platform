@@ -6,6 +6,7 @@ import { GoogleOAuthService } from '../services/GoogleOAuthService.js';
 import { SyncHistoryService } from '../services/SyncHistoryService.js';
 import { SyncType } from '../entities/SyncHistory.js';
 import { DBDriver } from './DBDriver.js';
+import { TableMetadataService } from '../services/TableMetadataService.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { RetryHandler } from '../utils/RetryHandler.js';
 import {
@@ -241,11 +242,20 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
-        const tableName = `revenue_${dataSourceId}`;
+        // Generate hash-based physical table name
+        const tableMetadataService = TableMetadataService.getInstance();
+        const logicalTableName = 'revenue';
+        const physicalTableName = tableMetadataService.generatePhysicalTableName(
+            dataSourceId,
+            logicalTableName,
+            networkCode
+        );
+        const fullTableName = `${schemaName}.${physicalTableName}`;
         const fullTableName = `${schemaName}.${tableName}`;
         
         // Create table if not exists
@@ -323,11 +333,20 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
-        const tableName = `geography_${dataSourceId}`;
+        // Generate hash-based physical table name
+        const tableMetadataService = TableMetadataService.getInstance();
+        const logicalTableName = 'geography';
+        const physicalTableName = tableMetadataService.generatePhysicalTableName(
+            dataSourceId,
+            logicalTableName,
+            networkCode
+        );
+        const fullTableName = `${schemaName}.${physicalTableName}`;
         const fullTableName = `${schemaName}.${tableName}`;
         
         // Create table if not exists
@@ -391,11 +410,20 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
-        const tableName = `device_${dataSourceId}`;
+        // Generate hash-based physical table name
+        const tableMetadataService = TableMetadataService.getInstance();
+        const logicalTableName = 'device';
+        const physicalTableName = tableMetadataService.generatePhysicalTableName(
+            dataSourceId,
+            logicalTableName,
+            networkCode
+        );
+        const fullTableName = `${schemaName}.${physicalTableName}`;
         const fullTableName = `${schemaName}.${tableName}`;
         
         // Create table if not exists
@@ -462,11 +490,20 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
-        const tableName = `ad_unit_${dataSourceId}`;
+        // Generate hash-based physical table name
+        const tableMetadataService = TableMetadataService.getInstance();
+        const logicalTableName = 'ad_unit';
+        const physicalTableName = tableMetadataService.generatePhysicalTableName(
+            dataSourceId,
+            logicalTableName,
+            networkCode
+        );
+        const fullTableName = `${schemaName}.${physicalTableName}`;
         const fullTableName = `${schemaName}.${tableName}`;
         
         // Create table if not exists
@@ -534,11 +571,20 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
-        const tableName = `advertiser_${dataSourceId}`;
+        // Generate hash-based physical table name
+        const tableMetadataService = TableMetadataService.getInstance();
+        const logicalTableName = 'advertiser';
+        const physicalTableName = tableMetadataService.generatePhysicalTableName(
+            dataSourceId,
+            logicalTableName,
+            networkCode
+        );
+        const fullTableName = `${schemaName}.${physicalTableName}`;
         const fullTableName = `${schemaName}.${tableName}`;
         
         // Create table if not exists
@@ -608,11 +654,20 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
-        const tableName = `time_series_${dataSourceId}`;
+        // Generate hash-based physical table name
+        const tableMetadataService = TableMetadataService.getInstance();
+        const logicalTableName = 'time_series';
+        const physicalTableName = tableMetadataService.generatePhysicalTableName(
+            dataSourceId,
+            logicalTableName,
+            networkCode
+        );
+        const fullTableName = `${schemaName}.${physicalTableName}`;
         const fullTableName = `${schemaName}.${tableName}`;
         
         // Create table if not exists
