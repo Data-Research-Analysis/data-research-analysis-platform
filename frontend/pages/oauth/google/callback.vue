@@ -144,7 +144,7 @@ function getServiceTypeFromState(stateParam: string): 'analytics' | 'ad_manager'
                 <h2 class="text-2xl font-semibold text-gray-900 m-0 sm:text-xl">Authentication Failed</h2>
                 <p class="text-base text-gray-600 m-0 sm:text-sm">{{ state.error }}</p>
                 <button @click="router.back()"
-                    class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 mt-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 hover:-translate-y-0.5 hover:shadow-lg">
+                    class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 mt-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 hover:-translate-y-0.5 hover:shadow-lg">
                     Go Back
                 </button>
             </div>

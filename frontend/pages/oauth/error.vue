@@ -34,7 +34,7 @@ const goHome = () => {
             
             <button 
                 @click="goHome"
-                class="px-6 py-3 bg-primary-blue-100 text-white rounded-lg font-medium hover:bg-primary-blue-300 transition-colors cursor-pointer"
+                class="px-6 py-3 bg-primary-blue-100 text-white font-medium hover:bg-primary-blue-300 transition-colors cursor-pointer"
             >
                 Return to Projects
             </button>

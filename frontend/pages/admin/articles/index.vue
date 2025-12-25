@@ -115,7 +115,7 @@ async function unpublishArticle(articleId) {
                         <font-awesome icon="fas fa-exclamation-triangle" class="text-5xl text-red-500 mb-4" />
                         <p class="text-red-600 font-semibold mb-2">Error loading articles</p>
                         <p class="text-gray-600 text-sm">{{ error.message }}</p>
-                        <button @click="refresh()" class="mt-4 px-4 py-2 bg-primary-blue-500 text-white rounded hover:bg-primary-blue-600">
+                        <button @click="refresh()" class="mt-4 px-4 py-2 bg-primary-blue-500 text-white hover:bg-primary-blue-600">
                             Try Again
                         </button>
                     </div>

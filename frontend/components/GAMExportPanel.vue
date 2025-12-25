@@ -108,7 +108,7 @@
                 <button
                     @click="handleExport"
                     :disabled="gamExport.isExporting.value"
-                    class="px-6 py-2 bg-primary-blue-100 text-white rounded-md hover:bg-primary-blue-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                    class="px-6 py-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
                 >
                     {{ gamExport.isExporting.value ? 'Exporting...' : 'Export Data' }}
                 </button>

@@ -294,7 +294,7 @@ function cancel() {
                 </button>
 
                 <div class="flex gap-3 justify-end mt-8 sm:flex-col">
-                    <button @click="cancel" class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 sm:w-full">
+                    <button @click="cancel" class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 sm:w-full">
                         Cancel
                     </button>
                 </div>
@@ -313,7 +313,7 @@ function cancel() {
 
                 <div v-else-if="state.properties.length === 0" class="text-center py-12 px-6">
                     <p class="text-gray-600">{{ state.error || 'No properties found' }}</p>
-                    <a href="https://analytics.google.com" target="_blank" class="inline-block px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-primary-blue-100 text-white hover:bg-primary-blue-300 hover:-translate-y-0.5 hover:shadow-lg mt-4">
+                    <a href="https://analytics.google.com" target="_blank" class="inline-block px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-primary-blue-100 text-white hover:bg-primary-blue-300 hover:-translate-y-0.5 hover:shadow-lg mt-4">
                         Create GA4 Property
                     </a>
                 </div>
@@ -345,7 +345,7 @@ function cancel() {
                 </div>
 
                 <div class="flex gap-3 justify-end mt-8 sm:flex-col">
-                    <button @click="goBack" class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 sm:w-full">
+                    <button @click="goBack" class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 sm:w-full">
                         ← Back
                     </button>
                 </div>
@@ -413,13 +413,13 @@ function cancel() {
                 </div>
 
                 <div class="flex gap-3 justify-end mt-8 sm:flex-col">
-                    <button @click="goBack" class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-60 disabled:cursor-not-allowed sm:w-full" :disabled="state.connecting">
+                    <button @click="goBack" class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-60 disabled:cursor-not-allowed sm:w-full" :disabled="state.connecting">
                         ← Back
                     </button>
-                    <button @click="cancel" class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-60 disabled:cursor-not-allowed sm:w-full" :disabled="state.connecting">
+                    <button @click="cancel" class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-60 disabled:cursor-not-allowed sm:w-full" :disabled="state.connecting">
                         Cancel
                     </button>
-                    <button @click="connectAndSync" class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed bg-primary-blue-100 text-white hover:bg-primary-blue-300 hover:-translate-y-0.5 hover:shadow-lg sm:w-full" :disabled="state.connecting">
+                    <button @click="connectAndSync" class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed bg-primary-blue-100 text-white hover:bg-primary-blue-300 hover:-translate-y-0.5 hover:shadow-lg sm:w-full" :disabled="state.connecting">
                         <span v-if="!state.connecting">Connect & Sync →</span>
                         <span v-else>Connecting...</span>
                     </button>

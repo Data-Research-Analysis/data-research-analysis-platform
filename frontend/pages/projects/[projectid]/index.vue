@@ -397,7 +397,7 @@ onMounted(() => {
             <div v-if="!state.loading && state.data_sources.some(ds => ds.data_type === 'google_analytics' || ds.data_type === 'google_ad_manager' || ds.data_type === 'google_ads')"
                 class="mt-5 mb-2">
                 <button @click="bulkSyncAllGoogleDataSources"
-                    class="px-4 py-2 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 transition-colors duration-200 flex items-center gap-2 cursor-pointer">
+                    class="px-4 py-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 transition-colors duration-200 flex items-center gap-2 cursor-pointer">
                     <font-awesome icon="fas fa-sync" />
                     {{
                         state.data_sources.some(ds => ds.data_type === 'google_analytics') && state.data_sources.some(ds =>
