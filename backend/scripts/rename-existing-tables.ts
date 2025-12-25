@@ -466,8 +466,16 @@ async function main() {
     
     try {
         // Initialize database connection
-        const dbDriver = await PostgresDataSource.getInstance();
-        const dataSource = await dbDriver.getDriver();
+        const dbDriver = PostgresDataSource.getInstance();
+        const dataSource = dbDriver.getDataSource(
+            process.env.DB_HOST || 'localhost',
+            parseInt(process.env.DB_PORT || '5432'),
+            process.env.DB_NAME || 'database',
+            process.env.DB_USER || 'user',
+            process.env.DB_PASSWORD || ''
+        );
+        
+        await dataSource.initialize();
         
         if (!dataSource) {
             throw new Error('Failed to connect to database');
