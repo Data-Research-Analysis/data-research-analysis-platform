@@ -17,7 +17,7 @@
             <button 
               @click="dropdownOpen = !dropdownOpen"
               type="button"
-              class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-l-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              class="inline-flex items-center px-4 py-2 bg-primary-blue-100 text-white text-sm font-medium rounded-l-lg hover:bg-primary-blue-300 focus:outline-none focus:ring-2 focus:ring-primary-blue-100 cursor-pointer">
               <font-awesome icon="fas fa-plus" class="mr-2" />
               Create Data Model
               <font-awesome icon="fas fa-chevron-down" class="ml-2 text-xs" />
@@ -54,9 +54,9 @@
             @click="createCrossSource"
             :disabled="dataSources.length < 2"
             :class="[
-              'inline-flex items-center px-4 py-2 text-sm font-medium border-l border-indigo-800 rounded-r-lg',
+              'inline-flex items-center px-4 py-2 text-sm font-medium border-l border-primary-blue-100 rounded-r-lg',
               dataSources.length >= 2 
-                ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
+                ? 'bg-primary-blue-100 text-white hover:bg-primary-blue-200 cursor-pointer'
                 : 'bg-gray-100 text-gray-400 cursor-not-allowed'
             ]">
             <font-awesome icon="fas fa-link" class="mr-2" />
@@ -144,19 +144,19 @@
                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   <button 
                     @click="viewModel(item)"
-                    class="text-blue-600 hover:text-blue-900 mr-3"
+                    class="text-blue-600 hover:text-blue-900 mr-3 cursor-pointer"
                     v-tippy="{ content: 'View' }">
                     <font-awesome icon="fas fa-eye" />
                   </button>
                   <button 
                     @click="refreshModel(item)"
-                    class="text-green-600 hover:text-green-900 mr-3"
+                    class="text-green-600 hover:text-green-900 mr-3 cursor-pointer"
                     v-tippy="{ content: 'Refresh' }">
                     <font-awesome icon="fas fa-refresh" />
                   </button>
                   <button 
                     @click="deleteModel(item)"
-                    class="text-red-600 hover:text-red-900"
+                    class="text-red-600 hover:text-red-900 cursor-pointer"
                     v-tippy="{ content: 'Delete' }">
                     <font-awesome icon="fas fa-trash" />
                   </button>

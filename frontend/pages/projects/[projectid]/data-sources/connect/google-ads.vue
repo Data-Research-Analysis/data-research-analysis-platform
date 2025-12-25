@@ -351,20 +351,20 @@ function cancel() {
         <div class="flex items-center justify-center mb-12 sm:mb-8">
             <div class="flex flex-col items-center gap-2" :class="{ 'text-indigo-600': state.currentStep >= 1 }">
                 <div class="w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300" 
-                     :class="state.currentStep > 1 ? 'bg-green-500 text-white' : state.currentStep >= 1 ? 'bg-indigo-600 text-white' : 'bg-gray-300 text-gray-600'">1</div>
-                <div class="text-sm font-medium sm:text-xs" :class="state.currentStep >= 1 ? 'text-indigo-600' : 'text-gray-600'">Authenticate</div>
+                     :class="state.currentStep > 1 ? 'bg-green-500 text-white' : state.currentStep >= 1 ? 'bg-primary-blue-100 text-white' : 'bg-gray-300 text-gray-600'">1</div>
+                <div class="text-sm font-medium sm:text-xs" :class="state.currentStep >= 1 ? 'text-primary-blue-100' : 'text-gray-600'">Authenticate</div>
             </div>
             <div class="w-20 h-0.5 mx-4 transition-all duration-300 sm:w-10" :class="state.currentStep > 1 ? 'bg-green-500' : 'bg-gray-300'"></div>
             <div class="flex flex-col items-center gap-2" :class="{ 'text-indigo-600': state.currentStep >= 2 }">
                 <div class="w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300" 
-                     :class="state.currentStep > 2 ? 'bg-green-500 text-white' : state.currentStep >= 2 ? 'bg-indigo-600 text-white' : 'bg-gray-300 text-gray-600'">2</div>
-                <div class="text-sm font-medium sm:text-xs" :class="state.currentStep >= 2 ? 'text-indigo-600' : 'text-gray-600'">Select Account</div>
+                     :class="state.currentStep > 2 ? 'bg-green-500 text-white' : state.currentStep >= 2 ? 'bg-primary-blue-100 text-white' : 'bg-gray-300 text-gray-600'">2</div>
+                <div class="text-sm font-medium sm:text-xs" :class="state.currentStep >= 2 ? 'text-primary-blue-100' : 'text-gray-600'">Select Account</div>
             </div>
             <div class="w-20 h-0.5 mx-4 transition-all duration-300 sm:w-10" :class="state.currentStep > 2 ? 'bg-green-500' : 'bg-gray-300'"></div>
             <div class="flex flex-col items-center gap-2" :class="{ 'text-indigo-600': state.currentStep >= 3 }">
                 <div class="w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300" 
-                     :class="state.currentStep >= 3 ? 'bg-indigo-600 text-white' : 'bg-gray-300 text-gray-600'">3</div>
-                <div class="text-sm font-medium sm:text-xs" :class="state.currentStep >= 3 ? 'text-indigo-600' : 'text-gray-600'">Configure</div>
+                     :class="state.currentStep >= 3 ? 'bg-primary-blue-100 text-white' : 'bg-gray-300 text-gray-600'">3</div>
+                <div class="text-sm font-medium sm:text-xs" :class="state.currentStep >= 3 ? 'text-primary-blue-100' : 'text-gray-600'">Configure</div>
             </div>
         </div>
 
@@ -423,7 +423,7 @@ function cancel() {
                 <div v-else class="flex flex-col gap-3 mb-6">
                     <div v-for="account in state.accounts" :key="account.customerId"
                         class="flex items-center gap-4 p-5 border-2 rounded-lg cursor-pointer transition-all duration-200"
-                        :class="state.selectedAccount?.customerId === account.customerId ? 'border-indigo-600 bg-indigo-50' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'"
+                        :class="state.selectedAccount?.customerId === account.customerId ? 'border-primary-blue-100 bg-blue-50' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'"
                         @click="selectAccount(account)">
                         <div class="flex-1">
                             <h3 class="text-base font-semibold text-gray-900 m-0 mb-1">{{ account.descriptiveName }}</h3>
@@ -467,7 +467,7 @@ function cancel() {
                     <div class="flex flex-col gap-3">
                         <label v-for="reportType in state.reportTypes" :key="reportType.id"
                             class="flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-all duration-200"
-                            :class="state.selectedReportTypes.includes(reportType.id) ? 'border-indigo-600 bg-indigo-50' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'">
+                            :class="state.selectedReportTypes.includes(reportType.id) ? 'border-primary-blue-100 bg-blue-50' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'">
                             <input type="checkbox" :checked="state.selectedReportTypes.includes(reportType.id)"
                                 @change="toggleReportType(reportType.id)" class="mt-1 cursor-pointer" />
                             <div class="flex-1">
@@ -520,7 +520,7 @@ function cancel() {
                     <button @click="cancel" class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-60 disabled:cursor-not-allowed sm:w-full" :disabled="state.connecting">
                         Cancel
                     </button>
-                    <button @click="connectDataSource" class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed bg-indigo-600 text-white hover:bg-indigo-700 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-400/40 sm:w-full" :disabled="state.connecting">
+                    <button @click="connectDataSource" class="px-6 py-3 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed bg-primary-blue-100 text-white hover:bg-primary-blue-300 hover:-translate-y-0.5 hover:shadow-lg sm:w-full" :disabled="state.connecting">
                         <span v-if="!state.connecting">Connect & Sync →</span>
                         <span v-else>Connecting...</span>
                     </button>

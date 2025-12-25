@@ -397,7 +397,7 @@ onMounted(() => {
             <div v-if="!state.loading && state.data_sources.some(ds => ds.data_type === 'google_analytics' || ds.data_type === 'google_ad_manager' || ds.data_type === 'google_ads')"
                 class="mt-5 mb-2">
                 <button @click="bulkSyncAllGoogleDataSources"
-                    class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors duration-200 flex items-center gap-2">
+                    class="px-4 py-2 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 transition-colors duration-200 flex items-center gap-2 cursor-pointer">
                     <font-awesome icon="fas fa-sync" />
                     {{
                         state.data_sources.some(ds => ds.data_type === 'google_analytics') && state.data_sources.some(ds =>
@@ -479,9 +479,9 @@ onMounted(() => {
                         v-tippy="{ content: 'Edit Data Source' }">
                         <font-awesome icon="fas fa-pen" class="text-sm text-white" />
                     </NuxtLink> <button
-                        v-if="dataSource.data_type === 'google_analytics' || dataSource.data_type === 'google_ad_manager'"
+                        v-if="dataSource.data_type === 'google_analytics' || dataSource.data_type === 'google_ad_manager' || dataSource.data_type === 'google_ads'"
                         @click.stop="syncDataSource(dataSource.id)" :disabled="state.syncing[dataSource.id]"
-                        class="absolute top-[68px] -right-2 z-10 bg-indigo-600 hover:bg-indigo-700 border border-indigo-600 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        class="absolute top-[68px] -right-2 z-10 bg-primary-blue-100 hover:bg-primary-blue-300 border border-primary-blue-100 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         v-tippy="{ content: state.syncing[dataSource.id] ? 'Syncing...' : 'Sync Now' }">
                         <font-awesome :icon="state.syncing[dataSource.id] ? 'fas fa-spinner' : 'fas fa-sync'"
                             :class="{ 'fa-spin': state.syncing[dataSource.id] }" class="text-sm text-white" />

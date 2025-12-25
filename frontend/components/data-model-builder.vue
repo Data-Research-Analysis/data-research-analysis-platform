@@ -3218,7 +3218,7 @@ onMounted(async () => {
         class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 border border-primary-blue-100 border-solid p-10 shadow-md">
         <div class="flex flex-row justify-between items-center mb-5">
             <div class="font-bold text-2xl">
-                Create A Data Model from the Connected Data Source
+                Create A Data Model from the Connected Data Source(s)
             </div>
             <button v-if="(props.dataSource && props.dataSource.id) || (props.isCrossSource && props.projectId)" @click="openAIDataModeler"
                 class="flex items-center gap-2 px-4 py-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 transition-colors duration-200 font-medium shadow-md cursor-pointer">
