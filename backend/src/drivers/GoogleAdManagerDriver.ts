@@ -256,7 +256,6 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             networkCode
         );
         const fullTableName = `${schemaName}.${physicalTableName}`;
-        const fullTableName = `${schemaName}.${tableName}`;
         
         // Create table if not exists
         await manager.query(`
@@ -347,7 +346,6 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             networkCode
         );
         const fullTableName = `${schemaName}.${physicalTableName}`;
-        const fullTableName = `${schemaName}.${tableName}`;
         
         // Create table if not exists
         await manager.query(`
@@ -424,7 +422,6 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             networkCode
         );
         const fullTableName = `${schemaName}.${physicalTableName}`;
-        const fullTableName = `${schemaName}.${tableName}`;
         
         // Create table if not exists
         await manager.query(`
@@ -504,7 +501,6 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             networkCode
         );
         const fullTableName = `${schemaName}.${physicalTableName}`;
-        const fullTableName = `${schemaName}.${tableName}`;
         
         // Create table if not exists
         await manager.query(`
@@ -585,7 +581,6 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             networkCode
         );
         const fullTableName = `${schemaName}.${physicalTableName}`;
-        const fullTableName = `${schemaName}.${tableName}`;
         
         // Create table if not exists
         await manager.query(`
@@ -668,8 +663,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             networkCode
         );
         const fullTableName = `${schemaName}.${physicalTableName}`;
-        const fullTableName = `${schemaName}.${tableName}`;
-        
+                
         // Create table if not exists
         await manager.query(`
             CREATE TABLE IF NOT EXISTS ${fullTableName} (
