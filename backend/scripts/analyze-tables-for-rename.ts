@@ -8,8 +8,8 @@
  */
 
 import { DataSource } from 'typeorm';
-import { PostgresDataSource } from '../datasources/PostgresDataSource.js';
-import { TableMetadataService } from '../services/TableMetadataService.js';
+import { PostgresDataSource } from '../src/datasources/PostgresDataSource.js';
+import { TableMetadataService } from '../src/services/TableMetadataService.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';

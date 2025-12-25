@@ -11,7 +11,7 @@
  */
 
 import { DataSource } from 'typeorm';
-import { PostgresDataSource } from '../datasources/PostgresDataSource.js';
+import { PostgresDataSource } from '../src/datasources/PostgresDataSource.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
