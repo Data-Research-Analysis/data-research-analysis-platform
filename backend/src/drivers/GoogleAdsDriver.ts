@@ -231,7 +231,6 @@ export class GoogleAdsDriver implements IAPIDriver {
             customerId
         );
         const fullTableName = `${schemaName}.${physicalTableName}`;
-        const fullTableName = `${schemaName}.${tableName}`;
         
         // Create table if not exists
         await manager.query(`
@@ -319,7 +318,6 @@ export class GoogleAdsDriver implements IAPIDriver {
             customerId
         );
         const fullTableName = `${schemaName}.${physicalTableName}`;
-        const fullTableName = `${schemaName}.${tableName}`;
         
         // Create table
         await manager.query(`
@@ -399,7 +397,6 @@ export class GoogleAdsDriver implements IAPIDriver {
             customerId
         );
         const fullTableName = `${schemaName}.${physicalTableName}`;
-        const fullTableName = `${schemaName}.${tableName}`;
         
         await manager.query(`
             CREATE TABLE IF NOT EXISTS ${fullTableName} (
@@ -466,7 +463,6 @@ export class GoogleAdsDriver implements IAPIDriver {
             customerId
         );
         const fullTableName = `${schemaName}.${physicalTableName}`;
-        const fullTableName = `${schemaName}.${tableName}`;
         
         await manager.query(`
             CREATE TABLE IF NOT EXISTS ${fullTableName} (
