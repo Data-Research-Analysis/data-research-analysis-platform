@@ -4426,7 +4426,7 @@ onMounted(async () => {
                         <option value="">-- Select Table --</option>
                         <option v-for="table in state.tables" :key="`${table.schema}.${table.table_name}`"
                             :value="`${table.schema}.${table.table_name}`">
-                            {{ table.schema }}.{{ table.table_name }}
+                            {{ table.schema }}.{{ table.logical_name || table.table_name }}
                         </option>
                     </select>
                 </div>
