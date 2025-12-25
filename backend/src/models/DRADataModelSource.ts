@@ -1,6 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, Relation } from 'typeorm';
 import { DRADataModel } from './DRADataModel.js';
 import { DRADataSource } from './DRADataSource.js';
+import { DRAUsersPlatform } from './DRAUsersPlatform.js';
 
 /**
  * Junction table entity for many-to-many relationship between data models and data sources
@@ -24,6 +25,13 @@ export class DRADataModelSource {
     @ManyToOne(() => DRADataSource, source => source.data_model_sources, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'data_source_id' })
     data_source!: DRADataSource;
+
+    @Column({ type: 'int', name: 'users_platform_id' })
+    users_platform_id!: number;
+
+    @ManyToOne(() => DRAUsersPlatform, user => user.data_model_sources, { onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'users_platform_id' })
+    users_platform!: Relation<DRAUsersPlatform>;
 
     @CreateDateColumn({ type: 'timestamp', name: 'created_at', default: () => 'NOW()' })
     created_at!: Date;

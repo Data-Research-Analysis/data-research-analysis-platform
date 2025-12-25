@@ -203,7 +203,10 @@ export class DataModelProcessor {
             if (!user) {
                 return resolve([]);
             }
-            const dataModels = await manager.find(DRADataModel, {where: {users_platform: user}, relations: ['data_source', 'users_platform']});
+            const dataModels = await manager.find(DRADataModel, {
+                where: {users_platform: user}, 
+                relations: ['data_source', 'users_platform', 'data_model_sources', 'data_model_sources.data_source']
+            });
             return resolve(dataModels);
         });
     }

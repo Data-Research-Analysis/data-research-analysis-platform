@@ -1,4 +1,4 @@
-import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, Relation } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, Relation, CreateDateColumn } from 'typeorm';
 import { DRAUsersPlatform } from './DRAUsersPlatform.js';
 import { DRADataSource } from './DRADataSource.js';
 import { DRAAIDataModelConversation } from './DRAAIDataModelConversation.js';
@@ -21,6 +21,9 @@ export class DRADataModel {
     
     @Column({ type: 'jsonb', default: {}, name: 'execution_metadata' })
     execution_metadata!: Record<string, any>
+    
+    @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
+    created_at!: Date
         
     @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.data_models)
     @JoinColumn({ name: 'users_platform_id', referencedColumnName: 'id' })
