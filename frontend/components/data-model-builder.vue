@@ -775,7 +775,7 @@ function getTablesWithAliases() {
         result.push({
             schema: table.schema,
             table_name: table.table_name,
-            display_name: table.table_name,
+            display_name: table.logical_name || table.table_name,
             columns: table.columns,
             references: table.references || [],
             isAlias: false,

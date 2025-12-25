@@ -615,9 +615,41 @@ export class DataSourceProcessor {
                     query += ` AND tb.table_name LIKE '%_${dataSource.id}'`;
                 }
                 let tablesSchema = await dbConnector.query(query);
+                
+                // Fetch table metadata for logical names
+                let tableMetadata: any[] = [];
+                try {
+                    const metadataQuery = `
+                        SELECT 
+                            physical_table_name,
+                            logical_table_name,
+                            original_sheet_name,
+                            file_id,
+                            table_type
+                        FROM dra_table_metadata
+                        WHERE data_source_id = $1 AND schema_name = $2
+                    `;
+                    tableMetadata = await manager.query(metadataQuery, [dataSource.id, connection.schema]);
+                    console.log(`[DEBUG] Found ${tableMetadata.length} metadata records`);
+                } catch (error) {
+                    console.error('[DEBUG] Error fetching table metadata:', error);
+                }
+                
+                // Create metadata lookup map
+                const metadataMap = new Map();
+                tableMetadata.forEach((meta: any) => {
+                    metadataMap.set(meta.physical_table_name, meta);
+                });
+                
                 let tables = tablesSchema.map((table: any) => {
+                    const physicalTableName = table?.table_name || table?.TABLE_NAME;
+                    const metadata = metadataMap.get(physicalTableName);
+                    
                     return {
-                        table_name: table?.table_name || table?.TABLE_NAME,
+                        table_name: physicalTableName,
+                        logical_name: metadata?.logical_table_name || physicalTableName,
+                        original_sheet_name: metadata?.original_sheet_name || null,
+                        table_type: metadata?.table_type || null,
                         schema: table.table_schema || table?.TABLE_SCHEMA,
                         columns: [],
                         references: [],
