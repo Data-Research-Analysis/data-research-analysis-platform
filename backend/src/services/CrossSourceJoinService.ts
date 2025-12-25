@@ -64,6 +64,8 @@ export interface IJoinDefinition {
 export class CrossSourceJoinService {
     private static instance: CrossSourceJoinService;
     private joinCatalogRepository?: Repository<DRACrossSourceJoinCatalog>;
+    // Maximum length to consider for column names when computing similarities
+    private static readonly MAX_COLUMN_NAME_LENGTH = 255;
 
     private constructor() {}
 
@@ -128,6 +130,11 @@ export class CrossSourceJoinService {
      * Removes common prefixes/suffixes and converts to lowercase
      */
     private normalizeColumnName(columnName: string): string {
+        // Ensure we do not process excessively long strings to avoid DoS via Levenshtein distance
+        if (columnName.length > CrossSourceJoinService.MAX_COLUMN_NAME_LENGTH) {
+            columnName = columnName.slice(0, CrossSourceJoinService.MAX_COLUMN_NAME_LENGTH);
+        }
+
         let normalized = columnName.toLowerCase();
         
         // Remove common suffixes
