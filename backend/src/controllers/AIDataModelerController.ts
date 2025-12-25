@@ -274,7 +274,7 @@ Keep it concise - aim for 200-300 words total.`;
                         tables: tables
                     };
                 } catch (error) {
-                    console.error(`[Cross-Source] Error fetching schema for data source ${ds.id}:`, error);
+                    console.error('[Cross-Source] Error fetching schema for data source:', ds.id, error);
                     return null;
                 }
             });
