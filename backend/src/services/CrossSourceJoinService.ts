@@ -99,8 +99,19 @@ export class CrossSourceJoinService {
      * Used for fuzzy column name matching
      */
     private levenshteinDistance(str1: string, str2: string): number {
-        const len1 = str1.length;
-        const len2 = str2.length;
+        // Normalize inputs to strings and ensure we do not process excessively long values
+        let a = String(str1);
+        let b = String(str2);
+
+        if (a.length > CrossSourceJoinService.MAX_COLUMN_NAME_LENGTH) {
+            a = a.slice(0, CrossSourceJoinService.MAX_COLUMN_NAME_LENGTH);
+        }
+        if (b.length > CrossSourceJoinService.MAX_COLUMN_NAME_LENGTH) {
+            b = b.slice(0, CrossSourceJoinService.MAX_COLUMN_NAME_LENGTH);
+        }
+
+        const len1 = a.length;
+        const len2 = b.length;
         const matrix: number[][] = [];
 
         for (let i = 0; i <= len1; i++) {
@@ -113,7 +124,7 @@ export class CrossSourceJoinService {
 
         for (let i = 1; i <= len1; i++) {
             for (let j = 1; j <= len2; j++) {
-                const cost = str1[i - 1] === str2[j - 1] ? 0 : 1;
+                const cost = a[i - 1] === b[j - 1] ? 0 : 1;
                 matrix[i][j] = Math.min(
                     matrix[i - 1][j] + 1,      // deletion
                     matrix[i][j - 1] + 1,      // insertion
