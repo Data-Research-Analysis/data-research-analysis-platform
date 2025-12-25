@@ -258,16 +258,16 @@ class TableRenameExecutor {
         
         for (const modelId of dataModelIds) {
             try {
-                // Get current query_json
+                // Get current query
                 const modelResult = await this.queryRunner.query(
-                    'SELECT id, query_json FROM dra_data_models WHERE id = $1',
+                    'SELECT id, query FROM dra_data_models WHERE id = $1',
                     [modelId]
                 );
                 
                 if (modelResult.length === 0) continue;
                 
                 const model = modelResult[0];
-                let queryJson = model.query_json;
+                let queryJson = model.query;
                 
                 if (!queryJson || typeof queryJson !== 'object') {
                     continue;
@@ -304,7 +304,7 @@ class TableRenameExecutor {
                         console.log(`     [DRY RUN] Would update data model ${modelId}`);
                     } else {
                         await this.queryRunner.query(
-                            'UPDATE dra_data_models SET query_json = $1 WHERE id = $2',
+                            'UPDATE dra_data_models SET query = $1 WHERE id = $2',
                             [JSON.stringify(queryJson), modelId]
                         );
                     }

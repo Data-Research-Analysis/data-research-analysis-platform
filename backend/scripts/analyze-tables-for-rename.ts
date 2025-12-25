@@ -368,14 +368,14 @@ class TableRenameAnalyzer {
      */
     private async findDataModelsUsingTable(schema: string, tableName: string): Promise<number[]> {
         const dataModels = await this.dataSource.query(`
-            SELECT id, query_json 
+            SELECT id, query 
             FROM dra_data_models 
-            WHERE query_json::text LIKE $1
+            WHERE query::text LIKE $1
         `, [`%${tableName}%`]);
         
         return dataModels
             .filter((dm: any) => {
-                const queryJson = dm.query_json;
+                const queryJson = dm.query;
                 if (!queryJson || !queryJson.tables) return false;
                 
                 return queryJson.tables.some((t: any) => 
