@@ -10,6 +10,7 @@ import { DRAArticle } from './DRAArticle.js';
 import { DRACategory } from './DRACategory.js';
 import { DRAArticleCategory } from './DRAArticleCategory.js';
 import { DRADataModelSource } from './DRADataModelSource.js';
+import { DRATableMetadata } from './DRATableMetadata.js';
 
 @Entity('dra_users_platform')
 export class DRAUsersPlatform {
@@ -59,4 +60,7 @@ export class DRAUsersPlatform {
 
     @OneToMany(() => DRADataModelSource, (dataModelSource) => dataModelSource.users_platform, { cascade: ["remove", "update"] })
     data_model_sources!: Relation<DRADataModelSource>[];
+
+    @OneToMany(() => DRATableMetadata, (tableMetadata) => tableMetadata.users_platform, { cascade: ["remove", "update"] })
+    table_metadata!: Relation<DRATableMetadata>[];
 }

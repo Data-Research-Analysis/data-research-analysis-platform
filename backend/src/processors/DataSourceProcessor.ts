@@ -19,6 +19,7 @@ import { QueueService } from "../services/QueueService.js";
 import { GoogleAnalyticsDriver } from "../drivers/GoogleAnalyticsDriver.js";
 import { GoogleAdManagerDriver } from "../drivers/GoogleAdManagerDriver.js";
 import { FederatedQueryService } from "../services/FederatedQueryService.js";
+import { TableMetadataService } from "../services/TableMetadataService.js";
 export class DataSourceProcessor {
     private static instance: DataSourceProcessor;
     private constructor() {}
@@ -1258,11 +1259,21 @@ export class DataSourceProcessor {
                     const originalSheetName = sheetInfo?.original_sheet_name || sheetName;
                     const sheetIndex = sheetInfo?.sheet_index || 0;
                 
-                    // Create table name for this sheet
-                    const rawTableName = `excel_${fileId}_data_source_${dataSource.id}_${sheetName.toLowerCase()}`;
-                    const tableName = this.sanitizeTableName(rawTableName);
+                    // CRITICAL: Use hash-based short table name to avoid PostgreSQL 63-char limit
+                    // Generate logical name (human-readable, can be any length)
+                    const logicalTableName = `${sheetName}`;
                     
-                    let createTableQuery = `CREATE TABLE dra_excel."${tableName}" `;
+                    // Generate short physical name using hash (e.g., ds23_a7b3c9d1)
+                    const tableMetadataService = TableMetadataService.getInstance();
+                    const physicalTableName = tableMetadataService.generatePhysicalTableName(
+                        dataSource.id,
+                        logicalTableName,
+                        fileId
+                    );
+                    
+                    console.log(`[Excel Upload] Physical table: ${physicalTableName}, Logical: ${logicalTableName}`);
+                    
+                    let createTableQuery = `CREATE TABLE dra_excel."${physicalTableName}" `;
                     let columns = '';
                     let insertQueryColumns = '';
                     const sanitizedColumns: Array<{
@@ -1317,7 +1328,7 @@ export class DataSourceProcessor {
                         try {
                             // Create the table
                             await dbConnector.query(createTableQuery);
-                            console.log('Successfully created table:', tableName);
+                            console.log('[Excel Upload] Successfully created physical table:', physicalTableName, 'for logical table:', logicalTableName);
     
                             insertQueryColumns = `(${insertQueryColumns})`;
 
@@ -1328,7 +1339,7 @@ export class DataSourceProcessor {
                                 
                                 for (let rowIndex = 0; rowIndex < parsedTableStructure.rows.length; rowIndex++) {
                                     const row = parsedTableStructure.rows[rowIndex];
-                                    let insertQuery = `INSERT INTO dra_excel."${tableName}" `;
+                                    let insertQuery = `INSERT INTO dra_excel."${physicalTableName}" `;
                                     let values = '';
      
                                     sanitizedColumns.forEach((columnInfo, colIndex) => {
@@ -1411,7 +1422,7 @@ export class DataSourceProcessor {
                                                             
                                 // Verify data was actually inserted by counting rows in the table
                                 try {
-                                    const countQuery = `SELECT COUNT(*) as row_count FROM dra_excel."${tableName}"`;
+                                    const countQuery = `SELECT COUNT(*) as row_count FROM dra_excel."${physicalTableName}"`;
                                     const countResult = await dbConnector.query(countQuery);
                                     const actualRowCount = countResult[0]?.row_count || 0;
                                     
@@ -1435,11 +1446,24 @@ export class DataSourceProcessor {
                             sheetsProcessed.push({
                                 sheet_id: sheetId,
                                 sheet_name: sheetName,
-                                table_name: tableName, // Using sanitized table name
+                                table_name: physicalTableName, // Physical hash-based table name
                                 original_sheet_name: originalSheetName,
                                 sheet_index: sheetIndex
                             });
-                            console.log(`Successfully processed sheet: ${sheetName} -> table: ${tableName}`);
+                            console.log(`[Excel Upload] Successfully processed sheet: ${sheetName} -> physical table: ${physicalTableName}`);
+                            
+                            // Store table metadata for physical-to-logical name mapping
+                            await tableMetadataService.storeTableMetadata(manager, {
+                                dataSourceId: dataSource.id,
+                                usersPlatformId: user.id,
+                                schemaName: 'dra_excel',
+                                physicalTableName: physicalTableName,
+                                logicalTableName: logicalTableName,
+                                originalSheetName: originalSheetName,
+                                fileId: fileId,
+                                tableType: 'excel'
+                            });
+                            console.log('[Excel Upload] Table metadata stored for:', physicalTableName);
                         } catch (error) {
                             console.error('Error creating table:', error);
                             console.error('Failed query:', createTableQuery);
@@ -1527,11 +1551,21 @@ export class DataSourceProcessor {
                     const sheetId = sheetInfo?.sheet_id || `sheet_${Date.now()}`;                    
                     const sheetIndex = sheetInfo?.sheet_index || 0;
 
-                    // Create table name for this sheet
-                    const rawTableName = `pdf_${fileId}_data_source_${dataSource.id}_${sheetName.toLowerCase()}`;
-                    const tableName = this.sanitizeTableName(rawTableName);
-                    // Create table query
-                    let createTableQuery = `CREATE TABLE dra_pdf.${tableName} `;
+                    // CRITICAL: Use hash-based short table name to avoid PostgreSQL 63-char limit
+                    // Generate logical name (human-readable, can be any length)
+                    const logicalTableName = `${sheetName}`;
+                    
+                    // Generate short physical name using hash (e.g., ds23_a7b3c9d1)
+                    const tableMetadataService = TableMetadataService.getInstance();
+                    const physicalTableName = tableMetadataService.generatePhysicalTableName(
+                        dataSource.id,
+                        logicalTableName,
+                        fileId
+                    );
+                    
+                    console.log(`[PDF Upload] Physical table: ${physicalTableName}, Logical: ${logicalTableName}`);
+
+                    let createTableQuery = `CREATE TABLE dra_pdf.${physicalTableName} `;
                     let columns = '';
                     let insertQueryColumns = '';
                     
@@ -1591,11 +1625,11 @@ export class DataSourceProcessor {
                             // Create the table
                             await dbConnector.query(createTableQuery);
                             // await dbConnector.query(alterTableQuery);
-                            console.log('Successfully created table:', tableName);
+                            console.log('[PDF Upload] Successfully created physical table:', physicalTableName, 'for logical table:', logicalTableName);
                             // Insert data rows
                             if (parsedTableStructure.rows && parsedTableStructure.rows.length > 0) {
                                 for (const row of parsedTableStructure.rows) {
-                                    let insertQuery = `INSERT INTO dra_pdf.${tableName} `;
+                                    let insertQuery = `INSERT INTO dra_pdf.${physicalTableName} `;
                                     let values = '';
                                     
                                     sanitizedPdfColumns.forEach((columnInfo, colIndex) => {
@@ -1668,16 +1702,29 @@ export class DataSourceProcessor {
                                 });
                             }
                         } catch (error) {
-                            console.error('Error creating table:', tableName, error);
+                           console.error('Error creating table:', physicalTableName, error);
                             throw error;
                         }
                         // Track processed sheet
                         sheetsProcessed.push({
                             sheet_id: sheetId,
                             sheet_name: sheetName,
-                            table_name: tableName,
+                            table_name: physicalTableName, // Physical hash-based table name
                             sheet_index: sheetIndex
                         });
+                        
+                        // Store table metadata for physical-to-logical name mapping
+                        await tableMetadataService.storeTableMetadata(manager, {
+                            dataSourceId: dataSource.id,
+                            usersPlatformId: user.id,
+                            schemaName: 'dra_pdf',
+                            physicalTableName: physicalTableName,
+                            logicalTableName: logicalTableName,
+                            originalSheetName: sheetName,
+                            fileId: fileId,
+                            tableType: 'pdf'
+                        });
+                        console.log('[PDF Upload] Table metadata stored for:', physicalTableName);
                     }
                 } catch (error) {
                     console.error('Error processing Excel data source:', error);
@@ -2181,7 +2228,7 @@ export class DataSourceProcessor {
             
             // Trigger sync
             const gaDriver = GoogleAnalyticsDriver.getInstance();
-            const syncResult = await gaDriver.syncToDatabase(dataSourceId, apiConnectionDetails);
+            const syncResult = await gaDriver.syncToDatabase(dataSourceId, dataSource.users_platform.id, apiConnectionDetails);
             
             if (syncResult) {
                 // Update last sync time in API connection details
@@ -2315,7 +2362,7 @@ export class DataSourceProcessor {
             
             // Trigger sync
             const gamDriver = GoogleAdManagerDriver.getInstance();
-            const syncResult = await gamDriver.syncToDatabase(dataSourceId, apiConnectionDetails);
+            const syncResult = await gamDriver.syncToDatabase(dataSourceId, dataSource.users_platform.id, apiConnectionDetails);
             
             if (syncResult) {
                 // Update last sync time in API connection details
@@ -2459,7 +2506,7 @@ export class DataSourceProcessor {
             // Trigger sync
             const { GoogleAdsDriver } = await import('../drivers/GoogleAdsDriver.js');
             const adsDriver = GoogleAdsDriver.getInstance();
-            const syncResult = await adsDriver.syncToDatabase(dataSourceId, apiConnectionDetails);
+            const syncResult = await adsDriver.syncToDatabase(dataSourceId, dataSource.users_platform.id, apiConnectionDetails);
             
             if (syncResult) {
                 // Update last sync time in API connection details

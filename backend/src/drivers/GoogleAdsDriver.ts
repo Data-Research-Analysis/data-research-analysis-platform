@@ -75,6 +75,7 @@ export class GoogleAdsDriver implements IAPIDriver {
      */
     public async syncToDatabase(
         dataSourceId: number,
+        usersPlatformId: number,
         connectionDetails: IAPIConnectionDetails
     ): Promise<boolean> {
         // Create sync history record

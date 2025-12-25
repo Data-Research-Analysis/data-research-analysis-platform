@@ -2199,9 +2199,42 @@ async function saveDataModel() {
     // Ensure JOIN conditions and table aliases are synced to data_table before save
     state.data_table.join_conditions = [...state.join_conditions];
     state.data_table.table_aliases = [...state.table_aliases];
+    
+    // CRITICAL FIX: Auto-sync group_by_columns when aggregate functions exist
+    // This ensures manually selected columns are included in GROUP BY clause
+    const hasAggregates = state.data_table.query_options?.group_by?.aggregate_functions?.length > 0 ||
+                         state.data_table.query_options?.group_by?.aggregate_expressions?.length > 0;
+    
+    if (hasAggregates && state.data_table.query_options?.group_by) {
+        // Build set of columns used ONLY in aggregates (not in regular SELECT)
+        const aggregatedColumns = new Set();
+        
+        state.data_table.query_options.group_by.aggregate_functions?.forEach(aggFunc => {
+            if (aggFunc.column) {
+                aggregatedColumns.add(aggFunc.column);
+            }
+        });
+        
+        // Rebuild group_by_columns from currently selected non-aggregate columns
+        state.data_table.query_options.group_by.group_by_columns = state.data_table.columns
+            .filter(col => col.is_selected_column === true)
+            .map(col => {
+                const fullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
+                // Only include if NOT used exclusively in aggregate functions
+                if (!aggregatedColumns.has(fullPath)) {
+                    return fullPath;
+                }
+                return null;
+            })
+            .filter(path => path !== null);
+        
+        console.log('[saveDataModel] Auto-synced group_by_columns:', state.data_table.query_options.group_by.group_by_columns);
+    }
+    
     console.log('[saveDataModel] Synced to data_table before save:', {
         join_conditions: state.data_table.join_conditions.length,
-        table_aliases: state.data_table.table_aliases.length
+        table_aliases: state.data_table.table_aliases.length,
+        group_by_columns: state.data_table.query_options?.group_by?.group_by_columns?.length || 0
     });
 
     let offsetStr = 'OFFSET 0';
@@ -3397,7 +3430,7 @@ onMounted(async () => {
                                         </div>
 
                                         <div
-                                            class="font-mono text-sm bg-gray-100 p-2 border border-gray-300 flex items-center">
+                                            class="font-mono text-sm bg-gray-100 p-2 border border-gray-300 flex items-center wrap-anywhere">
                                             <span class="font-semibold text-blue-700">
                                                 {{ join.left_table_schema }}.{{ join.left_table_alias ||
                                                     join.left_table_name }}.{{ join.left_column_name }}
@@ -4345,7 +4378,7 @@ onMounted(async () => {
                 <div class="bg-green-50 border border-green-200 p-3 mb-4">
                     <strong class="text-green-800 block mb-2">SQL Preview:</strong>
                     <div
-                        class="font-mono text-sm text-gray-700 bg-white p-2 border border-gray-300 whitespace-pre-wrap break-all">
+                        class="font-mono text-sm text-gray-700 bg-white p-2 border border-gray-300 whitespace-pre-wrap break-all wrap-anywhere">
                         {{ getJoinFormPreview() }}
                     </div>
                 </div>

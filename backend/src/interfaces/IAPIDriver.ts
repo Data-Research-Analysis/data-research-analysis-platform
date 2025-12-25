@@ -18,7 +18,7 @@ export interface IAPIDriver {
      * @param connectionDetails - API connection details
      * @returns True if sync successful
      */
-    syncToDatabase(dataSourceId: number, connectionDetails: IAPIConnectionDetails): Promise<boolean>;
+    syncToDatabase(dataSourceId: number, usersPlatformId: number, connectionDetails: IAPIConnectionDetails): Promise<boolean>;
     
     /**
      * Get schema metadata for the API data source  

@@ -3,6 +3,7 @@ import { IAPIDriver } from '../interfaces/IAPIDriver.js';
 import { IAPIConnectionDetails } from '../types/IAPIConnectionDetails.js';
 import { GoogleAnalyticsService } from '../services/GoogleAnalyticsService.js';
 import { GoogleOAuthService } from '../services/GoogleOAuthService.js';
+import { TableMetadataService } from '../services/TableMetadataService.js';
 import { DBDriver } from './DBDriver.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 
@@ -66,6 +67,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
      */
     public async syncToDatabase(
         dataSourceId: number,
+        usersPlatformId: number,
         connectionDetails: IAPIConnectionDetails
     ): Promise<boolean> {
         try {
@@ -96,12 +98,12 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
             console.log(`✅ Schema ${schemaName} ready`);
             
             // Sync various reports
-            await this.syncTrafficOverview(manager, schemaName, dataSourceId, propertyId, connectionDetails);
-            await this.syncPagePerformance(manager, schemaName, dataSourceId, propertyId, connectionDetails);
-            await this.syncUserAcquisition(manager, schemaName, dataSourceId, propertyId, connectionDetails);
-            await this.syncGeographic(manager, schemaName, dataSourceId, propertyId, connectionDetails);
-            await this.syncDeviceData(manager, schemaName, dataSourceId, propertyId, connectionDetails);
-            await this.syncEvents(manager, schemaName, dataSourceId, propertyId, connectionDetails);
+            await this.syncTrafficOverview(manager, schemaName, dataSourceId, usersPlatformId, propertyId, connectionDetails);
+            await this.syncPagePerformance(manager, schemaName, dataSourceId, usersPlatformId, propertyId, connectionDetails);
+            await this.syncUserAcquisition(manager, schemaName, dataSourceId, usersPlatformId, propertyId, connectionDetails);
+            await this.syncGeographic(manager, schemaName, dataSourceId, usersPlatformId, propertyId, connectionDetails);
+            await this.syncDeviceData(manager, schemaName, dataSourceId, usersPlatformId, propertyId, connectionDetails);
+            await this.syncEvents(manager, schemaName, dataSourceId, usersPlatformId, propertyId, connectionDetails);
             
             // Update last sync timestamp
             await this.updateLastSyncTime(manager, schemaName, dataSourceId);
@@ -121,14 +123,23 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         propertyId: string,
         connectionDetails: IAPIConnectionDetails
     ): Promise<void> {
-        const tableName = `${schemaName}.traffic_overview_${dataSourceId}`;
+        // Generate hash-based physical table name
+        const tableMetadataService = TableMetadataService.getInstance();
+        const logicalTableName = 'traffic_overview';
+        const physicalTableName = tableMetadataService.generatePhysicalTableName(
+            dataSourceId,
+            logicalTableName,
+            propertyId
+        );
+        const fullTableName = `${schemaName}.${physicalTableName}`;
         
         // Create table
         await manager.query(`
-            CREATE TABLE IF NOT EXISTS ${tableName} (
+            CREATE TABLE IF NOT EXISTS ${fullTableName} (
                 id SERIAL PRIMARY KEY,
                 date DATE NOT NULL,
                 session_source VARCHAR(255),
@@ -159,7 +170,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         // Insert data (upsert)
         for (const row of rows) {
             await manager.query(`
-                INSERT INTO ${tableName} 
+                INSERT INTO ${fullTableName} 
                 (date, session_source, session_medium, sessions, total_users, new_users, 
                  screen_page_views, average_session_duration, bounce_rate)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -185,7 +196,19 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
             ]);
         }
         
-        console.log(`✅ Synced ${rows.length} rows to ${tableName}`);
+        // Store table metadata
+        await tableMetadataService.storeTableMetadata(manager, {
+            dataSourceId,
+            usersPlatformId,
+            schemaName,
+            physicalTableName,
+            logicalTableName,
+            originalSheetName: logicalTableName,
+            fileId: propertyId,
+            tableType: 'google_analytics'
+        });
+        
+        console.log(`✅ Synced ${rows.length} rows to ${logicalTableName} (${physicalTableName})`);
     }
     
     /**
