@@ -161,6 +161,15 @@ class TableRenameExecutor {
                 return operation;
             }
             
+            // Skip if no users_platform_id (orphaned data or pre-multitenant data)
+            if (!table.usersPlatformId) {
+                operation.status = 'SKIPPED';
+                operation.message = 'No users_platform_id found (orphaned data source)';
+                console.log(`     ⏭️  SKIPPED: ${operation.message}`);
+                console.log(`     ℹ️  Data source ID ${table.dataSourceId} has no tenant assignment`);
+                return operation;
+            }
+            
             // Check if target name already exists
             const exists = await this.checkTableExists(table.schema, table.proposedName);
             if (exists) {
