@@ -259,20 +259,23 @@ class TableRenameAnalyzer {
      * Extract data source ID from table name
      */
     private extractDataSourceId(schema: string, tableName: string): number | null {
-        // Excel/PDF: {type}_{fileId}_data_source_{id}_{name}
-        const excelPdfMatch = tableName.match(/_data_source_(\d+)_/);
-        if (excelPdfMatch) {
-            return parseInt(excelPdfMatch[1]);
+        // Excel: excel_file_{fileId}_{index}_{subindex}_data_source_{id}
+        // PDF: pdf_{id}_{timestamp}_{index}_{subindex}_data_source_{id}
+        if (schema === 'dra_excel' || schema === 'dra_pdf') {
+            const match = tableName.match(/_data_source_(\d+)$/);
+            if (match) {
+                return parseInt(match[1]);
+            }
         }
         
         // Google services: {report_type}_{id}
-        const googleMatch = tableName.match(/_(\d+)$/);
-        if (googleMatch && (
-            schema === 'dra_google_analytics' ||
+        if (schema === 'dra_google_analytics' ||
             schema === 'dra_google_ad_manager' ||
-            schema === 'dra_google_ads'
-        )) {
-            return parseInt(googleMatch[1]);
+            schema === 'dra_google_ads') {
+            const match = tableName.match(/_(\d+)$/);
+            if (match) {
+                return parseInt(match[1]);
+            }
         }
         
         return null;
