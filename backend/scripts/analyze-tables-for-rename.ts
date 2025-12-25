@@ -399,11 +399,11 @@ async function main() {
         // Initialize database connection
         const dbDriver = PostgresDataSource.getInstance();
         const dataSource = dbDriver.getDataSource(
-            process.env.DB_HOST || 'localhost',
-            parseInt(process.env.DB_PORT || '5432'),
-            process.env.DB_NAME || 'database',
-            process.env.DB_USER || 'user',
-            process.env.DB_PASSWORD || ''
+            process.env.POSTGRESQL_HOST || 'localhost',
+            parseInt(process.env.POSTGRESQL_PORT || '5432'),
+            process.env.POSTGRESQL_DB_NAME || 'database',
+            process.env.POSTGRESQL_USERNAME || 'user',
+            process.env.POSTGRESQL_PASSWORD || ''
         );
         
         await dataSource.initialize();
