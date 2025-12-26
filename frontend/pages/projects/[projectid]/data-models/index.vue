@@ -303,12 +303,12 @@ function formatDate(date: string): string {
 }
 
 function viewModel(model: any) {
-  // Navigate to edit page
+  // Navigate to index page (view/details page)
   if (model.is_cross_source) {
-    // Cross-source model - navigate to cross-source edit page
+    // Cross-source model - navigate to cross-source details page
     router.push(`/projects/${projectId.value}/data-models/${model.id}/edit`);
   } else {
-    // Single-source model - navigate to data source specific edit page
+    // Single-source model - navigate to data source specific details page
     const dataSourceId = model.data_source?.id;
     if (dataSourceId) {
       router.push(`/projects/${projectId.value}/data-sources/${dataSourceId}/data-models/${model.id}/edit`);
