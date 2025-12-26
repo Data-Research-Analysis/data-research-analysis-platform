@@ -3,6 +3,8 @@ import { DRAUsersPlatform } from './DRAUsersPlatform.js';
 import { DRADataModel } from './DRADataModel.js';
 import { DRAProject } from './DRAProject.js';
 import { DRAAIDataModelConversation } from './DRAAIDataModelConversation.js';
+import { DRADataModelSource } from './DRADataModelSource.js';
+import { DRATableMetadata } from './DRATableMetadata.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { IDBConnectionDetails, IConnectionDetails } from '../types/IDBConnectionDetails.js';
 import { EncryptionService } from '../services/EncryptionService.js';
@@ -92,11 +94,17 @@ export class DRADataSource {
     @OneToMany(() => DRADataModel, (dataModel) => dataModel.data_source, { cascade: ["remove", "update"] })
     data_models!: Relation<DRADataModel>[]
     
+    @OneToMany(() => DRADataModelSource, (source) => source.data_source)
+    data_model_sources!: Relation<DRADataModelSource>[]
+    
     @OneToMany(() => DRAAIDataModelConversation, (conversation) => conversation.data_source)
     ai_conversations!: Relation<DRAAIDataModelConversation>[];
     
     @ManyToOne(() => DRAProject, (project) => project.data_sources, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'project_id', referencedColumnName: 'id' })
     project!: Relation<DRAProject>
+    
+    @OneToMany(() => DRATableMetadata, (metadata) => metadata.data_source, { cascade: ["remove", "update"] })
+    table_metadata!: Relation<DRATableMetadata>[];
     
 }

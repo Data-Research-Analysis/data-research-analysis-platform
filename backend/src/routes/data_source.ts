@@ -152,22 +152,68 @@ async (req: Request, res: Response) => {
 
 router.post('/execute-query-on-external-data-source', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([body('data_source_id').notEmpty().trim().escape().toInt(), body('query').notEmpty().trim()]),
+}, validateJWT, validate([
+    body('data_source_id').optional().trim().escape().toInt(), 
+    body('project_id').optional().trim().escape().toInt(),
+    body('is_cross_source').optional().isBoolean().toBoolean(),
+    body('query').notEmpty().trim()
+]),
 async (req: Request, res: Response) => {
-    const { data_source_id, query } = matchedData(req);
+    const { data_source_id, project_id, is_cross_source, query } = matchedData(req);
     const query_json = req.body.query_json; // Optional JSON query for reconstruction
-    const response = await DataSourceProcessor.getInstance().executeQueryOnExternalDataSource(data_source_id, query, req.body.tokenDetails, query_json);
+    
+    // Validate that we have either data_source_id OR (project_id + is_cross_source)
+    if (!data_source_id && (!project_id || !is_cross_source)) {
+        return res.status(400).send({
+            message: 'Either data_source_id (for single-source) or project_id + is_cross_source (for cross-source) is required'
+        });
+    }
+    
+    const response = await DataSourceProcessor.getInstance().executeQueryOnExternalDataSource(
+        data_source_id, 
+        query, 
+        req.body.tokenDetails, 
+        query_json,
+        is_cross_source,
+        project_id
+    );
     res.status(200).send(response); 
 });
 
 router.post('/build-data-model-on-query', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([body('data_source_id').notEmpty().trim().escape().toInt(), body('query').notEmpty().trim(), body('query_json').notEmpty().trim(), body('data_model_name').notEmpty().trim().escape()]),
+}, validateJWT, validate([
+    body('data_source_id').optional().trim().escape().toInt(),
+    body('project_id').optional().trim().escape().toInt(),
+    body('data_model_id').optional().trim().escape().toInt(),
+    body('is_cross_source').optional().isBoolean().toBoolean(),
+    body('query').notEmpty().trim(),
+    body('query_json').notEmpty().trim(),
+    body('data_model_name').notEmpty().trim().escape()
+]),
 async (req: Request, res: Response) => {
-    const { data_source_id, query, query_json, data_model_name } = matchedData(req);
-    const dataModelId = await DataSourceProcessor.getInstance().buildDataModelOnQuery(data_source_id, query, query_json, data_model_name, req.body.tokenDetails);
-    if (dataModelId) {
-        res.status(200).send({message: 'The data model has been built.', data_model_id: dataModelId}); 
+    const { data_source_id, project_id, data_model_id, is_cross_source, query, query_json, data_model_name } = matchedData(req);
+    
+    // Validate that we have either data_source_id OR (project_id + is_cross_source)
+    if (!data_source_id && (!project_id || !is_cross_source)) {
+        return res.status(400).send({
+            message: 'Either data_source_id (for single-source) or project_id + is_cross_source (for cross-source) is required'
+        });
+    }
+    
+    const result = await DataSourceProcessor.getInstance().buildDataModelOnQuery(
+        data_source_id, 
+        query, 
+        query_json, 
+        data_model_name, 
+        req.body.tokenDetails,
+        is_cross_source,
+        project_id,
+        data_model_id
+    );
+    
+    if (result) {
+        res.status(200).send({message: 'The data model has been built.', data_model_id: result}); 
     } else {
         res.status(400).send({message: 'The data model could not be built.'});
     }

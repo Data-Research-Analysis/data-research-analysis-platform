@@ -105,6 +105,17 @@ const props = defineProps({
         required: false,
         default: false,
     },
+    // NEW: Cross-source support
+    isCrossSource: {
+        type: Boolean,
+        required: false,
+        default: false,
+    },
+    projectId: {
+        type: Number,
+        required: false,
+        default: null,
+    },
 });
 const showWhereClause = computed(() => {
     return state?.data_table?.query_options?.where?.length > 0;
@@ -271,25 +282,47 @@ const numericColumnsWithAggregates = computed(() => {
 });
 
 function openAIDataModeler() {
-    if (props.dataSource && props.dataSource.id) {
-        // SET FLAG: Prevent watchers from triggering when drawer opens
-        console.log('[openAIDataModeler] Setting guard flag before opening drawer');
-        state.is_applying_ai_config = true;
+    // SET FLAG: Prevent watchers from triggering when drawer opens
+    console.log('[openAIDataModeler] Setting guard flag before opening drawer');
+    state.is_applying_ai_config = true;
 
-        // If editing existing data model, pass its ID to load conversation from database
-        const dataModelId = props.isEditDataModel && props.dataModel?.id
-            ? props.dataModel.id
-            : undefined;
+    // If editing existing data model, pass its ID to load conversation from database
+    const dataModelId = props.isEditDataModel && props.dataModel?.id
+        ? props.dataModel.id
+        : undefined;
 
+    if (props.isCrossSource && props.projectId) {
+        // Cross-source mode: Pass project ID and data sources
+        console.log('[openAIDataModeler] Opening in cross-source mode for project:', props.projectId);
+        
+        // Extract data source information from tables
+        const dataSources = [];
+        const seenSourceIds = new Set();
+        
+        state.tables.forEach(table => {
+            if (table.data_source_id && !seenSourceIds.has(table.data_source_id)) {
+                seenSourceIds.add(table.data_source_id);
+                dataSources.push({
+                    id: table.data_source_id,
+                    name: table.data_source_name,
+                    type: table.data_source_type
+                });
+            }
+        });
+        
+        aiDataModelerStore.openDrawerCrossSource(props.projectId, dataSources, dataModelId);
+    } else if (props.dataSource && props.dataSource.id) {
+        // Single-source mode: Use existing logic
+        console.log('[openAIDataModeler] Opening in single-source mode for data source:', props.dataSource.id);
         aiDataModelerStore.openDrawer(props.dataSource.id, dataModelId);
-
-        // CLEAR FLAG: Allow watchers after drawer is open (but before any model is applied)
-        // The flag will be set again when actually applying a model
-        setTimeout(() => {
-            state.is_applying_ai_config = false;
-            console.log('[openAIDataModeler] Guard flag cleared after drawer open');
-        }, 100);
     }
+
+    // CLEAR FLAG: Allow watchers after drawer is open (but before any model is applied)
+    // The flag will be set again when actually applying a model
+    setTimeout(() => {
+        state.is_applying_ai_config = false;
+        console.log('[openAIDataModeler] Guard flag cleared after drawer open');
+    }, 100);
 }
 
 function hasAdvancedFields() {
@@ -742,7 +775,7 @@ function getTablesWithAliases() {
         result.push({
             schema: table.schema,
             table_name: table.table_name,
-            display_name: table.table_name,
+            display_name: table.logical_name || table.table_name,
             columns: table.columns,
             references: table.references || [],
             isAlias: false,
@@ -1697,7 +1730,29 @@ function buildSQLQuery() {
             fromJoinClause.push(`FROM ${tableRef}`);
         }
 
-        sqlQuery = `SELECT ${state.data_table.columns.filter((column) => column.is_selected_column).map((column) => {
+        // Build set of columns used in aggregate functions (these should not appear in SELECT as regular columns)
+        const aggregateColumns = new Set();
+        state?.data_table?.query_options?.group_by?.aggregate_functions?.forEach((aggFunc) => {
+            if (aggFunc.column && aggFunc.aggregate_function !== '') {
+                aggregateColumns.add(aggFunc.column);
+            }
+        });
+
+        console.log('[buildSQLQuery] Single-table: Columns used in aggregates:', Array.from(aggregateColumns));
+
+        sqlQuery = `SELECT ${state.data_table.columns.filter((column) => {
+            // Exclude columns that are ONLY used in aggregates (not for grouping)
+            if (!column.is_selected_column) return false;
+            
+            const columnFullPath = `${column.schema}.${column.table_name}.${column.column_name}`;
+            const isAggregateOnly = aggregateColumns.has(columnFullPath);
+            
+            if (isAggregateOnly) {
+                console.log(`[buildSQLQuery] Excluding aggregate-only column from SELECT: ${columnFullPath}`);
+            }
+            
+            return !isAggregateOnly;
+        }).map((column) => {
             const tableName = column.table_name.length > 20 ? column.table_name.slice(-20) : column.table_name;
             const tableRef = column.table_alias || tableName;
             const aliasName = column?.alias_name !== '' ? column.alias_name : `${tableRef}_${column.column_name}`;
@@ -2166,9 +2221,42 @@ async function saveDataModel() {
     // Ensure JOIN conditions and table aliases are synced to data_table before save
     state.data_table.join_conditions = [...state.join_conditions];
     state.data_table.table_aliases = [...state.table_aliases];
+    
+    // CRITICAL FIX: Auto-sync group_by_columns when aggregate functions exist
+    // This ensures manually selected columns are included in GROUP BY clause
+    const hasAggregates = state.data_table.query_options?.group_by?.aggregate_functions?.length > 0 ||
+                         state.data_table.query_options?.group_by?.aggregate_expressions?.length > 0;
+    
+    if (hasAggregates && state.data_table.query_options?.group_by) {
+        // Build set of columns used ONLY in aggregates (not in regular SELECT)
+        const aggregatedColumns = new Set();
+        
+        state.data_table.query_options.group_by.aggregate_functions?.forEach(aggFunc => {
+            if (aggFunc.column) {
+                aggregatedColumns.add(aggFunc.column);
+            }
+        });
+        
+        // Rebuild group_by_columns from currently selected non-aggregate columns
+        state.data_table.query_options.group_by.group_by_columns = state.data_table.columns
+            .filter(col => col.is_selected_column === true)
+            .map(col => {
+                const fullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
+                // Only include if NOT used exclusively in aggregate functions
+                if (!aggregatedColumns.has(fullPath)) {
+                    return fullPath;
+                }
+                return null;
+            })
+            .filter(path => path !== null);
+        
+        console.log('[saveDataModel] Auto-synced group_by_columns:', state.data_table.query_options.group_by.group_by_columns);
+    }
+    
     console.log('[saveDataModel] Synced to data_table before save:', {
         join_conditions: state.data_table.join_conditions.length,
-        table_aliases: state.data_table.table_aliases.length
+        table_aliases: state.data_table.table_aliases.length,
+        group_by_columns: state.data_table.query_options?.group_by?.group_by_columns?.length || 0
     });
 
     let offsetStr = 'OFFSET 0';
@@ -2244,11 +2332,13 @@ async function saveDataModel() {
             "Authorization-Type": "auth",
         },
         body: JSON.stringify({
-            data_source_id: route.params.datasourceid,
+            data_source_id: props.isCrossSource ? null : route.params.datasourceid,
+            project_id: props.isCrossSource ? props.projectId : null,
             query: state.sql_query,
             query_json: JSON.stringify(dataTableForSave),
             data_model_name: state.data_table.table_name,
             data_model_id: props.isEditDataModel ? props.dataModel.id : null,
+            is_cross_source: props.isCrossSource || false,
         })
     });
 
@@ -2353,6 +2443,21 @@ async function executeQueryOnExternalDataSource() {
         console.log('[Data Model Builder - executeQueryOnExternalDataSource] JSON Query being sent:', JSON.stringify(state.data_table));
         const token = getAuthToken();
         const url = `${baseUrl()}/data-source/execute-query-on-external-data-source`;
+        // For cross-source, we need to use the federated query endpoint
+        const requestBody = {
+            query: state.sql_query,
+            query_json: JSON.stringify(state.data_table),
+        };
+
+        if (props.isCrossSource) {
+            // In cross-source mode, send project_id instead of data_source_id
+            requestBody.project_id = props.projectId;
+            requestBody.is_cross_source = true;
+        } else {
+            // In single-source mode, use data_source_id from route
+            requestBody.data_source_id = route.params.datasourceid;
+        }
+
         const response = await fetch(url, {
             method: "POST",
             headers: {
@@ -2360,11 +2465,7 @@ async function executeQueryOnExternalDataSource() {
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
-            body: JSON.stringify({
-                data_source_id: route.params.datasourceid,
-                query: state.sql_query,
-                query_json: JSON.stringify(state.data_table),
-            })
+            body: JSON.stringify(requestBody)
         });
 
         // Check if response has content before parsing JSON
@@ -3172,9 +3273,9 @@ onMounted(async () => {
         class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 border border-primary-blue-100 border-solid p-10 shadow-md">
         <div class="flex flex-row justify-between items-center mb-5">
             <div class="font-bold text-2xl">
-                Create A Data Model from the Connected Data Source
+                Create A Data Model from the Connected Data Source(s)
             </div>
-            <button v-if="props.dataSource && props.dataSource.id" @click="openAIDataModeler"
+            <button v-if="(props.dataSource && props.dataSource.id) || (props.isCrossSource && props.projectId)" @click="openAIDataModeler"
                 class="flex items-center gap-2 px-4 py-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 transition-colors duration-200 font-medium shadow-md cursor-pointer">
                 <font-awesome icon="fas fa-wand-magic-sparkles" class="w-5 h-5" />
                 Build with AI
@@ -3351,7 +3452,7 @@ onMounted(async () => {
                                         </div>
 
                                         <div
-                                            class="font-mono text-sm bg-gray-100 p-2 border border-gray-300 flex items-center">
+                                            class="font-mono text-sm bg-gray-100 p-2 border border-gray-300 flex items-center wrap-anywhere">
                                             <span class="font-semibold text-blue-700">
                                                 {{ join.left_table_schema }}.{{ join.left_table_alias ||
                                                     join.left_table_name }}.{{ join.left_column_name }}
@@ -4299,7 +4400,7 @@ onMounted(async () => {
                 <div class="bg-green-50 border border-green-200 p-3 mb-4">
                     <strong class="text-green-800 block mb-2">SQL Preview:</strong>
                     <div
-                        class="font-mono text-sm text-gray-700 bg-white p-2 border border-gray-300 whitespace-pre-wrap break-all">
+                        class="font-mono text-sm text-gray-700 bg-white p-2 border border-gray-300 whitespace-pre-wrap break-all wrap-anywhere">
                         {{ getJoinFormPreview() }}
                     </div>
                 </div>
@@ -4347,7 +4448,7 @@ onMounted(async () => {
                         <option value="">-- Select Table --</option>
                         <option v-for="table in state.tables" :key="`${table.schema}.${table.table_name}`"
                             :value="`${table.schema}.${table.table_name}`">
-                            {{ table.schema }}.{{ table.table_name }}
+                            {{ table.schema }}.{{ table.logical_name || table.table_name }}
                         </option>
                     </select>
                 </div>

@@ -6,6 +6,7 @@ import { GoogleOAuthService } from '../services/GoogleOAuthService.js';
 import { SyncHistoryService } from '../services/SyncHistoryService.js';
 import { SyncType } from '../entities/SyncHistory.js';
 import { DBDriver } from './DBDriver.js';
+import { TableMetadataService } from '../services/TableMetadataService.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { RetryHandler } from '../utils/RetryHandler.js';
 import {
@@ -75,6 +76,7 @@ export class GoogleAdsDriver implements IAPIDriver {
      */
     public async syncToDatabase(
         dataSourceId: number,
+        usersPlatformId: number,
         connectionDetails: IAPIConnectionDetails
     ): Promise<boolean> {
         // Create sync history record
@@ -215,12 +217,20 @@ export class GoogleAdsDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
-        const tableName = `campaigns_${dataSourceId}`;
-        const fullTableName = `${schemaName}.${tableName}`;
+        // Generate hash-based physical table name
+        const tableMetadataService = TableMetadataService.getInstance();
+        const logicalTableName = 'campaigns';
+        const physicalTableName = tableMetadataService.generatePhysicalTableName(
+            dataSourceId,
+            logicalTableName,
+            customerId
+        );
+        const fullTableName = `${schemaName}.${physicalTableName}`;
         
         // Create table if not exists
         await manager.query(`
@@ -294,12 +304,20 @@ export class GoogleAdsDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
-        const tableName = `keywords_${dataSourceId}`;
-        const fullTableName = `${schemaName}.${tableName}`;
+        // Generate hash-based physical table name
+        const tableMetadataService = TableMetadataService.getInstance();
+        const logicalTableName = 'keywords';
+        const physicalTableName = tableMetadataService.generatePhysicalTableName(
+            dataSourceId,
+            logicalTableName,
+            customerId
+        );
+        const fullTableName = `${schemaName}.${physicalTableName}`;
         
         // Create table
         await manager.query(`
@@ -365,12 +383,20 @@ export class GoogleAdsDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
-        const tableName = `geographic_${dataSourceId}`;
-        const fullTableName = `${schemaName}.${tableName}`;
+        // Generate hash-based physical table name
+        const tableMetadataService = TableMetadataService.getInstance();
+        const logicalTableName = 'geographic';
+        const physicalTableName = tableMetadataService.generatePhysicalTableName(
+            dataSourceId,
+            logicalTableName,
+            customerId
+        );
+        const fullTableName = `${schemaName}.${physicalTableName}`;
         
         await manager.query(`
             CREATE TABLE IF NOT EXISTS ${fullTableName} (
@@ -423,12 +449,20 @@ export class GoogleAdsDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
-        const tableName = `device_${dataSourceId}`;
-        const fullTableName = `${schemaName}.${tableName}`;
+        // Generate hash-based physical table name
+        const tableMetadataService = TableMetadataService.getInstance();
+        const logicalTableName = 'device';
+        const physicalTableName = tableMetadataService.generatePhysicalTableName(
+            dataSourceId,
+            logicalTableName,
+            customerId
+        );
+        const fullTableName = `${schemaName}.${physicalTableName}`;
         
         await manager.query(`
             CREATE TABLE IF NOT EXISTS ${fullTableName} (

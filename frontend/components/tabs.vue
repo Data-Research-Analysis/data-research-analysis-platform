@@ -22,6 +22,8 @@ const emits = defineEmits(['update:selectedTab']);
 function setSelectedTab(tab) {
     if (tab === 'data_sources') {
         router.push(`/projects/${props.projectId}`);
+    } else if (tab === 'data_models') {
+        router.push(`/projects/${props.projectId}/data-models`);
     } else if (tab === 'dashboards') {
         router.push(`/projects/${props.projectId}/dashboards`);
     }
@@ -31,6 +33,8 @@ onMounted(() => {
     const path = route.path;
     if (path.includes('dashboards')) {
         state.selectedTab = 'dashboards';
+    } else if (path.includes('data-models')) {
+        state.selectedTab = 'data_models';
     } else {
         state.selectedTab = 'data_sources';
     }
@@ -44,7 +48,17 @@ onMounted(() => {
         >
             <font-awesome icon="fas fa-arrows-to-circle" class="text-xl text-white"/>
             Data Sources
-        </div>        
+        </div>
+        
+        <!-- Data Models Tab (NEW) -->
+        <div class="bg-primary-blue-100 hover:bg-primary-blue-400 text-white p-3 border border-white border-solid cursor-pointer font-bold select-none"
+            @click="setSelectedTab('data_models')"
+            :class="{ 'bg-primary-blue-400': state.selectedTab === 'data_models' }"
+        >
+            <font-awesome icon="fas fa-database" class="text-xl text-white"/>
+            Data Models
+        </div>
+        
         <div v-if="dataModelsExist" class="bg-primary-blue-100 hover:bg-primary-blue-400 text-white p-3 border border-white border-solid cursor-pointer font-bold select-none"
             @click="setSelectedTab('dashboards')"
             :class="{ 'bg-primary-blue-400': state.selectedTab === 'dashboards' }"

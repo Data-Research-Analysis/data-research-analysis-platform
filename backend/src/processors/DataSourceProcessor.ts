@@ -6,6 +6,7 @@ import { DRADataSource } from "../models/DRADataSource.js";
 import { ITokenDetails } from "../types/ITokenDetails.js";
 import { DRAProject } from "../models/DRAProject.js";
 import { DRADataModel } from "../models/DRADataModel.js";
+import { DRADataModelSource } from "../models/DRADataModelSource.js";
 import { DRADashboard } from "../models/DRADashboard.js";
 import { DataSource } from "typeorm";
 import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
@@ -18,6 +19,8 @@ import { FilesService } from "../services/FilesService.js";
 import { QueueService } from "../services/QueueService.js";
 import { GoogleAnalyticsDriver } from "../drivers/GoogleAnalyticsDriver.js";
 import { GoogleAdManagerDriver } from "../drivers/GoogleAdManagerDriver.js";
+import { FederatedQueryService } from "../services/FederatedQueryService.js";
+import { TableMetadataService } from "../services/TableMetadataService.js";
 export class DataSourceProcessor {
     private static instance: DataSourceProcessor;
     private constructor() {}
@@ -205,6 +208,38 @@ export class DataSourceProcessor {
                 return resolve([]);
             }
             const dataSources = await manager.find(DRADataSource, {where: {users_platform: user}, relations: ['project']});
+            return resolve(dataSources);
+        });
+    }
+
+    /**
+     * Get all data sources for a specific project
+     * Used for cross-data-source feature to fetch all tables across sources
+     */
+    async getDataSourcesByProject(projectId: number, tokenDetails: ITokenDetails): Promise<DRADataSource[]> {
+        return new Promise<DRADataSource[]>(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve([]);
+            }
+            const manager = (await driver.getConcreteDriver()).manager;
+            if (!manager) {
+                return resolve([]);
+            }
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!user) {
+                return resolve([]);
+            }
+            const project = await manager.findOne(DRAProject, {
+                where: {id: projectId, users_platform: user}
+            });
+            if (!project) {
+                return resolve([]);
+            }
+            const dataSources = await manager.find(DRADataSource, {
+                where: {project: project, users_platform: user}
+            });
             return resolve(dataSources);
         });
     }
@@ -568,22 +603,73 @@ export class DataSourceProcessor {
                     console.log('Error connecting to external DB', error);
                     return resolve(false);
                 }
-                let query = await externalDriver.getTablesColumnDetails(connection.schema);
-                if (connection.schema === 'dra_excel') {
-                    query += ` AND tb.table_name LIKE '%_data_source_${dataSource.id}_%'`;
-                } else if (connection.schema === 'dra_pdf') {
-                    query += ` AND tb.table_name LIKE '%_data_source_${dataSource.id}_%'`;
-                } else if (connection.schema === 'dra_google_analytics') {
-                    query += ` AND tb.table_name LIKE '%_${dataSource.id}'`;
-                } else if (connection.schema === 'dra_google_ad_manager') {
-                    query += ` AND tb.table_name LIKE '%_${dataSource.id}'`;
-                } else if (connection.schema === 'dra_google_ads') {
-                    query += ` AND tb.table_name LIKE '%_${dataSource.id}'`;
+                
+                // Fetch table metadata first to get physical table names
+                let tableMetadata: any[] = [];
+                try {
+                    const metadataQuery = `
+                        SELECT 
+                            physical_table_name,
+                            logical_table_name,
+                            original_sheet_name,
+                            file_id,
+                            table_type
+                        FROM dra_table_metadata
+                        WHERE data_source_id = $1 AND schema_name = $2
+                    `;
+                    tableMetadata = await manager.query(metadataQuery, [dataSource.id, connection.schema]);
+                    console.log(`[DEBUG] Found ${tableMetadata.length} metadata records`);
+                } catch (error) {
+                    console.error('[DEBUG] Error fetching table metadata:', error);
                 }
+                
+                // Build the base query
+                let query = await externalDriver.getTablesColumnDetails(connection.schema);
+                
+                // If we have metadata, use physical_table_names; otherwise fall back to old pattern
+                if (tableMetadata.length > 0) {
+                    const physicalTableNames = tableMetadata.map(m => m.physical_table_name);
+                    const tableNamesList = physicalTableNames.map(name => `'${name}'`).join(',');
+                    query += ` AND tb.table_name IN (${tableNamesList})`;
+                    console.log(`[DEBUG] Using metadata-based filter for ${physicalTableNames.length} tables`);
+                } else {
+                    // Fallback to old naming pattern for tables without metadata
+                    console.log(`[DEBUG] No metadata found, using legacy naming pattern`);
+                    if (connection.schema === 'dra_excel') {
+                        query += ` AND tb.table_name LIKE '%_data_source_${dataSource.id}_%'`;
+                    } else if (connection.schema === 'dra_pdf') {
+                        query += ` AND tb.table_name LIKE '%_data_source_${dataSource.id}_%'`;
+                    } else if (connection.schema === 'dra_google_analytics') {
+                        query += ` AND tb.table_name LIKE '%_${dataSource.id}'`;
+                    } else if (connection.schema === 'dra_google_ad_manager') {
+                        query += ` AND tb.table_name LIKE '%_${dataSource.id}'`;
+                    } else if (connection.schema === 'dra_google_ads') {
+                        query += ` AND tb.table_name LIKE '%_${dataSource.id}'`;
+                    } else {
+                        // For PostgreSQL, MySQL, MariaDB - no additional filter needed
+                        // The schema filter in getTablesColumnDetails() is sufficient
+                        // These connect to external databases where all tables in the schema belong to this connection
+                        console.log(`[DEBUG] External database source (${connection.data_source_type}): using schema filter only`);
+                    }
+                }
+                
                 let tablesSchema = await dbConnector.query(query);
+                
+                // Create metadata lookup map
+                const metadataMap = new Map();
+                tableMetadata.forEach((meta: any) => {
+                    metadataMap.set(meta.physical_table_name, meta);
+                });
+                
                 let tables = tablesSchema.map((table: any) => {
+                    const physicalTableName = table?.table_name || table?.TABLE_NAME;
+                    const metadata = metadataMap.get(physicalTableName);
+                    
                     return {
-                        table_name: table?.table_name || table?.TABLE_NAME,
+                        table_name: physicalTableName,
+                        logical_name: metadata?.logical_table_name || physicalTableName,
+                        original_sheet_name: metadata?.original_sheet_name || null,
+                        table_type: metadata?.table_type || null,
                         schema: table.table_schema || table?.TABLE_SCHEMA,
                         columns: [],
                         references: [],
@@ -694,7 +780,14 @@ export class DataSourceProcessor {
         });
     }
 
-    public async executeQueryOnExternalDataSource(dataSourceId: number, query: string, tokenDetails: ITokenDetails, queryJSON?: string): Promise<any> {
+    public async executeQueryOnExternalDataSource(
+        dataSourceId: number, 
+        query: string, 
+        tokenDetails: ITokenDetails, 
+        queryJSON?: string,
+        isCrossSource?: boolean,
+        projectId?: number
+    ): Promise<any> {
         return new Promise<any>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -709,6 +802,80 @@ export class DataSourceProcessor {
             if (!user) {
                 return resolve(null);
             }
+
+
+            // Handle cross-source queries
+            if (isCrossSource && projectId) {
+                console.log('[DataSourceProcessor] Executing cross-source query for project:', projectId);
+                try {
+                    // Check if this is a JOIN query or simple single-table query
+                    const hasJoins = queryJSON && JSON.parse(queryJSON).join_conditions && 
+                                    JSON.parse(queryJSON).join_conditions.length > 0;
+                    
+                    if (hasJoins) {
+                        // For queries with JOINs, we need to execute on synced PostgreSQL data
+                        console.log('[DataSourceProcessor] Cross-source query has JOINs, using synced data approach');
+                        
+                        // Get the internal PostgreSQL connector
+                        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+                        if (!driver) {
+                            return resolve(null);
+                        }
+                        const manager = (await driver.getConcreteDriver()).manager;
+                        if (!manager) {
+                            return resolve(null);
+                        }
+                        
+                        // Resolve table names and transform query
+                        const tableMap = await this.resolveTableNamesForCrossSource(projectId, queryJSON, manager);
+                        
+                        if (tableMap.size === 0) {
+                            console.error('[DataSourceProcessor] Could not resolve cross-source table names for JOIN query');
+                            return resolve([]);
+                        }
+                        
+                        const transformedQuery = this.transformQueryForCrossSource(query, tableMap);
+                        console.log('[DataSourceProcessor] Executing transformed cross-source JOIN query:', transformedQuery);
+                        
+                        const internalDbConnector = await driver.getConcreteDriver();
+                        const results = await internalDbConnector.query(transformedQuery);
+                        return resolve(results);
+                    } else {
+                        // For simple queries (no JOINs), execute on the first table's data source
+                        // This is for preview purposes (LIMIT 5)
+                        if (queryJSON) {
+                            const parsedQuery = JSON.parse(queryJSON);
+                            if (parsedQuery.columns && parsedQuery.columns.length > 0) {
+                                // Get the first column's data source ID
+                                const firstDataSourceId = parsedQuery.columns[0].data_source_id;
+                                if (firstDataSourceId) {
+                                    console.log('[DataSourceProcessor] Executing simple sample query on data source:', firstDataSourceId);
+                                    // Execute on the specific data source and return results
+                                    const results = await this.executeQueryOnExternalDataSource(
+                                        firstDataSourceId,
+                                        query,
+                                        tokenDetails,
+                                        queryJSON,
+                                        false, // Not cross-source anymore
+                                        undefined
+                                    );
+                                    return resolve(results);
+                                }
+                            }
+                        }
+                    }
+                    
+                    // If we can't determine a data source, return empty
+                    console.warn('[DataSourceProcessor] Could not determine data source for cross-source query');
+                    return resolve([]);
+                } catch (error) {
+                    console.error('[DataSourceProcessor] Error executing cross-source query:', error);
+                    return resolve(null);
+                }
+            }
+
+
+            // Handle single-source queries (original logic)
             const dataSource: DRADataSource|null = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}});
             if (!dataSource) {
                 return resolve(null);
@@ -761,7 +928,194 @@ export class DataSourceProcessor {
         });
     }
 
-    public async buildDataModelOnQuery(dataSourceId: number, query: string, queryJSON: string, dataModelName: string, tokenDetails: ITokenDetails): Promise<number | null> {
+    /**
+     * Resolves original external table names to their synced PostgreSQL equivalents
+     * For cross-source queries, this maps original schema.table references (e.g., mysql_dra_db.orders)
+     * to their synced PostgreSQL equivalents (e.g., dra_mysql_22.orders_abc123_22)
+     * 
+     * @param projectId - The project ID
+     * @param queryJSON - The query JSON containing table references with data_source_id
+     * @param manager - TypeORM EntityManager
+     * @returns Map of original table references to synced table info
+     */
+    private async resolveTableNamesForCrossSource(
+        projectId: number,
+        queryJSON: string,
+        manager: any
+    ): Promise<Map<string, { schema: string; table_name: string; data_source_id: number }>> {
+        const tableMap = new Map<string, { schema: string; table_name: string; data_source_id: number }>();
+        
+        try {
+            const parsedQuery = JSON.parse(queryJSON);
+            
+            // Extract unique table references from columns
+            const tableRefs = new Map<string, { schema: string; table: string; data_source_id: number }>();
+            
+            if (parsedQuery.columns && Array.isArray(parsedQuery.columns)) {
+                parsedQuery.columns.forEach((col: any) => {
+                    if (col.schema && col.table_name && col.data_source_id) {
+                        const key = `${col.schema}.${col.table_name}`;
+                        if (!tableRefs.has(key)) {
+                            tableRefs.set(key, {
+                                schema: col.schema,
+                                table: col.table_name,
+                                data_source_id: col.data_source_id
+                            });
+                        }
+                    }
+                });
+            }
+            
+            console.log(`[DataSourceProcessor] Resolving ${tableRefs.size} unique table references for cross-source query`);
+            
+            // For each unique table reference, find its synced PostgreSQL equivalent
+            for (const [originalRef, ref] of tableRefs) {
+                console.log(`[DataSourceProcessor] Looking up synced table for: ${originalRef} (data_source_id: ${ref.data_source_id})`);
+                
+                // First, try to find in dra_table_metadata using original_table_name
+                let metadata = await manager.query(`
+                    SELECT 
+                        physical_table_name,
+                        schema_name,
+                        data_source_id
+                    FROM dra_table_metadata
+                    WHERE data_source_id = $1
+                    AND original_table_name = $2
+                    LIMIT 1
+                `, [ref.data_source_id, ref.table]);
+                
+                // If not found by original_table_name, try matching by schema pattern
+                // This handles cases where the table is from the original MySQL/PostgreSQL database
+                if (!metadata || metadata.length === 0) {
+                    // For external databases (MySQL, MariaDB, PostgreSQL), the tables are NOT synced
+                    // They exist in their original schemas. We need to use foreign data wrapper approach
+                    // OR we need to check if data has been synced to a DRA schema
+                    
+                    // Check if this is a synced table by looking at the data source
+                    const dataSource = await manager.query(`
+                        SELECT id, data_type, connection_details
+                        FROM dra_data_source
+                        WHERE id = $1
+                    `, [ref.data_source_id]);
+                    
+                    if (dataSource && dataSource.length > 0) {
+                        const dsType = dataSource[0].data_type;
+                        
+                        // For MySQL, MariaDB, PostgreSQL data sources that are external
+                        // The query should use the original schema.table names
+                        // But we need to qualify them with the synced schema if they've been imported
+                        if (dsType === 'mysql' || dsType === 'mariadb' || dsType === 'postgresql') {
+                            // Look for any table in metadata for this data source
+                            const anyTable = await manager.query(`
+                                SELECT 
+                                    physical_table_name,
+                                    schema_name,
+                                    data_source_id
+                                FROM dra_table_metadata
+                                WHERE data_source_id = $1
+                                LIMIT 1
+                            `, [ref.data_source_id]);
+                            
+                            if (anyTable && anyTable.length > 0) {
+                                // Data IS synced - find the specific table
+                                // Try matching by physical_table_name pattern (which may include original table name)
+                                const tablePattern = await manager.query(`
+                                    SELECT 
+                                        physical_table_name,
+                                        schema_name,
+                                        data_source_id,
+                                        original_table_name
+                                    FROM dra_table_metadata
+                                    WHERE data_source_id = $1
+                                    AND (
+                                        original_table_name = $2
+                                        OR physical_table_name LIKE $3
+                                        OR physical_table_name LIKE $4
+                                    )
+                                    LIMIT 1
+                                `, [ref.data_source_id, ref.table, `${ref.table}_%`, `%_${ref.table}_%`]);
+                                
+                                if (tablePattern && tablePattern.length > 0) {
+                                    metadata = tablePattern;
+                                    console.log(`[DataSourceProcessor] Found synced table by pattern: ${tablePattern[0].schema_name}.${tablePattern[0].physical_table_name}`);
+                                }
+                            } else {
+                                // Data is NOT synced - use original schema.table
+                                console.log(`[DataSourceProcessor] Table not synced, using original reference: ${originalRef}`);
+                                tableMap.set(originalRef, {
+                                    schema: ref.schema,
+                                    table_name: ref.table,
+                                    data_source_id: ref.data_source_id
+                                });
+                                continue;
+                            }
+                        }
+                    }
+                }
+                
+                if (metadata && metadata.length > 0) {
+                    const syncedInfo = {
+                        schema: metadata[0].schema_name,
+                        table_name: metadata[0].physical_table_name,
+                        data_source_id: metadata[0].data_source_id
+                    };
+                    
+                    tableMap.set(originalRef, syncedInfo);
+                    console.log(`[DataSourceProcessor] ✓ Mapped ${originalRef} → ${syncedInfo.schema}.${syncedInfo.table_name}`);
+                } else {
+                    console.warn(`[DataSourceProcessor] ⚠️ Could not find synced table for: ${originalRef} (data_source_id: ${ref.data_source_id})`);
+                }
+            }
+            
+            console.log(`[DataSourceProcessor] Successfully resolved ${tableMap.size} table mappings`);
+            return tableMap;
+            
+        } catch (error) {
+            console.error('[DataSourceProcessor] Error resolving cross-source table names:', error);
+            return tableMap;
+        }
+    }
+
+    /**
+     * Transforms cross-source SQL query to use synced PostgreSQL table names
+     * Replaces original external table references with their synced equivalents
+     * 
+     * @param originalQuery - Original SQL with external table names (e.g., mysql_dra_db.orders)
+     * @param tableMap - Map of original references to synced table info
+     * @returns Transformed SQL query with synced table names
+     */
+    private transformQueryForCrossSource(
+        originalQuery: string,
+        tableMap: Map<string, { schema: string; table_name: string }>
+    ): string {
+        let transformedQuery = originalQuery;
+        
+        console.log('[DataSourceProcessor] Transforming query with synced table names...');
+        
+        // Sort table references by length (longest first) to avoid partial replacements
+        const sortedRefs = Array.from(tableMap.entries()).sort((a, b) => b[0].length - a[0].length);
+        
+        for (const [originalRef, syncedInfo] of sortedRefs) {
+            const replacement = `${syncedInfo.schema}.${syncedInfo.table_name}`;
+            
+            // Create regex that matches the table reference as a whole word
+            // This handles: schema.table, schema.table.column, FROM schema.table, JOIN schema.table
+            const escapedRef = originalRef.replace(/\./g, '\\.');
+            const regex = new RegExp(`\\b${escapedRef}\\b`, 'g');
+            
+            const beforeCount = (transformedQuery.match(regex) || []).length;
+            transformedQuery = transformedQuery.replace(regex, replacement);
+            const afterCount = (transformedQuery.match(new RegExp(`\\b${replacement.replace(/\./g, '\\.')}\\b`, 'g')) || []).length;
+            
+            if (beforeCount > 0) {
+                console.log(`[DataSourceProcessor] Replaced ${beforeCount} occurrences: ${originalRef} → ${replacement}`);
+            }
+        }
+        
+        return transformedQuery;
+    }
+
+    public async buildDataModelOnQuery(dataSourceId: number | null, query: string, queryJSON: string, dataModelName: string, tokenDetails: ITokenDetails, isCrossSource?: boolean, projectId?: number, dataModelId?: number): Promise<number | null> {
         return new Promise<number | null>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -780,25 +1134,68 @@ export class DataSourceProcessor {
             if (!user) {
                 return resolve(null);
             }
-            const dataSource: DRADataSource|null = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}});
-            if (!dataSource) {
-                return resolve(null);
-            }
-            const connection = dataSource.connection_details;
-            // Skip API-based data sources
-            if ('oauth_access_token' in connection) {
-                return resolve(null);
-            }
-            const dataSourceType = UtilityService.getInstance().getDataSourceType(connection.data_source_type);
-            if (!dataSourceType) {
-                return resolve(null);
-            }
-            const externalDriver = await DBDriver.getInstance().getDriver(dataSourceType as any);
-            if (!externalDriver) {
-                return resolve(null);
-            }
-            const externalDBConnector: DataSource =  await externalDriver.connectExternalDB(connection);
-            if (!externalDBConnector) {
+            
+            let dataSource: DRADataSource | null = null;
+            let externalDBConnector: DataSource;
+            let dataSourceType: any = null;
+            
+            // Handle cross-source vs single-source
+            if (isCrossSource && projectId) {
+                console.log('[DataSourceProcessor] Building cross-source data model for project:', projectId);
+                
+                // Resolve original table names to synced PostgreSQL table names
+                const tableMap = await this.resolveTableNamesForCrossSource(projectId, queryJSON, manager);
+                
+                if (tableMap.size === 0) {
+                    console.error('[DataSourceProcessor] Could not resolve any cross-source table names. Query cannot proceed.');
+                    return resolve(null);
+                }
+                
+                // Transform the query to use synced table names
+                const transformedQuery = this.transformQueryForCrossSource(query, tableMap);
+                
+                if (transformedQuery === query) {
+                    console.warn('[DataSourceProcessor] Query was not transformed. This may indicate table mapping failed.');
+                }
+                
+                // Update the query with the transformed version
+                query = transformedQuery;
+                
+                console.log('[DataSourceProcessor] Cross-source query transformation complete');
+                console.log('[DataSourceProcessor] Transformed query:', query);
+                
+                // Execute on internal PostgreSQL connector with synced tables
+                externalDBConnector = internalDbConnector;
+            } else if (dataSourceId) {
+                // Single-source: fetch data source and connect
+                dataSource = await manager.findOne(DRADataSource, {
+                    where: {id: dataSourceId, users_platform: user}
+                });
+                if (!dataSource) {
+                    return resolve(null);
+                }
+                
+                const connection = dataSource.connection_details;
+                // Skip API-based data sources
+                if ('oauth_access_token' in connection) {
+                    return resolve(null);
+                }
+                
+                dataSourceType = UtilityService.getInstance().getDataSourceType(connection.data_source_type);
+                if (!dataSourceType) {
+                    return resolve(null);
+                }
+                
+                const externalDriver = await DBDriver.getInstance().getDriver(dataSourceType as any);
+                if (!externalDriver) {
+                    return resolve(null);
+                }
+                
+                externalDBConnector = await externalDriver.connectExternalDB(connection);
+                if (!externalDBConnector) {
+                    return resolve(null);
+                }
+            } else {
                 return resolve(null);
             }
             try {
@@ -821,7 +1218,12 @@ export class DataSourceProcessor {
                     const columnSize = column?.character_maximum_length ? `(${column?.character_maximum_length})` : '';
                     const columnType = `${column.data_type}${columnSize}`;
 
-                    const dataType = UtilityService.getInstance().convertDataTypeToPostgresDataType(dataSourceType, columnType);
+                    // For cross-source models, use the column's data_source_type; for single-source, use the global dataSourceType
+                    const columnDataSourceType = isCrossSource && column.data_source_type 
+                        ? UtilityService.getInstance().getDataSourceType(column.data_source_type)
+                        : dataSourceType;
+                    
+                    const dataType = UtilityService.getInstance().convertDataTypeToPostgresDataType(columnDataSourceType, columnType);
                     let dataTypeString = '';
                     if (dataType.size) {
                         dataTypeString = `${dataType.type}(${dataType.size})`;
@@ -957,7 +1359,13 @@ export class DataSourceProcessor {
                     }
                     const columnSize = column?.character_maximum_length ? `(${column?.character_maximum_length})` : '';
                     const columnType = `${column.data_type}${columnSize}`;
-                    const dataType = UtilityService.getInstance().convertDataTypeToPostgresDataType(dataSourceType, columnType);
+                    
+                    // For cross-source models, use the column's data_source_type; for single-source, use the global dataSourceType
+                    const columnDataSourceType = isCrossSource && column.data_source_type 
+                        ? UtilityService.getInstance().getDataSourceType(column.data_source_type)
+                        : dataSourceType;
+                    
+                    const dataType = UtilityService.getInstance().convertDataTypeToPostgresDataType(columnDataSourceType, columnType);
                     let dataTypeString = '';
                     if (dataType.size) {
                         dataTypeString = `${dataType.type}(${dataType.size})`;
@@ -1108,9 +1516,45 @@ export class DataSourceProcessor {
                 dataModel.name = dataModelName;
                 dataModel.sql_query = query;
                 dataModel.query = JSON.parse(queryJSON);
-                dataModel.data_source = dataSource;
+                
+                // Set data_source for single-source, null for cross-source
+                if (isCrossSource) {
+                    dataModel.data_source = null;
+                    dataModel.is_cross_source = true;
+                } else {
+                    dataModel.data_source = dataSource;
+                    dataModel.is_cross_source = false;
+                }
+                
                 dataModel.users_platform = user;
                 const savedDataModel = await manager.save(dataModel);
+                
+                // For cross-source models, populate the DRADataModelSource junction table
+                if (isCrossSource && projectId) {
+                    // Extract unique data source IDs from the query JSON
+                    const parsedQuery = JSON.parse(queryJSON);
+                    const dataSourceIds = new Set<number>();
+                    
+                    if (parsedQuery.columns) {
+                        parsedQuery.columns.forEach((col: any) => {
+                            if (col.data_source_id) {
+                                dataSourceIds.add(col.data_source_id);
+                            }
+                        });
+                    }
+                    
+                    // Create junction table entries for each data source
+                    for (const dsId of dataSourceIds) {
+                        const junction = new DRADataModelSource();
+                        junction.data_model_id = savedDataModel.id;
+                        junction.data_source_id = dsId;
+                        junction.users_platform_id = user.id;
+                        await manager.save(junction);
+                    }
+                    
+                    console.log(`[DataSourceProcessor] Created ${dataSourceIds.size} data model source links`);
+                }
+                
                 return resolve(savedDataModel.id);
             } catch (error) {
                 console.log('error', error);
@@ -1181,11 +1625,21 @@ export class DataSourceProcessor {
                     const originalSheetName = sheetInfo?.original_sheet_name || sheetName;
                     const sheetIndex = sheetInfo?.sheet_index || 0;
                 
-                    // Create table name for this sheet
-                    const rawTableName = `excel_${fileId}_data_source_${dataSource.id}_${sheetName.toLowerCase()}`;
-                    const tableName = this.sanitizeTableName(rawTableName);
+                    // CRITICAL: Use hash-based short table name to avoid PostgreSQL 63-char limit
+                    // Generate logical name (human-readable, can be any length)
+                    const logicalTableName = `${sheetName}`;
                     
-                    let createTableQuery = `CREATE TABLE dra_excel."${tableName}" `;
+                    // Generate short physical name using hash (e.g., ds23_a7b3c9d1)
+                    const tableMetadataService = TableMetadataService.getInstance();
+                    const physicalTableName = tableMetadataService.generatePhysicalTableName(
+                        dataSource.id,
+                        logicalTableName,
+                        fileId
+                    );
+                    
+                    console.log(`[Excel Upload] Physical table: ${physicalTableName}, Logical: ${logicalTableName}`);
+                    
+                    let createTableQuery = `CREATE TABLE dra_excel."${physicalTableName}" `;
                     let columns = '';
                     let insertQueryColumns = '';
                     const sanitizedColumns: Array<{
@@ -1240,7 +1694,7 @@ export class DataSourceProcessor {
                         try {
                             // Create the table
                             await dbConnector.query(createTableQuery);
-                            console.log('Successfully created table:', tableName);
+                            console.log('[Excel Upload] Successfully created physical table:', physicalTableName, 'for logical table:', logicalTableName);
     
                             insertQueryColumns = `(${insertQueryColumns})`;
 
@@ -1251,7 +1705,7 @@ export class DataSourceProcessor {
                                 
                                 for (let rowIndex = 0; rowIndex < parsedTableStructure.rows.length; rowIndex++) {
                                     const row = parsedTableStructure.rows[rowIndex];
-                                    let insertQuery = `INSERT INTO dra_excel."${tableName}" `;
+                                    let insertQuery = `INSERT INTO dra_excel."${physicalTableName}" `;
                                     let values = '';
      
                                     sanitizedColumns.forEach((columnInfo, colIndex) => {
@@ -1334,7 +1788,7 @@ export class DataSourceProcessor {
                                                             
                                 // Verify data was actually inserted by counting rows in the table
                                 try {
-                                    const countQuery = `SELECT COUNT(*) as row_count FROM dra_excel."${tableName}"`;
+                                    const countQuery = `SELECT COUNT(*) as row_count FROM dra_excel."${physicalTableName}"`;
                                     const countResult = await dbConnector.query(countQuery);
                                     const actualRowCount = countResult[0]?.row_count || 0;
                                     
@@ -1358,11 +1812,24 @@ export class DataSourceProcessor {
                             sheetsProcessed.push({
                                 sheet_id: sheetId,
                                 sheet_name: sheetName,
-                                table_name: tableName, // Using sanitized table name
+                                table_name: physicalTableName, // Physical hash-based table name
                                 original_sheet_name: originalSheetName,
                                 sheet_index: sheetIndex
                             });
-                            console.log(`Successfully processed sheet: ${sheetName} -> table: ${tableName}`);
+                            console.log(`[Excel Upload] Successfully processed sheet: ${sheetName} -> physical table: ${physicalTableName}`);
+                            
+                            // Store table metadata for physical-to-logical name mapping
+                            await tableMetadataService.storeTableMetadata(manager, {
+                                dataSourceId: dataSource.id,
+                                usersPlatformId: user.id,
+                                schemaName: 'dra_excel',
+                                physicalTableName: physicalTableName,
+                                logicalTableName: logicalTableName,
+                                originalSheetName: originalSheetName,
+                                fileId: fileId,
+                                tableType: 'excel'
+                            });
+                            console.log('[Excel Upload] Table metadata stored for:', physicalTableName);
                         } catch (error) {
                             console.error('Error creating table:', error);
                             console.error('Failed query:', createTableQuery);
@@ -1450,11 +1917,21 @@ export class DataSourceProcessor {
                     const sheetId = sheetInfo?.sheet_id || `sheet_${Date.now()}`;                    
                     const sheetIndex = sheetInfo?.sheet_index || 0;
 
-                    // Create table name for this sheet
-                    const rawTableName = `pdf_${fileId}_data_source_${dataSource.id}_${sheetName.toLowerCase()}`;
-                    const tableName = this.sanitizeTableName(rawTableName);
-                    // Create table query
-                    let createTableQuery = `CREATE TABLE dra_pdf.${tableName} `;
+                    // CRITICAL: Use hash-based short table name to avoid PostgreSQL 63-char limit
+                    // Generate logical name (human-readable, can be any length)
+                    const logicalTableName = `${sheetName}`;
+                    
+                    // Generate short physical name using hash (e.g., ds23_a7b3c9d1)
+                    const tableMetadataService = TableMetadataService.getInstance();
+                    const physicalTableName = tableMetadataService.generatePhysicalTableName(
+                        dataSource.id,
+                        logicalTableName,
+                        fileId
+                    );
+                    
+                    console.log(`[PDF Upload] Physical table: ${physicalTableName}, Logical: ${logicalTableName}`);
+
+                    let createTableQuery = `CREATE TABLE dra_pdf.${physicalTableName} `;
                     let columns = '';
                     let insertQueryColumns = '';
                     
@@ -1514,11 +1991,11 @@ export class DataSourceProcessor {
                             // Create the table
                             await dbConnector.query(createTableQuery);
                             // await dbConnector.query(alterTableQuery);
-                            console.log('Successfully created table:', tableName);
+                            console.log('[PDF Upload] Successfully created physical table:', physicalTableName, 'for logical table:', logicalTableName);
                             // Insert data rows
                             if (parsedTableStructure.rows && parsedTableStructure.rows.length > 0) {
                                 for (const row of parsedTableStructure.rows) {
-                                    let insertQuery = `INSERT INTO dra_pdf.${tableName} `;
+                                    let insertQuery = `INSERT INTO dra_pdf.${physicalTableName} `;
                                     let values = '';
                                     
                                     sanitizedPdfColumns.forEach((columnInfo, colIndex) => {
@@ -1591,16 +2068,29 @@ export class DataSourceProcessor {
                                 });
                             }
                         } catch (error) {
-                            console.error('Error creating table:', tableName, error);
+                           console.error('Error creating table:', physicalTableName, error);
                             throw error;
                         }
                         // Track processed sheet
                         sheetsProcessed.push({
                             sheet_id: sheetId,
                             sheet_name: sheetName,
-                            table_name: tableName,
+                            table_name: physicalTableName, // Physical hash-based table name
                             sheet_index: sheetIndex
                         });
+                        
+                        // Store table metadata for physical-to-logical name mapping
+                        await tableMetadataService.storeTableMetadata(manager, {
+                            dataSourceId: dataSource.id,
+                            usersPlatformId: user.id,
+                            schemaName: 'dra_pdf',
+                            physicalTableName: physicalTableName,
+                            logicalTableName: logicalTableName,
+                            originalSheetName: sheetName,
+                            fileId: fileId,
+                            tableType: 'pdf'
+                        });
+                        console.log('[PDF Upload] Table metadata stored for:', physicalTableName);
                     }
                 } catch (error) {
                     console.error('Error processing Excel data source:', error);
@@ -2104,7 +2594,7 @@ export class DataSourceProcessor {
             
             // Trigger sync
             const gaDriver = GoogleAnalyticsDriver.getInstance();
-            const syncResult = await gaDriver.syncToDatabase(dataSourceId, apiConnectionDetails);
+            const syncResult = await gaDriver.syncToDatabase(dataSourceId, dataSource.users_platform.id, apiConnectionDetails);
             
             if (syncResult) {
                 // Update last sync time in API connection details
@@ -2238,7 +2728,7 @@ export class DataSourceProcessor {
             
             // Trigger sync
             const gamDriver = GoogleAdManagerDriver.getInstance();
-            const syncResult = await gamDriver.syncToDatabase(dataSourceId, apiConnectionDetails);
+            const syncResult = await gamDriver.syncToDatabase(dataSourceId, dataSource.users_platform.id, apiConnectionDetails);
             
             if (syncResult) {
                 // Update last sync time in API connection details
@@ -2382,7 +2872,7 @@ export class DataSourceProcessor {
             // Trigger sync
             const { GoogleAdsDriver } = await import('../drivers/GoogleAdsDriver.js');
             const adsDriver = GoogleAdsDriver.getInstance();
-            const syncResult = await adsDriver.syncToDatabase(dataSourceId, apiConnectionDetails);
+            const syncResult = await adsDriver.syncToDatabase(dataSourceId, dataSource.users_platform.id, apiConnectionDetails);
             
             if (syncResult) {
                 // Update last sync time in API connection details

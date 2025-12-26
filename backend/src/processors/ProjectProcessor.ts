@@ -21,9 +21,20 @@ export class ProjectProcessor {
     async addProject(project_name: string, description: string | undefined, tokenDetails: ITokenDetails): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
-            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-            console.log((await driver.getConcreteDriver()))
-            const manager = (await driver.getConcreteDriver()).manager;
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+        if (!driver) {
+            throw new Error('PostgreSQL driver not available');
+        }
+
+        const concreteDriver = await driver.getConcreteDriver();
+        if (!concreteDriver) {
+            throw new Error('Failed to get PostgreSQL connection');
+        }
+
+        const manager = concreteDriver.manager;
+        if (!manager) {
+            throw new Error('Database manager not available');
+        }
             const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
             if (!user) {
                 return resolve(false);
@@ -41,8 +52,21 @@ export class ProjectProcessor {
     async getProjects(tokenDetails: ITokenDetails): Promise<DRAProject[]> {
         return new Promise<DRAProject[]>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
-            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-            const manager = (await driver.getConcreteDriver()).manager;
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve([]);
+            }
+            
+            const concreteDriver = await driver.getConcreteDriver();
+            if (!concreteDriver) {
+                return resolve([]);
+            }
+            
+            const manager = concreteDriver.manager;
+            if (!manager) {
+                return resolve([]);
+            }
+            
             const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
             if (!user) {
                 return resolve([]);
@@ -56,9 +80,20 @@ export class ProjectProcessor {
         return new Promise<boolean>(async (resolve, reject) => {
             try {
                 const { user_id } = tokenDetails;
-                let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-                const manager = (await driver.getConcreteDriver()).manager;
-                const dbConnector = await driver.getConcreteDriver();
+                const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+                if (!driver) {
+                    return resolve(false);
+                }
+                
+                const concreteDriver = await driver.getConcreteDriver();
+                if (!concreteDriver) {
+                    return resolve(false);
+                }
+                
+                const manager = concreteDriver.manager;
+                if (!manager) {
+                    return resolve(false);
+                }
                 
                 const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
                 if (!user) {
@@ -69,6 +104,10 @@ export class ProjectProcessor {
                 if (!project) {
                     return resolve(false);
                 }
+                
+                // Use the already validated concreteDriver for query execution
+                const dbConnector = concreteDriver;
+                
                 // Get all data sources for this project and also get the data model
                 const dataSources = project.data_sources;
                 // For each data source, delete all related entities

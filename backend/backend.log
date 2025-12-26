@@ -1,0 +1,47 @@
+nohup: ignoring input
+
+> backend-marketing@1.0.0 dev
+> node --import tsx src/index.ts
+
+Starting up Data Research Analysis API Server
+Initializing utilities
+Getting driver postgresql
+true
+Driver initialized PostgresDriver { dataSource: undefined, externalDataSource: undefined }
+Initializing PostgresSQL driver
+Unable to connect to the database: Error: getaddrinfo ENOTFOUND database.dataresearchanalysis.test
+    at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:120:26) {
+  errno: -3008,
+  code: 'ENOTFOUND',
+  syscall: 'getaddrinfo',
+  hostname: 'database.dataresearchanalysis.test'
+}
+[SECURITY] Encryption initialized: AES-256-GCM, 256-bit key
+Utilities initialized
+✅ OAuth session cleanup scheduler started (every 30 minutes)
+✅ OAuth session service initialized
+SocketIODriver initialized
+Initializing SocketIODriver with existing HTTP server
+SocketIODriver initialized successfully
+Socket.IO server initialized successfully
+node:events:496
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: listen EADDRINUSE: address already in use :::3002
+    at Server.setupListenHandle [as _listen2] (node:net:1908:16)
+    at listenInCluster (node:net:1965:12)
+    at Server.listen (node:net:2067:7)
+    at <anonymous> (/home/dataresearchanalysis/backend/src/index.ts:97:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+Emitted 'error' event on Server instance at:
+    at emitErrorNT (node:net:1944:8)
+    at process.processTicksAndRejections (node:internal/process/task_queues:82:21) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 3002
+}
+
+Node.js v20.18.1

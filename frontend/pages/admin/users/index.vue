@@ -156,13 +156,13 @@ function formatDate(dateString) {
                                         <NuxtLink :to="`/admin/users/${user.id}`" class="text-xs px-2 py-1 bg-blue-600 text-white hover:bg-blue-700 cursor-pointer font-bold shadow-md rounded">
                                             Edit
                                         </NuxtLink>
-                                        <button @click="changeUserType(user.id, user.user_type)" class="text-xs px-2 py-1 bg-yellow-600 text-white hover:bg-yellow-700 cursor-pointer font-bold shadow-md rounded">
+                                        <button @click="changeUserType(user.id, user.user_type)" class="text-xs px-2 py-1 bg-yellow-600 text-white hover:bg-yellow-700 cursor-pointer font-bold shadow-md">
                                             {{ user.user_type === 'admin' ? 'Make Normal' : 'Make Admin' }}
                                         </button>
-                                        <button @click="toggleEmailVerification(user.id)" class="text-xs px-2 py-1 bg-purple-600 text-white hover:bg-purple-700 cursor-pointer font-bold shadow-md rounded">
+                                        <button @click="toggleEmailVerification(user.id)" class="text-xs px-2 py-1 bg-purple-600 text-white hover:bg-purple-700 cursor-pointer font-bold shadow-md">
                                             {{ user.email_verified_at ? 'Unverify' : 'Verify' }}
                                         </button>
-                                        <button @click="deleteUser(user.id)" class="text-xs px-2 py-1 bg-red-600 text-white hover:bg-red-700 cursor-pointer font-bold shadow-md rounded">
+                                        <button @click="deleteUser(user.id)" class="text-xs px-2 py-1 bg-red-600 text-white hover:bg-red-700 cursor-pointer font-bold shadow-md">
                                             Delete
                                         </button>
                                     </div>

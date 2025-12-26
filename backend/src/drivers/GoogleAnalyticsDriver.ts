@@ -3,6 +3,7 @@ import { IAPIDriver } from '../interfaces/IAPIDriver.js';
 import { IAPIConnectionDetails } from '../types/IAPIConnectionDetails.js';
 import { GoogleAnalyticsService } from '../services/GoogleAnalyticsService.js';
 import { GoogleOAuthService } from '../services/GoogleOAuthService.js';
+import { TableMetadataService } from '../services/TableMetadataService.js';
 import { DBDriver } from './DBDriver.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 
@@ -66,6 +67,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
      */
     public async syncToDatabase(
         dataSourceId: number,
+        usersPlatformId: number,
         connectionDetails: IAPIConnectionDetails
     ): Promise<boolean> {
         try {
@@ -96,12 +98,12 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
             console.log(`✅ Schema ${schemaName} ready`);
             
             // Sync various reports
-            await this.syncTrafficOverview(manager, schemaName, dataSourceId, propertyId, connectionDetails);
-            await this.syncPagePerformance(manager, schemaName, dataSourceId, propertyId, connectionDetails);
-            await this.syncUserAcquisition(manager, schemaName, dataSourceId, propertyId, connectionDetails);
-            await this.syncGeographic(manager, schemaName, dataSourceId, propertyId, connectionDetails);
-            await this.syncDeviceData(manager, schemaName, dataSourceId, propertyId, connectionDetails);
-            await this.syncEvents(manager, schemaName, dataSourceId, propertyId, connectionDetails);
+            await this.syncTrafficOverview(manager, schemaName, dataSourceId, usersPlatformId, propertyId, connectionDetails);
+            await this.syncPagePerformance(manager, schemaName, dataSourceId, usersPlatformId, propertyId, connectionDetails);
+            await this.syncUserAcquisition(manager, schemaName, dataSourceId, usersPlatformId, propertyId, connectionDetails);
+            await this.syncGeographic(manager, schemaName, dataSourceId, usersPlatformId, propertyId, connectionDetails);
+            await this.syncDeviceData(manager, schemaName, dataSourceId, usersPlatformId, propertyId, connectionDetails);
+            await this.syncEvents(manager, schemaName, dataSourceId, usersPlatformId, propertyId, connectionDetails);
             
             // Update last sync timestamp
             await this.updateLastSyncTime(manager, schemaName, dataSourceId);
@@ -121,14 +123,23 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         propertyId: string,
         connectionDetails: IAPIConnectionDetails
     ): Promise<void> {
-        const tableName = `${schemaName}.traffic_overview_${dataSourceId}`;
+        // Generate hash-based physical table name
+        const tableMetadataService = TableMetadataService.getInstance();
+        const logicalTableName = 'traffic_overview';
+        const physicalTableName = tableMetadataService.generatePhysicalTableName(
+            dataSourceId,
+            logicalTableName,
+            propertyId
+        );
+        const fullTableName = `${schemaName}.${physicalTableName}`;
         
         // Create table
         await manager.query(`
-            CREATE TABLE IF NOT EXISTS ${tableName} (
+            CREATE TABLE IF NOT EXISTS ${fullTableName} (
                 id SERIAL PRIMARY KEY,
                 date DATE NOT NULL,
                 session_source VARCHAR(255),
@@ -159,7 +170,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         // Insert data (upsert)
         for (const row of rows) {
             await manager.query(`
-                INSERT INTO ${tableName} 
+                INSERT INTO ${fullTableName} 
                 (date, session_source, session_medium, sessions, total_users, new_users, 
                  screen_page_views, average_session_duration, bounce_rate)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -185,7 +196,19 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
             ]);
         }
         
-        console.log(`✅ Synced ${rows.length} rows to ${tableName}`);
+        // Store table metadata
+        await tableMetadataService.storeTableMetadata(manager, {
+            dataSourceId,
+            usersPlatformId,
+            schemaName,
+            physicalTableName,
+            logicalTableName,
+            originalSheetName: logicalTableName,
+            fileId: propertyId,
+            tableType: 'google_analytics'
+        });
+        
+        console.log(`✅ Synced ${rows.length} rows to ${logicalTableName} (${physicalTableName})`);
     }
     
     /**
@@ -195,13 +218,22 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         propertyId: string,
         connectionDetails: IAPIConnectionDetails
     ): Promise<void> {
-        const tableName = `${schemaName}.page_performance_${dataSourceId}`;
+        // Generate hash-based physical table name
+        const tableMetadataService = TableMetadataService.getInstance();
+        const logicalTableName = 'page_performance';
+        const physicalTableName = tableMetadataService.generatePhysicalTableName(
+            dataSourceId,
+            logicalTableName,
+            propertyId
+        );
+        const fullTableName = `${schemaName}.${physicalTableName}`;
         
         await manager.query(`
-            CREATE TABLE IF NOT EXISTS ${tableName} (
+            CREATE TABLE IF NOT EXISTS ${fullTableName} (
                 id SERIAL PRIMARY KEY,
                 page_path VARCHAR(2048),
                 page_title VARCHAR(500),
@@ -226,7 +258,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         
         for (const row of rows) {
             await manager.query(`
-                INSERT INTO ${tableName} 
+                INSERT INTO ${fullTableName} 
                 (page_path, page_title, screen_page_views, average_session_duration, bounce_rate)
                 VALUES ($1, $2, $3, $4, $5)
                 ON CONFLICT (page_path) 
@@ -255,13 +287,22 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         propertyId: string,
         connectionDetails: IAPIConnectionDetails
     ): Promise<void> {
-        const tableName = `${schemaName}.user_acquisition_${dataSourceId}`;
+        // Generate hash-based physical table name
+        const tableMetadataService = TableMetadataService.getInstance();
+        const logicalTableName = 'user_acquisition';
+        const physicalTableName = tableMetadataService.generatePhysicalTableName(
+            dataSourceId,
+            logicalTableName,
+            propertyId
+        );
+        const fullTableName = `${schemaName}.${physicalTableName}`;
         
         // Drop and recreate the table to ensure schema matches
-        await manager.query(`DROP TABLE IF EXISTS ${tableName}`);
+        await manager.query(`DROP TABLE IF EXISTS ${fullTableName}`);
         
         await manager.query(`
             CREATE TABLE ${tableName} (
@@ -292,7 +333,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         
         for (const row of rows) {
             await manager.query(`
-                INSERT INTO ${tableName} 
+                INSERT INTO ${fullTableName} 
                 (date, first_user_source, first_user_medium, first_user_campaign_id, 
                  new_users, sessions, engagement_rate, conversions)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -325,13 +366,22 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         propertyId: string,
         connectionDetails: IAPIConnectionDetails
     ): Promise<void> {
-        const tableName = `${schemaName}.geographic_${dataSourceId}`;
+        // Generate hash-based physical table name
+        const tableMetadataService = TableMetadataService.getInstance();
+        const logicalTableName = 'geographic';
+        const physicalTableName = tableMetadataService.generatePhysicalTableName(
+            dataSourceId,
+            logicalTableName,
+            propertyId
+        );
+        const fullTableName = `${schemaName}.${physicalTableName}`;
         
         await manager.query(`
-            CREATE TABLE IF NOT EXISTS ${tableName} (
+            CREATE TABLE IF NOT EXISTS ${fullTableName} (
                 id SERIAL PRIMARY KEY,
                 country VARCHAR(100),
                 city VARCHAR(100),
@@ -357,7 +407,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         
         for (const row of rows) {
             await manager.query(`
-                INSERT INTO ${tableName} 
+                INSERT INTO ${fullTableName} 
                 (country, city, total_users, sessions, screen_page_views, average_session_duration)
                 VALUES ($1, $2, $3, $4, $5, $6)
                 ON CONFLICT (country, city) 
@@ -387,13 +437,22 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         propertyId: string,
         connectionDetails: IAPIConnectionDetails
     ): Promise<void> {
-        const tableName = `${schemaName}.device_${dataSourceId}`;
+        // Generate hash-based physical table name
+        const tableMetadataService = TableMetadataService.getInstance();
+        const logicalTableName = 'device';
+        const physicalTableName = tableMetadataService.generatePhysicalTableName(
+            dataSourceId,
+            logicalTableName,
+            propertyId
+        );
+        const fullTableName = `${schemaName}.${physicalTableName}`;
         
         await manager.query(`
-            CREATE TABLE IF NOT EXISTS ${tableName} (
+            CREATE TABLE IF NOT EXISTS ${fullTableName} (
                 id SERIAL PRIMARY KEY,
                 device_category VARCHAR(50),
                 operating_system VARCHAR(100),
@@ -420,7 +479,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         
         for (const row of rows) {
             await manager.query(`
-                INSERT INTO ${tableName} 
+                INSERT INTO ${fullTableName} 
                 (device_category, operating_system, browser, total_users, sessions, 
                  screen_page_views, bounce_rate)
                 VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -452,13 +511,22 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         propertyId: string,
         connectionDetails: IAPIConnectionDetails
     ): Promise<void> {
-        const tableName = `${schemaName}.events_${dataSourceId}`;
+        // Generate hash-based physical table name
+        const tableMetadataService = TableMetadataService.getInstance();
+        const logicalTableName = 'events';
+        const physicalTableName = tableMetadataService.generatePhysicalTableName(
+            dataSourceId,
+            logicalTableName,
+            propertyId
+        );
+        const fullTableName = `${schemaName}.${physicalTableName}`;
         
         await manager.query(`
-            CREATE TABLE IF NOT EXISTS ${tableName} (
+            CREATE TABLE IF NOT EXISTS ${fullTableName} (
                 id SERIAL PRIMARY KEY,
                 date DATE NOT NULL,
                 event_name VARCHAR(255),
@@ -483,7 +551,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         
         for (const row of rows) {
             await manager.query(`
-                INSERT INTO ${tableName} 
+                INSERT INTO ${fullTableName} 
                 (date, event_name, event_count, event_value, conversions)
                 VALUES ($1, $2, $3, $4, $5)
                 ON CONFLICT (date, event_name) 

@@ -26,6 +26,23 @@ router.post(
 );
 
 /**
+ * Initialize cross-source AI session
+ * POST /api/ai-data-modeler/session/initialize-cross-source
+ */
+router.post(
+    '/session/initialize-cross-source',
+    aiOperationsLimiter,
+    validateJWT,
+    validate([
+        body('projectId').notEmpty().isInt().withMessage('projectId must be a valid integer'),
+        body('dataSources').isArray({min: 1}).withMessage('dataSources must be a non-empty array')
+    ]),
+    async (req: Request, res: Response) => {
+        await AIDataModelerController.initializeCrossSourceSession(req, res);
+    }
+);
+
+/**
  * Send a message and save to Redis
  * POST /api/ai-data-modeler/session/chat
  */
@@ -34,7 +51,9 @@ router.post(
     aiOperationsLimiter,
     validateJWT,
     validate([
-        body('dataSourceId').notEmpty().isInt().withMessage('dataSourceId must be a valid integer'),
+        body('dataSourceId').optional().isInt().withMessage('dataSourceId must be a valid integer'),
+        body('conversationId').optional().isUUID().withMessage('conversationId must be a valid UUID'),
+        body('isCrossSource').optional().isBoolean().withMessage('isCrossSource must be a boolean'),
         body('message').notEmpty().trim().withMessage('message is required')
     ]),
     async (req: Request, res: Response) => {

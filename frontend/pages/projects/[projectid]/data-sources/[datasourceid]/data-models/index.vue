@@ -39,7 +39,11 @@ onMounted(() => {
 
 async function getDataModels() {
     state.data_models = [];
-    state.data_models = dataModelsStore.getDataModels().filter((dataModel) => dataModel.data_source.id === dataSource.value.id).map((dataModel) => {
+    state.data_models = dataModelsStore.getDataModels().filter((dataModel) => {
+        // Only include single-source models that match this data source
+        // Skip cross-source models (where data_source is null)
+        return dataModel.data_source && dataModel.data_source.id === dataSource.value.id;
+    }).map((dataModel) => {
         return {
             id: dataModel.id,
             schema: dataModel.schema,
