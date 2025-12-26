@@ -1730,7 +1730,29 @@ function buildSQLQuery() {
             fromJoinClause.push(`FROM ${tableRef}`);
         }
 
-        sqlQuery = `SELECT ${state.data_table.columns.filter((column) => column.is_selected_column).map((column) => {
+        // Build set of columns used in aggregate functions (these should not appear in SELECT as regular columns)
+        const aggregateColumns = new Set();
+        state?.data_table?.query_options?.group_by?.aggregate_functions?.forEach((aggFunc) => {
+            if (aggFunc.column && aggFunc.aggregate_function !== '') {
+                aggregateColumns.add(aggFunc.column);
+            }
+        });
+
+        console.log('[buildSQLQuery] Single-table: Columns used in aggregates:', Array.from(aggregateColumns));
+
+        sqlQuery = `SELECT ${state.data_table.columns.filter((column) => {
+            // Exclude columns that are ONLY used in aggregates (not for grouping)
+            if (!column.is_selected_column) return false;
+            
+            const columnFullPath = `${column.schema}.${column.table_name}.${column.column_name}`;
+            const isAggregateOnly = aggregateColumns.has(columnFullPath);
+            
+            if (isAggregateOnly) {
+                console.log(`[buildSQLQuery] Excluding aggregate-only column from SELECT: ${columnFullPath}`);
+            }
+            
+            return !isAggregateOnly;
+        }).map((column) => {
             const tableName = column.table_name.length > 20 ? column.table_name.slice(-20) : column.table_name;
             const tableRef = column.table_alias || tableName;
             const aliasName = column?.alias_name !== '' ? column.alias_name : `${tableRef}_${column.column_name}`;

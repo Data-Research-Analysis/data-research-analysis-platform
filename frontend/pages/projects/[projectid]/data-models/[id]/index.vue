@@ -69,7 +69,7 @@
                 :key="source.id"
                 :source-type="source.data_type"
                 :source-name="source.name"
-                size="medium" />
+                size="default" />
             </div>
           </div>
 

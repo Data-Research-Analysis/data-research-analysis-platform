@@ -645,6 +645,11 @@ export class DataSourceProcessor {
                         query += ` AND tb.table_name LIKE '%_${dataSource.id}'`;
                     } else if (connection.schema === 'dra_google_ads') {
                         query += ` AND tb.table_name LIKE '%_${dataSource.id}'`;
+                    } else {
+                        // For PostgreSQL, MySQL, MariaDB - no additional filter needed
+                        // The schema filter in getTablesColumnDetails() is sufficient
+                        // These connect to external databases where all tables in the schema belong to this connection
+                        console.log(`[DEBUG] External database source (${connection.data_source_type}): using schema filter only`);
                     }
                 }
                 
