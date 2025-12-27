@@ -225,7 +225,7 @@ onMounted(async () => {
             <spinner v-if="state.loading"/>
             <div
                 v-else
-                class="w-1/4 text-center self-center mb-5 p-2 m-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md"
+                class="w-1/4 text-center self-center mb-5 p-2 m-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md rounded-lg"
                 @click="createAccount"
                 @keydown.enter="createAccount"
             >

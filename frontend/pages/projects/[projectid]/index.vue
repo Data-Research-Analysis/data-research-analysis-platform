@@ -269,30 +269,40 @@ async function viewSyncHistory(dataSourceId) {
     const isGAM = dataSource?.data_type === 'google_ad_manager';
     const isAds = dataSource?.data_type === 'google_ads';
 
-    // Show loading
-    await $swal.fire({
-        title: 'Loading...',
-        text: 'Fetching sync history',
-        icon: 'info',
-        allowOutsideClick: false,
-        showConfirmButton: false,
-        didOpen: () => {
-            $swal.showLoading();
+    try {
+        // Show loading
+        $swal.fire({
+            title: 'Loading...',
+            text: 'Fetching sync history',
+            icon: 'info',
+            allowOutsideClick: false,
+            showConfirmButton: false,
+            didOpen: () => {
+                $swal.showLoading();
+            }
+        });
+
+        const status = isAds ? await ads.getSyncStatus(dataSourceId) : (isGAM ? await gam.getSyncStatus(dataSourceId) : await analytics.getSyncStatus(dataSourceId));
+
+        $swal.close();
+
+        if (status && status.sync_history) {
+            state.sync_history = status.sync_history;
+            state.show_sync_history_dialog = true;
+        } else {
+            await $swal.fire({
+                title: 'No History',
+                text: 'No sync history available for this data source.',
+                icon: 'info'
+            });
         }
-    });
-
-    const status = isAds ? await ads.getSyncStatus(dataSourceId) : (isGAM ? await gam.getSyncStatus(dataSourceId) : await analytics.getSyncStatus(dataSourceId));
-
-    $swal.close();
-
-    if (status && status.sync_history) {
-        state.sync_history = status.sync_history;
-        state.show_sync_history_dialog = true;
-    } else {
+    } catch (error) {
+        console.error('Failed to fetch sync history:', error);
+        $swal.close(); // Close loading if open
         await $swal.fire({
-            title: 'No History',
-            text: 'No sync history available for this data source.',
-            icon: 'info'
+            title: 'Error',
+            text: 'Failed to fetch sync history. Please try again.',
+            icon: 'error'
         });
     }
 }
@@ -359,8 +369,7 @@ onMounted(() => {
         <tabs v-if="project && project.id" :project-id="project.id" />
 
         <!-- Data Sources Content -->
-        <div
-            class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 mb-10 border border-primary-blue-100 border-solid p-10 shadow-md">
+        <tab-content-panel :corners="['top-right', 'bottom-left', 'bottom-right']">
             <div class="font-bold text-2xl mb-5">
                 Data Sources
             </div>
@@ -369,10 +378,10 @@ onMounted(() => {
                 a PostgresSQL. This is the data that you provide which you will then work with in order to reach your
                 analysis goals.
             </div>
-            <div class="text-lg font3-bold mt-5">
+            <div v-if="project && project.description" class="text-lg font3-bold mt-5">
                 Project Description
             </div>
-            <div v-if="project" class="text-md">
+            <div v-if="project && project.description" class="text-md">
                 {{ project.description }}
             </div>
 
@@ -397,7 +406,7 @@ onMounted(() => {
             <div v-if="!state.loading && state.data_sources.some(ds => ds.data_type === 'google_analytics' || ds.data_type === 'google_ad_manager' || ds.data_type === 'google_ads')"
                 class="mt-5 mb-2">
                 <button @click="bulkSyncAllGoogleDataSources"
-                    class="px-4 py-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 transition-colors duration-200 flex items-center gap-2 cursor-pointer">
+                    class="px-4 py-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 rounded-lg transition-colors duration-200 flex items-center gap-2 cursor-pointer">
                     <font-awesome icon="fas fa-sync" />
                     {{
                         state.data_sources.some(ds => ds.data_type === 'google_analytics') && state.data_sources.some(ds =>
@@ -496,7 +505,7 @@ onMounted(() => {
                 </div>
             </div>
             <!-- Connect Data Source Dialog -->
-            <overlay-dialog v-if="state.show_dialog" @close="closeDialog" :yOffset="90">
+            <overlay-dialog v-if="state.show_dialog" @close="closeDialog" :yOffset="90" :enable-scrolling="false">
                 <template #overlay>
                     <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                         <template v-for="dataSource in state.available_data_sources" :key="dataSource.name">
@@ -514,13 +523,13 @@ onMounted(() => {
             </overlay-dialog>
 
             <!-- Sync History Dialog -->
-            <overlay-dialog v-if="state.show_sync_history_dialog" @close="closeSyncHistoryDialog" :yOffset="90">
+            <overlay-dialog v-if="state.show_sync_history_dialog" @close="closeSyncHistoryDialog" :yOffset="90" :enable-scrolling="false"    >
                 <template #overlay>
-                    <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full p-6">
+                    <div class="max-w-4xl w-full p-6">
                         <div class="flex items-center justify-between mb-6">
                             <h2 class="text-2xl font-bold text-gray-900">Sync History</h2>
                             <button @click="closeSyncHistoryDialog"
-                                class="text-gray-500 hover:text-gray-700 transition-colors">
+                                class="text-gray-500 hover:text-gray-700 transition-colors cursor-pointer">
                                 <font-awesome icon="fas fa-times" class="text-xl" />
                             </button>
                         </div>
@@ -530,7 +539,7 @@ onMounted(() => {
                             <p>No sync history available</p>
                         </div>
 
-                        <div v-else class="overflow-x-auto">
+                        <div v-else class="overflow-x-auto rounded-lg overflow-hidden ring-1 ring-gray-200 ring-inset">
                             <table class="min-w-full divide-y divide-gray-200">
                                 <thead class="bg-gray-50">
                                     <tr>
@@ -592,6 +601,6 @@ onMounted(() => {
                     </div>
                 </template>
             </overlay-dialog>
-        </div>
+        </tab-content-panel>
     </div>
 </template>

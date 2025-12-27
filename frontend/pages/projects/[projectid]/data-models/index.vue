@@ -10,14 +10,14 @@
       </div>
 
       <!-- Action Buttons -->
-      <div class="mb-8">
+      <div class="">
         <div class="inline-flex shadow-sm" role="group">
           <!-- Single-source dropdown -->
           <div class="relative inline-block text-left">
             <button 
               @click="dropdownOpen = !dropdownOpen"
               type="button"
-              class="inline-flex items-center px-4 py-2 bg-primary-blue-100 text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary-blue-100 cursor-pointer">
+              class="inline-flex items-center px-4 py-2 bg-primary-blue-100 text-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary-blue-100 cursor-pointer rounded-tl-lg">
               <font-awesome icon="fas fa-plus" class="mr-2" />
               Create Data Model
               <font-awesome icon="fas fa-chevron-down" class="ml-2 text-xs" />
@@ -27,7 +27,7 @@
             <div 
               v-if="dropdownOpen"
               @click="dropdownOpen = false"
-              class="origin-top-right absolute left-0 mt-2 w-64 shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10">
+              class="origin-top-right absolute left-0 w-64 shadow-lg bg-white ring-1 ring-gray-300 ring-opacity-5 z-10 rounded-lg rounded-tl-none rounded-tr-none">
               <div class="py-1">
                 <a 
                   v-for="source in dataSources" 
@@ -54,7 +54,7 @@
             @click="createCrossSource"
             :disabled="dataSources.length < 2"
             :class="[
-              'inline-flex items-center px-4 py-2 text-sm font-medium border-l border-primary-blue-100 ml-[1px]',
+              'inline-flex items-center px-4 py-2 text-sm font-medium border-l border-primary-blue-100 ml-[1px] rounded-tr-lg',
               dataSources.length >= 2 
                 ? 'bg-primary-blue-100 text-white hover:bg-primary-blue-200 cursor-pointer'
                 : 'bg-gray-100 text-gray-400 cursor-not-allowed'
@@ -71,7 +71,7 @@
       </div>
 
       <!-- Data Models Table -->
-      <div class="bg-white shadow-md overflow-hidden">
+      <div class="bg-white shadow-md overflow-hidden rounded-lg rounded-tl-none ring-1 ring-gray-200 ring-inset">
         <!-- Table Header with Search -->
         <div class="px-6 py-4 border-b border-gray-200">
           <div class="flex items-center justify-between">
@@ -84,7 +84,7 @@
                 v-model="search"
                 type="text"
                 placeholder="Search models..."
-                class="pl-10 pr-4 py-2 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+                class="pl-10 pr-4 py-2 border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent rounded-lg" />
             </div>
           </div>
         </div>

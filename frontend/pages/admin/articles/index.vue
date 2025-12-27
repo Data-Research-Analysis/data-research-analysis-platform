@@ -115,7 +115,7 @@ async function unpublishArticle(articleId) {
                         <font-awesome icon="fas fa-exclamation-triangle" class="text-5xl text-red-500 mb-4" />
                         <p class="text-red-600 font-semibold mb-2">Error loading articles</p>
                         <p class="text-gray-600 text-sm">{{ error.message }}</p>
-                        <button @click="refresh()" class="mt-4 px-4 py-2 bg-primary-blue-500 text-white hover:bg-primary-blue-600">
+                        <button @click="refresh()" class="mt-4 px-4 py-2 bg-primary-blue-500 text-white hover:bg-primary-blue-600 rounded-lg">
                             Try Again
                         </button>
                     </div>
@@ -123,19 +123,19 @@ async function unpublishArticle(articleId) {
             </div>
             
             <!-- Articles Content -->
-            <div v-else class="min-h-100 flex flex-col ml-4 mr-4 mb-10 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md">
+            <div v-else class="min-h-100 flex flex-col ml-4 mr-4 mb-10 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md rounded-xl">
                 <div class="flex flex-row">
                     <div class="font-bold text-2xl mb-5">
                         List Articles
                     </div>
                     <NuxtLink
-                        class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md"
+                        class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md rounded-lg"
                         to="/admin/articles/create"
                     >
                         Add Article
                     </NuxtLink>
                 </div>
-                <div class="mt-3">
+                <div class="mt-3 rounded-lg overflow-hidden ring-1 ring-black ring-opacity-5 ring-inset">
                     <table v-if="articles && articles.length" class="w-full table-auto table-striped">
                         <thead>
                             <tr class="h-10 bg-primary-blue-100 border border-solid">
@@ -155,11 +155,11 @@ async function unpublishArticle(articleId) {
                                     {{ article.article.title }}
                                 </td>
                                 <td class="border px-4 py-2 text-center font-bold">
-                                    <span :class="{'bg-green-300 p-2': article.article.publish_status === 'published', 'bg-yellow-300 p-2': article.article.publish_status === 'draft'}">{{ article.article.publish_status.toUpperCase() }}</span>
+                                    <span :class="{'bg-green-300 p-2 rounded': article.article.publish_status === 'published', 'bg-yellow-300 p-2 rounded': article.article.publish_status === 'draft'}">{{ article.article.publish_status.toUpperCase() }}</span>
                                 </td>
                                 <td class="border px-4 py-2">
                                     <div v-if="article.categories && article.categories.length" class="flex flex-wrap">
-                                        <span v-for="category in article.categories" :key="category.id" class="bg-gray-200 text-gray-700 text-center px-2 py-1 mr-2 mb-2">
+                                        <span v-for="category in article.categories" :key="category.id" class="bg-gray-200 text-gray-700 text-center px-2 py-1 mr-2 mb-2 rounded">
                                             {{ category.title }}
                                         </span>
                                     </div>
@@ -167,12 +167,12 @@ async function unpublishArticle(articleId) {
                                 </td>
                                 <td class="border px-4 py-2">
                                     <div class="flex flex-row justify-center">
-                                        <button v-if="article.article.publish_status === 'draft'" @click="publishArticle(article.article.id)" class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-green-600 text-white hover:bg-green-700 cursor-pointer font-bold shadow-md">Publish Article</button>
-                                        <button v-if="article.article.publish_status === 'published'" @click="unpublishArticle(article.article.id)" class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-orange-600 text-white hover:bg-orange-700 cursor-pointer font-bold shadow-md">Unpublish Article</button>
-                                        <NuxtLink :to="`/admin/articles/${article.article.id}`" class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md">
+                                        <button v-if="article.article.publish_status === 'draft'" @click="publishArticle(article.article.id)" class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-green-600 text-white hover:bg-green-700 cursor-pointer font-bold shadow-md rounded-lg">Publish Article</button>
+                                        <button v-if="article.article.publish_status === 'published'" @click="unpublishArticle(article.article.id)" class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-orange-600 text-white hover:bg-orange-700 cursor-pointer font-bold shadow-md rounded-lg">Unpublish Article</button>
+                                        <NuxtLink :to="`/admin/articles/${article.article.id}`" class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md rounded-lg">
                                             Edit
                                         </NuxtLink>
-                                        <button @click="deleteArticle(article.article.id)" class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-red-600 text-white hover:bg-red-700 cursor-pointer font-bold shadow-md">Delete</button>
+                                        <button @click="deleteArticle(article.article.id)" class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-red-600 text-white hover:bg-red-700 cursor-pointer font-bold shadow-md rounded-lg">Delete</button>
                                     </div>
                                 </td>
                             </tr>

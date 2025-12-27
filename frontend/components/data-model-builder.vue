@@ -3308,7 +3308,8 @@ onMounted(async () => {
         <div v-if="state.response_from_external_data_source_columns && state.response_from_external_data_source_columns.length"
             class="flex flex-col overflow-auto">
             <h3 class="font-bold text-left mb-5">Response From External Data Source</h3>
-            <table class="w-full border border-primary-blue-100 border-solid">
+            <div class="rounded-lg overflow-hidden ring-1 ring-primary-blue-100 ring-inset mb-2">
+                <table class="w-full">
                 <thead>
                     <tr>
                         <th v-for="column in state.response_from_external_data_source_columns"
@@ -3325,6 +3326,7 @@ onMounted(async () => {
                     </tr>
                 </thead>
             </table>
+            </div>
             <div class="w-full h-1 bg-blue-300 mt-5 mb-5"></div>
         </div>
 
@@ -3676,8 +3678,8 @@ onMounted(async () => {
                                     <div class="flex flex-col" :class="{
                                         'bg-gray-200': index % 2 === 0,
                                     }">
-                                        <div class="m-2">
-                                            <table class="w-full border border-primary-blue-100 border-solid">
+                                        <div class="m-2 rounded-lg overflow-hidden ring-1 ring-primary-blue-100 ring-inset">
+                                            <table class="w-full">
                                                 <thead>
                                                     <tr>
                                                         <th
@@ -3711,9 +3713,10 @@ onMounted(async () => {
                                                     </tr>
                                                 </thead>
                                             </table>
+
                                         </div>
-                                        <div class="m-2">
-                                            <table class="w-full border border-primary-blue-100 border-solid">
+                                        <div class="m-2 rounded-lg overflow-hidden ring-1 ring-primary-blue-100 ring-inset">
+                                            <table class="w-full">
                                                 <thead>
                                                     <tr>
                                                         <th v-if="state.viewMode === 'advanced'"

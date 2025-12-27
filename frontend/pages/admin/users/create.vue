@@ -224,14 +224,14 @@ function resetForm() {
                     </div>
                     <NuxtLink 
                         :to="state.isConversion ? '/admin/private-beta-users' : '/admin/users'"
-                        class="text-sm px-4 py-2 bg-gray-600 text-white hover:bg-gray-700 cursor-pointer font-bold shadow-md rounded"
+                        class="text-sm px-4 py-2 bg-gray-600 text-white hover:bg-gray-700 cursor-pointer font-bold shadow-md rounded-lg"
                     >
                         {{ state.isConversion ? 'Back to Beta Users' : 'Back to Users' }}
                     </NuxtLink>
                 </div>
 
                 <!-- Loading beta user data -->
-                <div v-if="state.loadingBetaUser" class="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded mb-5">
+                <div v-if="state.loadingBetaUser" class="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded-lg mb-5">
                     <div class="flex items-center">
                         <spinner class="mr-2" />
                         Loading private beta user data...
@@ -239,7 +239,7 @@ function resetForm() {
                 </div>
 
                 <!-- Conversion info -->
-                <div v-if="state.isConversion && state.betaUserData" class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-5">
+                <div v-if="state.isConversion && state.betaUserData" class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg mb-5">
                     <div class="flex items-center">
                         <font-awesome icon="fas fa-info-circle" class="mr-2" />
                         <div>
@@ -254,7 +254,7 @@ function resetForm() {
                     </div>
                 </div>
 
-                <div v-if="state.errorMessages.length > 0" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-5">
+                <div v-if="state.errorMessages.length > 0" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-5">
                     <ul class="list-disc list-inside">
                         <li v-for="error in state.errorMessages" :key="error">{{ error }}</li>
                     </ul>
@@ -268,7 +268,7 @@ function resetForm() {
                             <input 
                                 v-model="state.first_name"
                                 type="text"
-                                class="w-full p-3 border border-gray-300 rounded focus:outline-none focus:border-primary-blue-100"
+                                class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-primary-blue-100"
                                 :class="{ 'border-red-500 bg-red-50': state.errors.first_name }"
                                 placeholder="First Name"
                                 :disabled="state.loading"
@@ -280,7 +280,7 @@ function resetForm() {
                             <input 
                                 v-model="state.last_name"
                                 type="text"
-                                class="w-full p-3 border border-gray-300 rounded focus:outline-none focus:border-primary-blue-100"
+                                class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-primary-blue-100"
                                 :class="{ 'border-red-500 bg-red-50': state.errors.last_name }"
                                 placeholder="Last Name"
                                 :disabled="state.loading"
@@ -295,7 +295,7 @@ function resetForm() {
                         <input 
                             v-model="state.email"
                             type="email"
-                            class="w-full p-3 border border-gray-300 rounded focus:outline-none focus:border-primary-blue-100"
+                            class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-primary-blue-100"
                             :class="{ 'border-red-500 bg-red-50': state.errors.email }"
                             placeholder="Email Address"
                             :disabled="state.loading"
@@ -310,7 +310,7 @@ function resetForm() {
                             <input 
                                 v-model="state.password"
                                 type="password"
-                                class="w-full p-3 border border-gray-300 rounded focus:outline-none focus:border-primary-blue-100"
+                                class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-primary-blue-100"
                                 :class="{ 'border-red-500 bg-red-50': state.errors.password }"
                                 placeholder="Password"
                                 :disabled="state.loading"
@@ -325,7 +325,7 @@ function resetForm() {
                             <input 
                                 v-model="state.confirm_password"
                                 type="password"
-                                class="w-full p-3 border border-gray-300 rounded focus:outline-none focus:border-primary-blue-100"
+                                class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-primary-blue-100"
                                 :class="{ 'border-red-500 bg-red-50': state.errors.confirm_password }"
                                 placeholder="Confirm Password"
                                 :disabled="state.loading"
@@ -339,7 +339,7 @@ function resetForm() {
                         <label class="block text-sm font-bold mb-2">User Type</label>
                         <select 
                             v-model="state.user_type"
-                            class="w-full p-3 border border-gray-300 rounded focus:outline-none focus:border-primary-blue-100"
+                            class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-primary-blue-100"
                             :disabled="state.loading"
                         >
                             <option value="normal">Normal User</option>
@@ -355,7 +355,7 @@ function resetForm() {
                         <button 
                             type="submit"
                             :disabled="state.loading"
-                            class="px-6 py-3 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                            class="px-6 py-3 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {{ state.loading ? 'Creating User...' : 'Create User' }}
                         </button>
@@ -364,14 +364,14 @@ function resetForm() {
                             type="button"
                             @click="resetForm"
                             :disabled="state.loading"
-                            class="px-6 py-3 bg-gray-600 text-white hover:bg-gray-700 cursor-pointer font-bold shadow-md rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                            class="px-6 py-3 bg-gray-600 text-white hover:bg-gray-700 cursor-pointer font-bold shadow-md rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             Reset Form
                         </button>
 
                         <NuxtLink 
                             :to="state.isConversion ? '/admin/private-beta-users' : '/admin/users'"
-                            class="px-6 py-3 bg-gray-400 text-white hover:bg-gray-500 cursor-pointer font-bold shadow-md rounded text-center"
+                            class="px-6 py-3 bg-gray-400 text-white hover:bg-gray-500 cursor-pointer font-bold shadow-md rounded-lg text-center"
                         >
                             Cancel
                         </NuxtLink>

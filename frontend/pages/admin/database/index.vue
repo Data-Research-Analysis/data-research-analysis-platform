@@ -75,7 +75,7 @@ onMounted(async () => {
                                 </p>
                                 <button
                                     @click="goToBackup"
-                                    class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                                    class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                                 >
                                     <font-awesome-icon icon="fa-solid fa-download" class="mr-2" />
                                     Create Backup
@@ -88,7 +88,7 @@ onMounted(async () => {
                     <div class="bg-white rounded-lg shadow-md p-6 border border-gray-200 hover:shadow-lg transition-shadow">
                         <div class="flex items-start">
                             <div class="flex-shrink-0">
-                                <div class="flex items-center justify-center h-12 w-12 rounded-md bg-orange-500 text-white">
+                                <div class="flex items-center justify-center h-12 w-12 rounded-lg bg-orange-500 text-white">
                                     <font-awesome-icon icon="fa-solid fa-upload" class="text-2xl" />
                                 </div>
                             </div>
@@ -99,7 +99,7 @@ onMounted(async () => {
                                 </p>
                                 <button
                                     @click="goToRestore"
-                                    class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+                                    class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
                                 >
                                     <font-awesome-icon icon="fa-solid fa-upload" class="mr-2" />
                                     Restore Database
@@ -110,7 +110,7 @@ onMounted(async () => {
                 </div>
 
                 <!-- Warning Notice -->
-                <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-8">
+                <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-8 rounded-lg">
                     <div class="flex">
                         <div class="flex-shrink-0">
                             <font-awesome-icon icon="fa-solid fa-exclamation-triangle" class="text-yellow-400 text-xl" />

@@ -1526,7 +1526,7 @@ onUnmounted(() => {
 
     <!-- Main Table Container -->
         <!-- Main Table Container -->
-    <div class="overflow-auto border border-gray-300 rounded-lg shadow-sm max-h-screen data-table-container">
+    <div class="overflow-auto ring-1 ring-gray-300 ring-inset rounded-lg shadow-sm max-h-screen data-table-container">
       <table class="w-full border-collapse bg-white">
         <!-- Column Headers -->
         <thead class="sticky top-0 bg-gray-50 z-10">

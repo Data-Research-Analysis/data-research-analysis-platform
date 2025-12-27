@@ -2,7 +2,7 @@
  * Mock metadata for testing cross-source data models
  */
 
-import { MockMetadataRecord, MockDataSourceRecord } from './mockManager';
+import { MockMetadataRecord, MockDataSourceRecord } from './mockManager.js';
 
 // ============================================================================
 // MySQL Mock Data

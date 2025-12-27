@@ -505,24 +505,24 @@
     <div v-if="editor" class="relative">
         <!-- Upload indicator -->
         <div v-if="uploadingImages.size > 0" 
-             class="absolute top-2 right-2 z-50 bg-blue-500 text-white px-3 py-1 rounded-md text-sm shadow-lg flex items-center gap-2">
+             class="absolute top-2 right-2 z-50 bg-blue-500 text-white px-3 py-1 rounded-lg text-sm shadow-lg flex items-center gap-2">
             <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
             <span>Uploading image...</span>
         </div>
         
         <div class="flex flex-wrap justify-between items-start">
-            <div class="bg-white border border-gray-300 mb-2">
+            <div class="bg-white border border-gray-300 mb-2 rounded-lg p-1">
                 <span v-for="button in props.buttons">
-                    <button v-if="button === 'bold'" @click="editor.chain().focus().toggleBold().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :class="{ 'bg-gray-200': editor.isActive('bold') }">
+                    <button v-if="button === 'bold'" @click="editor.chain().focus().toggleBold().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer rounded" :class="{ 'bg-gray-200': editor.isActive('bold') }">
                         <font-awesome icon="fas fa-bold" :v-tippy-content="'Bold'"/>
                     </button>
-                    <button v-if="button === 'italic'" @click="editor.chain().focus().toggleItalic().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :class="{ 'bg-gray-200': editor.isActive('italic') }">
+                    <button v-if="button === 'italic'" @click="editor.chain().focus().toggleItalic().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer rounded" :class="{ 'bg-gray-200': editor.isActive('italic') }">
                         <font-awesome icon="fas fa-italic" :v-tippy-content="'Italic'"/>
                     </button>
                     <button v-if="button === 'heading'" >
                         <menu-dropdown class="z-10" direction="right">
                             <template #menuItem="{ onClick }">
-                                <div @click="onClick" class="p-2 m-1 hover:bg-gray-200 cursor-pointer">
+                                <div @click="onClick" class="p-2 m-1 hover:bg-gray-200 cursor-pointer rounded">
                                     <font-awesome icon="fas fa-heading" :v-tippy-content="'Heading'"/>
                                 </div>
                             </template>
@@ -538,58 +538,58 @@
                             </template>
                         </menu-dropdown>
                     </button>
-                    <button v-if="button === 'strike'" @click="editor.chain().focus().toggleStrike().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :class="{ 'bg-gray-200': editor.isActive('strike') }">
+                    <button v-if="button === 'strike'" @click="editor.chain().focus().toggleStrike().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer rounded" :class="{ 'bg-gray-200': editor.isActive('strike') }">
                         <font-awesome icon="fas fa-strikethrough" :v-tippy-content="'Strike'"/>
                     </button>
-                    <button v-if="button === 'underline'" @click="editor.chain().focus().toggleUnderline().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :class="{ 'bg-gray-200': editor.isActive('underline') }">
+                    <button v-if="button === 'underline'" @click="editor.chain().focus().toggleUnderline().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer rounded" :class="{ 'bg-gray-200': editor.isActive('underline') }">
                         <font-awesome icon="fas fa-underline" :v-tippy-content="'Underline'"/>
                     </button>
-                    <button v-if="button === 'link'" @click="setLink" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :class="{ 'bg-gray-200': editor.isActive('link') }">
+                    <button v-if="button === 'link'" @click="setLink" class="p-2 m-1 hover:bg-gray-200 cursor-pointer rounded" :class="{ 'bg-gray-200': editor.isActive('link') }">
                         <font-awesome icon="fas fa-link" :v-tippy-content="'Link'"/>
                     </button>
-                    <button v-if="button === 'code'" @click="editor.chain().focus().toggleCode().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :class="{ 'bg-gray-200': editor.isActive('code') }">
+                    <button v-if="button === 'code'" @click="editor.chain().focus().toggleCode().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer rounded" :class="{ 'bg-gray-200': editor.isActive('code') }">
                         <font-awesome icon="fas fa-code" :v-tippy-content="'Code'"/>
                     </button>
-                    <button v-if="button === 'image'" @click="setImage" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :class="{ 'bg-gray-200': editor.isActive('image') }">
+                    <button v-if="button === 'image'" @click="setImage" class="p-2 m-1 hover:bg-gray-200 cursor-pointer rounded" :class="{ 'bg-gray-200': editor.isActive('image') }">
                         <font-awesome icon="fas fa-image" :v-tippy-content="'Image Link'"/>
                     </button>
-                    <button v-if="button === 'ordered-list'" @click="editor.chain().focus().toggleOrderedList().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :class="{ 'bg-gray-200': editor.isActive('orderedList') }">
+                    <button v-if="button === 'ordered-list'" @click="editor.chain().focus().toggleOrderedList().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer rounded" :class="{ 'bg-gray-200': editor.isActive('orderedList') }">
                         <font-awesome icon="fas fa-list-ol" :v-tippy-content="'Ordered List'"/>
                     </button>
-                    <button v-if="button === 'bullet-list'" @click="editor.chain().focus().toggleBulletList().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :class="{ 'bg-gray-200': editor.isActive('bulletList') }">
+                    <button v-if="button === 'bullet-list'" @click="editor.chain().focus().toggleBulletList().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer rounded" :class="{ 'bg-gray-200': editor.isActive('bulletList') }">
                         <font-awesome icon="fas fa-list" :v-tippy-content="'Bullet List'"/>
                     </button>
-                    <button v-if="button === 'undo'" @click="editor.chain().focus().undo().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :disabled="!editor.can().undo()">
+                    <button v-if="button === 'undo'" @click="editor.chain().focus().undo().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer rounded" :disabled="!editor.can().undo()">
                         <font-awesome icon="fas fa-rotate-left" :v-tippy-content="'Undo'"/>
                     </button>
-                    <button v-if="button === 'redo'" @click="editor.chain().focus().redo().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :disabled="!editor.can().redo()">
+                    <button v-if="button === 'redo'" @click="editor.chain().focus().redo().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer rounded" :disabled="!editor.can().redo()">
                         <font-awesome icon="fas fa-rotate-right" :v-tippy-content="'Redo'"/>
                     </button>
-                    <button v-if="button === 'block-quote'" @click="editor.chain().focus().toggleBlockquote().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :class="{ 'bg-gray-200': editor.isActive('blockquote') }">
+                    <button v-if="button === 'block-quote'" @click="editor.chain().focus().toggleBlockquote().run()" class="p-2 m-1 hover:bg-gray-200 cursor-pointer rounded" :class="{ 'bg-gray-200': editor.isActive('blockquote') }">
                         <font-awesome icon="fas fa-quote-left" :v-tippy-content="'Quote'"/>
                     </button>
                 </span>
                 <span class="border-l border-gray-300 pl-1">
-                    <button @click="setTextAlign('left')" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :class="{ 'bg-gray-200': editor.isActive({ textAlign: 'left' }) }">
+                    <button @click="setTextAlign('left')" class="p-2 m-1 hover:bg-gray-200 cursor-pointer rounded" :class="{ 'bg-gray-200': editor.isActive({ textAlign: 'left' }) }">
                         <font-awesome icon="fas fa-align-left" :v-tippy-content="'Left Align'"/>
                     </button>
-                    <button @click="setTextAlign('center')" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :class="{ 'bg-gray-200': editor.isActive({ textAlign: 'center' }) }">
+                    <button @click="setTextAlign('center')" class="p-2 m-1 hover:bg-gray-200 cursor-pointer rounded" :class="{ 'bg-gray-200': editor.isActive({ textAlign: 'center' }) }">
                         <font-awesome icon="fas fa-align-center" :v-tippy-content="'Center Align'"/>
                     </button>
-                    <button @click="setTextAlign('right')" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :class="{ 'bg-gray-200': editor.isActive({ textAlign: 'right' }) }">
+                    <button @click="setTextAlign('right')" class="p-2 m-1 hover:bg-gray-200 cursor-pointer rounded" :class="{ 'bg-gray-200': editor.isActive({ textAlign: 'right' }) }">
                         <font-awesome icon="fas fa-align-right" :v-tippy-content="'Right Align'"/>
                     </button>
-                    <button @click="setTextAlign('justify')" class="p-2 m-1 hover:bg-gray-200 cursor-pointer" :class="{ 'bg-gray-200': editor.isActive({ textAlign: 'justify' }) }">
+                    <button @click="setTextAlign('justify')" class="p-2 m-1 hover:bg-gray-200 cursor-pointer rounded" :class="{ 'bg-gray-200': editor.isActive({ textAlign: 'justify' }) }">
                         <font-awesome icon="fas fa-align-justify" :v-tippy-content="'Justify Align'"/>
                     </button>
                 </span>
             </div>
             
             <!-- Phase 2: View Mode Toggle Button -->
-            <div v-if="canToggleView" class="bg-white border border-gray-300 mb-2 ml-auto">
+            <div v-if="canToggleView" class="bg-white border border-gray-300 mb-2 ml-auto rounded-lg">
                 <button 
                     @click="toggleViewMode" 
-                    class="p-2 m-1 hover:bg-gray-200 cursor-pointer flex items-center gap-2"
+                    class="p-2 m-1 hover:bg-gray-200 cursor-pointer flex items-center gap-2 rounded"
                     :class="{ 'bg-gray-200': viewMode === 'markdown' }"
                 >
                     <font-awesome :icon="viewMode === 'wysiwyg' ? 'fas fa-code' : 'fas fa-eye'" />
@@ -604,7 +604,7 @@
                 v-show="viewMode === 'wysiwyg'" 
                 :editor="editor"
                 key="wysiwyg"
-                class="text-block-editor-content bg-white p-2 cursor-text border border-solid border-gray-300 transition-opacity duration-200" 
+                class="text-block-editor-content bg-white p-2 cursor-text border border-solid border-gray-300 transition-opacity duration-200 rounded-lg" 
             />
         </transition>
         
@@ -613,7 +613,7 @@
             <div v-show="viewMode === 'markdown'" key="markdown" class="relative">
                 <textarea
                     v-model="markdownContent"
-                    class="w-full bg-white p-4 border border-solid border-gray-300 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y transition-all duration-200 leading-relaxed"
+                    class="w-full bg-white p-4 border border-solid border-gray-300 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y transition-all duration-200 leading-relaxed rounded-lg"
                     :style="{ minHeight: `${props.minHeight}px` }"
                     placeholder="Markdown content will appear here..."
                     spellcheck="false"

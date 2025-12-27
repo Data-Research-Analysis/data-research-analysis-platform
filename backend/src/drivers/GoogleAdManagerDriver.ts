@@ -242,11 +242,16 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
-        usersPlatformId: number,
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
+        // Get network code for API calls first
+        const networkCode = connectionDetails.api_config?.network_code;
+        if (!networkCode) {
+            throw new Error('Network code not configured');
+        }
+
         // Generate hash-based physical table name
         const tableMetadataService = TableMetadataService.getInstance();
         const logicalTableName = 'revenue';
@@ -279,12 +284,6 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         `);
         
         console.log(`✅ Table ${fullTableName} ready`);
-        
-        // Get network code for API calls
-        const networkCode = connectionDetails.api_config?.network_code;
-        if (!networkCode) {
-            throw new Error('Network code not configured');
-        }
         
         // Build and execute report query with retry logic
         const reportQuery = this.gamService.buildRevenueReportQuery(networkCode, startDate, endDate);
@@ -321,10 +320,6 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         return { recordsSynced: transformedData.length, recordsFailed: 0 };
     }
     
-
-    
-
-    
     /**
      * Sync geography report data (simplified - always validates and deduplicates)
      */
@@ -332,11 +327,16 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
-        usersPlatformId: number,
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
+        // Get network code first
+        const networkCode = connectionDetails.api_config?.network_code;
+        if (!networkCode) {
+            throw new Error('Network code not configured');
+        }
+
         // Generate hash-based physical table name
         const tableMetadataService = TableMetadataService.getInstance();
         const logicalTableName = 'geography';
@@ -367,12 +367,6 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         
         console.log(`✅ Table ${fullTableName} ready`);
         
-        // Get network code for API calls
-        const networkCode = connectionDetails.api_config?.network_code;
-        if (!networkCode) {
-            throw new Error('Network code not configured');
-        }
-        
         // Build and execute report query with retry logic
         const reportQuery = this.gamService.buildGeographyReportQuery(networkCode, startDate, endDate);
         
@@ -393,7 +387,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
             return { recordsSynced: 0, recordsFailed: 0 };
         }
         
-        let transformedData = this.transformGeographyData(reportResponse, networkCode);
+        const transformedData = this.transformGeographyData(reportResponse, networkCode);
         
         // Always use upsert for deduplication
         await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'country_code', 'region', 'city']);
@@ -401,6 +395,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         console.log(`✅ Synced ${transformedData.length} geography records`);
         return { recordsSynced: transformedData.length, recordsFailed: 0 };
     }
+
     /**
      * Sync device & browser report data
      */
@@ -408,11 +403,16 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
-        usersPlatformId: number,
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
+        // Get network code first
+        const networkCode = connectionDetails.api_config?.network_code;
+        if (!networkCode) {
+            throw new Error('Network code not configured');
+        }
+
         // Generate hash-based physical table name
         const tableMetadataService = TableMetadataService.getInstance();
         const logicalTableName = 'device';
@@ -443,12 +443,6 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         `);
         
         console.log(`✅ Table ${fullTableName} ready`);
-        
-        // Get network code for API calls
-        const networkCode = connectionDetails.api_config?.network_code;
-        if (!networkCode) {
-            throw new Error('Network code not configured');
-        }
         
         // Build and execute report query with retry logic
        const reportQuery = this.gamService.buildDeviceReportQuery(networkCode, startDate, endDate);
@@ -487,11 +481,16 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
-        usersPlatformId: number,
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
+        // Get network code first
+        const networkCode = connectionDetails.api_config?.network_code;
+        if (!networkCode) {
+            throw new Error('Network code not configured');
+        }
+
         // Generate hash-based physical table name
         const tableMetadataService = TableMetadataService.getInstance();
         const logicalTableName = 'ad_unit';
@@ -524,12 +523,6 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         `);
         
         console.log(`✅ Table ${fullTableName} ready`);
-        
-        // Get network code for API calls
-        const networkCode = connectionDetails.api_config?.network_code;
-        if (!networkCode) {
-            throw new Error('Network code not configured');
-        }
         
         // Build and execute report query with retry logic
         const reportQuery = this.gamService.buildAdUnitReportQuery(networkCode, startDate, endDate);
@@ -567,11 +560,16 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
-        usersPlatformId: number,
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
+        // Get network code first
+        const networkCode = connectionDetails.api_config?.network_code;
+        if (!networkCode) {
+            throw new Error('Network code not configured');
+        }
+
         // Generate hash-based physical table name
         const tableMetadataService = TableMetadataService.getInstance();
         const logicalTableName = 'advertiser';
@@ -605,12 +603,6 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         `);
         
         console.log(`✅ Table ${fullTableName} ready`);
-        
-        // Get network code for API calls
-        const networkCode = connectionDetails.api_config?.network_code;
-        if (!networkCode) {
-            throw new Error('Network code not configured');
-        }
         
         // Build and execute report query with retry logic
         const reportQuery = this.gamService.buildAdvertiserReportQuery(networkCode, startDate, endDate);
@@ -649,11 +641,16 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
-        usersPlatformId: number,
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
+        // Get network code first
+        const networkCode = connectionDetails.api_config?.network_code;
+        if (!networkCode) {
+            throw new Error('Network code not configured');
+        }
+
         // Generate hash-based physical table name
         const tableMetadataService = TableMetadataService.getInstance();
         const logicalTableName = 'time_series';
@@ -683,12 +680,6 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         `);
         
         console.log(`✅ Table ${fullTableName} ready`);
-        
-        // Get network code for API calls
-        const networkCode = connectionDetails.api_config?.network_code;
-        if (!networkCode) {
-            throw new Error('Network code not configured');
-        }
         
         // Build and execute report query with retry logic
         const reportQuery = this.gamService.buildTimeSeriesReportQuery(networkCode, startDate, endDate);

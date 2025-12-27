@@ -115,10 +115,20 @@ onUnmounted(() => {
             <div class="min-h-100 flex flex-col ml-4 mr-4 mb-10 md:ml-10 md:mr-10 p-6 lg:p-8">
                <h2>Restore Database</h2>
 
+               <!-- Back Button -->
+                    <div v-if="!isRestoring && !restoreComplete">
+                        <button
+                            @click="goBack"
+                            class="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 cursor-pointer"
+                        >
+                            <font-awesome-icon icon="fa-solid fa-arrow-left" class="mr-2" />
+                            Back to Database Management
+                        </button>
+                    </div>
                 <!-- Main Content -->
                 <div class="max-w-4xl mt-6">
                     <!-- Warning Banner -->
-                    <div class="bg-red-50 border-l-4 border-red-400 p-4 mb-6">
+                    <div class="bg-red-50 border-l-4 border-red-400 rounded-lg p-4 mb-6">
                         <div class="flex">
                             <div class="flex-shrink-0">
                                 <font-awesome-icon icon="fa-solid fa-exclamation-triangle" class="text-red-400 text-xl" />
@@ -268,17 +278,6 @@ onUnmounted(() => {
                                 </div>
                             </div>
                         </div>
-                    </div>
-
-                    <!-- Back Button -->
-                    <div v-if="!isRestoring && !restoreComplete">
-                        <button
-                            @click="goBack"
-                            class="inline-flex items-center text-sm text-gray-600 hover:text-gray-900"
-                        >
-                            <font-awesome-icon icon="fa-solid fa-arrow-left" class="mr-2" />
-                            Back to Database Management
-                        </button>
                     </div>
                 </div>
             </div>

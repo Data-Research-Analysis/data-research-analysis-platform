@@ -341,7 +341,7 @@ onUnmounted(() => {
 <template>
   <div 
     :id="`table-chart-${props.chartId}`"
-    class="border border-gray-300 overflow-hidden bg-white shadow-sm flex flex-col"
+    class="ring-1 ring-gray-300 ring-inset overflow-hidden bg-white shadow-sm flex flex-col rounded-lg"
     :style="containerStyle"
   >
     <!-- Table Container with Scroll -->

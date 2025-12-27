@@ -1240,10 +1240,10 @@ onUnmounted(() => {
                 <div class="flex flex-row justify-between">
                     <tabs :project-id="project.id" class="mt-6" :class="{ 'ml-10': state.sidebar_status }"/>
                     <div class="flex flex-row">
-                        <div @click="updateDashboard" class="flex flex-row items-center h-12 mr-2 mt-7 text-md text-white font-bold border border-white border-solid cursor-pointer select-none bg-primary-blue-100 hover:bg-primary-blue-400">
+                        <div @click="updateDashboard" class="flex flex-row items-center h-12 mt-7 text-md text-white font-bold border-r-1 border-white border-solid cursor-pointer select-none bg-primary-blue-100 hover:bg-primary-blue-400 rounded-tl-lg">
                             <h3 class="ml-2 mr-2">Update Dashboard</h3>
                         </div>
-                        <div @click="exportAsWebPage" class="flex flex-row items-center h-12 mr-2 mt-7 text-md text-white font-bold border border-white border-solid cursor-pointer select-none bg-primary-blue-100 hover:bg-primary-blue-400">
+                        <div @click="exportAsWebPage" class="flex flex-row items-center h-12 mr-2 mt-7 text-md text-white font-bold cursor-pointer select-none bg-primary-blue-100 hover:bg-primary-blue-400 rounded-tr-lg">
                             <h3 class="ml-2 mr-2">Export Dashboard</h3>
                         </div>
                     </div>
@@ -1625,48 +1625,48 @@ onUnmounted(() => {
             </div>
             <div v-if="state.sidebar_status" class="flex flex-col w-1/6 mt-17 mb-10 mr-2 select-none">
                 <div @click="addChartToDashboard('text_block')" v-tippy="{ content: 'Add Text Block To Dashboard', placement: 'top' }">
-                     <div class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto mb-2 text-center font-bold text-lg cursor-pointer hover:bg-gray-300" >
+                     <div class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto mb-2 text-center font-bold text-lg cursor-pointer hover:bg-gray-300 rounded-lg" >
                         Text Block
                      </div>
                 </div>
                 <div class="flex flex-row mb-2">
                     <div class="mr-2" @click="addChartToDashboard('table')" v-tippy="{ content: 'Add Table To Dashboard', placement: 'top' }">
-                        <img src="/assets/images/table_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Table Chart" />
+                        <img src="/assets/images/table_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300 rounded-lg" alt="Table Chart" />
                     </div>
                     <div @click="addChartToDashboard('pie')" v-tippy="{ content: 'Add Pie Chart To Dashboard', placement: 'top' }">
-                        <img src="/assets/images/pie_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Pie Chart" />
+                        <img src="/assets/images/pie_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300 rounded-lg" alt="Pie Chart" />
                     </div>
                 </div>
                 <div class="flex flex-row mb-2">
                     <div class="mr-2" @click="addChartToDashboard('donut')" v-tippy="{ content: 'Add Donut Chart To Dashboard', placement: 'top' }">
-                        <img src="/assets/images/donut_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Donut Chart" />
+                        <img src="/assets/images/donut_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300 rounded-lg" alt="Donut Chart" />
                     </div>
                     <div @click="addChartToDashboard('vertical_bar')" v-tippy="{ content: 'Add Vertical Bar Chart To Dashboard', placement: 'top' }">
-                        <img src="/assets/images/vertical_bar_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Vertical Bar Chart" />
+                        <img src="/assets/images/vertical_bar_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300 rounded-lg" alt="Vertical Bar Chart" />
                     </div>
                 </div>
                 <div class="flex flex-row mb-2">
                     <div class="mr-2" @click="addChartToDashboard('horizontal_bar')" v-tippy="{ content: 'Add Horizontal Bar Chart To Dashboard', placement: 'top' }">
-                        <img src="/assets/images/horizontal_bar_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Horizontal Bar Chart" />
+                        <img src="/assets/images/horizontal_bar_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300 rounded-lg" alt="Horizontal Bar Chart" />
                     </div>
                     <div @click="addChartToDashboard('vertical_bar_line')" v-tippy="{ content: 'Add Vertical Bar Line Chart To Dashboard', placement: 'top' }">
-                        <img src="/assets/images/vertical_bar_chart_line.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Vertical Bar Line Chart" />
+                        <img src="/assets/images/vertical_bar_chart_line.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300 rounded-lg" alt="Vertical Bar Line Chart" />
                     </div>
                 </div>
                 <div class="flex flex-row mb-2">
                     <div class="mr-2" @click="addChartToDashboard('stacked_bar')" v-tippy="{ content: 'Add Stacked Bar Chart To Dashboard', placement: 'top' }">
-                        <img src="/assets/images/stacked_bar_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Stacked Bar Chart" />
+                        <img src="/assets/images/stacked_bar_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300 rounded-lg" alt="Stacked Bar Chart" />
                     </div>    
                     <div @click="addChartToDashboard('multiline')" v-tippy="{ content: 'Add Multiline Chart To Dashboard', placement: 'top' }">
-                        <img src="/assets/images/multi_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Multiline Chart" />
+                        <img src="/assets/images/multi_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300 rounded-lg" alt="Multiline Chart" />
                     </div>
                 </div>
                 <div class="flex flex-row mb-2">
                     <div class="mr-2" @click="addChartToDashboard('treemap')" v-tippy="{ content: 'Add Treemap Chart To Dashboard', placement: 'top' }">
-                        <img src="/assets/images/treemap_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Treemap Chart" />
+                        <img src="/assets/images/treemap_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300 rounded-lg" alt="Treemap Chart" />
                     </div>
                     <div @click="addChartToDashboard('bubble')" v-tippy="{ content: 'Add Bubble Chart To Dashboard', placement: 'top' }">
-                        <img src="/assets/images/bubble_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Bubble Chart" />
+                        <img src="/assets/images/bubble_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300 rounded-lg" alt="Bubble Chart" />
                     </div>
                 </div>
                 <!-- <div class="flex flex-row mb-2">

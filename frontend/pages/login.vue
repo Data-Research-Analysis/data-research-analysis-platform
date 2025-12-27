@@ -145,7 +145,7 @@ onMounted(async () => {
             <input
                 v-model="state.email"
                 type="text"
-                class="self-center w-3/4 p-5 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md"
+                class="self-center w-3/4 p-5 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md rounded-lg"
                 :class="!state.emailError ? '' : 'bg-red-300 text-black'"
                 placeholder="Email"
                 :disabled="state.loading"
@@ -154,7 +154,7 @@ onMounted(async () => {
             <input
                 v-model="state.password"
                 type="password"
-                class="self-center w-3/4 p-5 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md"
+                class="self-center w-3/4 p-5 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md rounded-lg"
                 :class="!state.passwordError ? '' : 'bg-red-300 text-black'"
                 placeholder="Password"
                 :disabled="state.loading"
@@ -166,7 +166,7 @@ onMounted(async () => {
             <spinner v-if="state.loading"/>
             <div
                 v-else
-                class="w-1/4 text-center self-center mb-5 p-2 m-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md"
+                class="w-1/4 text-center self-center mb-5 p-2 m-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md rounded-lg"
                 @click="loginUser"
                 @keydown.enter="loginUser"
             >

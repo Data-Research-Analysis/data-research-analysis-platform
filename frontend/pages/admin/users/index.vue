@@ -113,12 +113,12 @@ function formatDate(dateString) {
                     </div>
                     <NuxtLink 
                         to="/admin/users/create"
-                        class="text-sm px-4 py-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md rounded"
+                        class="text-sm px-4 py-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md rounded-lg"
                     >
                         Add User
                     </NuxtLink>
                 </div>
-                <div class="mt-3">
+                <div class="mt-3 rounded-lg overflow-hidden ring-1 ring-black ring-opacity-5 ring-inset">
                     <table v-if="users && users.length" class="w-full table-auto table-striped">
                         <thead>
                             <tr class="h-10 bg-primary-blue-100 border border-solid">
@@ -142,7 +142,7 @@ function formatDate(dateString) {
                                     {{ user.email }}
                                 </td>
                                 <td class="border px-4 py-2 text-center">
-                                    <span :class="{'bg-red-500 text-white px-2 py-1 rounded': user.user_type === 'admin', 'bg-blue-500 text-white px-2 py-1 rounded': user.user_type === 'normal'}">
+                                    <span :class="{'bg-red-500 text-white px-2 py-1 rounded-lg': user.user_type === 'admin', 'bg-blue-500 text-white px-2 py-1 rounded-lg': user.user_type === 'normal'}">
                                         {{ user.user_type.toUpperCase() }}
                                     </span>
                                 </td>
@@ -153,16 +153,16 @@ function formatDate(dateString) {
                                 </td>
                                 <td class="border px-4 py-2">
                                     <div class="flex flex-wrap gap-2">
-                                        <NuxtLink :to="`/admin/users/${user.id}`" class="text-xs px-2 py-1 bg-blue-600 text-white hover:bg-blue-700 cursor-pointer font-bold shadow-md rounded">
+                                        <NuxtLink :to="`/admin/users/${user.id}`" class="text-xs px-2 py-1 bg-blue-600 text-white hover:bg-blue-700 cursor-pointer font-bold shadow-md rounded-lg">
                                             Edit
                                         </NuxtLink>
-                                        <button @click="changeUserType(user.id, user.user_type)" class="text-xs px-2 py-1 bg-yellow-600 text-white hover:bg-yellow-700 cursor-pointer font-bold shadow-md">
+                                        <button @click="changeUserType(user.id, user.user_type)" class="text-xs px-2 py-1 bg-yellow-600 text-white hover:bg-yellow-700 cursor-pointer font-bold shadow-md rounded-lg">
                                             {{ user.user_type === 'admin' ? 'Make Normal' : 'Make Admin' }}
                                         </button>
-                                        <button @click="toggleEmailVerification(user.id)" class="text-xs px-2 py-1 bg-purple-600 text-white hover:bg-purple-700 cursor-pointer font-bold shadow-md">
+                                        <button @click="toggleEmailVerification(user.id)" class="text-xs px-2 py-1 bg-purple-600 text-white hover:bg-purple-700 cursor-pointer font-bold shadow-md rounded-lg">
                                             {{ user.email_verified_at ? 'Unverify' : 'Verify' }}
                                         </button>
-                                        <button @click="deleteUser(user.id)" class="text-xs px-2 py-1 bg-red-600 text-white hover:bg-red-700 cursor-pointer font-bold shadow-md">
+                                        <button @click="deleteUser(user.id)" class="text-xs px-2 py-1 bg-red-600 text-white hover:bg-red-700 cursor-pointer font-bold shadow-md rounded-lg">
                                             Delete
                                         </button>
                                     </div>

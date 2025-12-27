@@ -131,19 +131,19 @@ async function deleteCategory(categoryId) {
             class="w-1/6"
         />
         <div class="w-5/6">
-            <div class="min-h-100 flex flex-col ml-4 mr-4 mb-10 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md">
+            <div class="min-h-100 flex flex-col ml-4 mr-4 mb-10 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md rounded-xl">
                 <div class="flex flex-row">
                     <div class="font-bold text-2xl mb-5">
                         List Categories
                     </div>
                     <div
-                        class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md"
+                        class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md rounded-lg"
                         @click="addCategory"
                     >
                         Add Category
                     </div>
                 </div>
-                <div class="mt-3">
+                <div class="mt-3 rounded-lg overflow-hidden ring-1 ring-black ring-opacity-5 ring-inset">
                     <table class="w-full table-auto table-striped">
                         <thead>
                             <tr class="h-10 bg-primary-blue-100 border border-solid">
@@ -158,18 +158,18 @@ async function deleteCategory(categoryId) {
                                     {{ category.id }}
                                 </td>
                                 <td class="border px-4 py-2">
-                                    <input v-if="state.is_editing && state.category_id_editing === category.id" type="text" v-model="state.category_title_editing" class="text-left outline p-1" />
+                                    <input v-if="state.is_editing && state.category_id_editing === category.id" type="text" v-model="state.category_title_editing" class="text-left outline p-1 rounded-lg" />
                                     <span v-else>{{ category.title }}</span>
                                 </td>
                                 <td class="border px-4 py-2">
                                     <div class="flex flex-row justify-center">
-                                        <button v-if="state.is_editing && state.category_id_editing === category.id" @click="submitEditingChanges" class="w-36 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md">
+                                        <button v-if="state.is_editing && state.category_id_editing === category.id" @click="submitEditingChanges" class="w-36 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md rounded-lg">
                                             Submit Changes
                                         </button>
-                                        <button v-else @click="beginEditCategory(category.id)" class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md">
+                                        <button v-else @click="beginEditCategory(category.id)" class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md rounded-lg">
                                             Edit
                                         </button>
-                                        <button @click="deleteCategory(category.id)" class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-red-600 text-white hover:bg-red-700 cursor-pointer font-bold shadow-md">Delete</button>
+                                        <button @click="deleteCategory(category.id)" class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-red-600 text-white hover:bg-red-700 cursor-pointer font-bold shadow-md rounded-lg">Delete</button>
                                     </div>
                                 </td>
                             </tr>

@@ -20,11 +20,11 @@ export class DRADataModelSource {
 
     @ManyToOne(() => DRADataModel, model => model.data_model_sources, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'data_model_id' })
-    data_model!: DRADataModel;
+    data_model!: Relation<DRADataModel>;
 
     @ManyToOne(() => DRADataSource, source => source.data_model_sources, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'data_source_id' })
-    data_source!: DRADataSource;
+    data_source!: Relation<DRADataSource>;
 
     @Column({ type: 'int', name: 'users_platform_id' })
     users_platform_id!: number;

@@ -407,7 +407,7 @@ async function connect() {
 
                 <div class="flex gap-3 justify-end mt-8 sm:flex-col">
                     <button @click="cancel"
-                        class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 sm:w-full">
+                        class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 sm:w-full rounded-lg">
                         Cancel
                     </button>
                 </div>
@@ -425,7 +425,7 @@ async function connect() {
 
                 <div class="flex gap-3 justify-end mt-8 sm:flex-col">
                     <button @click="goBack"
-                        class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 sm:w-full">
+                        class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 sm:w-full rounded-lg">
                         ← Back
                     </button>
                 </div>
@@ -521,15 +521,15 @@ async function connect() {
 
                 <div class="flex gap-3 justify-end mt-8 sm:flex-col">
                     <button @click="goBack"
-                        class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 sm:w-full">
+                        class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 sm:w-full rounded-lg">
                         ← Back
                     </button>
                     <button @click="cancel"
-                        class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 sm:w-full">
+                        class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 sm:w-full rounded-lg">
                         Cancel
                     </button>
                     <button @click="nextStep"
-                        class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-primary-blue-100 text-white hover:bg-primary-blue-300 hover:-translate-y-0.5 hover:shadow-lg sm:w-full">
+                        class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-primary-blue-100 text-white hover:bg-primary-blue-300 hover:-translate-y-0.5 hover:shadow-lg sm:w-full rounded-lg">
                         Continue →
                     </button>
                 </div>
@@ -596,17 +596,17 @@ async function connect() {
 
                 <div class="flex gap-3 justify-end mt-8 sm:flex-col">
                     <button @click="goBack"
-                        class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-60 disabled:cursor-not-allowed sm:w-full"
+                        class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-60 disabled:cursor-not-allowed sm:w-full rounded-lg"
                         :disabled="state.connecting">
                         ← Back
                     </button>
                     <button @click="cancel"
-                        class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-60 disabled:cursor-not-allowed sm:w-full"
+                        class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-60 disabled:cursor-not-allowed sm:w-full rounded-lg"
                         :disabled="state.connecting">
                         Cancel
                     </button>
                     <button @click="connect"
-                        class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed bg-primary-blue-100 text-white hover:bg-primary-blue-300 hover:-translate-y-0.5 hover:shadow-lg sm:w-full"
+                        class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed bg-primary-blue-100 text-white hover:bg-primary-blue-300 hover:-translate-y-0.5 hover:shadow-lg sm:w-full rounded-lg"
                         :disabled="state.connecting">
                         <span v-if="!state.connecting">Connect & Sync →</span>
                         <span v-else>Connecting...</span>

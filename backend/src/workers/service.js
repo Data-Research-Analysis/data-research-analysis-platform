@@ -1,6 +1,6 @@
 import { exec } from "child_process";
 import { workerData, parentPort } from 'worker_threads';
-import util from 'node:util';
+import util from 'util';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -11,6 +11,11 @@ import { AmazonTextExtractDriver } from '../../dist/drivers/AmazonTextExtractDri
 import { EPageType } from "../../dist/types/EPageType.js";
 import { FilesService } from "../../dist/services/FilesService.js";
 import { DatabaseBackupService } from "../../dist/services/DatabaseBackupService.js";
+
+// Worker startup confirmation
+console.log('[WORKER STARTUP] Worker process started');
+console.log('[WORKER STARTUP] Worker data:', workerData);
+
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,20 +25,34 @@ const directoryPathParts = __dirname.split(path.sep);
 directoryPathParts.pop();
 directoryPathParts.pop();
 const baseDir = directoryPathParts.join(path.sep);
-console.log('Running worker:', workerData);
+console.log('[WORKER STARTUP] Running worker:', workerData);
 
-console.log('operation:', operation);
-console.log('EOperation.EXTRACT_TEXT_FROM_IMAGE', EOperation.EXTRACT_TEXT_FROM_IMAGE);
-if (operation === EOperation.PDF_TO_IMAGES) {
-    await convertPDFs(fileName);
-} else if (operation === EOperation.EXTRACT_TEXT_FROM_IMAGE) {
-    await extractTextFromImage(fileName);
-} else if (operation === EOperation.DELETE_FILES) {
-    await deleteFiles(userId);
-} else if (operation === EOperation.DATABASE_BACKUP) {
-    await createDatabaseBackup(userId);
-} else if (operation === EOperation.DATABASE_RESTORE) {
-    await restoreDatabaseFromBackup(fileName, userId);
+console.log('[WORKER STARTUP] operation:', operation);
+console.log('[WORKER STARTUP] EOperation.EXTRACT_TEXT_FROM_IMAGE', EOperation.EXTRACT_TEXT_FROM_IMAGE);
+
+try {
+    if (operation === EOperation.PDF_TO_IMAGES) {
+        await convertPDFs(fileName);
+    } else if (operation === EOperation.EXTRACT_TEXT_FROM_IMAGE) {
+        await extractTextFromImage(fileName);
+    } else if (operation === EOperation.DELETE_FILES) {
+        await deleteFiles(userId);
+    } else if (operation === EOperation.DATABASE_BACKUP) {
+        await createDatabaseBackup(userId);
+    } else if (operation === EOperation.DATABASE_RESTORE) {
+        await restoreDatabaseFromBackup(fileName, userId);
+    }
+    console.log('[WORKER COMPLETE] Operation completed successfully');
+} catch (error) {
+    console.error('[WORKER ERROR] Fatal error in worker:', error);
+    console.error('[WORKER ERROR] Stack trace:', error.stack);
+    parentPort.postMessage({ 
+        message: 'WORKER_ERROR', 
+        error: error.message,
+        stack: error.stack,
+        operation: operation
+    });
+    process.exit(1);
 }
 
 /**

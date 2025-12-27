@@ -107,7 +107,7 @@ onMounted(() => {
                         List Private Beta Users
                     </div>
                 </div>
-                <div class="mt-3">
+                <div class="mt-3 rounded-lg overflow-hidden ring-1 ring-black ring-opacity-5 ring-inset">
                     <table v-if="privateBetaUsers && privateBetaUsers.length" class="w-full table-auto table-striped">
                         <thead>
                             <tr class="h-10 bg-primary-blue-100 border border-solid">
@@ -151,7 +151,7 @@ onMounted(() => {
                                         @click="convertBetaUserToUser(user)"
                                         :disabled="state.convertingUsers.has(user.id) || user.is_converted"
                                         :class="[
-                                            'text-sm px-3 py-1 font-bold shadow-md rounded disabled:opacity-50 disabled:cursor-not-allowed',
+                                            'text-sm px-3 py-1 font-bold shadow-md rounded-lg disabled:opacity-50 disabled:cursor-not-allowed',
                                             user.is_converted ? 'bg-gray-400 text-white' : 'bg-green-600 text-white hover:bg-green-700 cursor-pointer'
                                         ]"
                                         :title="user.is_converted 

@@ -52,7 +52,7 @@ const classes = computed(() => {
 </script>
 <template>
   <button
-    :class="`${classes}  font-bold px-2`"
+    :class="`${classes} rounded-md font-bold px-2`"
     :disabled="props.disabled"
     @click="props.onClick"
   >
