@@ -192,8 +192,8 @@ export class DataSourceProcessor {
         return `'${this.escapeSQL(value)}'`;
     }
 
-    async getDataSources(tokenDetails: ITokenDetails): Promise<DRADataSource[]> {
-        return new Promise<DRADataSource[]>(async (resolve, reject) => {
+    async getDataSources(tokenDetails: ITokenDetails): Promise<any[]> {
+        return new Promise<any[]>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             if (!driver) {
@@ -207,8 +207,37 @@ export class DataSourceProcessor {
             if (!user) {
                 return resolve([]);
             }
-            const dataSources = await manager.find(DRADataSource, {where: {users_platform: user}, relations: ['project']});
-            return resolve(dataSources);
+            
+            // Load data sources with data_models relation 
+            const dataSources = await manager.find(DRADataSource, {
+                where: {users_platform: user},
+                relations: {
+                    project: true,
+                    data_models: true
+                },
+                select: {
+                    id: true,
+                    name: true,
+                    data_type: true,
+                    connection_details: true,
+                    created_at: true,
+                    project: {
+                        id: true
+                    },
+                    data_models: {
+                        id: true
+                    }
+                }
+            });
+            
+            // Transform to include counts
+            const dataSourcesWithCounts = dataSources.map(ds => ({
+                ...ds,
+                data_models_count: ds.data_models?.length || 0,
+                DataModels: ds.data_models  // Backward compatibility
+            }));
+            
+            return resolve(dataSourcesWithCounts);
         });
     }
 

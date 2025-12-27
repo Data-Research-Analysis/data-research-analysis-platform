@@ -41,7 +41,13 @@ export class SchemaFormatterUtility {
         markdown += '## Tables\n\n';
         
         for (const table of tables) {
-            markdown += `### Table: ${table.schema}.${table.tableName}\n`;
+            // Show display name if available
+            const displayName = (table as any).displayName;
+            if (displayName && displayName !== table.tableName) {
+                markdown += `### Table: ${displayName} \`(${table.schema}.${table.tableName})\`\n`;
+            } else {
+                markdown += `### Table: ${table.schema}.${table.tableName}\n`;
+            }
             markdown += '| Column Name | Data Type | Constraints |\n';
             markdown += '|-------------|-----------|-------------|\n';
             

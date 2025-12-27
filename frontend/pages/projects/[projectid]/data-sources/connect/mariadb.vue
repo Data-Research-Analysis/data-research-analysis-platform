@@ -176,7 +176,7 @@ async function connectDataSource() {
             Enter the connection details for your MariaDB data source.
         </div>
         <div v-if="state.showAlert"
-            class="w-3/4 self-center text-lg p-5 mb-5 font-bold text-black"
+            class="w-3/4 self-center text-lg p-5 mb-5 font-bold text-black rounded-lg"
             :class="{ 'bg-green-400': state.connectionSuccess, 'bg-red-400': !state.connectionSuccess }">
             <div v-if="state.connectionSuccess" class="text-2xl">Success!</div>
             <div v-else class="text-2xl">Error!</div>
@@ -184,73 +184,98 @@ async function connectDataSource() {
                 <div>{{ message }}</div>
             </template>
         </div>
-        <input
-            v-model="state.host"
-            type="text"
-            class="self-center w-1/2 p-5 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md"
-            :class="!state.host_error ? '' : 'bg-red-300 text-black'"
-            placeholder="Host"
-            :disabled="state.loading"
-        />
-        <input
-            v-model="state.port"
-            type="text"
-            class="self-center w-1/2 p-5 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md"
-            :class="!state.port_error ? '' : 'bg-red-300 text-black'"
-            placeholder="Port"
-            :disabled="state.loading"
-        />
-        <input
-            v-model="state.schema"
-            type="text"
-            class="self-center w-1/2 p-5 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md"
-            :class="!state.schema_error ? '' : 'bg-red-300 text-black'"
-            placeholder="Schema"
-            :disabled="state.loading"
-        />
-        <input
-            v-model="state.database_name"
-            type="text"
-            class="self-center w-1/2 p-5 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md"
-            :class="!state.database_name_error ? '' : 'bg-red-300 text-black'"
-            placeholder="Database Name"
-            :disabled="state.loading"
-        />
-        <input
-            v-model="state.username"
-            type="text"
-            class="self-center w-1/2 p-5 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md"
-            :class="!state.username_error ? '' : 'bg-red-300 text-black'"
-            placeholder="Username"
-            :disabled="state.loading"
-        />
-        <div class="relative self-center w-1/2">
+        
+        <div class="self-center w-1/2 mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Host</label>
             <input
-                v-model="state.password"
-                :type="state.showPassword ? 'text' : 'password'"
-                class="w-full p-5 pr-12 border border-primary-blue-100 border-solid hover:border-blue-200 mb-5 shadow-md"
-                :class="!state.password_error ? '' : 'bg-red-300 text-black'"
-                placeholder="Password"
+                v-model="state.host"
+                type="text"
+                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-blue-100 focus:border-transparent hover:border-blue-200"
+                :class="!state.host_error ? '' : 'bg-red-300 text-black border-red-500'"
+                placeholder="Enter host address"
                 :disabled="state.loading"
             />
-            <button
-                type="button"
-                @click="state.showPassword = !state.showPassword"
-                class="absolute right-3 top-5 text-gray-600 hover:text-gray-800"
-                :disabled="state.loading">
-                <font-awesome :icon="state.showPassword ? 'fas fa-eye-slash' : 'fas fa-eye'" class="text-lg cursor-pointer" />
-            </button>
         </div>
-        <div class="flex flex-row self-center w-1/2 gap-5">
+        
+        <div class="self-center w-1/2 mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Port</label>
+            <input
+                v-model="state.port"
+                type="text"
+                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-blue-100 focus:border-transparent hover:border-blue-200"
+                :class="!state.port_error ? '' : 'bg-red-300 text-black border-red-500'"
+                placeholder="Enter port number (e.g., 3306)"
+                :disabled="state.loading"
+            />
+        </div>
+        
+        <div class="self-center w-1/2 mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Schema</label>
+            <input
+                v-model="state.schema"
+                type="text"
+                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-blue-100 focus:border-transparent hover:border-blue-200"
+                :class="!state.schema_error ? '' : 'bg-red-300 text-black border-red-500'"
+                placeholder="Enter schema name"
+                :disabled="state.loading"
+            />
+        </div>
+        
+        <div class="self-center w-1/2 mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Database Name</label>
+            <input
+                v-model="state.database_name"
+                type="text"
+                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-blue-100 focus:border-transparent hover:border-blue-200"
+                :class="!state.database_name_error ? '' : 'bg-red-300 text-black border-red-500'"
+                placeholder="Enter database name"
+                :disabled="state.loading"
+            />
+        </div>
+        
+        <div class="self-center w-1/2 mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Username</label>
+            <input
+                v-model="state.username"
+                type="text"
+                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-blue-100 focus:border-transparent hover:border-blue-200"
+                :class="!state.username_error ? '' : 'bg-red-300 text-black border-red-500'"
+                placeholder="Enter username"
+                :disabled="state.loading"
+            />
+        </div>
+        
+        <div class="self-center w-1/2 mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+            <div class="relative">
+                <input
+                    v-model="state.password"
+                    :type="state.showPassword ? 'text' : 'password'"
+                    class="w-full p-3 pr-12 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-blue-100 focus:border-transparent hover:border-blue-200"
+                    :class="!state.password_error ? '' : 'bg-red-300 text-black border-red-500'"
+                    placeholder="Enter password"
+                    :disabled="state.loading"
+                />
+                <button
+                    type="button"
+                    @click="state.showPassword = !state.showPassword"
+                    class="absolute right-3 top-3 text-gray-600 hover:text-gray-800"
+                    :disabled="state.loading">
+                    <font-awesome :icon="state.showPassword ? 'fas fa-eye-slash' : 'fas fa-eye'" class="text-lg cursor-pointer" />
+                </button>
+            </div>
+        </div>
+        
+        <div class="flex flex-row self-center w-1/2 gap-5 mt-6">
             <div
                 @click="!state.loading && testConnection()"
-                class="h-10 text-center items-center self-center mt-5 mb-5 p-2 font-bold shadow-md select-none bg-gray-500 hover:bg-gray-600 cursor-pointer text-white flex-1"
+                class="h-10 text-center items-center self-center p-2 font-bold shadow-md select-none bg-gray-500 hover:bg-gray-600 cursor-pointer text-white flex-1 rounded-lg"
                 :class="{ 'opacity-50 cursor-not-allowed': state.loading }">
                 Test Connection
             </div>
             <div
                 @click="!state.loading && connectDataSource()"
-                class="h-10 text-center items-center self-center mt-5 mb-5 p-2 font-bold shadow-md select-none bg-primary-blue-100 hover:bg-primary-blue-200 cursor-pointer text-white flex-1"
+                class="h-10 text-center items-center self-center p-2 font-bold shadow-md select-none bg-primary-blue-100 hover:bg-primary-blue-200 cursor-pointer text-white flex-1 rounded-lg"
                 :class="{ 'opacity-50 cursor-not-allowed': state.loading }">
                 Connect Data Source
             </div>

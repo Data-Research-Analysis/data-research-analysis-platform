@@ -118,60 +118,63 @@ function formatDate(dateString) {
                         Add User
                     </NuxtLink>
                 </div>
-                <div class="mt-3 rounded-lg overflow-hidden ring-1 ring-black ring-opacity-5 ring-inset">
-                    <table v-if="users && users.length" class="w-full table-auto table-striped">
-                        <thead>
-                            <tr class="h-10 bg-primary-blue-100 border border-solid">
-                                <th class="px-4 py-2 border border-solid border-black text-white">ID</th>
-                                <th class="px-4 py-2 border border-solid border-black text-white">Name</th>
-                                <th class="px-4 py-2 border border-solid border-black text-white">Email</th>
-                                <th class="px-4 py-2 border border-solid border-black text-white">User Type</th>
-                                <th class="px-4 py-2 border border-solid border-black text-white">Email Verified</th>
-                                <th class="px-4 py-2 border border-solid border-black text-white">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="user in users" :key="user.id">
-                                <td class="border px-4 py-2 text-center">
-                                    {{ user.id }}
-                                </td>
-                                <td class="border px-4 py-2">
-                                    {{ user.first_name }} {{ user.last_name }}
-                                </td>
-                                <td class="border px-4 py-2">
-                                    {{ user.email }}
-                                </td>
-                                <td class="border px-4 py-2 text-center">
-                                    <span :class="{'bg-red-500 text-white px-2 py-1 rounded-lg': user.user_type === 'admin', 'bg-blue-500 text-white px-2 py-1 rounded-lg': user.user_type === 'normal'}">
-                                        {{ user.user_type.toUpperCase() }}
-                                    </span>
-                                </td>
-                                <td class="border px-4 py-2 text-center">
-                                    <span :class="{'text-green-600 font-bold': user.email_verified_at, 'text-red-600': !user.email_verified_at}">
-                                        {{ formatDate(user.email_verified_at) }}
-                                    </span>
-                                </td>
-                                <td class="border px-4 py-2">
-                                    <div class="flex flex-wrap gap-2">
-                                        <NuxtLink :to="`/admin/users/${user.id}`" class="text-xs px-2 py-1 bg-blue-600 text-white hover:bg-blue-700 cursor-pointer font-bold shadow-md rounded-lg">
-                                            Edit
-                                        </NuxtLink>
-                                        <button @click="changeUserType(user.id, user.user_type)" class="text-xs px-2 py-1 bg-yellow-600 text-white hover:bg-yellow-700 cursor-pointer font-bold shadow-md rounded-lg">
-                                            {{ user.user_type === 'admin' ? 'Make Normal' : 'Make Admin' }}
-                                        </button>
-                                        <button @click="toggleEmailVerification(user.id)" class="text-xs px-2 py-1 bg-purple-600 text-white hover:bg-purple-700 cursor-pointer font-bold shadow-md rounded-lg">
-                                            {{ user.email_verified_at ? 'Unverify' : 'Verify' }}
-                                        </button>
-                                        <button @click="deleteUser(user.id)" class="text-xs px-2 py-1 bg-red-600 text-white hover:bg-red-700 cursor-pointer font-bold shadow-md rounded-lg">
-                                            Delete
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                    <div v-else class="text-center text-gray-500 text-4xl mt-20">
-                        No users found
+                <div class="bg-white shadow-md overflow-hidden rounded-lg ring-1 ring-gray-200 ring-inset">
+                    <div class="overflow-x-auto">
+                        <table v-if="users && users.length" class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User Type</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email Verified</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <tr v-for="user in users" :key="user.id" class="hover:bg-gray-50">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {{ user.id }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {{ user.first_name }} {{ user.last_name }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {{ user.email }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        <span :class="{'bg-red-100 text-red-800 px-2 py-1 rounded-lg text-xs font-medium': user.user_type === 'admin', 'bg-blue-100 text-blue-800 px-2 py-1 rounded-lg text-xs font-medium': user.user_type === 'normal'}">
+                                            {{ user.user_type.toUpperCase() }}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        <span :class="{'text-green-600 font-medium': user.email_verified_at, 'text-red-600 font-medium': !user.email_verified_at}">
+                                            {{ formatDate(user.email_verified_at) }}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                        <div class="flex justify-end gap-2">
+                                            <NuxtLink :to="`/admin/users/${user.id}`" class="text-blue-600 hover:text-blue-900 cursor-pointer" v-tippy="{ content: 'Edit' }">
+                                                <font-awesome icon="fas fa-edit" class="text-2xl" />
+                                            </NuxtLink>
+                                            <button @click="changeUserType(user.id, user.user_type)" class="text-yellow-600 hover:text-yellow-900 cursor-pointer" v-tippy="{ content: user.user_type === 'admin' ? 'Make Normal' : 'Make Admin' }">
+                                                <font-awesome icon="fas fa-user-shield" class="text-2xl" />
+                                            </button>
+                                            <button @click="toggleEmailVerification(user.id)" class="text-purple-600 hover:text-purple-900 cursor-pointer" v-tippy="{ content: user.email_verified_at ? 'Unverify Email' : 'Verify Email' }">
+                                                <font-awesome :icon="user.email_verified_at ? 'fas fa-envelope-open-text' : 'fas fa-envelope'" class="text-2xl" />
+                                            </button>
+                                            <button @click="deleteUser(user.id)" class="text-red-600 hover:text-red-900 cursor-pointer" v-tippy="{ content: 'Delete' }">
+                                                <font-awesome icon="fas fa-trash" class="text-2xl" />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div v-else class="text-center py-12">
+                            <font-awesome icon="fas fa-users" class="text-gray-400 text-6xl mb-4" />
+                            <p class="text-xl font-semibold text-gray-900">No users found</p>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -851,14 +851,14 @@ onMounted(async () => {
                 
                 <!-- Create button -->
                 <div 
-                    class="h-10 text-center items-center self-center p-2 font-bold shadow-md select-none transition-all duration-200"
+                    class="h-10 text-center items-center self-center p-2 font-bold shadow-md select-none transition-all duration-200 rounded-lg"
                     :class="{
                         'bg-primary-blue-100 hover:bg-primary-blue-200 cursor-pointer text-white': !buttonDisabled,
                         'bg-gray-300 cursor-not-allowed text-gray-500': buttonDisabled
                     }"
                     @click="!buttonDisabled && createDataSource()"
                 >
-                    Create PDF Data Source &amp; Upload PDF Files
+                    Create PDF Data Source &am;amp; Upload PDF Files
                 </div>
             </div>
         </div>

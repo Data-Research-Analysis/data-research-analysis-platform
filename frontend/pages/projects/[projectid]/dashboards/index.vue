@@ -133,11 +133,6 @@ async function deleteDashboard(dashboardId) {
                                     <div class="text-md font-bold">
                                         Dashboard {{ dashboard.id }}
                                     </div>
-                                    <div class="flex flex-row justify-between mt-4 mb-10">
-                                        <ul class="text-xs">
-                                            <li>Data Models</li>
-                                        </ul>
-                                    </div>
                                 </div>
                             </NuxtLink>
                         </template>

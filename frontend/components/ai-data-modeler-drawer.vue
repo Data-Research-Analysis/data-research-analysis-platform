@@ -405,7 +405,7 @@ function getOrderByColumns(): string[] {
                                             :key="model.title"
                                             @click="handlePresetModel(model.prompt)"
                                             :disabled="aiDataModelerStore.isLoading"
-                                            class="flex items-start gap-4 p-4 bg-white border-2 border-gray-200 hover:border-blue-400 hover:shadow-md transition-all duration-200 text-left disabled:opacity-50 disabled:cursor-not-allowed relative"
+                                            class="flex items-start gap-4 p-4 bg-white border-2 border-gray-200 hover:border-blue-400 hover:shadow-md transition-all duration-200 text-left disabled:opacity-50 disabled:cursor-not-allowed relative rounded-lg"
                                         >
                                             <!-- Confidence indicator for high-confidence matches -->
                                             <div 
@@ -436,7 +436,7 @@ function getOrderByColumns(): string[] {
                                         <button
                                             @click="handleGenerateAnotherRecommendation"
                                             :disabled="aiDataModelerStore.isLoading"
-                                            class="w-full flex items-center justify-center gap-3 p-4 bg-primary-blue-100 text-white border-0 hover:bg-primary-blue-300 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg font-medium cursor-pointer"
+                                            class="w-full flex items-center justify-center gap-3 p-4 bg-primary-blue-100 text-white border-0 hover:bg-primary-blue-300 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg font-medium cursor-pointer rounded-lg"
                                         >
                                             <font-awesome icon="fas fa-sync-alt" class="w-5 h-5" />
                                             <span>Generate Another AI Recommendation</span>
@@ -450,7 +450,7 @@ function getOrderByColumns(): string[] {
                                     </div>
 
                                     <!-- Info message -->
-                                    <div class="mt-6 p-4 bg-blue-50 border border-blue-100">
+                                    <div class="mt-6 p-4 bg-blue-50 border border-blue-100 rounded-lg">
                                         <div class="flex items-start gap-3">
                                             <font-awesome icon="fas fa-info-circle" class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                                             <div class="text-sm text-blue-800">
@@ -463,7 +463,7 @@ function getOrderByColumns(): string[] {
                             </div>
                             <!-- Model Status Display -->
                             <div v-if="showModelError" 
-                                class="mt-6 p-4 bg-yellow-50 border-2 border-yellow-300">
+                                class="mt-6 p-4 bg-yellow-50 border-2 border-yellow-300 rounded-lg">
                                 <div class="flex items-center gap-2 text-yellow-700 font-medium mb-2">
                                     <font-awesome icon="fas fa-exclamation-triangle" class="w-5 h-5" />
                                     <span>Model Parse Error</span>
@@ -477,7 +477,7 @@ function getOrderByColumns(): string[] {
                             </div>
                             <!-- Data Model Indicator -->
                             <div v-if="showModelSuccess" 
-                                class="mt-6 p-4 bg-blue-50 border-2 border-blue-200">
+                                class="mt-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
                                 <div class="flex items-center justify-between gap-2 text-blue-700 font-medium mb-2">
                                     <div class="flex items-center gap-2">
                                         <font-awesome icon="fas fa-certificate" class="w-5 h-5" />
@@ -499,7 +499,7 @@ function getOrderByColumns(): string[] {
                                     AI has generated a data model configuration. Review it above and click the button below to apply it to the builder.
                                 </p>                                    
                                 <!-- Model History Navigation -->
-                                <div v-if="aiDataModelerStore.modelHistory.length > 1" class="mb-3 p-2 bg-gray-50 border border-gray-200">
+                                <div v-if="aiDataModelerStore.modelHistory.length > 1" class="mb-3 p-2 bg-gray-50 border border-gray-200 rounded-lg">
                                     <div class="flex items-center justify-between gap-2">
                                         <div class="text-xs text-gray-600 flex items-center gap-2">
                                             <font-awesome icon="fas fa-history" class="w-4 h-4 text-gray-500" />
@@ -509,7 +509,7 @@ function getOrderByColumns(): string[] {
                                             <button
                                                 @click="aiDataModelerStore.goToPreviousModel()"
                                                 :disabled="!aiDataModelerStore.canGoBack()"
-                                                class="p-1 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                                class="p-1 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors rounded"
                                                 title="Previous model (Alt + ←)"
                                                 aria-label="Previous model"
                                             >
@@ -518,7 +518,7 @@ function getOrderByColumns(): string[] {
                                             <button
                                                 @click="aiDataModelerStore.goToNextModel()"
                                                 :disabled="!aiDataModelerStore.canGoForward()"
-                                                class="p-1 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                                class="p-1 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors rounded"
                                                 title="Next model (Alt + →)"
                                                 aria-label="Next model"
                                             >
@@ -528,9 +528,9 @@ function getOrderByColumns(): string[] {
                                     </div>
                                     <div class="text-[10px] text-gray-500 mt-1 flex items-center gap-1">
                                         <span>Use</span>
-                                        <kbd class="px-1 py-0.5 bg-white border border-gray-300 text-[9px] font-mono">Alt+←</kbd>
+                                        <kbd class="px-1 py-0.5 bg-white border border-gray-300 text-[9px] font-mono rounded">Alt+←</kbd>
                                         <span>/</span>
-                                        <kbd class="px-1 py-0.5 bg-white border border-gray-300 text-[9px] font-mono">Alt+→</kbd>
+                                        <kbd class="px-1 py-0.5 bg-white border border-gray-300 text-[9px] font-mono rounded">Alt+→</kbd>
                                         <span>to navigate</span>
                                     </div>
                                 </div>
@@ -542,11 +542,11 @@ function getOrderByColumns(): string[] {
                                     enter-from-class="max-h-0 opacity-0"
                                     leave-to-class="max-h-0 opacity-0"
                                 >
-                                    <div v-if="showModelPreview" class="mb-3 p-3 bg-white border border-blue-100 text-xs">
+                                    <div v-if="showModelPreview" class="mb-3 p-3 bg-white border border-blue-100 text-xs rounded-lg">
                                         <div class="grid grid-cols-2 gap-3">
                                             <div>
                                                 <div class="font-semibold text-gray-700 mb-1">Table</div>
-                                                <div class="text-gray-600 font-mono bg-gray-50 px-2 py-1">{{ getTablesList() }}</div>
+                                                <div class="text-gray-600 font-mono bg-gray-50 px-2 py-1 rounded">{{ getTablesList() }}</div>
                                             </div>
                                             <div>
                                                 <div class="font-semibold text-gray-700 mb-1">Column Count</div>
@@ -558,7 +558,7 @@ function getOrderByColumns(): string[] {
                                                     <span 
                                                         v-for="(columnName, index) in getColumnNames()" 
                                                         :key="index"
-                                                        class="inline-flex items-center px-2 py-1 bg-blue-50 text-blue-700 text-[11px] font-mono border border-blue-200"
+                                                        class="inline-flex items-center px-2 py-1 bg-blue-50 text-blue-700 text-[11px] font-mono border border-blue-200 rounded"
                                                     >
                                                         {{ columnName }}
                                                     </span>
@@ -591,7 +591,7 @@ function getOrderByColumns(): string[] {
                                 <button
                                     @click="handleApplyModel"
                                     :disabled="isApplyingModel"
-                                    class="w-full px-4 py-2.5 border-0 text-sm font-medium cursor-pointer transition-all duration-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                    class="w-full px-4 py-2.5 border-0 text-sm font-medium cursor-pointer transition-all duration-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 rounded-lg"
                                     :class="{
                                         'bg-blue-600 text-white hover:bg-blue-700': buttonState === 'normal',
                                         'bg-blue-600 text-white opacity-70': buttonState === 'loading',

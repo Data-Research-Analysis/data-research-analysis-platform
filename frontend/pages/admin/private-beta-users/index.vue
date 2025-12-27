@@ -107,65 +107,72 @@ onMounted(() => {
                         List Private Beta Users
                     </div>
                 </div>
-                <div class="mt-3 rounded-lg overflow-hidden ring-1 ring-black ring-opacity-5 ring-inset">
-                    <table v-if="privateBetaUsers && privateBetaUsers.length" class="w-full table-auto table-striped">
-                        <thead>
-                            <tr class="h-10 bg-primary-blue-100 border border-solid">
-                                <th class="px-4 py-2 border border-solid border-black text-white">ID</th>
-                                <th class="px-4 py-2 border border-solid border-black text-white">Full Name</th>
-                                <th class="px-4 py-2 border border-solid border-black text-white">Business Email</th>
-                                <th class="px-4 py-2 border border-solid border-black text-white">Phone Number</th>
-                                <th class="px-4 py-2 border border-solid border-black text-white">Company</th>
-                                <th class="px-4 py-2 border border-solid border-black text-white">Country</th>
-                                <th class="px-4 py-2 border border-solid border-black text-white">Added On</th>
-                                <th class="px-4 py-2 border border-solid border-black text-white">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="user in privateBetaUsers" 
-                                :key="user.id"
-                                :class="{ 'bg-gray-50': user.is_converted }">
-                                <td class="border px-4 py-2 text-center">
-                                    {{ user.id }}
-                                </td>
-                                <td class="border px-4 py-2">
-                                    {{ user.first_name }} {{ user.last_name }}
-                                </td>
-                                <td class="border px-4 py-2">
-                                    {{ user.business_email }}
-                                </td>
-                                <td class="border px-4 py-2">
-                                    {{ user.phone_number }}
-                                </td>
-                                <td class="border px-4 py-2">
-                                    {{ user.company_name }}
-                                </td>
-                                <td class="border px-4 py-2">
-                                    {{ user.country }}
-                                </td>
-                                <td class="border px-4 py-2">
-                                    {{ user.created_at }}
-                                </td>
-                                <td class="border px-4 py-2 text-center">
-                                    <button 
-                                        @click="convertBetaUserToUser(user)"
-                                        :disabled="state.convertingUsers.has(user.id) || user.is_converted"
-                                        :class="[
-                                            'text-sm px-3 py-1 font-bold shadow-md rounded-lg disabled:opacity-50 disabled:cursor-not-allowed',
-                                            user.is_converted ? 'bg-gray-400 text-white' : 'bg-green-600 text-white hover:bg-green-700 cursor-pointer'
-                                        ]"
-                                        :title="user.is_converted 
-                                            ? 'This user has already been converted' 
-                                            : 'Convert this beta user to a full platform user'"
-                                    >
-                                        {{ getButtonText(user) }}
-                                    </button>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                    <div v-else class="text-center text-gray-500 text-4xl mt-20">
-                        No Private Beta Users found
+                <div class="bg-white shadow-md overflow-hidden rounded-lg ring-1 ring-gray-200 ring-inset">
+                    <div class="overflow-x-auto">
+                        <table v-if="privateBetaUsers && privateBetaUsers.length" class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Full Name</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Business Email</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone Number</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Country</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Added On</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <tr v-for="user in privateBetaUsers" 
+                                    :key="user.id"
+                                    :class="{ 'bg-gray-100': user.is_converted, 'hover:bg-gray-50': !user.is_converted }">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {{ user.id }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {{ user.first_name }} {{ user.last_name }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {{ user.business_email }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {{ user.phone_number }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {{ user.company_name }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {{ user.country }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {{ user.created_at }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                        <button 
+                                           @click="convertBetaUserToUser(user)"
+                                            :disabled="state.convertingUsers.has(user.id) || user.is_converted"
+                                            :class="[
+                                                'inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg shadow-sm transition-colors',
+                                                user.is_converted 
+                                                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed' 
+                                                    : 'bg-green-600 text-white hover:bg-green-700 cursor-pointer'
+                                            ]"
+                                            :title="user.is_converted 
+                                                ? 'This user has already been converted' 
+                                                : 'Convert this beta user to a full platform user'"
+                                        >
+                                            <font-awesome v-if="!user.is_converted" icon="fas fa-user-plus" class="mr-1 text-2xl" />
+                                            <font-awesome v-else icon="fas fa-check-circle" class="mr-1 text-2xl" />
+                                            {{ getButtonText(user) }}
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div v-else class="text-center py-12">
+                            <font-awesome icon="fas fa-users" class="text-gray-400 text-6xl mb-4" />
+                            <p class="text-xl font-semibold text-gray-900">No Private Beta Users found</p>
+                        </div>
                     </div>
                 </div>
             </div>

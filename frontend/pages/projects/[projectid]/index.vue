@@ -443,8 +443,13 @@ onMounted(() => {
                                     class="hover:text-gray-500 cursor-pointer flex-grow"
                                     @click="setSelectedDataSource(dataSource.id)">
                                     <div class="flex flex-col justify-start h-full">
-                                        <div class="text-md font-bold mb-2">
-                                            {{ dataSource.name }}
+                                        <div class="mb-2">
+                                            <div class="text-md font-bold mb-2">
+                                                {{ dataSource.name }}
+                                            </div>
+                                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                {{ dataSource.dataModels }} Models
+                                            </span>
                                         </div>
 
                                         <!-- Google Analytics, Google Ad Manager & Google Ads sync status -->
