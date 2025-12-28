@@ -33,7 +33,7 @@ export class RedisAISessionService {
     private redis = getRedisClient();
 
     // Key generators
-    private getConversationKey(dataSourceId: number, userId: number): string {
+    public getConversationKey(dataSourceId: number, userId: number): string {
         return `conversation:${dataSourceId}:${userId}`;
     }
 

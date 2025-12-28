@@ -7,8 +7,8 @@ import { MigrationInterface, QueryRunner } from "typeorm";
  * before the hash-based naming system was implemented. It scans existing
  * Excel, PDF, and Google service tables and generates appropriate metadata.
  */
-export class BackfillTableMetadata1703552400000 implements MigrationInterface {
-    name = 'BackfillTableMetadata1703552400000'
+export class BackfillTableMetadata1766686000000 implements MigrationInterface {
+    name = 'BackfillTableMetadata1766686000000'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         console.log('🔄 Starting backfill of table metadata for existing tables...');
