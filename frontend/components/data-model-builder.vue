@@ -437,7 +437,22 @@ watch(() => aiDataModelerStore.applyTrigger, (newValue, oldValue) => {
     }
 });
 
+function isSQLExpression(value) {
+    // Detect common SQL expression patterns that should NOT be quoted
+    const sqlKeywords = /\b(current_date|current_timestamp|now\(\)|interval|extract|date_trunc|case|when|null)\b/i;
+    const hasOperators = /[\+\-\*\/]|::|\binterval\b/i;
+    const hasFunctions = /\w+\(/;
+    const hasColumnReference = /\w+\.\w+\.\w+/; // schema.table.column
+    
+    return sqlKeywords.test(value) || hasOperators.test(value) || hasFunctions.test(value) || hasColumnReference.test(value);
+}
+
 function getColumValue(value, dataType) {
+    // Check if value is a SQL expression (not a literal string)
+    if (isSQLExpression(value)) {
+        return value;  // Don't quote SQL expressions
+    }
+    
     if (getDataType(dataType) === 'NUMBER' || getDataType(dataType) === 'BOOLEAN') {
         return `${value}`;
     } else if (getDataType(dataType) === 'TEXT') {
@@ -2127,7 +2142,7 @@ function buildSQLQuery() {
     sqlQuery += ` ${fromJoinClause.join(' ')}`;
 
     //determining whether to save the value with single quotes or not depending on the data type of the column
-    state.data_table.query_options.where.forEach((clause) => {
+    state.data_table.query_options.where.forEach((clause, index) => {
         if (clause.column !== '' && clause.equality !== '' && clause.value !== '') {
             const operator = state.equality[clause.equality];
             let value;
@@ -2138,11 +2153,16 @@ function buildSQLQuery() {
                 value = getColumValue(clause.value, clause.column_data_type);
             }
 
-            if (clause.condition === '') {
-                //first WHERE clause
+            if (index === 0) {
+                //first WHERE clause - use WHERE keyword
                 sqlQuery += ` WHERE ${clause.column} ${operator} ${value}`;
             } else {
-                sqlQuery += ` ${state.condition[clause.condition]} ${clause.column} ${operator} ${value}`;
+                //subsequent WHERE clauses - use AND/OR from condition
+                // Safety check: if condition is empty/undefined, default to AND
+                const connector = clause.condition !== '' && clause.condition !== null && clause.condition !== undefined
+                    ? state.condition[clause.condition]
+                    : 'AND';
+                sqlQuery += ` ${connector} ${clause.column} ${operator} ${value}`;
             }
         }
     });
@@ -2162,14 +2182,19 @@ function buildSQLQuery() {
             });
 
         sqlQuery += ` GROUP BY ${groupByColumns.join(', ')}`;
-        state?.data_table?.query_options?.group_by?.having_conditions?.forEach((clause) => {
+        state?.data_table?.query_options?.group_by?.having_conditions?.forEach((clause, index) => {
             let value = getColumValue(clause.value, clause.column_data_type);
             if (clause.column !== '' && clause.equality !== '' && clause.value !== '') {
-                if (clause.condition === '') {
-                    //first HAVING clause
+                if (index === 0) {
+                    //first HAVING clause - use HAVING keyword
                     sqlQuery += ` HAVING ${clause.column} ${state.equality[clause.equality]} ${value}`;
                 } else {
-                    sqlQuery += ` ${state.condition[clause.condition]} ${clause.column} ${state.equality[clause.equality]} ${value}`;
+                    //subsequent HAVING clauses - use AND/OR from condition
+                    // Safety check: if condition is empty/undefined, default to AND
+                    const connector = clause.condition !== '' && clause.condition !== null && clause.condition !== undefined
+                        ? state.condition[clause.condition]
+                        : 'AND';
+                    sqlQuery += ` ${connector} ${clause.column} ${state.equality[clause.equality]} ${value}`;
                 }
             }
         });
@@ -3063,6 +3088,24 @@ function validateAndTransformAIModel(aiModel) {
             aiModel.query_options.offset = typeof aiModel.query_options.offset === 'number' ? aiModel.query_options.offset : -1;
             aiModel.query_options.limit = typeof aiModel.query_options.limit === 'number' ? aiModel.query_options.limit : -1;
 
+            // Populate column_data_type for WHERE conditions from columns array
+            if (aiModel.query_options.where.length > 0) {
+                aiModel.query_options.where.forEach(whereClause => {
+                    if (!whereClause.column_data_type && whereClause.column) {
+                        // Look up column data type from columns array
+                        const column = aiModel.columns.find(col => 
+                            `${col.schema}.${col.table_name}.${col.column_name}` === whereClause.column
+                        );
+                        if (column) {
+                            whereClause.column_data_type = column.data_type;
+                            console.log(`[Data Model Builder] Populated column_data_type for WHERE clause: ${whereClause.column} -> ${column.data_type}`);
+                        } else {
+                            console.warn(`[Data Model Builder] Could not find column definition for WHERE clause: ${whereClause.column}`);
+                        }
+                    }
+                });
+            }
+
             // CRITICAL: If group_by has aggregate_functions or aggregate_expressions, set the name flag
             // This flag is required for the UI to show the GROUP BY section
             if (aiModel.query_options.group_by &&
@@ -3117,6 +3160,34 @@ function validateAndTransformAIModel(aiModel) {
                     const afterCount = aiModel.query_options.group_by.group_by_columns.length;
                     console.log(`[Data Model Builder] Filtered GROUP BY columns: ${beforeCount} → ${afterCount}`);
                     console.log('[Data Model Builder] Remaining GROUP BY columns:', aiModel.query_options.group_by.group_by_columns);
+                }
+                
+                // Populate column_data_type for HAVING conditions
+                // HAVING conditions reference aggregate functions, so use NUMERIC type
+                if (aiModel.query_options.group_by.having_conditions?.length > 0) {
+                    aiModel.query_options.group_by.having_conditions.forEach(havingClause => {
+                        if (!havingClause.column_data_type && havingClause.column) {
+                            // Check if it's an aggregate function alias
+                            const aggFunc = aiModel.query_options.group_by.aggregate_functions?.find(af => 
+                                af.column_alias_name === havingClause.column
+                            );
+                            
+                            if (aggFunc) {
+                                // Aggregate functions typically return numeric values
+                                havingClause.column_data_type = 'numeric';
+                                console.log(`[Data Model Builder] Populated column_data_type for HAVING clause (aggregate): ${havingClause.column} -> numeric`);
+                            } else {
+                                // Try to find in base columns
+                                const column = aiModel.columns.find(col => 
+                                    `${col.schema}.${col.table_name}.${col.column_name}` === havingClause.column
+                                );
+                                if (column) {
+                                    havingClause.column_data_type = column.data_type;
+                                    console.log(`[Data Model Builder] Populated column_data_type for HAVING clause: ${havingClause.column} -> ${column.data_type}`);
+                                }
+                            }
+                        }
+                    });
                 }
             }
         }
