@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import { AI_DATA_MODELER_SYSTEM_PROMPT } from '../constants/system-prompts.js';
+import { AI_DATA_MODELER_TEMPLATE_PROMPT, AI_DATA_MODELER_CHAT_PROMPT } from '../constants/system-prompts.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -31,19 +31,26 @@ export class GeminiService {
 
     /**
      * Initialize a new conversation with schema context
+     * @param conversationId Unique identifier for the conversation
+     * @param schemaContext Database schema in markdown format
+     * @param systemPrompt Optional system prompt (defaults to template prompt)
      */
-    async initializeConversation(conversationId: string, schemaContext: string): Promise<string> {
+    async initializeConversation(
+        conversationId: string, 
+        schemaContext: string,
+        systemPrompt: string = AI_DATA_MODELER_CHAT_PROMPT  // Default to chat mode for conversational guidance
+    ): Promise<string> {
         try {
             // Create conversation history with system context
             const history = [
                 {
                     role: 'user',
-                    parts: [{ text: `System instruction: ${AI_DATA_MODELER_SYSTEM_PROMPT}\n\nHere is the database schema to analyze:\n\n${schemaContext}` }]
+                    parts: [{ text: `System instruction: ${systemPrompt}\n\nHere is the database schema to analyze:\n\n${schemaContext}` }]
                 },
                 {
                     role: 'model',
                     parts: [{
-                        text: 'I have received and analyzed the database schema. I\'m ready to help you transform this transactional schema into high-performance analytical models. I will structure my responses following the three-section format:\n\n1. Structural Analysis & Integrity Check\n2. Recommended Analytical Data Models\n3. SQL Implementation Strategy\n\nWhat would you like me to analyze or help you with?'
+                        text: 'I have received and analyzed the database schema. I\'m ready to help you create data models. What would you like me to help you with?'
                     }]
                 }
             ];
