@@ -144,19 +144,19 @@ async function saveAsDraft() {
             class="w-1/6"
         />
         <div class="w-5/6">
-            <div class="min-h-100 flex flex-col ml-4 mr-4 mb-10 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md">
+            <div class="min-h-100 flex flex-col ml-4 mr-4 mb-10 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md rounded-xl">
                 <div class="flex flex-row">
                     <div class="font-bold text-2xl mb-5">
                         Create New Blog Article
                     </div>
                     <div
-                        class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md"
+                        class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md rounded-lg"
                         @click="saveAsDraft"
                     >
                         Save As Draft
                     </div>
                     <div
-                        class="w-18 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md"
+                        class="w-18 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md rounded-lg"
                         @click="publishArticle"
                     >
                         Publish
@@ -166,7 +166,7 @@ async function saveAsDraft() {
                     <input 
                         v-model="state.title"
                         type="text"
-                        class="w-full p-2 border border-gray-300 mb-3"
+                        class="w-full p-2 border border-gray-300 mb-3 rounded-lg"
                         placeholder="Article Title"
                     />
                 </div>

@@ -115,7 +115,7 @@ async function unpublishArticle(articleId) {
                         <font-awesome icon="fas fa-exclamation-triangle" class="text-5xl text-red-500 mb-4" />
                         <p class="text-red-600 font-semibold mb-2">Error loading articles</p>
                         <p class="text-gray-600 text-sm">{{ error.message }}</p>
-                        <button @click="refresh()" class="mt-4 px-4 py-2 bg-primary-blue-500 text-white hover:bg-primary-blue-600">
+                        <button @click="refresh()" class="mt-4 px-4 py-2 bg-primary-blue-500 text-white hover:bg-primary-blue-600 rounded-lg">
                             Try Again
                         </button>
                     </div>
@@ -123,63 +123,77 @@ async function unpublishArticle(articleId) {
             </div>
             
             <!-- Articles Content -->
-            <div v-else class="min-h-100 flex flex-col ml-4 mr-4 mb-10 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md">
+            <div v-else class="min-h-100 flex flex-col ml-4 mr-4 mb-10 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md rounded-xl">
                 <div class="flex flex-row">
                     <div class="font-bold text-2xl mb-5">
                         List Articles
                     </div>
                     <NuxtLink
-                        class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md"
+                        class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md rounded-lg"
                         to="/admin/articles/create"
                     >
                         Add Article
                     </NuxtLink>
                 </div>
-                <div class="mt-3">
-                    <table v-if="articles && articles.length" class="w-full table-auto table-striped">
-                        <thead>
-                            <tr class="h-10 bg-primary-blue-100 border border-solid">
-                                <th class="px-4 py-2 border border-solid border-black text-white">ID</th>
-                                <th class="px-4 py-2 border border-solid border-black text-white">Title</th>
-                                <th class="px-4 py-2 border border-solid border-black text-white">Publish Status</th>
-                                <th class="px-4 py-2 border border-solid border-black text-white">Categories</th>
-                                <th class="px-4 py-2 border border-solid border-black text-white">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="article in articles" :key="article.id">
-                                <td class="border px-4 py-2 text-center">
-                                    {{ article.article.id }}
-                                </td>
-                                <td class="border px-4 py-2">
-                                    {{ article.article.title }}
-                                </td>
-                                <td class="border px-4 py-2 text-center font-bold">
-                                    <span :class="{'bg-green-300 p-2': article.article.publish_status === 'published', 'bg-yellow-300 p-2': article.article.publish_status === 'draft'}">{{ article.article.publish_status.toUpperCase() }}</span>
-                                </td>
-                                <td class="border px-4 py-2">
-                                    <div v-if="article.categories && article.categories.length" class="flex flex-wrap">
-                                        <span v-for="category in article.categories" :key="category.id" class="bg-gray-200 text-gray-700 text-center px-2 py-1 mr-2 mb-2">
-                                            {{ category.title }}
+                <div class="bg-white shadow-md overflow-hidden rounded-lg ring-1 ring-gray-200 ring-inset">
+                    <div class="overflow-x-auto">
+                        <table v-if="articles && articles.length" class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categories</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <tr v-for="article in articles" :key="article.id" class="hover:bg-gray-50">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {{ article.article.id }}
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-gray-900">
+                                        {{ article.article.title }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        <span :class="{
+                                            'bg-green-100 text-green-800 px-2 py-1 rounded-lg text-xs font-medium': article.article.publish_status === 'published', 
+                                            'bg-yellow-100 text-yellow-800 px-2 py-1 rounded-lg text-xs font-medium': article.article.publish_status === 'draft'
+                                        }">
+                                            {{ article.article.publish_status.toUpperCase() }}
                                         </span>
-                                    </div>
-                                    <div v-else class="text-gray-500">No categories assigned</div>
-                                </td>
-                                <td class="border px-4 py-2">
-                                    <div class="flex flex-row justify-center">
-                                        <button v-if="article.article.publish_status === 'draft'" @click="publishArticle(article.article.id)" class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-green-600 text-white hover:bg-green-700 cursor-pointer font-bold shadow-md">Publish Article</button>
-                                        <button v-if="article.article.publish_status === 'published'" @click="unpublishArticle(article.article.id)" class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-orange-600 text-white hover:bg-orange-700 cursor-pointer font-bold shadow-md">Unpublish Article</button>
-                                        <NuxtLink :to="`/admin/articles/${article.article.id}`" class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md">
-                                            Edit
-                                        </NuxtLink>
-                                        <button @click="deleteArticle(article.article.id)" class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-red-600 text-white hover:bg-red-700 cursor-pointer font-bold shadow-md">Delete</button>
-                                    </div>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                    <div v-else class="text-center text-gray-500 text-4xl mt-20">
-                        No articles found
+                                    </td>
+                                    <td class="px-6 py-4 text-sm">
+                                        <div v-if="article.categories && article.categories.length" class="flex flex-wrap gap-1">
+                                            <span v-for="category in article.categories" :key="category.id" class="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs">
+                                                {{ category.title }}
+                                            </span>
+                                        </div>
+                                        <div v-else class="text-gray-400 text-xs">No categories</div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                        <div class="flex justify-end gap-2">
+                                            <button v-if="article.article.publish_status === 'draft'" @click="publishArticle(article.article.id)" class="text-green-600 hover:text-green-900 cursor-pointer" v-tippy="{ content: 'Publish' }">
+                                                <font-awesome icon="fas fa-paper-plane" class="text-2xl" />
+                                            </button>
+                                            <button v-if="article.article.publish_status === 'published'" @click="unpublishArticle(article.article.id)" class="text-orange-600 hover:text-orange-900 cursor-pointer" v-tippy="{ content: 'Unpublish' }">
+                                                <font-awesome icon="fas fa-file-archive" class="text-2xl" />
+                                            </button>
+                                            <NuxtLink :to="`/admin/articles/${article.article.id}`" class="text-blue-600 hover:text-blue-900 cursor-pointer" v-tippy="{ content: 'Edit' }">
+                                                <font-awesome icon="fas fa-edit" class="text-2xl" />
+                                            </NuxtLink>
+                                            <button @click="deleteArticle(article.article.id)" class="text-red-600 hover:text-red-900 cursor-pointer" v-tippy="{ content: 'Delete' }">
+                                                <font-awesome icon="fas fa-trash" class="text-2xl" />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div v-else class="text-center py-12">
+                            <font-awesome icon="fas fa-newspaper" class="text-gray-400 text-6xl mb-4" />
+                            <p class="text-xl font-semibold text-gray-900">No articles found</p>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -97,7 +97,7 @@ onMounted(async () => {
         <input
           id="text-input"
           v-model="state.value"
-          class="w-full text-left text-md flex flex-row justify-between border-1 border-gray-300 p-2 cursor-pointer"
+          class="w-full text-left text-md flex flex-row justify-between border-1 border-gray-300 p-2 cursor-pointer rounded-t-lg"
           :placeholder="placeholder"
           @click="toggleFilter"
         />
@@ -112,12 +112,12 @@ onMounted(async () => {
         </span>
       </div>
       <div
-        class="input-filter w-full text-left font-bold text-md grid gap-4 grid-cols-5 grid-rows-1 border-1 border-gray-300 p-2 min-h-[50px] cursor-pointer"
+        class="input-filter w-full text-left font-bold text-md grid gap-4 grid-cols-5 grid-rows-1 border-1 border-gray-300 p-2 min-h-[50px] cursor-pointer rounded-b-md"
       >
         <div
           v-for="item in state.selectedFilterItemsObjects"
           :key="item.key"
-          class="input-filter flex flex-row justify-between bg-primary-blue-200 text-white text-base p-1 ml-2"
+          class="input-filter flex flex-row justify-between bg-primary-blue-200 text-white text-base p-1 ml-2 rounded"
         >
           <span class="text-white flex flex-col justify-center">
             {{ item.label }}
@@ -136,11 +136,12 @@ onMounted(async () => {
         class="w-full text-left text-md cursor-pointer bg-white"
       >
         <div
-          v-for="option in filteredOptions"
+          v-for="(option, index) in filteredOptions"
           :key="option.key"
           class="input-filter-options-value w-full text-left text-md rounded-none border-1 border-gray-300 p-2 cursor-pointer hover:bg-blue-100"
           :class="{
             'bg-red-100': state.selectedFilterItems.includes(option.label),
+            'rounded-b-md': index === filteredOptions.length - 1,
           }"
           @click="selectOption(option)"
         >

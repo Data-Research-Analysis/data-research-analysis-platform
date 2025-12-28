@@ -131,50 +131,54 @@ async function deleteCategory(categoryId) {
             class="w-1/6"
         />
         <div class="w-5/6">
-            <div class="min-h-100 flex flex-col ml-4 mr-4 mb-10 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md">
+            <div class="min-h-100 flex flex-col ml-4 mr-4 mb-10 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md rounded-xl">
                 <div class="flex flex-row">
                     <div class="font-bold text-2xl mb-5">
                         List Categories
                     </div>
                     <div
-                        class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md"
+                        class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md rounded-lg"
                         @click="addCategory"
                     >
                         Add Category
                     </div>
                 </div>
-                <div class="mt-3">
-                    <table class="w-full table-auto table-striped">
-                        <thead>
-                            <tr class="h-10 bg-primary-blue-100 border border-solid">
-                                <th class="px-4 py-2 border border-solid border-black text-white">ID</th>
-                                <th class="px-4 py-2 border border-solid border-black text-white">Title</th>
-                                <th class="px-4 py-2 boder border-solid border-black text-white">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="category in categories" :key="category.id">
-                                <td class="border px-4 py-2 text-center">
-                                    {{ category.id }}
-                                </td>
-                                <td class="border px-4 py-2">
-                                    <input v-if="state.is_editing && state.category_id_editing === category.id" type="text" v-model="state.category_title_editing" class="text-left outline p-1" />
-                                    <span v-else>{{ category.title }}</span>
-                                </td>
-                                <td class="border px-4 py-2">
-                                    <div class="flex flex-row justify-center">
-                                        <button v-if="state.is_editing && state.category_id_editing === category.id" @click="submitEditingChanges" class="w-36 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md">
-                                            Submit Changes
-                                        </button>
-                                        <button v-else @click="beginEditCategory(category.id)" class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md">
-                                            Edit
-                                        </button>
-                                        <button @click="deleteCategory(category.id)" class="w-28 text-center self-center text-sm p-1 ml-2 mb-4 bg-red-600 text-white hover:bg-red-700 cursor-pointer font-bold shadow-md">Delete</button>
-                                    </div>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <div class="bg-white shadow-md overflow-hidden rounded-lg ring-1 ring-gray-200 ring-inset">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <tr v-for="category in categories" :key="category.id" class="hover:bg-gray-50">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {{ category.id }}
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-gray-900">
+                                        <input v-if="state.is_editing && state.category_id_editing === category.id" type="text" v-model="state.category_title_editing" class="px-3 py-1 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-primary-blue-100" />
+                                        <span v-else>{{ category.title }}</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                        <div class="flex justify-end gap-2">
+                                            <button v-if="state.is_editing && state.category_id_editing === category.id" @click="submitEditingChanges" class="text-green-600 hover:text-green-900 cursor-pointer" v-tippy="{ content: 'Save' }">
+                                                <font-awesome icon="fas fa-check" class="text-2xl" />
+                                            </button>
+                                            <button v-else @click="beginEditCategory(category.id)" class="text-blue-600 hover:text-blue-900 cursor-pointer" v-tippy="{ content: 'Edit' }">
+                                                <font-awesome icon="fas fa-edit" class="text-2xl" />
+                                            </button>
+                                            <button @click="deleteCategory(category.id)" class="text-red-600 hover:text-red-900 cursor-pointer" v-tippy="{ content: 'Delete' }">
+                                                <font-awesome icon="fas fa-trash" class="text-2xl" />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>

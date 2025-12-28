@@ -2616,6 +2616,12 @@ async function applyAIGeneratedModel(model) {
 
             // Now apply the new model - use Object.assign to maintain reactivity
             Object.assign(state.data_table, transformedModel);
+            
+            // Preserve table_display_name if provided by AI
+            if (modelToApply.table_display_name) {
+                state.data_table.table_display_name = modelToApply.table_display_name;
+                console.log('[applyAIGeneratedModel] Preserved display name:', modelToApply.table_display_name);
+            }
 
             // Initialize join_conditions and table_aliases arrays if not present
             if (!state.data_table.join_conditions) {
@@ -3270,13 +3276,13 @@ onMounted(async () => {
 </script>
 <template>
     <div
-        class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 border border-primary-blue-100 border-solid p-10 shadow-md">
+        class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 border border-primary-blue-100 border-solid p-10 shadow-md rounded-lg">
         <div class="flex flex-row justify-between items-center mb-5">
             <div class="font-bold text-2xl">
                 Create A Data Model from the Connected Data Source(s)
             </div>
             <button v-if="(props.dataSource && props.dataSource.id) || (props.isCrossSource && props.projectId)" @click="openAIDataModeler"
-                class="flex items-center gap-2 px-4 py-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 transition-colors duration-200 font-medium shadow-md cursor-pointer">
+                class="flex items-center gap-2 px-4 py-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 transition-colors duration-200 font-medium shadow-md cursor-pointer rounded-lg">
                 <font-awesome icon="fas fa-wand-magic-sparkles" class="w-5 h-5" />
                 Build with AI
             </button>
@@ -3308,16 +3314,17 @@ onMounted(async () => {
         <div v-if="state.response_from_external_data_source_columns && state.response_from_external_data_source_columns.length"
             class="flex flex-col overflow-auto">
             <h3 class="font-bold text-left mb-5">Response From External Data Source</h3>
-            <table class="w-full border border-primary-blue-100 border-solid">
+            <div class="rounded-lg overflow-hidden ring-1 ring-primary-blue-100 ring-inset mb-2">
+                <table class="w-full">
                 <thead>
                     <tr>
                         <th v-for="column in state.response_from_external_data_source_columns"
-                            class="bg-blue-100 border border-primary-blue-100 border-solid p-2 text-center font-bold ">
+                            class="bg-blue-100 border border-primary-blue-100 border-solid p-2 text-center font-bold rounded-tl-lg">
                             {{ column }}
                         </th>
                     </tr>
                     <tr v-for="row in state.response_from_external_data_source_rows"
-                        class="border border-primary-blue-100 border-solid p-2 text-center font-bold">
+                        class="border border-primary-blue-100 border-solid p-2 text-center font-bold rounded-tr-lg">
                         <td v-for="column in state.response_from_external_data_source_columns"
                             class="border border-primary-blue-100 border-solid p-2 text-center">
                             {{ row[column] }}
@@ -3325,6 +3332,7 @@ onMounted(async () => {
                     </tr>
                 </thead>
             </table>
+            </div>
             <div class="w-full h-1 bg-blue-300 mt-5 mb-5"></div>
         </div>
 
@@ -3332,7 +3340,7 @@ onMounted(async () => {
         <div class="flex justify-end mb-4">
             <div class="inline-flex shadow-sm" role="group">
                 <button type="button" @click="state.viewMode = 'simple'" :class="[
-                    'cursor-pointer px-4 py-2 text-sm font-medium transition-all duration-200 border border-2 border-solid border-gray-200',
+                    'cursor-pointer px-4 py-2 text-sm font-medium transition-all duration-200 border border-2 border-solid border-gray-200 rounded-tl-lg',
                     state.viewMode === 'simple'
                         ? 'bg-blue-600 text-white border-blue-600'
                         : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
@@ -3340,7 +3348,7 @@ onMounted(async () => {
                     Simple View
                 </button>
                 <button type="button" @click="state.viewMode = 'advanced'" :class="[
-                    'cursor-pointer px-4 py-2 text-sm font-medium transition-all duration-200 border border-2 border-solid border-gray-200',
+                    'cursor-pointer px-4 py-2 text-sm font-medium transition-all duration-200 border border-2 border-solid border-gray-200 rounded-tr-lg',
                     state.viewMode === 'advanced'
                         ? 'bg-blue-600 text-white border-blue-600'
                         : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
@@ -3353,7 +3361,7 @@ onMounted(async () => {
         <div class="flex flex-row m-10">
             <div class="w-1/2 flex flex-col pr-5 mr-5 border-r-2 border-primary-blue-100">
                 <!-- Table Alias Manager -->
-                <div v-if="state.viewMode === 'advanced'" class="mb-6 p-4 border-2 border-blue-200 bg-blue-50">
+                <div v-if="state.viewMode === 'advanced'" class="mb-6 p-4 border-2 border-blue-200 bg-blue-50 rounded-lg">
                     <h3 class="font-bold mb-3 flex items-center text-blue-800">
                         <font-awesome icon="fas fa-layer-group" class="mr-2" />
                         Table Aliases (For Self-Referencing Relationships)
@@ -3369,7 +3377,7 @@ onMounted(async () => {
 
                     <div v-else class="mb-3 space-y-2">
                         <div v-for="(alias, index) in state.table_aliases" :key="index"
-                            class="flex items-center justify-between bg-white p-3 border border-blue-300">
+                            class="flex items-center justify-between bg-white p-3 border border-blue-300 rounded-lg">
                             <div class="flex flex-col">
                                 <span class="font-medium text-sm">
                                     {{ alias.schema }}.{{ alias.original_table }}
@@ -3381,14 +3389,14 @@ onMounted(async () => {
                                 </span>
                             </div>
                             <button @click="removeTableAlias(index)"
-                                class="bg-red-500 text-white px-3 py-1 text-sm hover:bg-red-600 transition-colors cursor-pointer">
+                                class="bg-red-500 text-white px-3 py-1 text-sm hover:bg-red-600 transition-colors cursor-pointer rounded-lg">
                                 Remove
                             </button>
                         </div>
                     </div>
 
                     <button @click="openAliasDialog()"
-                        class="bg-blue-600 text-white px-4 py-2 hover:bg-blue-700 transition-colors flex items-center gap-2 cursor-pointer">
+                        class="bg-blue-600 text-white px-4 py-2 hover:bg-blue-700 transition-colors flex items-center gap-2 cursor-pointer rounded-lg">
                         <font-awesome icon="fas fa-plus" />
                         Add Table Alias
                     </button>
@@ -3396,7 +3404,7 @@ onMounted(async () => {
 
                 <!-- JOIN Conditions Manager -->
                 <div v-if="state.viewMode === 'advanced' && hasMultipleTables()"
-                    class="mb-6 p-4 border-2 border-green-200 bg-green-50">
+                    class="mb-6 p-4 border-2 border-green-200 bg-green-50 rounded-lg">
                     <h3 class="font-bold mb-3 flex items-center text-green-800">
                         <font-awesome icon="fas fa-link" class="mr-2" />
                         JOIN Conditions
@@ -3438,7 +3446,7 @@ onMounted(async () => {
                                 <div class="flex items-start justify-between mb-3">
                                     <div class="flex-1">
                                         <div class="flex items-center mb-2">
-                                            <span class="px-2 py-1 text-xs font-bold mr-2" :class="join.join_type === 'INNER' ? 'bg-blue-200 text-blue-800' :
+                                            <span class="px-2 py-1 text-xs font-bold mr-2 rounded-lg" :class="join.join_type === 'INNER' ? 'bg-blue-200 text-blue-800' :
                                                 join.join_type === 'LEFT' ? 'bg-yellow-200 text-yellow-800' :
                                                     join.join_type === 'RIGHT' ? 'bg-orange-200 text-orange-800' :
                                                         'bg-purple-200 text-purple-800'">
@@ -3452,14 +3460,14 @@ onMounted(async () => {
                                         </div>
 
                                         <div
-                                            class="font-mono text-sm bg-gray-100 p-2 border border-gray-300 flex items-center wrap-anywhere">
+                                            class="font-mono text-sm bg-gray-100 p-2 border border-gray-300 flex items-center wrap-anywhere rounded">
                                             <span class="font-semibold text-blue-700">
                                                 {{ join.left_table_schema }}.{{ join.left_table_alias ||
                                                     join.left_table_name }}.{{ join.left_column_name }}
                                             </span>
                                             <select :value="join.primary_operator || '='"
                                                 @change="updateJoinOperator(joinIndex, $event.target.value)"
-                                                class="mx-2 px-2 py-1 border border-gray-400 rounded text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
+                                                class="mx-2 px-2 py-1 border border-gray-400 rounded text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer rounded-lg">
                                                 <option value="=">=</option>
                                                 <option value="!=">!=</option>
                                                 <option value=">">&gt;</option>
@@ -3479,7 +3487,7 @@ onMounted(async () => {
                                             <div v-for="(addCond, condIndex) in join.additional_conditions"
                                                 :key="condIndex" class="flex items-center gap-2 mb-1 text-sm">
                                                 <select v-model="addCond.logic"
-                                                    class="px-2 py-1 border border-gray-300 text-xs">
+                                                    class="px-2 py-1 border border-gray-300 text-xs rounded-lg">
                                                     <option value="AND">AND</option>
                                                     <option value="OR">OR</option>
                                                 </select>
@@ -3522,14 +3530,14 @@ onMounted(async () => {
                                         </div>
 
                                         <button @click="addAdditionalCondition(joinIndex)"
-                                            class="mt-2 text-xs text-blue-600 hover:text-blue-800 cursor-pointer">
+                                            class="mt-2 text-xs text-blue-600 hover:text-blue-800 cursor-pointer rounded-lg">
                                             <font-awesome icon="fas fa-plus" class="mr-1" />
                                             Add AND/OR condition
                                         </button>
                                     </div>
 
                                     <button @click="removeJoinCondition(joinIndex)"
-                                        class="bg-red-500 text-white px-3 py-1 text-sm hover:bg-red-600 transition-colors ml-2 cursor-pointer">
+                                        class="bg-red-500 text-white px-3 py-1 text-sm hover:bg-red-600 transition-colors ml-2 cursor-pointer rounded-lg">
                                         Remove
                                     </button>
                                 </div>
@@ -3538,7 +3546,7 @@ onMounted(async () => {
                     </div>
 
                     <button @click="openJoinDialog()"
-                        class="bg-green-600 text-white px-4 py-2 hover:bg-green-700 transition-colors flex items-center gap-2 cursor-pointer">
+                        class="bg-green-600 text-white px-4 py-2 hover:bg-green-700 transition-colors flex items-center gap-2 cursor-pointer rounded-lg">
                         <font-awesome icon="fas fa-plus" />
                         Add JOIN Condition
                     </button>
@@ -3572,7 +3580,7 @@ onMounted(async () => {
                 <div class="grid grid-cols-1 sm:grid-cols-2 md:Grid-cols-3 md:gap-2">
                     <div v-for="tableOrAlias in getTablesWithAliases()"
                         :key="`${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`"
-                        class="flex flex-col border border-solid p-1" :class="{
+                        class="flex flex-col border border-solid p-1 rounded-lg" :class="{
                             'border-blue-400 bg-blue-50': tableOrAlias.isAlias,
                             'border-green-400 bg-green-50': tableOrAlias.isJoinedOrAggregate && !tableOrAlias.isAlias,
                             'border-primary-blue-100': !tableOrAlias.isAlias && !tableOrAlias.isJoinedOrAggregate
@@ -3592,7 +3600,7 @@ onMounted(async () => {
                                 Joined/Aggregate Table
                             </span>
                         </h4>
-                        <div class="p-1 m-2 p-2 wrap-anywhere"
+                        <div class="p-1 m-2 p-2 wrap-anywhere rounded-lg"
                             :class="tableOrAlias.isAlias ? 'bg-blue-100' : 'bg-gray-300'">
                             Table Schema: {{ tableOrAlias.schema }} <br />
                             Table Name: {{ tableOrAlias.table_name }}
@@ -3606,7 +3614,7 @@ onMounted(async () => {
                             put: false,
                         }" itemKey="name">
                             <template #item="{ element, index }">
-                                <div class="cursor-pointer p-1 ml-2 mr-2" :class="{
+                                <div class="cursor-pointer p-1 ml-2 mr-2 rounded-lg" :class="{
                                     'bg-gray-200': !element.reference.foreign_table_schema && !isColumnUsedInAggregate(element.column_name, tableOrAlias.schema, tableOrAlias.table_name) ? index % 2 === 0 : false,
                                     'bg-blue-100': tableOrAlias.isAlias && !element.reference.foreign_table_schema && index % 2 === 0,
                                     'bg-red-100 border-t-1 border-b-1 border-red-300': isColumnInDataModel(element.column_name, tableOrAlias.table_name, tableOrAlias.table_alias),
@@ -3627,7 +3635,7 @@ onMounted(async () => {
                                             Column Data Type: {{ element.data_type }}<br />
                                             <div v-if="element.reference && element.reference.foreign_table_schema">
                                                 <strong>Foreign Key Relationship Reference:</strong><br />
-                                                <div class="border border-primary-blue-100 border-solid p-2 m-1">
+                                                <div class="border border-primary-blue-100 border-solid p-2 m-1 rounded">
                                                     Foreign Table Name: <strong>{{
                                                         element.reference.foreign_table_schema }}.{{
                                                             element.reference.foreign_table_name }}</strong><br />
@@ -3654,34 +3662,34 @@ onMounted(async () => {
             </div>
             <div class="w-1/2 flex h-full flex-col">
                 <h2 class="font-bold text-center mb-5">Data Model</h2>
-                <div class="w-full border border-primary-blue-100 border-solid draggable" id="data-model-container">
+                <div class="w-full border border-primary-blue-100 border-solid draggable rounded-lg" id="data-model-container">
                     <div class="flex flex-col p-5">
-                        <div class="flex flex-row justify-center bg-gray-300 text-center font-bold p-1 mb-2">
+                        <div class="flex flex-row justify-center bg-gray-300 text-center font-bold p-1 mb-2 rounded-lg">
                             <h4 class="w-full font-bold">
-                                <input type="text" class="border border-primary-blue-100 border-solid p-2"
+                                <input type="text" class="border border-primary-blue-100 border-solid p-2 rounded"
                                     placeholder="Enter Data Table Name" v-model="state.data_table.table_name" />
                             </h4>
                         </div>
-                        <draggable class="min-h-1000 bg-gray-100" :list="safeDataTableColumns" group="tables"
+                        <draggable class="min-h-1000 bg-gray-100 rounded-lg" :list="safeDataTableColumns" group="tables"
                             @change="changeDataModel" itemKey="name">
                             <template #header>
                                 <div
-                                    class="w-3/4 border border-gray-400 border-dashed h-10 flex text-center self-center items-center font-bold m-auto p-5 mt-5 mb-5 text-gray-500">
+                                    class="w-3/4 border border-gray-400 border-dashed h-10 flex text-center self-center items-center font-bold m-auto p-5 mt-5 mb-5 text-gray-500 rounded-lg">
                                     Drag columns from the tables given in the left into this area to build your data
                                     model.
                                 </div>
                             </template>
                             <template #item="{ element, index }">
                                 <div class="cursor-pointer p-1 ml-2 mr-2">
-                                    <div class="flex flex-col" :class="{
+                                    <div class="flex flex-col rounded-lg" :class="{
                                         'bg-gray-200': index % 2 === 0,
                                     }">
-                                        <div class="m-2">
-                                            <table class="w-full border border-primary-blue-100 border-solid">
+                                        <div class="m-2 rounded-lg overflow-hidden ring-1 ring-primary-blue-100 ring-inset">
+                                            <table class="w-full">
                                                 <thead>
                                                     <tr>
                                                         <th
-                                                            class="bg-blue-100 border border-primary-blue-100 border-solid p-2 text-center font-bold ">
+                                                            class="bg-blue-100 border border-primary-blue-100 border-solid p-2 text-center font-bold rounded-tl">
                                                             Table Name
                                                         </th>
                                                         <th
@@ -3689,7 +3697,7 @@ onMounted(async () => {
                                                             Column Name
                                                         </th>
                                                         <th
-                                                            class="bg-blue-100 border border-primary-blue-100 border-solid p-2 text-center font-bold ">
+                                                            class="bg-blue-100 border border-primary-blue-100 border-solid p-2 text-center font-bold rounded-tr">
                                                             Column Data Type
                                                         </th>
                                                     </tr>
@@ -3711,9 +3719,10 @@ onMounted(async () => {
                                                     </tr>
                                                 </thead>
                                             </table>
+
                                         </div>
-                                        <div class="m-2">
-                                            <table class="w-full border border-primary-blue-100 border-solid">
+                                        <div class="m-2 rounded-lg overflow-hidden ring-1 ring-primary-blue-100 ring-inset">
+                                            <table class="w-full">
                                                 <thead>
                                                     <tr>
                                                         <th v-if="state.viewMode === 'advanced'"
@@ -3735,7 +3744,7 @@ onMounted(async () => {
                                                             class="border border-primary-blue-100 border-solid p-2 text-center">
                                                             <div class="flex flex-col mr-2">
                                                                 <select
-                                                                    class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer"
+                                                                    class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
                                                                     v-model="element.transform_function"
                                                                     @change="onTransformChange(element, $event)">
                                                                     <option v-for="func in state.transform_functions"
@@ -3748,7 +3757,7 @@ onMounted(async () => {
                                                         <td
                                                             class="border border-primary-blue-100 border-solid p-2 text-center">
                                                             <input type="text"
-                                                                class="w-full border border-primary-blue-100 border-solid p-2"
+                                                                class="w-full border border-primary-blue-100 border-solid p-2 rounded-lg"
                                                                 placeholder="Enter Column Alias Name"
                                                                 v-model="element.alias_name" />
                                                         </td>
@@ -3759,7 +3768,7 @@ onMounted(async () => {
                                                                     class="cursor-pointer scale-150 mb-2"
                                                                     v-model="element.is_selected_column"
                                                                     v-tippy="{ content: element.is_selected_column ? 'Uncheck to prevent the column from being added to the data model' : 'Check to add the column to the data model', placement: 'top' }" />
-                                                                <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold"
+                                                                <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold rounded-lg"
                                                                     @click="deleteColumn(element.column_name)">
                                                                     Delete
                                                                 </div>
@@ -3781,18 +3790,18 @@ onMounted(async () => {
                                         <div class="flex flex-col w-full mr-2">
                                             <h5 class="font-bold mb-2">Calculated Column Name</h5>
                                             <input type="text"
-                                                class="w-full border border-primary-blue-100 border-solid p-2"
+                                                class="w-full border border-primary-blue-100 border-solid p-2 rounded-lg"
                                                 placeholder="Enter Calculated Column Name"
                                                 v-model="calculated_column.column_name" disabled />
                                             <div class="flex flex-col mt-2">
                                                 <h5 class="font-bold mb-2">Expression</h5>
                                                 <input type="text"
-                                                    class="w-full border border-primary-blue-100 border-solid p-2"
+                                                    class="w-full border border-primary-blue-100 border-solid p-2 rounded-lg"
                                                     placeholder="Enter Expression"
                                                     v-model="calculated_column.expression" disabled />
                                             </div>
                                         </div>
-                                        <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 mt-8 p-5 cursor-pointer text-white font-bold"
+                                        <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 mt-8 p-5 cursor-pointer text-white font-bold rounded-lg"
                                             @click="deleteCalculatedColumn(index)">
                                             Delete
                                         </div>
@@ -3835,7 +3844,7 @@ onMounted(async () => {
                                                 <div class="flex flex-col w-full mr-2">
                                                     <h5 class="font-bold mb-2">Value</h5>
                                                     <input type="text"
-                                                        class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer"
+                                                        class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
                                                         v-model="clause.value"
                                                         :placeholder="getValuePlaceholder(clause.equality)" />
                                                     <span
@@ -3844,12 +3853,12 @@ onMounted(async () => {
                                                         Format: 'value1','value2','value3'
                                                     </span>
                                                 </div>
-                                                <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold mt-8"
+                                                <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold mt-8 rounded-lg"
                                                     @click="removeQueryOption('WHERE', index)">
                                                     Delete
                                                 </div>
                                                 <div v-if="index === state.data_table.query_options.where.length - 1"
-                                                    class="bg-blue-500 hover:bg-blue-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold mt-8"
+                                                    class="bg-blue-500 hover:bg-blue-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold mt-8 rounded-lg"
                                                     @click="addQueryOption('WHERE')">
                                                     Add
                                                 </div>
@@ -3892,7 +3901,7 @@ onMounted(async () => {
                                                         <div class="flex flex-col w-1/4 mr-2">
                                                             <h5 class="font-bold mb-2">Column Alias Name</h5>
                                                             <input type="text"
-                                                                class="w-full border border-primary-blue-100 border-solid p-2"
+                                                                class="w-full border border-primary-blue-100 border-solid p-2 rounded-lg"
                                                                 placeholder="Enter Column Alias Name"
                                                                 v-model="clause.column_alias_name" />
                                                         </div>
@@ -3916,12 +3925,12 @@ onMounted(async () => {
                                                         </Transition>
                                                     </div>
                                                     <div class="flex flex-row justify-end w-full mt-2">
-                                                        <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold"
+                                                        <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold rounded-lg"
                                                             @click="removeQueryOption('GROUP BY', index)">
                                                             Delete
                                                         </div>
                                                         <div v-if="index === state.data_table.query_options.group_by.aggregate_functions.length - 1"
-                                                            class="bg-blue-500 hover:bg-blue-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold"
+                                                            class="bg-blue-500 hover:bg-blue-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold rounded-lg"
                                                             @click="addQueryOption('GROUP BY')">
                                                             Add
                                                         </div>
@@ -3950,7 +3959,7 @@ onMounted(async () => {
                                                             <div class="flex flex-col w-1/5 mr-2">
                                                                 <h5 class="font-bold mb-2">Function</h5>
                                                                 <select
-                                                                    class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer"
+                                                                    class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
                                                                     v-model="expr.aggregate_function">
                                                                     <option
                                                                         v-for="(func, i) in state.aggregate_functions"
@@ -3961,7 +3970,7 @@ onMounted(async () => {
                                                             <div class="flex flex-col w-2/5 mr-2">
                                                                 <h5 class="font-bold mb-2">Expression</h5>
                                                                 <input type="text"
-                                                                    class="w-full border border-primary-blue-100 border-solid p-2"
+                                                                    class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
                                                                     v-model="expr.expression"
                                                                     placeholder="e.g., public.order_items.quantity * public.products.price" />
                                                                 <span class="text-xs text-gray-600 mt-1">
@@ -3973,7 +3982,7 @@ onMounted(async () => {
                                                             <div class="flex flex-col w-1/5 mr-2">
                                                                 <h5 class="font-bold mb-2">Alias</h5>
                                                                 <input type="text"
-                                                                    class="w-full border border-primary-blue-100 border-solid p-2"
+                                                                    class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
                                                                     v-model="expr.column_alias_name"
                                                                     placeholder="e.g., total_revenue" />
                                                             </div>
@@ -3988,7 +3997,7 @@ onMounted(async () => {
                                                             </div>
 
                                                             <div class="flex items-center">
-                                                                <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center p-5 cursor-pointer text-white font-bold rounded"
+                                                                <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center p-5 cursor-pointer text-white font-bold rounded-lg"
                                                                     @click="removeAggregateExpression(index)">
                                                                     Delete
                                                                 </div>
@@ -3996,7 +4005,7 @@ onMounted(async () => {
                                                         </div>
                                                     </div>
 
-                                                    <div class="w-full border border-blue-400 border-dashed h-10 flex items-center justify-center cursor-pointer hover:bg-blue-50 font-bold text-blue-600 rounded"
+                                                    <div class="w-full border border-blue-400 border-dashed h-10 flex items-center justify-center cursor-pointer hover:bg-blue-50 font-bold text-blue-600 rounded-lg"
                                                         @click="addAggregateExpression">
                                                         + Add Aggregate Expression
                                                     </div>
@@ -4032,7 +4041,7 @@ onMounted(async () => {
                                                         <div v-if="index > 0" class="flex flex-col w-full mr-2">
                                                             <h5 class="font-bold mb-2">Condition</h5>
                                                             <select
-                                                                class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer"
+                                                                class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
                                                                 v-model="clause.condition">
                                                                 <option v-for="(condition, index) in state.condition"
                                                                     :key="index" :value="index">{{ condition }}</option>
@@ -4041,7 +4050,7 @@ onMounted(async () => {
                                                         <div class="flex flex-col w-full mr-2">
                                                             <h5 class="font-bold mb-2">Aggregate Column</h5>
                                                             <select
-                                                                class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer"
+                                                                class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
                                                                 v-model="clause.column" @change="havingColumnChanged">
                                                                 <optgroup label="Aggregate Columns">
                                                                     <option v-for="col in havingColumns"
@@ -4061,7 +4070,7 @@ onMounted(async () => {
                                                         <div class="flex flex-col w-full mr-2">
                                                             <h5 class="font-bold mb-2">Equality</h5>
                                                             <select
-                                                                class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer"
+                                                                class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
                                                                 v-model="clause.equality">
                                                                 <option v-for="(equality, index) in state.equality"
                                                                     :key="index" :value="index">{{ equality }}</option>
@@ -4070,17 +4079,17 @@ onMounted(async () => {
                                                         <div class="flex flex-col w-full mr-2">
                                                             <h5 class="font-bold mb-2">Value</h5>
                                                             <input type="text"
-                                                                class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer"
+                                                                class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
                                                                 v-model="clause.value" />
                                                         </div>
                                                     </div>
                                                     <div class="flex flex-row justify-end w-full mt-2">
-                                                        <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold"
+                                                        <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold rounded-lg"
                                                             @click="removeQueryOption('HAVING', index)">
                                                             Delete
                                                         </div>
                                                         <div v-if="index === state.data_table.query_options.group_by.having_conditions.length - 1"
-                                                            class="bg-blue-500 hover:bg-blue-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold"
+                                                            class="bg-blue-500 hover:bg-blue-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold rounded-lg"
                                                             @click="addQueryOption('HAVING')">
                                                             Add
                                                         </div>
@@ -4097,7 +4106,7 @@ onMounted(async () => {
                                                 <div class="flex flex-col w-full mr-2">
                                                     <h5 class="font-bold mb-2">Column</h5>
                                                     <select
-                                                        class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer"
+                                                        class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
                                                         v-model="clause.column">
                                                         <optgroup label="Base Columns">
                                                             <option v-for="col in whereColumns" :key="col.value"
@@ -4117,18 +4126,18 @@ onMounted(async () => {
                                                 <div class="flex flex-col w-full mr-2">
                                                     <h5 class="font-bold mb-2">Order</h5>
                                                     <select
-                                                        class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer"
+                                                        class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
                                                         v-model="clause.order">
                                                         <option v-for="(order, index) in state.order" :key="index"
                                                             :value="index">{{ order }}</option>
                                                     </select>
                                                 </div>
-                                                <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold mt-8"
+                                                <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold mt-8 rounded-lg"
                                                     @click="removeQueryOption('ORDER BY', index)">
                                                     Delete
                                                 </div>
                                                 <div v-if="index === state.data_table.query_options.order_by.length - 1"
-                                                    class="bg-blue-500 hover:bg-blue-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold mt-8"
+                                                    class="bg-blue-500 hover:bg-blue-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold mt-8 rounded-lg"
                                                     @click="addQueryOption('ORDER BY')">
                                                     Add
                                                 </div>
@@ -4144,9 +4153,9 @@ onMounted(async () => {
                                                     <h5 class="font-bold mb-2">Value</h5>
                                                     <div class="flex flex-row justify-between">
                                                         <input type="number"
-                                                            class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer"
+                                                            class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
                                                             v-model="state.data_table.query_options.offset" min="0" />
-                                                        <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center ml-2 mr-2 p-5 cursor-pointer text-white font-bold"
+                                                        <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center ml-2 mr-2 p-5 cursor-pointer text-white font-bold rounded-lg"
                                                             @click="removeQueryOption('OFFSET', 0)">
                                                             Delete
                                                         </div>
@@ -4164,9 +4173,9 @@ onMounted(async () => {
                                                     <h5 class="font-bold mb-2">Value</h5>
                                                     <div class="flex flex-row justify-between">
                                                         <input type="number"
-                                                            class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer"
+                                                            class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
                                                             v-model="state.data_table.query_options.limit" min="0" />
-                                                        <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center ml-2 mr-2 p-5 cursor-pointer text-white font-bold"
+                                                        <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center ml-2 mr-2 p-5 cursor-pointer text-white font-bold rounded-lg"
                                                             @click="removeQueryOption('LIMIT', 0)">
                                                             Delete
                                                         </div>
@@ -4176,12 +4185,12 @@ onMounted(async () => {
                                         </div>
                                     </div>
                                     <div v-if="showDataModelControls"
-                                        class="w-full border border-gray-400 border-dashed h-15 flex items-center justify-center mb-5 cursor-pointer mt-5 hover:bg-gray-100 font-bold"
+                                        class="w-full border border-gray-400 border-dashed h-15 flex items-center justify-center mb-5 cursor-pointer mt-5 hover:bg-gray-100 font-bold rounded-lg"
                                         @click="openDialog">
                                         + Add Query Clause (for example: where, group by, order by)
                                     </div>
                                     <div v-if="showDataModelControls"
-                                        class="w-full border border-gray-400 border-dashed h-15 flex items-center justify-center mb-5 cursor-pointer mt-5 hover:bg-gray-100 font-bold"
+                                        class="w-full border border-gray-400 border-dashed h-15 flex items-center justify-center mb-5 cursor-pointer mt-5 hover:bg-gray-100 font-bold rounded-lg"
                                         @click="openCalculatedColumnDialog">
                                         + Add Calculated Column/Field
                                     </div>
@@ -4211,7 +4220,7 @@ onMounted(async () => {
             <template #overlay>
                 <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                     <template v-for="queryOption in state.query_options" :key="queryOption.name">
-                        <div class="w-full border border-primary-blue-100 border-solid p-10 font-bold text-center hover:bg-gray-200 shadow-md cursor-pointer select-none"
+                        <div class="w-full border border-primary-blue-100 border-solid p-10 font-bold text-center hover:bg-gray-200 shadow-md cursor-pointer select-none rounded-lg"
                             @click="addQueryOption(queryOption.name)">
                             {{ queryOption.name }}
                         </div>
@@ -4222,13 +4231,13 @@ onMounted(async () => {
         <overlay-dialog v-if="state.show_calculated_column_dialog" :enable-scrolling="false"
             @close="closeCalculatedColumnDialog">
             <template #overlay>
-                <div class="flex flex-col w-150 border border-primary-blue-100 border-solid p-5">
+                <div class="flex flex-col border border-primary-blue-100 border-solid p-5 rounded-lg">
                     <h5 class="font-bold mb-2">Column Name</h5>
-                    <input type="text" class="w-full border border-primary-blue-100 border-solid p-2"
+                    <input type="text" class="w-full border border-primary-blue-100 border-solid p-2 rounded-lg"
                         v-model="state.calculated_column.column_name" />
 
                     <!-- Helper text -->
-                    <div class="text-sm text-gray-600 bg-blue-50 border border-blue-200 p-3 rounded mt-2 mb-2">
+                    <div class="text-sm text-gray-600 bg-blue-50 border border-blue-200 p-3 rounded-lg mt-2 mb-2">
                         <font-awesome icon="fas fa-info-circle" class="mr-2 text-blue-600" />
                         <strong>Tip:</strong> You can use both base columns and aggregate columns in calculations.
                         Example: Calculate tax as <code class="bg-gray-200 px-1 rounded">total_revenue * 0.15</code>
@@ -4241,7 +4250,7 @@ onMounted(async () => {
                     <div v-for="(column, index) in state.calculated_column.columns">
                         <div v-if="index > 0" class="flex flex-col w-full mr-2">
                             <h5 class="font-bold mb-2">Operator</h5>
-                            <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer"
+                            <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
                                 v-model="column.operator">
                                 <option v-for="(operator, index) in state.add_column_operators" :key="index"
                                     :value="operator">{{ operator }}</option>
@@ -4249,7 +4258,7 @@ onMounted(async () => {
                         </div>
                         <div v-if="column.type === 'column'" class="flex flex-col w-full mr-2">
                             <h5 class="font-bold mb-2">Column / Aggregate</h5>
-                            <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer"
+                            <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
                                 v-model="column.column_name">
                                 <optgroup label="Base Columns">
                                     <option
@@ -4277,24 +4286,24 @@ onMounted(async () => {
 
                         <div class="flex flex-row">
                             <div v-if="index > 0"
-                                class="flex flex-row justify-center w-full bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white text-center font-bold mt-8"
+                                class="flex flex-row justify-center w-full bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white text-center font-bold mt-8 rounded-lg"
                                 @click="deleteCalculatedColumnOperation(index)">
                                 Delete Column
                             </div>
                             <div v-if="index === state.calculated_column.columns.length - 1"
-                                class="flex flex-row justify-center w-full bg-blue-500 hover:bg-blue-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white text-center font-bold mt-8"
+                                class="flex flex-row justify-center w-full bg-blue-500 hover:bg-blue-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white text-center font-bold mt-8 rounded-lg"
                                 @click="addCalculatedColumnOperation('column')">
                                 Add Column
                             </div>
                             <div v-if="index === state.calculated_column.columns.length - 1"
-                                class="flex flex-row justify-center w-full bg-blue-500 hover:bg-blue-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-sm text-white text-center font-bold mt-8"
+                                class="flex flex-row justify-center w-full bg-blue-500 hover:bg-blue-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-sm text-white text-center font-bold mt-8 rounded-lg"
                                 @click="addCalculatedColumnOperation('numeric-value')">
                                 Add Numeric Value
                             </div>
                         </div>
                     </div>
 
-                    <div class="flex flex-row justify-center w-50 h-10 bg-primary-blue-100 hover:bg-primary-blue-300 items-center self-center mt-2 p-5 cursor-pointer text-white text-sm text-center font-bold select-none"
+                    <div class="flex flex-row justify-center w-50 h-10 bg-primary-blue-100 hover:bg-primary-blue-300 items-center self-center mt-2 p-5 cursor-pointer text-white text-sm text-center font-bold select-none rounded-lg"
                         @click="addCalculatedColumn">
                         Add Calulated Column
                     </div>

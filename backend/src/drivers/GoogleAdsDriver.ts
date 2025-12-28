@@ -217,11 +217,16 @@ export class GoogleAdsDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
-        usersPlatformId: number,
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
+        // Get customer ID first
+        const customerId = connectionDetails.api_config?.customer_id;
+        if (!customerId) {
+            throw new Error('Customer ID not configured');
+        }
+
         // Generate hash-based physical table name
         const tableMetadataService = TableMetadataService.getInstance();
         const logicalTableName = 'campaigns';
@@ -256,10 +261,6 @@ export class GoogleAdsDriver implements IAPIDriver {
         
         console.log(`✅ Table ${fullTableName} ready`);
         
-        const customerId = connectionDetails.api_config?.customer_id;
-        if (!customerId) {
-            throw new Error('Customer ID not configured');
-        }
         
         // Build and execute report query with retry logic
         const reportQuery: IGoogleAdsReportQuery = {
@@ -304,11 +305,16 @@ export class GoogleAdsDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
-        usersPlatformId: number,
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
+        // Get customer ID first
+        const customerId = connectionDetails.api_config?.customer_id;
+        if (!customerId) {
+            throw new Error('Customer ID not configured');
+        }
+
         // Generate hash-based physical table name
         const tableMetadataService = TableMetadataService.getInstance();
         const logicalTableName = 'keywords';
@@ -343,7 +349,6 @@ export class GoogleAdsDriver implements IAPIDriver {
         
         console.log(`✅ Table ${fullTableName} ready`);
         
-        const customerId = connectionDetails.api_config?.customer_id;
         const reportQuery: IGoogleAdsReportQuery = {
             customerId: customerId!,
             startDate,
@@ -383,11 +388,16 @@ export class GoogleAdsDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
-        usersPlatformId: number,
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
+        // Get customer ID first
+        const customerId = connectionDetails.api_config?.customer_id;
+        if (!customerId) {
+            throw new Error('Customer ID not configured');
+        }
+
         // Generate hash-based physical table name
         const tableMetadataService = TableMetadataService.getInstance();
         const logicalTableName = 'geographic';
@@ -416,7 +426,6 @@ export class GoogleAdsDriver implements IAPIDriver {
             )
         `);
         
-        const customerId = connectionDetails.api_config?.customer_id;
         const reportQuery: IGoogleAdsReportQuery = {
             customerId: customerId!,
             startDate,
@@ -449,11 +458,16 @@ export class GoogleAdsDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
-        usersPlatformId: number,
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
+        // Get customer ID first
+        const customerId = connectionDetails.api_config?.customer_id;
+        if (!customerId) {
+            throw new Error('Customer ID not configured');
+        }
+
         // Generate hash-based physical table name
         const tableMetadataService = TableMetadataService.getInstance();
         const logicalTableName = 'device';
@@ -482,7 +496,6 @@ export class GoogleAdsDriver implements IAPIDriver {
             )
         `);
         
-        const customerId = connectionDetails.api_config?.customer_id;
         const reportQuery: IGoogleAdsReportQuery = {
             customerId: customerId!,
             startDate,

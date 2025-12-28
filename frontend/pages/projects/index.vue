@@ -10,16 +10,16 @@ const state = reactive({
 
 const projects = computed(() => {
     const projectsList = projectsStore.getProjects();
+    
     return projectsList.map((project) => ({
         id: project.id,
         user_id: project.user_platform_id,
         name: project.name,
-        description: project.description,
-        dataSources: 0,
-        sheets: 0,
-        visualizations: 0,
-        dashboards: 0,
-        stories: 0,
+        description: project.description || '',
+        // Use counts from API response
+        dataSourcesCount: project.data_sources_count || 0,
+        dataModelsCount: project.data_models_count || 0,
+        dashboardsCount: project.dashboards_count || 0,
     }));
 });
 
@@ -127,7 +127,7 @@ async function setSelectedProject(projectId) {
 }
 </script>
 <template>
-    <div class="min-h-100 flex flex-col ml-4 mr-4 mb-10 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md">
+    <tab-content-panel :corners="['top-left', 'top-right', 'bottom-left', 'bottom-right']" class="mt-10">
         <div class="font-bold text-2xl mb-5">
             Projects
         </div>
@@ -168,11 +168,27 @@ async function setSelectedProject(projectId) {
                     <notched-card class="justify-self-center mt-10">
                         <template #body="{ onClick }">
                             <div class="flex flex-col justify-center">
-                                <div class="text-md font-bold">
-                                        {{project.name}}
+                                <!-- Project Name -->
+                                <div class="text-md font-bold mb-3">
+                                    {{project.name}}
                                 </div>
-                                <div v-if="project.description" class="text-sm mt-4 text-gray-600 line-clamp-3">
-                                        {{project.description}}
+                                
+                                <!-- Description -->
+                                <div v-if="project.description" class="text-xs text-gray-500 line-clamp-2 mb-3">
+                                    {{project.description}}
+                                </div>
+                                
+                                <!-- Statistics Badges -->
+                                <div class="flex flex-wrap gap-2">
+                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        {{project.dataSourcesCount}} Sources
+                                    </span>
+                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                        {{project.dataModelsCount}} Models
+                                    </span>
+                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                        {{project.dashboardsCount}} Dashboards
+                                    </span>
                                 </div>
                             </div>
                         </template>
@@ -183,5 +199,5 @@ async function setSelectedProject(projectId) {
                 </div>
             </div>
         </div>
-    </div>
+    </tab-content-panel>
 </template>

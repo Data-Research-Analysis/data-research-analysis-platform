@@ -76,8 +76,7 @@ async function deleteDashboard(dashboardId) {
         <tabs v-if="project && project.id" :project-id="project.id" />
 
         <!-- Dashboards Content -->
-        <div
-            class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 mb-10 border border-primary-blue-100 border-solid p-10 shadow-md">
+        <tab-content-panel :corners="['top-right', 'bottom-left', 'bottom-right']">
             <div class="font-bold text-2xl mb-5">
                 Dashboards
             </div>
@@ -134,11 +133,6 @@ async function deleteDashboard(dashboardId) {
                                     <div class="text-md font-bold">
                                         Dashboard {{ dashboard.id }}
                                     </div>
-                                    <div class="flex flex-row justify-between mt-4 mb-10">
-                                        <ul class="text-xs">
-                                            <li>Data Models</li>
-                                        </ul>
-                                    </div>
                                 </div>
                             </NuxtLink>
                         </template>
@@ -150,6 +144,6 @@ async function deleteDashboard(dashboardId) {
                     </div>
                 </div>
             </div>
-        </div>
+        </tab-content-panel>
     </div>
 </template>

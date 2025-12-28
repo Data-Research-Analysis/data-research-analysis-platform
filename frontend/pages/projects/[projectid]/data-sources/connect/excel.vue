@@ -633,9 +633,9 @@ onMounted(async () => {
     <div>
         <div class="flex flex-col justify-center">
             <div class="flex flex-row justify-center">
-                <input type="text" class="w-3/4 border border-primary-blue-100 border-solid p-2 cursor-pointer margin-auto mt-10" placeholder="Data Source Name" v-model="state.data_source_name"/>
+                <input type="text" class="w-3/4 border border-primary-blue-100 border-solid p-2 cursor-pointer margin-auto mt-10 rounded-lg" placeholder="Data Source Name" v-model="state.data_source_name"/>
             </div>
-            <div class="flex flex-col justify-center w-3/4 min-h-100 bg-gray-200 m-auto mt-5 text-center cursor-pointer" id="drop-zone">
+            <div class="flex flex-col justify-center w-3/4 min-h-100 bg-gray-200 m-auto mt-5 text-center cursor-pointer rounded-xl" id="drop-zone">
                 <h3 class="text-lg font-semibold">Drop files here or click to upload</h3>
                 <p class="text-sm text-gray-600">Supported formats: .xlsx, .xls, .csv</p>
                 <input type="file" id="file-elem" multiple class="hidden">
@@ -727,7 +727,7 @@ onMounted(async () => {
                 </div>
             </div>
             <spinner v-if="state.loading"/>
-            <div v-else-if="!state.loading && state.files && state.files.length" class="h-10 text-center items-center self-center mt-5 mb-5 p-2 font-bold shadow-md select-none bg-primary-blue-100 hover:bg-primary-blue-200 cursor-pointer text-white" @click="createDataSource">
+            <div v-else-if="!state.loading && state.files && state.files.length" class="h-10 text-center items-center self-center mt-5 mb-5 p-2 font-bold shadow-md select-none bg-primary-blue-100 hover:bg-primary-blue-200 cursor-pointer text-white rounded-lg" @click="createDataSource">
                 Create Excel Data Source &amp; Upload Excel Files
             </div>
 

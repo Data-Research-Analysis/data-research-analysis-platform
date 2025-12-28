@@ -20,7 +20,7 @@ export class UtilityService {
     public async initialize() {
         dotenv.config();
         console.log('Initializing utilities');
-        const driver = await DBDriver.getInstance().getDriver('postgresql');
+        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
         console.log('Driver initialized', driver);
         
         const host = process?.env?.POSTGRESQL_HOST || 'localhost';

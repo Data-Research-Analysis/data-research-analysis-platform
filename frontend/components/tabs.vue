@@ -42,7 +42,7 @@ onMounted(() => {
 </script>
 <template>
     <div class="flex flex-row mt-5" :class="{ 'ml-10': !isDashboardsRoute }">
-        <div class="bg-primary-blue-100 hover:bg-primary-blue-400 text-white p-3 border border-white border-solid cursor-pointer font-bold select-none"
+        <div class="bg-primary-blue-100 hover:bg-primary-blue-400 text-white p-3 border-r border-white border-solid rounded-tl-lg cursor-pointer font-bold select-none"
             @click="setSelectedTab('data_sources')"
             :class="{ 'bg-primary-blue-400': state.selectedTab === 'data_sources' }"
         >
@@ -50,8 +50,7 @@ onMounted(() => {
             Data Sources
         </div>
         
-        <!-- Data Models Tab (NEW) -->
-        <div class="bg-primary-blue-100 hover:bg-primary-blue-400 text-white p-3 border border-white border-solid cursor-pointer font-bold select-none"
+        <div class="bg-primary-blue-100 hover:bg-primary-blue-400 text-white p-3 cursor-pointer font-bold select-none"
             @click="setSelectedTab('data_models')"
             :class="{ 'bg-primary-blue-400': state.selectedTab === 'data_models' }"
         >
@@ -59,14 +58,14 @@ onMounted(() => {
             Data Models
         </div>
         
-        <div v-if="dataModelsExist" class="bg-primary-blue-100 hover:bg-primary-blue-400 text-white p-3 border border-white border-solid cursor-pointer font-bold select-none"
+        <div v-if="dataModelsExist" class="bg-primary-blue-100 hover:bg-primary-blue-400 text-white p-3 border-l border-white border-solid rounded-tr-lg cursor-pointer font-bold select-none"
             @click="setSelectedTab('dashboards')"
             :class="{ 'bg-primary-blue-400': state.selectedTab === 'dashboards' }"
         >
             <font-awesome icon="fas fa-table-columns" class="text-xl text-white"/>
             Dashboards
         </div>
-        <div v-else class="bg-gray-100 text-gray-500 p-3 border border-gray-500 border-solid font-bold select-none" v-tippy="{ content: 'Create data models in order to create dashboards', placement: 'top' }">
+        <div v-else class="bg-gray-100 text-gray-500 p-3 border border-gray-500 border-solid rounded-tr-lg font-bold select-none" v-tippy="{ content: 'Create data models in order to create dashboards', placement: 'top' }">
             <font-awesome icon="fas fa-table-columns" class="text-xl text-gray-500"/>
             Dashboards
         </div>

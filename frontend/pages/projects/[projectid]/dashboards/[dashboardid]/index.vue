@@ -54,6 +54,47 @@ const dataModelTables = computed(() => {
 const charts = computed(() => {
     return state.dashboard.charts;
 });
+
+// Chart type placeholder images
+const chartPlaceholders = {
+    table: '/assets/images/chart-placeholders/table.png',
+    text_block: '/assets/images/chart-placeholders/text_block.png',
+    pie: '/assets/images/chart-placeholders/pie.png',
+    donut: '/assets/images/chart-placeholders/donut.png',
+    vertical_bar: '/assets/images/chart-placeholders/vertical_bar.png',
+    horizontal_bar: '/assets/images/chart-placeholders/horizontal_bar.png',
+    vertical_bar_line: '/assets/images/chart-placeholders/vertical_bar_line.png',
+    stacked_bar: '/assets/images/chart-placeholders/stacked_bar.png',
+    multiline: '/assets/images/chart-placeholders/multiline.png',
+    treemap: '/assets/images/chart-placeholders/treemap.png',
+    bubble: '/assets/images/chart-placeholders/bubble.png',
+};
+
+// Chart type labels
+const chartTypeLabels = {
+    table: 'Table',
+    text_block: 'Text Block',
+    pie: 'Pie Chart',
+    donut: 'Donut Chart',
+    vertical_bar: 'Bar Chart',
+    horizontal_bar: 'Horizontal Bar Chart',
+    vertical_bar_line: 'Combo Chart',
+    stacked_bar: 'Stacked Bar Chart',
+    multiline: 'Line Chart',
+    treemap: 'Treemap',
+    bubble: 'Bubble Chart',
+};
+
+// Check if chart is empty (no columns configured)
+function isChartEmpty(chart) {
+    return !chart.columns || chart.columns.length === 0;
+}
+
+// Get human-readable chart type label
+function getChartTypeLabel(chartType) {
+    return chartTypeLabels[chartType] || 'Chart';
+}
+
 watch(
     dashboardsStore.selectedDashboard,
     (value, oldValue) => {
@@ -1240,10 +1281,10 @@ onUnmounted(() => {
                 <div class="flex flex-row justify-between">
                     <tabs :project-id="project.id" class="mt-6" :class="{ 'ml-10': state.sidebar_status }"/>
                     <div class="flex flex-row">
-                        <div @click="updateDashboard" class="flex flex-row items-center h-12 mr-2 mt-7 text-md text-white font-bold border border-white border-solid cursor-pointer select-none bg-primary-blue-100 hover:bg-primary-blue-400">
+                        <div @click="updateDashboard" class="flex flex-row items-center h-12 mt-7 text-md text-white font-bold border-r-1 border-white border-solid cursor-pointer select-none bg-primary-blue-100 hover:bg-primary-blue-400 rounded-tl-lg">
                             <h3 class="ml-2 mr-2">Update Dashboard</h3>
                         </div>
-                        <div @click="exportAsWebPage" class="flex flex-row items-center h-12 mr-2 mt-7 text-md text-white font-bold border border-white border-solid cursor-pointer select-none bg-primary-blue-100 hover:bg-primary-blue-400">
+                        <div @click="exportAsWebPage" class="flex flex-row items-center h-12 mr-2 mt-7 text-md text-white font-bold cursor-pointer select-none bg-primary-blue-100 hover:bg-primary-blue-400 rounded-tr-lg">
                             <h3 class="ml-2 mr-2">Export Dashboard</h3>
                         </div>
                     </div>
@@ -1313,7 +1354,7 @@ onUnmounted(() => {
                     </div>
                 </div>
 
-                <div class="flex flex-col min-h-200 max-h-200 h-200 overflow-hidden overflow-x-auto mr-2 mb-10 border border-primary-blue-100 border-solid bg-gray-300"
+                <div class="flex flex-col min-h-200 max-h-200 h-200 overflow-hidden overflow-x-auto mr-2 mb-10 border border-primary-blue-100 border-solid bg-gray-300 rounded-br-lg rounded-bl-lg"
                     :class="{'ml-10': state.sidebar_status}"
                 >
                     <!-- Tooltip container for all charts - positioned above dashboard content -->
@@ -1350,7 +1391,7 @@ onUnmounted(() => {
                             <div class="flex flex-col">
                                 <div
                                     :id="`draggable-div-inner-container-${chart.chart_id}`"
-                                    class="flex flex-row border border-3 border-gray-600 border-b-0 p-2"
+                                    class="flex flex-row border border-2 border-gray-400 border-b-0 p-2 rounded-tl-lg rounded-tr-lg"
                                     :class="{ 'bg-gray-300 cursor-move': chart.config.drag_enabled, 'bg-gray-200': !chart.config.drag_enabled }"
                                     @mousedown="draggableDivMouseDown($event, chart.chart_id)"
                                     @mouseup="stopDragAndResize"
@@ -1399,13 +1440,32 @@ onUnmounted(() => {
                                         @click="openTableDialog(chart.chart_id)"
                                     />
                                 </div>
+                                
+                                <!-- Empty chart placeholder - shows when no columns configured -->
+                                <div v-if="isChartEmpty(chart) && chart.chart_type !== 'text_block'" 
+                                     class="flex flex-col items-center justify-center bg-gray-50 border border-2 border-gray-400 border-t-0 rounded-b-lg"
+                                     style="min-height: 300px;">
+                                    <img 
+                                        :src="chartPlaceholders[chart.chart_type]" 
+                                        :alt="`${chart.chart_type} preview`"
+                                        class="max-w-[200px] max-h-[200px] opacity-30 select-none pointer-events-none"
+                                    />
+                                    <p class="mt-4 text-gray-500 text-base font-semibold">
+                                        {{ getChartTypeLabel(chart.chart_type) }}
+                                    </p>
+                                    <p class="text-gray-400 text-sm mt-1">
+                                        Click "Add Columns" to configure
+                                    </p>
+                                </div>
+                                
+                                <!-- Column dropzone and chart rendering - shows when columns exist -->
                                 <draggable
-                                    v-if="chart.chart_type !== 'text_block'"
+                                    v-if="!isChartEmpty(chart) && chart.chart_type !== 'text_block'"
                                     :id="`draggable-${chart.chart_id}`"
                                     v-model="chart.columns"
                                     group="data_model_columns"
                                     itemKey="column_name"
-                                    class="flex flex-row w-full h-50 bg-gray-200 border border-3 border-gray-600 border-t-0 draggable-model-columns"
+                                    class="flex flex-row w-full h-50 bg-gray-200 border border-2 border-gray-400 border-t-0 draggable-model-columns rounded-b-lg"
                                     tag="div"
                                     :disabled="!chart.config.add_columns_enabled"
                                     :style="`width: ${chart.dimensions.widthDraggable}; height: ${chart.dimensions.heightDraggable};`"
@@ -1581,10 +1641,11 @@ onUnmounted(() => {
                                         </div>
                                     </template>
                                 </draggable>
+                                <!-- Text block editor - only for text_block chart type -->
                                 <div 
-                                    v-else 
+                                    v-if="chart.chart_type === 'text_block'" 
                                     :id="`draggable-${chart.chart_id}`" 
-                                    class="bg-gray-200 border border-3 border-gray-600 border-t-0"
+                                    class="bg-gray-200 border border-2 border-gray-400 border-t-0"
                                     :style="`width: ${chart.dimensions.widthDraggable}; height: ${chart.dimensions.heightDraggable};`"
                                 >
                                     <text-editor 
@@ -1623,52 +1684,99 @@ onUnmounted(() => {
                     </div>
                 </div>
             </div>
-            <div v-if="state.sidebar_status" class="flex flex-col w-1/6 mt-17 mb-10 mr-2 select-none">
-                <div @click="addChartToDashboard('text_block')" v-tippy="{ content: 'Add Text Block To Dashboard', placement: 'top' }">
-                     <div class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto mb-2 text-center font-bold text-lg cursor-pointer hover:bg-gray-300" >
-                        Text Block
-                     </div>
+            <div v-if="state.sidebar_status" class="flex flex-col w-1/6 mt-17 mb-10 mr-2 select-none overflow-y-auto">
+                <!-- Text Block -->
+                <button
+                    @click="addChartToDashboard('text_block')"
+                    class="flex flex-col items-center p-3 mb-3 bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-2 border-gray-200 hover:border-blue-400 cursor-pointer"
+                >
+                    <img src="/assets/images/chart-placeholders/text_block.png" alt="Text Block" class="w-16 h-16 mb-2" />
+                    <span class="text-sm font-medium text-gray-700">Text Block</span>
+                </button>
+
+                <!-- Tables & Data Section -->
+                <div class="mb-2 text-xs font-bold text-gray-500 uppercase tracking-wide">Tables & Data</div>
+                <button
+                    @click="addChartToDashboard('table')"
+                    class="flex flex-col items-center p-3 mb-3 bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-2 border-gray-200 hover:border-blue-400 cursor-pointer"
+                >
+                    <img src="/assets/images/chart-placeholders/table.png" alt="Table" class="w-16 h-16 mb-2" />
+                    <span class="text-sm font-medium text-gray-700">Table</span>
+                </button>
+
+                <!-- Basic Charts Section -->
+                <div class="mb-2 text-xs font-bold text-gray-500 uppercase tracking-wide">Basic Charts</div>
+                <div class="grid grid-cols-2 gap-2 mb-3">
+                    <button
+                        @click="addChartToDashboard('pie')"
+                        class="flex flex-col items-center p-2 bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-2 border-gray-200 hover:border-blue-400 cursor-pointer"
+                    >
+                        <img src="/assets/images/chart-placeholders/pie.png" alt="Pie Chart" class="w-12 h-12 mb-1" />
+                        <span class="text-xs font-medium text-gray-700">Pie</span>
+                    </button>
+                    <button
+                        @click="addChartToDashboard('donut')"
+                        class="flex flex-col items-center p-2 bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-2 border-gray-200 hover:border-blue-400 cursor-pointer"
+                    >
+                        <img src="/assets/images/chart-placeholders/donut.png" alt="Donut Chart" class="w-12 h-12 mb-1" />
+                        <span class="text-xs font-medium text-gray-700">Donut</span>
+                    </button>
+                    <button
+                        @click="addChartToDashboard('vertical_bar')"
+                        class="flex flex-col items-center p-2 bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-2 border-gray-200 hover:border-blue-400 cursor-pointer"
+                    >
+                        <img src="/assets/images/chart-placeholders/vertical_bar.png" alt="Bar Chart" class="w-12 h-12 mb-1" />
+                        <span class="text-xs font-medium text-gray-700">Bar</span>
+                    </button>
+                    <button
+                        @click="addChartToDashboard('horizontal_bar')"
+                        class="flex flex-col items-center p-2 bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-2 border-gray-200 hover:border-blue-400 cursor-pointer"
+                    >
+                        <img src="/assets/images/chart-placeholders/horizontal_bar.png" alt="Horizontal Bar" class="w-12 h-12 mb-1" />
+                        <span class="text-xs font-medium text-gray-700">H-Bar</span>
+                    </button>
                 </div>
-                <div class="flex flex-row mb-2">
-                    <div class="mr-2" @click="addChartToDashboard('table')" v-tippy="{ content: 'Add Table To Dashboard', placement: 'top' }">
-                        <img src="/assets/images/table_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Table Chart" />
-                    </div>
-                    <div @click="addChartToDashboard('pie')" v-tippy="{ content: 'Add Pie Chart To Dashboard', placement: 'top' }">
-                        <img src="/assets/images/pie_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Pie Chart" />
-                    </div>
+
+                <!-- Advanced Charts Section -->
+                <div class="mb-2 text-xs font-bold text-gray-500 uppercase tracking-wide">Advanced Charts</div>
+                <div class="grid grid-cols-2 gap-2 mb-3">
+                    <button
+                        @click="addChartToDashboard('vertical_bar_line')"
+                        class="flex flex-col items-center p-2 bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-2 border-gray-200 hover:border-blue-400 cursor-pointer"
+                    >
+                        <img src="/assets/images/chart-placeholders/vertical_bar_line.png" alt="Combo Chart" class="w-12 h-12 mb-1" />
+                        <span class="text-xs font-medium text-gray-700">Combo</span>
+                    </button>
+                    <button
+                        @click="addChartToDashboard('stacked_bar')"
+                        class="flex flex-col items-center p-2 bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-2 border-gray-200 hover:border-blue-400 cursor-pointer"
+                    >
+                        <img src="/assets/images/chart-placeholders/stacked_bar.png" alt="Stacked Bar" class="w-12 h-12 mb-1" />
+                        <span class="text-xs font-medium text-gray-700">Stacked</span>
+                    </button>
+                    <button
+                        @click="addChartToDashboard('multiline')"
+                        class="flex flex-col items-center p-2 bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-2 border-gray-200 hover:border-blue-400 cursor-pointer"
+                    >
+                        <img src="/assets/images/chart-placeholders/multiline.png" alt="Line Chart" class="w-12 h-12 mb-1" />
+                        <span class="text-xs font-medium text-gray-700">Line</span>
+                    </button>
+                    <button
+                        @click="addChartToDashboard('treemap')"
+                        class="flex flex-col items-center p-2 bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-2 border-gray-200 hover:border-blue-400 cursor-pointer"
+                    >
+                        <img src="/assets/images/chart-placeholders/treemap.png" alt="Treemap" class="w-12 h-12 mb-1" />
+                        <span class="text-xs font-medium text-gray-700">Treemap</span>
+                    </button>
+                    <button
+                        @click="addChartToDashboard('bubble')"
+                        class="flex flex-col items-center p-2 bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-2 border-gray-200 hover:border-blue-400 cursor-pointer"
+                    >
+                        <img src="/assets/images/chart-placeholders/bubble.png" alt="Bubble Chart" class="w-12 h-12 mb-1" />
+                        <span class="text-xs font-medium text-gray-700">Bubble</span>
+                    </button>
                 </div>
-                <div class="flex flex-row mb-2">
-                    <div class="mr-2" @click="addChartToDashboard('donut')" v-tippy="{ content: 'Add Donut Chart To Dashboard', placement: 'top' }">
-                        <img src="/assets/images/donut_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Donut Chart" />
-                    </div>
-                    <div @click="addChartToDashboard('vertical_bar')" v-tippy="{ content: 'Add Vertical Bar Chart To Dashboard', placement: 'top' }">
-                        <img src="/assets/images/vertical_bar_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Vertical Bar Chart" />
-                    </div>
-                </div>
-                <div class="flex flex-row mb-2">
-                    <div class="mr-2" @click="addChartToDashboard('horizontal_bar')" v-tippy="{ content: 'Add Horizontal Bar Chart To Dashboard', placement: 'top' }">
-                        <img src="/assets/images/horizontal_bar_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Horizontal Bar Chart" />
-                    </div>
-                    <div @click="addChartToDashboard('vertical_bar_line')" v-tippy="{ content: 'Add Vertical Bar Line Chart To Dashboard', placement: 'top' }">
-                        <img src="/assets/images/vertical_bar_chart_line.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Vertical Bar Line Chart" />
-                    </div>
-                </div>
-                <div class="flex flex-row mb-2">
-                    <div class="mr-2" @click="addChartToDashboard('stacked_bar')" v-tippy="{ content: 'Add Stacked Bar Chart To Dashboard', placement: 'top' }">
-                        <img src="/assets/images/stacked_bar_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Stacked Bar Chart" />
-                    </div>    
-                    <div @click="addChartToDashboard('multiline')" v-tippy="{ content: 'Add Multiline Chart To Dashboard', placement: 'top' }">
-                        <img src="/assets/images/multi_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Multiline Chart" />
-                    </div>
-                </div>
-                <div class="flex flex-row mb-2">
-                    <div class="mr-2" @click="addChartToDashboard('treemap')" v-tippy="{ content: 'Add Treemap Chart To Dashboard', placement: 'top' }">
-                        <img src="/assets/images/treemap_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Treemap Chart" />
-                    </div>
-                    <div @click="addChartToDashboard('bubble')" v-tippy="{ content: 'Add Bubble Chart To Dashboard', placement: 'top' }">
-                        <img src="/assets/images/bubble_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Bubble Chart" />
-                    </div>
-                </div>
+                <!-- Commented out charts - can be added later -->
                 <!-- <div class="flex flex-row mb-2">
                     <div class="mr-2" @click="addChartToDashboard('stacked_area')" v-tippy="{ content: 'Add Stacked Area Chart To Dashboard', placement: 'top' }">
                         <img src="/assets/images/stacked_area_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Stacked Area Chart" />

@@ -49,8 +49,8 @@ export class ProjectProcessor {
         });
     }
 
-    async getProjects(tokenDetails: ITokenDetails): Promise<DRAProject[]> {
-        return new Promise<DRAProject[]>(async (resolve, reject) => {
+    async getProjects(tokenDetails: ITokenDetails): Promise<any[]> {
+        return new Promise<any[]>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             if (!driver) {
@@ -71,8 +71,50 @@ export class ProjectProcessor {
             if (!user) {
                 return resolve([]);
             }
-            const projects = await manager.find(DRAProject, {where: {users_platform: user}});
-            return resolve(projects);
+            
+            // Load projects with relations
+            const projects = await manager.find(DRAProject, {
+                where: {users_platform: user},
+                relations: {
+                    data_sources: {
+                        data_models: true
+                    },
+                    dashboards: true
+                },
+                select: {
+                    id: true,
+                    name: true,
+                    description: true,
+                    created_at: true,
+                    data_sources: {
+                        id: true,
+                        data_models: {
+                            id: true
+                        }
+                    },
+                    dashboards: {
+                        id: true
+                    }
+                }
+            });
+            
+            // Transform to include counts
+            const projectsWithCounts = projects.map(project => ({
+                id: project.id,
+                user_platform_id: user_id,
+                name: project.name,
+                description: project.description,
+                created_at: project.created_at,
+                // Add counts
+                data_sources_count: project.data_sources?.length || 0,
+                data_models_count: project.data_sources?.reduce((sum, ds) => 
+                    sum + (ds.data_models?.length || 0), 0) || 0,
+                dashboards_count: project.dashboards?.length || 0,
+                // Include full DataSources array for backward compatibility
+                DataSources: project.data_sources
+            }));
+            
+            return resolve(projectsWithCounts);
         });
     }
 

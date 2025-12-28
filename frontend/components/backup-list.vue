@@ -91,7 +91,7 @@ const refreshList = () => {
 </script>
 
 <template>
-    <div class="bg-white rounded-lg shadow-md border border-gray-200">
+    <div class="bg-white rounded-lg shadow-md ring-1 ring-gray-200 ring-inset overflow-hidden">
         <!-- Header -->
         <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
             <h3 class="text-lg font-semibold text-gray-900">Available Backups</h3>

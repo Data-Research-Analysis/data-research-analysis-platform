@@ -710,9 +710,9 @@ onMounted(async () => {
     <div>
         <div class="flex flex-col justify-center">
             <div class="flex flex-row justify-center">
-                <input type="text" class="w-3/4 border border-primary-blue-100 border-solid p-2 cursor-pointer margin-auto mt-10" placeholder="Data Source Name" v-model="state.data_source_name"/>
+                <input type="text" class="w-3/4 border border-primary-blue-100 border-solid p-2 cursor-pointer margin-auto mt-10 rounded-lg" placeholder="Data Source Name" v-model="state.data_source_name"/>
             </div>
-            <div class="flex flex-col justify-center w-3/4 min-h-100 bg-gray-200 m-auto mt-5 text-center cursor-pointer" id="drop-zone">
+            <div class="flex flex-col justify-center w-3/4 min-h-100 bg-gray-200 m-auto mt-5 text-center cursor-pointer rounded-xl" id="drop-zone">
                 <h3 class="text-lg font-semibold">Drop files here or click to upload</h3>
                 <p class="text-sm text-gray-600">Supported formats: .pdf</p>
                 <input type="file" id="file-elem" multiple class="hidden">
@@ -851,14 +851,14 @@ onMounted(async () => {
                 
                 <!-- Create button -->
                 <div 
-                    class="h-10 text-center items-center self-center p-2 font-bold shadow-md select-none transition-all duration-200"
+                    class="h-10 text-center items-center self-center p-2 font-bold shadow-md select-none transition-all duration-200 rounded-lg"
                     :class="{
                         'bg-primary-blue-100 hover:bg-primary-blue-200 cursor-pointer text-white': !buttonDisabled,
                         'bg-gray-300 cursor-not-allowed text-gray-500': buttonDisabled
                     }"
                     @click="!buttonDisabled && createDataSource()"
                 >
-                    Create PDF Data Source &amp; Upload PDF Files
+                    Create PDF Data Source &am;amp; Upload PDF Files
                 </div>
             </div>
         </div>

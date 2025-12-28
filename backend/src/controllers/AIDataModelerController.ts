@@ -102,19 +102,37 @@ export class AIDataModelerController {
                 dataSourceDetails.schema
             );
 
-            // Format schema to markdown
-            const schemaMarkdown = SchemaFormatterUtility.formatSchemaToMarkdown(tables);
-            const schemaSummary = SchemaFormatterUtility.getSchemaSummary(tables);
-            const schemaDetails = AIDataModelerController.extractSchemaDetails(tables);
+            // Fetch table metadata (display names) from database
+            const tableMetadata = await AIDataModelerController.fetchTableMetadata(
+                dataSourceId,
+                dataSourceDetails.schema,
+                tokenDetails
+            );
+
+            // Merge display names into tables
+            const tablesWithDisplayNames = tables.map(table => {
+                const metadata = tableMetadata.find(
+                    m => m.physical_table_name === table.tableName && m.schema_name === table.schema
+                );
+                return {
+                    ...table,
+                    displayName: metadata?.logical_table_name || table.tableName
+                };
+            });
+
+            // Format schema to markdown with display names
+            const schemaMarkdown = SchemaFormatterUtility.formatSchemaToMarkdown(tablesWithDisplayNames);
+            const schemaSummary = SchemaFormatterUtility.getSchemaSummary(tablesWithDisplayNames);
+            const schemaDetails = AIDataModelerController.extractSchemaDetails(tablesWithDisplayNames);
 
             // Close the data source connection
             if (dataSource.isInitialized) {
                 await dataSource.destroy();
             }
 
-            // Create schema context
+            // Create schema context with display names
             const schemaContext = {
-                tables: tables,
+                tables: tablesWithDisplayNames,
                 relationships: []
             };
 
@@ -1055,6 +1073,44 @@ Keep it concise - aim for 200-300 words total.`;
             
             default:
                 throw new Error(`Unsupported database type: ${type}`);
+        }
+    }
+
+    /**
+     * Fetch table metadata (display names) from database
+     */
+    private static async fetchTableMetadata(
+        dataSourceId: number,
+        schemaName: string,
+        tokenDetails: any
+    ): Promise<any[]> {
+        try {
+            const { DBDriver } = await import('../drivers/DBDriver.js');
+            const { EDataSourceType } = await import('../types/EDataSourceType.js');
+            const { DRATableMetadata } = await import('../models/DRATableMetadata.js');
+
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            const manager = (await driver?.getConcreteDriver())?.manager;
+
+            if (!manager) {
+                console.warn('[AIDataModelerController] Database connection failed, skipping table metadata');
+                return [];
+            }
+
+            // Fetch all table metadata for this data source
+            const metadata = await manager.find(DRATableMetadata, {
+                where: {
+                    data_source_id: dataSourceId,
+                    schema_name: schemaName
+                }
+            });
+
+            console.log(`[AIDataModelerController] Fetched ${metadata.length} table metadata entries for data source ${dataSourceId}`);
+            return metadata;
+
+        } catch (error) {
+            console.error('[AIDataModelerController] Error fetching table metadata:', error);
+            return [];
         }
     }
 

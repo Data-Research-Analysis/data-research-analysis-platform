@@ -277,7 +277,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
             ]);
         }
         
-        console.log(`✅ Synced ${rows.length} rows to ${tableName}`);
+        console.log(`✅ Synced ${rows.length} rows to ${logicalTableName}`);
     }
     
     /**
@@ -305,7 +305,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         await manager.query(`DROP TABLE IF EXISTS ${fullTableName}`);
         
         await manager.query(`
-            CREATE TABLE ${tableName} (
+            CREATE TABLE ${fullTableName} (
                 id SERIAL PRIMARY KEY,
                 date DATE NOT NULL,
                 first_user_source VARCHAR(255),
@@ -356,7 +356,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
             ]);
         }
         
-        console.log(`✅ Synced ${rows.length} rows to ${tableName}`);
+        console.log(`✅ Synced ${rows.length} rows to ${logicalTableName}`);
     }
     
     /**
@@ -427,7 +427,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
             ]);
         }
         
-        console.log(`✅ Synced ${rows.length} rows to ${tableName}`);
+        console.log(`✅ Synced ${rows.length} rows to ${logicalTableName}`);
     }
     
     /**
@@ -501,7 +501,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
             ]);
         }
         
-        console.log(`✅ Synced ${rows.length} rows to ${tableName}`);
+        console.log(`✅ Synced ${rows.length} rows to ${logicalTableName}`);
     }
     
     /**
@@ -569,7 +569,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
             ]);
         }
         
-        console.log(`✅ Synced ${rows.length} rows to ${tableName}`);
+        console.log(`✅ Synced ${rows.length} rows to ${logicalTableName}`);
     }
     
     /**
