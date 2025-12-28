@@ -2,6 +2,7 @@
 import { ref, watch, nextTick, onMounted, onUnmounted, computed } from 'vue';
 import { useAIDataModelerStore } from '~/stores/ai-data-modeler';
 import { usePresetGenerator } from '~/composables/usePresetGenerator';
+import AIDataModelerChat from './AIDataModelerChat.vue';
 
 const aiDataModelerStore = useAIDataModelerStore();
 
@@ -61,6 +62,9 @@ const showModelSuccess = computed(() => {
 const isApplyingModel = ref(false);
 const showModelPreview = ref(false);
 const buttonState = ref<'normal' | 'loading' | 'success'>('normal');
+
+// Tab state for Templates vs Chat
+const activeTab = ref<'templates' | 'chat'>('templates');
 
 // User preferences - Load preview preference from localStorage
 function loadPreferences() {
@@ -152,7 +156,8 @@ watch(showModelPreview, (newValue) => {
 
 function handlePresetModel(prompt: string) {
     userRequestedGeneration.value = true;
-    aiDataModelerStore.sendMessage(prompt);
+    // Pass isTemplate flag to use template prompt (fast, JSON-only)
+    aiDataModelerStore.sendMessage(prompt, { isTemplate: true });
 }
 
 function handleGenerateAnotherRecommendation() {
@@ -387,8 +392,32 @@ function getOrderByColumns(): string[] {
 
                         <!-- Main Content -->
                         <div v-else class="flex-1 flex flex-col overflow-hidden">
-                            <!-- Preset Model Selection Interface -->
-                            <div class="min-h-0 flex-1 overflow-y-auto p-6 bg-gradient-to-b from-gray-50 to-white">
+                            <!-- Tab Navigation -->
+                            <div class="flex border-b border-gray-200 bg-white px-6">
+                                <button 
+                                    @click="activeTab = 'templates'"
+                                    :class="{ 
+                                        'border-b-2 border-blue-600 text-blue-600': activeTab === 'templates',
+                                        'text-gray-600 hover:text-gray-800': activeTab !== 'templates'
+                                    }"
+                                    class="px-6 py-3 font-medium transition-colors duration-200 flex items-center gap-2 cursor-pointer">
+                                    <span>📋</span>
+                                    <span>Templates</span>
+                                </button>
+                                <button 
+                                    @click="activeTab = 'chat'"
+                                    :class="{ 
+                                        'border-b-2 border-blue-600 text-blue-600': activeTab === 'chat',
+                                        'text-gray-600 hover:text-gray-800': activeTab !== 'chat'
+                                    }"
+                                    class="px-6 py-3 font-medium transition-colors duration-200 flex items-center gap-2 cursor-pointer">
+                                    <span>💬</span>
+                                    <span>Chat with AI</span>
+                                </button>
+                            </div>
+
+                            <!-- Templates Tab Content -->
+                            <div v-if="activeTab === 'templates'" class="min-h-0 flex-1 overflow-y-auto p-6 bg-gradient-to-b from-gray-50 to-white">
                                 <div class="max-w-[600px] mx-auto pb-6">
                                     <!-- Instructions -->
                                     <div class="mb-6">
@@ -462,6 +491,9 @@ function getOrderByColumns(): string[] {
                                 </div>
                             </div>
                             <!-- Model Status Display -->
+                            
+                            <!-- Chat Tab Content -->
+                            <AIDataModelerChat v-else-if="activeTab === 'chat'" class="min-h-0 flex-1" />
                             <div v-if="showModelError" 
                                 class="mt-6 p-4 bg-yellow-50 border-2 border-yellow-300 rounded-lg">
                                 <div class="flex items-center gap-2 text-yellow-700 font-medium mb-2">
@@ -491,7 +523,7 @@ function getOrderByColumns(): string[] {
                                         class="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
                                     >
                                         <span>{{ showModelPreview ? 'Hide' : 'Show' }} Preview</span>
-                                        <font-awesome icon="fas fa-chevron-down" class="w-4 h-4 transition-transform" :class="{ 'rotate-180': showModelPreview }" />
+                                        <font-awesome icon="fas fa-chevron-down" :class="showModelPreview ? 'w-4 h-4 transition-transform rotate-180' : 'w-4 h-4 transition-transform'" />
                                     </button>
                                 </div>
                                 
@@ -610,7 +642,7 @@ function getOrderByColumns(): string[] {
                                     <span v-else>Apply to Builder</span>
                                 </button>
                             </div>
-                         </div>
+                        </div>
                     </div>
                 </Transition>
             </div>

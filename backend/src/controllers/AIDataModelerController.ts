@@ -404,8 +404,8 @@ Keep it concise - aim for 200-300 words total.`;
                 // Send to Gemini
                 const response = await geminiService.sendMessage(conversationId, message);
 
-                // Check if response contains data model JSON
-                const dataModelJSON = AIDataModelerController.extractDataModelJSON(response);
+                // Parse response to extract clean display message
+                const parsed = AIDataModelerController.parseAIResponse(response);
 
                 res.status(200).json({
                     userMessage: {
@@ -417,11 +417,11 @@ Keep it concise - aim for 200-300 words total.`;
                     assistantMessage: {
                         id: `msg_${Date.now()}_assistant`,
                         role: 'assistant',
-                        content: response,
+                        content: parsed.displayMessage,  // Send clean text instead of raw JSON
                         timestamp: new Date()
                     },
                     conversationId,
-                    dataModel: dataModelJSON || null
+                    dataModel: parsed.dataModel || null
                 });
                 return;
             }
@@ -462,17 +462,17 @@ Keep it concise - aim for 200-300 words total.`;
             // Send to Gemini
             const response = await geminiService.sendMessage(session.conversationId, message);
 
-            // Check if response contains data model JSON
-            const dataModelJSON = AIDataModelerController.extractDataModelJSON(response);
+            // Parse response to extract clean display message
+            const parsed = AIDataModelerController.parseAIResponse(response);
 
-            // Save assistant message to Redis
-            const assistantMessage = await redisService.addMessage(dataSourceId, userId, 'assistant', response);
+            // Save assistant message to Redis with display message
+            const assistantMessage = await redisService.addMessage(dataSourceId, userId, 'assistant', parsed.displayMessage);
 
             res.status(200).json({
                 userMessage,
                 assistantMessage,
                 conversationId: session.conversationId,
-                dataModel: dataModelJSON || null
+                dataModel: parsed.dataModel || null
             });
 
         } catch (error) {
@@ -731,6 +731,71 @@ Keep it concise - aim for 200-300 words total.`;
         } catch (error) {
             console.error('[AIDataModelerController] Failed to parse data model JSON:', error);
             return null;
+        }
+    }
+
+    /**
+     * Parse AI response and extract display message for users
+     * Handles GUIDE and BUILD_DATA_MODEL actions
+     */
+    private static parseAIResponse(aiResponse: string): {
+        action: string;
+        displayMessage: string;
+        dataModel: any | null;
+    } {
+        try {
+            // Look for JSON code block
+            const jsonMatch = aiResponse.match(/```json\s*([\s\S]*?)\s*```/);
+            
+            if (jsonMatch) {
+                const parsed = JSON.parse(jsonMatch[1]);
+                
+                // GUIDE action - return guidance message for display
+                if (parsed.action === 'GUIDE') {
+                    console.log('[AIDataModelerController] Parsed GUIDE response');
+                    return {
+                        action: 'GUIDE',
+                        displayMessage: parsed.message || aiResponse,
+                        dataModel: null
+                    };
+                }
+                
+                // BUILD_DATA_MODEL action - return guidance text + model
+                if (parsed.action === 'BUILD_DATA_MODEL' && parsed.model) {
+                    console.log('[AIDataModelerController] Parsed BUILD_DATA_MODEL response');
+                    return {
+                        action: 'BUILD_DATA_MODEL',
+                        displayMessage: parsed.guidance || 'I\'ve created a data model for you.',
+                        dataModel: parsed.model
+                    };
+                }
+                
+                // NONE or unknown action
+                if (parsed.action === 'NONE') {
+                    return {
+                        action: 'NONE',
+                        displayMessage: parsed.message || 'I can only help with data modeling questions.',
+                        dataModel: null
+                    };
+                }
+            }
+            
+            // Fallback: no JSON found, treat as plain text
+            console.warn('[AIDataModelerController] No JSON found in response, treating as plain text');
+            return {
+                action: 'UNKNOWN',
+                displayMessage: aiResponse,
+                dataModel: this.extractDataModelJSON(aiResponse) // Try old method as fallback
+            };
+            
+        } catch (error) {
+            console.error('[AIDataModelerController] Failed to parse AI response:', error);
+            // On error, return raw response
+            return {
+                action: 'ERROR',
+                displayMessage: aiResponse,
+                dataModel: null
+            };
         }
     }
 

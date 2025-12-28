@@ -250,8 +250,10 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
 
     /**
      * Send a message to the AI (saves to Redis)
+     * @param message User message
+     * @param options Optional parameters like isTemplate flag
      */
-    async function sendMessage(message: string) {
+    async function sendMessage(message: string, options?: { isTemplate?: boolean }) {
         // Check if we have an active session (either single-source or cross-source)
         if (!currentDataSourceId.value && !isCrossSource.value) {
             error.value = 'No active session';
@@ -283,7 +285,8 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
             // For cross-source, use conversationId directly instead of dataSourceId
             const url = `${baseUrl()}/ai-data-modeler/session/chat`;
             const requestBody: any = {
-                message: message.trim()
+                message: message.trim(),
+                isTemplate: options?.isTemplate || false  // Pass template mode flag to backend
             };
 
             if (isCrossSource.value) {
