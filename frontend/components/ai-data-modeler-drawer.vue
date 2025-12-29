@@ -46,17 +46,46 @@ const lastMessageHasDataModel = computed(() => {
 
 // Computed property for showing error state
 const showModelError = computed(() => {
-    // Only show error if user explicitly requested generation
-    const result = userRequestedGeneration.value && lastMessageHasDataModel.value && !hasValidModel.value;
-    console.log('[AI Drawer] showModelError:', result, { userRequestedGeneration: userRequestedGeneration.value, lastMessageHasDataModel: lastMessageHasDataModel.value, hasValidModel: hasValidModel.value });
+    // Only show error if:
+    // 1. User explicitly requested generation
+    // 2. AI has responded (not loading)
+    // 3. No valid model exists
+    // 4. Not currently loading (to avoid flash of error while waiting)
+    const hasResponse = aiDataModelerStore.messages.length > 0 && 
+                       aiDataModelerStore.messages[aiDataModelerStore.messages.length - 1].role === 'assistant';
+    const result = userRequestedGeneration.value && 
+                   hasResponse && 
+                   !hasValidModel.value && 
+                   !aiDataModelerStore.isLoading;
+    console.log('[AI Drawer] showModelError:', result, { 
+        userRequestedGeneration: userRequestedGeneration.value, 
+        hasResponse, 
+        hasValidModel: hasValidModel.value,
+        isLoading: aiDataModelerStore.isLoading
+    });
     return result;
 });
 
 // Computed property for showing success state
 const showModelSuccess = computed(() => {
-    const result = lastMessageHasDataModel.value && hasValidModel.value;
-    console.log('[AI Drawer] showModelSuccess:', result, { lastMessageHasDataModel: lastMessageHasDataModel.value, hasValidModel: hasValidModel.value, modelDraft: aiDataModelerStore.modelDraft });
+    // Show success if user requested generation AND we have a valid model draft
+    // Don't rely on message content parsing since backend sends clean responses
+    const result = userRequestedGeneration.value && hasValidModel.value;
+    console.log('[AI Drawer] showModelSuccess:', result, { 
+        userRequestedGeneration: userRequestedGeneration.value, 
+        hasValidModel: hasValidModel.value, 
+        modelDraft: aiDataModelerStore.modelDraft,
+        messagesCount: aiDataModelerStore.messages.length
+    });
     return result;
+});
+
+// Watch for successful model generation to reset error state
+watch(hasValidModel, (newValue) => {
+    if (newValue && userRequestedGeneration.value) {
+        // Model successfully generated, error state no longer relevant
+        console.log('[AI Drawer] Valid model detected, error state cleared');
+    }
 });
 
 const isApplyingModel = ref(false);
@@ -488,27 +517,193 @@ function getOrderByColumns(): string[] {
                                             </div>
                                         </div>
                                     </div>
+
+                                    <!-- Model Status Display for Templates Tab -->
+                                    <div v-if="showModelError" 
+                                        class="mt-6 p-4 bg-yellow-50 border-2 border-yellow-300 rounded-lg relative">
+                                        <button
+                                            @click="userRequestedGeneration = false"
+                                            class="absolute top-2 right-2 text-yellow-600 hover:text-yellow-800 transition-colors"
+                                            title="Dismiss"
+                                        >
+                                            <font-awesome icon="fas fa-times" class="w-4 h-4" />
+                                        </button>
+                                        <div class="flex items-center gap-2 text-yellow-700 font-medium mb-2">
+                                            <font-awesome icon="fas fa-exclamation-triangle" class="w-5 h-5" />
+                                            <span>Model Parse Error</span>
+                                        </div>
+                                        <p class="text-sm text-gray-700 mb-2">
+                                            AI generated a response but the model structure could not be parsed. This might be a temporary issue.
+                                        </p>
+                                        <p class="text-xs text-gray-600">
+                                            Try asking the AI to regenerate the model or be more specific about what you need.
+                                        </p>
+                                    </div>
+                                    <!-- Data Model Indicator for Templates Tab -->
+                                    <div v-if="showModelSuccess" 
+                                        class="mt-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
+                                        <div class="flex items-center justify-between gap-2 text-blue-700 font-medium mb-2">
+                                            <div class="flex items-center gap-2">
+                                                <font-awesome icon="fas fa-certificate" class="w-5 h-5" />
+                                                <span>Data Model Ready</span>
+                                                <span class="text-[10px] text-blue-500 font-normal">
+                                                    (Model: {{ getTablesList() }})
+                                                </span>
+                                            </div>
+                                            <button
+                                                @click="showModelPreview = !showModelPreview"
+                                                class="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                                            >
+                                                <span>{{ showModelPreview ? 'Hide' : 'Show' }} Preview</span>
+                                                <font-awesome icon="fas fa-chevron-down" :class="showModelPreview ? 'w-4 h-4 transition-transform rotate-180' : 'w-4 h-4 transition-transform'" />
+                                            </button>
+                                        </div>
+                                        
+                                        <p class="text-sm text-gray-700 mb-3">
+                                            AI has generated a data model configuration. Review it above and click the button below to apply it to the builder.
+                                        </p>                                    
+                                        <!-- Model History Navigation -->
+                                        <div v-if="aiDataModelerStore.modelHistory.length > 1" class="mb-3 p-2 bg-gray-50 border border-gray-200 rounded-lg">
+                                            <div class="flex items-center justify-between gap-2">
+                                                <div class="text-xs text-gray-600 flex items-center gap-2">
+                                                    <font-awesome icon="fas fa-history" class="w-4 h-4 text-gray-500" />
+                                                    <span>Model {{ aiDataModelerStore.currentHistoryIndex + 1 }} of {{ aiDataModelerStore.modelHistory.length }}</span>
+                                                </div>
+                                                <div class="flex items-center gap-1">
+                                                    <button
+                                                        @click="aiDataModelerStore.goToPreviousModel()"
+                                                        :disabled="!aiDataModelerStore.canGoBack()"
+                                                        class="p-1 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors rounded"
+                                                        title="Previous model (Alt + ←)"
+                                                        aria-label="Previous model"
+                                                    >
+                                                        <font-awesome icon="fas fa-chevron-left" class="w-4 h-4 text-gray-700" />
+                                                    </button>
+                                                    <button
+                                                        @click="aiDataModelerStore.goToNextModel()"
+                                                        :disabled="!aiDataModelerStore.canGoForward()"
+                                                        class="p-1 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors rounded"
+                                                        title="Next model (Alt + →)"
+                                                        aria-label="Next model"
+                                                    >
+                                                        <font-awesome icon="fas fa-chevron-right" class="w-4 h-4 text-gray-700" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div class="text-[10px] text-gray-500 mt-1 flex items-center gap-1">
+                                                <span>Use</span>
+                                                <kbd class="px-1 py-0.5 bg-white border border-gray-300 text-[9px] font-mono rounded">Alt+←</kbd>
+                                                <span>/</span>
+                                                <kbd class="px-1 py-0.5 bg-white border border-gray-300 text-[9px] font-mono rounded">Alt+→</kbd>
+                                                <span>to navigate</span>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Collapsible Preview Section -->
+                                        <Transition
+                                            enter-active-class="transition-all duration-200"
+                                            leave-active-class="transition-all duration-200"
+                                            enter-from-class="max-h-0 opacity-0"
+                                            leave-to-class="max-h-0 opacity-0"
+                                        >
+                                            <div v-if="showModelPreview" class="mb-3 p-3 bg-white border border-blue-100 text-xs rounded-lg">
+                                                <div class="grid grid-cols-2 gap-3">
+                                                    <div>
+                                                        <div class="font-semibold text-gray-700 mb-1">Table</div>
+                                                        <div class="text-gray-600 font-mono bg-gray-50 px-2 py-1 rounded">{{ getTablesList() }}</div>
+                                                    </div>
+                                                    <div>
+                                                        <div class="font-semibold text-gray-700 mb-1">Column Count</div>
+                                                        <div class="text-gray-600">{{ getColumnCount() }} selected</div>
+                                                    </div>
+                                                    <div class="col-span-2">
+                                                        <div class="font-semibold text-gray-700 mb-2">Selected Columns</div>
+                                                        <div v-if="getColumnNames().length > 0" class="flex flex-wrap gap-1.5">
+                                                            <span 
+                                                                v-for="(columnName, index) in getColumnNames()" 
+                                                                :key="index"
+                                                                class="inline-flex items-center px-2 py-1 bg-blue-50 text-blue-700 text-[11px] font-mono border border-blue-200 rounded"
+                                                            >
+                                                                {{ columnName }}
+                                                            </span>
+                                                        </div>
+                                                        <div v-else class="text-gray-500 text-xs italic">
+                                                            No columns selected
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div v-if="hasWhereClause() || hasGroupBy() || hasOrderBy()" class="mt-3 pt-3 border-t border-blue-100">
+                                                    <div class="font-semibold text-gray-700 mb-2">Query Options</div>
+                                                    <div class="space-y-1">
+                                                        <div v-if="hasWhereClause()" class="flex gap-2">
+                                                            <span class="text-gray-500 font-medium">WHERE:</span>
+                                                            <span class="text-gray-600">{{ getWhereConditions().join(', ') }}</span>
+                                                        </div>
+                                                        <div v-if="hasGroupBy()" class="flex gap-2">
+                                                            <span class="text-gray-500 font-medium">GROUP BY:</span>
+                                                            <span class="text-gray-600">{{ getGroupByColumns().join(', ') }}</span>
+                                                        </div>
+                                                        <div v-if="hasOrderBy()" class="flex gap-2">
+                                                            <span class="text-gray-500 font-medium">ORDER BY:</span>
+                                                            <span class="text-gray-600">{{ getOrderByColumns().join(', ') }}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </Transition>
+                                        <button
+                                            @click="handleApplyModel"
+                                            :disabled="isApplyingModel"
+                                            class="w-full px-4 py-2.5 border-0 text-sm font-medium cursor-pointer transition-all duration-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 rounded-lg"
+                                            :class="{
+                                                'bg-blue-600 text-white hover:bg-blue-700': buttonState === 'normal',
+                                                'bg-blue-600 text-white opacity-70': buttonState === 'loading',
+                                                'bg-green-600 text-white': buttonState === 'success'
+                                            }"
+                                        >
+                                            <!-- Loading spinner -->
+                                            <font-awesome v-if="buttonState === 'loading'" icon="fas fa-spinner" class="fa-spin h-4 w-4" />
+                                            <!-- Success checkmark -->
+                                            <font-awesome v-else-if="buttonState === 'success'" icon="fas fa-check-circle" class="w-5 h-5" />
+                                            <!-- Normal icon -->
+                                            <font-awesome v-else icon="fas fa-plus" class="w-4 h-4" />
+                                            <!-- Button text -->
+                                            <span v-if="buttonState === 'loading'">Applying...</span>
+                                            <span v-else-if="buttonState === 'success'">Applied Successfully!</span>
+                                            <span v-else>Apply to Builder</span>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
-                            <!-- Model Status Display -->
                             
                             <!-- Chat Tab Content -->
-                            <AIDataModelerChat v-else-if="activeTab === 'chat'" class="min-h-0 flex-1" />
-                            <div v-if="showModelError" 
-                                class="mt-6 p-4 bg-yellow-50 border-2 border-yellow-300 rounded-lg">
-                                <div class="flex items-center gap-2 text-yellow-700 font-medium mb-2">
-                                    <font-awesome icon="fas fa-exclamation-triangle" class="w-5 h-5" />
-                                    <span>Model Parse Error</span>
+                            <div v-else-if="activeTab === 'chat'" class="min-h-0 flex-1 flex flex-col">
+                                <AIDataModelerChat class="min-h-0 flex-1" />
+                                
+                                <!-- Model Status Display for Chat Tab (inside chat area) -->
+                                <div v-if="showModelError" 
+                                    class="mt-4 p-4 bg-yellow-50 border-2 border-yellow-300 rounded-lg relative">
+                                    <button
+                                        @click="userRequestedGeneration = false"
+                                        class="absolute top-2 right-2 text-yellow-600 hover:text-yellow-800 transition-colors"
+                                        title="Dismiss"
+                                    >
+                                        <font-awesome icon="fas fa-times" class="w-4 h-4" />
+                                    </button>
+                                    <div class="flex items-center gap-2 text-yellow-700 font-medium mb-2">
+                                        <font-awesome icon="fas fa-exclamation-triangle" class="w-5 h-5" />
+                                        <span>Model Parse Error</span>
+                                    </div>
+                                    <p class="text-sm text-gray-700 mb-2">
+                                        AI generated a response but the model structure could not be parsed. This might be a temporary issue.
+                                    </p>
+                                    <p class="text-xs text-gray-600">
+                                        Try asking the AI to regenerate the model or be more specific about what you need.
+                                    </p>
                                 </div>
-                                <p class="text-sm text-gray-700 mb-2">
-                                    AI generated a response but the model structure could not be parsed. This might be a temporary issue.
-                                </p>
-                                <p class="text-xs text-gray-600">
-                                    Try asking the AI to regenerate the model or be more specific about what you need.
-                                </p>
-                            </div>
-                            <!-- Data Model Indicator -->
-                            <div v-if="showModelSuccess" 
+                                <!-- Data Model Ready for Chat Tab (inside chat area) -->
+                                <div v-if="showModelSuccess" 
                                 class="mt-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
                                 <div class="flex items-center justify-between gap-2 text-blue-700 font-medium mb-2">
                                     <div class="flex items-center gap-2">
@@ -641,6 +836,7 @@ function getOrderByColumns(): string[] {
                                     <span v-else-if="buttonState === 'success'">Applied Successfully!</span>
                                     <span v-else>Apply to Builder</span>
                                 </button>
+                            </div>
                             </div>
                         </div>
                     </div>

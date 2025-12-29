@@ -10,6 +10,61 @@ const userInput = ref('');
 const messagesContainer = ref<HTMLElement | null>(null);
 const showHelpModal = ref(false);
 
+// Clear chat function
+async function clearChat() {
+    const { $swal } = useNuxtApp() as any;
+    const result = await $swal.fire({
+        title: 'Clear Chat History?',
+        text: 'This will remove all messages from the current conversation. This action cannot be undone.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Yes, clear it',
+        cancelButtonText: 'Cancel',
+        didOpen: () => {
+            // Set z-index higher than drawer (9999) with !important to prevent override
+            const swalContainer = document.querySelector('.swal2-container');
+            if (swalContainer) {
+                (swalContainer as HTMLElement).style.setProperty('z-index', '10000', 'important');
+            }
+        },
+        willClose: () => {
+            // Reset z-index when closing
+            const swalContainer = document.querySelector('.swal2-container');
+            if (swalContainer) {
+                (swalContainer as HTMLElement).style.removeProperty('z-index');
+            }
+        }
+    });
+    
+    if (result.isConfirmed) {
+        // Clear messages in store
+        aiDataModelerStore.messages = [];
+        aiDataModelerStore.modelDraft = null;
+        
+        $swal.fire({
+            title: 'Cleared!',
+            text: 'Chat history has been cleared.',
+            icon: 'success',
+            timer: 1500,
+            showConfirmButton: false,
+            didOpen: () => {
+                const swalContainer = document.querySelector('.swal2-container');
+                if (swalContainer) {
+                    (swalContainer as HTMLElement).style.setProperty('z-index', '10000', 'important');
+                }
+            },
+            willClose: () => {
+                const swalContainer = document.querySelector('.swal2-container');
+                if (swalContainer) {
+                    (swalContainer as HTMLElement).style.removeProperty('z-index');
+                }
+            }
+        });
+    }
+}
+
 // Suggested starter questions
 const suggestions = computed(() => {
     const summary = aiDataModelerStore.schemaSummary;
@@ -209,6 +264,13 @@ onMounted(() => {
                     class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     :disabled="aiDataModelerStore.isLoading"
                 />
+                <button
+                    @click="clearChat"
+                    :disabled="aiDataModelerStore.messages.length === 0"
+                    class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                    title="Clear chat history">
+                    <font-awesome icon="fas fa-trash-alt" class="w-4 h-4" />
+                </button>
                 <button
                     @click="sendMessage"
                     :disabled="!userInput.trim() || aiDataModelerStore.isLoading"
