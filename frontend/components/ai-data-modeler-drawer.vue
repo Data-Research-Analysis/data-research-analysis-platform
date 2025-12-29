@@ -206,9 +206,31 @@ function handleClose() {
     }
 }
 
-function handleRetry() {
-    if (aiDataModelerStore.currentDataSourceId) {
-        aiDataModelerStore.initializeConversation(aiDataModelerStore.currentDataSourceId);
+async function handleRetry() {
+    // Clear previous error
+    aiDataModelerStore.error = null;
+    
+    // Determine which mode to reinitialize based on stored context
+    if (aiDataModelerStore.isCrossSource && aiDataModelerStore.projectId && aiDataModelerStore.dataSources.length > 0) {
+        // Cross-source mode: reinitialize with project and data sources
+        console.log('[AI Drawer] Retrying cross-source initialization:', {
+            projectId: aiDataModelerStore.projectId,
+            dataSourceCount: aiDataModelerStore.dataSources.length
+        });
+        await aiDataModelerStore.initializeCrossSourceConversation(
+            aiDataModelerStore.projectId,
+            aiDataModelerStore.dataSources
+        );
+    } else if (aiDataModelerStore.currentDataSourceId) {
+        // Single-source mode: reinitialize with data source ID
+        console.log('[AI Drawer] Retrying single-source initialization:', {
+            dataSourceId: aiDataModelerStore.currentDataSourceId
+        });
+        await aiDataModelerStore.initializeConversation(aiDataModelerStore.currentDataSourceId);
+    } else {
+        // No context available - close drawer and show error
+        console.error('[AI Drawer] Cannot retry: No context available (no dataSourceId or cross-source data)');
+        aiDataModelerStore.error = 'Unable to reinitialize session. Please close and reopen the AI Data Modeler.';
     }
 }
 
@@ -489,59 +511,9 @@ function getOrderByColumns(): string[] {
                                         </button>
                                     </div>
 
-                                    <!-- Generate Another Recommendation Button -->
-                                    <div class="mb-6">
-                                        <button
-                                            @click="handleGenerateAnotherRecommendation"
-                                            :disabled="aiDataModelerStore.isLoading"
-                                            class="w-full flex items-center justify-center gap-3 p-4 bg-primary-blue-100 text-white border-0 hover:bg-primary-blue-300 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg font-medium cursor-pointer rounded-lg"
-                                        >
-                                            <font-awesome icon="fas fa-sync-alt" class="w-5 h-5" />
-                                            <span>Generate Another AI Recommendation</span>
-                                            <span v-if="aiDataModelerStore.isLoading" class="ml-2">
-                                                <font-awesome icon="fas fa-spinner" class="fa-spin h-5 w-5" />
-                                            </span>
-                                        </button>
-                                        <p class="text-xs text-gray-500 mt-2 text-center">
-                                            AI will analyze your database and suggest a custom data model
-                                        </p>
-                                    </div>
-
-                                    <!-- Info message -->
-                                    <div class="mt-6 p-4 bg-blue-50 border border-blue-100 rounded-lg">
-                                        <div class="flex items-start gap-3">
-                                            <font-awesome icon="fas fa-info-circle" class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                                            <div class="text-sm text-blue-800">
-                                                <p class="font-medium mb-1">💡 Tip</p>
-                                                <p>Select a template above, or click "Generate Another AI Recommendation" to let AI surprise you with a custom data model suggestion. You can generate as many as you want!</p>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Model Status Display for Templates Tab -->
-                                    <div v-if="showModelError" 
-                                        class="mt-6 p-4 bg-yellow-50 border-2 border-yellow-300 rounded-lg relative">
-                                        <button
-                                            @click="userRequestedGeneration = false"
-                                            class="absolute top-2 right-2 text-yellow-600 hover:text-yellow-800 transition-colors"
-                                            title="Dismiss"
-                                        >
-                                            <font-awesome icon="fas fa-times" class="w-4 h-4" />
-                                        </button>
-                                        <div class="flex items-center gap-2 text-yellow-700 font-medium mb-2">
-                                            <font-awesome icon="fas fa-exclamation-triangle" class="w-5 h-5" />
-                                            <span>Model Parse Error</span>
-                                        </div>
-                                        <p class="text-sm text-gray-700 mb-2">
-                                            AI generated a response but the model structure could not be parsed. This might be a temporary issue.
-                                        </p>
-                                        <p class="text-xs text-gray-600">
-                                            Try asking the AI to regenerate the model or be more specific about what you need.
-                                        </p>
-                                    </div>
-                                    <!-- Data Model Indicator for Templates Tab -->
+                                    <!-- Data Model Ready Indicator (Templates Tab) -->
                                     <div v-if="showModelSuccess" 
-                                        class="mt-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
+                                        class="mb-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
                                         <div class="flex items-center justify-between gap-2 text-blue-700 font-medium mb-2">
                                             <div class="flex items-center gap-2">
                                                 <font-awesome icon="fas fa-certificate" class="w-5 h-5" />
@@ -673,6 +645,57 @@ function getOrderByColumns(): string[] {
                                             <span v-else-if="buttonState === 'success'">Applied Successfully!</span>
                                             <span v-else>Apply to Builder</span>
                                         </button>
+                                    </div>
+
+                                    <!-- Model Status Display for Templates Tab -->
+                                    <div v-if="showModelError" 
+                                        class="mb-6 p-4 bg-yellow-50 border-2 border-yellow-300 rounded-lg relative">
+                                        <button
+                                            @click="userRequestedGeneration = false"
+                                            class="absolute top-2 right-2 text-yellow-600 hover:text-yellow-800 transition-colors"
+                                            title="Dismiss"
+                                        >
+                                            <font-awesome icon="fas fa-times" class="w-4 h-4" />
+                                        </button>
+                                        <div class="flex items-center gap-2 text-yellow-700 font-medium mb-2">
+                                            <font-awesome icon="fas fa-exclamation-triangle" class="w-5 h-5" />
+                                            <span>Model Parse Error</span>
+                                        </div>
+                                        <p class="text-sm text-gray-700 mb-2">
+                                            AI generated a response but the model structure could not be parsed. This might be a temporary issue.
+                                        </p>
+                                        <p class="text-xs text-gray-600">
+                                            Try asking the AI to regenerate the model or be more specific about what you need.
+                                        </p>
+                                    </div>
+
+                                    <!-- Info message -->
+                                    <div class="mb-6 p-4 bg-blue-50 border border-blue-100 rounded-lg">
+                                        <div class="flex items-start gap-3">
+                                            <font-awesome icon="fas fa-info-circle" class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                                            <div class="text-sm text-blue-800">
+                                                <p class="font-medium mb-1">💡 Tip</p>
+                                                <p>Select a template above, or click "Generate Another AI Recommendation" to let AI surprise you with a custom data model suggestion. You can generate as many as you want!</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Generate Another Recommendation Button -->
+                                    <div class="mb-6">
+                                        <button
+                                            @click="handleGenerateAnotherRecommendation"
+                                            :disabled="aiDataModelerStore.isLoading"
+                                            class="w-full flex items-center justify-center gap-3 p-4 bg-primary-blue-100 text-white border-0 hover:bg-primary-blue-300 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg font-medium cursor-pointer rounded-lg"
+                                        >
+                                            <font-awesome icon="fas fa-sync-alt" class="w-5 h-5" />
+                                            <span>Generate Another AI Recommendation</span>
+                                            <span v-if="aiDataModelerStore.isLoading" class="ml-2">
+                                                <font-awesome icon="fas fa-spinner" class="fa-spin h-5 w-5" />
+                                            </span>
+                                        </button>
+                                        <p class="text-xs text-gray-500 mt-2 text-center">
+                                            AI will analyze your database and suggest a custom data model
+                                        </p>
                                     </div>
                                 </div>
                             </div>

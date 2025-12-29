@@ -148,7 +148,7 @@ onMounted(() => {
 
                 <div v-else-if="state.user" class="space-y-6">
                     <!-- User Info Section -->
-                    <div class="bg-gray-50 p-4 rounded">
+                    <div class="bg-gray-50 p-4 rounded-lg">
                         <h3 class="font-bold text-lg mb-3">User Information</h3>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
