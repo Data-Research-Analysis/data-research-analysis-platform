@@ -500,6 +500,8 @@ function aggregateFunctionChanged(event) {
             }
         }
     }
+    // Sync GROUP BY columns after aggregate function change
+    syncGroupByColumns();
 }
 function aggregateFunctionColumnChanged(event) {
     const aggregateFunction = state.data_table.query_options.group_by.aggregate_functions.find((aggregate_function) => aggregate_function.column === event.target.value)
@@ -518,7 +520,78 @@ function aggregateFunctionColumnChanged(event) {
             }
         }
     }
+    // Sync GROUP BY columns after aggregate column change
+    syncGroupByColumns();
 }
+
+/**
+ * Synchronizes group_by_columns array with current state
+ * Ensures all non-aggregated selected columns are in GROUP BY
+ * and aggregated columns are excluded
+ */
+function syncGroupByColumns() {
+    // Only run if GROUP BY exists (has aggregates)
+    const hasAggregates = state.data_table.query_options?.group_by?.aggregate_functions?.length > 0 ||
+                         state.data_table.query_options?.group_by?.aggregate_expressions?.length > 0;
+    
+    if (!hasAggregates) {
+        // No aggregates = no GROUP BY needed
+        if (state.data_table.query_options?.group_by?.group_by_columns) {
+            state.data_table.query_options.group_by.group_by_columns = [];
+        }
+        return;
+    }
+    
+    // Build set of aggregated columns
+    const aggregatedColumns = new Set();
+    
+    state.data_table.query_options.group_by.aggregate_functions?.forEach(aggFunc => {
+        if (aggFunc.column) {
+            aggregatedColumns.add(aggFunc.column);
+        }
+    });
+    
+    state.data_table.query_options.group_by.aggregate_expressions?.forEach(aggExpr => {
+        if (aggExpr.expression) {
+            // Extract column references from expressions like "schema.table.column"
+            const matches = aggExpr.expression.match(/\w+\.\w+\.\w+/g);
+            if (matches) {
+                matches.forEach(col => aggregatedColumns.add(col));
+            }
+        }
+    });
+    
+    // Rebuild group_by_columns from selected non-aggregate columns
+    const groupByColumns = state.data_table.columns
+        .filter(col => {
+            if (!col.is_selected_column) return false;
+            const fullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
+            return !aggregatedColumns.has(fullPath);
+        })
+        .map(col => {
+            let columnRef = `${col.schema}.${col.table_name}.${col.column_name}`;
+            // Include transform functions if present
+            if (col.transform_function) {
+                const closeParens = ')'.repeat(col.transform_close_parens || 1);
+                columnRef = `${col.transform_function}(${columnRef}${closeParens}`;
+            }
+            return columnRef;
+        });
+    
+    // Initialize group_by_columns if it doesn't exist
+    if (!state.data_table.query_options.group_by.group_by_columns) {
+        state.data_table.query_options.group_by.group_by_columns = [];
+    }
+    
+    state.data_table.query_options.group_by.group_by_columns = groupByColumns;
+    
+    console.log('[syncGroupByColumns] Updated group_by_columns:', {
+        total: groupByColumns.length,
+        columns: groupByColumns,
+        excludedAggregates: Array.from(aggregatedColumns)
+    });
+}
+
 function openDialog() {
     state.show_dialog = true;
 }
@@ -1416,6 +1489,12 @@ async function deleteColumn(columnName) {
             console.log(`[deleteColumn] Removed ${removedCount} aggregate expression(s)`);
         }
     }
+    
+    // Sync GROUP BY columns after all cleanup operations
+    if (state.data_table.query_options?.group_by?.aggregate_functions?.length > 0 ||
+        state.data_table.query_options?.group_by?.aggregate_expressions?.length > 0) {
+        syncGroupByColumns();
+    }
 
     // 5. Clean up WHERE clauses
     if (state.data_table.query_options?.where?.length > 0) {
@@ -1535,6 +1614,9 @@ function addQueryOption(queryOption) {
                 condition: '',// condition: 'AND', 'OR'
             }]
         }
+        
+        // Sync GROUP BY columns after structure initialization
+        nextTick(() => syncGroupByColumns());
     } else if (queryOption === 'HAVING') {
         state.data_table.query_options.group_by.having_conditions.push({
             column: '',
@@ -1567,9 +1649,15 @@ function addAggregateExpression() {
         column_alias_name: '',
         use_distinct: false,
     });
+    
+    // Sync GROUP BY columns after adding expression
+    nextTick(() => syncGroupByColumns());
 }
 function removeAggregateExpression(index) {
     state.data_table.query_options.group_by.aggregate_expressions.splice(index, 1);
+    
+    // Sync GROUP BY columns after removing expression
+    syncGroupByColumns();
 }
 function onTransformChange(element, event) {
     const selectedFunc = state.transform_functions.find(f => f.value === event.target.value);
@@ -2746,6 +2834,12 @@ async function applyAIGeneratedModel(model) {
                 console.log('[applyAIGeneratedModel] Switching to advanced view (model has advanced features)');
                 state.viewMode = 'advanced';
             }
+            
+            // Sync GROUP BY columns after model application
+            nextTick(() => {
+                syncGroupByColumns();
+                console.log('[applyAIGeneratedModel] Synced GROUP BY columns after model application');
+            });
 
             // Wait for all reactive updates to complete before clearing flag
             await nextTick();
@@ -3160,6 +3254,37 @@ function validateAndTransformAIModel(aiModel) {
                     const afterCount = aiModel.query_options.group_by.group_by_columns.length;
                     console.log(`[Data Model Builder] Filtered GROUP BY columns: ${beforeCount} → ${afterCount}`);
                     console.log('[Data Model Builder] Remaining GROUP BY columns:', aiModel.query_options.group_by.group_by_columns);
+                }
+                
+                // PROACTIVE FIX: Ensure all non-aggregate selected columns are in GROUP BY
+                // This fixes AI models that provide incomplete group_by_columns arrays
+                if (!aiModel.query_options.group_by.group_by_columns) {
+                    aiModel.query_options.group_by.group_by_columns = [];
+                }
+                
+                const currentGroupBy = new Set(aiModel.query_options.group_by.group_by_columns);
+                let addedCount = 0;
+                
+                aiModel.columns.forEach(col => {
+                    if (col.is_selected_column) {
+                        const fullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
+                        // If column is NOT aggregated and NOT in GROUP BY, add it
+                        if (!aggregateColumns.has(fullPath) && !currentGroupBy.has(fullPath)) {
+                            let columnRef = fullPath;
+                            // Include transform functions if present
+                            if (col.transform_function) {
+                                const closeParens = ')'.repeat(col.transform_close_parens || 1);
+                                columnRef = `${col.transform_function}(${columnRef}${closeParens}`;
+                            }
+                            aiModel.query_options.group_by.group_by_columns.push(columnRef);
+                            addedCount++;
+                            console.log(`[Data Model Builder] ADDED missing GROUP BY column: ${columnRef}`);
+                        }
+                    }
+                });
+                
+                if (addedCount > 0) {
+                    console.log(`[Data Model Builder] Added ${addedCount} missing GROUP BY columns (total now: ${aiModel.query_options.group_by.group_by_columns.length})`);
                 }
                 
                 // Populate column_data_type for HAVING conditions
