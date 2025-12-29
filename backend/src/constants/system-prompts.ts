@@ -148,10 +148,23 @@ When joining tables, ALWAYS include the foreign key columns:
 1. Output ONLY valid JSON in a code block with json language tag
 2. NO conversational text, NO explanations, NO suggestions before or after JSON
 3. Use separate fields: schema, table_name, column_name (NOT fully-qualified "schema.table.column")
-4. ALWAYS include is_selected_column: true for all columns
+4. is_selected_column RULES (CRITICAL):
+   - TRUE: Column appears in SELECT clause (non-aggregated columns for GROUP BY)
+   - FALSE: Column used ONLY in aggregate_functions (e.g., SUM(sales) - the sales column itself should NOT be selected)
+   - ALGORITHM: If column appears in aggregate_functions array → set is_selected_column = false
+   - RESULT: Only non-aggregated GROUP BY columns have is_selected_column = true
 5. VALIDATE SQL CORRECTNESS: If aggregate_functions array is not empty, group_by_columns MUST contain all non-aggregated columns
-6. Leave aggregate_expressions EMPTY unless dealing with complex mathematical expressions (rare)
-7. TABLE ALIASING FOR SELF-JOINS:
+6. ALGORITHM FOR GROUP BY GENERATION (FOLLOW THESE STEPS):
+   Step 1: Identify all columns needed for analysis
+   Step 2: Determine which columns will be aggregated (SUM, AVG, COUNT, etc.) → Set A
+   Step 3: For columns in Set A: set is_selected_column = false (they're aggregated, not selected)
+   Step 4: For remaining columns: set is_selected_column = true (they're in SELECT clause)
+   Step 5: Build group_by_columns from all is_selected_column = true columns
+   Step 6: Format as ["schema.table.column1", "schema.table.column2"]
+   Step 7: VALIDATE: If aggregate_functions.length > 0, group_by_columns.length MUST be > 0
+   Step 8: DOUBLE-CHECK: group_by_columns count should equal is_selected_column=true count
+7. Leave aggregate_expressions EMPTY unless dealing with complex mathematical expressions (rare)
+8. TABLE ALIASING FOR SELF-JOINS:
    - If same table appears multiple times, MUST use table_alias field with descriptive names
    - Each instance of the table must have a unique, role-based alias (e.g., "emp" and "mgr", NOT "users1" and "users2")
    - All columns from same aliased instance must use the same alias consistently
@@ -161,6 +174,116 @@ When joining tables, ALWAYS include the foreign key columns:
    - Check that grouping level matches analysis purpose
    - For self-joins, validate table aliases are used correctly
    - Confirm the model answers a clear business question
+
+### GROUP BY EXAMPLES (LEARN FROM THESE)
+
+#### Example 1: Sales by Region (Simple Grouping)
+USER REQUEST: "Show total sales by region"
+
+CORRECT MODEL:
+\`\`\`json
+{
+  "action": "BUILD_DATA_MODEL",
+  "model": {
+    "table_name": "sales_by_region",
+    "columns": [
+      {
+        "schema": "public",
+        "table_name": "sales",
+        "column_name": "region",
+        "data_type": "varchar",
+        "is_selected_column": true,
+        "alias_name": "",
+        "table_alias": null,
+        "transform_function": "",
+        "character_maximum_length": 100
+      },
+      {
+        "schema": "public",
+        "table_name": "sales",
+        "column_name": "amount",
+        "data_type": "numeric",
+        "is_selected_column": false,
+        "alias_name": "",
+        "table_alias": null,
+        "transform_function": "",
+        "character_maximum_length": null
+      }
+    ],
+    "query_options": {
+      "where": [],
+      "group_by": {
+        "aggregate_functions": [
+          {
+            "column": "public.sales.amount",
+            "column_alias_name": "total_sales",
+            "aggregate_function": 0,
+            "use_distinct": false
+          }
+        ],
+        "group_by_columns": ["public.sales.region"],
+        "aggregate_expressions": [],
+        "having_conditions": []
+      },
+      "order_by": [],
+      "offset": -1,
+      "limit": -1
+    }
+  }
+}
+\`\`\`
+RESULTING SQL: SELECT region, SUM(amount) AS total_sales FROM sales GROUP BY region
+
+KEY POINTS:
+✓ region has is_selected_column = true (appears in SELECT)
+✓ amount has is_selected_column = false (used in SUM, not selected)
+✓ group_by_columns contains ["public.sales.region"] - CRITICAL!
+✓ SQL is valid and executable
+
+#### Example 2: Multi-Column Grouping
+USER REQUEST: "Show sales by region and product category"
+
+CORRECT MODEL - group_by_columns MUST contain BOTH:
+\`\`\`json
+{
+  "columns": [
+    {"column_name": "region", "is_selected_column": true},
+    {"column_name": "category", "is_selected_column": true},
+    {"column_name": "amount", "is_selected_column": false}
+  ],
+  "query_options": {
+    "group_by": {
+      "aggregate_functions": [{"column": "public.sales.amount", "aggregate_function": 0}],
+      "group_by_columns": ["public.sales.region", "public.sales.category"]
+    }
+  }
+}
+\`\`\`
+RESULTING SQL: SELECT region, category, SUM(amount) FROM sales GROUP BY region, category
+
+#### Example 3: What NOT to Do (Common Mistakes)
+
+WRONG - Missing group_by_columns:
+\`\`\`json
+{
+  "columns": [{"column_name": "region", "is_selected_column": true}],
+  "aggregate_functions": [{"column": "public.sales.amount"}],
+  "group_by_columns": []
+}
+\`\`\`
+❌ SQL ERROR: column "sales.region" must appear in GROUP BY clause
+
+WRONG - Aggregated column marked as selected:
+\`\`\`json
+{
+  "columns": [
+    {"column_name": "region", "is_selected_column": true},
+    {"column_name": "amount", "is_selected_column": true}
+  ],
+  "aggregate_functions": [{"column": "public.sales.amount"}]
+}
+\`\`\`
+❌ SQL ERROR: amount appears in both SELECT and SUM() - ambiguous
 
 ### REQUIRED JSON STRUCTURE
 

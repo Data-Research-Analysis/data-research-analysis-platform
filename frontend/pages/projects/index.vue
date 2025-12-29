@@ -138,7 +138,7 @@ async function setSelectedProject(projectId) {
         <!-- Skeleton loader for loading state -->
         <div v-if="state.loading" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5">
             <div v-for="i in 6" :key="i" class="mt-10">
-                <div class="border border-primary-blue-100 border-solid p-6 shadow-md bg-white min-h-[180px]">
+                <div class="border border-primary-blue-100 border-solid p-6 shadow-md bg-white min-h-[180px] rounded-lg">
                     <div class="animate-pulse">
                         <div class="h-6 bg-gray-300 rounded w-3/4 mb-4"></div>
                         <div class="space-y-2">

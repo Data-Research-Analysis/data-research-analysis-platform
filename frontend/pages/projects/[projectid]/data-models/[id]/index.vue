@@ -76,7 +76,7 @@
           <!-- SQL Query -->
           <div class="mb-6">
             <label class="block text-sm font-medium text-gray-700 mb-2">SQL Query</label>
-            <pre class="bg-gray-50 p-4 rounded text-xs overflow-x-auto">{{ dataModel.sql_query }}</pre>
+            <pre class="bg-gray-50 p-4 rounded-lg text-xs overflow-x-auto">{{ dataModel.sql_query }}</pre>
           </div>
 
           <!-- Query JSON (collapsed by default) -->
@@ -89,7 +89,7 @@
                 class="mr-2 text-xs" />
               Query Definition (JSON)
             </button>
-            <pre v-if="showQueryJson" class="mt-2 bg-gray-50 p-4 rounded text-xs overflow-x-auto">{{ JSON.stringify(dataModel.query, null, 2) }}</pre>
+            <pre v-if="showQueryJson" class="mt-2 bg-gray-50 p-4 rounded-lg text-xs overflow-x-auto">{{ JSON.stringify(dataModel.query, null, 2) }}</pre>
           </div>
         </div>
       </div>

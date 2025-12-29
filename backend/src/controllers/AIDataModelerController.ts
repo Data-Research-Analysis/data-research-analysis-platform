@@ -763,6 +763,48 @@ Keep it concise - aim for 200-300 words total.`;
                 // BUILD_DATA_MODEL action - return guidance text + model
                 if (parsed.action === 'BUILD_DATA_MODEL' && parsed.model) {
                     console.log('[AIDataModelerController] Parsed BUILD_DATA_MODEL response');
+                    
+                    // VALIDATION & AUTO-FIX: Check GROUP BY columns when aggregates exist
+                    const groupBy = parsed.model.query_options?.group_by;
+                    const hasAggregates = groupBy?.aggregate_functions?.length > 0 || 
+                                         groupBy?.aggregate_expressions?.length > 0;
+                    
+                    if (hasAggregates) {
+                        const groupByColumns = groupBy.group_by_columns || [];
+                        const selectedColumns = parsed.model.columns?.filter((c: any) => c.is_selected_column === true) || [];
+                        
+                        if (groupByColumns.length === 0 && selectedColumns.length > 0) {
+                            console.warn('[AI Validation] AUTO-FIXING: Model has aggregates but empty group_by_columns');
+                            console.warn('[AI Validation] Selected columns count:', selectedColumns.length);
+                            console.warn('[AI Validation] Aggregate functions count:', groupBy.aggregate_functions?.length || 0);
+                            
+                            // Auto-fix: Generate group_by_columns from selected columns
+                            if (!groupBy.group_by_columns) {
+                                groupBy.group_by_columns = [];
+                            }
+                            
+                            groupBy.group_by_columns = selectedColumns.map((col: any) => {
+                                let columnRef = `${col.schema}.${col.table_name}.${col.column_name}`;
+                                // Include transform functions if present
+                                if (col.transform_function) {
+                                    const closeParens = ')'.repeat(col.transform_close_parens || 1);
+                                    columnRef = `${col.transform_function}(${columnRef}${closeParens}`;
+                                }
+                                return columnRef;
+                            });
+                            
+                            console.log('[AI Validation] Auto-generated group_by_columns:', groupBy.group_by_columns);
+                        } else if (groupByColumns.length !== selectedColumns.length) {
+                            console.warn('[AI Validation] Mismatch: group_by_columns has', groupByColumns.length, 'but selected columns has', selectedColumns.length);
+                        } else {
+                            console.log('[AI Validation] GROUP BY validation passed:', {
+                                group_by_columns: groupByColumns.length,
+                                selected_columns: selectedColumns.length,
+                                aggregate_functions: groupBy.aggregate_functions?.length || 0
+                            });
+                        }
+                    }
+                    
                     return {
                         action: 'BUILD_DATA_MODEL',
                         displayMessage: parsed.guidance || 'I\'ve created a data model for you.',

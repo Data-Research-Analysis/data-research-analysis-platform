@@ -43,6 +43,7 @@ const state = reactive({
             limit: -1,
         },
         calculated_columns: [],
+        hidden_referenced_columns: [], // NEW: Track columns used but not displayed
     },
     loading: false,
     query_options: [
@@ -500,12 +501,15 @@ function aggregateFunctionChanged(event) {
             }
         }
     }
+    // Sync GROUP BY columns after aggregate function change
+    syncGroupByColumns();
 }
 function aggregateFunctionColumnChanged(event) {
     const aggregateFunction = state.data_table.query_options.group_by.aggregate_functions.find((aggregate_function) => aggregate_function.column === event.target.value)
     if (aggregateFunction && aggregateFunction.aggregate_function !== "") {
         const column = state.data_table.columns.find((column) => `${column.schema}.${column.table_name}.${column.column_name}` === aggregateFunction.column);
         if (column) {
+            // Validate data type
             if (getDataType(column.data_type) !== 'NUMBER') {
                 if (state.aggregate_functions[aggregateFunction.aggregate_function] === 'SUM' || state.aggregate_functions[aggregateFunction.aggregate_function] === 'AVG') {
                     $swal.fire({
@@ -516,9 +520,111 @@ function aggregateFunctionColumnChanged(event) {
                     return;
                 }
             }
+            
+            // Track in hidden references (will add badge but not check the column)
+            const aggIndex = state.data_table.query_options.group_by.aggregate_functions.indexOf(aggregateFunction);
+            addHiddenReferencedColumn(
+                column.schema, 
+                column.table_name, 
+                column.column_name, 
+                'aggregate',
+                `aggregate_function_${aggIndex}`
+            );
+        } else if (aggregateFunction.column) {
+            // Column not in main list, add as hidden reference
+            const parts = aggregateFunction.column.split('.');
+            if (parts.length === 3) {
+                const [schema, tableName, columnName] = parts;
+                const aggIndex = state.data_table.query_options.group_by.aggregate_functions.indexOf(aggregateFunction);
+                addHiddenReferencedColumn(
+                    schema, 
+                    tableName, 
+                    columnName, 
+                    'aggregate',
+                    `aggregate_function_${aggIndex}`
+                );
+            }
         }
     }
+    // Sync GROUP BY columns after aggregate column change
+    syncGroupByColumns();
 }
+
+/**
+ * Synchronizes group_by_columns array with current state
+ * Ensures all non-aggregated selected columns are in GROUP BY
+ * and aggregated columns are excluded
+ */
+function syncGroupByColumns() {
+    // Only run if GROUP BY exists (has aggregates)
+    const hasAggregates = state.data_table.query_options?.group_by?.aggregate_functions?.length > 0 ||
+                         state.data_table.query_options?.group_by?.aggregate_expressions?.length > 0;
+    
+    if (!hasAggregates) {
+        // No aggregates = no GROUP BY needed
+        if (state.data_table.query_options?.group_by?.group_by_columns) {
+            state.data_table.query_options.group_by.group_by_columns = [];
+        }
+        return;
+    }
+    
+    // Build set of aggregated columns
+    const aggregatedColumns = new Set();
+    
+    state.data_table.query_options.group_by.aggregate_functions?.forEach(aggFunc => {
+        if (aggFunc.column) {
+            aggregatedColumns.add(aggFunc.column);
+        }
+    });
+    
+    state.data_table.query_options.group_by.aggregate_expressions?.forEach(aggExpr => {
+        if (aggExpr.expression) {
+            // Extract column references from expressions like "schema.table.column"
+            const matches = aggExpr.expression.match(/\w+\.\w+\.\w+/g);
+            if (matches) {
+                matches.forEach(col => aggregatedColumns.add(col));
+            }
+        }
+    });
+    
+    // Rebuild group_by_columns from selected AND hidden columns with transforms
+    const groupByColumns = state.data_table.columns
+        .filter(col => {
+            const fullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
+            const isAggregated = aggregatedColumns.has(fullPath);
+            
+            // Include column if:
+            // 1. Not aggregated AND
+            // 2. Either selected for display OR has a transform function (hidden but needed)
+            return !isAggregated && (col.is_selected_column || col.transform || col.transform_function);
+        })
+        .map(col => {
+            let columnRef = `${col.schema}.${col.table_name}.${col.column_name}`;
+            // Include transform functions if present
+            if (col.transform_function) {
+                const closeParens = ')'.repeat(col.transform_close_parens || 1);
+                columnRef = `${col.transform_function}(${columnRef}${closeParens}`;
+            }
+            return columnRef;
+        });
+    
+    // Initialize group_by_columns if it doesn't exist
+    if (!state.data_table.query_options.group_by.group_by_columns) {
+        state.data_table.query_options.group_by.group_by_columns = [];
+    }
+    
+    state.data_table.query_options.group_by.group_by_columns = groupByColumns;
+    
+    console.log('[syncGroupByColumns] Updated group_by_columns:', {
+        total: groupByColumns.length,
+        columns: groupByColumns,
+        excludedAggregates: Array.from(aggregatedColumns),
+        hiddenColumnsIncluded: state.data_table.columns.filter(col => 
+            !col.is_selected_column && (col.transform || col.transform_function)
+        ).length
+    });
+}
+
 function openDialog() {
     state.show_dialog = true;
 }
@@ -577,6 +683,108 @@ function buildColumnReference(column) {
         return '';
     }
     return `${column.schema}.${column.table_name}.${column.column_name}`;
+}
+
+/**
+ * Ensures all columns referenced in query_options exist in columns array
+ * Adds missing columns with is_selected_column: false
+ * This preserves columns used in GROUP BY, WHERE, HAVING, ORDER BY
+ * even if they weren't selected for display
+ */
+function ensureReferencedColumnsExist() {
+    console.log('[ensureReferencedColumnsExist] Starting column restoration check');
+    
+    // Initialize hidden_referenced_columns if doesn't exist
+    if (!state.data_table.hidden_referenced_columns) {
+        state.data_table.hidden_referenced_columns = [];
+    }
+    
+    // Extract column references from query_options
+    const referencedColumns = new Set();
+    
+    // 1. FROM GROUP BY columns array (AI-generated or manually created)
+    state.data_table.query_options?.group_by?.group_by_columns?.forEach(colRef => {
+        // Remove transform functions to get base column reference
+        const baseRef = colRef.replace(/\w+\(/g, '').replace(/\)/g, '');
+        const parts = baseRef.split('.');
+        if (parts.length === 3) {
+            const [schema, tableName, columnName] = parts;
+            referencedColumns.add(`${schema}.${tableName}.${columnName}`);
+            addHiddenReferencedColumn(schema, tableName, columnName, 'group_by', 'group_by_columns');
+            console.log('[ensureReferencedColumnsExist] Found GROUP BY column:', baseRef);
+        }
+    });
+    
+    // 2. FROM Aggregate functions
+    state.data_table.query_options?.group_by?.aggregate_functions?.forEach((aggFunc, idx) => {
+        if (aggFunc.column) {
+            referencedColumns.add(aggFunc.column);
+            const parts = aggFunc.column.split('.');
+            if (parts.length === 3) {
+                const [schema, tableName, columnName] = parts;
+                addHiddenReferencedColumn(schema, tableName, columnName, 'aggregate', `aggregate_function_${idx}`);
+                console.log('[ensureReferencedColumnsExist] Found aggregate column:', aggFunc.column);
+            }
+        }
+    });
+    
+    // 3. FROM WHERE clauses
+    state.data_table.query_options?.where?.forEach((clause, idx) => {
+        if (clause.column) {
+            referencedColumns.add(clause.column);
+            const parts = clause.column.split('.');
+            if (parts.length === 3) {
+                const [schema, tableName, columnName] = parts;
+                addHiddenReferencedColumn(schema, tableName, columnName, 'where', `where_${idx}`);
+                console.log('[ensureReferencedColumnsExist] Found WHERE column:', clause.column);
+            }
+        }
+    });
+    
+    // 4. FROM HAVING conditions
+    state.data_table.query_options?.group_by?.having_conditions?.forEach((clause, idx) => {
+        if (clause.column) {
+            referencedColumns.add(clause.column);
+            const parts = clause.column.split('.');
+            if (parts.length === 3) {
+                const [schema, tableName, columnName] = parts;
+                addHiddenReferencedColumn(schema, tableName, columnName, 'having', `having_${idx}`);
+                console.log('[ensureReferencedColumnsExist] Found HAVING column:', clause.column);
+            }
+        }
+    });
+    
+    // 5. FROM ORDER BY clauses
+    state.data_table.query_options?.order_by?.forEach((clause, idx) => {
+        if (clause.column) {
+            referencedColumns.add(clause.column);
+            const parts = clause.column.split('.');
+            if (parts.length === 3) {
+                const [schema, tableName, columnName] = parts;
+                addHiddenReferencedColumn(schema, tableName, columnName, 'order_by', `order_by_${idx}`);
+                console.log('[ensureReferencedColumnsExist] Found ORDER BY column:', clause.column);
+            }
+        }
+    });
+    
+    // 6. FROM calculated columns (may reference base columns)
+    state.data_table.calculated_columns?.forEach((calc, idx) => {
+        // Parse expression to find column references
+        // Regex to match: schema.table.column patterns
+        const matches = calc.expression.match(/\b\w+\.\w+\.\w+\b/g);
+        matches?.forEach(ref => {
+            referencedColumns.add(ref);
+            const parts = ref.split('.');
+            if (parts.length === 3) {
+                const [schema, tableName, columnName] = parts;
+                addHiddenReferencedColumn(schema, tableName, columnName, 'calculated', `calculated_${idx}`);
+                console.log('[ensureReferencedColumnsExist] Found calculated column reference:', ref);
+            }
+        });
+    });
+    
+    console.log(`[ensureReferencedColumnsExist] Total referenced columns found: ${referencedColumns.size}`);
+    console.log(`[ensureReferencedColumnsExist] Hidden referenced columns tracked: ${state.data_table.hidden_referenced_columns.length}`);
 }
 
 /**
@@ -1416,6 +1624,12 @@ async function deleteColumn(columnName) {
             console.log(`[deleteColumn] Removed ${removedCount} aggregate expression(s)`);
         }
     }
+    
+    // Sync GROUP BY columns after all cleanup operations
+    if (state.data_table.query_options?.group_by?.aggregate_functions?.length > 0 ||
+        state.data_table.query_options?.group_by?.aggregate_expressions?.length > 0) {
+        syncGroupByColumns();
+    }
 
     // 5. Clean up WHERE clauses
     if (state.data_table.query_options?.where?.length > 0) {
@@ -1492,6 +1706,168 @@ function isColumnUsedInAggregate(columnName, schema, tableName) {
     const aggregateFunctions = state.data_table.query_options?.group_by?.aggregate_functions || [];
     return aggregateFunctions.some(aggFunc => aggFunc.column === columnPath);
 }
+
+/**
+ * Check if a column is referenced in GROUP BY (but not selected for display)
+ */
+function isColumnInGroupByButHidden(column) {
+    if (column.is_selected_column) return false; // Not hidden
+    
+    const columnPath = `${column.schema}.${column.table_name}.${column.column_name}`;
+    const groupByColumns = state.data_table.query_options?.group_by?.group_by_columns || [];
+    
+    // Check if column reference exists in group_by_columns array
+    return groupByColumns.some(ref => {
+        // Remove transform functions to get base column reference
+        const baseRef = ref.replace(/\w+\(/g, '').replace(/\)/g, '');
+        return baseRef.includes(columnPath) || ref.includes(columnPath);
+    });
+}
+
+/**
+ * Add or update hidden referenced column tracking
+ * Tracks columns used in aggregates, GROUP BY, WHERE, etc. but not displayed
+ */
+function addHiddenReferencedColumn(schema, tableName, columnName, usage, reference) {
+    // Initialize if doesn't exist
+    if (!state.data_table.hidden_referenced_columns) {
+        state.data_table.hidden_referenced_columns = [];
+    }
+    
+    // CRITICAL: First check if column already exists in data model
+    // This handles the case when loading existing saved models
+    const existingColumn = state.data_table.columns.find(col =>
+        col.schema === schema &&
+        col.table_name === tableName &&
+        col.column_name === columnName
+    );
+    
+    // Check if already tracked
+    const existing = state.data_table.hidden_referenced_columns.find(col =>
+        col.schema === schema &&
+        col.table_name === tableName &&
+        col.column_name === columnName
+    );
+    
+    if (existing) {
+        // Update existing tracking
+        if (!existing.usage.includes(usage)) {
+            existing.usage.push(usage);
+            console.log(`[addHiddenReferencedColumn] Added usage '${usage}' to ${schema}.${tableName}.${columnName}`);
+        }
+        if (reference && !existing.referenced_in.includes(reference)) {
+            existing.referenced_in.push(reference);
+        }
+    } else {
+        // Need to create new tracking entry
+        // Try to get metadata from source tables first
+        const sourceTable = state.tables.find(t => 
+            t.schema === schema && t.table_name === tableName
+        );
+        const sourceColumn = sourceTable?.columns?.find(c => 
+            c.column_name === columnName
+        );
+        
+        // Get data type from source or existing column
+        const dataType = sourceColumn?.data_type || existingColumn?.data_type || 'text';
+        
+        // Add new tracking entry
+        state.data_table.hidden_referenced_columns.push({
+            schema,
+            table_name: tableName,
+            column_name: columnName,
+            data_type: dataType,
+            usage: [usage],
+            referenced_in: reference ? [reference] : []
+        });
+        
+        console.log(`[addHiddenReferencedColumn] Tracking new hidden column: ${schema}.${tableName}.${columnName} (usage: ${usage})`);
+        
+        // If column doesn't exist in data model yet, add it with is_selected_column: false
+        if (!existingColumn) {
+            if (sourceColumn) {
+                state.data_table.columns.push({
+                    schema,
+                    table_name: tableName,
+                    column_name: columnName,
+                    data_type: sourceColumn.data_type,
+                    alias_name: '',
+                    transform: '',
+                    transform_close_parens: 0,
+                    is_selected_column: false,
+                    table_alias: null
+                });
+                console.log(`[addHiddenReferencedColumn] Added new column to data model (unchecked, used in ${usage}): ${schema}.${tableName}.${columnName}`);
+            } else {
+                console.warn(`[addHiddenReferencedColumn] Cannot add column - source not found: ${schema}.${tableName}.${columnName}`);
+            }
+        }
+    }
+}
+
+/**
+ * Remove usage tracking from hidden column
+ * If no more usages exist, remove from tracking and columns array
+ */
+function removeHiddenColumnUsage(schema, tableName, columnName, usage, reference) {
+    if (!state.data_table.hidden_referenced_columns) return;
+    
+    const hidden = state.data_table.hidden_referenced_columns.find(col =>
+        col.schema === schema &&
+        col.table_name === tableName &&
+        col.column_name === columnName
+    );
+    
+    if (!hidden) return;
+    
+    // Remove specific usage
+    hidden.usage = hidden.usage.filter(u => u !== usage);
+    if (reference) {
+        hidden.referenced_in = hidden.referenced_in.filter(r => r !== reference);
+    }
+    
+    console.log(`[removeHiddenColumnUsage] Removed usage '${usage}' from ${schema}.${tableName}.${columnName}. Remaining: ${hidden.usage.length}`);
+    
+    // If no more usages, remove entirely
+    if (hidden.usage.length === 0) {
+        state.data_table.hidden_referenced_columns = 
+            state.data_table.hidden_referenced_columns.filter(col =>
+                !(col.schema === schema &&
+                  col.table_name === tableName &&
+                  col.column_name === columnName)
+            );
+        
+        console.log(`[removeHiddenColumnUsage] No more usages, removed from tracking: ${schema}.${tableName}.${columnName}`);
+        
+        // Also remove from columns if not selected for display
+        const colInList = state.data_table.columns.find(col =>
+            col.schema === schema &&
+            col.table_name === tableName &&
+            col.column_name === columnName
+        );
+        
+        if (colInList && !colInList.is_selected_column) {
+            state.data_table.columns = state.data_table.columns.filter(col =>
+                !(col.schema === schema &&
+                  col.table_name === tableName &&
+                  col.column_name === columnName)
+            );
+            console.log(`[removeHiddenColumnUsage] Removed hidden column from data model: ${schema}.${tableName}.${columnName}`);
+        }
+    }
+}
+
+/**
+ * Get list of usages for a column (for UI badges)
+ */
+function getColumnUsages(column) {
+    const hidden = state.data_table.hidden_referenced_columns?.find(col =>
+        col.schema === column.schema &&
+        col.table_name === column.table_name &&
+        col.column_name === column.column_name
+    );
+    return hidden?.usage || [];
+}
 function addQueryOption(queryOption) {
     if (queryOption === 'WHERE') {
         state.data_table.query_options.where.push({
@@ -1535,6 +1911,9 @@ function addQueryOption(queryOption) {
                 condition: '',// condition: 'AND', 'OR'
             }]
         }
+        
+        // Sync GROUP BY columns after structure initialization
+        nextTick(() => syncGroupByColumns());
     } else if (queryOption === 'HAVING') {
         state.data_table.query_options.group_by.having_conditions.push({
             column: '',
@@ -1567,9 +1946,15 @@ function addAggregateExpression() {
         column_alias_name: '',
         use_distinct: false,
     });
+    
+    // Sync GROUP BY columns after adding expression
+    nextTick(() => syncGroupByColumns());
 }
 function removeAggregateExpression(index) {
     state.data_table.query_options.group_by.aggregate_expressions.splice(index, 1);
+    
+    // Sync GROUP BY columns after removing expression
+    syncGroupByColumns();
 }
 function onTransformChange(element, event) {
     const selectedFunc = state.transform_functions.find(f => f.value === event.target.value);
@@ -1815,15 +2200,16 @@ function buildSQLQuery() {
         console.log('[Data Model Builder - buildSQLQuery] Orphaned tables:', orphanedTables);
         if (orphanedTables.length > 0) {
             const orphanedAlert = {
-                type: 'error',
-                message: `Cannot create data model: The following tables have no JOIN conditions to other selected tables: ${orphanedTables.join(', ')}. Please add JOIN conditions or remove columns from unrelated tables.`
+                type: 'warning',
+                message: `Warning: The following tables have no JOIN conditions: ${orphanedTables.join(', ')}. The query will use CROSS JOIN (Cartesian product), which may return unexpected results. Consider adding JOIN conditions.`
             };
-            console.error('[Data Model Builder - buildSQLQuery] ORPHANED TABLE ERROR:', orphanedAlert.message);
-            if (!state.alerts.find(a => a.type === 'error' && a.message.includes('no JOIN conditions'))) {
+            console.warn('[Data Model Builder - buildSQLQuery] ORPHANED TABLE WARNING:', orphanedAlert.message);
+            if (!state.alerts.find(a => a.type === 'warning' && a.message.includes('no JOIN conditions'))) {
                 state.alerts.push(orphanedAlert);
             }
         } else {
-            // Remove orphaned table error if it exists and no longer applies
+            // Remove orphaned table warning if it exists and no longer applies
+            state.alerts = state.alerts.filter(a => !(a.type === 'warning' && a.message.includes('no JOIN conditions')));
             state.alerts = state.alerts.filter(a => !(a.type === 'error' && a.message.includes('no JOIN conditions')));
             state.alerts = state.alerts.filter(a => !(a.type === 'error' && a.message.includes('no foreign key relationships')));
         }
@@ -2023,6 +2409,34 @@ function buildSQLQuery() {
             }
         });
         console.log('[Data Model Builder - buildSQLQuery] Final fromJoinClause array:', fromJoinClause);
+
+        // CRITICAL FIX: If no JOIN conditions exist but we have multiple tables, add them with CROSS JOIN
+        if (fromJoinClause.length === 0 && dataTables.length > 0) {
+            console.log('[buildSQLQuery] No JOIN conditions found, adding tables with CROSS JOIN (Cartesian product)');
+            
+            // Get table aliases if they exist
+            const getTableAlias = (schema, tableName) => {
+                const col = state.data_table.columns.find(c =>
+                    c.schema === schema && c.table_name === tableName && c.table_alias
+                );
+                return col?.table_alias || null;
+            };
+
+            dataTables.forEach((tableRef, index) => {
+                const [schema, tableName] = tableRef.split('.');
+                const alias = getTableAlias(schema, tableName);
+                const tableSQL = alias ? `${tableRef} AS ${alias}` : tableRef;
+
+                if (index === 0) {
+                    fromJoinClause.push(`FROM ${tableSQL}`);
+                } else {
+                    // Use CROSS JOIN for subsequent tables (explicit Cartesian product)
+                    fromJoinClause.push(`CROSS JOIN ${tableSQL}`);
+                }
+            });
+            
+            console.log('[buildSQLQuery] Generated FROM clause with CROSS JOIN:', fromJoinClause);
+        }
 
         // Check if any JOINs use OR logic and log warning
         const hasOrLogic = fromJoinClauses.some(clause => clause.join_logic === 'OR');
@@ -2324,29 +2738,28 @@ async function saveDataModel() {
         url = `${baseUrl()}/data-model/update-data-model-on-query`;
     }
 
-    // Build set of columns used ONLY in aggregate functions (should not be in columns list)
-    const aggregateColumns = new Set();
-    state?.data_table?.query_options?.group_by?.aggregate_functions?.forEach((aggFunc) => {
-        if (aggFunc.column && aggFunc.aggregate_function !== '') {
-            aggregateColumns.add(aggFunc.column);
-        }
-    });
-
-    // Filter to only include selected columns that are NOT aggregate-only columns
+    // Filter to include selected columns AND hidden referenced columns (aggregates, GROUP BY, WHERE, etc.)
     const dataTableForSave = {
         ...state.data_table,
         columns: state.data_table.columns.filter(col => {
-            const columnFullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
-            const isAggregateOnly = aggregateColumns.has(columnFullPath);
-            return col.is_selected_column && !isAggregateOnly;
+            // Include if selected for display
+            if (col.is_selected_column) return true;
+            
+            // Include if tracked as hidden reference (aggregate, GROUP BY, WHERE, HAVING, ORDER BY, etc.)
+            const isTracked = state.data_table.hidden_referenced_columns?.some(
+                tracked => tracked.schema === col.schema &&
+                           tracked.table_name === col.table_name &&
+                           tracked.column_name === col.column_name
+            );
+            return isTracked;
         })
     };
 
     console.log('[saveDataModel] Filtered columns for save:', {
         total: state.data_table.columns.length,
         selected: state.data_table.columns.filter(c => c.is_selected_column).length,
-        afterAggregateFilter: dataTableForSave.columns.length,
-        aggregateColumns: Array.from(aggregateColumns)
+        hiddenTracked: state.data_table.hidden_referenced_columns?.length || 0,
+        saved: dataTableForSave.columns.length
     });
 
     const response = await fetch(url, {
@@ -2746,6 +3159,12 @@ async function applyAIGeneratedModel(model) {
                 console.log('[applyAIGeneratedModel] Switching to advanced view (model has advanced features)');
                 state.viewMode = 'advanced';
             }
+            
+            // Sync GROUP BY columns after model application
+            nextTick(() => {
+                syncGroupByColumns();
+                console.log('[applyAIGeneratedModel] Synced GROUP BY columns after model application');
+            });
 
             // Wait for all reactive updates to complete before clearing flag
             await nextTick();
@@ -3162,6 +3581,37 @@ function validateAndTransformAIModel(aiModel) {
                     console.log('[Data Model Builder] Remaining GROUP BY columns:', aiModel.query_options.group_by.group_by_columns);
                 }
                 
+                // PROACTIVE FIX: Ensure all non-aggregate selected columns are in GROUP BY
+                // This fixes AI models that provide incomplete group_by_columns arrays
+                if (!aiModel.query_options.group_by.group_by_columns) {
+                    aiModel.query_options.group_by.group_by_columns = [];
+                }
+                
+                const currentGroupBy = new Set(aiModel.query_options.group_by.group_by_columns);
+                let addedCount = 0;
+                
+                aiModel.columns.forEach(col => {
+                    if (col.is_selected_column) {
+                        const fullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
+                        // If column is NOT aggregated and NOT in GROUP BY, add it
+                        if (!aggregateColumns.has(fullPath) && !currentGroupBy.has(fullPath)) {
+                            let columnRef = fullPath;
+                            // Include transform functions if present
+                            if (col.transform_function) {
+                                const closeParens = ')'.repeat(col.transform_close_parens || 1);
+                                columnRef = `${col.transform_function}(${columnRef}${closeParens}`;
+                            }
+                            aiModel.query_options.group_by.group_by_columns.push(columnRef);
+                            addedCount++;
+                            console.log(`[Data Model Builder] ADDED missing GROUP BY column: ${columnRef}`);
+                        }
+                    }
+                });
+                
+                if (addedCount > 0) {
+                    console.log(`[Data Model Builder] Added ${addedCount} missing GROUP BY columns (total now: ${aiModel.query_options.group_by.group_by_columns.length})`);
+                }
+                
                 // Populate column_data_type for HAVING conditions
                 // HAVING conditions reference aggregate functions, so use NUMERIC type
                 if (aiModel.query_options.group_by.having_conditions?.length > 0) {
@@ -3237,6 +3687,41 @@ function validateAndTransformAIModel(aiModel) {
 }
 
 onMounted(async () => {
+    // CRITICAL: Load tables FIRST before processing data model
+    // This ensures state.tables is available when ensureReferencedColumnsExist() runs
+    console.log('[DEBUG - Data Model Builder] Raw dataSourceTables received:', props.dataSourceTables.length, 'tables');
+
+    // Diagnostic: Check each table for duplicates
+    props.dataSourceTables.forEach((table, tIndex) => {
+        console.log(`[DEBUG - Data Model Builder] Table ${tIndex}: ${table.table_name} has ${table.columns?.length || 0} columns`);
+
+        if (table.columns && Array.isArray(table.columns)) {
+            // Check for duplicate column names
+            const columnNames = table.columns.map(c => c.column_name);
+            const duplicates = columnNames.filter((name, index) =>
+                columnNames.indexOf(name) !== index
+            );
+
+            if (duplicates.length > 0) {
+                console.error(`[DEBUG - Data Model Builder] ⚠️ DUPLICATES FOUND in ${table.table_name}:`, [...new Set(duplicates)]);
+                console.error(`[DEBUG - Data Model Builder] Full duplicate columns:`,
+                    table.columns.filter(c => duplicates.includes(c.column_name))
+                );
+            }
+
+            // Check for columns that don't match table name
+            const mismatchedColumns = table.columns.filter(c => c.table_name !== table.table_name);
+            if (mismatchedColumns.length > 0) {
+                console.error(`[DEBUG - Data Model Builder] ⚠️ MISMATCHED TABLE NAMES in ${table.table_name}:`,
+                    mismatchedColumns.map(c => `${c.column_name} (says it belongs to ${c.table_name})`)
+                );
+            }
+        }
+    });
+
+    state.tables = props.dataSourceTables;
+    console.log('[DEBUG - Data Model Builder] Tables loaded into state');
+
     if (props.dataModel && props.dataModel.query) {
         state.data_table = props.dataModel.query;
 
@@ -3307,43 +3792,74 @@ onMounted(async () => {
             }
         }
 
+        // CRITICAL: Ensure all referenced columns exist in state
+        // This restores columns used in GROUP BY, WHERE, HAVING, ORDER BY
+        // even if they weren't selected for display (is_selected_column: false)
+        ensureReferencedColumnsExist();
+
+        // Backward compatibility: Migrate existing hidden columns to tracking system
+        if (!state.data_table.hidden_referenced_columns) {
+            state.data_table.hidden_referenced_columns = [];
+        }
+        
+        // Check existing columns and track those that are hidden but used
+        state.data_table.columns.forEach(col => {
+            if (!col.is_selected_column) {
+                const colPath = `${col.schema}.${col.table_name}.${col.column_name}`;
+                
+                // Check if in GROUP BY
+                const inGroupBy = state.data_table.query_options?.group_by?.group_by_columns?.some(
+                    ref => {
+                        const baseRef = ref.replace(/\w+\(/g, '').replace(/\)/g, '');
+                        return baseRef.includes(colPath) || ref.includes(colPath);
+                    }
+                );
+                
+                // Check if in aggregates
+                const inAggregate = state.data_table.query_options?.group_by?.aggregate_functions?.some(
+                    aggFunc => aggFunc.column === colPath
+                );
+                
+                // Check if in WHERE
+                const inWhere = state.data_table.query_options?.where?.some(
+                    clause => clause.column === colPath
+                );
+                
+                // Check if in HAVING
+                const inHaving = state.data_table.query_options?.group_by?.having_conditions?.some(
+                    clause => clause.column === colPath
+                );
+                
+                // Check if in ORDER BY
+                const inOrderBy = state.data_table.query_options?.order_by?.some(
+                    clause => clause.column === colPath
+                );
+                
+                // If used anywhere, ensure it's tracked
+                if (inGroupBy || inAggregate || inWhere || inHaving || inOrderBy) {
+                    const alreadyTracked = state.data_table.hidden_referenced_columns.some(
+                        tracked => tracked.schema === col.schema &&
+                                   tracked.table_name === col.table_name &&
+                                   tracked.column_name === col.column_name
+                    );
+                    
+                    if (!alreadyTracked) {
+                        console.log(`[Backward Compatibility] Migrating hidden column to tracking: ${colPath}`);
+                        // Will be properly tracked by ensureReferencedColumnsExist
+                    }
+                }
+            }
+        });
+
+        console.log(`[Data Model Builder] Hidden referenced columns tracked: ${state.data_table.hidden_referenced_columns.length}`);
+
         // Auto-switch to advanced view if data model has advanced fields
         if (hasAdvancedFields()) {
             state.viewMode = 'advanced';
         }
-    } console.log('[DEBUG - Data Model Builder] Raw dataSourceTables received:', props.dataSourceTables.length, 'tables');
-
-    // Diagnostic: Check each table for duplicates
-    props.dataSourceTables.forEach((table, tIndex) => {
-        console.log(`[DEBUG - Data Model Builder] Table ${tIndex}: ${table.table_name} has ${table.columns?.length || 0} columns`);
-
-        if (table.columns && Array.isArray(table.columns)) {
-            // Check for duplicate column names
-            const columnNames = table.columns.map(c => c.column_name);
-            const duplicates = columnNames.filter((name, index) =>
-                columnNames.indexOf(name) !== index
-            );
-
-            if (duplicates.length > 0) {
-                console.error(`[DEBUG - Data Model Builder] ⚠️ DUPLICATES FOUND in ${table.table_name}:`, [...new Set(duplicates)]);
-                console.error(`[DEBUG - Data Model Builder] Full duplicate columns:`,
-                    table.columns.filter(c => duplicates.includes(c.column_name))
-                );
-            }
-
-            // Check for columns that don't match table name
-            const mismatchedColumns = table.columns.filter(c => c.table_name !== table.table_name);
-            if (mismatchedColumns.length > 0) {
-                console.error(`[DEBUG - Data Model Builder] ⚠️ MISMATCHED TABLE NAMES in ${table.table_name}:`,
-                    mismatchedColumns.map(c => `${c.column_name} (says it belongs to ${c.table_name})`)
-                );
-            }
-        }
-    });
-
-    state.tables = props.dataSourceTables;
-    console.log('[DEBUG - Data Model Builder] Tables loaded into state');
+    }
 })
+
 </script>
 <template>
     <div
@@ -3839,6 +4355,25 @@ onMounted(async () => {
                                                                     class="cursor-pointer scale-150 mb-2"
                                                                     v-model="element.is_selected_column"
                                                                     v-tippy="{ content: element.is_selected_column ? 'Uncheck to prevent the column from being added to the data model' : 'Check to add the column to the data model', placement: 'top' }" />
+                                                                
+                                                                <!-- Usage badges for hidden columns -->
+                                                                <div v-if="!element.is_selected_column && getColumnUsages(element).length > 0" 
+                                                                    class="flex flex-wrap gap-1 mb-2 justify-center">
+                                                                    <span v-for="usage in getColumnUsages(element)" :key="usage"
+                                                                        class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                                                                        :class="{
+                                                                            'bg-blue-100 text-blue-700': usage === 'group_by',
+                                                                            'bg-purple-100 text-purple-700': usage === 'aggregate',
+                                                                            'bg-yellow-100 text-yellow-700': usage === 'where',
+                                                                            'bg-red-100 text-red-700': usage === 'having',
+                                                                            'bg-green-100 text-green-700': usage === 'order_by',
+                                                                            'bg-gray-100 text-gray-700': usage === 'calculated'
+                                                                        }"
+                                                                        v-tippy="{ content: `Used in ${usage.toUpperCase().replace('_', ' ')}`, placement: 'top' }">
+                                                                        {{ usage.toUpperCase().replace('_', ' ') }}
+                                                                    </span>
+                                                                </div>
+                                                                
                                                                 <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold rounded-lg"
                                                                     @click="deleteColumn(element.column_name)">
                                                                     Delete
@@ -3880,7 +4415,7 @@ onMounted(async () => {
                                     </div>
                                     <div v-if="showWhereClause" class="w-full flex flex-col mt-5">
                                         <h3 class="font-bold mb-2">Where</h3>
-                                        <div class="flex flex-col bg-gray-100 p-5">
+                                        <div class="flex flex-col bg-gray-100 p-5 rounded-lg">
                                             <div v-for="(clause, index) in state.data_table.query_options.where"
                                                 class="flex flex-row justify-between">
                                                 <div v-if="index > 0" class="flex flex-col w-full mr-2">
@@ -3938,7 +4473,7 @@ onMounted(async () => {
                                     </div>
                                     <div v-if="showGroupByClause" class="w-full flex flex-col mt-5">
                                         <h3 class="font-bold mb-2">Group By</h3>
-                                        <div class="flex flex-col bg-gray-100 p-5">
+                                        <div class="flex flex-col bg-gray-100 p-5 rounded-lg">
                                             <div
                                                 v-for="(clause, index) in state.data_table.query_options.group_by.aggregate_functions">
                                                 <div class="flex flex-col">
@@ -4025,7 +4560,7 @@ onMounted(async () => {
 
                                                     <div v-for="(expr, index) in state.data_table.query_options.group_by.aggregate_expressions"
                                                         :key="index"
-                                                        class="bg-gray-50 p-3 mb-2 rounded border border-gray-300">
+                                                        class="bg-gray-50 p-3 mb-2 rounded-lg border border-gray-300">
                                                         <div class="flex flex-row justify-between">
                                                             <div class="flex flex-col w-1/5 mr-2">
                                                                 <h5 class="font-bold mb-2">Function</h5>
@@ -4171,7 +4706,7 @@ onMounted(async () => {
                                     </div>
                                     <div v-if="showOrderByClause" class="w-full flex flex-col mt-5">
                                         <h3 class="font-bold mb-2">Order By</h3>
-                                        <div class="flex flex-col bg-gray-100 p-5">
+                                        <div class="flex flex-col bg-gray-100 p-5 rounded-lg">
                                             <div v-for="(clause, index) in state.data_table.query_options.order_by"
                                                 class="flex flex-row justify-between">
                                                 <div class="flex flex-col w-full mr-2">
@@ -4218,7 +4753,7 @@ onMounted(async () => {
                                     <div v-if="state.data_table.query_options.offset > -1"
                                         class="w-full flex flex-col mt-5">
                                         <h3 class="font-bold">Offset</h3>
-                                        <div class="flex flex-col bg-gray-100 p-5">
+                                        <div class="flex flex-col bg-gray-100 p-5 rounded-lg">
                                             <div class="flex flex-row justify-between">
                                                 <div class="flex flex-col w-full mr-2">
                                                     <h5 class="font-bold mb-2">Value</h5>
@@ -4238,7 +4773,7 @@ onMounted(async () => {
                                     <div v-if="state.data_table.query_options.limit > -1"
                                         class="w-full flex flex-col mt-5">
                                         <h3 class="font-bold">Limit</h3>
-                                        <div class="flex flex-col bg-gray-100 p-5">
+                                        <div class="flex flex-col bg-gray-100 p-5 rounded-lg">
                                             <div class="flex flex-row justify-between">
                                                 <div class="flex flex-col w-full mr-2">
                                                     <h5 class="font-bold mb-2">Value</h5>

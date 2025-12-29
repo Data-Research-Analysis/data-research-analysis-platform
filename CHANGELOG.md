@@ -6,6 +6,699 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## 2025-12-30
+
+### Fixed - Data Model Builder Column Persistence & AI Drawer UX ✅
+
+**Commit:** fix: improve data model builder column persistence and AI drawer UX
+
+**Column Persistence System:**
+- Implemented hidden_referenced_columns tracking array for aggregate/GROUP BY columns
+- Fixed aggregate columns disappearing after multiple save/edit cycles
+- Added ensureReferencedColumnsExist() to restore columns from query_options on load
+- Updated saveDataModel() filter to include hidden tracked columns regardless of is_selected_column status
+- Implemented backward compatibility migration for existing hidden columns
+
+**Visual Feedback:**
+- Added column usage badges (GROUP BY, WHERE, HAVING, ORDER BY, aggregate, calculated)
+- Badges appear when columns are unchecked but used in query clauses
+- Color-coded badges for different usage types
+
+**SQL Generation:**
+- Changed orphaned table detection from error to warning
+- Implemented CROSS JOIN fallback when no explicit JOIN conditions exist
+- Generates valid SQL: FROM table1 CROSS JOIN table2 for Cartesian products
+- User warned about potential unexpected results with CROSS JOIN
+
+**AI Data Modeler:**
+- Fixed retry functionality for both single-source and cross-source modes
+- handleRetry() now detects isCrossSource flag and calls appropriate initialization
+- Properly reinitializes sessions with stored context (projectId, dataSources, dataSourceId)
+
+**UI Layout:**
+- Reordered AI drawer template tab: Templates → Success → Error → Tip → Generate button
+- Moved "Data Model Ready" section above Generate button
+- Moved "Model Parse Error" above Generate button  
+- Moved tip message above Generate button for better user flow
+- Removed duplicate error display
+
+**Styling Consistency:**
+- Added rounded-lg styling across all panels and backgrounds
+- Applied to gray-100 backgrounds in WHERE, GROUP BY, ORDER BY, OFFSET, LIMIT sections
+- Applied to admin user edit page, data model detail page, project cards, skeleton loaders
+
+**Technical Details:**
+- addHiddenReferencedColumn() checks existing columns first for backward compatibility
+- syncGroupByColumns() includes hidden columns with transform functions
+- Column usage tracked with schema.table.column paths
+- Usage types: aggregate, group_by, where, having, order_by, calculated
+
+---
+
+## 2025-12-29
+
+### Fixed - AI Data Modeler GROUP BY Synchronization ✅
+
+**Commit:** fix(ai-data-modeler): Implement comprehensive GROUP BY synchronization and validation
+
+**GROUP BY Logic:**
+- Enhanced syncGroupByColumns() to properly exclude aggregated columns
+- Validates aggregate functions are not included in GROUP BY clause
+- Includes hidden columns with transform functions in GROUP BY
+- Tracks aggregate column usage in hidden_referenced_columns
+
+**Column Tracking:**
+- Improved aggregate function column tracking with addHiddenReferencedColumn()
+- Automatically marks aggregate columns with usage badges
+- Validates data types before allowing SUM/AVG on non-numeric columns
+
+**Validation:**
+- Added comprehensive logging for GROUP BY synchronization
+- Tracks which columns are excluded as aggregates
+- Counts hidden columns included in GROUP BY
+
+### Added - Clear Chat Functionality ✅
+
+**Commit:** Added clear chat functionality
+
+**Features:**
+- Clear button added to AI Data Modeler chat interface
+- Resets conversation history while preserving session context
+- Allows users to start fresh conversations without closing drawer
+
+---
+
+## 2025-12-28
+
+### Added - AI Data Modeler Chat Interface ✅
+
+**Commits:**
+- feat: add chat interface to AI Data Modeler with help system
+- test: add comprehensive unit tests for AI Data Modeler backend
+
+**Chat Interface:**
+- Complete conversational UI for AI Data Modeler
+- AIDataModelerChat.vue component with message history
+- Real-time streaming responses from Gemini 2.0 Flash
+- Message input with send button and keyboard shortcuts
+
+**Help System:**
+- Built-in help command documentation
+- Commands: /help, /templates, /examples, /schema
+- Inline help text for common operations
+- Context-aware suggestions
+
+**Backend Testing:**
+- 15+ unit tests for RedisAISessionService
+- Tests for session lifecycle (create, save, transfer, expire)
+- Tests for message persistence and retrieval
+- Tests for model draft storage and updates
+- Tests for GeminiService initialization and message handling
+- Mocked Redis and Gemini API for isolated testing
+
+**Technical Implementation:**
+- Redis-based session management with 24-hour TTL
+- Automatic transfer to PostgreSQL on save
+- Schema context embedded in system prompt
+- Structured 3-section responses: Analysis, Models, SQL
+
+### Fixed - Data Model Builder Condition Consistency ✅
+
+**Commit:** Fixed bug in the data model builder where some conditions were differing from the manual method
+
+**Fixes:**
+- Standardized condition handling between AI-generated and manual models
+- WHERE clause conditions now consistent across creation methods
+- Fixed operator and value formatting discrepancies
+
+### Fixed - Migration Timestamp Ordering ✅
+
+**Commit:** fix: correct BackfillTableMetadata migration timestamp to run after CreateTableMetadata
+
+**Migration Fix:**
+- Corrected timestamp of BackfillTableMetadata migration
+- Ensures CreateTableMetadata runs before backfill operation
+- Prevents migration execution order issues
+
+---
+
+## 2025-12-27-28
+
+### Added - UI Modernization & Rounded Corners ✅
+
+**Commits:**
+- feat: modernize UI with rounded corners and enhance AI Data Modeler
+- Standardize button styling across frontend
+- Remove rounded corners from all buttons (experiment)
+- feat: Implement data models action buttons and improve SweetAlert styling
+
+**UI Refresh:**
+- Platform-wide rounded-lg styling for panels, cards, dialogs
+- Consistent component styling across all pages
+- Enhanced AI Data Modeler drawer design with modern layout
+- NotchedCard component updated with rounded corners option
+
+**Button Standardization:**
+- Unified button classes across frontend
+- Consistent hover states and transitions
+- Removed then selectively re-added rounded corners
+- Improved visual hierarchy
+
+**Data Models Actions:**
+- Edit, delete, and view action buttons
+- Quick actions menu for each data model
+- Navigate to data model detail page
+- Delete with confirmation dialog
+
+**SweetAlert Styling:**
+- Consistent modal styling throughout application
+- Improved button colors (primary-blue-100, DD4B39 for cancel/delete)
+- Better text formatting in alert bodies
+- HTML content support for structured information
+
+### Fixed - Circular Dependency in PDF Upload Worker ✅
+
+**Commit:** fix: resolve circular dependency in PDF upload worker and restore empty Vue files
+
+**Fixes:**
+- Resolved circular import chain in PDF processing worker
+- Fixed worker initialization issues
+- Restored accidentally deleted Vue component stub files
+- Ensured proper module isolation in background workers
+
+---
+
+## 2025-12-26-27
+
+### Added - Cross-Data-Source Model Support (Major Feature) ✅
+
+**Epic: Enable querying and modeling across multiple data sources within a single project**
+
+**Commits (~50 commits):**
+- feat: add database migration for cross-data-source support
+- feat: add TypeORM entities for cross-data-source support
+- feat: create CrossSourceJoinDialog component
+- feat: add FederatedQueryService foundation
+- feat: complete FederatedQueryService execution engine
+- feat: implement cross-source frontend UI/UX
+- feat: add cross-source AI Data Modeler support (frontend & backend)
+- feat: implement cross-source AI Data Modeler backend (complete)
+- fix: complete cross-source AI chat functionality
+
+**Database Layer:**
+- **dra_data_model_sources** - Junction table linking data models to multiple sources
+- **dra_cross_source_joins** - Stores join conditions between tables from different sources
+- **dra_table_metadata** - Maps user-friendly names to physical hash-based table names
+- **is_cross_source** flag added to dra_data_models table
+- Foreign key relationships and cascade deletes configured
+
+**TypeORM Entities:**
+- DRADataModelSource.ts - Many-to-many relationship entity
+- DRACrossSourceJoin.ts - Join condition storage
+- DRATableMetadata.ts - Table name mapping
+- Updated DRADataModel with is_cross_source and data_model_sources relation
+
+**Backend Services:**
+- **FederatedQueryService.ts** - Executes queries spanning multiple data sources
+  - Fetches data from each source independently
+  - Performs in-memory joins on specified columns
+  - Supports inner, left, right, and full outer joins
+  - Handles data type conversions and null values
+  - Returns unified result set
+- **CrossSourceJoinService.ts** - Discovers join opportunities
+  - Analyzes foreign key relationships
+  - Suggests joins based on column name patterns
+  - Validates join compatibility across source types
+- **SchemaCollectorService.ts** - Aggregates schema from multiple sources
+- **ProjectProcessor.ts** - Added null-checking for cross-source operations
+
+**Frontend Components:**
+- **CrossSourceJoinDialog.vue** - Visual join condition manager
+  - Drag-and-drop table selection
+  - Join type selection (INNER, LEFT, RIGHT, FULL OUTER)
+  - Multiple join condition support
+  - Join preview with SQL generation
+- **data-model-builder.vue** - Enhanced for cross-source
+  - Detects isCrossSource prop
+  - Displays tables from multiple sources with badges
+  - Manages cross-source join conditions
+  - Generates federated SQL queries
+- **SourceBadge.vue** - Converted from Vuetify to TailwindCSS
+  - Shows data source type with icon
+  - Color-coded by source type
+  - Displays in cross-source model lists
+
+**Data Models Pages:**
+- **pages/projects/[projectid]/data-models/index.vue** - List view
+  - Converted from Vuetify to TailwindCSS
+  - Shows all data models in project
+  - Cross-source badge indicator
+  - Action buttons (edit, view, delete)
+- **pages/projects/[projectid]/data-models/create.vue** - Creation wizard
+  - Step 1: Select single or multiple sources
+  - Step 2: Build data model (routes to builder)
+  - Fully responsive TailwindCSS design
+- **pages/projects/[projectid]/data-models/[id]/index.vue** - Detail view
+  - Displays data model metadata
+  - Shows associated data sources
+  - SQL query preview
+  - Query JSON (collapsible)
+- **Data Models tab** added to project navigation
+
+**AI Integration:**
+- Cross-source schema collection for AI context
+- AI Data Modeler generates models spanning multiple sources
+- Schema formatted as markdown for Gemini prompt
+- Handles complex multi-source relationships
+- Chat interface works in cross-source mode
+- Initialization endpoints for cross-source conversations
+
+**API Routes:**
+- POST /data-model/cross-source/build - Build cross-source model
+- POST /data-model/cross-source/execute - Execute federated query
+- POST /data-model/cross-source/sample - Get sample data
+- GET /cross-source/discover-joins - Discover join opportunities
+- POST /ai-data-modeler/initialize-cross-source - Initialize AI session
+
+**Sample Query Execution:**
+- Executes sample queries on cross-source models
+- Returns preview data (10 rows by default)
+- Handles errors gracefully with user-friendly messages
+
+**Technical Achievements:**
+- Queries span PostgreSQL, MySQL, MariaDB, PDF, Excel sources
+- In-memory join algorithms for heterogeneous data
+- Schema introspection across all supported source types
+- Multi-tenant isolation maintained across sources
+
+### Fixed - PostgreSQL Table Display & GROUP BY Issues ✅
+
+**Commits:**
+- fix: PostgreSQL table display and GROUP BY aggregate column bugs
+- test: add comprehensive cross-source unit tests for DataSourceProcessor
+
+**Table Display Fixes:**
+- Fixed table visibility issues in data model builder
+- Corrected schema detection for PostgreSQL tables
+- Ensured all user tables appear in available tables list
+
+**GROUP BY Fixes:**
+- Resolved aggregate column handling in GROUP BY clause
+- Fixed column reference issues in aggregate functions
+- Prevented aggregate columns from appearing in GROUP BY list
+
+**Testing:**
+- Added 15+ unit tests for DataSourceProcessor cross-source transformations
+- Tests for column name consistency across sources
+- Tests for schema mapping and table metadata
+- Tests for join discovery with various column patterns
+
+---
+
+## 2025-12-25-26
+
+### Added - Hash-Based Table Naming System ✅
+
+**Major Initiative: Replace user-visible table names with deterministic hash-based names**
+
+**Commits:**
+- feat: Implement hash-based table naming with metadata mapping system
+- feat: Complete hash-based naming for all Google service tables
+- feat: Implement physical table renaming migration (Option 1)
+- feat: Add Phase 5 - Backfill migration for existing tables
+- docs: Add Table Rename Scripts documentation
+
+**Problem Solved:**
+- Google Analytics, Ad Manager, and Ads created tables with user-provided names
+- Names could contain spaces, special characters, SQL keywords
+- Caused SQL injection vulnerabilities and query failures
+- No consistent naming across environments
+
+**Solution Architecture:**
+- Generated deterministic hash from: userId + dataSourceId + reportType
+- Hash format: `dra_<service>_<first8chars>` (e.g., `dra_ga_a1b2c3d4`)
+- Created dra_table_metadata mapping table for lookups
+- All queries now use hash names internally, display user names in UI
+
+**Implementation Phases:**
+- **Phase 1-2:** Create dra_table_metadata table and indexes
+- **Phase 3:** Update drivers to generate hash names on new table creation
+- **Phase 4:** Update frontend to use metadata API for table lookups
+- **Phase 5:** Backfill existing tables with metadata and rename physical tables
+
+**Affected Services:**
+- GoogleAnalyticsDriver.ts - 6 report types
+- GoogleAdManagerDriver.ts - 9 report types  
+- GoogleAdsDriver.ts - 4 report types
+- 19 total table types migrated to hash-based naming
+
+**Custom Scripts (backend/scripts/):**
+- **analyze-tables-for-rename.ts** - Identifies tables to rename
+- **rename-existing-tables.ts** - Performs physical RENAME operations
+- **verify-renames.ts** - Validates rename success
+- Scripts support --dry-run mode for safety
+
+**Database Operations:**
+- Metadata table with columns: id, user_platform_id, data_source_id, user_provided_name, hash_based_name, table_type, created_at
+- Unique constraint on (user_platform_id, data_source_id, table_type)
+- Indexes on hash_based_name and user_provided_name for fast lookups
+- Cascade handling for data source deletions
+
+**Documentation:**
+- Table-Rename-Scripts.md - Complete guide for rename process
+- Step-by-step instructions for analyze, execute, verify
+- Safety measures and rollback procedures
+
+### Fixed - Security Vulnerabilities ✅
+
+**Commits:**
+- Potential fix for code scanning alert no. 47: Loop bound injection
+- Potential fix for code scanning alert no. 46: Loop bound injection
+- Potential fix for code scanning alert no. 48: Use of externally-controlled format string
+
+**Security Fixes:**
+- Added input validation for loop bounds to prevent injection
+- Sanitized user input before using in loop conditions
+- Validated format strings to prevent arbitrary code execution
+- Applied parseInt() with bounds checking
+- Resolved 3 GitHub Advanced Security code scanning alerts
+
+### Fixed - Data Model Multitenant Support ✅
+
+**Commit:** fix: Add created_at timestamp and multitenant support to data models
+
+**Enhancements:**
+- Added created_at timestamp to all data models
+- Enhanced multitenant isolation in queries
+- Proper user_platform_id filtering throughout
+- Prevents cross-tenant data access
+
+---
+
+## 2025-12-23-24
+
+### Added - Google Ads Integration (Complete) ✅
+
+**Epic: Integrate Google Ads API as a data source (~20 commits)**
+
+**Commit:** feat: integrate Google Ads as a data source
+
+**Backend Services:**
+- **GoogleAdsService.ts** - Google Ads API v22 wrapper
+  - OAuth 2.0 authentication with refresh tokens
+  - Customer account listing
+  - Campaign data fetching
+  - Ad group, ad, and keyword report queries
+  - API error handling and retry logic
+- **GoogleAdsDriver.ts** - Sync orchestration
+  - 4 report types: campaigns, ad_groups, ads, keywords
+  - Dynamic table creation with hash-based naming
+  - Incremental sync support
+  - Batch insert operations
+  - Data transformation and normalization
+
+**API Routes (backend/src/routes/google_ads.ts):**
+- POST /api/google-ads/connect - Initiate OAuth flow
+- GET /api/google-ads/callback - OAuth callback handler
+- POST /api/google-ads/sync/:dataSourceId - Manual sync trigger
+- GET /api/google-ads/status/:dataSourceId - Sync status and history
+- Rate limiting: 20 requests/hour for operations
+
+**Frontend:**
+- **connect/google-ads.vue** - 3-step connection wizard
+  - Step 1: OAuth authentication with Google
+  - Step 2: Select Google Ads customer account
+  - Step 3: Configure campaign and sync settings
+- **useGoogleAds.ts** composable
+  - connectGoogleAds() - OAuth initiation
+  - handleCallback() - Token exchange
+  - syncNow() - Manual sync trigger
+  - getSyncStatus() - Status retrieval
+  - Reactive sync state management
+
+**Database Schema:**
+- Dynamic tables per user: dra_google_ads_<hash>_campaigns, ad_groups, ads, keywords
+- Hash-based naming via dra_table_metadata
+- Comprehensive metrics: impressions, clicks, cost, conversions, CTR, CPC, ROAS
+- Campaign-level data: status, budget, bidding strategy
+- Ad-level data: ad type, headlines, descriptions, final URLs
+- Keyword-level data: match type, quality score, CPC
+
+**Data Types:**
+- Campaigns: id, name, status, budget_amount, impressions, clicks, cost, conversions
+- Ad Groups: campaign_id, name, status, cpc_bid, impressions, clicks, cost
+- Ads: ad_group_id, type, status, headlines, descriptions, final_url, impressions, clicks
+- Keywords: ad_group_id, text, match_type, status, quality_score, cpc, impressions, clicks
+
+**Integration Points:**
+- DataSourceProcessor.ts - Added google_ads case handling
+- DataModelProcessor.ts - Added google_ads schema mapping
+- AI Data Modeler - Supports Google Ads schema context
+
+**Documentation:**
+- Updated Terms of Service to include Google Ads data usage
+- Updated Privacy Policy with Google Ads data handling
+- Created user guide for Google Ads connection setup
+
+**OAuth Configuration:**
+- Scopes: https://www.googleapis.com/auth/adwords
+- Consent screen with brand information
+- Secure token storage with encryption
+
+**Debugging Fixes (~10 commits):**
+- Fixed OAuth callback URL handling
+- Corrected API endpoint from v16 to v22
+- Fixed customer account listing API call
+- Resolved authentication token refresh
+- Fixed step 3 continuation issue
+- Added missing route middleware
+- Corrected TypeScript type definitions
+
+---
+
+## 2025-12-20-22
+
+### Added - Google Ad Manager Additional Report Types ✅
+
+**Commits:**
+- fix: Add support for GAM Device, Ad Unit, Advertiser, and Time Series reports
+- Added additional report types in the UI
+
+**New Report Types:**
+- **Device Report** - Performance by device category (desktop, mobile, tablet)
+- **Ad Unit Report** - Performance by ad unit placement
+- **Advertiser Report** - Performance by advertiser
+- **Time Series Report** - Performance over time with date dimensions
+
+**Implementation:**
+- Dynamic table schema generation for each report type
+- Column definitions for device metrics, ad unit metrics, advertiser metrics
+- Date-based aggregations for time series
+- Frontend UI updated to show all 9 report types
+
+**Database Schema:**
+- dra_gam_<hash>_device - Device performance data
+- dra_gam_<hash>_ad_unit - Ad unit performance data
+- dra_gam_<hash>_advertiser - Advertiser performance data
+- dra_gam_<hash>_time_series - Time-based performance data
+
+### Fixed - Google Ad Manager Data Model Builder Support ✅
+
+**Commits:**
+- fix: Add Google Ad Manager to data model builder column aliasing
+- Fixed schema bug and other bugs found in AI data modeler
+- Added schema to AI data modeler
+- Added mapping based on type of data source for correct schema
+
+**Column Aliasing:**
+- GAM tables now support column aliases in data model builder
+- Alias name validation and formatting
+- Transform function support for GAM columns
+
+**AI Data Modeler:**
+- GAM schema now included in AI context
+- SchemaCollectorService supports google_ad_manager type
+- Proper schema mapping: google_ad_manager → dra_google_ad_manager
+- AI can generate models using GAM tables
+
+**Schema Detection:**
+- getSchemaForDriver() function maps data source types to schema names
+- Handles: postgresql, mysql, mariadb, pdf, excel, google_analytics, google_ad_manager, google_ads
+- Fallback to 'public' schema for unknown types
+
+**Bug Fixes:**
+- Fixed schema bug preventing GAM table visibility
+- Corrected table listing in data model builder
+- Fixed AI Data Modeler initialization with GAM sources
+
+### Added - Google Ad Manager Sync Buttons & DataProcessor Integration ✅
+
+**Commits:**
+- feat: Add Google Ad Manager sync buttons to data sources list
+- feat: Integrate Google Ad Manager into DataSourceProcessor and DataModelProcessor
+
+**Sync UI:**
+- Manual sync button for each GAM data source
+- Bulk sync all Google sources (Analytics + Ad Manager + Ads)
+- Real-time sync progress indicators
+- Last sync timestamp display
+- Sync frequency display
+
+**DataProcessor Integration:**
+- **DataSourceProcessor.ts** - Added google_ad_manager case
+  - Column name transformation
+  - Schema retrieval
+  - Table listing
+- **DataModelProcessor.ts** - Added google_ad_manager case
+  - Query execution
+  - Sample data retrieval
+  - Join condition support
+  - Aggregate function handling
+
+**Features:**
+- viewSyncHistory() - Modal showing sync history entries
+- getSyncStatus() - Retrieves status from GoogleAdManagerService
+- Manual sync with progress feedback via SweetAlert
+- "Recently synced" indicator (within 24 hours)
+
+---
+
+## 2025-12-19-20
+
+### Fixed - Footer Jump & Auth State Flash ✅
+
+**Commits:**
+- fix: eliminate footer jump and auth state flash on page refresh
+- fix: correct v-else binding hiding data source content
+
+**Footer Jump Fix:**
+- Eliminated layout shift (CLS - Cumulative Layout Shift) on page load
+- Footer now maintains consistent position during SSR hydration
+- Improved perceived performance
+
+**Auth State Flash:**
+- Fixed auth state detection causing UI flicker
+- Login/logout buttons no longer flash on page refresh
+- Proper cookie reading during SSR
+- Smooth transition between auth states
+
+**SSR Hydration:**
+- Improved consistency between server-rendered and client-hydrated content
+- Proper use of useCookie() for auth state
+- Eliminated v-else binding issue hiding content
+
+### Fixed - Google Analytics & Ad Manager Sync Status Display ✅
+
+**Commit:** Fixed the data sync status display bug
+
+**Fixes:**
+- Sync timestamps now update immediately after sync completes
+- retrieveDataSources() called after successful sync
+- Accurate "last synced" time display in UI
+- Sync frequency text displays correctly
+- Recently synced indicator (green badge) works properly
+
+---
+
+## 2025-12-18-19
+
+### Added - Google Ad Manager API Integration (Real API Calls) ✅
+
+**Commit:** feat: Implement Google Ad Manager API integration with real API calls
+
+**Real API Implementation:**
+- Replaced mock data with live Google Ad Manager API v202311
+- GoogleAdManagerService.fetchReportData() calls actual API
+- Report types: Performance, Inventory, Delivery
+- OAuth token management with automatic refresh
+- API error handling and retry logic
+
+**Report Queries:**
+- Performance report: Dimensions (DATE, AD_UNIT_NAME), Metrics (IMPRESSIONS, CLICKS, REVENUE)
+- Inventory report: Ad unit hierarchy and availability
+- Delivery report: Line item delivery and pacing
+
+**Token Management:**
+- OAuth 2.0 access token and refresh token storage
+- Automatic token refresh on 401 errors
+- Encrypted token storage in connection_details
+- Token expiry detection and handling
+
+### Removed - Google Ad Manager Dead Code Cleanup ✅
+
+**Major Refactoring: Simplified GAM implementation based on first principles**
+
+**Commits:**
+- Remove all export-related email code
+- Remove unused Export Service dead code
+- Remove Email and Scheduler Services (Sprint 6 dead code)
+- Remove dashboard endpoints and unimplemented report sync methods
+- Remove AdvancedSyncConfig dead code and related endpoints
+- Simplified the google ad manager implementation based on first principles concepts
+
+**Removed Services:**
+- ExportService.ts - Unused export generation (~400 lines)
+- EmailService.ts - Sprint 6 email functionality (~350 lines)
+- SchedulerService.ts - Sprint 6 scheduling (~400 lines)
+- AdvancedSyncConfigService.ts - Unused advanced config (~250 lines)
+- NotificationService.ts - Unused notification system (~200 lines)
+
+**Removed Endpoints (~30 endpoints):**
+- /api/gam/export/* - Export generation and download
+- /api/gam/scheduler/* - Scheduled sync management
+- /api/gam/advanced-config/* - Advanced configuration
+- /api/gam/dashboard/* - Dashboard statistics
+- /api/gam/notifications/* - Notification management
+
+**Cleaned Tests:**
+- Removed test files for deleted services
+- Updated remaining tests to match simplified architecture
+
+**Documentation Updates:**
+- Updated GAM_USER_GUIDE.md to remove export features
+- Removed scheduler documentation
+- Removed advanced configuration guide
+- Focused on core: Connect → Sync → Query workflow
+
+**Rationale:**
+- Sprint 6 features were overengineered for initial release
+- Export functionality not needed (users can export from dashboards)
+- Email notifications premature (no production monitoring needed yet)
+- Scheduling handled by users manually or external cron
+- Reduced codebase by ~2,000 lines
+- Improved maintainability and clarity
+
+### Fixed - Google Ad Manager OAuth Flow ✅
+
+**Commit:** Fix Google Ad Manager OAuth flow
+
+**OAuth Fixes:**
+- Corrected callback URL handling in OAuth service
+- Fixed token exchange request format
+- Proper error handling for OAuth errors
+- Correct state parameter validation
+- Secure token storage after authentication
+
+### Fixed - TypeScript Compilation Errors ✅
+
+**Commits:**
+- Fix TypeScript compilation errors
+- Suppress TypeScript errors in RetryHandler test file
+- Fix last getDateRangeFromConfig reference
+
+**Type Fixes:**
+- Resolved type mismatches in GoogleAdManagerService
+- Fixed return type definitions
+- Corrected interface implementations
+- Added proper type guards
+
+**Test Fixes:**
+- Suppressed false positive TypeScript errors in test files
+- Used @ts-ignore comments where appropriate for test mocking
+- Ensured test suite compiles cleanly
+
+---
+
 ## 2025-12-17
 
 ### Added - Google Analytics Integration Documentation ✅
