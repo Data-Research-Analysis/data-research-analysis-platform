@@ -3,25 +3,25 @@ import { onMounted } from "vue";
 
 // SEO Meta Tags for Homepage
 useHead({
-    title: 'Data Research Analysis - Open Source Data Analysis Platform',
+    title: 'Marketing Data Analytics & AI Dashboard for CMOs | Data Research Analysis',
     meta: [
-        { name: 'description', content: 'Free open source data analysis platform for connecting, analyzing, and visualizing data from multiple sources. Build custom dashboards with Excel, PDF, PostgreSQL, MySQL, and MariaDB integration.' },
-        { name: 'keywords', content: 'data analysis, open source, data visualization, business intelligence, dashboard, PostgreSQL, MySQL, MariaDB, Excel analysis, PDF data extraction' },
+        { name: 'description', content: 'Unify your marketing data from Google Ads, Analytics, and SQL. The AI-powered analytics platform for marketing executives who need specific ROI answers fast.' },
+        { name: 'keywords', content: 'marketing data analytics, CMO dashboard, AI marketing insights, cross-channel ad reporting, ROI tracking, marketing automation, Google Ads analysis' },
         { name: 'author', content: 'Data Research Analysis' },
         { name: 'robots', content: 'index, follow' },
         
         // Open Graph / Facebook
         { property: 'og:type', content: 'website' },
         { property: 'og:url', content: 'https://dataresearchanalysis.com/' },
-        { property: 'og:title', content: 'Data Research Analysis - Open Source Data Analysis Platform' },
-        { property: 'og:description', content: 'Free open source data analysis platform for connecting, analyzing, and visualizing data from multiple sources. Build custom dashboards with ease.' },
+        { property: 'og:title', content: 'Marketing Data Analytics & AI Dashboard for CMOs | Data Research Analysis' },
+        { property: 'og:description', content: 'Unify your marketing data from Google Ads, Analytics, and SQL. The AI-powered analytics platform for marketing executives who need specific ROI answers fast.' },
         { property: 'og:image', content: 'https://dataresearchanalysis.com/images/og-image.png' },
         
         // Twitter
         { name: 'twitter:card', content: 'summary_large_image' },
         { name: 'twitter:url', content: 'https://dataresearchanalysis.com/' },
-        { name: 'twitter:title', content: 'Data Research Analysis - Open Source Data Analysis Platform' },
-        { name: 'twitter:description', content: 'Free open source data analysis platform for connecting, analyzing, and visualizing data from multiple sources.' },
+        { name: 'twitter:title', content: 'Marketing Data Analytics & AI Dashboard for CMOs | Data Research Analysis' },
+        { name: 'twitter:description', content: 'Unify your marketing data from Google Ads, Analytics, and SQL. The AI-powered analytics platform for marketing executives who need specific ROI answers fast.' },
         { name: 'twitter:image', content: 'https://dataresearchanalysis.com/images/og-image.png' },
     ],
     link: [
@@ -38,11 +38,9 @@ onMounted(() => {
         <hero />
         <problems id="about" />
         <why-dra id="why-dra" />
-        <how-do-it-get-started id="how-do-it-get-started" />
-        <we-understand id="we-understand" />
+        <ai-showcase id="ai-showcase" />
         <add-external-data-source id="add-external-data-source" />
-        <build-data-model id="build-data-model" />
-        <community id="community" />
+        <how-do-it-get-started id="how-do-it-get-started" />
         <join-private-beta id="join-private-beta" />
     </div>
 </template>

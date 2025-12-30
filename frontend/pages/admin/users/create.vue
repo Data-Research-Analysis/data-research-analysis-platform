@@ -212,7 +212,7 @@ function resetForm() {
                 </div>
             </div>
             
-            <div class="min-h-100 flex flex-col ml-4 mr-4 mb-10 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md">
+            <div class="min-h-100 flex flex-col ml-4 mr-4 mb-10 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md rounded-lg">
                 <div class="flex flex-row justify-between items-center mb-5">
                     <div>
                         <div class="font-bold text-2xl">

@@ -99,7 +99,7 @@ async function unpublishArticle(articleId) {
         <sidebar-admin class="w-1/6" />
         <div class="w-5/6">
             <!-- Loading State -->
-            <div v-if="pending" class="min-h-100 flex flex-col ml-4 mr-4 mb-10 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md">
+            <div v-if="pending" class="min-h-100 flex flex-col ml-4 mr-4 mb-10 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md rounded-lg">
                 <div class="flex items-center justify-center py-20">
                     <div class="text-center">
                         <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-blue-500 mb-4"></div>
@@ -123,7 +123,7 @@ async function unpublishArticle(articleId) {
             </div>
             
             <!-- Articles Content -->
-            <div v-else class="min-h-100 flex flex-col ml-4 mr-4 mb-10 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md rounded-xl">
+            <div v-else class="min-h-100 flex flex-col ml-4 mr-4 mb-10 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md rounded-lg">
                 <div class="flex flex-row">
                     <div class="font-bold text-2xl mb-5">
                         List Articles

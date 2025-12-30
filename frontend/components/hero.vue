@@ -1,5 +1,9 @@
 <script setup>
 import { useReCaptcha } from "vue-recaptcha-v3";
+import dataSourcesImage from '/assets/images/data-sources.png';
+import templateAIImage from '/assets/images/template-ai.png';
+import chatAIImage from '/assets/images/chat-ai.png';
+import dashboardImage from '/assets/images/dashboard.png';
 const recaptcha = useReCaptcha();
 
 const state = reactive({
@@ -27,33 +31,46 @@ onMounted(async () => {
 </script>
 <template>
     <div>
-        <div class="bg-primary-blue-100 w-full h-full fancy-bottom">
-            <div class="flex flex-col h-full p-5 lg:hidden">
-                <h1 class="font-bold text-white text-center mt-20">
-                    Tired of complex data analysis platforms slowing you down?
+        <div class="bg-primary-blue-100 w-full min-h-[90vh] lg:min-h-screen relative flex items-center fancy-bottom">
+            <!-- Mobile Layout -->
+            <div class="flex flex-col h-full p-5 lg:hidden pt-20">
+                <h1 class="font-bold text-white text-center text-4xl leading-tight">
+                    Stop Guessing. Start Dominating Your Market with AI-Driven Insights.
                 </h1>
-                <div class="text-xl font-bold text-white text-center mt-10">
-                    Data Research Analysis makes the process of getting data insights easy  and simple, so you can make confident, lightning-fast decisions.
+                <div class="text-xl font-medium text-blue-100 text-center mt-6">
+                    The only data platform built for CMOs who need to prove ROI, unite their team, and get home in time for dinner.
                 </div>
-                <div class="flex flex-row justify-center mt-10">
-                    <img src="/assets/images/website.png" />
+                <div class="flex flex-col w-full m-auto mt-8 pb-10">
+                    <combo-button label="Start Your Free Beta" color="white" class="w-full h-12 shadow-lg cursor-pointer" @click="gotoJoinPrivateBeta()"/>
                 </div>
-                <div class="flex flex-col w-3/5 m-auto mt-10 pb-20">
-                    <combo-button label="Join Our Private Beta" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" @click="gotoJoinPrivateBeta()"/>
+                <div class="flex flex-row justify-center mt-5 mb-20">
+                    <HeroCarousel :images="[dataSourcesImage, templateAIImage, chatAIImage, dashboardImage]" />
                 </div>
             </div>            
-            <div class="hidden lg:flex lg:flex-row justify-center">
-                <div class="w-1/2 flex flex-col mb-10">
-                    <h1 class="font-bold text-white mt-10 text-center">
-                        Tired of complex data analysis platforms slowing you down?
+
+            <!-- Desktop Layout -->
+            <div class="hidden lg:grid grid-cols-12 gap-8 w-full max-w-[90rem] mx-auto px-6 items-center pb-20">
+                <!-- Left: Text (5 cols ~ 42%) -->
+                <div class="col-span-5 flex flex-col items-start text-left z-10">
+                    <h1 class="font-bold text-white text-5xl leading-tight mb-6 drop-shadow-sm">
+                        Stop Guessing. <br/>
+                        <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-white">Start Dominating</span> <br/>
+                        Your Market.
                     </h1>
-                    <div class="text-xl font-bold text-white mt-5 text-center">
-                        Data Research Analysis makes the process of getting data insights easy  and simple, so you can make confident, lightning-fast decisions.
+                    <div class="text-xl font-medium text-blue-100 mb-10 max-w-lg leading-relaxed">
+                        The only data platform built for CMOs who need to prove ROI, unite their team, and get home in time for dinner.
+                    </div>
+                     <div class="w-2/3">
+                        <combo-button label="Join Our Private Beta" color="white" class="w-full h-14 text-lg shadow-xl hover:scale-105 transition-transform cursor-pointer" @click="gotoJoinPrivateBeta()"/>
                     </div>
                 </div>
-            </div>
-            <div class="m-auto w-3/4 lg:w-1/2 hidden lg:block pb-20">
-                <img src="/assets/images/website.png" />
+
+                <!-- Right: Carousel (7 cols ~ 58%) -->
+                <div class="col-span-7 relative z-10 w-full pl-0">
+                    <!-- Background Glow -->
+                    <div class="absolute -inset-4 bg-blue-500/20 blur-3xl rounded-full"></div>
+                    <HeroCarousel :images="[dataSourcesImage, templateAIImage, chatAIImage, dashboardImage]" />
+                </div>
             </div>
         </div>
     </div>

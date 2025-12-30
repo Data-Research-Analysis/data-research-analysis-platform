@@ -69,7 +69,13 @@ onMounted(() => {
                                 <NuxtLink to="/terms-conditions" class="hover:text-gray-300">Terms &amp; Conditions</NuxtLink>
                             </span>
                         </div>
-                        
+                        <div class="flex flex-col justify-between ml-10">
+                            Registered with
+                            <div class="flex flex-col gap-4 items-center">
+                                <a href="https://www.techdestination.com/" target="_blank" title="Pakistan Software Export Board"><img src="/assets/images/pseb-logo.png" class="h-20 bg-transparent p-1 rounded" alt="Pakistan Software Export Board" /></a>
+                                <a href="https://www.techdestination.com/" target="_blank" title="Tech Destination Pakistan"><img src="/assets/images/tech-destination-logo.png" class="h-15 bg-transparent p-1 rounded" alt="Tech Destination Pakistan" /></a>
+                            </div>
+                        </div>
                     </div>
                 </div>                
                 <div class="">

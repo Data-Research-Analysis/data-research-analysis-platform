@@ -52,7 +52,7 @@ useHead({
 });
 </script>
 <template>
-    <div class="min-h-100 flex flex-col ml-4 mr-4 mb-10 md:ml-10 md:mr-10 mt-10 border border-primary-blue-100 border-solid p-10 shadow-md">
+    <tab-content-panel :corners="['top-left', 'top-right', 'bottom-left', 'bottom-right']" class="mt-15">
         <h1 class="mb-5 ml-2">Articles</h1>
         
         <!-- Loading State -->
@@ -94,5 +94,5 @@ useHead({
                 No articles available at the moment.
             </div>
         </div>
-    </div>
+    </tab-content-panel>
 </template>
