@@ -153,6 +153,10 @@ async function createUser() {
                 icon: "success",
                 confirmButtonColor: "#3C8DBC",
             });
+
+            if (import.meta.client) {
+                localStorage.setItem('refreshData', 'true');
+            }
             
             // Redirect based on conversion type
             if (state.isConversion) {
