@@ -51,6 +51,21 @@ const state = reactive({
     }),
     available_data_sources: [
         {
+            name: 'Google Analytics',
+            url: `${route.fullPath}/data-sources/connect/google-analytics`,
+            image_url: googleAnalyticsImage,
+        },
+        {
+            name: 'Google Ad Manager',
+            url: `${route.fullPath}/data-sources/connect/google-ad-manager`,
+            image_url: googleAdManagerImage,
+        },
+        {
+            name: 'Google Ads',
+            url: `${route.fullPath}/data-sources/connect/google-ads`,
+            image_url: googleAdsImage, // Reusing GAM image for now
+        },
+        {
             name: 'PDF',
             url: `${route.fullPath}/data-sources/connect/pdf`,
             image_url: pdfImage,
@@ -74,21 +89,6 @@ const state = reactive({
             name: 'MariaDB',
             url: `${route.fullPath}/data-sources/connect/mariadb`,
             image_url: mariadbImage,
-        },
-        {
-            name: 'Google Analytics',
-            url: `${route.fullPath}/data-sources/connect/google-analytics`,
-            image_url: googleAnalyticsImage,
-        },
-        {
-            name: 'Google Ad Manager',
-            url: `${route.fullPath}/data-sources/connect/google-ad-manager`,
-            image_url: googleAdManagerImage,
-        },
-        {
-            name: 'Google Ads',
-            url: `${route.fullPath}/data-sources/connect/google-ads`,
-            image_url: googleAdsImage, // Reusing GAM image for now
         },
     ],
     selected_tab: 'data_sources',

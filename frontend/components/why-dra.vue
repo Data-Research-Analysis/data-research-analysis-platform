@@ -2,116 +2,83 @@
 </script>
 <template>
     <div>
-        <div class="bg-primary-blue-100 w-full h-full fancy-top-bottom">
-            <div class="flex flex-col">
-                <h1 class="font-bold text-white text-center mt-10 pt-20">
-                    Why Data Research Analysis?
+        <div class="bg-primary-blue-100 w-full h-full fancy-top-bottom py-15 px-6">
+            <div class="max-w-7xl mx-auto flex flex-col items-center">
+                <h1 class="font-bold text-white text-center text-4xl mb-16 pt-5">
+                    Turn Your Data into Your Competitive Advantage
                 </h1>
-                <div class="flex flex-col lg:flex-row w-3/4 lg:w-full justify-center text-lg font-bold text-white mt-10 m-auto">
-                    <div class="flex flex-col lg:w-1/4 lg:pr-10 mb-10 lg:mb-0">
-                        <h2>
-                            Saves your time
-                        </h2>
-                        <div class="text-md">
-                            Stop wasting countless hours wrestling with complicated platforms.
-                            Data Research Analysis streamlines the entire data process, from
-                            import to insight, so you can focus on what truly matters.
+
+                <!-- Feature Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 w-full mb-16">
+                    <!-- Feature 1 -->
+                    <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 transform hover:-translate-y-1">
+                        <div class="text-3xl text-primary-blue-100 mb-4">
+                            <font-awesome icon="fas fa-laptop-code" />
                         </div>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">No-Code Data Platform</h3>
+                        <p class="text-primary-blue-100/80 leading-relaxed font-medium">
+                            Stop wrestling with complex tools. Build meaningful reports without writing a single line of SQL.
+                        </p>
                     </div>
-                    <div class="flex flex-col lg:w-1/4 lg:pl-10 mb-10 lg:mb-0">
-                        <h2>
-                            Saves your money
-                        </h2>
-                        <div class="text-md">
-                            Eliminate the hidden costs of inefficiency, delayed decisions, and
-                            expensive, overly complex tools. Our platform helps you maximize your
-                            resources by delivering quick, actionable insights.
+
+                    <!-- Feature 2 -->
+                    <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 transform hover:-translate-y-1">
+                        <div class="text-3xl text-primary-blue-100 mb-4">
+                            <font-awesome icon="fas fa-layer-group" />
                         </div>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Unified Marketing Analytics</h3>
+                        <p class="text-primary-blue-100/80 leading-relaxed font-medium">
+                            Connect Google Ads, GA4, and Ad Manager in one view. Break down data silos instantly.
+                        </p>
                     </div>
-                </div>
-                <div class="flex flex-col lg:flex-row w-3/4 lg:w-full justify-center text-lg font-bold text-white lg:mt-10 m-auto">
-                    <div class="flex flex-col lg:w-1/4 lg:pr-10 mb-10 lg:mb-0">
-                        <h2>
-                            Make quicker decisions
-                        </h2>
-                        <div class="text-md">
-                            Empower your leadership with real-time, easily accessible insights.
-                            Accelerate your decision-making cycle to stay ahead of the
-                            competition and seize opportunities faster.
+
+                    <!-- Feature 3 -->
+                    <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 transform hover:-translate-y-1">
+                        <div class="text-3xl text-primary-blue-100 mb-4">
+                            <font-awesome icon="fas fa-stopwatch" />
                         </div>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Real-Time ROI Tracking</h3>
+                        <p class="text-primary-blue-100/80 leading-relaxed font-medium">
+                            Monitor campaign performance as it happens. Pivot budget instantly to maximize ROAS.
+                        </p>
                     </div>
-                    <div class="flex flex-col lg:w-1/4 lg:pl-10 mb-10 lg:mb-0">
-                        <h2>
-                            Perform all of your analysis in one platform
-                        </h2>
-                        <div class="text-md">
-                            Consolidate your data efforts. Data Research Analysis provides a unified
-                            environment where you can connect, analyze, and visualize all your data,
-                            eliminating the need for fragmented tools and workflows.
-                        </div>
+
+                    <!-- Feature 4 -->
+                    <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 transform hover:-translate-y-1">
+                         <div class="text-3xl text-primary-blue-100 mb-4">
+                            <font-awesome icon="fas fa-robot" />
+                         </div>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">AI-Driven Data Insights</h3>
+                        <p class="text-primary-blue-100/80 leading-relaxed font-medium">
+                            Ask your data questions in plain English. Get instant, CEO-ready answers from our specific AI agents.
+                        </p>
                     </div>
-                </div>
-                <div class="flex flex-col lg:flex-row w-3/4 lg:w-full justify-center text-lg font-bold text-white lg:mt-10 m-auto">
-                    <div class="flex flex-col lg:w-1/4 lg:pr-10 mb-10 lg:mb-0">
-                        <h2>
-                            Provides additional public datasets
-                        </h2>
-                        <div class="text-md">
-                            Go beyond your internal data. Access a curated library of publicly available datasets
-                            directly within the platform, enabling richer context and deeper, more comprehensive
-                            insights for your analysis.
+
+                    <!-- Feature 5 -->
+                     <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 transform hover:-translate-y-1">
+                        <div class="text-3xl text-primary-blue-100 mb-4">
+                            <font-awesome icon="fas fa-globe" />
                         </div>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Market Intelligence</h3>
+                        <p class="text-primary-blue-100/80 leading-relaxed font-medium">
+                            Layer public datasets over your private data. Spot trends before your competitors do.
+                        </p>
                     </div>
-                    <div class="flex flex-col lg:w-1/4 lg:pl-10 mb-10 lg:mb-0">
-                        <h2>
-                            Will not cause you to get frustrated
-                        </h2>
-                        <div class="text-md">
-                            Say goodbye to steep learning curves and confusing interfaces.
-                            Data Research Analysis is designed with an intuitive user experience,
-                            making complex data tasks feel simple and stress-free.
+
+                    <!-- Feature 6 -->
+                    <div class="bg-white p-8 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition duration-300 transform hover:-translate-y-1">
+                        <div class="text-3xl text-primary-blue-100 mb-4">
+                            <font-awesome icon="fas fa-bolt" />
                         </div>
-                    </div>
-                </div>
-                <div class="flex flex-col lg:flex-row w-3/4 lg:w-full justify-center text-lg font-bold text-white lg:mt-10 m-auto">
-                    <div class="flex flex-col lg:w-1/4 lg:pr-10 mb-10 lg:mb-0">
-                        <h2>
-                            Even your CEO can easily use it
-                        </h2>
-                        <div class="text-md">
-                            Break down data silos and empower all levels of your organization.
-                            Our user-friendly design ensures that even non-technical executives
-                            can quickly navigate, understand, and leverage data insights without
-                            extensive training.
-                        </div>
-                    </div>
-                    <div class="flex flex-col lg:w-1/4 lg:pl-10 mb-10 lg:mb-0">
-                        <h2>
-                            Does not require special training
-                        </h2>
-                        <div class="text-md">
-                            Skip the costly and time-consuming training programs. Data Research Analysis
-                            is designed for immediate productivity, allowing your team to start
-                            analyzing data and delivering results with minimal onboarding saving you
-                            thousands of hours and dollars in training.
-                        </div>
+                        <h3 class="text-xl font-bold text-primary-blue-100 mb-2">Instant Onboarding</h3>
+                        <p class="text-primary-blue-100/80 leading-relaxed font-medium">
+                            Skip the expensive certifications. Our intuitive interface is built for marketers, not data scientists.
+                        </p>
                     </div>
                 </div>
-                <div class="flex flex-col lg:flex-row w-3/4 lg:w-full justify-center text-lg font-bold text-white lg:mt-10 m-auto">
-                    <div class="flex flex-col lg:w-1/4 lg:pr-10 mb-10 lg:mb-0">
-                        <h2>
-                            Easily explore your data
-                        </h2>
-                        <div class="text-md">
-                            Discover patterns and trends effortlessly. With interactive dashboards
-                            and intuitive exploration tools, you can dive deep into your data,
-                            ask new questions, and uncover valuable insights with unprecedented ease.
-                        </div>
-                    </div>
-                    <div class="flex flex-col lg:w-1/4 lg:pr-10 mb-10 lg:mb-0"></div>
-                </div>
-                 <div class="flex flex-col w-3/5 lg:w-1/5 m-auto mb-10 lg:mt-20 pb-20">
-                    <combo-button label="Join Our Private Beta" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" @click="gotoJoinPrivateBeta()"/>
+
+                 <div class="flex flex-col w-full md:w-1/3 mb-5 pb-5">
+                    <combo-button label="Join Our Private Beta" color="white" class="w-full h-12 shadow-lg cursor-pointer" @click="gotoJoinPrivateBeta()"/>
                 </div>
             </div>
         </div>

@@ -1,5 +1,5 @@
 /** @type {import('tailwindcss').Config} */
-module.exports = {
+export default {
   content: [
     "./components/**/*.{js,vue,ts}",
     "./layouts/**/*.vue",
@@ -10,6 +10,9 @@ module.exports = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+      },
       colors: {
         "green-blue-100": "#32ADE6",
         "green-blue-200": "#32BCE4",
