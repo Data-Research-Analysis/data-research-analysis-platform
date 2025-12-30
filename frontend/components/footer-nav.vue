@@ -46,39 +46,67 @@ onMounted(() => {
 </script>
 <template>
     <div>
-        <div class="bg-primary-blue-100 w-full h-full text-white text-xl font-bold">
-            <div class="flex flex-col justify-between h-full p-5">
-                <div class="w-full h-1 bg-white mb-5"></div>
-                <div class="flex flex-row">
-                    <div class="w-1/2">
-                        <div class="hover:text-gray-300 cursor-pointer" @click="openGithub()">Data Research Analysis is an open source data analysis platform developed under the MIT Open Source License.</div>
+        <div class="bg-primary-blue-100 text-white font-sans w-full">
+            <div class="max-w-7xl mx-auto px-6 py-12">
+                <!-- Main Footer Content -->
+                <div class="flex flex-col lg:flex-row lg:justify-between gap-10">
+                    
+                    <!-- 1. Brand / Description -->
+                    <div class="lg:w-1/3 text-center lg:text-left">
+                        <p class="hover:text-gray-200 cursor-pointer text-lg leading-relaxed font-bold" @click="openGithub()">
+                            Data Research Analysis is an open source data analysis platform developed under the MIT Open Source License.
+                        </p>
                     </div>
-                    <div class="w-1/2 flex flex-row justify-end mr-8">
-                        <div v-if="!isPublicDashboard" class="w-1/4 flex flex-col">
-                            <span>Important Links</span>
-                            <span v-if="isPlatformEnabled() && isPlatformRegistrationEnabled() && !authenticated" class="text-base mt-2 mb-2">
-                                <NuxtLink to="/register" class="hover:text-gray-300">Register</NuxtLink>
-                            </span>
-                            <span v-if="isPlatformEnabled() && isPlatformLoginEnabled() && !authenticated" class="text-base mt-2 mb-2">
-                                <NuxtLink to="/login" class="hover:text-gray-300">Login</NuxtLink>
-                            </span>
-                            <span class="text-base mt-2 mb-2">
-                                <NuxtLink to="/privacy-policy" class="hover:text-gray-300">Privacy Policy</NuxtLink>
-                            </span>
-                            <span class="text-base mb-2">
-                                <NuxtLink to="/terms-conditions" class="hover:text-gray-300">Terms &amp; Conditions</NuxtLink>
-                            </span>
-                        </div>
-                        <div class="flex flex-col justify-between ml-10">
-                            Registered with
-                            <div class="flex flex-col gap-4 items-center">
-                                <a href="https://www.techdestination.com/" target="_blank" title="Pakistan Software Export Board"><img src="/assets/images/pseb-logo.png" class="h-20 bg-transparent p-1 rounded" alt="Pakistan Software Export Board" /></a>
-                                <a href="https://www.techdestination.com/" target="_blank" title="Tech Destination Pakistan"><img src="/assets/images/tech-destination-logo.png" class="h-15 bg-transparent p-1 rounded" alt="Tech Destination Pakistan" /></a>
-                            </div>
-                        </div>
+
+                    <!-- 2. Important Links -->
+                    <div v-if="!isPublicDashboard" class="flex flex-col items-center lg:items-start space-y-3">
+                        <h3 class="font-bold text-xl mb-2 opacity-90">Important Links</h3>
+                        
+                        <NuxtLink v-if="isPlatformEnabled() && isPlatformRegistrationEnabled() && !authenticated" 
+                                  to="/register" 
+                                  class="text-base hover:text-gray-300 hover:underline opacity-90 hover:opacity-100 transition duration-200">
+                            Register
+                        </NuxtLink>
+                        
+                        <NuxtLink v-if="isPlatformEnabled() && isPlatformLoginEnabled() && !authenticated" 
+                                  to="/login" 
+                                  class="text-base hover:text-gray-300 hover:underline opacity-90 hover:opacity-100 transition duration-200">
+                            Login
+                        </NuxtLink>
+
+                        <NuxtLink to="/privacy-policy" 
+                                  class="text-base hover:text-gray-300 hover:underline opacity-90 hover:opacity-100 transition duration-200">
+                            Privacy Policy
+                        </NuxtLink>
+
+                        <NuxtLink to="/terms-conditions" 
+                                  class="text-base hover:text-gray-300 hover:underline opacity-90 hover:opacity-100 transition duration-200">
+                            Terms & Conditions
+                        </NuxtLink>
                     </div>
-                </div>                
-                <div class="">
+
+                    <!-- 3. Trust Badges ("Registered with") -->
+                    <div class="flex flex-col items-center lg:items-start">
+                         <h3 class="text-sm uppercase tracking-wider mb-4 opacity-70 font-bold">Registered With</h3>
+                         <div class="flex flex-row gap-4 items-center bg-white/5 p-4 rounded-xl">
+                            <a href="https://www.secp.gov.pk/" target="_blank" title="Securities Exchange Commission Pakistan" class="hover:opacity-80 transition duration-200">
+                                <img src="/assets/images/secp.png" class="h-16 w-auto" alt="Securities Exchange Commission Pakistan" />
+                            </a>
+                            <a href="https://www.techdestination.com/" target="_blank" title="Pakistan Software Export Board" class="hover:opacity-80 transition duration-200">
+                                <img src="/assets/images/pseb-logo.png" class="h-16 w-auto" alt="Pakistan Software Export Board" />
+                            </a>
+                            <a href="https://www.techdestination.com/" target="_blank" title="Tech Destination Pakistan" class="hover:opacity-80 transition duration-200">
+                                <img src="/assets/images/tech-destination-logo.png" class="h-12 w-auto" alt="Tech Destination Pakistan" />
+                            </a>
+                         </div>
+                    </div>
+                </div>
+
+                <!-- Divider -->
+                <div class="w-full h-px bg-white/20 my-8"></div>
+
+                <!-- Copyright -->
+                <div class="text-center text-sm opacity-60">
                     COPYRIGHT 2024 - {{ currentYear }} Data Research Analysis (SMC-Private) Limited
                 </div>
             </div>

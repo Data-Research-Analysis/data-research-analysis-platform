@@ -31,9 +31,9 @@ onMounted(async () => {
 </script>
 <template>
     <div>
-        <div class="bg-primary-blue-100 w-full min-h-[90vh] lg:min-h-screen relative flex items-center fancy-bottom">
+        <div class="bg-primary-blue-100 w-full lg:min-h-screen relative flex flex-col lg:flex-row lg:items-center fancy-bottom">
             <!-- Mobile Layout -->
-            <div class="flex flex-col h-full p-5 lg:hidden pt-20">
+            <div class="flex flex-col w-full p-5 pt-32 pb-20 lg:hidden">
                 <h1 class="font-bold text-white text-center text-4xl leading-tight">
                     Stop Guessing. Start Dominating Your Market with AI-Driven Insights.
                 </h1>
