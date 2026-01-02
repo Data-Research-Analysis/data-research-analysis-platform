@@ -38,6 +38,7 @@ const state = reactive({
                 { id: 1, name: 'Database Dashboard', path: '/admin/database' },
                 { id: 2, name: 'Create Backup', path: '/admin/database/backup' },
                 { id: 3, name: 'Restore Database', path: '/admin/database/restore' },
+                { id: 4, name: 'Scheduled Backups', path: '/admin/database/scheduled-backups' },
             ],
         },
     ],
