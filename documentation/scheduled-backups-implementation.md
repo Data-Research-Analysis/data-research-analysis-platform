@@ -58,7 +58,7 @@ Implemented a comprehensive scheduled database backup system with:
   - Uses `node-cron` for scheduling
   - Configurable via environment variables
   - Start/stop/restart scheduler dynamically
-  - Calculate next run time using `cron-parser`
+  - Calculate next run time using `croner` (ESM-compatible)
   - Automatic cleanup of old backups
   - Manual backup triggering
 
@@ -243,7 +243,7 @@ BACKUP_STORAGE_PATH=./backend/private/backups
 
 ### New Dependencies
 
-- ✅ `cron-parser` - Calculate next run times (already installed)
+- ✅ `croner` - Calculate next run times (ESM-compatible)
 - ✅ `node-cron` - Cron scheduling (already installed)
 - ✅ `@types/node-cron` - TypeScript types (already installed)
 

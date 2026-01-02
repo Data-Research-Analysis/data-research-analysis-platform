@@ -1,4 +1,5 @@
 import cron, { ScheduledTask } from 'node-cron';
+import { Cron } from 'croner';
 import { QueueService } from './QueueService.js';
 import { DatabaseBackupService } from './DatabaseBackupService.js';
 import { ScheduledBackupProcessor } from '../processors/ScheduledBackupProcessor.js';
@@ -276,10 +277,10 @@ export class ScheduledBackupService {
         }
 
         try {
-            // Parse cron expression to calculate next run
-            const cronParser = require('cron-parser');
-            const interval = cronParser.parseExpression(this.BACKUP_SCHEDULE);
-            return interval.next().toDate();
+            // Parse cron expression to calculate next run using croner
+            const cronJob = new Cron(this.BACKUP_SCHEDULE);
+            const nextRun = cronJob.nextRun();
+            return nextRun || null;
         } catch (error) {
             console.error('Error calculating next run time:', error);
             return null;
