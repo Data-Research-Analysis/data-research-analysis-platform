@@ -27,6 +27,7 @@
     "@tiptap/extension-document": "^3.10.1",
     "@tiptap/extension-dropcursor": "^3.10.1",
     "@tiptap/extension-file-handler": "^3.10.1",
+    "@tiptap/extension-hard-break": "^3.14.0",
     "@tiptap/extension-heading": "^3.10.1",
     "@tiptap/extension-history": "^3.10.1",
     "@tiptap/extension-image": "^3.10.1",
