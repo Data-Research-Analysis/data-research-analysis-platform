@@ -20,7 +20,9 @@
     import History from '@tiptap/extension-history'
     import TextAlign from '@tiptap/extension-text-align'
     import Blockquote from '@tiptap/extension-blockquote'
+    import HardBreak from '@tiptap/extension-hard-break'
     import { Markdown } from '@tiptap/markdown'
+    import { Extension } from '@tiptap/core'
 
     const emits = defineEmits(['update:content', 'update:markdown']);
     const state = reactive({
@@ -36,23 +38,38 @@
     // Track uploading images
     const uploadingImages = ref(new Set());
     
+    // Custom extension to ensure Enter key always works
+    const EnterKeyFix = Extension.create({
+        name: 'enterKeyFix',
+        
+        addKeyboardShortcuts() {
+            return {
+                // Ensure Enter always splits blocks
+                'Enter': () => {
+                    return this.editor.commands.splitBlock()
+                },
+                // Ensure Shift+Enter works (handled by HardBreak, but as fallback)
+                'Shift-Enter': () => {
+                    return this.editor.commands.setHardBreak()
+                },
+            }
+        },
+        
+        // High priority to override other extensions
+        priority: 1000,
+    });
+    
     // Initialize the editor
     const editor = useEditor({
         content: '',
         extensions: [ 
+            // Core document structure first
             Document,
             Text,
             Paragraph,
-            // Load Markdown early so other extensions can override its behavior
-            Markdown.configure({
-                html: true,                 // Allow HTML in markdown (for images)
-                tightLists: true,
-                tightListClass: 'tight',
-                bulletListMarker: '-',
-                linkify: false,
-                transformPastedText: false,
-                transformCopiedText: false,
-            }),
+            HardBreak,
+            EnterKeyFix,
+            // Formatting extensions next
             Bold,
             Italic, 
             Heading,
@@ -98,7 +115,6 @@
                 color: '#3c8dbc',
                 width: 3,
             }),
-            // Image extension - load after Markdown to override image handling
             Image.configure({
                 inline: true,
                 allowBase64: false,
@@ -154,57 +170,31 @@
                     return true; // Indicate that we handled the paste
                 },
             }),
+            // Load Markdown LAST so it doesn't override other behaviors
+            Markdown.configure({
+                html: true,                 // Allow HTML in markdown (for images)
+                tightLists: true,
+                tightListClass: 'tight',
+                bulletListMarker: '-',
+                linkify: false,
+                transformPastedText: true,  // Enable markdown paste handling
+                transformCopiedText: true,  // Enable markdown copy handling
+            }),
         ],
         editorProps: {
             attributes: {
                 class: 'prose prose-sm sm:prose-base lg:prose-lg xl:prose-2xl m-2 focus:outline-none',
             },
             handlePaste: (view, event) => {
-                // Check if there are files in the clipboard (images)
+                // ONLY handle image files, let Markdown extension handle ALL text
                 const files = Array.from(event.clipboardData?.files || []);
                 if (files.length > 0 && files.some(file => file.type.startsWith('image/'))) {
                     // Let FileHandler extension handle image paste
                     return false;
                 }
                 
-                // Get the plain text from clipboard
-                const text = event.clipboardData?.getData('text/plain');
-                
-                // If there's text that looks like markdown, insert it as markdown
-                if (text && (
-                    text.match(/^#{1,6}\s/) ||           // Headings
-                    text.includes('**') ||               // Bold
-                    text.includes('__') ||               // Bold alt
-                    text.includes('*') && !text.match(/^\*\s/) ||  // Italic (not just list)
-                    text.match(/^[-*+]\s/m) ||          // Unordered lists
-                    text.match(/^\d+\.\s/m) ||          // Ordered lists
-                    text.includes('[') && text.includes('](') ||  // Links
-                    text.includes('```') ||             // Code blocks
-                    text.includes('`') ||               // Inline code
-                    text.match(/^>\s/m)                 // Blockquotes
-                )) {
-                    // Prevent default paste behavior
-                    event.preventDefault();
-                    
-                    // Insert content as markdown using the editor's markdown manager
-                    const { state } = view;
-                    const { tr } = state;
-                    
-                    try {
-                        // Use insertContent with contentType='markdown'
-                        editor.value?.chain()
-                            .focus()
-                            .insertContent(text, { contentType: 'markdown' })
-                            .run();
-                        
-                        return true; // Handled
-                    } catch (error) {
-                        console.error('Error pasting markdown:', error);
-                        return false; // Fall back to default
-                    }
-                }
-                
-                // For regular text, use default paste behavior
+                // For ALL text content (markdown, HTML, plain text),
+                // let TipTap's native handlers process it
                 return false;
             },
         },
