@@ -8,10 +8,44 @@ export class AddGoogleAnalyticsDataSource1733788800000 implements MigrationInter
     name = 'AddGoogleAnalyticsDataSource1733788800000'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
+        // Check if the enum type exists first
+        const enumExists = await queryRunner.query(`
+            SELECT EXISTS (
+                SELECT 1 
+                FROM pg_type 
+                WHERE typname = 'dra_data_sources_data_type_enum'
+            );
+        `);
+        
+        if (!enumExists[0].exists) {
+            console.log('⚠️  Enum type does not exist yet, skipping this migration');
+            console.log('   This migration will be applied after CreateTables migration runs');
+            return;
+        }
+        
+        // Check if the value already exists in the enum
+        const valueExists = await queryRunner.query(`
+            SELECT EXISTS (
+                SELECT 1 
+                FROM pg_enum 
+                WHERE enumlabel = 'google_analytics' 
+                AND enumtypid = (
+                    SELECT oid 
+                    FROM pg_type 
+                    WHERE typname = 'dra_data_sources_data_type_enum'
+                )
+            );
+        `);
+        
+        if (valueExists[0].exists) {
+            console.log('✅ google_analytics already exists in data source types');
+            return;
+        }
+        
         // Add google_analytics to the enum type
         await queryRunner.query(`
             ALTER TYPE "dra_data_sources_data_type_enum" 
-            ADD VALUE IF NOT EXISTS 'google_analytics'
+            ADD VALUE 'google_analytics'
         `);
         
         console.log('✅ Successfully added google_analytics to data source types');
