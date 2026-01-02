@@ -171,6 +171,22 @@ export class BackfillTableMetadata1766686000000 implements MigrationInterface {
     private async backfillGoogleAnalyticsTables(queryRunner: QueryRunner): Promise<void> {
         console.log('  📈 Backfilling Google Analytics tables...');
 
+        // Check if google_analytics enum value exists
+        const enumValueExists = await queryRunner.query(`
+            SELECT EXISTS (
+                SELECT 1 
+                FROM pg_enum e
+                JOIN pg_type t ON e.enumtypid = t.oid
+                WHERE t.typname = 'dra_data_sources_data_type_enum'
+                AND e.enumlabel = 'google_analytics'
+            );
+        `);
+
+        if (!enumValueExists[0].exists) {
+            console.log('  ⚠️  google_analytics enum value does not exist yet, skipping');
+            return;
+        }
+
         const gaTables = await queryRunner.query(`
             SELECT 
                 tb.table_name,
@@ -248,6 +264,22 @@ export class BackfillTableMetadata1766686000000 implements MigrationInterface {
     private async backfillGoogleAdManagerTables(queryRunner: QueryRunner): Promise<void> {
         console.log('  📊 Backfilling Google Ad Manager tables...');
 
+        // Check if google_ad_manager enum value exists
+        const enumValueExists = await queryRunner.query(`
+            SELECT EXISTS (
+                SELECT 1 
+                FROM pg_enum e
+                JOIN pg_type t ON e.enumtypid = t.oid
+                WHERE t.typname = 'dra_data_sources_data_type_enum'
+                AND e.enumlabel = 'google_ad_manager'
+            );
+        `);
+
+        if (!enumValueExists[0].exists) {
+            console.log('  ⚠️  google_ad_manager enum value does not exist yet, skipping');
+            return;
+        }
+
         const gamTables = await queryRunner.query(`
             SELECT 
                 tb.table_name,
@@ -323,6 +355,22 @@ export class BackfillTableMetadata1766686000000 implements MigrationInterface {
      */
     private async backfillGoogleAdsTables(queryRunner: QueryRunner): Promise<void> {
         console.log('  📢 Backfilling Google Ads tables...');
+
+        // Check if google_ads enum value exists
+        const enumValueExists = await queryRunner.query(`
+            SELECT EXISTS (
+                SELECT 1 
+                FROM pg_enum e
+                JOIN pg_type t ON e.enumtypid = t.oid
+                WHERE t.typname = 'dra_data_sources_data_type_enum'
+                AND e.enumlabel = 'google_ads'
+            );
+        `);
+
+        if (!enumValueExists[0].exists) {
+            console.log('  ⚠️  google_ads enum value does not exist yet, skipping');
+            return;
+        }
 
         const adsTables = await queryRunner.query(`
             SELECT 

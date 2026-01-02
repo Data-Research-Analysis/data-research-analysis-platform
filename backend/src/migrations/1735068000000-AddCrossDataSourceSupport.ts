@@ -4,6 +4,37 @@ export class AddCrossDataSourceSupport1735068000000 implements MigrationInterfac
     name = 'AddCrossDataSourceSupport1735068000000'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
+        // Check if required tables exist
+        const dataModelsExists = await queryRunner.query(`
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'dra_data_models'
+            );
+        `);
+        
+        const dataSourcesExists = await queryRunner.query(`
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'dra_data_sources'
+            );
+        `);
+        
+        const usersPlatformExists = await queryRunner.query(`
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'dra_users_platform'
+            );
+        `);
+        
+        if (!dataModelsExists[0].exists || !dataSourcesExists[0].exists || !usersPlatformExists[0].exists) {
+            console.log('⚠️  Required tables do not exist yet, skipping this migration');
+            console.log('   This migration will be applied after CreateTables migration runs');
+            return;
+        }
+        
         // 1. Create junction table for data model sources (many-to-many relationship)
         await queryRunner.query(`
             CREATE TABLE "dra_data_model_sources" (
