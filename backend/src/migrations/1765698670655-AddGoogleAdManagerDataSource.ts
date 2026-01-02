@@ -9,13 +9,45 @@ export class AddGoogleAdManagerDataSource1765698670655 implements MigrationInter
     name = 'AddGoogleAdManagerDataSource1765698670655'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
-        // Add google_ad_manager to the enum type
-        await queryRunner.query(`
-            ALTER TYPE "dra_data_sources_data_type_enum" 
-            ADD VALUE IF NOT EXISTS 'google_ad_manager'
+        // Check if the enum type exists first
+        const enumExists = await queryRunner.query(`
+            SELECT EXISTS (
+                SELECT 1 
+                FROM pg_type 
+                WHERE typname = 'dra_data_sources_data_type_enum'
+            );
         `);
         
-        console.log('✅ Successfully added google_ad_manager to data source types');
+        if (!enumExists[0].exists) {
+            console.log('⚠️  Enum type does not exist yet, skipping enum alteration');
+            console.log('   This migration will be applied after CreateTables migration runs');
+        } else {
+            // Check if the value already exists
+            const valueExists = await queryRunner.query(`
+                SELECT EXISTS (
+                    SELECT 1 
+                    FROM pg_enum 
+                    WHERE enumlabel = 'google_ad_manager' 
+                    AND enumtypid = (
+                        SELECT oid 
+                        FROM pg_type 
+                        WHERE typname = 'dra_data_sources_data_type_enum'
+                    )
+                );
+            `);
+            
+            if (!valueExists[0].exists) {
+                // Add google_ad_manager to the enum type
+                await queryRunner.query(`
+                    ALTER TYPE "dra_data_sources_data_type_enum" 
+                    ADD VALUE 'google_ad_manager'
+                `);
+                
+                console.log('✅ Successfully added google_ad_manager to data source types');
+            } else {
+                console.log('✅ google_ad_manager already exists in data source types');
+            }
+        }
         
         // Create schema for Google Ad Manager data
         await queryRunner.query(`

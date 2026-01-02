@@ -8,21 +8,60 @@ export class AddGoogleAdManagerAndGoogleAds1735000000000 implements MigrationInt
     name = 'AddGoogleAdManagerAndGoogleAds1735000000000'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
-        // Add google_ad_manager to the enum type
-        await queryRunner.query(`
-            ALTER TYPE "dra_data_sources_data_type_enum" 
-            ADD VALUE IF NOT EXISTS 'google_ad_manager'
+        // Check if the enum type exists first
+        const enumExists = await queryRunner.query(`
+            SELECT EXISTS (
+                SELECT 1 
+                FROM pg_type 
+                WHERE typname = 'dra_data_sources_data_type_enum'
+            );
         `);
         
-        console.log('✅ Successfully added google_ad_manager to data source types');
+        if (!enumExists[0].exists) {
+            console.log('⚠️  Enum type does not exist yet, skipping this migration');
+            console.log('   This migration will be applied after CreateTables migration runs');
+            return;
+        }
+        
+        // Check and add google_ad_manager
+        const gamExists = await queryRunner.query(`
+            SELECT EXISTS (
+                SELECT 1 
+                FROM pg_enum 
+                WHERE enumlabel = 'google_ad_manager' 
+                AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'dra_data_sources_data_type_enum')
+            );
+        `);
+        
+        if (!gamExists[0].exists) {
+            await queryRunner.query(`
+                ALTER TYPE "dra_data_sources_data_type_enum" 
+                ADD VALUE 'google_ad_manager'
+            `);
+            console.log('✅ Successfully added google_ad_manager to data source types');
+        } else {
+            console.log('✅ google_ad_manager already exists in data source types');
+        }
 
-        // Add google_ads to the enum type
-        await queryRunner.query(`
-            ALTER TYPE "dra_data_sources_data_type_enum" 
-            ADD VALUE IF NOT EXISTS 'google_ads'
+        // Check and add google_ads
+        const gaExists = await queryRunner.query(`
+            SELECT EXISTS (
+                SELECT 1 
+                FROM pg_enum 
+                WHERE enumlabel = 'google_ads' 
+                AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'dra_data_sources_data_type_enum')
+            );
         `);
         
-        console.log('✅ Successfully added google_ads to data source types');
+        if (!gaExists[0].exists) {
+            await queryRunner.query(`
+                ALTER TYPE "dra_data_sources_data_type_enum" 
+                ADD VALUE 'google_ads'
+            `);
+            console.log('✅ Successfully added google_ads to data source types');
+        } else {
+            console.log('✅ google_ads already exists in data source types');
+        }
     }
 
     public async down(queryRunner: QueryRunner): Promise<void> {
