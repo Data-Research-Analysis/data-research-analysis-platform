@@ -4,6 +4,29 @@ export class AddCreatedAtAndMultitenantSupport1766677086791 implements Migration
     name = 'AddCreatedAtAndMultitenantSupport1766677086791'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
+        // Check if required tables exist
+        const dataModelsExists = await queryRunner.query(`
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'dra_data_models'
+            );
+        `);
+        
+        const dataModelSourcesExists = await queryRunner.query(`
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'dra_data_model_sources'
+            );
+        `);
+        
+        if (!dataModelsExists[0].exists) {
+            console.log('⚠️  dra_data_models table does not exist yet, skipping this migration');
+            console.log('   This migration will be applied after CreateTables migration runs');
+            return;
+        }
+        
         // 1. Add created_at column to dra_data_models table
         await queryRunner.query(`
             ALTER TABLE "dra_data_models" 
@@ -16,6 +39,13 @@ export class AddCreatedAtAndMultitenantSupport1766677086791 implements Migration
             ON "dra_data_models" ("created_at")
         `);
 
+        // If dra_data_model_sources doesn't exist yet, skip that part
+        if (!dataModelSourcesExists[0].exists) {
+            console.log('⚠️  dra_data_model_sources table does not exist yet, skipping junction table modifications');
+            console.log('   Junction table modifications will be applied after AddCrossDataSourceSupport migration runs');
+            return;
+        }
+        
         // 3. Add users_platform_id column to dra_data_model_sources table
         await queryRunner.query(`
             ALTER TABLE "dra_data_model_sources" 
