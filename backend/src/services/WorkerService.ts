@@ -8,6 +8,8 @@ import { SocketIODriver } from "../drivers/SocketIODriver.js";
 import { ISocketEvent } from "../types/ISocketEvent.js";
 import { FilesService } from "./FilesService.js";
 import { QueueService } from "./QueueService.js";
+import { ScheduledBackupProcessor } from "../processors/ScheduledBackupProcessor.js";
+import { EBackupRunStatus } from "../types/EBackupRunStatus.js";
 
 export class WorkerService {
     private static instance: WorkerService;
@@ -58,10 +60,55 @@ export class WorkerService {
                         backup_id: message.backupId,
                         backup_size: message.size,
                         timestamp: message.timestamp,
-                        operation 
+                        operation,
+                        success: !message.error
                     };
                     console.log('Emitting event:', socketEvent, data);
                     await SocketIODriver.getInstance().emitEvent(socketEvent, JSON.stringify(data));
+                    
+                    // Update backup run record in database
+                    try {
+                        const processor = ScheduledBackupProcessor.getInstance();
+                        const runs = await processor.getBackupRuns(1, 1, { status: EBackupRunStatus.PROCESSING });
+                        
+                        if (runs.runs.length > 0) {
+                            const runId = runs.runs[0].id;
+                            
+                            if (message.error) {
+                                await processor.updateBackupRunStatus(runId, EBackupRunStatus.FAILED, {
+                                    error_message: message.error
+                                });
+                                
+                                // Emit scheduled backup failed event
+                                await SocketIODriver.getInstance().emitEvent(
+                                    ISocketEvent.SCHEDULED_BACKUP_FAILED, 
+                                    JSON.stringify({
+                                        run_id: runId,
+                                        error: message.error
+                                    })
+                                );
+                            } else {
+                                await processor.updateBackupRunStatus(runId, EBackupRunStatus.COMPLETED, {
+                                    backup_id: message.backupId,
+                                    backup_size_bytes: message.size,
+                                    backup_filepath: `./backend/private/backups/${message.backupFile}`
+                                });
+                                
+                                // Emit scheduled backup completed event
+                                await SocketIODriver.getInstance().emitEvent(
+                                    ISocketEvent.SCHEDULED_BACKUP_COMPLETED, 
+                                    JSON.stringify({
+                                        run_id: runId,
+                                        backup_id: message.backupId,
+                                        backup_size: message.size,
+                                        backup_file: message.backupFile
+                                    })
+                                );
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error updating backup run record:', error);
+                    }
                 } else if (message && message.message === EOperation.DATABASE_RESTORE_PROGRESS) {
                     socketEvent = ISocketEvent.DATABASE_RESTORE_PROGRESS;
                     const data = { 

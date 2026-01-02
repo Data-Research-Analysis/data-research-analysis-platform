@@ -6,4 +6,8 @@ export const ISocketEvent = {
     DATABASE_BACKUP_COMPLETE: 'database-backup-complete',
     DATABASE_RESTORE_PROGRESS: 'database-restore-progress',
     DATABASE_RESTORE_COMPLETE: 'database-restore-complete',
+    SCHEDULED_BACKUP_STARTED: 'scheduled-backup-started',
+    SCHEDULED_BACKUP_COMPLETED: 'scheduled-backup-completed',
+    SCHEDULED_BACKUP_FAILED: 'scheduled-backup-failed',
+    SCHEDULED_BACKUP_PROGRESS: 'scheduled-backup-progress',
 };

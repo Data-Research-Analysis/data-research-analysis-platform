@@ -59,7 +59,7 @@ onMounted(async () => {
             <div class="min-h-100 flex flex-col ml-4 mr-4 mb-10 md:ml-10 md:mr-10 mt-5 p-6 lg:p-8">
 
                 <!-- Action Cards Grid -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 mt-6">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 mt-6">
                     <!-- Create Backup Card -->
                     <div class="bg-white rounded-lg shadow-md p-6 border border-gray-200 hover:shadow-lg transition-shadow">
                         <div class="flex items-start">
@@ -75,11 +75,35 @@ onMounted(async () => {
                                 </p>
                                 <button
                                     @click="goToBackup"
-                                    class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                                    class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer"
                                 >
                                     <font-awesome-icon icon="fa-solid fa-download" class="mr-2" />
                                     Create Backup
                                 </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Scheduled Backups Card -->
+                    <div class="bg-white rounded-lg shadow-md p-6 border border-gray-200 hover:shadow-lg transition-shadow">
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0">
+                                <div class="flex items-center justify-center h-12 w-12 rounded-lg bg-green-500 text-white">
+                                    <font-awesome-icon icon="fa-solid fa-clock" class="text-2xl" />
+                                </div>
+                            </div>
+                            <div class="ml-4 flex-1">
+                                <h3 class="text-lg font-semibold text-gray-900">Scheduled Backups</h3>
+                                <p class="mt-2 text-sm text-gray-600">
+                                    Configure automated backup schedules and view backup history
+                                </p>
+                                <NuxtLink
+                                    to="/admin/database/scheduled-backups"
+                                    class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                                >
+                                    <font-awesome-icon icon="fa-solid fa-calendar-days" class="mr-2" />
+                                    Manage Schedule
+                                </NuxtLink>
                             </div>
                         </div>
                     </div>
@@ -99,7 +123,7 @@ onMounted(async () => {
                                 </p>
                                 <button
                                     @click="goToRestore"
-                                    class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+                                    class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 cursor-pointer"
                                 >
                                     <font-awesome-icon icon="fa-solid fa-upload" class="mr-2" />
                                     Restore Database

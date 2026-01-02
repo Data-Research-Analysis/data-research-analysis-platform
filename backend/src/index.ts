@@ -24,6 +24,7 @@ import image from './routes/admin/image.js';
 import private_beta_users from './routes/admin/private-beta-users.js';
 import users from './routes/admin/users.js';
 import database from './routes/admin/database.js';
+import scheduled_backups from './routes/admin/scheduled-backups.js';
 import public_article from './routes/article.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -42,6 +43,11 @@ await UtilityService.getInstance().initialize();
 import { OAuthSessionService } from './services/OAuthSessionService.js';
 OAuthSessionService.getInstance();
 console.log('✅ OAuth session service initialized');
+
+// Initialize scheduled backup service (starts cron scheduler)
+import { ScheduledBackupService } from './services/ScheduledBackupService.js';
+ScheduledBackupService.getInstance();
+console.log('✅ Scheduled backup service initialized');
 
 
 
@@ -80,6 +86,7 @@ app.use('/admin/image', image);
 app.use('/admin/private-beta-users', private_beta_users);
 app.use('/admin/users', users);
 app.use('/admin/database', database);
+app.use('/admin/scheduled-backups', scheduled_backups);
 app.use('/article', public_article);
 
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));

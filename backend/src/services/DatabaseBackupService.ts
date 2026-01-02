@@ -440,22 +440,24 @@ export class DatabaseBackupService {
 
     /**
      * Clean up old backups based on retention policy
+     * @param retentionDays - Optional: Number of days to retain backups (overrides env var)
      * @returns Promise<number> - Number of backups deleted
      */
-    public async cleanupOldBackups(): Promise<number> {
+    public async cleanupOldBackups(retentionDays?: number): Promise<number> {
         return new Promise<number>(async (resolve, reject) => {
             try {
-                const retentionDays = parseInt(process.env.BACKUP_RETENTION_DAYS || '30');
+                const retention = retentionDays || parseInt(process.env.BACKUP_RETENTION_DAYS || '30');
                 const autoCleanup = process.env.BACKUP_AUTO_CLEANUP === 'true';
 
-                if (!autoCleanup) {
+                // If called with explicit retentionDays, bypass autoCleanup check
+                if (!autoCleanup && retentionDays === undefined) {
                     resolve(0);
                     return;
                 }
 
                 const backups = await this.listBackups();
                 const cutoffDate = new Date();
-                cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+                cutoffDate.setDate(cutoffDate.getDate() - retention);
 
                 let deletedCount = 0;
 
@@ -466,7 +468,7 @@ export class DatabaseBackupService {
                     }
                 }
 
-                console.log(`Cleaned up ${deletedCount} old backups`);
+                console.log(`Cleaned up ${deletedCount} old backups (retention: ${retention} days)`);
                 resolve(deletedCount);
             } catch (error) {
                 console.error('Error cleaning up old backups:', error);
