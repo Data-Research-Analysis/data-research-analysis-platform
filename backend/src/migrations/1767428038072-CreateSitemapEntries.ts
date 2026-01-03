@@ -4,157 +4,52 @@ export class CreateSitemapEntries1767428038072 implements MigrationInterface {
     name = 'CreateSitemapEntries1767428038072'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`ALTER TABLE "dra_data_model_sources" DROP CONSTRAINT "FK_dra_data_model_sources_users_platform"`);
-        await queryRunner.query(`ALTER TABLE "dra_data_model_sources" DROP CONSTRAINT "FK_dra_data_model_sources_data_source"`);
-        await queryRunner.query(`ALTER TABLE "dra_data_model_sources" DROP CONSTRAINT "FK_dra_data_model_sources_data_model"`);
-        await queryRunner.query(`ALTER TABLE "dra_table_metadata" DROP CONSTRAINT "FK_table_metadata_users_platform"`);
-        await queryRunner.query(`ALTER TABLE "dra_table_metadata" DROP CONSTRAINT "FK_table_metadata_data_source"`);
-        await queryRunner.query(`ALTER TABLE "dra_cross_source_join_catalog" DROP CONSTRAINT "FK_join_catalog_user"`);
-        await queryRunner.query(`ALTER TABLE "dra_cross_source_join_catalog" DROP CONSTRAINT "FK_join_catalog_right_source"`);
-        await queryRunner.query(`ALTER TABLE "dra_cross_source_join_catalog" DROP CONSTRAINT "FK_join_catalog_left_source"`);
-        await queryRunner.query(`ALTER TABLE "sync_history" DROP CONSTRAINT "fk_data_source"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_ai_messages_conversation"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_ai_conversations_data_source_user"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_ai_conversations_saved_at"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_dra_data_model_sources_data_model"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_dra_data_model_sources_data_source"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_dra_data_model_sources_users_platform"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_dra_data_model_sources_created_at"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_table_metadata_data_source"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_table_metadata_schema_physical"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_table_metadata_logical_name"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_table_metadata_users_platform"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_dra_data_models_created_at"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_join_catalog_left_source_table"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_join_catalog_right_source_table"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_join_catalog_usage_count"`);
-        await queryRunner.query(`DROP INDEX "public"."idx_sync_history_data_source_id"`);
-        await queryRunner.query(`DROP INDEX "public"."idx_sync_history_status"`);
-        await queryRunner.query(`DROP INDEX "public"."idx_sync_history_started_at"`);
-        await queryRunner.query(`ALTER TABLE "dra_data_model_sources" DROP CONSTRAINT "UQ_data_model_source"`);
-        await queryRunner.query(`ALTER TABLE "dra_table_metadata" DROP CONSTRAINT "UQ_table_metadata_physical"`);
-        await queryRunner.query(`CREATE TYPE "public"."dra_sitemap_entries_publish_status_enum" AS ENUM('published', 'draft')`);
-        await queryRunner.query(`CREATE TABLE "dra_sitemap_entries" ("id" SERIAL NOT NULL, "url" character varying(2048) NOT NULL, "publish_status" "public"."dra_sitemap_entries_publish_status_enum" NOT NULL, "priority" integer NOT NULL DEFAULT '0', "created_at" TIMESTAMP NOT NULL DEFAULT now(), "updated_at" TIMESTAMP NOT NULL DEFAULT now(), "users_platform_id" integer, CONSTRAINT "PK_a2da8c80216e34c248be41cae82" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`ALTER TABLE "dra_data_model_sources" DROP COLUMN "updated_at"`);
-        await queryRunner.query(`ALTER TABLE "dra_ai_data_model_messages" DROP CONSTRAINT "FK_f2972dca04719537b6bb5af6d7f"`);
-        await queryRunner.query(`ALTER TABLE "dra_ai_data_model_messages" ALTER COLUMN "created_at" SET DEFAULT now()`);
-        await queryRunner.query(`ALTER TABLE "dra_ai_data_model_messages" ALTER COLUMN "conversation_id" DROP NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "dra_ai_data_model_conversations" DROP CONSTRAINT "FK_f7ccbe1cc8af906b787c6a15a67"`);
-        await queryRunner.query(`ALTER TABLE "dra_ai_data_model_conversations" DROP CONSTRAINT "FK_74e7cc7659cda3c87ea95f36343"`);
-        await queryRunner.query(`ALTER TABLE "dra_ai_data_model_conversations" ALTER COLUMN "started_at" SET DEFAULT now()`);
-        await queryRunner.query(`ALTER TABLE "dra_ai_data_model_conversations" ALTER COLUMN "created_at" SET DEFAULT now()`);
-        await queryRunner.query(`ALTER TABLE "dra_ai_data_model_conversations" ALTER COLUMN "updated_at" SET DEFAULT now()`);
-        await queryRunner.query(`ALTER TABLE "dra_ai_data_model_conversations" ALTER COLUMN "data_source_id" DROP NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "dra_ai_data_model_conversations" ALTER COLUMN "user_id" DROP NOT NULL`);
-        await queryRunner.query(`ALTER TYPE "public"."dra_data_sources_data_type_enum" RENAME TO "dra_data_sources_data_type_enum_old"`);
-        await queryRunner.query(`CREATE TYPE "public"."dra_data_sources_data_type_enum" AS ENUM('postgresql', 'mysql', 'mariadb', 'mongodb', 'csv', 'excel', 'pdf', 'google_analytics', 'google_ad_manager', 'google_ads')`);
-        await queryRunner.query(`ALTER TABLE "dra_data_sources" ALTER COLUMN "data_type" TYPE "public"."dra_data_sources_data_type_enum" USING "data_type"::"text"::"public"."dra_data_sources_data_type_enum"`);
-        await queryRunner.query(`DROP TYPE "public"."dra_data_sources_data_type_enum_old"`);
-        await queryRunner.query(`ALTER TABLE "dra_data_models" ALTER COLUMN "is_cross_source" SET NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "dra_data_models" ALTER COLUMN "execution_metadata" SET NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "dra_cross_source_join_catalog" ALTER COLUMN "left_table_name" SET NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "dra_cross_source_join_catalog" ALTER COLUMN "left_column_name" SET NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "dra_cross_source_join_catalog" ALTER COLUMN "right_table_name" SET NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "dra_cross_source_join_catalog" ALTER COLUMN "right_column_name" SET NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "dra_cross_source_join_catalog" ALTER COLUMN "join_type" SET NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "dra_cross_source_join_catalog" ALTER COLUMN "usage_count" SET NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "dra_cross_source_join_catalog" ALTER COLUMN "created_at" SET NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "dra_cross_source_join_catalog" ALTER COLUMN "created_at" SET DEFAULT NOW()`);
-        await queryRunner.query(`ALTER TABLE "sync_history" ALTER COLUMN "started_at" SET DEFAULT now()`);
-        await queryRunner.query(`ALTER TABLE "sync_history" ALTER COLUMN "records_synced" SET NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "sync_history" ALTER COLUMN "records_failed" SET NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "sync_history" ALTER COLUMN "created_at" SET NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "sync_history" ALTER COLUMN "created_at" SET DEFAULT now()`);
-        await queryRunner.query(`ALTER TABLE "dra_ai_data_model_messages" ADD CONSTRAINT "FK_f2972dca04719537b6bb5af6d7f" FOREIGN KEY ("conversation_id") REFERENCES "dra_ai_data_model_conversations"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "dra_ai_data_model_conversations" ADD CONSTRAINT "FK_f7ccbe1cc8af906b787c6a15a67" FOREIGN KEY ("data_source_id") REFERENCES "dra_data_sources"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "dra_ai_data_model_conversations" ADD CONSTRAINT "FK_74e7cc7659cda3c87ea95f36343" FOREIGN KEY ("user_id") REFERENCES "dra_users_platform"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "dra_data_model_sources" ADD CONSTRAINT "FK_5c022586a9f11e502691686bae4" FOREIGN KEY ("data_model_id") REFERENCES "dra_data_models"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "dra_data_model_sources" ADD CONSTRAINT "FK_daa56bd1b318b77986a70e64504" FOREIGN KEY ("data_source_id") REFERENCES "dra_data_sources"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "dra_data_model_sources" ADD CONSTRAINT "FK_081139df8f9106a2397dc977c6e" FOREIGN KEY ("users_platform_id") REFERENCES "dra_users_platform"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "dra_table_metadata" ADD CONSTRAINT "FK_ad5299af2ebd941408da42b966f" FOREIGN KEY ("data_source_id") REFERENCES "dra_data_sources"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "dra_table_metadata" ADD CONSTRAINT "FK_50bbd35079d1260b1370891919d" FOREIGN KEY ("users_platform_id") REFERENCES "dra_users_platform"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "dra_cross_source_join_catalog" ADD CONSTRAINT "FK_9cf054d3cfb4c191458326f2d3b" FOREIGN KEY ("left_data_source_id") REFERENCES "dra_data_sources"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "dra_cross_source_join_catalog" ADD CONSTRAINT "FK_37302e511004889202d0c67643c" FOREIGN KEY ("right_data_source_id") REFERENCES "dra_data_sources"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "dra_cross_source_join_catalog" ADD CONSTRAINT "FK_96c33d66fa5aea08f77f07cbe9c" FOREIGN KEY ("created_by_user_id") REFERENCES "dra_users_platform"("id") ON DELETE SET NULL ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "dra_sitemap_entries" ADD CONSTRAINT "FK_161b0b20202767e23257240c054" FOREIGN KEY ("users_platform_id") REFERENCES "dra_users_platform"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "sync_history" ADD CONSTRAINT "FK_3e6b18671196c299fa9a0447980" FOREIGN KEY ("data_source_id") REFERENCES "dra_data_sources"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
+        // Create enum type for publish status (if not exists)
+        await queryRunner.query(`
+            DO $$ BEGIN
+                CREATE TYPE "public"."dra_sitemap_entries_publish_status_enum" AS ENUM('published', 'draft');
+            EXCEPTION
+                WHEN duplicate_object THEN null;
+            END $$;
+        `);
+        
+        // Create sitemap entries table (if not exists)
+        await queryRunner.query(`
+            CREATE TABLE IF NOT EXISTS "dra_sitemap_entries" (
+                "id" SERIAL NOT NULL,
+                "url" character varying(2048) NOT NULL,
+                "publish_status" "public"."dra_sitemap_entries_publish_status_enum" NOT NULL,
+                "priority" integer NOT NULL DEFAULT '0',
+                "created_at" TIMESTAMP NOT NULL DEFAULT now(),
+                "updated_at" TIMESTAMP NOT NULL DEFAULT now(),
+                "users_platform_id" integer,
+                CONSTRAINT "PK_dra_sitemap_entries" PRIMARY KEY ("id")
+            )
+        `);
+        
+        // Add foreign key constraint to users_platform (if not exists)
+        await queryRunner.query(`
+            DO $$ BEGIN
+                ALTER TABLE "dra_sitemap_entries" 
+                ADD CONSTRAINT "FK_dra_sitemap_entries_users_platform" 
+                FOREIGN KEY ("users_platform_id") 
+                REFERENCES "dra_users_platform"("id") 
+                ON DELETE CASCADE 
+                ON UPDATE NO ACTION;
+            EXCEPTION
+                WHEN duplicate_object THEN null;
+            END $$;
+        `);
     }
 
     public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`ALTER TABLE "sync_history" DROP CONSTRAINT "FK_3e6b18671196c299fa9a0447980"`);
-        await queryRunner.query(`ALTER TABLE "dra_sitemap_entries" DROP CONSTRAINT "FK_161b0b20202767e23257240c054"`);
-        await queryRunner.query(`ALTER TABLE "dra_cross_source_join_catalog" DROP CONSTRAINT "FK_96c33d66fa5aea08f77f07cbe9c"`);
-        await queryRunner.query(`ALTER TABLE "dra_cross_source_join_catalog" DROP CONSTRAINT "FK_37302e511004889202d0c67643c"`);
-        await queryRunner.query(`ALTER TABLE "dra_cross_source_join_catalog" DROP CONSTRAINT "FK_9cf054d3cfb4c191458326f2d3b"`);
-        await queryRunner.query(`ALTER TABLE "dra_table_metadata" DROP CONSTRAINT "FK_50bbd35079d1260b1370891919d"`);
-        await queryRunner.query(`ALTER TABLE "dra_table_metadata" DROP CONSTRAINT "FK_ad5299af2ebd941408da42b966f"`);
-        await queryRunner.query(`ALTER TABLE "dra_data_model_sources" DROP CONSTRAINT "FK_081139df8f9106a2397dc977c6e"`);
-        await queryRunner.query(`ALTER TABLE "dra_data_model_sources" DROP CONSTRAINT "FK_daa56bd1b318b77986a70e64504"`);
-        await queryRunner.query(`ALTER TABLE "dra_data_model_sources" DROP CONSTRAINT "FK_5c022586a9f11e502691686bae4"`);
-        await queryRunner.query(`ALTER TABLE "dra_ai_data_model_conversations" DROP CONSTRAINT "FK_74e7cc7659cda3c87ea95f36343"`);
-        await queryRunner.query(`ALTER TABLE "dra_ai_data_model_conversations" DROP CONSTRAINT "FK_f7ccbe1cc8af906b787c6a15a67"`);
-        await queryRunner.query(`ALTER TABLE "dra_ai_data_model_messages" DROP CONSTRAINT "FK_f2972dca04719537b6bb5af6d7f"`);
-        await queryRunner.query(`ALTER TABLE "sync_history" ALTER COLUMN "created_at" SET DEFAULT CURRENT_TIMESTAMP`);
-        await queryRunner.query(`ALTER TABLE "sync_history" ALTER COLUMN "created_at" DROP NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "sync_history" ALTER COLUMN "records_failed" DROP NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "sync_history" ALTER COLUMN "records_synced" DROP NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "sync_history" ALTER COLUMN "started_at" SET DEFAULT CURRENT_TIMESTAMP`);
-        await queryRunner.query(`ALTER TABLE "dra_cross_source_join_catalog" ALTER COLUMN "created_at" SET DEFAULT now()`);
-        await queryRunner.query(`ALTER TABLE "dra_cross_source_join_catalog" ALTER COLUMN "created_at" DROP NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "dra_cross_source_join_catalog" ALTER COLUMN "usage_count" DROP NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "dra_cross_source_join_catalog" ALTER COLUMN "join_type" DROP NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "dra_cross_source_join_catalog" ALTER COLUMN "right_column_name" DROP NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "dra_cross_source_join_catalog" ALTER COLUMN "right_table_name" DROP NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "dra_cross_source_join_catalog" ALTER COLUMN "left_column_name" DROP NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "dra_cross_source_join_catalog" ALTER COLUMN "left_table_name" DROP NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "dra_data_models" ALTER COLUMN "execution_metadata" DROP NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "dra_data_models" ALTER COLUMN "is_cross_source" DROP NOT NULL`);
-        await queryRunner.query(`CREATE TYPE "public"."dra_data_sources_data_type_enum_old" AS ENUM('postgresql', 'mysql', 'mariadb', 'mongodb', 'csv', 'excel', 'pdf', 'google_ad_manager', 'google_analytics', 'google_ads', 'meta_ads')`);
-        await queryRunner.query(`ALTER TABLE "dra_data_sources" ALTER COLUMN "data_type" TYPE "public"."dra_data_sources_data_type_enum_old" USING "data_type"::"text"::"public"."dra_data_sources_data_type_enum_old"`);
-        await queryRunner.query(`DROP TYPE "public"."dra_data_sources_data_type_enum"`);
-        await queryRunner.query(`ALTER TYPE "public"."dra_data_sources_data_type_enum_old" RENAME TO "dra_data_sources_data_type_enum"`);
-        await queryRunner.query(`ALTER TABLE "dra_ai_data_model_conversations" ALTER COLUMN "user_id" SET NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "dra_ai_data_model_conversations" ALTER COLUMN "data_source_id" SET NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "dra_ai_data_model_conversations" ALTER COLUMN "updated_at" SET DEFAULT CURRENT_TIMESTAMP`);
-        await queryRunner.query(`ALTER TABLE "dra_ai_data_model_conversations" ALTER COLUMN "created_at" SET DEFAULT CURRENT_TIMESTAMP`);
-        await queryRunner.query(`ALTER TABLE "dra_ai_data_model_conversations" ALTER COLUMN "started_at" SET DEFAULT CURRENT_TIMESTAMP`);
-        await queryRunner.query(`ALTER TABLE "dra_ai_data_model_conversations" ADD CONSTRAINT "FK_74e7cc7659cda3c87ea95f36343" FOREIGN KEY ("user_id") REFERENCES "dra_users_platform"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "dra_ai_data_model_conversations" ADD CONSTRAINT "FK_f7ccbe1cc8af906b787c6a15a67" FOREIGN KEY ("data_source_id") REFERENCES "dra_data_sources"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "dra_ai_data_model_messages" ALTER COLUMN "conversation_id" SET NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "dra_ai_data_model_messages" ALTER COLUMN "created_at" SET DEFAULT CURRENT_TIMESTAMP`);
-        await queryRunner.query(`ALTER TABLE "dra_ai_data_model_messages" ADD CONSTRAINT "FK_f2972dca04719537b6bb5af6d7f" FOREIGN KEY ("conversation_id") REFERENCES "dra_ai_data_model_conversations"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "dra_data_model_sources" ADD "updated_at" TIMESTAMP NOT NULL DEFAULT now()`);
+        // Drop foreign key constraint
+        await queryRunner.query(`ALTER TABLE "dra_sitemap_entries" DROP CONSTRAINT "FK_dra_sitemap_entries_users_platform"`);
+        
+        // Drop table
         await queryRunner.query(`DROP TABLE "dra_sitemap_entries"`);
+        
+        // Drop enum type
         await queryRunner.query(`DROP TYPE "public"."dra_sitemap_entries_publish_status_enum"`);
-        await queryRunner.query(`ALTER TABLE "dra_table_metadata" ADD CONSTRAINT "UQ_table_metadata_physical" UNIQUE ("schema_name", "physical_table_name")`);
-        await queryRunner.query(`ALTER TABLE "dra_data_model_sources" ADD CONSTRAINT "UQ_data_model_source" UNIQUE ("data_model_id", "data_source_id")`);
-        await queryRunner.query(`CREATE INDEX "idx_sync_history_started_at" ON "sync_history" ("started_at") `);
-        await queryRunner.query(`CREATE INDEX "idx_sync_history_status" ON "sync_history" ("status") `);
-        await queryRunner.query(`CREATE INDEX "idx_sync_history_data_source_id" ON "sync_history" ("data_source_id") `);
-        await queryRunner.query(`CREATE INDEX "IDX_join_catalog_usage_count" ON "dra_cross_source_join_catalog" ("usage_count") `);
-        await queryRunner.query(`CREATE INDEX "IDX_join_catalog_right_source_table" ON "dra_cross_source_join_catalog" ("right_data_source_id", "right_table_name") `);
-        await queryRunner.query(`CREATE INDEX "IDX_join_catalog_left_source_table" ON "dra_cross_source_join_catalog" ("left_data_source_id", "left_table_name") `);
-        await queryRunner.query(`CREATE INDEX "IDX_dra_data_models_created_at" ON "dra_data_models" ("created_at") `);
-        await queryRunner.query(`CREATE INDEX "IDX_table_metadata_users_platform" ON "dra_table_metadata" ("users_platform_id") `);
-        await queryRunner.query(`CREATE INDEX "IDX_table_metadata_logical_name" ON "dra_table_metadata" ("logical_table_name") `);
-        await queryRunner.query(`CREATE INDEX "IDX_table_metadata_schema_physical" ON "dra_table_metadata" ("physical_table_name", "schema_name") `);
-        await queryRunner.query(`CREATE INDEX "IDX_table_metadata_data_source" ON "dra_table_metadata" ("data_source_id") `);
-        await queryRunner.query(`CREATE INDEX "IDX_dra_data_model_sources_created_at" ON "dra_data_model_sources" ("created_at") `);
-        await queryRunner.query(`CREATE INDEX "IDX_dra_data_model_sources_users_platform" ON "dra_data_model_sources" ("users_platform_id") `);
-        await queryRunner.query(`CREATE INDEX "IDX_dra_data_model_sources_data_source" ON "dra_data_model_sources" ("data_source_id") `);
-        await queryRunner.query(`CREATE INDEX "IDX_dra_data_model_sources_data_model" ON "dra_data_model_sources" ("data_model_id") `);
-        await queryRunner.query(`CREATE INDEX "IDX_ai_conversations_saved_at" ON "dra_ai_data_model_conversations" ("saved_at") `);
-        await queryRunner.query(`CREATE INDEX "IDX_ai_conversations_data_source_user" ON "dra_ai_data_model_conversations" ("data_source_id", "status", "user_id") `);
-        await queryRunner.query(`CREATE INDEX "IDX_ai_messages_conversation" ON "dra_ai_data_model_messages" ("conversation_id", "created_at") `);
-        await queryRunner.query(`ALTER TABLE "sync_history" ADD CONSTRAINT "fk_data_source" FOREIGN KEY ("data_source_id") REFERENCES "dra_data_sources"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "dra_cross_source_join_catalog" ADD CONSTRAINT "FK_join_catalog_left_source" FOREIGN KEY ("left_data_source_id") REFERENCES "dra_data_sources"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "dra_cross_source_join_catalog" ADD CONSTRAINT "FK_join_catalog_right_source" FOREIGN KEY ("right_data_source_id") REFERENCES "dra_data_sources"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "dra_cross_source_join_catalog" ADD CONSTRAINT "FK_join_catalog_user" FOREIGN KEY ("created_by_user_id") REFERENCES "dra_users_platform"("id") ON DELETE SET NULL ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "dra_table_metadata" ADD CONSTRAINT "FK_table_metadata_data_source" FOREIGN KEY ("data_source_id") REFERENCES "dra_data_sources"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "dra_table_metadata" ADD CONSTRAINT "FK_table_metadata_users_platform" FOREIGN KEY ("users_platform_id") REFERENCES "dra_users_platform"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "dra_data_model_sources" ADD CONSTRAINT "FK_dra_data_model_sources_data_model" FOREIGN KEY ("data_model_id") REFERENCES "dra_data_models"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "dra_data_model_sources" ADD CONSTRAINT "FK_dra_data_model_sources_data_source" FOREIGN KEY ("data_source_id") REFERENCES "dra_data_sources"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "dra_data_model_sources" ADD CONSTRAINT "FK_dra_data_model_sources_users_platform" FOREIGN KEY ("users_platform_id") REFERENCES "dra_users_platform"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
     }
-
 }
