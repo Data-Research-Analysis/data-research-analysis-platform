@@ -32,6 +32,15 @@ const state = reactive({
         },
         {
             id: 4,
+            menu_name: 'Sitemap Manager',
+            show_menu: true,
+            sub_menus: [
+                { id: 1, name: 'Add New URL', path: '/admin/sitemap/create' },
+                { id: 2, name: 'List Sitemap Entries', path: '/admin/sitemap' },
+            ],
+        },
+        {
+            id: 5,
             menu_name: 'Database Management',
             show_menu: true,
             sub_menus: [

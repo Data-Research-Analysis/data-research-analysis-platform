@@ -12,6 +12,7 @@ import { DRADashboard } from "../models/DRADashboard.js";
 import { DRAArticle } from "../models/DRAArticle.js";
 import { DRAArticleCategory } from "../models/DRAArticleCategory.js";
 import { DRACategory } from "../models/DRACategory.js";
+import { DRASitemapEntry } from "../models/DRASitemapEntry.js";
 import { DRADashboardExportMetaData } from "../models/DRADashboardExportMetaData.js";
 import { DRAAIDataModelConversation } from "../models/DRAAIDataModelConversation.js";
 import { DRAAIDataModelMessage } from "../models/DRAAIDataModelMessage.js";
@@ -33,7 +34,7 @@ export const PostgresDSMigrations = new DataSource({
     database: database,
     synchronize: false,
     logging: true,
-    entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAPrivateBetaUsers, DRADashboard, DRAArticle, DRAArticleCategory, DRACategory, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, SyncHistory],
+    entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAPrivateBetaUsers, DRADashboard, DRAArticle, DRAArticleCategory, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, SyncHistory],
     subscribers: [],
     migrations: ['./src/migrations/*.ts'],
 })
