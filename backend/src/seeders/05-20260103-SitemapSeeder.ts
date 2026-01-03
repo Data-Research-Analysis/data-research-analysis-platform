@@ -3,6 +3,7 @@ import { Seeder } from "@jorgebodega/typeorm-seeding";
 import { DRASitemapEntry } from "../models/DRASitemapEntry.js";
 import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
 import { EPublishStatus } from "../types/EPublishStatus.js";
+import { EUserType } from "../types/EUserType.js";
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -17,7 +18,7 @@ export class SitemapSeeder extends Seeder {
         const userRepo = dataSource.getRepository(DRAUsersPlatform);
 
         // Find admin user (assuming first admin user or create logic)
-        let adminUser = await userRepo.findOne({ where: { user_type: 'admin' } });
+        let adminUser = await userRepo.findOne({ where: { user_type: EUserType.ADMIN } });
         
         if (!adminUser) {
             console.log('No admin user found. Skipping sitemap seeding.');
