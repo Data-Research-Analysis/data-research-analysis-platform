@@ -21,6 +21,7 @@ jest.mock('../../../processors/TokenProcessor.js');
 
 import { ArticleProcessor } from '../../../processors/ArticleProcessor.js';
 import { EUserType } from '../../../types/EUserType.js';
+import { EPublishStatus } from '../../../types/EPublishStatus.js';
 
 describe('Article Management Routes Integration Tests', () => {
     let app: express.Application;
@@ -113,7 +114,7 @@ describe('Article Management Routes Integration Tests', () => {
             title: 'New Test Article',
             content: '<p>Article content</p>',
             content_markdown: '# Article content',
-            publish_status: 'draft',
+            publish_status: EPublishStatus.DRAFT,
             categories: [1, 2, 3]
         };
 

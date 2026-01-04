@@ -1,539 +1,306 @@
-import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
-import { DataSource } from 'typeorm';
-import { DRADataModel } from '../../models/DRADataModel.js';
+import { describe, it, expect } from '@jest/globals';
+import { DRADataModel } from '../DRADataModel.js';
 
-/**
- * DRA-TEST-010: DRADataModel Entity Operations Integration Tests
- * Tests TypeORM CRUD operations, JSON transformations, relationships, validation
- * Total: 20+ tests
- */
-describe('DRADataModel Entity Operations', () => {
-    let dataSource: DataSource;
-
-    const mockModel = {
-        id: 1,
-        user_id: 1,
-        data_source_id: 1,
-        name: 'Test Model',
-        selected_tables: ['users', 'orders'],
-        join_conditions: [{ from: 'users.id', to: 'orders.user_id', type: 'INNER' }],
-        computed_columns: [],
-        created_at: new Date(),
-        updated_at: new Date()
-    };
-
-    beforeEach(async () => {
-        dataSource = {
-            getRepository: jest.fn().mockReturnValue({
-                create: jest.fn(),
-                save: jest.fn(),
-                findOne: jest.fn(),
-                find: jest.fn(),
-                update: jest.fn(),
-                delete: jest.fn(),
-                count: jest.fn()
-            }),
-            manager: {
-                transaction: jest.fn()
-            }
-        } as any;
-    });
-
-    afterEach(() => {
-        jest.clearAllMocks();
-    });
-
-    describe('Entity Creation', () => {
-        it('should create new data model with required fields', () => {
-            const modelEntity = new DRADataModel();
-            modelEntity.user_id = 1;
-            modelEntity.data_source_id = 1;
-            modelEntity.name = 'Sales Model';
-            modelEntity.selected_tables = ['products', 'sales'];
-            modelEntity.join_conditions = [];
-
-            expect(modelEntity.user_id).toBe(1);
-            expect(modelEntity.data_source_id).toBe(1);
-            expect(modelEntity.name).toBe('Sales Model');
-            expect(modelEntity.selected_tables).toHaveLength(2);
+describe('DRADataModel Model', () => {
+    describe('Entity Structure', () => {
+        it('should create a data model instance with required fields', () => {
+            const dataModel = new DRADataModel();
+            dataModel.schema = 'public';
+            dataModel.name = 'Customer Analytics Model';
+            dataModel.sql_query = 'SELECT * FROM customers';
+            dataModel.query = JSON.parse('{"tables": ["customers"]}');
+            
+            expect(dataModel.schema).toBe('public');
+            expect(dataModel.name).toBe('Customer Analytics Model');
+            expect(dataModel.sql_query).toBe('SELECT * FROM customers');
+            expect(dataModel.query).toBeDefined();
         });
 
-        it('should initialize empty arrays for optional fields', () => {
-            const modelEntity = new DRADataModel();
-            modelEntity.user_id = 1;
-            modelEntity.data_source_id = 1;
-            modelEntity.name = 'Simple Model';
-            modelEntity.selected_tables = ['table1'];
-            modelEntity.join_conditions = [];
-            modelEntity.computed_columns = [];
-
-            expect(Array.isArray(modelEntity.computed_columns)).toBe(true);
-            expect(modelEntity.computed_columns).toHaveLength(0);
+        it('should have is_cross_source boolean with default false', () => {
+            const dataModel = new DRADataModel();
+            
+            // Default value would be set by database
+            dataModel.is_cross_source = false;
+            expect(dataModel.is_cross_source).toBe(false);
+            
+            dataModel.is_cross_source = true;
+            expect(dataModel.is_cross_source).toBe(true);
         });
 
-        it('should validate required user_id', () => {
-            const modelEntity = new DRADataModel();
-            modelEntity.data_source_id = 1;
-            modelEntity.name = 'Test';
-            modelEntity.selected_tables = ['table1'];
-
-            expect(modelEntity.user_id).toBeUndefined();
+        it('should support execution_metadata as Record', () => {
+            const dataModel = new DRADataModel();
+            
+            const metadata = {
+                execution_time_ms: 1234,
+                rows_returned: 100,
+                last_executed: new Date().toISOString()
+            };
+            
+            dataModel.execution_metadata = metadata;
+            
+            expect(dataModel.execution_metadata.execution_time_ms).toBe(1234);
+            expect(dataModel.execution_metadata.rows_returned).toBe(100);
         });
 
-        it('should validate required data_source_id', () => {
-            const modelEntity = new DRADataModel();
-            modelEntity.user_id = 1;
-            modelEntity.name = 'Test';
-            modelEntity.selected_tables = ['table1'];
-
-            expect(modelEntity.data_source_id).toBeUndefined();
-        });
-
-        it('should validate required name', () => {
-            const modelEntity = new DRADataModel();
-            modelEntity.user_id = 1;
-            modelEntity.data_source_id = 1;
-            modelEntity.selected_tables = ['table1'];
-
-            expect(modelEntity.name).toBeUndefined();
-        });
-    });
-
-    describe('CRUD Operations', () => {
-        it('should save new data model to database', async () => {
-            const repository = dataSource.getRepository(DRADataModel);
-            const newModel = new DRADataModel();
-            newModel.user_id = 1;
-            newModel.data_source_id = 1;
-            newModel.name = 'New Model';
-            newModel.selected_tables = ['customers'];
-            newModel.join_conditions = [];
-
-            (repository.save as jest.Mock).mockResolvedValue({ ...newModel, id: 1 });
-
-            const saved = await repository.save(newModel);
-
-            expect(saved.id).toBe(1);
-            expect(repository.save).toHaveBeenCalledWith(newModel);
-        });
-
-        it('should find data model by ID', async () => {
-            const repository = dataSource.getRepository(DRADataModel);
-
-            (repository.findOne as jest.Mock).mockResolvedValue(mockModel);
-
-            const result = await repository.findOne({ where: { id: 1 } });
-
-            expect(result).toEqual(mockModel);
-        });
-
-        it('should find data models by user_id', async () => {
-            const repository = dataSource.getRepository(DRADataModel);
-            const userModels = [
-                mockModel,
-                { ...mockModel, id: 2, name: 'Model 2' }
-            ];
-
-            (repository.find as jest.Mock).mockResolvedValue(userModels);
-
-            const results = await repository.find({ where: { user_id: 1 } });
-
-            expect(results).toHaveLength(2);
-            expect(results.every(m => m.user_id === 1)).toBe(true);
-        });
-
-        it('should find data models by data_source_id', async () => {
-            const repository = dataSource.getRepository(DRADataModel);
-            const sourceModels = [mockModel];
-
-            (repository.find as jest.Mock).mockResolvedValue(sourceModels);
-
-            const results = await repository.find({ where: { data_source_id: 1 } });
-
-            expect(results.every(m => m.data_source_id === 1)).toBe(true);
-        });
-
-        it('should update existing data model', async () => {
-            const repository = dataSource.getRepository(DRADataModel);
-            const updateData = { name: 'Updated Model' };
-
-            (repository.update as jest.Mock).mockResolvedValue({ affected: 1 });
-
-            const result = await repository.update({ id: 1 }, updateData);
-
-            expect(result.affected).toBe(1);
-        });
-
-        it('should delete data model by ID', async () => {
-            const repository = dataSource.getRepository(DRADataModel);
-
-            (repository.delete as jest.Mock).mockResolvedValue({ affected: 1 });
-
-            const result = await repository.delete({ id: 1 });
-
-            expect(result.affected).toBe(1);
-        });
-    });
-
-    describe('Selected Tables Management', () => {
-        it('should store multiple selected tables', async () => {
-            const repository = dataSource.getRepository(DRADataModel);
-            const model = new DRADataModel();
-            model.user_id = 1;
-            model.data_source_id = 1;
-            model.name = 'Multi-Table Model';
-            model.selected_tables = ['users', 'orders', 'products', 'categories'];
-            model.join_conditions = [];
-
-            (repository.save as jest.Mock).mockResolvedValue({ ...model, id: 1 });
-
-            const saved = await repository.save(model);
-
-            expect(saved.selected_tables).toHaveLength(4);
-        });
-
-        it('should handle single table selection', async () => {
-            const repository = dataSource.getRepository(DRADataModel);
-            const model = new DRADataModel();
-            model.user_id = 1;
-            model.data_source_id = 1;
-            model.name = 'Single Table';
-            model.selected_tables = ['users'];
-            model.join_conditions = [];
-
-            (repository.save as jest.Mock).mockResolvedValue({ ...model, id: 1 });
-
-            const saved = await repository.save(model);
-
-            expect(saved.selected_tables).toHaveLength(1);
-        });
-
-        it('should update selected tables', async () => {
-            const repository = dataSource.getRepository(DRADataModel);
-            const newTables = ['customers', 'transactions'];
-
-            (repository.update as jest.Mock).mockResolvedValue({ affected: 1 });
-
-            const result = await repository.update({ id: 1 }, { selected_tables: newTables });
-
-            expect(result.affected).toBe(1);
-        });
-
-        it('should preserve table order in selected_tables array', async () => {
-            const repository = dataSource.getRepository(DRADataModel);
-            const orderedTables = ['table_a', 'table_b', 'table_c'];
-            const model = { ...mockModel, selected_tables: orderedTables };
-
-            (repository.findOne as jest.Mock).mockResolvedValue(model);
-
-            const result = await repository.findOne({ where: { id: 1 } });
-
-            expect(result?.selected_tables).toEqual(orderedTables);
-        });
-    });
-
-    describe('Join Conditions Management', () => {
-        it('should store join conditions between tables', async () => {
-            const repository = dataSource.getRepository(DRADataModel);
-            const joinConditions = [
-                { from: 'users.id', to: 'orders.user_id', type: 'INNER' },
-                { from: 'orders.product_id', to: 'products.id', type: 'LEFT' }
-            ];
-            const model = new DRADataModel();
-            model.user_id = 1;
-            model.data_source_id = 1;
-            model.name = 'Joined Model';
-            model.selected_tables = ['users', 'orders', 'products'];
-            model.join_conditions = joinConditions;
-
-            (repository.save as jest.Mock).mockResolvedValue({ ...model, id: 1 });
-
-            const saved = await repository.save(model);
-
-            expect(saved.join_conditions).toHaveLength(2);
-        });
-
-        it('should support different join types', async () => {
-            const repository = dataSource.getRepository(DRADataModel);
-            const joinConditions = [
-                { from: 'a.id', to: 'b.a_id', type: 'INNER' },
-                { from: 'a.id', to: 'c.a_id', type: 'LEFT' },
-                { from: 'a.id', to: 'd.a_id', type: 'RIGHT' },
-                { from: 'a.id', to: 'e.a_id', type: 'OUTER' }
-            ];
-            const model = { ...mockModel, join_conditions: joinConditions };
-
-            (repository.findOne as jest.Mock).mockResolvedValue(model);
-
-            const result = await repository.findOne({ where: { id: 1 } });
-
-            expect(result?.join_conditions).toHaveLength(4);
-        });
-
-        it('should handle empty join conditions', async () => {
-            const repository = dataSource.getRepository(DRADataModel);
-            const model = { ...mockModel, join_conditions: [] };
-
-            (repository.findOne as jest.Mock).mockResolvedValue(model);
-
-            const result = await repository.findOne({ where: { id: 1 } });
-
-            expect(result?.join_conditions).toEqual([]);
-        });
-
-        it('should update join conditions', async () => {
-            const repository = dataSource.getRepository(DRADataModel);
-            const newJoins = [
-                { from: 'table1.id', to: 'table2.fk', type: 'INNER' }
-            ];
-
-            (repository.update as jest.Mock).mockResolvedValue({ affected: 1 });
-
-            const result = await repository.update({ id: 1 }, { join_conditions: newJoins });
-
-            expect(result.affected).toBe(1);
-        });
-    });
-
-    describe('Computed Columns Management', () => {
-        it('should store computed column definitions', async () => {
-            const repository = dataSource.getRepository(DRADataModel);
-            const computedColumns = [
-                { name: 'total_price', expression: 'quantity * unit_price', type: 'number' },
-                { name: 'full_name', expression: "first_name || ' ' || last_name", type: 'string' }
-            ];
-            const model = new DRADataModel();
-            model.user_id = 1;
-            model.data_source_id = 1;
-            model.name = 'Computed Model';
-            model.selected_tables = ['orders'];
-            model.join_conditions = [];
-            model.computed_columns = computedColumns;
-
-            (repository.save as jest.Mock).mockResolvedValue({ ...model, id: 1 });
-
-            const saved = await repository.save(model);
-
-            expect(saved.computed_columns).toHaveLength(2);
-        });
-
-        it('should handle empty computed columns array', async () => {
-            const repository = dataSource.getRepository(DRADataModel);
-            const model = { ...mockModel, computed_columns: [] };
-
-            (repository.findOne as jest.Mock).mockResolvedValue(model);
-
-            const result = await repository.findOne({ where: { id: 1 } });
-
-            expect(result?.computed_columns).toEqual([]);
-        });
-
-        it('should update computed columns', async () => {
-            const repository = dataSource.getRepository(DRADataModel);
-            const newComputed = [
-                { name: 'discount', expression: 'price * 0.1', type: 'number' }
-            ];
-
-            (repository.update as jest.Mock).mockResolvedValue({ affected: 1 });
-
-            const result = await repository.update({ id: 1 }, { computed_columns: newComputed });
-
-            expect(result.affected).toBe(1);
-        });
-    });
-
-    describe('JSON Transformation', () => {
-        it('should serialize arrays to JSON', async () => {
-            const repository = dataSource.getRepository(DRADataModel);
-            const model = new DRADataModel();
-            model.user_id = 1;
-            model.data_source_id = 1;
-            model.name = 'JSON Model';
-            model.selected_tables = ['table1', 'table2'];
-            model.join_conditions = [{ from: 'a.id', to: 'b.a_id', type: 'INNER' }];
-            model.computed_columns = [];
-
-            (repository.save as jest.Mock).mockResolvedValue(model);
-
-            const saved = await repository.save(model);
-
-            expect(typeof saved.selected_tables).not.toBe('string'); // Should be array
-        });
-
-        it('should deserialize JSON to arrays on retrieve', async () => {
-            const repository = dataSource.getRepository(DRADataModel);
-
-            (repository.findOne as jest.Mock).mockResolvedValue(mockModel);
-
-            const result = await repository.findOne({ where: { id: 1 } });
-
-            expect(Array.isArray(result?.selected_tables)).toBe(true);
-            expect(Array.isArray(result?.join_conditions)).toBe(true);
-        });
-
-        it('should handle complex nested JSON structures', async () => {
-            const repository = dataSource.getRepository(DRADataModel);
-            const complexJoins = [
-                {
-                    from: 'users.id',
-                    to: 'orders.user_id',
-                    type: 'INNER',
-                    conditions: [{ field: 'status', operator: '=', value: 'active' }]
-                }
-            ];
-            const model = { ...mockModel, join_conditions: complexJoins };
-
-            (repository.findOne as jest.Mock).mockResolvedValue(model);
-
-            const result = await repository.findOne({ where: { id: 1 } });
-
-            expect(result?.join_conditions[0]).toHaveProperty('conditions');
-        });
-    });
-
-    describe('Relationships', () => {
-        it('should establish relationship with user via user_id', async () => {
-            const repository = dataSource.getRepository(DRADataModel);
-            const model = { ...mockModel, user_id: 5 };
-
-            (repository.findOne as jest.Mock).mockResolvedValue(model);
-
-            const result = await repository.findOne({ where: { id: 1 } });
-
-            expect(result?.user_id).toBe(5);
-        });
-
-        it('should establish relationship with data source via data_source_id', async () => {
-            const repository = dataSource.getRepository(DRADataModel);
-            const model = { ...mockModel, data_source_id: 3 };
-
-            (repository.findOne as jest.Mock).mockResolvedValue(model);
-
-            const result = await repository.findOne({ where: { id: 1 } });
-
-            expect(result?.data_source_id).toBe(3);
-        });
-
-        it('should cascade delete when user is deleted', async () => {
-            const repository = dataSource.getRepository(DRADataModel);
-
-            (repository.delete as jest.Mock).mockResolvedValue({ affected: 1 });
-
-            const result = await repository.delete({ user_id: 1 });
-
-            expect(result.affected).toBeGreaterThanOrEqual(0);
-        });
-
-        it('should cascade delete when data source is deleted', async () => {
-            const repository = dataSource.getRepository(DRADataModel);
-
-            (repository.delete as jest.Mock).mockResolvedValue({ affected: 1 });
-
-            const result = await repository.delete({ data_source_id: 1 });
-
-            expect(result.affected).toBeGreaterThanOrEqual(0);
-        });
-    });
-
-    describe('Query Filtering', () => {
-        it('should filter by user_id and data_source_id', async () => {
-            const repository = dataSource.getRepository(DRADataModel);
-            const filteredModels = [mockModel];
-
-            (repository.find as jest.Mock).mockResolvedValue(filteredModels);
-
-            const results = await repository.find({
-                where: { user_id: 1, data_source_id: 1 }
-            });
-
-            expect(results.every(m => m.user_id === 1 && m.data_source_id === 1)).toBe(true);
-        });
-
-        it('should count models by user', async () => {
-            const repository = dataSource.getRepository(DRADataModel);
-
-            (repository.count as jest.Mock).mockResolvedValue(3);
-
-            const count = await repository.count({ where: { user_id: 1 } });
-
-            expect(count).toBe(3);
-        });
-
-        it('should search models by name pattern', async () => {
-            const repository = dataSource.getRepository(DRADataModel);
-            const matchingModels = [
-                { ...mockModel, id: 1, name: 'Sales Model' },
-                { ...mockModel, id: 2, name: 'Sales Report' }
-            ];
-
-            (repository.find as jest.Mock).mockResolvedValue(matchingModels);
-
-            const results = await repository.find();
-
-            expect(results.every(m => m.name.includes('Sales'))).toBe(true);
-        });
-    });
-
-    describe('Timestamps', () => {
-        it('should auto-generate created_at timestamp', async () => {
-            const repository = dataSource.getRepository(DRADataModel);
-            const model = new DRADataModel();
-            model.user_id = 1;
-            model.data_source_id = 1;
-            model.name = 'Test';
-            model.selected_tables = ['table1'];
-            model.join_conditions = [];
-
+        it('should have created_at timestamp', () => {
+            const dataModel = new DRADataModel();
+            
             const now = new Date();
-            (repository.save as jest.Mock).mockResolvedValue({ ...model, created_at: now });
-
-            const saved = await repository.save(model);
-
-            expect(saved.created_at).toBeDefined();
-        });
-
-        it('should auto-update updated_at timestamp on changes', async () => {
-            const repository = dataSource.getRepository(DRADataModel);
-            const originalDate = new Date('2024-01-01');
-            const updatedDate = new Date();
-
-            (repository.findOne as jest.Mock).mockResolvedValue({
-                id: 1,
-                updated_at: originalDate
-            });
-            (repository.save as jest.Mock).mockResolvedValue({
-                id: 1,
-                updated_at: updatedDate
-            });
-
-            const model = await repository.findOne({ where: { id: 1 } });
-            const updated = await repository.save({ ...model, name: 'Updated' });
-
-            expect(updated.updated_at.getTime()).toBeGreaterThan(originalDate.getTime());
+            dataModel.created_at = now;
+            
+            expect(dataModel.created_at).toBe(now);
+            expect(dataModel.created_at).toBeInstanceOf(Date);
         });
     });
 
-    describe('Validation', () => {
-        it('should validate selected_tables is an array', () => {
-            const model = new DRADataModel();
-            model.selected_tables = ['table1', 'table2'];
-
-            expect(Array.isArray(model.selected_tables)).toBe(true);
+    describe('Query Storage', () => {
+        it('should store simple query structure', () => {
+            const dataModel = new DRADataModel();
+            
+            const simpleQuery = {
+                tables: ['users'],
+                columns: ['id', 'name', 'email'],
+                where: {}
+            };
+            
+            dataModel.query = JSON.parse(JSON.stringify(simpleQuery));
+            dataModel.sql_query = 'SELECT id, name, email FROM users';
+            
+            expect(dataModel.query).toBeDefined();
+            expect(dataModel.sql_query).toContain('SELECT');
         });
 
-        it('should validate join_conditions is an array', () => {
-            const model = new DRADataModel();
-            model.join_conditions = [{ from: 'a.id', to: 'b.id', type: 'INNER' }];
-
-            expect(Array.isArray(model.join_conditions)).toBe(true);
+        it('should store complex multi-table query', () => {
+            const dataModel = new DRADataModel();
+            
+            const complexQuery = {
+                tables: ['users', 'orders', 'products'],
+                joins: [
+                    { from: 'users.id', to: 'orders.user_id', type: 'INNER' },
+                    { from: 'orders.product_id', to: 'products.id', type: 'LEFT' }
+                ],
+                columns: ['users.name', 'orders.total', 'products.name'],
+                where: {
+                    'users.status': 'active',
+                    'orders.created_at': { gte: '2024-01-01' }
+                }
+            };
+            
+            dataModel.query = JSON.parse(JSON.stringify(complexQuery));
+            dataModel.is_cross_source = false;
+            
+            expect(dataModel.query).toBeDefined();
+            expect(dataModel.is_cross_source).toBe(false);
         });
 
-        it('should validate name length constraints', () => {
-            const model = new DRADataModel();
-            const longName = 'a'.repeat(250);
-            model.name = longName;
+        it('should support cross-source queries', () => {
+            const dataModel = new DRADataModel();
+            
+            dataModel.name = 'Cross-Source Analytics';
+            dataModel.is_cross_source = true;
+            dataModel.query = JSON.parse(JSON.stringify({
+                sources: [
+                    { id: 1, tables: ['users'] },
+                    { id: 2, tables: ['transactions'] }
+                ]
+            }));
+            
+            expect(dataModel.is_cross_source).toBe(true);
+        });
+    });
 
-            expect(model.name.length).toBe(250);
+    describe('SQL Query Storage', () => {
+        it('should store SELECT queries', () => {
+            const dataModel = new DRADataModel();
+            
+            dataModel.sql_query = 'SELECT * FROM users WHERE status = \'active\'';
+            
+            expect(dataModel.sql_query).toContain('SELECT');
+            expect(dataModel.sql_query).toContain('FROM users');
+        });
+
+        it('should store JOIN queries', () => {
+            const dataModel = new DRADataModel();
+            
+            dataModel.sql_query = `
+                SELECT u.name, o.total 
+                FROM users u 
+                INNER JOIN orders o ON u.id = o.user_id
+                WHERE o.created_at > '2024-01-01'
+            `;
+            
+            expect(dataModel.sql_query).toContain('INNER JOIN');
+            expect(dataModel.sql_query).toContain('users');
+            expect(dataModel.sql_query).toContain('orders');
+        });
+
+        it('should store complex aggregate queries', () => {
+            const dataModel = new DRADataModel();
+            
+            dataModel.sql_query = `
+                SELECT 
+                    category,
+                    COUNT(*) as total_count,
+                    SUM(amount) as total_amount,
+                    AVG(amount) as avg_amount
+                FROM transactions
+                GROUP BY category
+                HAVING COUNT(*) > 10
+                ORDER BY total_amount DESC
+            `;
+            
+            expect(dataModel.sql_query).toContain('COUNT(*)');
+            expect(dataModel.sql_query).toContain('GROUP BY');
+            expect(dataModel.sql_query).toContain('HAVING');
+        });
+    });
+
+    describe('Schema and Name Fields', () => {
+        it('should accept valid schema names', () => {
+            const dataModel = new DRADataModel();
+            
+            const validSchemas = ['public', 'analytics', 'reporting', 'main'];
+            
+            validSchemas.forEach(schema => {
+                dataModel.schema = schema;
+                expect(dataModel.schema).toBe(schema);
+            });
+        });
+
+        it('should accept descriptive model names', () => {
+            const dataModel = new DRADataModel();
+            
+            const names = [
+                'Customer Segmentation Model',
+                'Revenue Analysis 2024',
+                'Product Performance Dashboard',
+                'User Behavior Tracking'
+            ];
+            
+            names.forEach(name => {
+                dataModel.name = name;
+                expect(dataModel.name).toBe(name);
+            });
+        });
+
+        it('should handle long names within limit', () => {
+            const dataModel = new DRADataModel();
+            
+            // Max length is 255 characters
+            const longName = 'a'.repeat(255);
+            dataModel.name = longName;
+            
+            expect(dataModel.name.length).toBe(255);
+        });
+    });
+
+    describe('Execution Metadata', () => {
+        it('should store performance metrics', () => {
+            const dataModel = new DRADataModel();
+            
+            dataModel.execution_metadata = {
+                last_execution_time_ms: 2500,
+                average_execution_time_ms: 2100,
+                execution_count: 45,
+                last_executed_at: new Date().toISOString()
+            };
+            
+            expect(dataModel.execution_metadata.last_execution_time_ms).toBe(2500);
+            expect(dataModel.execution_metadata.execution_count).toBe(45);
+        });
+
+        it('should store error information', () => {
+            const dataModel = new DRADataModel();
+            
+            dataModel.execution_metadata = {
+                last_error: 'Connection timeout',
+                last_error_at: new Date().toISOString(),
+                error_count: 3
+            };
+            
+            expect(dataModel.execution_metadata.last_error).toBe('Connection timeout');
+            expect(dataModel.execution_metadata.error_count).toBe(3);
+        });
+
+        it('should store result metadata', () => {
+            const dataModel = new DRADataModel();
+            
+            dataModel.execution_metadata = {
+                rows_returned: 1500,
+                columns_returned: 12,
+                result_size_bytes: 245000,
+                cached: true
+            };
+            
+            expect(dataModel.execution_metadata.rows_returned).toBe(1500);
+            expect(dataModel.execution_metadata.cached).toBe(true);
+        });
+    });
+
+    describe('Entity Relations', () => {
+        it('should have users_platform relation', () => {
+            const dataModel = new DRADataModel();
+            
+            expect(dataModel).toHaveProperty('users_platform');
+        });
+
+        it('should have optional data_source relation', () => {
+            const dataModel = new DRADataModel();
+            
+            expect(dataModel).toHaveProperty('data_source');
+        });
+
+        it('should have data_model_sources collection', () => {
+            const dataModel = new DRADataModel();
+            
+            expect(dataModel).toHaveProperty('data_model_sources');
+        });
+
+        it('should have ai_conversations collection', () => {
+            const dataModel = new DRADataModel();
+            
+            expect(dataModel).toHaveProperty('ai_conversations');
+        });
+    });
+
+    describe('Cross-Source Features', () => {
+        it('should support cross-source flag', () => {
+            const dataModel = new DRADataModel();
+            
+            // Single source model
+            dataModel.is_cross_source = false;
+            dataModel.name = 'Single Database Model';
+            expect(dataModel.is_cross_source).toBe(false);
+            
+            // Cross-source model
+            dataModel.is_cross_source = true;
+            dataModel.name = 'Multi-Database Model';
+            expect(dataModel.is_cross_source).toBe(true);
+        });
+
+        it('should handle cross-source query structure', () => {
+            const dataModel = new DRADataModel();
+            
+            const crossSourceQuery = {
+                sources: [
+                    {
+                        source_id: 1,
+                        tables: ['users'],
+                        alias: 'pg_users'
+                    },
+                    {
+                        source_id: 2,
+                        tables: ['orders'],
+                        alias: 'mysql_orders'
+                    }
+                ],
+                join_key: 'user_id'
+            };
+            
+            dataModel.is_cross_source = true;
+            dataModel.query = JSON.parse(JSON.stringify(crossSourceQuery));
+            
+            expect(dataModel.query).toBeDefined();
         });
     });
 });

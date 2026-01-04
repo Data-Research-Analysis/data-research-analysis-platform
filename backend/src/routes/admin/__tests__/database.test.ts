@@ -1,298 +1,267 @@
-import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import request from 'supertest';
-import express, { Express } from 'express';
-import { adminDatabaseRoutes } from '../../../routes/admin/database.js';
-import { authenticate } from '../../../middleware/authenticate.js';
+import express from 'express';
+import databaseRouter from '../../admin/database.js';
 import { EUserType } from '../../../types/EUserType.js';
 
-// Mock middleware and services
-jest.mock('../../../middleware/authenticate.js');
+// Mock dependencies
 jest.mock('../../../services/DatabaseBackupService.js');
 jest.mock('../../../services/QueueService.js');
+jest.mock('../../../middleware/authenticate.js', () => ({
+    validateJWT: (req: any, res: any, next: any) => {
+        // Attach mock token details
+        req.tokenDetails = req.body.mockTokenDetails || {
+            user_id: 1,
+            email: 'admin@test.com',
+            user_type: EUserType.ADMIN,
+            iat: Math.floor(Date.now() / 1000)
+        };
+        next();
+    }
+}));
 
-/**
- * DRA-TEST-018: Admin System Routes Integration Tests
- * Tests admin-only routes: database backup/restore, system stats, user management
- * Total: 15+ tests
- */
-describe('Admin System Routes', () => {
-    let app: Express;
+describe('Admin Database Routes', () => {
+    let app: express.Application;
+    let mockQueueService: any;
+    let mockDatabaseBackupService: any;
 
     beforeEach(() => {
+        // Setup Express app
         app = express();
         app.use(express.json());
+        app.use('/admin/database', databaseRouter);
 
-        // Mock authenticate middleware to set req.user
-        (authenticate as jest.Mock).mockImplementation((req: any, res: any, next: any) => {
-            req.user = {
-                user_id: 1,
-                email: 'admin@example.com',
-                user_type: EUserType.ADMIN
-            };
-            next();
-        });
+        // Get mocked services
+        const { QueueService } = require('../../../services/QueueService.js');
+        const { DatabaseBackupService } = require('../../../services/DatabaseBackupService.js');
 
-        // Mount admin routes
-        app.use('/admin/database', adminDatabaseRoutes);
-    });
+        mockQueueService = {
+            addDatabaseBackupJob: jest.fn<any>().mockResolvedValue(undefined) as any,
+            addDatabaseRestoreJob: jest.fn<any>().mockResolvedValue(undefined) as any
+        };
 
-    afterEach(() => {
+        mockDatabaseBackupService = {
+            listBackups: jest.fn<any>().mockResolvedValue([]) as any,
+            getBackup: jest.fn<any>().mockResolvedValue(null) as any,
+            deleteBackup: jest.fn<any>().mockResolvedValue(false) as any,
+            validateBackupFile: jest.fn<any>().mockResolvedValue(true) as any,
+            cleanupOldBackups: jest.fn<any>().mockResolvedValue(0) as any
+        };
+
+        QueueService.getInstance = jest.fn().mockReturnValue(mockQueueService);
+        DatabaseBackupService.getInstance = jest.fn().mockReturnValue(mockDatabaseBackupService);
+
         jest.clearAllMocks();
     });
 
-    describe('Database Backup Routes', () => {
-        it('should allow admin to create database backup', async () => {
+    describe('POST /admin/database/backup', () => {
+        it('should queue a backup job for admin users', async () => {
             const response = await request(app)
                 .post('/admin/database/backup')
-                .set('Authorization', 'Bearer admin-token')
-                .expect('Content-Type', /json/);
+                .send({
+                    mockTokenDetails: {
+                        user_id: 1,
+                        email: 'admin@test.com',
+                        user_type: EUserType.ADMIN,
+                        iat: Math.floor(Date.now() / 1000)
+                    }
+                });
 
-            expect([200, 202]).toContain(response.status); // 200 OK or 202 Accepted
+            expect(response.status).toBe(202);
+            expect(response.body.message).toContain('Backup job queued successfully');
+            expect(response.body.status).toBe('processing');
+            expect(mockQueueService.addDatabaseBackupJob).toHaveBeenCalledWith(1);
         });
 
-        it('should return backup job ID when backup is queued', async () => {
+        it('should reject non-admin users', async () => {
             const response = await request(app)
                 .post('/admin/database/backup')
-                .set('Authorization', 'Bearer admin-token');
+                .send({
+                    mockTokenDetails: {
+                        user_id: 2,
+                        email: 'user@test.com',
+                        user_type: EUserType.NORMAL,
+                        iat: Math.floor(Date.now() / 1000)
+                    }
+                });
 
-            if (response.status === 202) {
-                expect(response.body).toHaveProperty('jobId');
-            }
+            expect(response.status).toBe(403);
+            expect(response.body.message).toContain('Admin access required');
         });
 
-        it('should reject non-admin backup requests', async () => {
-            (authenticate as jest.Mock).mockImplementationOnce((req: any, res: any, next: any) => {
-                req.user = {
-                    user_id: 2,
-                    email: 'user@example.com',
-                    user_type: EUserType.NORMAL
-                };
-                next();
-            });
+        it('should handle errors when queueing backup', async () => {
+            mockQueueService.addDatabaseBackupJob.mockRejectedValue(new Error('Queue error'));
 
             const response = await request(app)
                 .post('/admin/database/backup')
-                .set('Authorization', 'Bearer user-token')
-                .expect(403);
+                .send({});
 
-            expect(response.body).toHaveProperty('error');
-        });
-
-        it('should reject unauthenticated backup requests', async () => {
-            (authenticate as jest.Mock).mockImplementationOnce((req: any, res: any) => {
-                res.status(401).json({ error: 'Unauthorized' });
-            });
-
-            await request(app)
-                .post('/admin/database/backup')
-                .expect(401);
+            expect(response.status).toBe(500);
+            expect(response.body.message).toContain('Failed to queue backup job');
         });
     });
 
-    describe('Database Restore Routes', () => {
-        it('should allow admin to restore database from backup', async () => {
-            const response = await request(app)
-                .post('/admin/database/restore')
-                .set('Authorization', 'Bearer admin-token')
-                .attach('backup', Buffer.from('mock-backup-data'), 'backup.zip')
-                .expect('Content-Type', /json/);
+    describe('GET /admin/database/backups', () => {
+        it('should list all backups for admin users', async () => {
+            const mockBackups = [
+                {
+                    id: '1',
+                    filename: 'backup_2024-01-01.zip',
+                    size: 1024000,
+                    created_at: new Date()
+                },
+                {
+                    id: '2',
+                    filename: 'backup_2024-01-02.zip',
+                    size: 2048000,
+                    created_at: new Date()
+                }
+            ];
 
-            expect([200, 202]).toContain(response.status);
-        });
+            mockDatabaseBackupService.listBackups.mockResolvedValue(mockBackups);
 
-        it('should validate backup file format', async () => {
-            const response = await request(app)
-                .post('/admin/database/restore')
-                .set('Authorization', 'Bearer admin-token')
-                .attach('backup', Buffer.from('invalid-data'), 'invalid.txt');
-
-            expect([400, 415]).toContain(response.status); // Bad Request or Unsupported Media Type
-        });
-
-        it('should reject non-admin restore requests', async () => {
-            (authenticate as jest.Mock).mockImplementationOnce((req: any, res: any, next: any) => {
-                req.user = {
-                    user_id: 2,
-                    email: 'user@example.com',
-                    user_type: EUserType.NORMAL
-                };
-                next();
-            });
-
-            const response = await request(app)
-                .post('/admin/database/restore')
-                .set('Authorization', 'Bearer user-token')
-                .expect(403);
-
-            expect(response.body).toHaveProperty('error');
-        });
-
-        it('should require backup file in request', async () => {
-            const response = await request(app)
-                .post('/admin/database/restore')
-                .set('Authorization', 'Bearer admin-token')
-                .expect(400);
-
-            expect(response.body).toHaveProperty('error');
-        });
-    });
-
-    describe('Backup List Routes', () => {
-        it('should allow admin to list all backups', async () => {
             const response = await request(app)
                 .get('/admin/database/backups')
-                .set('Authorization', 'Bearer admin-token')
-                .expect(200)
-                .expect('Content-Type', /json/);
+                .send({});
 
-            expect(response.body).toHaveProperty('backups');
-            expect(Array.isArray(response.body.backups)).toBe(true);
+            expect(response.status).toBe(200);
+            expect(response.body.backups).toHaveLength(2);
+            expect(response.body.count).toBe(2);
         });
 
-        it('should return backup metadata', async () => {
+        it('should reject non-admin users', async () => {
             const response = await request(app)
                 .get('/admin/database/backups')
-                .set('Authorization', 'Bearer admin-token')
-                .expect(200);
+                .send({
+                    mockTokenDetails: {
+                        user_id: 2,
+                        email: 'user@test.com',
+                        user_type: EUserType.NORMAL,
+                        iat: Math.floor(Date.now() / 1000)
+                    }
+                });
 
-            if (response.body.backups.length > 0) {
-                const backup = response.body.backups[0];
-                expect(backup).toHaveProperty('filename');
-                expect(backup).toHaveProperty('created_at');
-                expect(backup).toHaveProperty('size');
-            }
+            expect(response.status).toBe(403);
         });
 
-        it('should reject non-admin list requests', async () => {
-            (authenticate as jest.Mock).mockImplementationOnce((req: any, res: any, next: any) => {
-                req.user = {
-                    user_id: 2,
-                    email: 'user@example.com',
-                    user_type: EUserType.NORMAL
-                };
-                next();
-            });
+        it('should return empty array when no backups exist', async () => {
+            mockDatabaseBackupService.listBackups.mockResolvedValue([]);
 
-            await request(app)
+            const response = await request(app)
                 .get('/admin/database/backups')
-                .set('Authorization', 'Bearer user-token')
-                .expect(403);
+                .send({});
+
+            expect(response.status).toBe(200);
+            expect(response.body.backups).toEqual([]);
+            expect(response.body.count).toBe(0);
         });
     });
 
-    describe('Backup Download Routes', () => {
-        it('should allow admin to download backup file', async () => {
-            const response = await request(app)
-                .get('/admin/database/backups/backup-2026-01-01.zip')
-                .set('Authorization', 'Bearer admin-token');
+    describe('GET /admin/database/backup/:backupId/info', () => {
+        it('should return backup info for valid backup ID', async () => {
+            const mockBackup = {
+                id: '123',
+                filename: 'backup_test.zip',
+                size: 5000000,
+                created_at: new Date()
+            };
 
-            expect([200, 404]).toContain(response.status); // OK if exists, 404 if not
+            mockDatabaseBackupService.getBackup.mockResolvedValue(mockBackup);
+
+            const response = await request(app)
+                .get('/admin/database/backup/123/info')
+                .send({});
+
+            expect(response.status).toBe(200);
+            expect(response.body.backup.id).toBe('123');
+            expect(response.body.backup.filename).toBe('backup_test.zip');
         });
 
-        it('should set correct content-type for backup download', async () => {
+        it('should return 404 for non-existent backup', async () => {
+            mockDatabaseBackupService.getBackup.mockResolvedValue(null);
+
             const response = await request(app)
-                .get('/admin/database/backups/backup-2026-01-01.zip')
-                .set('Authorization', 'Bearer admin-token');
+                .get('/admin/database/backup/999/info')
+                .send({});
 
-            if (response.status === 200) {
-                expect(response.headers['content-type']).toMatch(/zip|octet-stream/);
-            }
-        });
-
-        it('should reject non-admin download requests', async () => {
-            (authenticate as jest.Mock).mockImplementationOnce((req: any, res: any, next: any) => {
-                req.user = {
-                    user_id: 2,
-                    email: 'user@example.com',
-                    user_type: EUserType.NORMAL
-                };
-                next();
-            });
-
-            await request(app)
-                .get('/admin/database/backups/backup-2026-01-01.zip')
-                .set('Authorization', 'Bearer user-token')
-                .expect(403);
-        });
-
-        it('should prevent path traversal attacks', async () => {
-            const response = await request(app)
-                .get('/admin/database/backups/../../../etc/passwd')
-                .set('Authorization', 'Bearer admin-token')
-                .expect(400);
-
-            expect(response.body).toHaveProperty('error');
+            expect(response.status).toBe(404);
+            expect(response.body.message).toContain('Backup not found');
         });
     });
 
-    describe('Backup Deletion Routes', () => {
-        it('should allow admin to delete backup file', async () => {
-            const response = await request(app)
-                .delete('/admin/database/backups/old-backup.zip')
-                .set('Authorization', 'Bearer admin-token');
+    describe('DELETE /admin/database/backup/:backupId', () => {
+        it('should delete backup successfully', async () => {
+            mockDatabaseBackupService.deleteBackup.mockResolvedValue(true);
 
-            expect([200, 404]).toContain(response.status);
+            const response = await request(app)
+                .delete('/admin/database/backup/123')
+                .send({});
+
+            expect(response.status).toBe(200);
+            expect(response.body.message).toContain('Backup deleted successfully');
+            expect(response.body.backupId).toBe('123');
         });
 
-        it('should reject non-admin deletion requests', async () => {
-            (authenticate as jest.Mock).mockImplementationOnce((req: any, res: any, next: any) => {
-                req.user = {
-                    user_id: 2,
-                    email: 'user@example.com',
-                    user_type: EUserType.NORMAL
-                };
-                next();
-            });
+        it('should return 404 if backup not found', async () => {
+            mockDatabaseBackupService.deleteBackup.mockResolvedValue(false);
 
-            await request(app)
-                .delete('/admin/database/backups/backup.zip')
-                .set('Authorization', 'Bearer user-token')
-                .expect(403);
+            const response = await request(app)
+                .delete('/admin/database/backup/999')
+                .send({});
+
+            expect(response.status).toBe(404);
+            expect(response.body.message).toContain('Backup not found');
         });
 
-        it('should prevent deletion of non-backup files', async () => {
+        it('should reject non-admin users', async () => {
             const response = await request(app)
-                .delete('/admin/database/backups/../../important-file.txt')
-                .set('Authorization', 'Bearer admin-token')
-                .expect(400);
+                .delete('/admin/database/backup/123')
+                .send({
+                    mockTokenDetails: {
+                        user_id: 2,
+                        email: 'user@test.com',
+                        user_type: EUserType.NORMAL,
+                        iat: Math.floor(Date.now() / 1000)
+                    }
+                });
 
-            expect(response.body).toHaveProperty('error');
+            expect(response.status).toBe(403);
         });
     });
 
-    describe('Security & Authorization', () => {
-        it('should require authentication for all admin routes', async () => {
-            (authenticate as jest.Mock).mockImplementationOnce((req: any, res: any) => {
-                res.status(401).json({ error: 'Unauthorized' });
-            });
+    describe('POST /admin/database/cleanup', () => {
+        it('should cleanup old backups successfully', async () => {
+            mockDatabaseBackupService.cleanupOldBackups.mockResolvedValue(3);
 
-            await request(app)
-                .post('/admin/database/backup')
-                .expect(401);
-        });
-
-        it('should verify admin privileges before allowing operations', async () => {
-            (authenticate as jest.Mock).mockImplementationOnce((req: any, res: any, next: any) => {
-                req.user = {
-                    user_id: 2,
-                    email: 'user@example.com',
-                    user_type: EUserType.NORMAL
-                };
-                next();
-            });
-
-            await request(app)
-                .post('/admin/database/backup')
-                .expect(403);
-        });
-
-        it('should log admin operations for audit trail', async () => {
             const response = await request(app)
-                .post('/admin/database/backup')
-                .set('Authorization', 'Bearer admin-token');
+                .post('/admin/database/cleanup')
+                .send({});
 
-            // Admin operations should be logged (implementation-specific)
-            expect([200, 202]).toContain(response.status);
+            expect(response.status).toBe(200);
+            expect(response.body.message).toContain('Successfully cleaned up 3 old backup(s)');
+            expect(response.body.deletedCount).toBe(3);
+        });
+
+        it('should handle cleanup with no old backups', async () => {
+            mockDatabaseBackupService.cleanupOldBackups.mockResolvedValue(0);
+
+            const response = await request(app)
+                .post('/admin/database/cleanup')
+                .send({});
+
+            expect(response.status).toBe(200);
+            expect(response.body.deletedCount).toBe(0);
+        });
+
+        it('should handle cleanup errors', async () => {
+            mockDatabaseBackupService.cleanupOldBackups.mockRejectedValue(new Error('Cleanup failed'));
+
+            const response = await request(app)
+                .post('/admin/database/cleanup')
+                .send({});
+
+            expect(response.status).toBe(500);
+            expect(response.body.message).toContain('Failed to cleanup old backups');
         });
     });
 });

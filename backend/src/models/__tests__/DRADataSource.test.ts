@@ -1,429 +1,295 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
-import { DataSource } from 'typeorm';
-import { DRADataSource } from '../../models/DRADataSource.js';
+import { DRADataSource } from '../DRADataSource.js';
 import { EDataSourceType } from '../../types/EDataSourceType.js';
 import { EncryptionService } from '../../services/EncryptionService.js';
+import { IDBConnectionDetails } from '../../types/IDBConnectionDetails.js';
 
-/**
- * DRA-TEST-008: DRADataSource Entity Operations Integration Tests
- * Tests TypeORM CRUD operations, encryption, relationships, and validation
- * Total: 20+ tests
- */
-describe('DRADataSource Entity Operations', () => {
-    let dataSource: DataSource;
-    let encryptionService: EncryptionService;
-
-    const mockConnectionDetails = {
-        host: 'localhost',
-        port: 5432,
-        database: 'testdb',
-        username: 'testuser',
-        password: 'testpass'
-    };
-
-    beforeEach(async () => {
-        encryptionService = EncryptionService.getInstance();
-        
-        // Mock DataSource for testing
-        dataSource = {
-            getRepository: jest.fn().mockReturnValue({
-                create: jest.fn(),
-                save: jest.fn(),
-                findOne: jest.fn(),
-                find: jest.fn(),
-                update: jest.fn(),
-                delete: jest.fn()
-            }),
-            manager: {
-                transaction: jest.fn()
-            }
-        } as any;
-    });
-
-    afterEach(() => {
-        jest.clearAllMocks();
-    });
-
-    describe('Entity Creation', () => {
-        it('should create new data source with required fields', () => {
-            const dataSourceEntity = new DRADataSource();
-            dataSourceEntity.user_id = 1;
-            dataSourceEntity.name = 'Test Data Source';
-            dataSourceEntity.type = EDataSourceType.POSTGRESQL;
-            dataSourceEntity.connection_details = mockConnectionDetails;
-
-            expect(dataSourceEntity.user_id).toBe(1);
-            expect(dataSourceEntity.name).toBe('Test Data Source');
-            expect(dataSourceEntity.type).toBe(EDataSourceType.POSTGRESQL);
+describe('DRADataSource Model', () => {
+    describe('Entity Structure', () => {
+        it('should create a data source instance with required fields', () => {
+            const dataSource = new DRADataSource();
+            dataSource.name = 'Test PostgreSQL Connection';
+            dataSource.data_type = EDataSourceType.POSTGRESQL;
+            
+            expect(dataSource.name).toBe('Test PostgreSQL Connection');
+            expect(dataSource.data_type).toBe(EDataSourceType.POSTGRESQL);
         });
 
-        it('should set default values for optional fields', () => {
-            const dataSourceEntity = new DRADataSource();
-            dataSourceEntity.user_id = 1;
-            dataSourceEntity.name = 'Test';
-            dataSourceEntity.type = EDataSourceType.POSTGRESQL;
-            dataSourceEntity.connection_details = mockConnectionDetails;
+        it('should support all data source types from enum', () => {
+            const dataSource = new DRADataSource();
+            
+            const allTypes = [
+                EDataSourceType.POSTGRESQL,
+                EDataSourceType.MYSQL,
+                EDataSourceType.MARIADB,
+                EDataSourceType.MONGODB,
+                EDataSourceType.CSV,
+                EDataSourceType.EXCEL,
+                EDataSourceType.PDF,
+                EDataSourceType.GOOGLE_ANALYTICS,
+                EDataSourceType.GOOGLE_AD_MANAGER,
+                EDataSourceType.GOOGLE_ADS
+            ];
 
-            expect(dataSourceEntity.is_active).toBeUndefined(); // Will be set by DB default
+            allTypes.forEach(type => {
+                dataSource.data_type = type;
+                expect(dataSource.data_type).toBe(type);
+            });
         });
 
-        it('should validate required user_id', () => {
-            const dataSourceEntity = new DRADataSource();
-            dataSourceEntity.name = 'Test';
-            dataSourceEntity.type = EDataSourceType.POSTGRESQL;
-            dataSourceEntity.connection_details = mockConnectionDetails;
-
-            expect(dataSourceEntity.user_id).toBeUndefined();
-        });
-
-        it('should validate required name', () => {
-            const dataSourceEntity = new DRADataSource();
-            dataSourceEntity.user_id = 1;
-            dataSourceEntity.type = EDataSourceType.POSTGRESQL;
-            dataSourceEntity.connection_details = mockConnectionDetails;
-
-            expect(dataSourceEntity.name).toBeUndefined();
-        });
-
-        it('should validate required type', () => {
-            const dataSourceEntity = new DRADataSource();
-            dataSourceEntity.user_id = 1;
-            dataSourceEntity.name = 'Test';
-            dataSourceEntity.connection_details = mockConnectionDetails;
-
-            expect(dataSourceEntity.type).toBeUndefined();
+        it('should have nullable created_at timestamp', () => {
+            const dataSource = new DRADataSource();
+            
+            expect(dataSource.created_at).toBeUndefined();
+            
+            dataSource.created_at = new Date();
+            expect(dataSource.created_at).toBeInstanceOf(Date);
         });
     });
 
     describe('Connection Details Encryption', () => {
-        it('should encrypt connection_details on save', async () => {
-            const repository = dataSource.getRepository(DRADataSource);
-            const dataSourceEntity = new DRADataSource();
-            dataSourceEntity.user_id = 1;
-            dataSourceEntity.name = 'Encrypted Source';
-            dataSourceEntity.type = EDataSourceType.POSTGRESQL;
-            dataSourceEntity.connection_details = mockConnectionDetails;
+        let encryptionService: EncryptionService;
 
-            (repository.save as jest.Mock).mockResolvedValue(dataSourceEntity);
-
-            const saved = await repository.save(dataSourceEntity);
-
-            expect(saved).toBeDefined();
-            expect(repository.save).toHaveBeenCalled();
+        beforeEach(() => {
+            encryptionService = EncryptionService.getInstance();
+            // Ensure encryption is enabled for tests
+            process.env.ENCRYPTION_ENABLED = 'true';
         });
 
-        it('should decrypt connection_details on retrieve', async () => {
-            const repository = dataSource.getRepository(DRADataSource);
-            const encryptedDetails = encryptionService.encrypt(JSON.stringify(mockConnectionDetails));
-            
-            const mockEntity = {
-                id: 1,
-                user_id: 1,
-                name: 'Test',
-                type: EDataSourceType.POSTGRESQL,
-                connection_details: encryptedDetails
-            };
-
-            (repository.findOne as jest.Mock).mockResolvedValue(mockEntity);
-
-            const result = await repository.findOne({ where: { id: 1 } });
-
-            expect(result).toBeDefined();
-        });
-
-        it('should handle encryption for PostgreSQL credentials', () => {
-            const pgDetails = {
-                host: 'pg.example.com',
+        it('should store connection details', () => {
+            const dataSource = new DRADataSource();
+            const connectionDetails: IDBConnectionDetails = {
+                data_source_type: EDataSourceType.POSTGRESQL,
+                host: 'localhost',
                 port: 5432,
-                database: 'production',
-                username: 'pguser',
-                password: 'secretpassword'
+                schema: 'public',
+                database: 'test_db',
+                username: 'testuser',
+                password: 'testpass'
             };
 
-            const encrypted = encryptionService.encrypt(JSON.stringify(pgDetails));
-            const decrypted = JSON.parse(encryptionService.decrypt(encrypted));
+            dataSource.connection_details = connectionDetails;
 
-            expect(decrypted).toEqual(pgDetails);
+            expect(dataSource.connection_details).toBeDefined();
+            expect(dataSource.connection_details.host).toBe('localhost');
+            expect(dataSource.connection_details.port).toBe(5432);
+            expect(dataSource.connection_details.database).toBe('test_db');
         });
 
-        it('should handle encryption for MySQL credentials', () => {
-            const mysqlDetails = {
+        it('should handle MySQL connection details', () => {
+            const dataSource = new DRADataSource();
+            const connectionDetails: IDBConnectionDetails = {
+                data_source_type: EDataSourceType.MYSQL,
                 host: 'mysql.example.com',
                 port: 3306,
-                database: 'mydb',
-                username: 'mysqluser',
+                schema: 'app_schema',
+                database: 'app_db',
+                username: 'root',
                 password: 'mysqlpass'
             };
 
-            const encrypted = encryptionService.encrypt(JSON.stringify(mysqlDetails));
-            const decrypted = JSON.parse(encryptionService.decrypt(encrypted));
+            dataSource.data_type = EDataSourceType.MYSQL;
+            dataSource.connection_details = connectionDetails;
 
-            expect(decrypted).toEqual(mysqlDetails);
+            expect(dataSource.connection_details.port).toBe(3306);
+            expect(dataSource.connection_details.data_source_type).toBe(EDataSourceType.MYSQL);
         });
 
-        it('should preserve connection_details structure after encryption/decryption', () => {
-            const originalDetails = { ...mockConnectionDetails, ssl: true, timeout: 30000 };
-
-            const encrypted = encryptionService.encrypt(JSON.stringify(originalDetails));
-            const decrypted = JSON.parse(encryptionService.decrypt(encrypted));
-
-            expect(decrypted).toEqual(originalDetails);
-        });
-    });
-
-    describe('CRUD Operations', () => {
-        it('should save new data source to database', async () => {
-            const repository = dataSource.getRepository(DRADataSource);
-            const newEntity = new DRADataSource();
-            newEntity.user_id = 1;
-            newEntity.name = 'New Source';
-            newEntity.type = EDataSourceType.POSTGRESQL;
-            newEntity.connection_details = mockConnectionDetails;
-
-            (repository.save as jest.Mock).mockResolvedValue({ ...newEntity, id: 1 });
-
-            const saved = await repository.save(newEntity);
-
-            expect(saved.id).toBe(1);
-            expect(repository.save).toHaveBeenCalledWith(newEntity);
-        });
-
-        it('should find data source by ID', async () => {
-            const repository = dataSource.getRepository(DRADataSource);
-            const mockEntity = {
-                id: 1,
-                user_id: 1,
-                name: 'Test Source',
-                type: EDataSourceType.POSTGRESQL,
-                connection_details: mockConnectionDetails
+        it('should handle MariaDB connection details', () => {
+            const dataSource = new DRADataSource();
+            const connectionDetails: IDBConnectionDetails = {
+                data_source_type: EDataSourceType.MARIADB,
+                host: 'mariadb.example.com',
+                port: 3307,
+                schema: 'main',
+                database: 'production',
+                username: 'admin',
+                password: 'mariapass'
             };
 
-            (repository.findOne as jest.Mock).mockResolvedValue(mockEntity);
+            dataSource.data_type = EDataSourceType.MARIADB;
+            dataSource.connection_details = connectionDetails;
 
-            const result = await repository.findOne({ where: { id: 1 } });
-
-            expect(result).toEqual(mockEntity);
-            expect(repository.findOne).toHaveBeenCalled();
+            expect(dataSource.data_type).toBe(EDataSourceType.MARIADB);
+            expect(dataSource.connection_details.host).toBe('mariadb.example.com');
         });
 
-        it('should find data sources by user_id', async () => {
-            const repository = dataSource.getRepository(DRADataSource);
-            const mockEntities = [
-                { id: 1, user_id: 1, name: 'Source 1', type: EDataSourceType.POSTGRESQL },
-                { id: 2, user_id: 1, name: 'Source 2', type: EDataSourceType.MYSQL }
-            ];
+        it('should handle MongoDB connection details', () => {
+            const dataSource = new DRADataSource();
+            const connectionDetails: IDBConnectionDetails = {
+                data_source_type: EDataSourceType.MONGODB,
+                host: 'mongodb.example.com',
+                port: 27017,
+                schema: '',
+                database: 'mongo_db',
+                username: 'mongouser',
+                password: 'mongopass'
+            };
 
-            (repository.find as jest.Mock).mockResolvedValue(mockEntities);
+            dataSource.data_type = EDataSourceType.MONGODB;
+            dataSource.connection_details = connectionDetails;
 
-            const results = await repository.find({ where: { user_id: 1 } });
-
-            expect(results).toHaveLength(2);
-            expect(results[0].user_id).toBe(1);
-        });
-
-        it('should update existing data source', async () => {
-            const repository = dataSource.getRepository(DRADataSource);
-            const updateData = { name: 'Updated Name' };
-
-            (repository.update as jest.Mock).mockResolvedValue({ affected: 1 });
-
-            const result = await repository.update({ id: 1 }, updateData);
-
-            expect(result.affected).toBe(1);
-            expect(repository.update).toHaveBeenCalledWith({ id: 1 }, updateData);
-        });
-
-        it('should delete data source by ID', async () => {
-            const repository = dataSource.getRepository(DRADataSource);
-
-            (repository.delete as jest.Mock).mockResolvedValue({ affected: 1 });
-
-            const result = await repository.delete({ id: 1 });
-
-            expect(result.affected).toBe(1);
+            expect(dataSource.data_type).toBe(EDataSourceType.MONGODB);
+            expect(dataSource.connection_details.port).toBe(27017);
         });
     });
 
     describe('Data Source Types', () => {
-        it('should support PostgreSQL data source type', () => {
-            const entity = new DRADataSource();
-            entity.type = EDataSourceType.POSTGRESQL;
-
-            expect(entity.type).toBe(EDataSourceType.POSTGRESQL);
+        it('should support database types', () => {
+            const dataSource = new DRADataSource();
+            
+            dataSource.data_type = EDataSourceType.POSTGRESQL;
+            expect(dataSource.data_type).toBe('postgresql');
+            
+            dataSource.data_type = EDataSourceType.MYSQL;
+            expect(dataSource.data_type).toBe('mysql');
+            
+            dataSource.data_type = EDataSourceType.MARIADB;
+            expect(dataSource.data_type).toBe('mariadb');
         });
 
-        it('should support MySQL data source type', () => {
-            const entity = new DRADataSource();
-            entity.type = EDataSourceType.MYSQL;
-
-            expect(entity.type).toBe(EDataSourceType.MYSQL);
+        it('should support file types', () => {
+            const dataSource = new DRADataSource();
+            
+            dataSource.data_type = EDataSourceType.CSV;
+            expect(dataSource.data_type).toBe('csv');
+            
+            dataSource.data_type = EDataSourceType.EXCEL;
+            expect(dataSource.data_type).toBe('excel');
+            
+            dataSource.data_type = EDataSourceType.PDF;
+            expect(dataSource.data_type).toBe('pdf');
         });
 
-        it('should support MariaDB data source type', () => {
-            const entity = new DRADataSource();
-            entity.type = EDataSourceType.MARIADB;
-
-            expect(entity.type).toBe(EDataSourceType.MARIADB);
-        });
-
-        it('should support CSV file data source type', () => {
-            const entity = new DRADataSource();
-            entity.type = EDataSourceType.CSV;
-
-            expect(entity.type).toBe(EDataSourceType.CSV);
-        });
-
-        it('should support Excel file data source type', () => {
-            const entity = new DRADataSource();
-            entity.type = EDataSourceType.EXCEL;
-
-            expect(entity.type).toBe(EDataSourceType.EXCEL);
-        });
-
-        it('should support PDF file data source type', () => {
-            const entity = new DRADataSource();
-            entity.type = EDataSourceType.PDF;
-
-            expect(entity.type).toBe(EDataSourceType.PDF);
+        it('should support Google API types', () => {
+            const dataSource = new DRADataSource();
+            
+            dataSource.data_type = EDataSourceType.GOOGLE_ANALYTICS;
+            expect(dataSource.data_type).toBe('google_analytics');
+            
+            dataSource.data_type = EDataSourceType.GOOGLE_AD_MANAGER;
+            expect(dataSource.data_type).toBe('google_ad_manager');
+            
+            dataSource.data_type = EDataSourceType.GOOGLE_ADS;
+            expect(dataSource.data_type).toBe('google_ads');
         });
     });
 
-    describe('Relationships', () => {
-        it('should establish relationship with user via user_id', async () => {
-            const repository = dataSource.getRepository(DRADataSource);
-            const entity = new DRADataSource();
-            entity.user_id = 5;
-            entity.name = 'User Source';
-            entity.type = EDataSourceType.POSTGRESQL;
-            entity.connection_details = mockConnectionDetails;
-
-            (repository.save as jest.Mock).mockResolvedValue(entity);
-
-            const saved = await repository.save(entity);
-
-            expect(saved.user_id).toBe(5);
+    describe('Entity Relations', () => {
+        it('should have users_platform relation', () => {
+            const dataSource = new DRADataSource();
+            
+            // Relation exists as property
+            expect(dataSource).toHaveProperty('users_platform');
         });
 
-        it('should cascade delete related data models', async () => {
-            const repository = dataSource.getRepository(DRADataSource);
-
-            (repository.delete as jest.Mock).mockResolvedValue({ affected: 1 });
-
-            const result = await repository.delete({ id: 1 });
-
-            expect(result.affected).toBe(1);
-            // Cascade delete handled by database constraints
-        });
-    });
-
-    describe('Query Filtering', () => {
-        it('should filter by data source type', async () => {
-            const repository = dataSource.getRepository(DRADataSource);
-            const mockPostgresSources = [
-                { id: 1, type: EDataSourceType.POSTGRESQL, name: 'PG1' },
-                { id: 2, type: EDataSourceType.POSTGRESQL, name: 'PG2' }
-            ];
-
-            (repository.find as jest.Mock).mockResolvedValue(mockPostgresSources);
-
-            const results = await repository.find({ where: { type: EDataSourceType.POSTGRESQL } });
-
-            expect(results).toHaveLength(2);
-            expect(results.every(r => r.type === EDataSourceType.POSTGRESQL)).toBe(true);
+        it('should have data_models collection', () => {
+            const dataSource = new DRADataSource();
+            
+            // Relation exists as property
+            expect(dataSource).toHaveProperty('data_models');
         });
 
-        it('should filter by is_active status', async () => {
-            const repository = dataSource.getRepository(DRADataSource);
-            const activeSources = [
-                { id: 1, is_active: true, name: 'Active1' },
-                { id: 2, is_active: true, name: 'Active2' }
-            ];
-
-            (repository.find as jest.Mock).mockResolvedValue(activeSources);
-
-            const results = await repository.find({ where: { is_active: true } });
-
-            expect(results.every(r => r.is_active === true)).toBe(true);
+        it('should have project relation', () => {
+            const dataSource = new DRADataSource();
+            
+            // Relation exists as property
+            expect(dataSource).toHaveProperty('project');
         });
 
-        it('should support complex where conditions', async () => {
-            const repository = dataSource.getRepository(DRADataSource);
-            const mockResults = [
-                { id: 1, user_id: 1, type: EDataSourceType.POSTGRESQL, is_active: true }
-            ];
-
-            (repository.find as jest.Mock).mockResolvedValue(mockResults);
-
-            const results = await repository.find({
-                where: { user_id: 1, type: EDataSourceType.POSTGRESQL, is_active: true }
-            });
-
-            expect(results).toHaveLength(1);
+        it('should have table_metadata collection', () => {
+            const dataSource = new DRADataSource();
+            
+            // Relation exists as property
+            expect(dataSource).toHaveProperty('table_metadata');
         });
     });
 
-    describe('Timestamps', () => {
-        it('should auto-generate created_at timestamp', async () => {
-            const repository = dataSource.getRepository(DRADataSource);
-            const entity = new DRADataSource();
-            entity.user_id = 1;
-            entity.name = 'Test';
-            entity.type = EDataSourceType.POSTGRESQL;
-            entity.connection_details = mockConnectionDetails;
+    describe('Encryption Service Integration', () => {
+        it('should use EncryptionService for connection details', () => {
+            const encryptionService = EncryptionService.getInstance();
+            
+            const testData: IDBConnectionDetails = {
+                data_source_type: EDataSourceType.POSTGRESQL,
+                host: 'secure.example.com',
+                port: 5432,
+                schema: 'public',
+                database: 'secure_db',
+                username: 'secureuser',
+                password: 'securepass123!'
+            };
 
-            const now = new Date();
-            (repository.save as jest.Mock).mockResolvedValue({ ...entity, created_at: now });
+            // Test encryption
+            const encrypted = encryptionService.encrypt(testData);
+            expect(typeof encrypted).toBe('string');
+            expect(encrypted).not.toContain('securepass123!'); // Password should be encrypted
 
-            const saved = await repository.save(entity);
-
-            expect(saved.created_at).toBeDefined();
+            // Test decryption
+            const decrypted = encryptionService.decrypt(encrypted);
+            expect(decrypted.host).toBe('secure.example.com');
+            expect(decrypted.password).toBe('securepass123!');
         });
 
-        it('should auto-update updated_at timestamp on changes', async () => {
-            const repository = dataSource.getRepository(DRADataSource);
-            const originalDate = new Date('2024-01-01');
-            const updatedDate = new Date();
+        it('should verify encrypted data structure', () => {
+            const encryptionService = EncryptionService.getInstance();
+            
+            const testData: IDBConnectionDetails = {
+                data_source_type: EDataSourceType.MYSQL,
+                host: 'test.com',
+                port: 3306,
+                schema: 'test',
+                database: 'testdb',
+                username: 'user',
+                password: 'pass'
+            };
 
-            (repository.findOne as jest.Mock).mockResolvedValue({
-                id: 1,
-                updated_at: originalDate
-            });
-            (repository.save as jest.Mock).mockResolvedValue({
-                id: 1,
-                updated_at: updatedDate
-            });
-
-            const entity = await repository.findOne({ where: { id: 1 } });
-            const updated = await repository.save({ ...entity, name: 'Updated' });
-
-            expect(updated.updated_at.getTime()).toBeGreaterThan(originalDate.getTime());
+            const encrypted = encryptionService.encrypt(testData);
+            
+            // Encrypted string should be detectable
+            expect(encryptionService.isEncrypted(encrypted)).toBe(true);
+            expect(encryptionService.isEncrypted(testData)).toBe(false);
         });
     });
 
-    describe('Validation', () => {
-        it('should validate connection_details is valid JSON', () => {
-            const entity = new DRADataSource();
-            entity.connection_details = mockConnectionDetails;
-
-            expect(() => JSON.stringify(entity.connection_details)).not.toThrow();
+    describe('Field Validations', () => {
+        it('should accept valid name lengths', () => {
+            const dataSource = new DRADataSource();
+            
+            // Test short name
+            dataSource.name = 'DB';
+            expect(dataSource.name).toBe('DB');
+            
+            // Test long name (up to 255 chars)
+            const longName = 'a'.repeat(255);
+            dataSource.name = longName;
+            expect(dataSource.name.length).toBe(255);
         });
 
-        it('should reject null connection_details', () => {
-            const entity = new DRADataSource();
-            entity.user_id = 1;
-            entity.name = 'Test';
-            entity.type = EDataSourceType.POSTGRESQL;
-            entity.connection_details = null as any;
+        it('should store complex connection details with API credentials', () => {
+            const dataSource = new DRADataSource();
+            const connectionDetails: IDBConnectionDetails = {
+                data_source_type: EDataSourceType.GOOGLE_ANALYTICS,
+                host: 'analytics.googleapis.com',
+                port: 443,
+                schema: '',
+                database: '',
+                username: 'service-account@project.iam.gserviceaccount.com',
+                password: '',
+                api_connection_details: {
+                    oauth_access_token: 'access-token-456',
+                    oauth_refresh_token: 'refresh-token-123',
+                    token_expiry: new Date('2026-12-31'),
+                    api_config: {
+                        property_id: 'GA-123456'
+                    }
+                }
+            };
 
-            expect(entity.connection_details).toBeNull();
-        });
+            dataSource.data_type = EDataSourceType.GOOGLE_ANALYTICS;
+            dataSource.connection_details = connectionDetails;
 
-        it('should validate name length constraints', () => {
-            const entity = new DRADataSource();
-            const longName = 'a'.repeat(300);
-            entity.name = longName;
-
-            expect(entity.name.length).toBe(300);
+            expect(dataSource.connection_details.api_connection_details).toBeDefined();
+            expect(dataSource.connection_details.api_connection_details?.oauth_access_token).toBe('access-token-456');
         });
     });
 });

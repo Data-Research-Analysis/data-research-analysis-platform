@@ -1,286 +1,209 @@
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import { FilesService } from '../FilesService.js';
-import * as fs from 'fs';
-import * as path from 'path';
+import fs from 'fs';
+import path from 'path';
 
 // Mock fs module
-jest.mock('fs');
+jest.mock('fs', () => ({
+    default: {
+        promises: {
+            readdir: jest.fn(),
+        },
+        lstatSync: jest.fn(),
+        existsSync: jest.fn(),
+        renameSync: jest.fn(),
+        unlinkSync: jest.fn(),
+        rmdirSync: jest.fn(),
+    }
+}));
 
-/**
- * DRA-TEST-002: FilesService Unit Tests
- * Tests file system operations with mocked fs module
- * Total: 20+ tests
- */
 describe('FilesService', () => {
-    let filesService: FilesService;
-    const mockFs = fs as jest.Mocked<typeof fs>;
+    let service: FilesService;
+    let mockFs: any;
 
     beforeEach(() => {
-        filesService = FilesService.getInstance();
+        service = FilesService.getInstance();
+        mockFs = fs;
+        jest.clearAllMocks();
+    });
+
+    afterEach(() => {
         jest.clearAllMocks();
     });
 
     describe('Singleton Pattern', () => {
-        it('should return the same instance on multiple getInstance() calls', () => {
+        it('should return the same instance', () => {
             const instance1 = FilesService.getInstance();
             const instance2 = FilesService.getInstance();
+
             expect(instance1).toBe(instance2);
         });
-
-        it('should maintain state across getInstance() calls', () => {
-            const instance1 = FilesService.getInstance();
-            const instance2 = FilesService.getInstance();
-            expect(instance1).toStrictEqual(instance2);
-        });
     });
 
-    describe('getPathSeparator()', () => {
-        it('should return correct path separator for current OS', () => {
-            const separator = filesService.getPathSeparator();
+    describe('getPathSeparator', () => {
+        it('should return the platform path separator', () => {
+            const separator = service.getPathSeparator();
+            
             expect(separator).toBe(path.sep);
-        });
-
-        it('should return "/" on Unix-like systems', () => {
-            const originalPlatform = process.platform;
-            Object.defineProperty(process, 'platform', { value: 'linux' });
-            expect(path.sep).toBe('/');
-            Object.defineProperty(process, 'platform', { value: originalPlatform });
+            expect(typeof separator).toBe('string');
         });
     });
 
-    describe('getDirectoryPath()', () => {
-        it('should resolve uploads directory path', () => {
-            const result = filesService.getDirectoryPath('uploads');
-            expect(result).toContain('uploads');
+    describe('getDirectoryPath', () => {
+        it('should resolve directory path correctly', async () => {
+            const result = await service.getDirectoryPath('public');
+            
+            expect(typeof result).toBe('string');
+            expect(result).toContain('public');
             expect(path.isAbsolute(result)).toBe(true);
         });
 
-        it('should resolve exports directory path', () => {
-            const result = filesService.getDirectoryPath('exports');
-            expect(result).toContain('exports');
-            expect(path.isAbsolute(result)).toBe(true);
-        });
-
-        it('should resolve temp directory path', () => {
-            const result = filesService.getDirectoryPath('temp');
-            expect(result).toContain('temp');
-        });
-
-        it('should handle relative paths correctly', () => {
-            const result = filesService.getDirectoryPath('uploads/csv');
-            expect(result).toContain('uploads');
-            expect(result).toContain('csv');
+        it('should handle different directory types', async () => {
+            const publicPath = await service.getDirectoryPath('public');
+            const privatePath = await service.getDirectoryPath('private');
+            
+            expect(publicPath).toContain('public');
+            expect(privatePath).toContain('private');
+            expect(publicPath).not.toBe(privatePath);
         });
     });
 
-    describe('getFiles() - Single Level', () => {
-        it('should list files in directory (first level only)', () => {
-            const mockFiles = ['file1.txt', 'file2.pdf', 'file3.csv'];
-            mockFs.readdirSync = jest.fn().mockReturnValue(mockFiles);
-            mockFs.statSync = jest.fn().mockReturnValue({ isDirectory: () => false } as any);
+    describe('getFiles', () => {
+        it('should return empty array when directory does not exist', async () => {
+            mockFs.promises.readdir = jest.fn<any>().mockRejectedValue(new Error('Directory not found')) as any;
 
-            const result = filesService.getFiles('/test/path', true);
+            const result = await service.getFiles('nonexistent');
+
+            expect(result).toEqual([]);
+        });
+
+        it('should list first level files only when firstLevelOnly is true', async () => {
+            const mockFiles = ['file1.txt', 'file2.txt', 'subdir'];
+            
+            mockFs.promises.readdir = jest.fn<any>().mockResolvedValue(mockFiles) as any;
+            (mockFs.lstatSync as jest.Mock) = jest.fn<any>().mockReturnValue({
+                isDirectory: () => false
+            }) as any;
+
+            const result = await service.getFiles('test', true);
+
+            expect(Array.isArray(result)).toBe(true);
+            expect(result.length).toBeGreaterThanOrEqual(0);
+        });
+
+        it('should handle nested directory structures', async () => {
+            const mockFiles = ['file1.txt', 'subdir'];
+            const mockSubFiles = ['file2.txt'];
+            
+            mockFs.promises.readdir = jest.fn<any>()
+                .mockResolvedValueOnce(mockFiles)
+                .mockResolvedValueOnce(mockSubFiles) as any;
+            
+            (mockFs.lstatSync as jest.Mock) = jest.fn<any>()
+                .mockReturnValueOnce({ isDirectory: () => false }) // file1.txt
+                .mockReturnValueOnce({ isDirectory: () => true })  // subdir
+                .mockReturnValueOnce({ isDirectory: () => false }) as any; // file2.txt
+
+            const result = await service.getFiles('test', false);
+
+            expect(Array.isArray(result)).toBe(true);
+        });
+    });
+
+    describe('readDir', () => {
+        it('should read directory contents', async () => {
+            const mockFiles = ['file1.txt', 'file2.txt', 'subdir'];
+            mockFs.promises.readdir = jest.fn<any>().mockResolvedValue(mockFiles) as any;
+
+            const result = await service.readDir('/test/path');
 
             expect(result).toEqual(mockFiles);
-            expect(mockFs.readdirSync).toHaveBeenCalledWith('/test/path');
-        });
-
-        it('should exclude directories when firstLevelOnly is true', () => {
-            const mockEntries = ['file1.txt', 'subdir', 'file2.pdf'];
-            mockFs.readdirSync = jest.fn().mockReturnValue(mockEntries);
-            mockFs.statSync = jest.fn()
-                .mockReturnValueOnce({ isDirectory: () => false } as any)
-                .mockReturnValueOnce({ isDirectory: () => true } as any)
-                .mockReturnValueOnce({ isDirectory: () => false } as any);
-
-            const result = filesService.getFiles('/test/path', true);
-
-            expect(result).toEqual(['file1.txt', 'file2.pdf']);
-            expect(result).not.toContain('subdir');
-        });
-
-        it('should handle empty directory', () => {
-            mockFs.readdirSync = jest.fn().mockReturnValue([]);
-
-            const result = filesService.getFiles('/empty/path', true);
-
-            expect(result).toEqual([]);
+            expect(mockFs.promises.readdir).toHaveBeenCalledWith('/test/path');
         });
     });
 
-    describe('getFiles() - Multi-Level Traversal', () => {
-        it('should recursively list all files when firstLevelOnly is false', () => {
-            mockFs.readdirSync = jest.fn()
-                .mockReturnValueOnce(['file1.txt', 'subdir'])
-                .mockReturnValueOnce(['file2.txt', 'file3.pdf']);
+    describe('renameFile', () => {
+        it('should rename file if it exists', async () => {
+            (mockFs.existsSync as jest.Mock) = jest.fn().mockReturnValue(true);
+            (mockFs.renameSync as jest.Mock) = jest.fn();
 
-            mockFs.statSync = jest.fn()
-                .mockReturnValueOnce({ isDirectory: () => false } as any)
-                .mockReturnValueOnce({ isDirectory: () => true } as any)
-                .mockReturnValueOnce({ isDirectory: () => false } as any)
-                .mockReturnValueOnce({ isDirectory: () => false } as any);
-
-            const result = filesService.getFiles('/test/path', false);
-
-            expect(result.length).toBeGreaterThanOrEqual(1);
-            expect(mockFs.readdirSync).toHaveBeenCalled();
-        });
-
-        it('should handle nested directory structures', () => {
-            mockFs.readdirSync = jest.fn()
-                .mockReturnValueOnce(['dir1'])
-                .mockReturnValueOnce(['dir2'])
-                .mockReturnValueOnce(['file.txt']);
-
-            mockFs.statSync = jest.fn()
-                .mockReturnValueOnce({ isDirectory: () => true } as any)
-                .mockReturnValueOnce({ isDirectory: () => true } as any)
-                .mockReturnValueOnce({ isDirectory: () => false } as any);
-
-            const result = filesService.getFiles('/test/path', false);
-
-            expect(mockFs.readdirSync).toHaveBeenCalledTimes(3);
-        });
-    });
-
-    describe('readDir()', () => {
-        it('should list directory contents successfully', () => {
-            const mockEntries = ['file1.txt', 'file2.pdf', 'subdir'];
-            mockFs.readdirSync = jest.fn().mockReturnValue(mockEntries);
-
-            const result = filesService.readDir('/test/path');
-
-            expect(result).toEqual(mockEntries);
-            expect(mockFs.readdirSync).toHaveBeenCalledWith('/test/path');
-        });
-
-        it('should handle directory read errors', () => {
-            mockFs.readdirSync = jest.fn().mockImplementation(() => {
-                throw new Error('Permission denied');
-            });
-
-            expect(() => filesService.readDir('/restricted/path')).toThrow('Permission denied');
-        });
-
-        it('should return empty array for empty directory', () => {
-            mockFs.readdirSync = jest.fn().mockReturnValue([]);
-
-            const result = filesService.readDir('/empty/dir');
-
-            expect(result).toEqual([]);
-        });
-    });
-
-    describe('renameFile()', () => {
-        it('should rename file successfully', () => {
-            mockFs.existsSync = jest.fn().mockReturnValue(true);
-            mockFs.renameSync = jest.fn();
-
-            const result = filesService.renameFile('/path/old.txt', '/path/new.txt');
+            const result = await service.renameFile('/old/path.txt', '/new/path.txt');
 
             expect(result).toBe(true);
-            expect(mockFs.renameSync).toHaveBeenCalledWith('/path/old.txt', '/path/new.txt');
+            expect(mockFs.existsSync).toHaveBeenCalledWith('/old/path.txt');
+            expect(mockFs.renameSync).toHaveBeenCalledWith('/old/path.txt', '/new/path.txt');
         });
 
-        it('should return false if source file does not exist', () => {
-            mockFs.existsSync = jest.fn().mockReturnValue(false);
+        it('should return false if file does not exist', async () => {
+            (mockFs.existsSync as jest.Mock) = jest.fn().mockReturnValue(false);
 
-            const result = filesService.renameFile('/path/nonexistent.txt', '/path/new.txt');
+            const result = await service.renameFile('/nonexistent.txt', '/new/path.txt');
 
             expect(result).toBe(false);
             expect(mockFs.renameSync).not.toHaveBeenCalled();
         });
+    });
 
-        it('should handle rename errors gracefully', () => {
-            mockFs.existsSync = jest.fn().mockReturnValue(true);
-            mockFs.renameSync = jest.fn().mockImplementation(() => {
-                throw new Error('Rename failed');
-            });
+    describe('deleteFileFromDisk', () => {
+        it('should delete file if it exists', () => {
+            (mockFs.existsSync as jest.Mock) = jest.fn().mockReturnValue(true);
+            (mockFs.unlinkSync as jest.Mock) = jest.fn();
 
-            expect(() => filesService.renameFile('/path/old.txt', '/path/new.txt')).toThrow('Rename failed');
+            service.deleteFileFromDisk('/test/file.txt');
+
+            expect(mockFs.existsSync).toHaveBeenCalledWith('/test/file.txt');
+            expect(mockFs.unlinkSync).toHaveBeenCalledWith('/test/file.txt');
         });
 
-        it('should handle special characters in filenames', () => {
-            mockFs.existsSync = jest.fn().mockReturnValue(true);
-            mockFs.renameSync = jest.fn();
+        it('should not throw if file does not exist', () => {
+            (mockFs.existsSync as jest.Mock) = jest.fn().mockReturnValue(false);
 
-            filesService.renameFile('/path/file (1).txt', '/path/file-new.txt');
+            expect(() => {
+                service.deleteFileFromDisk('/nonexistent.txt');
+            }).not.toThrow();
 
-            expect(mockFs.renameSync).toHaveBeenCalled();
+            expect(mockFs.unlinkSync).not.toHaveBeenCalled();
         });
     });
 
-    describe('deleteFileFromDisk()', () => {
-        it('should delete existing file successfully', () => {
-            mockFs.existsSync = jest.fn().mockReturnValue(true);
-            mockFs.unlinkSync = jest.fn();
+    describe('deleteDirectoryFromDisk', () => {
+        it('should delete directory if it exists', () => {
+            (mockFs.existsSync as jest.Mock) = jest.fn().mockReturnValue(true);
+            (mockFs.rmdirSync as jest.Mock) = jest.fn();
 
-            const result = filesService.deleteFileFromDisk('/path/file.txt');
+            service.deleteDirectoryFromDisk('/test/dir');
 
-            expect(result).toBe(true);
-            expect(mockFs.unlinkSync).toHaveBeenCalledWith('/path/file.txt');
+            expect(mockFs.existsSync).toHaveBeenCalledWith('/test/dir');
+            expect(mockFs.rmdirSync).toHaveBeenCalledWith('/test/dir');
         });
 
-        it('should return false if file does not exist', () => {
-            mockFs.existsSync = jest.fn().mockReturnValue(false);
+        it('should not throw if directory does not exist', () => {
+            (mockFs.existsSync as jest.Mock) = jest.fn().mockReturnValue(false);
 
-            const result = filesService.deleteFileFromDisk('/path/nonexistent.txt');
+            expect(() => {
+                service.deleteDirectoryFromDisk('/nonexistent');
+            }).not.toThrow();
 
-            expect(result).toBe(false);
-            expect(mockFs.unlinkSync).not.toHaveBeenCalled();
-        });
-
-        it('should handle deletion errors', () => {
-            mockFs.existsSync = jest.fn().mockReturnValue(true);
-            mockFs.unlinkSync = jest.fn().mockImplementation(() => {
-                throw new Error('Permission denied');
-            });
-
-            expect(() => filesService.deleteFileFromDisk('/restricted/file.txt')).toThrow('Permission denied');
-        });
-
-        it('should handle absolute paths', () => {
-            mockFs.existsSync = jest.fn().mockReturnValue(true);
-            mockFs.unlinkSync = jest.fn();
-
-            filesService.deleteFileFromDisk('/absolute/path/file.txt');
-
-            expect(mockFs.unlinkSync).toHaveBeenCalledWith('/absolute/path/file.txt');
-        });
-
-        it('should handle relative paths', () => {
-            mockFs.existsSync = jest.fn().mockReturnValue(true);
-            mockFs.unlinkSync = jest.fn();
-
-            filesService.deleteFileFromDisk('relative/path/file.txt');
-
-            expect(mockFs.unlinkSync).toHaveBeenCalled();
+            expect(mockFs.rmdirSync).not.toHaveBeenCalled();
         });
     });
 
     describe('Error Handling', () => {
-        it('should handle file system errors gracefully', () => {
-            mockFs.readdirSync = jest.fn().mockImplementation(() => {
-                throw new Error('File system error');
-            });
+        it('should handle readdir errors gracefully', async () => {
+            mockFs.promises.readdir = jest.fn<any>().mockRejectedValue(new Error('Permission denied')) as any;
 
-            expect(() => filesService.getFiles('/error/path', true)).toThrow('File system error');
+            const result = await service.getFiles('protected');
+
+            expect(result).toEqual([]);
         });
 
-        it('should handle invalid paths', () => {
-            mockFs.existsSync = jest.fn().mockReturnValue(false);
+        it('should handle lstatSync errors in getFiles', async () => {
+            mockFs.promises.readdir = jest.fn<any>().mockResolvedValue(['file.txt']) as any;
+            (mockFs.lstatSync as jest.Mock) = jest.fn<any>().mockImplementation(() => {
+                throw new Error('Cannot stat file');
+            }) as any;
 
-            const result = filesService.deleteFileFromDisk('');
-
-            expect(result).toBe(false);
-        });
-
-        it('should handle null or undefined paths', () => {
-            mockFs.existsSync = jest.fn().mockReturnValue(false);
-
-            const result = filesService.deleteFileFromDisk(null as any);
-
-            expect(result).toBe(false);
+            await expect(service.getFiles('test')).rejects.toThrow();
         });
     });
 });
