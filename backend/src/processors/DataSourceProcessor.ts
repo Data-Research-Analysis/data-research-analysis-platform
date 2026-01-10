@@ -934,15 +934,11 @@ export class DataSourceProcessor {
             }
             try {
                 // If JSON query is provided, reconstruct SQL from it (ensures JOINs are included)
+                // The reconstructed SQL already includes LIMIT/OFFSET from query_options
                 let finalQuery = query;
                 if (queryJSON) {
                     console.log('[DataSourceProcessor] Reconstructing query from JSON to ensure JOINs are included');
                     finalQuery = this.reconstructSQLFromJSON(queryJSON);
-                    // Apply LIMIT from original query if present
-                    const limitMatch = query.match(/LIMIT\s+(\d+)(\s+OFFSET\s+(\d+))?/i);
-                    if (limitMatch) {
-                        finalQuery += ` ${limitMatch[0]}`;
-                    }
                 }
                 
                 console.log('[DataSourceProcessor] Executing query on external datasource:', finalQuery);
@@ -2492,7 +2488,9 @@ export class DataSourceProcessor {
         
         // Build LIMIT/OFFSET clause
         if (query.query_options?.limit && query.query_options.limit !== -1) {
-            sqlParts.push(`LIMIT ${query.query_options.limit}`);
+            // CRITICAL: Ensure LIMIT is at least 1 (never 0 or negative)
+            const sanitizedLimit = Math.max(1, parseInt(String(query.query_options.limit), 10));
+            sqlParts.push(`LIMIT ${sanitizedLimit}`);
         }
         if (query.query_options?.offset && query.query_options.offset !== -1) {
             sqlParts.push(`OFFSET ${query.query_options.offset}`);

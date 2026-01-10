@@ -5,58 +5,16 @@
 
 import { ref, computed } from 'vue';
 import { getAuthToken } from '~/composables/AuthToken';
-
-export interface AggregatedMetrics {
-    operationName: string;
-    count: number;
-    totalDuration: number;
-    avgDuration: number;
-    minDuration: number;
-    maxDuration: number;
-    p50Duration: number;
-    p95Duration: number;
-    p99Duration: number;
-    successRate: number;
-    errorRate: number;
-}
-
-export interface PerformanceSnapshot {
-    operationName: string;
-    totalDuration: number;
-    startTime: number;
-    endTime: number;
-    timers: Array<{
-        name: string;
-        startTime: number;
-        endTime?: number;
-        duration?: number;
-        metadata?: Record<string, any>;
-    }>;
-    metadata: Record<string, any>;
-    memoryUsage?: {
-        rss: number;
-        heapTotal: number;
-        heapUsed: number;
-        external: number;
-        arrayBuffers: number;
-    };
-}
-
-export interface BottleneckAnalysis {
-    timerName: string;
-    totalDuration: number;
-    avgDuration: number;
-    count: number;
-}
+import type { IAggregatedMetrics, IPerformanceSnapshot, IBottleneckAnalysis } from '~/types/performance/metrics';
 
 export const usePerformanceMetrics = () => {
     const runtimeConfig = useRuntimeConfig();
     const API_BASE_URL = runtimeConfig.public.apiUrl;
 
     // State
-    const allMetrics = ref<AggregatedMetrics[]>([]);
-    const slowestOperations = ref<PerformanceSnapshot[]>([]);
-    const bottlenecks = ref<BottleneckAnalysis[]>([]);
+    const allMetrics = ref<IAggregatedMetrics[]>([]);
+    const slowestOperations = ref<IPerformanceSnapshot[]>([]);
+    const bottlenecks = ref<IBottleneckAnalysis[]>([]);
     const isLoading = ref(false);
     const error = ref<string | null>(null);
 
@@ -144,7 +102,7 @@ export const usePerformanceMetrics = () => {
     /**
      * Fetch metrics for a specific operation
      */
-    const fetchOperationMetrics = async (operationName: string): Promise<AggregatedMetrics | null> => {
+    const fetchOperationMetrics = async (operationName: string): Promise<IAggregatedMetrics | null> => {
         const token = getAuthToken();
         if (!token) {
             error.value = 'Authentication required';

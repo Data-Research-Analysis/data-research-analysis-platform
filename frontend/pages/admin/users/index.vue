@@ -4,9 +4,40 @@ import { useUserManagementStore } from '@/stores/user_management';
 const { $swal } = useNuxtApp();
 const userManagementStore = useUserManagementStore();
 const state = reactive({
+    userSubscriptions: {},
+    loadingSubscriptions: false,
 });
 
 const users = computed(() => [...userManagementStore.getUsers()].sort((a, b) => a.id - b.id));
+
+async function loadUserSubscriptions() {
+    state.loadingSubscriptions = true;
+    for (const user of users.value) {
+        const subscription = await userManagementStore.fetchUserSubscription(user.id);
+        state.userSubscriptions[user.id] = subscription;
+    }
+    state.loadingSubscriptions = false;
+}
+
+function getUserSubscription(userId) {
+    return state.userSubscriptions[userId];
+}
+
+function getTierBadgeClass(tierName) {
+    if (!tierName) return 'bg-gray-100 text-gray-700';
+    const name = tierName.toUpperCase();
+    if (name === 'FREE') return 'bg-gray-100 text-gray-700';
+    if (name === 'PRO') return 'bg-blue-100 text-blue-700';
+    if (name === 'TEAM') return 'bg-green-100 text-green-700';
+    if (name === 'BUSINESS') return 'bg-purple-100 text-purple-700';
+    if (name === 'ENTERPRISE') return 'bg-yellow-100 text-yellow-700';
+    return 'bg-gray-100 text-gray-700';
+}
+
+onMounted(async () => {
+    await userManagementStore.retrieveUsers();
+    await loadUserSubscriptions();
+});
 
 async function deleteUser(userId) {
     const { value: confirmDelete } = await $swal.fire({
@@ -127,6 +158,7 @@ function formatDate(dateString) {
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User Type</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subscription</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email Verified</th>
                                     <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
@@ -148,23 +180,38 @@ function formatDate(dateString) {
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        <span v-if="state.loadingSubscriptions" class="text-gray-400 text-xs">
+                                            Loading...
+                                        </span>
+                                        <span v-else-if="getUserSubscription(user.id)" :class="['px-2 py-1 rounded-lg text-xs font-medium', getTierBadgeClass(getUserSubscription(user.id)?.subscription_tier?.tier_name)]">
+                                            {{ getUserSubscription(user.id)?.subscription_tier?.tier_name?.toUpperCase() || 'UNKNOWN' }}
+                                        </span>
+                                        <span v-else class="text-gray-400 text-xs">
+                                            Not Assigned
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
                                         <span :class="{'text-green-600 font-medium': user.email_verified_at, 'text-red-600 font-medium': !user.email_verified_at}">
                                             {{ formatDate(user.email_verified_at) }}
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                         <div class="flex justify-end gap-2">
-                                            <NuxtLink :to="`/admin/users/${user.id}`" class="text-blue-600 hover:text-blue-900 cursor-pointer" v-tippy="{ content: 'Edit' }">
-                                                <font-awesome icon="fas fa-edit" class="text-2xl" />
+                                            <NuxtLink :to="`/admin/users/${user.id}`" class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-blue-100 hover:bg-blue-200 text-blue-700 hover:text-blue-900">
+                                                <font-awesome icon="fas fa-edit" class="text-base" />
+                                                <span>Edit</span>
                                             </NuxtLink>
-                                            <button @click="changeUserType(user.id, user.user_type)" class="text-yellow-600 hover:text-yellow-900 cursor-pointer" v-tippy="{ content: user.user_type === 'admin' ? 'Make Normal' : 'Make Admin' }">
-                                                <font-awesome icon="fas fa-user-shield" class="text-2xl" />
+                                            <button @click="changeUserType(user.id, user.user_type)" class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-yellow-100 hover:bg-yellow-200 text-yellow-700 hover:text-yellow-900">
+                                                <font-awesome icon="fas fa-user-shield" class="text-base" />
+                                                <span>{{ user.user_type === 'admin' ? 'Make Normal' : 'Make Admin' }}</span>
                                             </button>
-                                            <button @click="toggleEmailVerification(user.id)" class="text-purple-600 hover:text-purple-900 cursor-pointer" v-tippy="{ content: user.email_verified_at ? 'Unverify Email' : 'Verify Email' }">
-                                                <font-awesome :icon="user.email_verified_at ? 'fas fa-envelope-open-text' : 'fas fa-envelope'" class="text-2xl" />
+                                            <button @click="toggleEmailVerification(user.id)" class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-purple-100 hover:bg-purple-200 text-purple-700 hover:text-purple-900">
+                                                <font-awesome :icon="user.email_verified_at ? 'fas fa-envelope-open-text' : 'fas fa-envelope'" class="text-base" />
+                                                <span>{{ user.email_verified_at ? 'Unverify Email' : 'Verify Email' }}</span>
                                             </button>
-                                            <button @click="deleteUser(user.id)" class="text-red-600 hover:text-red-900 cursor-pointer" v-tippy="{ content: 'Delete' }">
-                                                <font-awesome icon="fas fa-trash" class="text-2xl" />
+                                            <button @click="deleteUser(user.id)" class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-red-100 hover:bg-red-200 text-red-700 hover:text-red-900">
+                                                <font-awesome icon="fas fa-trash" class="text-base" />
+                                                <span>Delete</span>
                                             </button>
                                         </div>
                                     </td>

@@ -4,27 +4,7 @@
  */
 
 import { ref, onMounted, onUnmounted, computed } from 'vue';
-
-export interface SyncStatus {
-    dataSourceId: number;
-    syncId: number;
-    status: 'idle' | 'starting' | 'running' | 'completed' | 'failed';
-    currentReport?: string;
-    progress: number; // 0-100
-    recordsSynced: number;
-    recordsFailed: number;
-    errors: string[];
-    startedAt?: Date;
-    completedAt?: Date;
-    durationMs?: number;
-}
-
-export interface SyncEvent {
-    type: string;
-    eventType?: string;
-    data?: any;
-    timestamp: string;
-}
+import type { ISyncStatus, ISyncEvent } from '~/types/sync/status';
 
 export function useSyncStatus() {
     const ws = ref<WebSocket | null>(null);
@@ -34,7 +14,7 @@ export function useSyncStatus() {
     const reconnectDelay = 3000;
     
     // Track sync statuses for multiple data sources
-    const syncStatuses = ref<Map<number, SyncStatus>>(new Map());
+    const syncStatuses = ref<Map<number, ISyncStatus>>(new Map());
     
     // Subscribed data source IDs
     const subscribedDataSources = ref<Set<number>>(new Set());
@@ -69,7 +49,7 @@ export function useSyncStatus() {
             
             ws.value.onmessage = (event) => {
                 try {
-                    const message: SyncEvent = JSON.parse(event.data);
+                    const message: ISyncEvent = JSON.parse(event.data);
                     handleMessage(message);
                 } catch (error) {
                     console.error('Failed to parse WebSocket message:', error);
@@ -159,7 +139,7 @@ export function useSyncStatus() {
     /**
      * Handle incoming WebSocket messages
      */
-    const handleMessage = (message: SyncEvent) => {
+    const handleMessage = (message: ISyncEvent) => {
         switch (message.type) {
             case 'connected':
                 console.log('WebSocket connection confirmed');
@@ -185,7 +165,7 @@ export function useSyncStatus() {
     /**
      * Handle sync event updates
      */
-    const handleSyncEvent = (message: SyncEvent) => {
+    const handleSyncEvent = (message: ISyncEvent) => {
         const { eventType, data } = message;
         const dataSourceId = data?.dataSourceId;
         
@@ -253,7 +233,7 @@ export function useSyncStatus() {
     /**
      * Get sync status for a specific data source
      */
-    const getSyncStatus = (dataSourceId: number): SyncStatus | undefined => {
+    const getSyncStatus = (dataSourceId: number): ISyncStatus | undefined => {
         return syncStatuses.value.get(dataSourceId);
     };
     

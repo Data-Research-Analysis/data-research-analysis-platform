@@ -1,29 +1,6 @@
 import { ref, computed, type Ref } from 'vue';
-import { getAuthToken } from '~/utils/AuthToken';
-
-/**
- * Scheduled job interface
- */
-export interface ScheduledJob {
-  dataSourceId: number;
-  dataSourceName?: string;
-  schedule: string; // cron expression
-  enabled: boolean;
-  lastRun: string | null;
-  nextRun: string | null;
-  runCount: number;
-}
-
-/**
- * Scheduler statistics interface
- */
-export interface SchedulerStats {
-  totalJobs: number;
-  enabledJobs: number;
-  disabledJobs: number;
-  totalRuns: number;
-  lastJobRun: string | null;
-}
+import { getAuthToken } from '~/composables/AuthToken';
+import type { IScheduledJob, ISchedulerStats } from '~/types/google-ad-manager/scheduler';
 
 /**
  * Composable for managing Google Ad Manager sync schedules
@@ -33,9 +10,9 @@ export const useGAMScheduler = () => {
   const baseURL = config.public.apiBaseUrl;
 
   // State
-  const scheduledJobs: Ref<ScheduledJob[]> = ref([]);
-  const currentJob: Ref<ScheduledJob | null> = ref(null);
-  const stats: Ref<SchedulerStats | null> = ref(null);
+  const scheduledJobs: Ref<IScheduledJob[]> = ref([]);
+  const currentJob: Ref<IScheduledJob | null> = ref(null);
+  const stats: Ref<ISchedulerStats | null> = ref(null);
   const isLoading: Ref<boolean> = ref(false);
   const error: Ref<string | null> = ref(null);
 

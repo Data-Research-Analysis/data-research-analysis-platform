@@ -173,17 +173,21 @@ async function unpublishArticle(articleId) {
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                         <div class="flex justify-end gap-2">
-                                            <button v-if="article.article.publish_status === 'draft'" @click="publishArticle(article.article.id)" class="text-green-600 hover:text-green-900 cursor-pointer" v-tippy="{ content: 'Publish' }">
-                                                <font-awesome icon="fas fa-paper-plane" class="text-2xl" />
+                                            <button v-if="article.article.publish_status === 'draft'" @click="publishArticle(article.article.id)" class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-green-100 hover:bg-green-200 text-green-700 hover:text-green-900">
+                                                <font-awesome icon="fas fa-paper-plane" class="text-base" />
+                                                <span>Publish</span>
                                             </button>
-                                            <button v-if="article.article.publish_status === 'published'" @click="unpublishArticle(article.article.id)" class="text-orange-600 hover:text-orange-900 cursor-pointer" v-tippy="{ content: 'Unpublish' }">
-                                                <font-awesome icon="fas fa-file-archive" class="text-2xl" />
+                                            <button v-if="article.article.publish_status === 'published'" @click="unpublishArticle(article.article.id)" class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-orange-100 hover:bg-orange-200 text-orange-700 hover:text-orange-900">
+                                                <font-awesome icon="fas fa-file-archive" class="text-base" />
+                                                <span>Unpublish</span>
                                             </button>
-                                            <NuxtLink :to="`/admin/articles/${article.article.id}`" class="text-blue-600 hover:text-blue-900 cursor-pointer" v-tippy="{ content: 'Edit' }">
-                                                <font-awesome icon="fas fa-edit" class="text-2xl" />
+                                            <NuxtLink :to="`/admin/articles/${article.article.id}`" class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-blue-100 hover:bg-blue-200 text-blue-700 hover:text-blue-900">
+                                                <font-awesome icon="fas fa-edit" class="text-base" />
+                                                <span>Edit</span>
                                             </NuxtLink>
-                                            <button @click="deleteArticle(article.article.id)" class="text-red-600 hover:text-red-900 cursor-pointer" v-tippy="{ content: 'Delete' }">
-                                                <font-awesome icon="fas fa-trash" class="text-2xl" />
+                                            <button @click="deleteArticle(article.article.id)" class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-red-100 hover:bg-red-200 text-red-700 hover:text-red-900">
+                                                <font-awesome icon="fas fa-trash" class="text-base" />
+                                                <span>Delete</span>
                                             </button>
                                         </div>
                                     </td>

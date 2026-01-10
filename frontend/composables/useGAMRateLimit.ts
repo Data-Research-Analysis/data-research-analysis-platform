@@ -5,36 +5,14 @@
 
 import { ref, computed, onUnmounted } from 'vue';
 import { getAuthToken } from '~/composables/AuthToken';
-export interface RateLimitStatus {
-    remainingRequests: number;
-    resetTime: string;
-    isLimited: boolean;
-    retryAfterMs?: number;
-}
-
-export interface RateLimitStats {
-    queueLength: number;
-    tokens: number;
-    requestsInWindow: number;
-    config: {
-        maxRequests: number;
-        windowMs: number;
-        burstSize: number;
-        minInterval: number;
-    };
-}
-
-export interface RateLimitData {
-    status: RateLimitStatus;
-    stats: RateLimitStats;
-}
+import type { IRateLimitStatus, IRateLimitStats, IRateLimitData } from '~/types/google-ad-manager/rate-limit';
 
 export const useGAMRateLimit = () => {
     const runtimeConfig = useRuntimeConfig();
     const API_BASE_URL = runtimeConfig.public.apiUrl;
 
     // State
-    const rateLimitData = ref<RateLimitData | null>(null);
+    const rateLimitData = ref<IRateLimitData | null>(null);
     const isLoading = ref(false);
     const error = ref<string | null>(null);
     const autoRefreshEnabled = ref(false);
