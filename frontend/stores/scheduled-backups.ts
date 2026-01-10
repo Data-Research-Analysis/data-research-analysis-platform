@@ -1,60 +1,17 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-
-export interface SchedulerStatus {
-    scheduler_enabled: boolean;
-    is_running: boolean;
-    current_schedule: string;
-    next_run: string | null;
-    last_run: string | null;
-    total_runs: number;
-    successful_runs: number;
-    failed_runs: number;
-}
-
-export interface SchedulerConfig {
-    schedule: string;
-    enabled: boolean;
-    retention_days: number;
-    system_user_id: number;
-}
-
-export interface BackupRun {
-    id: number;
-    backup_id: string | null;
-    trigger_type: 'scheduled' | 'manual';
-    status: 'queued' | 'processing' | 'completed' | 'failed';
-    started_at: string;
-    completed_at: string | null;
-    error_message: string | null;
-    backup_size_bytes: number | null;
-    backup_filepath: string | null;
-    triggered_by_user_id: number;
-    created_at: string;
-    updated_at: string;
-}
-
-export interface BackupStats {
-    total_runs: number;
-    successful_runs: number;
-    failed_runs: number;
-    avg_duration_seconds: number;
-    total_backup_size_bytes: number;
-}
-
-export interface PaginationData {
-    total: number;
-    page: number;
-    limit: number;
-    total_pages: number;
-}
+import type { ISchedulerStatus } from '~/types/scheduled-backups/ISchedulerStatus';
+import type { ISchedulerConfig } from '~/types/scheduled-backups/ISchedulerConfig';
+import type { IBackupRun } from '~/types/scheduled-backups/IBackupRun';
+import type { IBackupStats } from '~/types/scheduled-backups/IBackupStats';
+import type { IPaginationData } from '~/types/scheduled-backups/IPaginationData';
 
 export const useScheduledBackupsStore = defineStore('scheduled-backups', () => {
-    const schedulerStatus = ref<SchedulerStatus | null>(null);
-    const schedulerConfig = ref<SchedulerConfig | null>(null);
-    const backupRuns = ref<BackupRun[]>([]);
-    const backupStats = ref<BackupStats | null>(null);
-    const pagination = ref<PaginationData>({
+    const schedulerStatus = ref<ISchedulerStatus | null>(null);
+    const schedulerConfig = ref<ISchedulerConfig | null>(null);
+    const backupRuns = ref<IBackupRun[]>([]);
+    const backupStats = ref<IBackupStats | null>(null);
+    const pagination = ref<IPaginationData>({
         total: 0,
         page: 1,
         limit: 20,
@@ -359,7 +316,7 @@ export const useScheduledBackupsStore = defineStore('scheduled-backups', () => {
         }
     }
 
-    async function updateConfig(config: Partial<SchedulerConfig>) {
+    async function updateConfig(config: Partial<ISchedulerConfig>) {
         try {
             loading.value = true;
             error.value = null;

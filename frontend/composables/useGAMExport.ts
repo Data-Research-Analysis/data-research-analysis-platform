@@ -5,47 +5,7 @@
 
 import { ref } from 'vue';
 import { getAuthToken } from '~/composables/AuthToken';
-export type ExportFormat = 'csv' | 'json' | 'xlsx';
-
-export interface ExportOptions {
-    dataSourceId: number;
-    format: ExportFormat;
-    reportType: string;
-    networkCode: string;
-    startDate?: string;
-    endDate?: string;
-    columns?: string[];
-    limit?: number;
-    includeHeaders?: boolean;
-}
-
-export interface ExportResult {
-    success: boolean;
-    filePath?: string;
-    fileName?: string;
-    fileSize?: number;
-    recordCount?: number;
-    format?: ExportFormat;
-    error?: string;
-    downloadUrl?: string;
-}
-
-export interface ExportHistoryEntry {
-    id: number;
-    dataSourceId: number;
-    userId: number;
-    reportType: string;
-    format: ExportFormat;
-    fileName: string;
-    filePath: string;
-    fileSize: number;
-    recordCount: number;
-    status: 'pending' | 'completed' | 'failed';
-    error?: string;
-    createdAt: string;
-    completedAt?: string;
-    expiresAt?: string;
-}
+import type { ExportFormat, IExportOptions, IExportResult, IExportHistoryEntry } from '~/types/google-ad-manager/export';
 
 export const useGAMExport = () => {
     const runtimeConfig = useRuntimeConfig();
@@ -55,12 +15,12 @@ export const useGAMExport = () => {
     const isExporting = ref(false);
     const exportProgress = ref(0);
     const error = ref<string | null>(null);
-    const exportHistory = ref<ExportHistoryEntry[]>([]);
+    const exportHistory = ref<IExportHistoryEntry[]>([]);
 
     /**
      * Create an export
      */
-    const createExport = async (options: ExportOptions): Promise<ExportResult> => {
+    const createExport = async (options: IExportOptions): Promise<IExportResult> => {
         const token = getAuthToken();
         if (!token) {
             return {
@@ -103,7 +63,7 @@ export const useGAMExport = () => {
             console.error('❌ Export failed:', err);
             return {
                 success: false,
-                error: error.value
+                error: error.value || undefined
             };
         } finally {
             isExporting.value = false;

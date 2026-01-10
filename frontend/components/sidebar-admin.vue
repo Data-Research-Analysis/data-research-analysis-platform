@@ -50,6 +50,14 @@ const state = reactive({
                 { id: 4, name: 'Scheduled Backups', path: '/admin/database/scheduled-backups' },
             ],
         },
+        {
+            id: 6,
+            menu_name: 'Subscription Tiers',
+            show_menu: true,
+            sub_menus: [
+                { id: 1, name: 'Manage Tiers', path: '/admin/subscription-tiers' },
+            ],
+        },
     ],
 })
 const props = defineProps({

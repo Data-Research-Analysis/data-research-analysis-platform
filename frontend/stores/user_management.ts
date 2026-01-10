@@ -210,6 +210,89 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
         }
     }
 
+    async function fetchUserSubscription(userId: number) {
+        const token = getAuthToken();
+        if (!token) {
+            return null;
+        }
+        const url = `${baseUrl()}/admin/users/${userId}/subscription`;
+        try {
+            const response = await fetch(url, {
+                method: "GET",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+            });
+            if (response.ok) {
+                const result = await response.json();
+                return result.data;
+            }
+            return null;
+        } catch (error) {
+            console.error('Error fetching user subscription:', error);
+            return null;
+        }
+    }
+
+    async function updateUserSubscription(userId: number, tierId: number, endsAt?: string) {
+        const token = getAuthToken();
+        if (!token) {
+            return { success: false, message: 'Not authenticated' };
+        }
+        const url = `${baseUrl()}/admin/users/${userId}/subscription`;
+        try {
+            const body: any = { tier_id: tierId };
+            if (endsAt) {
+                body.ends_at = endsAt;
+            }
+            const response = await fetch(url, {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+                body: JSON.stringify(body),
+            });
+            const result = await response.json();
+            if (response.ok) {
+                return { success: true, data: result.data };
+            }
+            return { success: false, message: result.message || 'Failed to update subscription' };
+        } catch (error: any) {
+            console.error('Error updating user subscription:', error);
+            return { success: false, message: error.message || 'Error updating subscription' };
+        }
+    }
+
+    async function getAvailableTiers(userId: number) {
+        const token = getAuthToken();
+        if (!token) {
+            return [];
+        }
+        const url = `${baseUrl()}/admin/users/${userId}/available-tiers`;
+        try {
+            const response = await fetch(url, {
+                method: "GET",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+            });
+            if (response.ok) {
+                const result = await response.json();
+                return result.data || [];
+            }
+            return [];
+        } catch (error) {
+            console.error('Error fetching available tiers:', error);
+            return [];
+        }
+    }
+
     return {
         users,
         selectedUser,
@@ -227,5 +310,8 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
         createUser,
         deleteUser,
         getPrivateBetaUserForConversion,
+        fetchUserSubscription,
+        updateUserSubscription,
+        getAvailableTiers,
     }
 });

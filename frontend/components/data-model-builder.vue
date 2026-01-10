@@ -1,11 +1,13 @@
 <script setup>
 import _ from 'lodash';
 import { useAIDataModelerStore } from '~/stores/ai-data-modeler';
+import { useSubscriptionStore } from '~/stores/subscription';
 
 const { $swal } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
 const aiDataModelerStore = useAIDataModelerStore();
+const subscriptionStore = useSubscriptionStore();
 const state = reactive({
     show_dialog: false,
     show_calculated_column_dialog: false,
@@ -71,6 +73,7 @@ const state = reactive({
     sql_query: '',
     response_from_external_data_source_columns: [],
     response_from_external_data_source_rows: [],
+    query_metadata: null, // Store row limit metadata
     calculated_column: {},
     alerts: [],
     transform_functions: [
@@ -85,6 +88,42 @@ const state = reactive({
         { name: 'ROUND', value: 'ROUND', close_parens: 1 },
     ],
 });
+
+// Computed properties for tier-based row limits
+const userRowLimit = computed(() => {
+    const limit = subscriptionStore.subscription?.subscription_tier?.max_rows_per_data_model;
+    return limit === -1 ? 999999999 : (limit || 100000); // -1 means unlimited (enterprise)
+});
+
+const userTierName = computed(() => {
+    return subscriptionStore.subscription?.subscription_tier?.tier_name || 'FREE';
+});
+
+const isUnlimitedTier = computed(() => {
+    const limit = subscriptionStore.subscription?.subscription_tier?.max_rows_per_data_model;
+    return limit === -1;
+});
+
+// Enforce tier limit on LIMIT input
+function enforceLimitRestriction() {
+    if (state.data_table.query_options.limit > userRowLimit.value) {
+        $swal.fire({
+            icon: 'error',
+            title: 'Row Limit Exceeded',
+            html: `
+                <div class="text-left">
+                    <p class="mb-4">Your <strong>${userTierName.value}</strong> tier allows a maximum of 
+                    <strong>${userRowLimit.value.toLocaleString()}</strong> rows per data model.</p>
+                    <p>The limit has been automatically adjusted to your maximum allowed value.</p>
+                </div>
+            `,
+            confirmButtonColor: '#3C8DBC',
+            confirmButtonText: 'OK',
+        });
+        state.data_table.query_options.limit = userRowLimit.value;
+    }
+}
+
 const props = defineProps({
     dataModel: {
         type: Object,
@@ -864,12 +903,17 @@ function performCreateAlias(table, alias) {
         alias
     });
 
-    console.log(`[createTableAlias] Created alias "${alias}" for ${schema}.${tableName}`);
+    const sourceTable = state.tables.find(t => 
+        t.table_name === tableName && t.schema === schema
+    );
+    const displayName = sourceTable?.logical_name || tableName;
+
+    console.log(`[createTableAlias] Created alias "${alias}" for ${schema}.${tableName} (${displayName})`);
 
     $swal.fire({
         icon: 'success',
         title: 'Alias Created',
-        text: `You can now add columns from "${alias}" (${tableName})`,
+        text: `You can now add columns from "${alias}" (${displayName})`,
         timer: 2000,
         showConfirmButton: false
     });
@@ -999,6 +1043,7 @@ function getTablesWithAliases() {
             schema: table.schema,
             table_name: table.table_name,
             display_name: table.logical_name || table.table_name,
+            logical_name: table.logical_name, // Include logical_name for template display
             columns: table.columns,
             references: table.references || [],
             isAlias: false,
@@ -1027,6 +1072,7 @@ function getTablesWithAliases() {
                 table_name: alias.original_table,
                 table_alias: alias.alias,
                 display_name: `${alias.alias}`,
+                logical_name: originalTable.logical_name || alias.original_table,
                 columns: aliasedColumns,
                 references: originalTable.references || [],
                 isAlias: true,
@@ -1064,9 +1110,12 @@ function getAvailableTablesForJoin() {
             ? `${col.schema}.${col.table_name}::${col.table_alias}`
             : `${col.schema}.${col.table_name}`;
 
+        // Use logical name if available, fallback to physical name
+        const logicalName = col.table_logical_name || getTableLogicalName(col.schema, col.table_name);
+        
         const label = col.table_alias
-            ? `${col.schema}.${col.table_alias} (${col.table_name})`
-            : `${col.schema}.${col.table_name}`;
+            ? `${col.schema}.${col.table_alias} (${logicalName})`
+            : `${col.schema}.${logicalName}`;
 
         if (!tables.has(key)) {
             tables.set(key, {
@@ -1074,7 +1123,8 @@ function getAvailableTablesForJoin() {
                 label: label,
                 schema: col.schema,
                 table_name: col.table_name,
-                table_alias: col.table_alias || null
+                table_alias: col.table_alias || null,
+                logical_name: logicalName
             });
         }
     });
@@ -1868,6 +1918,65 @@ function getColumnUsages(column) {
     );
     return hidden?.usage || [];
 }
+
+/**
+ * Get logical (human-readable) table name from state.tables
+ * Falls back to physical table name if no metadata exists
+ */
+function getTableLogicalName(schema, tableName) {
+    const table = state.tables.find(t => 
+        t.schema === schema && t.table_name === tableName
+    );
+    return table?.logical_name || tableName;
+}
+
+/**
+ * Extract table name from column alias
+ * Aliases are in format: tableName_columnName or schema_tableName_columnName
+ */
+function getColumnTableName(columnAlias) {
+    // Find the column in data_table.columns to get accurate table info
+    const column = state.data_table.columns.find(col => {
+        const expectedAlias = col.alias_name || 
+            (col.table_alias || col.table_name) + '_' + col.column_name;
+        return columnAlias === expectedAlias || columnAlias.endsWith('_' + col.column_name);
+    });
+    
+    if (column) {
+        return column.table_logical_name || getTableLogicalName(column.schema, column.table_name);
+    }
+    
+    // Fallback: parse from alias (format: table_column or schema_table_column)
+    const parts = columnAlias.split('_');
+    if (parts.length >= 2) {
+        // Remove the last part (column name) to get table name
+        const tablePart = parts.slice(0, -1).join('_');
+        return tablePart;
+    }
+    
+    return columnAlias;
+}
+
+/**
+ * Get display name for column in response table
+ * Shows logical table name with column name
+ */
+function getColumnDisplayName(columnAlias) {
+    // Find the column in data_table.columns
+    const column = state.data_table.columns.find(col => {
+        const expectedAlias = col.alias_name || 
+            (col.table_alias || col.table_name) + '_' + col.column_name;
+        return columnAlias === expectedAlias || columnAlias.endsWith('_' + col.column_name);
+    });
+    
+    if (column) {
+        const logicalTableName = column.table_logical_name || getTableLogicalName(column.schema, column.table_name);
+        return `${logicalTableName}.${column.column_name}`;
+    }
+    
+    // Fallback: use the alias as-is
+    return columnAlias;
+}
 function addQueryOption(queryOption) {
     if (queryOption === 'WHERE') {
         state.data_table.query_options.where.push({
@@ -1931,7 +2040,7 @@ function addQueryOption(queryOption) {
     } else if (queryOption === 'OFFSET') {
         state.data_table.query_options.offset = 0;
     } else if (queryOption === 'LIMIT') {
-        state.data_table.query_options.limit = 0;
+        state.data_table.query_options.limit = 1;
     }
     state.show_dialog = false;
 }
@@ -2156,9 +2265,10 @@ function buildSQLQuery() {
             const tableName = column.table_name.length > 20 ? column.table_name.slice(-20) : column.table_name;
             const tableRef = column.table_alias || tableName;
             const aliasName = column?.alias_name !== '' ? column.alias_name : `${tableRef}_${column.column_name}`;
+            // Use 2-part identifier (table.column) - schema is already in FROM clause
             const columnRef = column.table_alias
-                ? `${column.schema}.${column.table_alias}.${column.column_name}`
-                : `${column.schema}.${column.table_name}.${column.column_name}`;
+                ? `${column.table_alias}.${column.column_name}`
+                : `${column.table_name}.${column.column_name}`;
             return `${columnRef} AS ${aliasName}`;
         }).join(', ')}`;
     } else {
@@ -2454,7 +2564,26 @@ function buildSQLQuery() {
 
         console.log('[buildSQLQuery] Columns used in aggregates:', Array.from(aggregateColumns));
 
-        sqlQuery = `SELECT ${state.data_table.columns.filter((column) => {
+        // CRITICAL: Reorder columns to match table order in JOIN clauses
+        // This prevents referencing tables before they're introduced in the FROM/JOIN clause
+        const tableOrderMap = new Map();
+        fromJoinClauses.forEach((clause, index) => {
+            const leftKey = `${clause.local_table_schema}.${clause.local_table_name}`;
+            const rightKey = `${clause.foreign_table_schema}.${clause.foreign_table_name}`;
+            if (!tableOrderMap.has(leftKey)) tableOrderMap.set(leftKey, index * 2);
+            if (!tableOrderMap.has(rightKey)) tableOrderMap.set(rightKey, index * 2 + 1);
+        });
+
+        // Sort columns by table order
+        const orderedColumns = [...state.data_table.columns].sort((a, b) => {
+            const keyA = `${a.schema}.${a.table_name}`;
+            const keyB = `${b.schema}.${b.table_name}`;
+            const orderA = tableOrderMap.get(keyA) ?? 999;
+            const orderB = tableOrderMap.get(keyB) ?? 999;
+            return orderA - orderB;
+        });
+
+        sqlQuery = `SELECT ${orderedColumns.filter((column) => {
             // Exclude columns that are ONLY used in aggregates (not for grouping)
             const columnFullPath = `${column.schema}.${column.table_name}.${column.column_name}`;
             const isAggregateOnly = aggregateColumns.has(columnFullPath);
@@ -2476,9 +2605,10 @@ function buildSQLQuery() {
             }
 
             // Use table alias in column reference if it exists
+            // Use 2-part identifier (table.column) - schema is already in FROM/JOIN clause
             let columnRef = column.table_alias
-                ? `${column.schema}.${column.table_alias}.${column.column_name}`
-                : `${column.schema}.${column.table_name}.${column.column_name}`;
+                ? `${column.table_alias}.${column.column_name}`
+                : `${column.table_name}.${column.column_name}`;
 
             if (column.transform_function) {
                 const closeParens = ')'.repeat(column.transform_close_parens || 1);
@@ -2708,9 +2838,20 @@ async function saveDataModel() {
         offsetStr = 'OFFSET 0';
     }
     if (state.data_table.query_options.limit > -1) {
-        limitStr = `LIMIT ${state.data_table.query_options.limit}`;
+        // CRITICAL: Enforce tier limit - never allow exceeding user's allowed limit
+        const tierLimit = subscriptionStore.subscription?.subscription_tier?.max_rows_per_data_model || 100000;
+        const effectiveLimit = tierLimit === -1 ? state.data_table.query_options.limit : Math.min(state.data_table.query_options.limit, tierLimit);
+        
+        if (state.data_table.query_options.limit > tierLimit && tierLimit !== -1) {
+            console.warn(`[saveDataModel] User attempted to set limit ${state.data_table.query_options.limit} exceeding tier limit ${tierLimit}. Capping to tier limit.`);
+            state.data_table.query_options.limit = tierLimit;
+        }
+        
+        limitStr = `LIMIT ${effectiveLimit}`;
     } else {
-        limitStr = 'LIMIT 1000';
+        // Use user's tier limit as default
+        const userRowLimit = subscriptionStore.subscription?.subscription_tier?.max_rows_per_data_model || 100000;
+        limitStr = `LIMIT ${userRowLimit}`;
     }
     sqlQuery += ` ${limitStr} ${offsetStr}`;
     state.sql_query = sqlQuery;
@@ -2875,6 +3016,12 @@ async function executeQueryOnExternalDataSource() {
     try {
         state.response_from_external_data_source_columns = [];
         state.response_from_external_data_source_rows = [];
+        
+        // CRITICAL: Sync JOIN conditions to data_table before building query
+        // This ensures the JSON sent to backend includes all JOINs
+        state.data_table.join_conditions = [...state.join_conditions];
+        state.data_table.table_aliases = [...state.table_aliases];
+        
         state.sql_query = buildSQLQuery();
         state.sql_query += ` LIMIT 5 OFFSET 0`;
         console.log('[Data Model Builder - executeQueryOnExternalDataSource] SQL Query being sent:', state.sql_query);
@@ -2918,7 +3065,15 @@ async function executeQueryOnExternalDataSource() {
             return;
         }
 
-        const data = JSON.parse(text);
+        const responseData = JSON.parse(text);
+        
+        // Store metadata if present (includes row limit info)
+        if (responseData.metadata) {
+            state.query_metadata = responseData.metadata;
+        }
+        
+        const data = responseData.results || responseData;
+        
         if (data && data.length) {
             // Check for array values in result (indicates potential cartesian product)
             const hasArrayValues = data.some(row =>
@@ -2975,9 +3130,16 @@ async function toggleColumnInDataModel(column, tableName, tableAlias = null) {
         const newColumn = _.cloneDeep(column);
         newColumn.table_name = tableName;
         newColumn.table_alias = tableAlias;
+        
+        // Get logical name for display
+        const sourceTable = state.tables.find(t => 
+            t.table_name === tableName && t.schema === newColumn.schema
+        );
+        newColumn.table_logical_name = sourceTable?.logical_name || tableName;
+        
         newColumn.display_name = tableAlias
             ? `${tableAlias}.${column.column_name}`
-            : `${tableName}.${column.column_name}`;
+            : `${newColumn.table_logical_name}.${column.column_name}`;
         newColumn.is_selected_column = true;
         newColumn.alias_name = "";
         newColumn.transform_function = '';
@@ -3687,6 +3849,14 @@ function validateAndTransformAIModel(aiModel) {
 }
 
 onMounted(async () => {
+    // Load subscription stats for row limit enforcement
+    try {
+        await subscriptionStore.fetchSubscriptionStats();
+        console.log('[Data Model Builder] Subscription stats loaded:', subscriptionStore.subscription?.subscription_tier?.tier_name);
+    } catch (error) {
+        console.error('[Data Model Builder] Failed to load subscription stats:', error);
+    }
+    
     // CRITICAL: Load tables FIRST before processing data model
     // This ensures state.tables is available when ensureReferencedColumnsExist() runs
     console.log('[DEBUG - Data Model Builder] Raw dataSourceTables received:', props.dataSourceTables.length, 'tables');
@@ -3724,6 +3894,21 @@ onMounted(async () => {
 
     if (props.dataModel && props.dataModel.query) {
         state.data_table = props.dataModel.query;
+
+        // Enrich columns with logical table names from metadata (for legacy models)
+        if (state.data_table.columns) {
+            state.data_table.columns.forEach(col => {
+                if (!col.table_logical_name) {
+                    const sourceTable = state.tables.find(t => 
+                        t.table_name === col.table_name && t.schema === col.schema
+                    );
+                    if (sourceTable?.logical_name) {
+                        col.table_logical_name = sourceTable.logical_name;
+                        console.log(`[Data Model Builder] Enriched column ${col.column_name} with logical name: ${sourceTable.logical_name}`);
+                    }
+                }
+            });
+        }
 
         // Ensure join_conditions exists (for backward compatibility with older saved models)
         if (!state.data_table.join_conditions) {
@@ -3900,13 +4085,28 @@ onMounted(async () => {
         <div v-if="state.response_from_external_data_source_columns && state.response_from_external_data_source_columns.length"
             class="flex flex-col overflow-auto">
             <h3 class="font-bold text-left mb-5">Response From External Data Source</h3>
-            <div class="rounded-lg overflow-hidden ring-1 ring-primary-blue-100 ring-inset mb-2">
+            
+            <!-- Row Limit Warning -->
+            <RowLimitWarning 
+                v-if="state.query_metadata?.wasLimited"
+                :rowsReturned="state.query_metadata.rowsReturned"
+                :rowLimit="state.query_metadata.rowLimit"
+                :tierName="subscriptionStore.subscription?.subscription_tier?.tier_name || 'current'"
+                :wasLimited="state.query_metadata.wasLimited"
+                :isBlocking="true"
+                class="mb-4"
+            />
+            
+            <div class="rounded-lg overflow-auto ring-1 ring-primary-blue-100 ring-inset mb-2">
                 <table class="w-full">
                 <thead>
                     <tr>
                         <th v-for="column in state.response_from_external_data_source_columns"
                             class="bg-blue-100 border border-primary-blue-100 border-solid p-2 text-center font-bold rounded-tl-lg">
-                            {{ column }}
+                            <div class="flex flex-col">
+                                <span class="font-bold">{{ getColumnDisplayName(column) }}</span>
+                                <span v-if="getColumnTableName(column) !== getColumnDisplayName(column)" class="text-xs text-gray-600 mt-1">({{ column }})</span>
+                            </div>
                         </th>
                     </tr>
                     <tr v-for="row in state.response_from_external_data_source_rows"
@@ -4049,7 +4249,7 @@ onMounted(async () => {
                                             class="font-mono text-sm bg-gray-100 p-2 border border-gray-300 flex items-center wrap-anywhere rounded">
                                             <span class="font-semibold text-blue-700">
                                                 {{ join.left_table_schema }}.{{ join.left_table_alias ||
-                                                    join.left_table_name }}.{{ join.left_column_name }}
+                                                    getTableLogicalName(join.left_table_schema, join.left_table_name) }}.{{ join.left_column_name }}
                                             </span>
                                             <select :value="join.primary_operator || '='"
                                                 @change="updateJoinOperator(joinIndex, $event.target.value)"
@@ -4063,7 +4263,7 @@ onMounted(async () => {
                                             </select>
                                             <span class="font-semibold text-green-700">
                                                 {{ join.right_table_schema }}.{{ join.right_table_alias ||
-                                                    join.right_table_name }}.{{ join.right_column_name }}
+                                                    getTableLogicalName(join.right_table_schema, join.right_table_name) }}.{{ join.right_column_name }}
                                             </span>
                                         </div>
 
@@ -4189,7 +4389,10 @@ onMounted(async () => {
                         <div class="p-1 m-2 p-2 wrap-anywhere rounded-lg"
                             :class="tableOrAlias.isAlias ? 'bg-blue-100' : 'bg-gray-300'">
                             Table Schema: {{ tableOrAlias.schema }} <br />
-                            Table Name: {{ tableOrAlias.table_name }}
+                            Table Name: {{ tableOrAlias.logical_name || tableOrAlias.table_name }}
+                            <span v-if="tableOrAlias.logical_name && tableOrAlias.logical_name !== tableOrAlias.table_name" class="text-xs text-gray-600 block mt-1">
+                                Physical: {{ tableOrAlias.table_name }}
+                            </span>
                             <span v-if="tableOrAlias.isAlias" class="block mt-1">
                                 <br />Alias: <strong class="text-blue-700">{{ tableOrAlias.table_alias }}</strong>
                             </span>
@@ -4291,7 +4494,10 @@ onMounted(async () => {
                                                         class="border border-primary-blue-100 border-solid p-2 text-center font-bold">
                                                         <td
                                                             class="border border-primary-blue-100 border-solid p-2 text-center wrap-anywhere">
-                                                            {{ element.table_name }}
+                                                            {{ element.table_logical_name || getTableLogicalName(element.schema, element.table_name) }}
+                                                            <span v-if="(element.table_logical_name || getTableLogicalName(element.schema, element.table_name)) !== element.table_name" class="block text-xs text-gray-600 mt-1">
+                                                                ({{ element.table_name }})
+                                                            </span>
                                                         </td>
                                                         <td
                                                             class="border border-primary-blue-100 border-solid p-2 text-center wrap-anywhere">
@@ -4773,13 +4979,28 @@ onMounted(async () => {
                                         class="w-full flex flex-col mt-5">
                                         <h3 class="font-bold">Limit</h3>
                                         <div class="flex flex-col bg-gray-100 p-5 rounded-lg">
+                                            <!-- Tier limit info -->
+                                            <div class="text-sm mb-3 p-3 rounded-lg" :class="isUnlimitedTier ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-blue-50 text-blue-700 border border-blue-200'">
+                                                <font-awesome :icon="isUnlimitedTier ? 'fas fa-infinity' : 'fas fa-info-circle'" class="mr-2" />
+                                                <template v-if="isUnlimitedTier">
+                                                    Your <strong>{{ userTierName }}</strong> tier has unlimited rows per data model.
+                                                </template>
+                                                <template v-else>
+                                                    Your <strong>{{ userTierName }}</strong> tier allows up to <strong>{{ userRowLimit.toLocaleString() }}</strong> rows per data model.
+                                                </template>
+                                            </div>
+                                            
                                             <div class="flex flex-row justify-between">
                                                 <div class="flex flex-col w-full mr-2">
                                                     <h5 class="font-bold mb-2">Value</h5>
                                                     <div class="flex flex-row justify-between">
                                                         <input type="number"
                                                             class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
-                                                            v-model="state.data_table.query_options.limit" min="0" />
+                                                            v-model="state.data_table.query_options.limit" 
+                                                            min="1" 
+                                                            :max="userRowLimit"
+                                                            @input="enforceLimitRestriction"
+                                                            :placeholder="`Maximum: ${userRowLimit.toLocaleString()}`" />
                                                         <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center ml-2 mr-2 p-5 cursor-pointer text-white font-bold rounded-lg"
                                                             @click="removeQueryOption('LIMIT', 0)">
                                                             Delete
