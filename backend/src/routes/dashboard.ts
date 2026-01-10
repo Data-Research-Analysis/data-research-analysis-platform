@@ -3,6 +3,7 @@ import { validateJWT } from '../middleware/authenticate.js';
 import { validate } from '../middleware/validator.js';
 import { body, param, matchedData } from 'express-validator';
 import { DashboardProcessor } from '../processors/DashboardProcessor.js';
+import { enforceDashboardLimit } from '../middleware/tierEnforcement.js';
 const router = express.Router();
 
 router.get('/list', async (req: Request, res: Response, next: any) => {
@@ -13,7 +14,7 @@ router.get('/list', async (req: Request, res: Response, next: any) => {
 });
 router.post('/add', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([body('project_id').notEmpty().trim().escape().toInt(), body('data').notEmpty()]),
+}, validateJWT, enforceDashboardLimit, validate([body('project_id').notEmpty().trim().escape().toInt(), body('data').notEmpty()]),
 async (req: Request, res: Response) => {
     const { project_id, data } = matchedData(req);
     const result = await DashboardProcessor.getInstance().addDashboard(project_id, data, req.body.tokenDetails);

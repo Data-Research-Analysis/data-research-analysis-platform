@@ -23,37 +23,37 @@ export class SubscriptionTierSeeder extends Seeder {
                 tier_name: ESubscriptionTier.PRO,
                 max_rows_per_data_model: 5000000,
                 max_projects: 50,
-                max_data_sources_per_project: null, // unlimited
-                max_dashboards: null,
+                max_data_sources_per_project: -1, // -1 = unlimited
+                max_dashboards: -1,
                 ai_generations_per_month: 25,
                 price_per_month_usd: 99
             },
             {
                 tier_name: ESubscriptionTier.TEAM,
                 max_rows_per_data_model: 20000000,
-                max_projects: null,
-                max_data_sources_per_project: null,
-                max_dashboards: null,
+                max_projects: -1,
+                max_data_sources_per_project: -1,
+                max_dashboards: -1,
                 ai_generations_per_month: 100,
                 price_per_month_usd: 299
             },
             {
                 tier_name: ESubscriptionTier.BUSINESS,
                 max_rows_per_data_model: 100000000,
-                max_projects: null,
-                max_data_sources_per_project: null,
-                max_dashboards: null,
+                max_projects: -1,
+                max_data_sources_per_project: -1,
+                max_dashboards: -1,
                 ai_generations_per_month: 500,
                 price_per_month_usd: 899
             },
             {
                 tier_name: ESubscriptionTier.ENTERPRISE,
                 max_rows_per_data_model: -1, // -1 = unlimited
-                max_projects: null,
-                max_data_sources_per_project: null,
-                max_dashboards: null,
-                ai_generations_per_month: null,
-                price_per_month_usd: 3000
+                max_projects: -1,
+                max_data_sources_per_project: -1,
+                max_dashboards: -1,
+                ai_generations_per_month: -1,
+                price_per_month_usd: 2999
             }
         ];
 

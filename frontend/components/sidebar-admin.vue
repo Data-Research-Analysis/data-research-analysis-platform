@@ -5,6 +5,14 @@ const state = reactive({
     menu_items: [
         {
             id: 1,
+            menu_name: 'Subscription Tiers',
+            show_menu: true,
+            sub_menus: [
+                { id: 1, name: 'Manage Tiers', path: '/admin/subscription-tiers' },
+            ],
+        },
+        {
+            id: 2,
             menu_name: 'Private Beta Users',
             show_menu: true,
             sub_menus: [
@@ -12,7 +20,7 @@ const state = reactive({
             ],
         },
         {
-            id: 2,
+            id: 3,
             menu_name: 'User Management',
             show_menu: true,
             sub_menus: [
@@ -21,7 +29,7 @@ const state = reactive({
             ],
         },
         {
-            id: 3,
+            id: 4,
             menu_name: 'Articles Management',
             show_menu: true,
             sub_menus: [
@@ -31,7 +39,7 @@ const state = reactive({
             ],
         },
         {
-            id: 4,
+            id: 5,
             menu_name: 'Sitemap Manager',
             show_menu: true,
             sub_menus: [
@@ -40,7 +48,7 @@ const state = reactive({
             ],
         },
         {
-            id: 5,
+            id: 6,
             menu_name: 'Database Management',
             show_menu: true,
             sub_menus: [
@@ -48,14 +56,6 @@ const state = reactive({
                 { id: 2, name: 'Create Backup', path: '/admin/database/backup' },
                 { id: 3, name: 'Restore Database', path: '/admin/database/restore' },
                 { id: 4, name: 'Scheduled Backups', path: '/admin/database/scheduled-backups' },
-            ],
-        },
-        {
-            id: 6,
-            menu_name: 'Subscription Tiers',
-            show_menu: true,
-            sub_menus: [
-                { id: 1, name: 'Manage Tiers', path: '/admin/subscription-tiers' },
             ],
         },
     ],

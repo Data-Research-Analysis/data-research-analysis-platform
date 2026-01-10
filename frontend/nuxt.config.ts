@@ -90,5 +90,17 @@ export default defineNuxtConfig({
   },
   gtag: {
     id: process.env.NUXT_GA_ID,
+    config: {
+      anonymize_ip: true, // Anonymize IP addresses (GDPR)
+      cookie_flags: 'SameSite=None;Secure', // Security
+    },
+    // Initialize with consent denied until user accepts
+    initCommands: [
+      ['consent', 'default', {
+        analytics_storage: 'denied',
+        ad_storage: 'denied',
+        wait_for_update: 500
+      }]
+    ]
   },
 })

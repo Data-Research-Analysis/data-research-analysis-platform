@@ -14,8 +14,8 @@ export class DRASubscriptionTier {
     @PrimaryGeneratedColumn()
     id!: number;
 
-    @Column({ type: 'enum', enum: ESubscriptionTier, unique: true })
-    tier_name!: ESubscriptionTier;
+    @Column({ type: 'varchar', length: 50, unique: true })
+    tier_name!: string;
 
     @Column({ type: 'bigint' })
     max_rows_per_data_model!: number;
@@ -25,6 +25,9 @@ export class DRASubscriptionTier {
 
     @Column({ type: 'int', nullable: true })
     max_data_sources_per_project!: number | null;
+
+    @Column({ type: 'int', nullable: true })
+    max_data_models_per_data_source!: number | null;
 
     @Column({ type: 'int', nullable: true })
     max_dashboards!: number | null;
