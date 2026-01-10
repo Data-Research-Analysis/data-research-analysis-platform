@@ -42,5 +42,8 @@ onMounted(() => {
         <add-external-data-source id="add-external-data-source" />
         <how-do-it-get-started id="how-do-it-get-started" />
         <join-private-beta id="join-private-beta" />
+        
+        <!-- Cookie Banner -->
+        <cookie-disclaimer-banner />
     </div>
 </template>

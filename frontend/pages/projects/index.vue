@@ -1,11 +1,17 @@
 <script setup>
 import {useProjectsStore} from '@/stores/projects';
+import {useSubscriptionStore} from '@/stores/subscription';
+import {useApiErrorHandler} from '@/composables/useApiErrorHandler';
 const projectsStore = useProjectsStore();
+const subscriptionStore = useSubscriptionStore();
 const { $swal } = useNuxtApp();
+const { handleApiError } = useApiErrorHandler();
 
 const state = reactive({
     project_name: '',
     loading: true,
+    showTierLimitModal: false,
+    tierLimitError: null,
 });
 
 const projects = computed(() => {
@@ -24,13 +30,38 @@ const projects = computed(() => {
 });
 
 // Hide loading once data is available
-onMounted(() => {
+onMounted(async () => {
     // Wait for next tick to ensure store is populated
     nextTick(() => {
         state.loading = false;
     });
+    
+    // Fetch usage stats and start auto-refresh
+    try {
+        await subscriptionStore.fetchUsageStats();
+        subscriptionStore.startAutoRefresh();
+    } catch (error) {
+        console.error('Error fetching usage stats:', error);
+    }
+});
+
+onUnmounted(() => {
+    subscriptionStore.stopAutoRefresh();
 });
 async function addProject() {
+    // Check tier limits before allowing project creation
+    if (!subscriptionStore.canCreateProject) {
+        state.showTierLimitModal = true;
+        state.tierLimitError = {
+            resource: 'project',
+            currentUsage: subscriptionStore.usageStats?.projectCount || 0,
+            tierLimit: subscriptionStore.usageStats?.maxProjects || 0,
+            tierName: subscriptionStore.usageStats?.tier || 'FREE',
+            upgradeTiers: [],
+        };
+        return;
+    }
+    
     const { value: formValues } = await $swal.fire({
         title: "Create New Project",
         html: `
@@ -54,8 +85,10 @@ async function addProject() {
         confirmButtonText: "Create Project",
         focusConfirm: false,
         preConfirm: () => {
-            const projectName = document.getElementById('swal-input1').value;
-            const description = document.getElementById('swal-input2').value;
+            const projectNameEl = document.getElementById('swal-input1');
+            const descriptionEl = document.getElementById('swal-input2');
+            const projectName = projectNameEl ? projectNameEl.value : '';
+            const description = descriptionEl ? descriptionEl.value : '';
             
             if (!projectName) {
                 $swal.showValidationMessage('Please enter a project name!');
@@ -71,25 +104,38 @@ async function addProject() {
         state.project_name = projectName;
         
         const { execute } = useAuthenticatedMutation();
-        const data = await execute('/project/add', {
-            method: 'POST',
-            body: { 
-                project_name: projectName,
-                description: description
+        try {
+            const data = await execute('/project/add', {
+                method: 'POST',
+                body: { 
+                    project_name: projectName,
+                    description: description
+                }
+            });
+            
+            if (data) {
+                $swal.fire({
+                    title: `The project ${projectName} has been created successfully.`,
+                    confirmButtonColor: "#3C8DBC",
+                });
+                await projectsStore.retrieveProjects();
+                await subscriptionStore.fetchUsageStats(); // Refresh usage stats
+            } else {
+                $swal.fire({
+                    title: `There was an error creating the project ${projectName}.`,
+                    confirmButtonColor: "#3C8DBC",
+                });
             }
-        });
-        
-        if (data) {
-            $swal.fire({
-                title: `The project ${projectName} has been created successfully.`,
-                confirmButtonColor: "#3C8DBC",
-            });
-            await projectsStore.retrieveProjects();
-        } else {
-            $swal.fire({
-                title: `There was an error creating the project ${projectName}.`,
-                confirmButtonColor: "#3C8DBC",
-            });
+        } catch (error) {
+            // Handle 402 tier limit errors
+            if (error.status === 402 || error.error === 'TIER_LIMIT_EXCEEDED') {
+                await handleApiError(error);
+            } else {
+                $swal.fire({
+                    title: `There was an error creating the project ${projectName}.`,
+                    confirmButtonColor: "#3C8DBC",
+                });
+            }
         }
     }
 }
@@ -127,9 +173,37 @@ async function setSelectedProject(projectId) {
 }
 </script>
 <template>
+    <!-- Tier Limit Modal -->
+    <TierLimitModal
+        v-if="state.tierLimitError"
+        :show="state.showTierLimitModal"
+        :resource="state.tierLimitError.resource"
+        :current-usage="state.tierLimitError.currentUsage"
+        :tier-limit="state.tierLimitError.tierLimit"
+        :tier-name="state.tierLimitError.tierName"
+        :upgrade-tiers="state.tierLimitError.upgradeTiers"
+        @close="state.showTierLimitModal = false"
+    />
+    
     <tab-content-panel :corners="['top-left', 'top-right', 'bottom-left', 'bottom-right']" class="mt-10">
-        <div class="font-bold text-2xl mb-5">
-            Projects
+        <div class="flex justify-between items-center mb-5">
+            <div class="font-bold text-2xl">
+                Projects
+            </div>
+            <!-- Usage Indicator -->
+            <div v-if="subscriptionStore.usageStats" class="text-sm text-gray-600">
+                <span class="font-medium">{{ subscriptionStore.usageStats.projectCount }}</span>
+                <span v-if="subscriptionStore.usageStats.maxProjects === -1">
+                    / Unlimited
+                </span>
+                <span v-else>
+                    / {{ subscriptionStore.usageStats.maxProjects }}
+                </span>
+                <span class="ml-1">projects</span>
+                <span class="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                    {{ subscriptionStore.usageStats.tier }}
+                </span>
+            </div>
         </div>
         <div class="text-md">
             All of your data and files will be contained within projects. All projects are isolated from one another and help with organization of your analysis.

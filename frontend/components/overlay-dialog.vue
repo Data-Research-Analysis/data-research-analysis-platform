@@ -48,7 +48,7 @@ onMounted(() => {
     
     <!-- Dialog Container -->
     <div 
-        :class="[positioningClass, 'left-1/2 -translate-x-1/2 w-full max-w-xs sm:max-w-md md:max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-4 bg-white opacity-100 z-15 p-10 shadow-lg max-h-[80vh] rounded-lg']"
+        :class="[positioningClass, 'left-1/2 -translate-x-1/2 w-full max-w-xs sm:max-w-md md:max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-4 bg-white opacity-100 z-15 p-10 shadow-lg max-h-[80vh] overflow-y-auto rounded-lg']"
         :style="`top: ${state.top};`"
     >
         <!-- Close button -->

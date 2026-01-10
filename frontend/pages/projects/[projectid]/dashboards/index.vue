@@ -1,8 +1,10 @@
 <script setup>
 import { useProjectsStore } from '@/stores/projects';
 import { useDashboardsStore } from '~/stores/dashboards';
+import { useSubscriptionStore } from '@/stores/subscription';
 const projectsStore = useProjectsStore();
 const dashboardsStore = useDashboardsStore();
+const subscriptionStore = useSubscriptionStore();
 const { $swal } = useNuxtApp();
 const route = useRoute();
 
@@ -10,7 +12,9 @@ const route = useRoute();
 const projectId = parseInt(String(route.params.projectid));
 
 const state = reactive({
-    loading: true
+    loading: true,
+    showTierLimitModal: false,
+    tierLimitError: null,
 });
 
 const dashboards = computed(() => {
@@ -38,10 +42,22 @@ const dashboard = computed(() => {
 });
 
 // Hide loading once data is available
-onMounted(() => {
+onMounted(async () => {
     nextTick(() => {
         state.loading = false;
     });
+    
+    // Fetch usage stats and start auto-refresh
+    try {
+        await subscriptionStore.fetchUsageStats();
+        subscriptionStore.startAutoRefresh();
+    } catch (error) {
+        console.error('Error fetching usage stats:', error);
+    }
+});
+
+onUnmounted(() => {
+    subscriptionStore.stopAutoRefresh();
 });
 
 async function deleteDashboard(dashboardId) {
@@ -70,15 +86,58 @@ async function deleteDashboard(dashboardId) {
         $swal.fire(`There was an error deleting the dashboard.`);
     }
 }
+
+function checkDashboardLimit() {
+    if (!subscriptionStore.canCreateDashboard) {
+        state.showTierLimitModal = true;
+        state.tierLimitError = {
+            resource: 'dashboard',
+            currentUsage: subscriptionStore.usageStats?.dashboardCount || 0,
+            tierLimit: subscriptionStore.usageStats?.maxDashboards || 0,
+            tierName: subscriptionStore.usageStats?.tier || 'FREE',
+            upgradeTiers: [],
+        };
+        return false;
+    }
+    return true;
+}
 </script>
 <template>
+    <!-- Tier Limit Modal -->
+    <TierLimitModal
+        v-if="state.tierLimitError"
+        :show="state.showTierLimitModal"
+        :resource="state.tierLimitError.resource"
+        :current-usage="state.tierLimitError.currentUsage"
+        :tier-limit="state.tierLimitError.tierLimit"
+        :tier-name="state.tierLimitError.tierName"
+        :upgrade-tiers="state.tierLimitError.upgradeTiers"
+        @close="state.showTierLimitModal = false"
+    />
+    
     <div class="flex flex-col">
         <tabs v-if="project && project.id" :project-id="project.id" />
 
         <!-- Dashboards Content -->
         <tab-content-panel :corners="['top-right', 'bottom-left', 'bottom-right']">
-            <div class="font-bold text-2xl mb-5">
-                Dashboards
+            <div class="flex justify-between items-center mb-5">
+                <div class="font-bold text-2xl">
+                    Dashboards
+                </div>
+                <!-- Usage Indicator -->
+                <div v-if="subscriptionStore.usageStats" class="text-sm text-gray-600">
+                    <span class="font-medium">{{ subscriptionStore.usageStats.dashboardCount }}</span>
+                    <span v-if="subscriptionStore.usageStats.maxDashboards === -1">
+                        / Unlimited
+                    </span>
+                    <span v-else>
+                        / {{ subscriptionStore.usageStats.maxDashboards }}
+                    </span>
+                    <span class="ml-1">dashboards</span>
+                    <span class="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                        {{ subscriptionStore.usageStats.tier }}
+                    </span>
+                </div>
             </div>
             <div class="text-md">
                 Dashboards are where you will be building your charts and visualizations based on your data models.
@@ -105,7 +164,10 @@ async function deleteDashboard(dashboardId) {
             <div v-else class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5">
                 <notched-card class="justify-self-center mt-10">
                     <template #body="{ onClick }">
-                        <NuxtLink :to="`/projects/${project.id}/dashboards/create`">
+                        <NuxtLink 
+                            v-if="subscriptionStore.canCreateDashboard"
+                            :to="`/projects/${project.id}/dashboards/create`"
+                        >
                             <div class="flex flex-col justify-center text-md font-bold cursor-pointer items-center">
                                 <div
                                     class="bg-gray-300 border border-gray-300 border-solid rounded-full w-20 h-20 flex items-center justify-center mb-5">
@@ -114,6 +176,18 @@ async function deleteDashboard(dashboardId) {
                                 Create Dashboard
                             </div>
                         </NuxtLink>
+                        <div
+                            v-else
+                            @click="checkDashboardLimit"
+                            class="flex flex-col justify-center text-md font-bold cursor-pointer items-center"
+                        >
+                            <div
+                                class="bg-gray-300 border border-gray-300 border-solid rounded-full w-20 h-20 flex items-center justify-center mb-5">
+                                <font-awesome icon="fas fa-plus" class="text-4xl text-gray-500" />
+                            </div>
+                            <div>Create Dashboard</div>
+                            <div class="text-xs text-red-500 mt-1">Limit Reached</div>
+                        </div>
                     </template>
                 </notched-card>
                 <div v-for="dashboard in dashboards" class="relative">

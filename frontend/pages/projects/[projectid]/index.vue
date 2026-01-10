@@ -1,6 +1,7 @@
 <script setup>
 import { useDataSourceStore } from '@/stores/data_sources';
 import { useProjectsStore } from '@/stores/projects';
+import { useSubscriptionStore } from '@/stores/subscription';
 import { useGoogleAnalytics } from '@/composables/useGoogleAnalytics';
 import { useGoogleAdManager } from '@/composables/useGoogleAdManager';
 import { useGoogleAds } from '@/composables/useGoogleAds';
@@ -15,6 +16,7 @@ import googleAdsImage from '/assets/images/google-ads.png';
 
 const dataSourceStore = useDataSourceStore();
 const projectsStore = useProjectsStore();
+const subscriptionStore = useSubscriptionStore();
 const analytics = useGoogleAnalytics();
 const gam = useGoogleAdManager();
 const ads = useGoogleAds();
@@ -31,6 +33,8 @@ const state = reactive({
     syncing: {},
     sync_history: [],
     loading: true,
+    showTierLimitModal: false,
+    tierLimitError: null,
     data_sources: computed(() => {
         const allDataSources = dataSourceStore.getDataSources();
         // Filter data sources by project ID
@@ -358,7 +362,10 @@ function formatSyncDate(dateString) {
 }
 
 // Hide loading once data is available
-onMounted(() => {
+onMounted(async () => {
+    // Fetch usage stats for tier enforcement display
+    await subscriptionStore.fetchUsageStats();
+    
     nextTick(() => {
         state.loading = false;
     });
@@ -370,8 +377,24 @@ onMounted(() => {
 
         <!-- Data Sources Content -->
         <tab-content-panel :corners="['top-right', 'bottom-left', 'bottom-right']">
-            <div class="font-bold text-2xl mb-5">
-                Data Sources
+            <div class="flex justify-between items-center mb-5">
+                <div class="font-bold text-2xl">
+                    Data Sources
+                </div>
+                <!-- Usage Indicator -->
+                <div v-if="subscriptionStore.usageStats" class="text-sm text-gray-600">
+                    <span class="font-medium">{{ state.data_sources.length }}</span>
+                    <span v-if="subscriptionStore.usageStats.maxDataSources === -1">
+                        / Unlimited
+                    </span>
+                    <span v-else>
+                        / {{ subscriptionStore.usageStats.maxDataSources }}
+                    </span>
+                    <span class="ml-1">data sources per project</span>
+                    <span class="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                        {{ subscriptionStore.usageStats.tier }}
+                    </span>
+                </div>
             </div>
             <div class="text-md">
                 Data sources are the basic entity that you provide. A data source can range from a simple excel file to

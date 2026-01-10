@@ -2,9 +2,11 @@
 import { useProjectsStore } from '@/stores/projects';
 import { useDataSourceStore } from '@/stores/data_sources';
 import { useDataModelsStore } from '@/stores/data_models';
+import { useSubscriptionStore } from '@/stores/subscription';
 const projectsStore = useProjectsStore();
 const dataSourceStore = useDataSourceStore();
 const dataModelsStore = useDataModelsStore();
+const subscriptionStore = useSubscriptionStore();
 const { $swal } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
@@ -146,19 +148,63 @@ function cleanDataModelName(name) {
     return name.replace(/_dra_[a-zA-Z0-9_]+/g, "");
 }
 
+/**
+ * Get count of data models for this specific data source
+ */
+function getDataSourceModelCount() {
+    return state.data_models.length;
+}
+
 onMounted(async () => {
     getDataModels();
-})
+    
+    try {
+        await subscriptionStore.fetchUsageStats();
+        subscriptionStore.startAutoRefresh();
+    } catch (error) {
+        console.error('Error fetching usage stats:', error);
+    }
+});
+
+onUnmounted(() => {
+    subscriptionStore.stopAutoRefresh();
+});
 </script>
 <template>
     <div class="flex flex-col">
         <tabs :project-id="project.id"/>
         <tab-content-panel :corners="['top-right', 'bottom-left', 'bottom-right']">
-            <div class="font-bold text-2xl mb-5">
-                Data Models
-            </div>
-            <div class="text-md">
-                Data Models are part of the semantic data layer and will be the basis of the analysis that you will perform.
+            <div class="flex justify-between items-center mb-5">
+                <div>
+                    <div class="font-bold text-2xl">
+                        Data Models
+                    </div>
+                    <div class="text-md mt-2">
+                        Data Models are part of the semantic data layer and will be the basis of the analysis that you will perform.
+                    </div>
+                </div>
+                
+                <!-- Usage Indicator for THIS data source only -->
+                <div v-if="subscriptionStore.usageStats" class="text-sm text-gray-600 flex items-center gap-2">
+                    <div>
+                        <span class="font-medium">{{ getDataSourceModelCount() }}</span>
+                        <span v-if="subscriptionStore.usageStats.maxDataModels === -1">
+                            / Unlimited
+                        </span>
+                        <span v-else>
+                            / {{ subscriptionStore.usageStats.maxDataModels }}
+                        </span>
+                        <span class="ml-1">data models</span>
+                        <span class="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                            {{ subscriptionStore.usageStats.tier }}
+                        </span>
+                    </div>
+                    <span 
+                        v-tippy="{ content: 'Data models for this data source only. Each data source can have up to ' + (subscriptionStore.usageStats.maxDataModels === -1 ? 'unlimited' : subscriptionStore.usageStats.maxDataModels) + ' data models.', placement: 'bottom' }"
+                        class="inline-flex items-center cursor-help">
+                        <font-awesome icon="fas fa-info-circle" class="text-blue-500 text-sm" />
+                    </span>
+                </div>
             </div>
             
             <!-- Skeleton loader for loading state -->

@@ -4,6 +4,7 @@ import { validate } from '../middleware/validator.js';
 import { body, param } from 'express-validator';
 import { AIDataModelerController } from '../controllers/AIDataModelerController.js';
 import { aiOperationsLimiter } from '../middleware/rateLimit.js';
+import { enforceAIGenerationLimit } from '../middleware/tierEnforcement.js';
 
 const router = express.Router();
 
@@ -50,6 +51,7 @@ router.post(
     '/session/chat',
     aiOperationsLimiter,
     validateJWT,
+    enforceAIGenerationLimit,
     validate([
         body('dataSourceId').optional().isInt().withMessage('dataSourceId must be a valid integer'),
         body('conversationId').optional().isUUID().withMessage('conversationId must be a valid UUID'),

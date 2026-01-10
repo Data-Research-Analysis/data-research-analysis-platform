@@ -1,9 +1,9 @@
-export interface IUserSubscriptionStats {
-    tier: {
+export interface IEnhancedUsageStats {
+    tier: string;
+    tierDetails: {
         id: number;
-        tier_name: string;
-        max_rows_per_data_model: string;
-        price_per_month_usd: string;
+        tierName: string;
+        pricePerMonth: number;
     };
     rowLimit: number;
     projectCount: number;
@@ -16,4 +16,9 @@ export interface IUserSubscriptionStats {
     maxDashboards: number | null;
     aiGenerationsPerMonth: number | null;
     aiGenerationsUsed: number;
+    canCreateProject: boolean;
+    canCreateDataSource: boolean;
+    canCreateDataModel: boolean;
+    canCreateDashboard: boolean;
+    canUseAIGeneration: boolean;
 }

@@ -112,6 +112,7 @@ function formatDate(dateString) {
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Max Rows</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Max Projects</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Max Data Sources</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Max Data Models</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Max Dashboards</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">AI Generations</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price/Month</th>
@@ -132,6 +133,9 @@ function formatDate(dateString) {
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                         {{ formatNumber(tier.max_data_sources_per_project) }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {{ formatNumber(tier.max_data_models_per_data_source) }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                         {{ formatNumber(tier.max_dashboards) }}
@@ -157,14 +161,14 @@ function formatDate(dateString) {
                                         <div class="flex justify-end gap-2">
                                             <button
                                                 @click="handleEditTier(tier)"
-                                                class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-blue-100 hover:bg-blue-200 text-blue-700 hover:text-blue-900"
+                                                class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-blue-100 hover:bg-blue-200 text-blue-700 hover:text-blue-900 cursor-pointer"
                                             >
                                                 <font-awesome icon="fas fa-edit" class="text-base" />
                                                 <span>Edit</span>
                                             </button>
                                             <button
                                                 @click="handleDeleteTier(tier)"
-                                                class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-red-100 hover:bg-red-200 text-red-700 hover:text-red-900"
+                                                class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-red-100 hover:bg-red-200 text-red-700 hover:text-red-900 cursor-pointer"
                                             >
                                                 <font-awesome icon="fas fa-trash" class="text-base" />
                                                 <span>Delete</span>

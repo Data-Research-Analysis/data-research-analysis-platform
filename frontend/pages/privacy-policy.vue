@@ -71,6 +71,136 @@ onMounted(() => {
                     <strong>Cookies</strong> are small files that are placed on Your computer, mobile device or any other device by a website, containing the details of Your browsing history on that website among its many uses.
                 </p>
             </li>
+        </ul>
+        
+        <h2>Cookies and Tracking Technologies</h2>
+        
+        <h3>What Cookies We Use</h3>
+        
+        <h4>Essential Cookies (Always Active)</h4>
+        <ul>
+            <li>
+                <p>
+                    <strong>dra_auth_token</strong>: Authentication cookie that keeps you logged in securely for 3 days.
+                    <br />Purpose: Essential for platform functionality
+                    <br />Expiration: 3 days
+                    <br />Type: First-party, HttpOnly, Secure
+                </p>
+            </li>
+        </ul>
+        
+        <h4>Analytics Cookies (Optional - Requires Consent)</h4>
+        <ul>
+            <li>
+                <p>
+                    <strong>Google Analytics (GA4)</strong>: Tracks website usage and user behavior
+                    <br />Cookies: _ga, _ga_&lt;container-id&gt;, _gid, _gat
+                    <br />Purpose: Understand how visitors use our site to improve user experience
+                    <br />Expiration: 2 years (_ga), 24 hours (_gid), 1 minute (_gat)
+                    <br />Type: Third-party (Google)
+                    <br />Data Processor: Google LLC
+                    <br /><strong>You can opt-out at any time</strong> via our cookie settings
+                </p>
+            </li>
+        </ul>
+        
+        <h3>Local Storage and Session Storage</h3>
+        <p>
+            We use browser storage (localStorage and sessionStorage) to save your application data locally:
+        </p>
+        <ul>
+            <li>
+                <p>User preferences and settings</p>
+            </li>
+            <li>
+                <p>Projects, data sources, and data models you create</p>
+            </li>
+            <li>
+                <p>Dashboard configurations</p>
+            </li>
+            <li>
+                <p>Temporary OAuth session data</p>
+            </li>
+        </ul>
+        <p>
+            This data is stored only in your browser and is essential for the application to function. It is not transmitted to third parties.
+        </p>
+        
+        <h3>Your Cookie Choices</h3>
+        <p>
+            When you first visit our site, we'll ask for your cookie preferences. You can:
+        </p>
+        <ul>
+            <li>
+                <p><strong>Accept All</strong>: Allow essential and analytics cookies</p>
+            </li>
+            <li>
+                <p><strong>Essential Only</strong>: Block analytics cookies, allow only required functionality</p>
+            </li>
+            <li>
+                <p><strong>Customize</strong>: Choose specific cookie categories</p>
+            </li>
+        </ul>
+        <p>
+            You can change your preferences at any time by clearing your browser cookies and revisiting our site.
+        </p>
+        
+        <h3>Third-Party Data Processing</h3>
+        <p>
+            <strong>Google Analytics</strong>: If you consent to analytics cookies, your anonymized usage data is processed by Google LLC under their privacy policy. We have enabled IP anonymization to protect your privacy.
+        </p>
+        <p>
+            We do <strong>NOT</strong>:
+        </p>
+        <ul>
+            <li>
+                <p>Sell your data to advertisers</p>
+            </li>
+            <li>
+                <p>Use advertising/marketing cookies</p>
+            </li>
+            <li>
+                <p>Share analytics data with third parties beyond Google Analytics</p>
+            </li>
+            <li>
+                <p>Track you across other websites</p>
+            </li>
+        </ul>
+        
+        <h2>Interpretation and Definitions</h2>
+        
+        <h3>Interpretation</h3>
+        
+        <p>
+            The words of which the initial letter is capitalized have meanings defined under the following conditions. The following definitions shall have the same meaning regardless of whether they appear in singular or in plural.
+        </p>
+        
+        <h3>Definitions</h3>
+        
+        <p>
+            For the purposes of this Privacy Policy:
+        </p>
+        <ul>
+            <li>
+                <p>
+                    <strong>Account</strong> means a unique account created for You to access our Service or parts of our Service.
+                </p>
+            </li>
+            <li>
+                <p>
+                    <strong>Affiliate</strong> means an entity that controls, is controlled by or is under common control with a party, where &quot;control&quot; means ownership of 50% or more of the shares, equity interest or other securities entitled to vote for election of directors or other managing authority.
+                </p>
+            </li>
+            <li>
+                <p>
+                    <strong>Company</strong> (referred to as either &quot;the Company&quot;, &quot;We&quot;, &quot;Us&quot; or &quot;Our&quot; in this Agreement) refers to Data Research Analysis (SMC-Private) Limited, 1327 D Street 26 Phase 6 Defence Housing Authority Lahore Punjab Pakistan.
+                </p>
+            </li>
+            <li>
+                <p>
+                    <strong>Cookies</strong> are small files that are placed on Your computer, mobile device or any other device by a website, containing the details of Your browsing history on that website among its many uses.
+                </p>
+            </li>
             <li>
                 <p>
                     <strong>Country</strong> refers to:  Pakistan

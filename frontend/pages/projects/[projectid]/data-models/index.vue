@@ -2,11 +2,35 @@
   <div class="data-models-page min-h-screen bg-gray-50">
     <div class="container mx-auto px-4 py-6">
       <!-- Header -->
-      <div class="mb-6">
-        <h1 class="text-3xl font-bold text-gray-900 mb-2">Data Models</h1>
-        <p class="text-base text-gray-600">
-          Create and manage data models from your project's data sources
-        </p>
+      <div class="flex justify-between items-center mb-6">
+        <div>
+          <h1 class="text-3xl font-bold text-gray-900 mb-2">Data Models</h1>
+          <p class="text-base text-gray-600">
+            Create and manage data models from your project's data sources
+          </p>
+        </div>
+        
+        <!-- Usage Indicator -->
+        <div v-if="subscriptionStore.usageStats" class="text-sm text-gray-600 flex items-center gap-2">
+          <div>
+            <span class="font-medium">{{ subscriptionStore.usageStats.dataModelCount }}</span>
+            <span v-if="getTotalDataModelCapacity() === -1">
+              / Unlimited
+            </span>
+            <span v-else>
+              / {{ getTotalDataModelCapacity() }}
+            </span>
+            <span class="ml-1">data models</span>
+            <span class="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+              {{ subscriptionStore.usageStats.tier }}
+            </span>
+          </div>
+          <span 
+            v-tippy="{ content: `Total data models across all ${subscriptionStore.usageStats.dataSourceCount} data sources in this project. Total capacity: ${subscriptionStore.usageStats.dataSourceCount} sources × ${subscriptionStore.usageStats.maxDataModels === -1 ? 'Unlimited' : subscriptionStore.usageStats.maxDataModels} models per source.`, placement: 'bottom' }"
+            class="inline-flex items-center cursor-help">
+            <font-awesome icon="fas fa-info-circle" class="text-blue-500 text-sm" />
+          </span>
+        </div>
       </div>
 
       <!-- Action Buttons -->
@@ -188,13 +212,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useDataModelsStore } from '~/stores/data_models';
+import { useSubscriptionStore } from '@/stores/subscription';
 
 const router = useRouter();
 const route = useRoute();
 const dataModelsStore = useDataModelsStore();
+const subscriptionStore = useSubscriptionStore();
 const { $swal }: any = useNuxtApp();
 
 const projectId = computed(() => parseInt(route.params.projectid as string));
@@ -222,6 +248,22 @@ const filteredModels = computed(() => {
   );
 });
 
+/**
+ * Calculate total data model capacity across all data sources
+ * Total = number of data sources × models per data source limit
+ */
+function getTotalDataModelCapacity() {
+  const stats = subscriptionStore.usageStats;
+  if (!stats) return 0;
+  
+  if (stats.maxDataModels === -1) {
+    return -1; // Return -1 for unlimited to be handled by template
+  }
+  
+  // Total capacity = data sources × models per data source
+  return stats.dataSourceCount * stats.maxDataModels;
+}
+
 onMounted(async () => {
   loading.value = true;
   try {
@@ -242,9 +284,21 @@ onMounted(async () => {
       console.error('Error fetching data sources:', error);
       dataSources.value = [];
     }
+    
+    // Fetch usage stats and start auto-refresh
+    try {
+      await subscriptionStore.fetchUsageStats();
+      subscriptionStore.startAutoRefresh();
+    } catch (error) {
+      console.error('Error fetching usage stats:', error);
+    }
   } finally {
     loading.value = false;
   }
+});
+
+onUnmounted(() => {
+  subscriptionStore.stopAutoRefresh();
 });
 
 function createSingleSource(dataSourceId: number) {

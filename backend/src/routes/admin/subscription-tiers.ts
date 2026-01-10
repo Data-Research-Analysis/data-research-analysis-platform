@@ -63,8 +63,9 @@ router.post('/', async (req: Request, res: Response, next: any) => {
 }, validateJWT, validate([
     body('tier_name')
         .notEmpty()
-        .isIn(Object.values(ESubscriptionTier))
-        .withMessage('Valid tier name is required (free, pro, team, business, enterprise)'),
+        .trim()
+        .isLength({ min: 1, max: 50 })
+        .withMessage('Tier name is required and must be 1-50 characters'),
     body('max_rows_per_data_model')
         .notEmpty()
         .isInt()
@@ -72,20 +73,24 @@ router.post('/', async (req: Request, res: Response, next: any) => {
         .withMessage('max_rows_per_data_model must be positive or -1 for unlimited'),
     body('max_projects')
         .optional({ nullable: true })
-        .isInt({ gt: 0 })
-        .withMessage('max_projects must be positive or null'),
+        .custom((value) => value === null || value === -1 || (Number.isInteger(value) && value > 0))
+        .withMessage('max_projects must be -1 (unlimited), a positive number, or null'),
     body('max_data_sources_per_project')
         .optional({ nullable: true })
-        .isInt({ gt: 0 })
-        .withMessage('max_data_sources_per_project must be positive or null'),
+        .custom((value) => value === null || value === -1 || (Number.isInteger(value) && value > 0))
+        .withMessage('max_data_sources_per_project must be -1 (unlimited), a positive number, or null'),
+    body('max_data_models_per_data_source')
+        .optional({ nullable: true })
+        .custom((value) => value === null || value === -1 || (Number.isInteger(value) && value > 0))
+        .withMessage('max_data_models_per_data_source must be -1 (unlimited), a positive number, or null'),
     body('max_dashboards')
         .optional({ nullable: true })
-        .isInt({ gt: 0 })
-        .withMessage('max_dashboards must be positive or null'),
+        .custom((value) => value === null || value === -1 || (Number.isInteger(value) && value > 0))
+        .withMessage('max_dashboards must be -1 (unlimited), a positive number, or null'),
     body('ai_generations_per_month')
         .optional({ nullable: true })
-        .isInt({ gt: 0 })
-        .withMessage('ai_generations_per_month must be positive or null'),
+        .custom((value) => value === null || value === -1 || (Number.isInteger(value) && value > 0))
+        .withMessage('ai_generations_per_month must be -1 (unlimited), a positive number, or null'),
     body('price_per_month_usd')
         .notEmpty()
         .isFloat({ min: 0 })
@@ -120,8 +125,9 @@ router.put('/:id', async (req: Request, res: Response, next: any) => {
     param('id').notEmpty().isInt().withMessage('Valid tier ID is required'),
     body('tier_name')
         .optional()
-        .isIn(Object.values(ESubscriptionTier))
-        .withMessage('Valid tier name is required (free, pro, team, business, enterprise)'),
+        .trim()
+        .isLength({ min: 1, max: 50 })
+        .withMessage('Tier name must be 1-50 characters'),
     body('max_rows_per_data_model')
         .optional()
         .isInt()
@@ -129,20 +135,24 @@ router.put('/:id', async (req: Request, res: Response, next: any) => {
         .withMessage('max_rows_per_data_model must be positive or -1 for unlimited'),
     body('max_projects')
         .optional({ nullable: true })
-        .isInt({ gt: 0 })
-        .withMessage('max_projects must be positive or null'),
+        .custom((value) => value === null || value === -1 || (Number.isInteger(value) && value > 0))
+        .withMessage('max_projects must be -1 (unlimited), a positive number, or null'),
     body('max_data_sources_per_project')
         .optional({ nullable: true })
-        .isInt({ gt: 0 })
-        .withMessage('max_data_sources_per_project must be positive or null'),
+        .custom((value) => value === null || value === -1 || (Number.isInteger(value) && value > 0))
+        .withMessage('max_data_sources_per_project must be -1 (unlimited), a positive number, or null'),
+    body('max_data_models_per_data_source')
+        .optional({ nullable: true })
+        .custom((value) => value === null || value === -1 || (Number.isInteger(value) && value > 0))
+        .withMessage('max_data_models_per_data_source must be -1 (unlimited), a positive number, or null'),
     body('max_dashboards')
         .optional({ nullable: true })
-        .isInt({ gt: 0 })
-        .withMessage('max_dashboards must be positive or null'),
+        .custom((value) => value === null || value === -1 || (Number.isInteger(value) && value > 0))
+        .withMessage('max_dashboards must be -1 (unlimited), a positive number, or null'),
     body('ai_generations_per_month')
         .optional({ nullable: true })
-        .isInt({ gt: 0 })
-        .withMessage('ai_generations_per_month must be positive or null'),
+        .custom((value) => value === null || value === -1 || (Number.isInteger(value) && value > 0))
+        .withMessage('ai_generations_per_month must be -1 (unlimited), a positive number, or null'),
     body('price_per_month_usd')
         .optional()
         .isFloat({ min: 0 })

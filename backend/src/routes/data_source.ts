@@ -13,6 +13,7 @@ import { UtilityService } from '../services/UtilityService.js';
 import { ExcelFileService } from '../services/ExcelFileService.js';
 import { PDFService } from '../services/PDFService.js';
 import { expensiveOperationsLimiter } from '../middleware/rateLimit.js';
+import { enforceDataSourceLimit, enforceDataModelLimit } from '../middleware/tierEnforcement.js';
 
 const router = express.Router();
 
@@ -54,7 +55,7 @@ async (req: Request, res: Response) => {
 
 router.post('/add-data-source', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([body('data_source_type').notEmpty().trim().escape(), body('host').notEmpty().trim().escape(), body('port').notEmpty().trim().escape(),
+}, validateJWT, enforceDataSourceLimit, validate([body('data_source_type').notEmpty().trim().escape(), body('host').notEmpty().trim().escape(), body('port').notEmpty().trim().escape(),
     body('schema').notEmpty().trim().escape(), body('database_name').notEmpty().trim().escape(), body('username').notEmpty().trim().escape(),
     body('password').notEmpty().trim().escape(), body('project_id').notEmpty().trim().escape(),
 ]),
@@ -182,7 +183,7 @@ async (req: Request, res: Response) => {
 
 router.post('/build-data-model-on-query', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([
+}, validateJWT, enforceDataModelLimit, validate([
     body('data_source_id').optional().trim().escape().toInt(),
     body('project_id').optional().trim().escape().toInt(),
     body('data_model_id').optional().trim().escape().toInt(),
