@@ -31,6 +31,7 @@ import user_subscriptions from './routes/admin/user-subscriptions.js';
 import public_article from './routes/article.js';
 import sitemap from './routes/sitemap.js';
 import subscription from './routes/subscription.js';
+import email_preferences from './routes/email-preferences.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -98,6 +99,7 @@ app.use('/admin/subscription-tiers', admin_subscription_tiers);
 app.use('/article', public_article);
 app.use('/sitemap.txt', sitemap);
 app.use('/subscription', subscription);
+app.use('/email-preferences', email_preferences);
 
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 app.use('/', express.static(path.join(__dirname, '../public')));

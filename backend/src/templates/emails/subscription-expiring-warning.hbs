@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .email-container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+        .content {
+            padding: 30px;
+        }
+        .tier-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            background: #f59e0b;
+            color: white;
+            border-radius: 20px;
+            font-weight: bold;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+        .warning-box {
+            background: #fffbeb;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #f59e0b;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+        .button:hover {
+            background: #d97706;
+        }
+        .footer {
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+            margin-top: 30px;
+            padding: 20px;
+            border-top: 1px solid #e0e0e0;
+        }
+        .footer a {
+            color: #f59e0b;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">
+            <h1>⚠️ Subscription Expiring Soon</h1>
+        </div>
+        <div class="content">
+            <p>Hi {{userName}},</p>
+            
+            <p>This is a reminder that your <span class="tier-badge">{{tierName}}</span> subscription will expire in <strong>{{daysRemaining}} days</strong>.</p>
+            
+            <div class="warning-box">
+                <p><strong>📅 Expiration Date:</strong> {{formatDate expirationDate}}</p>
+                <p>After this date, you will lose access to your current plan's features.</p>
+            </div>
+            
+            <p>To continue enjoying uninterrupted access, please renew your subscription before it expires.</p>
+            
+            <center>
+                <a href="{{dashboardUrl}}" class="button">Renew Subscription →</a>
+            </center>
+            
+            <p>If you have any questions or need assistance, our support team is here to help at <a href="mailto:{{supportEmail}}">{{supportEmail}}</a>.</p>
+            
+            <p>Best regards,<br>
+            <strong>The Data Research Analysis Team</strong></p>
+        </div>
+        <div class="footer">
+            <p>&copy; {{year}} Data Research Analysis. All rights reserved.</p>
+            <p><a href="{{unsubscribeUrl}}">Manage email preferences</a></p>
+        </div>
+    </div>
+</body>
+</html>

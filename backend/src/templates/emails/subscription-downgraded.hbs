@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .email-container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+        .content {
+            padding: 30px;
+        }
+        .tier-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            background: #f59e0b;
+            color: white;
+            border-radius: 20px;
+            font-weight: bold;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+        .features {
+            background: #fffbeb;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .features h3 {
+            margin-top: 0;
+            color: #f59e0b;
+        }
+        .features ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .features li {
+            margin: 8px 0;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #f59e0b;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+        .button:hover {
+            background: #d97706;
+        }
+        .info-box {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .footer {
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+            margin-top: 30px;
+            padding: 20px;
+            border-top: 1px solid #e0e0e0;
+        }
+        .footer a {
+            color: #f59e0b;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">
+            <h1>📋 Subscription Plan Changed</h1>
+        </div>
+        <div class="content">
+            <p>Hi {{userName}},</p>
+            
+            <p>Your subscription has been changed to <span class="tier-badge">{{tierName}}</span>.</p>
+            
+            <div class="features">
+                <h3>Your Current Plan Includes:</h3>
+                <ul>
+                    {{#if maxProjects}}
+                    <li><strong>{{maxProjects}}</strong> projects</li>
+                    {{else}}
+                    <li><strong>Unlimited</strong> projects</li>
+                    {{/if}}
+                    
+                    {{#if maxDataSources}}
+                    <li><strong>{{maxDataSources}}</strong> data sources per project</li>
+                    {{else}}
+                    <li><strong>Unlimited</strong> data sources per project</li>
+                    {{/if}}
+                    
+                    {{#if maxDashboards}}
+                    <li><strong>{{maxDashboards}}</strong> dashboards</li>
+                    {{else}}
+                    <li><strong>Unlimited</strong> dashboards</li>
+                    {{/if}}
+                    
+                    {{#if aiGenerationsPerMonth}}
+                    <li><strong>{{aiGenerationsPerMonth}}</strong> AI generations per month</li>
+                    {{else}}
+                    <li><strong>Unlimited</strong> AI generations</li>
+                    {{/if}}
+                    
+                    <li><strong>{{maxRowsPerDataModel}}</strong> rows per data model</li>
+                </ul>
+            </div>
+            
+            <div class="info-box">
+                {{#if endsAt}}
+                <p><strong>📅 Subscription Period:</strong><br>
+                {{formatDate startDate}} - {{formatDate expirationDate}}</p>
+                {{else}}
+                <p><strong>📅 Subscription Period:</strong><br>
+                Ongoing (no expiration)</p>
+                {{/if}}
+            </div>
+            
+            <p>Your new plan limits are now in effect. If you have any questions about this change, please don't hesitate to reach out.</p>
+            
+            <center>
+                <a href="{{dashboardUrl}}" class="button">Go to Dashboard →</a>
+            </center>
+            
+            <p>If you have any questions, contact us at <a href="mailto:{{supportEmail}}">{{supportEmail}}</a>.</p>
+            
+            <p>Best regards,<br>
+            <strong>The Data Research Analysis Team</strong></p>
+        </div>
+        <div class="footer">
+            <p>&copy; {{year}} Data Research Analysis. All rights reserved.</p>
+            <p><a href="{{unsubscribeUrl}}">Manage email preferences</a></p>
+        </div>
+    </div>
+</body>
+</html>
