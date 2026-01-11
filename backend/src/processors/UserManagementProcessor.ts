@@ -6,10 +6,8 @@ import { DRAPrivateBetaUsers } from "../models/DRAPrivateBetaUsers.js";
 import { EUserType } from "../types/EUserType.js";
 import bcrypt from 'bcryptjs';
 import { UtilityService } from "../services/UtilityService.js";
-import { ITemplateRenderer } from "../interfaces/ITemplateRenderer.js";
 import { DRAVerificationCode } from "../models/DRAVerificationCode.js";
-import { TemplateEngineService } from "../services/TemplateEngineService.js";
-import { MailDriver } from "../drivers/MailDriver.js";
+import { EmailService } from "../services/EmailService.js";
 import { IUserManagement } from "../types/IUserManagement.js";
 import { IUserUpdate } from "../types/IUserUpdate.js";
 import { IUserCreation } from "../types/IUserCreation.js";
@@ -265,15 +263,12 @@ export class UserManagementProcessor {
                     verificationCode.code = unsubscribeCode;
                     verificationCode.expired_at = expiredAt;
                     await manager.save(verificationCode);
-                    const options: Array<ITemplateRenderer> = [
-                        {key: 'name', value: `${newUser.first_name} ${newUser.last_name}`},
-                        {key: 'email', value: newUser.email},
-                        {key: 'password', value: userData.password},
-                        {key: 'unsubscribe_code', value: unsubscribeCode}
-                    ];
-                    const content = await TemplateEngineService.getInstance().render('welcome-beta-users-email.html', options);
-                    await MailDriver.getInstance().getDriver().initialize();
-                    await MailDriver.getInstance().getDriver().sendEmail(newUser.email, `${newUser.first_name} ${newUser.last_name}`, 'Welcome to Data Research Analysis', 'Hello from Data Research Analysis', content);
+                    await EmailService.getInstance().sendWelcomeBetaUserEmail(
+                        newUser.email,
+                        `${newUser.first_name} ${newUser.last_name}`,
+                        userData.password,
+                        unsubscribeCode
+                    );
     
                 }
                 // Return user info without password
