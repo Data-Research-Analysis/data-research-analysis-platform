@@ -7,6 +7,8 @@ import { DRADataModel } from "../models/DRADataModel.js";
 import { DRADashboard } from "../models/DRADashboard.js";
 import { EDataSourceType } from "../types/EDataSourceType.js";
 import { DRADashboardExportMetaData } from "../models/DRADashboardExportMetaData.js";
+import { DRAProjectMember } from "../models/DRAProjectMember.js";
+import { EProjectRole } from "../types/EProjectRole.js";
 export class ProjectProcessor {
     private static instance: ProjectProcessor;
     private constructor() {}
@@ -39,12 +41,25 @@ export class ProjectProcessor {
             if (!user) {
                 return resolve(false);
             }
-            const project = new DRAProject();
-            project.name = project_name;
-            project.description = description || '';
-            project.users_platform = user;
-            project.created_at = new Date();
-            await manager.save(project);
+            
+            // Use transaction to ensure both project and member entry are created
+            await manager.transaction(async (transactionManager) => {
+                const project = new DRAProject();
+                project.name = project_name;
+                project.description = description || '';
+                project.users_platform = user;
+                project.created_at = new Date();
+                const savedProject = await transactionManager.save(project);
+                
+                // Create project member entry with owner role
+                const projectMember = new DRAProjectMember();
+                projectMember.project = savedProject;
+                projectMember.user = user;
+                projectMember.role = EProjectRole.OWNER;
+                projectMember.added_at = new Date();
+                await transactionManager.save(projectMember);
+            });
+            
             return resolve(true);
         });
     }
@@ -79,7 +94,10 @@ export class ProjectProcessor {
                     data_sources: {
                         data_models: true
                     },
-                    dashboards: true
+                    dashboards: true,
+                    members: {
+                        user: true
+                    }
                 },
                 select: {
                     id: true,
@@ -94,6 +112,17 @@ export class ProjectProcessor {
                     },
                     dashboards: {
                         id: true
+                    },
+                    members: {
+                        id: true,
+                        role: true,
+                        added_at: true,
+                        user: {
+                            id: true,
+                            first_name: true,
+                            last_name: true,
+                            email: true
+                        }
                     }
                 }
             });
@@ -111,7 +140,9 @@ export class ProjectProcessor {
                     sum + (ds.data_models?.length || 0), 0) || 0,
                 dashboards_count: project.dashboards?.length || 0,
                 // Include full DataSources array for backward compatibility
-                DataSources: project.data_sources
+                DataSources: project.data_sources,
+                // Include members with user details
+                members: project.members || []
             }));
             
             return resolve(projectsWithCounts);

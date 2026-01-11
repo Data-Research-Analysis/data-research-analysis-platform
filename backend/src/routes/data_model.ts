@@ -5,6 +5,8 @@ import { body, param, matchedData } from 'express-validator';
 import { DataModelProcessor } from '../processors/DataModelProcessor.js';
 import { CrossSourceJoinService } from '../services/CrossSourceJoinService.js';
 import { DataSourceProcessor } from '../processors/DataSourceProcessor.js';
+import { authorize } from '../middleware/authorize.js';
+import { Permission } from '../constants/permissions.js';
 const router = express.Router();
 
 router.get('/list', async (req: Request, res: Response, next: any) => {
@@ -15,7 +17,7 @@ router.get('/list', async (req: Request, res: Response, next: any) => {
 });
 router.delete('/delete/:data_model_id', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([param('data_model_id').notEmpty().trim().escape().toInt()]),
+}, validateJWT, validate([param('data_model_id').notEmpty().trim().escape().toInt()]), authorize(Permission.DATA_MODEL_DELETE),
 async (req: Request, res: Response) => {
     const { data_model_id } = matchedData(req);
     const result = await DataModelProcessor.getInstance().deleteDataModel(data_model_id,  req.body.tokenDetails);            
@@ -39,7 +41,7 @@ async (req: Request, res: Response) => {
 });
 router.post('/update-data-model-on-query', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([body('data_source_id').notEmpty().trim().escape().toInt(), body('data_model_id').notEmpty().trim().escape().toInt(), body('query').notEmpty().trim(), body('query_json').notEmpty().trim(), body('data_model_name').notEmpty().trim().escape()]),
+}, validateJWT, validate([body('data_source_id').notEmpty().trim().escape().toInt(), body('data_model_id').notEmpty().trim().escape().toInt(), body('query').notEmpty().trim(), body('query_json').notEmpty().trim(), body('data_model_name').notEmpty().trim().escape()]), authorize(Permission.DATA_MODEL_EDIT),
 async (req: Request, res: Response) => {
     const { data_source_id, data_model_id, query, query_json, data_model_name } = matchedData(req);
     const response = await DataModelProcessor.getInstance().updateDataModelOnQuery(data_source_id, data_model_id, query, query_json, data_model_name, req.body.tokenDetails);
@@ -59,7 +61,7 @@ router.get('/tables/project/:project_id', async (req: Request, res: Response, ne
 });
 router.post('/execute-query-on-data-model', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([body('query').notEmpty().trim()]),
+}, validateJWT, validate([body('query').notEmpty().trim()]), authorize(Permission.DATA_MODEL_EXECUTE),
 async (req: Request, res: Response) => {
     const { data_source_id, query } = matchedData(req);
     const response = await DataModelProcessor.getInstance().executeQueryOnDataModel(query, req.body.tokenDetails);

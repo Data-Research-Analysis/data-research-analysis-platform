@@ -1,9 +1,14 @@
 <script setup>
 import {useProjectsStore} from '@/stores/projects';
 import {useSubscriptionStore} from '@/stores/subscription';
+import {useLoggedInUserStore} from '@/stores/logged_in_user';
 import {useApiErrorHandler} from '@/composables/useApiErrorHandler';
+import {useAuthenticatedFetch, useAuthenticatedMutation} from '@/composables/useAuthenticatedFetch';
+import ProjectMembersDialog from '~/components/ProjectMembersDialog.vue';
+
 const projectsStore = useProjectsStore();
 const subscriptionStore = useSubscriptionStore();
+const loggedInUserStore = useLoggedInUserStore();
 const { $swal } = useNuxtApp();
 const { handleApiError } = useApiErrorHandler();
 
@@ -12,6 +17,9 @@ const state = reactive({
     loading: true,
     showTierLimitModal: false,
     tierLimitError: null,
+    showMembersDialog: false,
+    selectedProjectId: null,
+    selectedProjectRole: 'viewer',
 });
 
 const projects = computed(() => {
@@ -26,7 +34,14 @@ const projects = computed(() => {
         dataSourcesCount: project.data_sources_count || 0,
         dataModelsCount: project.data_models_count || 0,
         dashboardsCount: project.dashboards_count || 0,
+        members: project.members || [],
     }));
+});
+
+const selectedProjectMembers = computed(() => {
+    if (!state.selectedProjectId) return [];
+    const project = projects.value.find(p => p.id === state.selectedProjectId);
+    return project?.members || [];
 });
 
 // Hide loading once data is available
@@ -171,6 +186,27 @@ async function setSelectedProject(projectId) {
     const project = projects.value.find((project) => project.id === projectId);
     projectsStore.setSelectedProject(project);
 }
+
+async function openMembersDialog(projectId) {
+    state.selectedProjectId = projectId;
+    
+    // Determine user's role from members array
+    const currentUser = loggedInUserStore.getLoggedInUser();
+    if (currentUser && currentUser.id) {
+        const project = projects.value.find(p => p.id === projectId);
+        const memberEntry = project?.members?.find(m => m.user.id === currentUser.id);
+        state.selectedProjectRole = memberEntry?.role || 'viewer';
+    } else {
+        state.selectedProjectRole = 'viewer';
+    }
+    
+    state.showMembersDialog = true;
+}
+
+function closeMembersDialog() {
+    state.showMembersDialog = false;
+    state.selectedProjectId = null;
+}
 </script>
 <template>
     <!-- Tier Limit Modal -->
@@ -242,9 +278,19 @@ async function setSelectedProject(projectId) {
                     <notched-card class="justify-self-center mt-10">
                         <template #body="{ onClick }">
                             <div class="flex flex-col justify-center">
-                                <!-- Project Name -->
-                                <div class="text-md font-bold mb-3">
-                                    {{project.name}}
+                                <!-- Project Name and Team Button -->
+                                <div class="flex justify-between items-center mb-3">
+                                    <div class="text-md font-bold flex-1">
+                                        {{project.name}}
+                                    </div>
+                                    <button 
+                                        @click.prevent="openMembersDialog(project.id)"
+                                        class="text-xs bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded flex items-center gap-1 cursor-pointer"
+                                        title="Manage team members"
+                                    >
+                                        <font-awesome icon="fas fa-users" />
+                                        <span>Team</span>
+                                    </button>
                                 </div>
                                 
                                 <!-- Description -->
@@ -274,4 +320,15 @@ async function setSelectedProject(projectId) {
             </div>
         </div>
     </tab-content-panel>
+    
+    <!-- Project Members Dialog -->
+    <ProjectMembersDialog
+        v-if="state.selectedProjectId"
+        :project-id="state.selectedProjectId"
+        :is-open="state.showMembersDialog"
+        :user-role="state.selectedProjectRole"
+        :members="selectedProjectMembers"
+        @close="closeMembersDialog"
+        @member-updated="projectsStore.retrieveProjects()"
+    />
 </template>

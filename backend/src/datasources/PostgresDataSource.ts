@@ -19,6 +19,7 @@ import { DRAAIDataModelMessage } from "../models/DRAAIDataModelMessage.js";
 import { DRAScheduledBackupRun } from "../models/DRAScheduledBackupRun.js";
 import { DRASubscriptionTier } from "../models/DRASubscriptionTier.js";
 import { DRAUserSubscription } from "../models/DRAUserSubscription.js";
+import { DRAProjectMember } from "../models/DRAProjectMember.js";
 import { SyncHistory } from "../entities/SyncHistory.js";
 import dotenv from 'dotenv';
 dotenv.config();
@@ -43,7 +44,7 @@ export class PostgresDataSource {
             database: database,
             synchronize: false,
             logging: true,
-            entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAPrivateBetaUsers, DRADashboard, DRAArticle, DRAArticleCategory, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRAScheduledBackupRun, DRASubscriptionTier, DRAUserSubscription, SyncHistory],
+            entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAPrivateBetaUsers, DRADashboard, DRAArticle, DRAArticleCategory, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRAScheduledBackupRun, DRASubscriptionTier, DRAUserSubscription, DRAProjectMember, SyncHistory],
             subscribers: [],
             // Only load TypeORM migration files (exclude utility scripts like migrate-articles-markdown.ts)
             migrations: ['./src/migrations/*.ts'],

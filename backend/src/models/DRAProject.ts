@@ -2,6 +2,7 @@ import { Column, Entity, JoinColumn, JoinTable, ManyToOne, OneToMany, PrimaryGen
 import { DRAUsersPlatform } from './DRAUsersPlatform.js';
 import { DRADataSource } from './DRADataSource.js';
 import { DRADashboard } from './DRADashboard.js';
+import { DRAProjectMember } from './DRAProjectMember.js';
 @Entity('dra_projects')
 export class DRAProject {
     @PrimaryGeneratedColumn()
@@ -22,5 +23,8 @@ export class DRAProject {
 
     @OneToMany(() => DRADashboard, (visualization) => visualization.project, { cascade: ["remove", "update"] })
     dashboards!: Relation<DRADashboard>[]
+
+    @OneToMany(() => DRAProjectMember, (member) => member.project, { cascade: ["remove", "update"] })
+    members!: Relation<DRAProjectMember>[]
 
 }

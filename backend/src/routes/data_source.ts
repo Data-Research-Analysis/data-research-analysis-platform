@@ -14,6 +14,8 @@ import { ExcelFileService } from '../services/ExcelFileService.js';
 import { PDFService } from '../services/PDFService.js';
 import { expensiveOperationsLimiter } from '../middleware/rateLimit.js';
 import { enforceDataSourceLimit, enforceDataModelLimit } from '../middleware/tierEnforcement.js';
+import { authorize } from '../middleware/authorize.js';
+import { Permission } from '../constants/permissions.js';
 
 const router = express.Router();
 
@@ -127,7 +129,7 @@ async (req: Request, res: Response) => {
 
 router.delete('/delete/:data_source_id', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([param('data_source_id').notEmpty().trim().escape().toInt()]),
+}, validateJWT, validate([param('data_source_id').notEmpty().trim().escape().toInt()]), authorize(Permission.DATA_SOURCE_DELETE),
 async (req: Request, res: Response) => {
     const { data_source_id } = matchedData(req);
     const result = await DataSourceProcessor.getInstance().deleteDataSource(data_source_id,  req.body.tokenDetails);            

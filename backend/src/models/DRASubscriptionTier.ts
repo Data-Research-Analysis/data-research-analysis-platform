@@ -47,6 +47,6 @@ export class DRASubscriptionTier {
     @UpdateDateColumn({ type: 'timestamp' })
     updated_at!: Date;
 
-    @OneToMany(() => DRAUserSubscription, (subscription) => subscription.tier)
+    @OneToMany(() => DRAUserSubscription, (subscription) => subscription.subscription_tier)
     user_subscriptions!: Relation<DRAUserSubscription>[];
 }
