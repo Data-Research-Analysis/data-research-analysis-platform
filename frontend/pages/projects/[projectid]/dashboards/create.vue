@@ -201,7 +201,9 @@ function autoResizeTableContainer(chartId) {
                 // Update chart dimensions
                 chart.dimensions.width = `${newWidth}px`;
                 chart.dimensions.widthDraggable = `${newWidth}px`;
-                state.selected_div.style.width = `${newWidth}px`;
+                if (state.selected_div) {
+                    state.selected_div.style.width = `${newWidth}px`;
+                }
             }
         }
     });
@@ -265,11 +267,13 @@ async function executeQueryOnDataModels(chartId) {
                 "Authorization-Type": "auth",
             },
             body: JSON.stringify({
-                query: sqlQuery
+                query: sqlQuery,
+                project_id: parseInt(route.params.projectid)
             })
         });
         const data = await response.json();
-        state.response_from_data_models_rows = data;
+        // Ensure data is an array before assigning
+        state.response_from_data_models_rows = Array.isArray(data) ? data : [];
         state.response_from_data_models_columns = chart.columns.map((column) => column.column_name);
         const labelValues = [];
         const numericValues = [];
@@ -603,6 +607,17 @@ async function saveDashboard() {
         chart.config.resize_enabled = false;
         chart.config.add_columns_enabled = false;
     }
+    
+    if (!project.value || !project.value.id) {
+        $swal.fire({
+            icon: 'error',
+            title: `Error! `,
+            text: 'Project not loaded. Please refresh the page and try again.',
+        });
+        return;
+    }
+    
+    console.log('project', project.value)
     const response = await fetch(url, {
         method: "POST",
         headers: {
@@ -946,11 +961,12 @@ async function openTableDialog(chartId) {
             "Authorization-Type": "auth",
         },
         body: JSON.stringify({
-            query: sqlQuery
+            query: sqlQuery,
+            project_id: parseInt(route.params.projectid)
         })
     });
     const data = await response.json();
-    state.response_from_data_models_rows = data;
+    state.response_from_data_models_rows = Array.isArray(data) ? data : [];
 }
 function closeTableDialog() {
     state.show_table_dialog = false

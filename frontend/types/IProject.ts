@@ -19,6 +19,9 @@ export interface IProject {
     name: string;
     description?: string;
     created_at?: string;
+    // Owner/member status
+    is_owner: boolean;
+    user_role: 'owner' | 'admin' | 'editor' | 'viewer';
     // Counts from backend API
     data_sources_count?: number;
     data_models_count?: number;

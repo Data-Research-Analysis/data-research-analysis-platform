@@ -73,6 +73,7 @@ export default defineNuxtConfig({
   ],
   runtimeConfig: {
     public: {
+      apiBase: process.env.NUXT_API_URL ? `${process.env.NUXT_API_URL}/api` : 'http://localhost:3002/api',
       recaptcha: {
         v3SiteKey: process.env.NUXT_RECAPTCHA_SITE_KEY,
       },

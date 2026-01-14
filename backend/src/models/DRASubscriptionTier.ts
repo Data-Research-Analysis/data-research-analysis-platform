@@ -33,6 +33,9 @@ export class DRASubscriptionTier {
     max_dashboards!: number | null;
 
     @Column({ type: 'int', nullable: true })
+    max_members_per_project!: number | null;
+
+    @Column({ type: 'int', nullable: true })
     ai_generations_per_month!: number | null;
 
     @Column({ type: 'decimal', precision: 10, scale: 2 })

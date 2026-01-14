@@ -87,10 +87,11 @@ export class ProjectProcessor {
                 return resolve([]);
             }
             
-            // Load projects with relations
-            const projects = await manager.find(DRAProject, {
+            // Load owned projects
+            const ownedProjects = await manager.find(DRAProject, {
                 where: {users_platform: user},
                 relations: {
+                    users_platform: true,
                     data_sources: {
                         data_models: true
                     },
@@ -104,6 +105,9 @@ export class ProjectProcessor {
                     name: true,
                     description: true,
                     created_at: true,
+                    users_platform: {
+                        id: true
+                    },
                     data_sources: {
                         id: true,
                         data_models: {
@@ -127,13 +131,57 @@ export class ProjectProcessor {
                 }
             });
             
+            // Load projects where user is a member (but not owner - those are loaded above)
+            const memberProjects = await manager.find(DRAProjectMember, {
+                where: {
+                    user: {id: user_id}
+                },
+                relations: {
+                    project: {
+                        users_platform: true,
+                        data_sources: {
+                            data_models: true
+                        },
+                        dashboards: true,
+                        members: {
+                            user: true
+                        }
+                    }
+                }
+            });
+            
+            // Combine and deduplicate
+            const allProjectsMap = new Map();
+            
+            // Add owned projects
+            ownedProjects.forEach(project => {
+                allProjectsMap.set(project.id, {
+                    ...project,
+                    is_owner: true,
+                    user_role: 'owner'
+                });
+            });
+            
+            // Add member projects (skip if already in map as owner)
+            memberProjects.forEach(member => {
+                if (!allProjectsMap.has(member.project.id)) {
+                    allProjectsMap.set(member.project.id, {
+                        ...member.project,
+                        is_owner: false,
+                        user_role: member.role
+                    });
+                }
+            });
+            
             // Transform to include counts
-            const projectsWithCounts = projects.map(project => ({
+            const projectsWithCounts = Array.from(allProjectsMap.values()).map(project => ({
                 id: project.id,
-                user_platform_id: user_id,
+                user_platform_id: project.users_platform?.id || user_id,
                 name: project.name,
                 description: project.description,
                 created_at: project.created_at,
+                is_owner: project.is_owner,
+                user_role: project.user_role,
                 // Add counts
                 data_sources_count: project.data_sources?.length || 0,
                 data_models_count: project.data_sources?.reduce((sum, ds) => 

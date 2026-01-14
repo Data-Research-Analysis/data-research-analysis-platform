@@ -1,7 +1,7 @@
 <template>
     <overlay-dialog v-if="isOpen" @close="close" :y-offset="50">
         <template v-slot:overlay>
-        <div class="bg-white rounded-xl p-8 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+        <div class="w-full">
             <h2 class="text-3xl font-bold mb-6 text-gray-900">Project Members</h2>
             
             <!-- Add Member Section (Admin/Owner only) -->
@@ -21,7 +21,7 @@
                     </select>
                     <button 
                         @click="inviteMember" 
-                        class="px-5 py-2.5 bg-blue-500 text-white rounded-md font-medium hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors" 
+                        class="px-5 py-2.5 bg-blue-500 text-white rounded-md font-medium hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer" 
                         :disabled="!inviteEmail"
                     >
                         Send Invitation
@@ -93,6 +93,52 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Pending Invitations Section -->
+            <div v-if="canManageMembers" class="mt-8">
+                <h3 class="text-lg font-semibold mb-4 text-gray-800">Pending Invitations</h3>
+                <div v-if="loadingInvitations" class="p-8 text-center text-gray-500">
+                    <spinner />
+                </div>
+                <div v-else-if="pendingInvitations.length === 0" class="p-6 text-center text-gray-500 bg-gray-50 rounded-lg">
+                    No pending invitations
+                </div>
+                <div v-else class="flex flex-col gap-3">
+                    <div 
+                        v-for="invitation in pendingInvitations" 
+                        :key="invitation.id" 
+                        class="flex items-center justify-between p-4 bg-amber-50 rounded-lg gap-4 border border-amber-200"
+                    >
+                        <div class="flex-1 flex flex-col gap-1">
+                            <span class="font-semibold text-gray-800">
+                                {{ invitation.invited_email }}
+                            </span>
+                            <div class="flex items-center gap-3 text-sm text-gray-600">
+                                <span class="capitalize">{{ invitation.role }}</span>
+                                <span>•</span>
+                                <span>Expires: {{ formatDate(invitation.expires_at) }}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="flex gap-2">
+                            <button 
+                                @click="resendInvitation(invitation.id)"
+                                class="px-3 py-1.5 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition-colors"
+                                :disabled="resending === invitation.id"
+                            >
+                                {{ resending === invitation.id ? 'Sending...' : 'Resend' }}
+                            </button>
+                            <button 
+                                @click="cancelInvitation(invitation.id)"
+                                class="px-3 py-1.5 bg-red-400 text-white rounded text-sm hover:bg-red-500 transition-colors"
+                                :disabled="cancelling === invitation.id"
+                            >
+                                {{ cancelling === invitation.id ? 'Cancelling...' : 'Cancel' }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
         </template>
     </overlay-dialog>
@@ -114,6 +160,16 @@ interface Member {
     invited_by: any;
 }
 
+interface Invitation {
+    id: number;
+    project_id: number;
+    invited_email: string;
+    role: string;
+    status: string;
+    expires_at: string;
+    created_at: string;
+}
+
 const props = defineProps<{
     projectId: number;
     isOpen: boolean;
@@ -124,11 +180,15 @@ const props = defineProps<{
 const emit = defineEmits(['close', 'memberUpdated']);
 
 const localMembers = ref<Member[]>([]);
+const pendingInvitations = ref<Invitation[]>([]);
 const inviteEmail = ref('');
 const inviteRole = ref<'viewer' | 'editor' | 'admin'>('viewer');
 const inviteMessage = ref('');
 const inviteError = ref(false);
 const loading = ref(false);
+const loadingInvitations = ref(false);
+const resending = ref<number | null>(null);
+const cancelling = ref<number | null>(null);
 
 // Initialize localMembers with props.members
 watch(() => props.members, (newMembers) => {
@@ -145,16 +205,24 @@ function close() {
     emit('close');
 }
 
-async function inviteMember() {
-    if (!inviteEmail.value) return;
+function formatDate(dateString: string) {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffDays = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
     
-    inviteMessage.value = '';
-    inviteError.value = false;
+    if (diffDays < 0) return 'Expired';
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Tomorrow';
+    return `${diffDays} days`;
+}
+
+async function fetchPendingInvitations() {
+    if (!canManageMembers.value) return;
     
     try {
-        // Step 1: Look up user by email
-        const lookupResponse = await fetch(
-            `${baseUrl()}/user/lookup-by-email?email=${encodeURIComponent(inviteEmail.value)}`,
+        loadingInvitations.value = true;
+        const response = await fetch(
+            `${baseUrl()}/project-invitations/project/${props.projectId}`,
             {
                 headers: {
                     'Authorization': `Bearer ${getAuthToken()}`,
@@ -164,19 +232,95 @@ async function inviteMember() {
             }
         );
         
-        const lookupData = await lookupResponse.json();
-        
-        if (!lookupResponse.ok || !lookupData.success) {
-            inviteMessage.value = lookupData.message || 'User not found';
-            inviteError.value = true;
-            return;
+        const data = await response.json();
+        if (data.success) {
+            pendingInvitations.value = data.invitations || [];
         }
+    } catch (error) {
+        console.error('Error fetching invitations:', error);
+    } finally {
+        loadingInvitations.value = false;
+    }
+}
+
+async function resendInvitation(invitationId: number) {
+    try {
+        resending.value = invitationId;
+        const response = await fetch(
+            `${baseUrl()}/project-invitations/${invitationId}/resend`,
+            {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${getAuthToken()}`,
+                    'Authorization-Type': 'auth',
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
         
-        const foundUser = lookupData.data;
+        const data = await response.json();
+        if (data.success) {
+            inviteMessage.value = 'Invitation resent successfully';
+            inviteError.value = false;
+            setTimeout(() => { inviteMessage.value = ''; }, 3000);
+        } else {
+            inviteMessage.value = data.message || 'Failed to resend invitation';
+            inviteError.value = true;
+        }
+    } catch (error) {
+        console.error('Error resending invitation:', error);
+        inviteMessage.value = 'Failed to resend invitation';
+        inviteError.value = true;
+    } finally {
+        resending.value = null;
+    }
+}
+
+async function cancelInvitation(invitationId: number) {
+    if (!confirm('Cancel this invitation?')) return;
+    
+    try {
+        cancelling.value = invitationId;
+        const response = await fetch(
+            `${baseUrl()}/project-invitations/${invitationId}`,
+            {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${getAuthToken()}`,
+                    'Authorization-Type': 'auth',
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
         
-        // Step 2: Add user to project
-        const addResponse = await fetch(
-            `${baseUrl()}/project/${props.projectId}/members`,
+        const data = await response.json();
+        if (data.success) {
+            pendingInvitations.value = pendingInvitations.value.filter(i => i.id !== invitationId);
+            inviteMessage.value = 'Invitation cancelled';
+            inviteError.value = false;
+            setTimeout(() => { inviteMessage.value = ''; }, 3000);
+        } else {
+            inviteMessage.value = data.message || 'Failed to cancel invitation';
+            inviteError.value = true;
+        }
+    } catch (error) {
+        console.error('Error cancelling invitation:', error);
+        inviteMessage.value = 'Failed to cancel invitation';
+        inviteError.value = true;
+    } finally {
+        cancelling.value = null;
+    }
+}
+
+async function inviteMember() {
+    if (!inviteEmail.value) return;
+    
+    inviteMessage.value = '';
+    inviteError.value = false;
+    
+    try {
+        const response = await fetch(
+            `${baseUrl()}/project-invitations`,
             {
                 method: 'POST',
                 headers: {
@@ -185,27 +329,33 @@ async function inviteMember() {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    userId: foundUser.id,
+                    projectId: props.projectId,
+                    email: inviteEmail.value,
                     role: inviteRole.value
                 })
             }
         );
         
-        const addData = await addResponse.json();
+        const data = await response.json();
         
-        if (addData.success) {
-            inviteMessage.value = `${foundUser.email} added as ${inviteRole.value}`;
+        if (data.success) {
+            if (data.invitation?.addedDirectly) {
+                inviteMessage.value = `User added directly as ${inviteRole.value}`;
+                // Refresh members list
+                emit('memberUpdated');
+            } else {
+                inviteMessage.value = `Invitation sent to ${inviteEmail.value}`;
+                // Refresh invitations list
+                await fetchPendingInvitations();
+            }
             inviteEmail.value = '';
             inviteError.value = false;
-            // Add to local members
-            localMembers.value.push(addData.data);
-            emit('memberUpdated');
         } else {
-            inviteMessage.value = addData.message || 'Failed to add member';
+            inviteMessage.value = data.message || 'Failed to send invitation';
             inviteError.value = true;
         }
     } catch (error: any) {
-        inviteMessage.value = error.message || 'Failed to add member';
+        inviteMessage.value = error.message || 'Failed to send invitation';
         inviteError.value = true;
     }
 }
@@ -266,12 +416,13 @@ async function removeMember(member: Member) {
     }
 }
 
-// Watch for dialog opening to reset form
+// Watch for dialog opening to reset form and fetch invitations
 watch(() => props.isOpen, (newValue) => {
     if (newValue) {
         inviteEmail.value = '';
         inviteMessage.value = '';
         inviteError.value = false;
+        fetchPendingInvitations();
     }
 });
 </script>

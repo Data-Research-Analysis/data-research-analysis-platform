@@ -5,6 +5,7 @@ import { useSubscriptionStore } from '@/stores/subscription';
 import { useGoogleAnalytics } from '@/composables/useGoogleAnalytics';
 import { useGoogleAdManager } from '@/composables/useGoogleAdManager';
 import { useGoogleAds } from '@/composables/useGoogleAds';
+import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import pdfImage from '/assets/images/pdf.png';
 import excelImage from '/assets/images/excel.png';
 import postgresqlImage from '/assets/images/postgresql.png';
@@ -25,6 +26,36 @@ const route = useRoute();
 
 // Get project ID from route
 const projectId = parseInt(String(route.params.projectid));
+
+// Get project permissions
+const permissions = useProjectPermissions(projectId);
+
+// Debug logging for permissions
+if (import.meta.client) {
+    // Log project data when it changes
+    watch(() => projectsStore.projects, (projects) => {
+        const currentProject = projects.find(p => p.id === projectId);
+        console.log('📦 Projects Store Updated:', {
+            totalProjects: projects.length,
+            currentProjectId: projectId,
+            currentProject: currentProject,
+            user_role: currentProject?.user_role,
+            is_owner: currentProject?.is_owner
+        });
+    }, { immediate: true, deep: true });
+    
+    // Log permission values when they change
+    watch([permissions.canCreate, permissions.canUpdate, permissions.canDelete, permissions.role], () => {
+        console.log('🔐 Data Sources Permissions Check:', {
+            projectId: projectId,
+            canCreate: permissions.canCreate.value,
+            canUpdate: permissions.canUpdate.value,
+            canDelete: permissions.canDelete.value,
+            role: permissions.role.value,
+            isViewer: permissions.isViewer.value
+        });
+    }, { immediate: true });
+}
 
 const state = reactive({
     show_dialog: false,
@@ -426,7 +457,7 @@ onMounted(async () => {
             </div>
 
             <!-- Bulk Sync Button for Google Data Sources -->
-            <div v-if="!state.loading && state.data_sources.some(ds => ds.data_type === 'google_analytics' || ds.data_type === 'google_ad_manager' || ds.data_type === 'google_ads')"
+            <div v-if="!state.loading && permissions.canUpdate.value && state.data_sources.some(ds => ds.data_type === 'google_analytics' || ds.data_type === 'google_ad_manager' || ds.data_type === 'google_ads')"
                 class="mt-5 mb-2">
                 <button @click="bulkSyncAllGoogleDataSources"
                     class="px-4 py-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 rounded-lg transition-colors duration-200 flex items-center gap-2 cursor-pointer">
@@ -445,7 +476,7 @@ onMounted(async () => {
             <!-- Actual content -->
             <div v-if="!state.loading"
                 class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5">
-                <notched-card class="justify-self-center mt-10">
+                <notched-card v-if="permissions.canCreate.value" class="justify-self-center mt-10">
                     <template #body="{ onClick }">
                         <div class="flex flex-col justify-center text-md font-bold cursor-pointer items-center"
                             @click="openDialog">
@@ -506,17 +537,17 @@ onMounted(async () => {
                             </div>
                         </template>
                     </notched-card>
-                    <div class="absolute top-5 -right-2 z-10 bg-red-500 hover:bg-red-700 border border-red-500 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer"
+                    <div v-if="permissions.canDelete.value" class="absolute top-5 -right-2 z-10 bg-red-500 hover:bg-red-700 border border-red-500 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer"
                         @click="deleteDataSource(dataSource.id)" v-tippy="{ content: 'Delete Data Source' }">
                         <font-awesome icon="fas fa-xmark" class="text-xl text-white" />
                     </div>
-                    <NuxtLink v-if="['postgresql', 'mysql', 'mariadb'].includes(dataSource.data_type)"
+                    <NuxtLink v-if="permissions.canUpdate.value && ['postgresql', 'mysql', 'mariadb'].includes(dataSource.data_type)"
                         :to="`/projects/${project.id}/data-sources/${dataSource.id}/edit/${dataSource.data_type}`"
                         class="absolute top-16 -right-2 z-10 bg-blue-500 hover:bg-blue-600 border border-blue-500 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer"
                         v-tippy="{ content: 'Edit Data Source' }">
                         <font-awesome icon="fas fa-pen" class="text-sm text-white" />
                     </NuxtLink> <button
-                        v-if="dataSource.data_type === 'google_analytics' || dataSource.data_type === 'google_ad_manager' || dataSource.data_type === 'google_ads'"
+                        v-if="permissions.canUpdate.value && (dataSource.data_type === 'google_analytics' || dataSource.data_type === 'google_ad_manager' || dataSource.data_type === 'google_ads')"
                         @click.stop="syncDataSource(dataSource.id)" :disabled="state.syncing[dataSource.id]"
                         class="absolute top-[68px] -right-2 z-10 bg-primary-blue-100 hover:bg-primary-blue-300 border border-primary-blue-100 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         v-tippy="{ content: state.syncing[dataSource.id] ? 'Syncing...' : 'Sync Now' }">

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>You've Been Added to a Project</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+        .header {
+            text-align: center;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #4CAF50;
+        }
+        .header h1 {
+            color: #4CAF50;
+            margin: 0;
+            font-size: 24px;
+        }
+        .content {
+            padding: 20px 0;
+        }
+        .project-details {
+            background-color: #f9f9f9;
+            border-left: 4px solid #4CAF50;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .project-details p {
+            margin: 8px 0;
+        }
+        .project-details strong {
+            color: #4CAF50;
+        }
+        .cta-button {
+            display: inline-block;
+            padding: 12px 30px;
+            background-color: #4CAF50;
+            color: #ffffff !important;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+        .cta-button:hover {
+            background-color: #45a049;
+        }
+        .footer {
+            text-align: center;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            color: #777;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎉 You've Been Added to a Project!</h1>
+        </div>
+        
+        <div class="content">
+            <p>Hi there!</p>
+            
+            <p>Great news! <strong>{{inviter_name}}</strong> has added you to their project on Data Research Analysis.</p>
+            
+            <div class="project-details">
+                <p><strong>Project:</strong> {{project_name}}</p>
+                <p><strong>Your Role:</strong> {{role}}</p>
+                <p><strong>Invited By:</strong> {{inviter_name}}</p>
+            </div>
+            
+            <p>You can start collaborating immediately. Simply log in to your account and access the project from your dashboard.</p>
+            
+            <center>
+                <a href="https://www.dataresearchanalysis.com/projects" class="cta-button">
+                    Go to Projects
+                </a>
+            </center>
+            
+            <p>If you have any questions about this project or your role, feel free to reach out to {{inviter_name}} or contact our support team.</p>
+        </div>
+        
+        <div class="footer">
+            <p>© 2024 Data Research Analysis. All rights reserved.</p>
+            <p>This email was sent because you have an active account on our platform.</p>
+            <p>If you believe this is a mistake, please contact us at <a href="mailto:hello@dataresearchanalysis.com">hello@dataresearchanalysis.com</a></p>
+        </div>
+    </div>
+</body>
+</html>

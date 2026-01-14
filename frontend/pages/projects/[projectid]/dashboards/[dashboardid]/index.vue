@@ -283,11 +283,13 @@ async function executeQueryOnDataModels(chartId) {
                 "Authorization-Type": "auth",
             },
             body: JSON.stringify({
-                query: sqlQuery
+                query: sqlQuery,
+                project_id: parseInt(route.params.projectid)
             })
         });
         const data = await response.json();
-        state.response_from_data_models_rows = data;
+        // Ensure data is an array before assigning
+        state.response_from_data_models_rows = Array.isArray(data) ? data : [];
         state.response_from_data_models_columns = chart.columns.map((column) => column.column_name);
         const labelValues = [];
         const numericValues = [];
@@ -976,11 +978,12 @@ async function openTableDialog(chartId) {
             "Authorization-Type": "auth",
         },
         body: JSON.stringify({
-            query: sqlQuery
+            query: sqlQuery,
+            project_id: parseInt(route.params.projectid)
         })
     });
     const data = await response.json();
-    state.response_from_data_models_rows = data;
+    state.response_from_data_models_rows = Array.isArray(data) ? data : [];
 }
 function closeTableDialog() {
     state.show_table_dialog = false

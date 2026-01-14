@@ -33,11 +33,14 @@ const isInPublicDashboard = computed(() => {
 const isInOauthCallback = computed(() => {
     return route.path.startsWith('/oauth/');
 });
+const isInInvitationAccept = computed(() => {
+    return route.path.startsWith('/invitations/accept/');
+});
 </script>
 <template>
     <div class="relative data-research-analysis">
         <header-nav />
-        <breadcrumbs v-if="state.authenticated && !isInPublicDashboard && !isInOauthCallback" />
+        <breadcrumbs v-if="state.authenticated && !isInPublicDashboard && !isInOauthCallback && !isInInvitationAccept" />
         <div class="flex "
         :class="{
             'flex-row': state.authenticated,

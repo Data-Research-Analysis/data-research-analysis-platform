@@ -6,6 +6,7 @@ import { IDashboardDataStructure } from "../types/IDashboard.js";
 import { EDataSourceType } from "../types/EDataSourceType.js";
 import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
 import { DRAProject } from "../models/DRAProject.js";
+import { DRAProjectMember } from "../models/DRAProjectMember.js";
 import bcrypt  from 'bcryptjs';
 import { UtilityService } from "../services/UtilityService.js";
 import { DRADashboardExportMetaData } from "../models/DRADashboardExportMetaData.js";
@@ -36,7 +37,48 @@ export class DashboardProcessor {
             if (!user) {
                 return resolve([]);
             }
-            const dashboards = await manager.find(DRADashboard, {where: {users_platform: user}, relations: ['project', 'users_platform', 'export_meta_data']});
+            
+            // 1. Get owned dashboards
+            const ownedDashboards = await manager.find(DRADashboard, {
+                where: {users_platform: user}, 
+                relations: {
+                    project: true,
+                    users_platform: true,
+                    export_meta_data: true
+                }
+            });
+            
+            // 2. Get dashboards from projects where user is a member
+            const memberProjects = await manager.find(DRAProjectMember, {
+                where: {user: {id: user_id}},
+                relations: {
+                    project: {
+                        dashboards: {
+                            project: true,
+                            users_platform: true,
+                            export_meta_data: true
+                        }
+                    }
+                }
+            });
+            
+            const memberDashboards = memberProjects.flatMap(m => m.project?.dashboards || []);
+            
+            // 3. Combine and deduplicate
+            const allDashboardsMap = new Map();
+            
+            ownedDashboards.forEach(d => {
+                allDashboardsMap.set(d.id, d);
+            });
+            
+            memberDashboards.forEach(d => {
+                if (!allDashboardsMap.has(d.id)) {
+                    allDashboardsMap.set(d.id, d);
+                }
+            });
+            
+            const dashboards = Array.from(allDashboardsMap.values());
+            
             return resolve(dashboards);
         });
     }

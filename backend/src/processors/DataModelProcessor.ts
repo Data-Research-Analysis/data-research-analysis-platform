@@ -10,6 +10,7 @@ import { DataSource } from "typeorm";
 import { EDataSourceType } from "../types/EDataSourceType.js";
 import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
 import { DRAProject } from "../models/DRAProject.js";
+import { DRAProjectMember } from "../models/DRAProjectMember.js";
 import { DRADataModelSource } from "../models/DRADataModelSource.js";
 
 export class DataModelProcessor {
@@ -203,10 +204,60 @@ export class DataModelProcessor {
             if (!user) {
                 return resolve([]);
             }
-            const dataModels = await manager.find(DRADataModel, {
+            
+            // 1. Get owned data models
+            const ownedDataModels = await manager.find(DRADataModel, {
                 where: {users_platform: user}, 
-                relations: ['data_source', 'users_platform', 'data_model_sources', 'data_model_sources.data_source']
+                relations: {
+                    data_source: {
+                        project: true
+                    },
+                    users_platform: true,
+                    data_model_sources: {
+                        data_source: true
+                    }
+                }
             });
+            
+            // 2. Get data models from projects where user is a member
+            const memberProjects = await manager.find(DRAProjectMember, {
+                where: {user: {id: user_id}},
+                relations: {
+                    project: {
+                        data_sources: {
+                            data_models: {
+                                data_source: {
+                                    project: true
+                                },
+                                users_platform: true,
+                                data_model_sources: {
+                                    data_source: true
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            
+            const memberDataModels = memberProjects.flatMap(m => 
+                (m.project?.data_sources || []).flatMap(ds => ds.data_models || [])
+            );
+            
+            // 3. Combine and deduplicate
+            const allDataModelsMap = new Map();
+            
+            ownedDataModels.forEach(dm => {
+                allDataModelsMap.set(dm.id, dm);
+            });
+            
+            memberDataModels.forEach(dm => {
+                if (!allDataModelsMap.has(dm.id)) {
+                    allDataModelsMap.set(dm.id, dm);
+                }
+            });
+            
+            const dataModels = Array.from(allDataModelsMap.values());
+            
             return resolve(dataModels);
         });
     }
@@ -233,9 +284,32 @@ export class DataModelProcessor {
                 if (!user) {
                     return resolve(false);
                 }
-                const dataModel = await manager.findOne(DRADataModel, {where: {id: dataModelId, users_platform: user}});
+                
+                // First try to find data model owned by user
+                let dataModel = await manager.findOne(DRADataModel, {where: {id: dataModelId, users_platform: user}});
+                
+                // If not owned by user, check if user is a member of the data model's project
                 if (!dataModel) {
-                    return resolve(false);
+                    dataModel = await manager.findOne(DRADataModel, {
+                        where: {id: dataModelId},
+                        relations: {data_source: {project: true}}
+                    });
+                    
+                    if (dataModel?.data_source?.project) {
+                        const membership = await manager.findOne(DRAProjectMember, {
+                            where: {
+                                user: {id: user_id},
+                                project: {id: dataModel.data_source.project.id}
+                            }
+                        });
+                        
+                        if (!membership) {
+                            return resolve(false);
+                        }
+                    } else {
+                        // Data model not associated with a project, user can't access it
+                        return resolve(false);
+                    }
                 }
                 
                 // Clean up dashboard references before deleting
@@ -305,10 +379,42 @@ export class DataModelProcessor {
             }
             
             // Retrieve existing data model with relations
-            const existingDataModel = await manager.findOne(DRADataModel, {
+            // First try to find data model owned by user
+            let existingDataModel = await manager.findOne(DRADataModel, {
                 where: {id: dataModelId, users_platform: user},
                 relations: ['data_source']
             });
+            
+            // If not owned by user, check if user is a member of the data model's project
+            if (!existingDataModel) {
+                existingDataModel = await manager.findOne(DRADataModel, {
+                    where: {id: dataModelId},
+                    relations: {data_source: {project: true}}
+                });
+                
+                if (existingDataModel?.data_source?.project) {
+                    const membership = await manager.findOne(DRAProjectMember, {
+                        where: {
+                            user: {id: user_id},
+                            project: {id: existingDataModel.data_source.project.id}
+                        }
+                    });
+                    
+                    if (!membership) {
+                        console.error(`Data model ${dataModelId} found but user ${user_id} is not a project member`);
+                        return resolve(false);
+                    }
+                    
+                    // Reload with data_source relation for subsequent use
+                    existingDataModel = await manager.findOne(DRADataModel, {
+                        where: {id: dataModelId},
+                        relations: ['data_source']
+                    });
+                } else {
+                    console.error(`Data model ${dataModelId} not found or not associated with a project`);
+                    return resolve(false);
+                }
+            }
             
             if (!existingDataModel) {
                 console.error(`Data model ${dataModelId} not found or user ${user_id} does not have permission`);
@@ -386,9 +492,31 @@ export class DataModelProcessor {
                 console.error('[DataModelProcessor] Error parsing queryJSON for cross-source detection:', error);
             }
 
-            const dataSource: DRADataSource|null = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}, relations: ['data_models']});
+            // First try to find data source owned by user
+            let dataSource: DRADataSource|null = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}, relations: ['data_models']});
+            
+            // If not owned by user, check if user is a member of the data source's project
             if (!dataSource) {
-                return resolve(false);
+                dataSource = await manager.findOne(DRADataSource, {
+                    where: {id: dataSourceId},
+                    relations: {project: true, data_models: true}
+                });
+                
+                if (dataSource?.project) {
+                    const membership = await manager.findOne(DRAProjectMember, {
+                        where: {
+                            user: {id: user_id},
+                            project: {id: dataSource.project.id}
+                        }
+                    });
+                    
+                    if (!membership) {
+                        return resolve(false);
+                    }
+                } else {
+                    // Data source not associated with a project, user can't access it
+                    return resolve(false);
+                }
             }
             const connection = dataSource.connection_details;
             // Skip API-based data sources (like Google Analytics) - they don't support data models

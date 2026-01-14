@@ -2,6 +2,7 @@
 import { useProjectsStore } from '@/stores/projects';
 import { useDashboardsStore } from '~/stores/dashboards';
 import { useSubscriptionStore } from '@/stores/subscription';
+import { useProjectPermissions } from '@/composables/useProjectPermissions';
 const projectsStore = useProjectsStore();
 const dashboardsStore = useDashboardsStore();
 const subscriptionStore = useSubscriptionStore();
@@ -10,6 +11,9 @@ const route = useRoute();
 
 // Get project ID from route
 const projectId = parseInt(String(route.params.projectid));
+
+// Get project permissions
+const permissions = useProjectPermissions(projectId);
 
 const state = reactive({
     loading: true,
@@ -162,7 +166,7 @@ function checkDashboardLimit() {
 
             <!-- Actual content -->
             <div v-else class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5">
-                <notched-card class="justify-self-center mt-10">
+                <notched-card v-if="permissions.canCreate.value" class="justify-self-center mt-10">
                     <template #body="{ onClick }">
                         <NuxtLink 
                             v-if="subscriptionStore.canCreateDashboard"
@@ -211,7 +215,7 @@ function checkDashboardLimit() {
                             </NuxtLink>
                         </template>
                     </notched-card>
-                    <div v-tippy="{ content: 'Delete Dashboard' }"
+                    <div v-if="permissions.canDelete.value" v-tippy="{ content: 'Delete Dashboard' }"
                         class="absolute top-5 -right-2 z-10 bg-red-500 hover:bg-red-700 border border-red-500 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer"
                         @click="deleteDashboard(dashboard.id)">
                         <font-awesome icon="fas fa-xmark" class="text-xl text-white select-none" />

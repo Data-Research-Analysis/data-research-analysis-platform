@@ -3,6 +3,8 @@ import { EDataSourceType } from "../types/EDataSourceType.js";
 import { DRAUserSubscription } from "../models/DRAUserSubscription.js";
 import { DRASubscriptionTier, ESubscriptionTier } from "../models/DRASubscriptionTier.js";
 import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
+import { EmailService } from "../services/EmailService.js";
+import { EmailPreferencesProcessor } from "./EmailPreferencesProcessor.js";
 
 export interface IUserSubscriptionData {
     subscription_id?: number;
@@ -155,6 +157,11 @@ export class UserSubscriptionProcessor {
             
             const savedSubscription = await transactionalEntityManager.save(newSubscription);
             
+            // Send email notification (async, don't wait)
+            this.sendSubscriptionEmail(user, tier, savedSubscription, 'assigned').catch(err => {
+                console.error('[UserSubscriptionProcessor] Failed to send subscription email:', err);
+            });
+            
             // Return subscription data with tier details
             return {
                 subscription_id: savedSubscription.id,
@@ -217,6 +224,23 @@ export class UserSubscriptionProcessor {
             }
         );
         
+        // Send cancellation email notification (async, don't wait)
+        const updatedSubscription = await manager.findOne(DRAUserSubscription, {
+            where: { id: subscription.id },
+            relations: ['users_platform', 'subscription_tier']
+        });
+        
+        if (updatedSubscription) {
+            this.sendSubscriptionEmail(
+                updatedSubscription.users_platform, 
+                updatedSubscription.subscription_tier, 
+                updatedSubscription, 
+                'cancelled'
+            ).catch(err => {
+                console.error('[UserSubscriptionProcessor] Failed to send cancellation email:', err);
+            });
+        }
+        
         return true;
     }
     
@@ -261,5 +285,78 @@ export class UserSubscriptionProcessor {
             ends_at: sub.ends_at,
             is_active: sub.is_active
         }));
+    }
+    
+    /**
+     * Send subscription-related email notification
+     * @private
+     */
+    private async sendSubscriptionEmail(
+        user: DRAUsersPlatform,
+        tier: DRASubscriptionTier,
+        subscription: DRAUserSubscription,
+        emailType: 'assigned' | 'upgraded' | 'downgraded' | 'cancelled'
+    ): Promise<void> {
+        try {
+            // Check user email preferences
+            const preferencesProcessor = EmailPreferencesProcessor.getInstance();
+            const canSend = await preferencesProcessor.canSendEmail(user.id, 'subscription_updates');
+            
+            if (!canSend) {
+                console.log(`[UserSubscriptionProcessor] User ${user.id} has disabled subscription update emails`);
+                return;
+            }
+            
+            const emailService = EmailService.getInstance();
+            const userName = `${user.first_name} ${user.last_name}`.trim() || user.email.split('@')[0];
+            
+            // Determine subject and template based on email type
+            let subject: string;
+            let template: string;
+            
+            switch (emailType) {
+                case 'assigned':
+                    subject = `Welcome to ${tier.tier_name}!`;
+                    template = 'subscription-assigned';
+                    break;
+                case 'upgraded':
+                    subject = `You've been upgraded to ${tier.tier_name}!`;
+                    template = 'subscription-upgraded';
+                    break;
+                case 'downgraded':
+                    subject = `Your subscription changed to ${tier.tier_name}`;
+                    template = 'subscription-downgraded';
+                    break;
+                case 'cancelled':
+                    subject = 'Your subscription has been cancelled';
+                    template = 'subscription-cancelled';
+                    break;
+                default:
+                    throw new Error(`Unknown email type: ${emailType}`);
+            }
+            
+            await emailService.sendEmail({
+                to: user.email,
+                subject,
+                template,
+                templateData: {
+                    userName,
+                    tierName: tier.tier_name,
+                    maxProjects: tier.max_projects || 'Unlimited',
+                    maxDataSources: tier.max_data_sources_per_project || 'Unlimited',
+                    maxDashboards: tier.max_dashboards || 'Unlimited',
+                    aiGenerationsPerMonth: tier.ai_generations_per_month || 'Unlimited',
+                    maxRowsPerDataModel: tier.max_rows_per_data_model.toLocaleString(),
+                    startDate: subscription.started_at,
+                    expirationDate: subscription.ends_at || 'Ongoing',
+                    endDate: subscription.cancelled_at || ''
+                }
+            });
+            
+            console.log(`[UserSubscriptionProcessor] ${emailType} email queued for user ${user.email}`);
+        } catch (error: any) {
+            // Don't fail subscription operations if email fails
+            console.error(`[UserSubscriptionProcessor] Failed to send ${emailType} email:`, error);
+        }
     }
 }

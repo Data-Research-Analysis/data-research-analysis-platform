@@ -1,0 +1,634 @@
+// Data Research Analysis Platform - Database Schema
+// Full-stack data analytics platform with Vue3/Nuxt3 frontend and Node.js/Express/TypeScript backend
+// Generated: January 12, 2026
+// Database: PostgreSQL
+
+Project DataResearchAnalysis {
+  database_type: 'PostgreSQL'
+  Note: '''
+    Data analytics platform supporting:
+    - Multi-source data connections (PostgreSQL, MySQL, MariaDB, CSV, Excel, PDF, Google Analytics, Google Ads)
+    - AI-powered data modeling with Gemini 2.0 Flash
+    - Interactive dashboards with role-based access control (RBAC)
+    - Project-based collaboration with invitations
+    - Subscription tiers with usage limits
+    - Automated database backups
+  '''
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+Enum user_type {
+  admin [note: 'Platform administrator with full access']
+  normal [note: 'Standard user with subscription-based limits']
+}
+
+Enum data_source_type {
+  excel [note: 'Excel spreadsheet upload']
+  csv [note: 'CSV file upload']
+  pdf [note: 'PDF document upload']
+  postgresql [note: 'PostgreSQL database connection']
+  mysql [note: 'MySQL database connection']
+  mariadb [note: 'MariaDB database connection']
+  mongodb [note: 'MongoDB database connection (future)']
+  google_analytics [note: 'Google Analytics API integration']
+  google_ad_manager [note: 'Google Ad Manager API integration']
+  google_ads [note: 'Google Ads API integration']
+}
+
+Enum project_role {
+  owner [note: 'Project creator with full control, cannot be removed']
+  admin [note: 'Can manage members, settings, and all resources']
+  editor [note: 'Can create/edit dashboards and data models']
+  viewer [note: 'Read-only access to project resources']
+}
+
+Enum publish_status {
+  published [note: 'Visible to public']
+  draft [note: 'Hidden from public, editable']
+}
+
+Enum ai_conversation_status {
+  draft [note: 'Active conversation, stored in Redis']
+  saved [note: 'Conversation saved to database, data model created']
+  archived [note: 'Conversation archived, no longer active']
+}
+
+Enum ai_message_role {
+  user [note: 'Message from user']
+  assistant [note: 'Response from AI (Gemini)']
+  system [note: 'System-generated message']
+}
+
+Enum sync_status {
+  PENDING [note: 'Sync queued']
+  RUNNING [note: 'Sync in progress']
+  COMPLETED [note: 'Sync completed successfully']
+  FAILED [note: 'Sync failed with error']
+  PARTIAL [note: 'Sync partially completed']
+}
+
+Enum sync_type {
+  FULL [note: 'Full data synchronization']
+  INCREMENTAL [note: 'Incremental updates only']
+  MANUAL [note: 'User-triggered sync']
+  SCHEDULED [note: 'Cron job scheduled sync']
+}
+
+Enum backup_trigger_type {
+  scheduled [note: 'Automated cron job backup']
+  manual [note: 'User-triggered backup']
+}
+
+Enum backup_run_status {
+  queued [note: 'Backup job queued in BullMQ']
+  processing [note: 'Backup in progress']
+  completed [note: 'Backup completed successfully']
+  failed [note: 'Backup failed with error']
+}
+
+Enum invitation_status {
+  pending [note: 'Invitation sent, awaiting acceptance']
+  accepted [note: 'Invitation accepted, member added']
+  expired [note: 'Invitation expired (7 days)']
+  cancelled [note: 'Invitation cancelled by sender']
+}
+
+Enum subscription_tier_name {
+  free [note: 'Free tier with basic limits']
+  pro [note: 'Professional tier']
+  team [note: 'Team tier with collaboration features']
+  business [note: 'Business tier with advanced features']
+  enterprise [note: 'Enterprise tier with unlimited resources']
+}
+
+// ============================================
+// CORE TABLES
+// ============================================
+
+Table dra_users_platform {
+  id int [pk, increment]
+  email varchar(320) [not null, unique, note: 'User email address for authentication']
+  first_name varchar(255) [not null]
+  last_name varchar(255) [not null]
+  password varchar(255) [not null, note: 'Bcrypt hashed password']
+  user_type user_type [not null, default: 'normal']
+  email_verified_at timestamp [null, note: 'Email verification timestamp']
+  unsubscribe_from_emails_at timestamp [null, note: 'Global email unsubscribe timestamp']
+  
+  Note: 'Core user authentication and profile table. Central hub for all user-owned resources.'
+}
+
+Table dra_projects {
+  id int [pk, increment]
+  users_platform_id int [not null, note: 'Project owner (creator)']
+  name varchar(255) [not null]
+  description text [null]
+  created_at timestamp [null, default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    users_platform_id
+  }
+  
+  Note: 'Projects group related data sources, models, and dashboards. Support multi-user collaboration via project members.'
+}
+
+Table dra_project_members {
+  id int [pk, increment]
+  project_id int [not null]
+  users_platform_id int [not null, note: 'Member user']
+  role project_role [not null, note: 'RBAC role for this member']
+  added_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  last_accessed_at timestamp [null, note: 'Last time member accessed project']
+  invited_by_user_id int [null, note: 'User who invited this member']
+  
+  indexes {
+    (project_id, users_platform_id) [unique, note: 'One role per user per project']
+    project_id
+    users_platform_id
+  }
+  
+  Note: 'Project membership with role-based access control (RBAC). Defines who can access projects and their permission level.'
+}
+
+Table dra_project_invitations {
+  id int [pk, increment]
+  project_id int [not null]
+  invited_email varchar(320) [not null, note: 'Email of invitee']
+  role project_role [not null, note: 'Role to assign when accepted']
+  verification_code_id int [not null, unique, note: 'FK to dra_verification_codes for token management']
+  invited_by_user_id int [not null]
+  created_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  expires_at timestamp [not null, note: '7 days from creation']
+  status varchar(20) [not null, default: 'pending', note: 'pending, accepted, expired, cancelled']
+  accepted_at timestamp [null]
+  
+  indexes {
+    verification_code_id [unique]
+    project_id
+    (invited_email, project_id) [note: 'Check for duplicate invitations']
+  }
+  
+  Note: 'Pending project invitations. Uses centralized verification_codes for token management. Tokens expire after 7 days.'
+}
+
+// ============================================
+// DATA SOURCE & MODELING
+// ============================================
+
+Table dra_data_sources {
+  id int [pk, increment]
+  users_platform_id int [not null]
+  project_id int [null, note: 'Project association (nullable for legacy)']
+  name varchar(255) [not null]
+  data_type data_source_type [not null]
+  connection_details jsonb [not null, note: '🔒 ENCRYPTED - Database credentials, OAuth tokens, file paths']
+  created_at timestamp [null, default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    users_platform_id
+    project_id
+    data_type
+  }
+  
+  Note: 'Data source connections. connection_details field is AUTOMATICALLY ENCRYPTED using ValueTransformer with EncryptionService.'
+}
+
+Table dra_data_models {
+  id int [pk, increment]
+  users_platform_id int [not null]
+  data_source_id int [null, note: 'Primary data source (null for cross-source models)']
+  schema varchar(255) [not null, note: 'Database schema name']
+  name varchar(255) [not null, note: 'Data model name (table/view name)']
+  sql_query text [not null, note: 'Generated SQL query']
+  query jsonb [not null, note: 'Query builder JSON structure']
+  is_cross_source boolean [not null, default: false, note: 'True if joins multiple data sources']
+  execution_metadata jsonb [not null, default: '{}', note: 'Query performance metrics, row counts']
+  created_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    users_platform_id
+    data_source_id
+    schema
+    is_cross_source
+  }
+  
+  Note: 'Data models represent SQL queries that create materialized views or tables. Can join multiple data sources.'
+}
+
+Table dra_data_model_sources {
+  id int [pk, increment]
+  data_model_id int [not null]
+  data_source_id int [not null]
+  users_platform_id int [not null]
+  created_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    (data_model_id, data_source_id) [unique, note: 'No duplicate sources per model']
+    data_model_id
+    data_source_id
+  }
+  
+  Note: 'Junction table for many-to-many relationship between data models and data sources. Enables cross-source joins.'
+}
+
+Table dra_cross_source_join_catalog {
+  id int [pk, increment]
+  left_data_source_id int [null]
+  left_table_name varchar(255) [not null]
+  left_column_name varchar(255) [not null]
+  right_data_source_id int [null]
+  right_table_name varchar(255) [not null]
+  right_column_name varchar(255) [not null]
+  join_type varchar(20) [not null, default: 'INNER', note: 'INNER, LEFT, RIGHT, FULL']
+  usage_count int [not null, default: 0, note: 'How many times this join has been used']
+  created_by_user_id int [null]
+  created_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    (left_data_source_id, right_data_source_id)
+    left_table_name
+    right_table_name
+    usage_count [note: 'Order by popularity']
+  }
+  
+  Note: 'Catalog of successful cross-source joins. Suggests join relationships to users based on past usage patterns.'
+}
+
+Table dra_table_metadata {
+  id int [pk, increment]
+  data_source_id int [not null]
+  users_platform_id int [not null]
+  schema_name varchar(63) [not null, note: 'PostgreSQL schema name (max 63 chars)']
+  physical_table_name varchar(63) [not null, note: 'Actual table name in database (hashed for long names)']
+  logical_table_name text [not null, note: 'Human-readable display name']
+  original_sheet_name text [null, note: 'Original Excel/CSV sheet name']
+  file_id text [null, note: 'File identifier for uploaded files']
+  table_type varchar(50) [null, note: 'excel, pdf, google_analytics, etc.']
+  created_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    data_source_id
+    physical_table_name
+    (schema_name, physical_table_name) [unique]
+  }
+  
+  Note: 'Maps physical database table names to logical display names. Solves PostgreSQL 63-character identifier limit by using hashed names.'
+}
+
+// ============================================
+// AI DATA MODELER (GEMINI INTEGRATION)
+// ============================================
+
+Table dra_ai_data_model_conversations {
+  id int [pk, increment]
+  data_source_id int [not null, note: 'Data source being modeled']
+  user_id int [not null]
+  data_model_id int [null, note: 'Created data model (when saved)']
+  title varchar(255) [not null, note: 'Conversation title']
+  status varchar(20) [not null, default: 'draft', note: 'draft (Redis), saved (PostgreSQL), archived']
+  started_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  saved_at timestamp [null, note: 'When conversation was saved to database']
+  created_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    data_source_id
+    user_id
+    status
+  }
+  
+  Note: 'AI-powered data modeling conversations using Google Gemini 2.0 Flash. Draft conversations stored in Redis (24h TTL), transferred to PostgreSQL on save.'
+}
+
+Table dra_ai_data_model_messages {
+  id int [pk, increment]
+  conversation_id int [not null]
+  role ai_message_role [not null, note: 'user, assistant, system']
+  content text [not null, note: 'Message text']
+  metadata json [null, note: 'Additional context (model recommendations, SQL queries)']
+  created_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    conversation_id
+    role
+  }
+  
+  Note: 'Individual messages in AI data modeling conversations. Assistant messages contain structured model recommendations.'
+}
+
+// ============================================
+// DASHBOARDS & VISUALIZATIONS
+// ============================================
+
+Table dra_dashboards {
+  id int [pk, increment]
+  users_platform_id int [not null]
+  project_id int [not null]
+  data jsonb [not null, note: 'Dashboard configuration: charts, filters, layout']
+  
+  indexes {
+    users_platform_id
+    project_id
+  }
+  
+  Note: 'Interactive dashboards with charts and visualizations. Data field contains full dashboard state (charts, data sources, filters, layout).'
+}
+
+Table dra_dashboards_exported_metadata {
+  id int [pk, increment]
+  users_platform_id int [not null]
+  dashboard_id int [not null]
+  key varchar(1024) [not null, note: 'S3/file storage key for exported file']
+  created_at timestamp [not null]
+  expiry_at timestamp [not null, note: 'Auto-delete exported files after expiry']
+  
+  indexes {
+    dashboard_id
+    expiry_at [note: 'Cleanup expired exports']
+  }
+  
+  Note: 'Metadata for exported dashboard files (PDF, Excel). Tracks temporary export URLs with expiration.'
+}
+
+// ============================================
+// SUBSCRIPTION & BILLING
+// ============================================
+
+Table dra_subscription_tiers {
+  id int [pk, increment]
+  tier_name varchar(50) [unique, not null, note: 'free, pro, team, business, enterprise']
+  max_rows_per_data_model bigint [not null, note: 'Maximum rows allowed in data models']
+  max_projects int [null, note: 'Maximum projects (null = unlimited)']
+  max_data_sources_per_project int [null, note: 'Max data sources per project']
+  max_data_models_per_data_source int [null, note: 'Max data models per data source']
+  max_dashboards int [null, note: 'Max dashboards']
+  max_members_per_project int [null, note: 'Max collaborators per project']
+  ai_generations_per_month int [null, note: 'AI data modeling generations per month']
+  price_per_month_usd decimal(10,2) [not null, note: 'Monthly price in USD']
+  is_active boolean [not null, default: true, note: 'Tier available for new subscriptions']
+  created_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    tier_name [unique]
+    is_active
+  }
+  
+  Note: 'Subscription tier definitions with usage limits. Null values = unlimited. Controls project-based access and features.'
+}
+
+Table dra_user_subscriptions {
+  id int [pk, increment]
+  users_platform_id int [not null]
+  subscription_tier_id int [not null]
+  started_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  ends_at timestamp [null, note: 'Subscription end date (null = ongoing)']
+  is_active boolean [not null, default: true]
+  stripe_subscription_id varchar(100) [null, note: 'Stripe subscription ID for payment tracking']
+  cancelled_at timestamp [null, note: 'When subscription was cancelled']
+  
+  indexes {
+    users_platform_id
+    subscription_tier_id
+    is_active
+    ends_at [note: 'Query expiring subscriptions']
+  }
+  
+  Note: 'User subscription assignments. Tracks active subscription tier and billing status via Stripe integration.'
+}
+
+Table dra_email_preferences {
+  id int [pk, increment]
+  user_id int [unique, not null]
+  subscription_updates boolean [not null, default: true, note: 'Subscription tier changes']
+  expiration_warnings boolean [not null, default: true, note: 'Subscription expiring soon']
+  renewal_reminders boolean [not null, default: true, note: 'Renewal reminders']
+  promotional_emails boolean [not null, default: false, note: 'Marketing emails']
+  created_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    user_id [unique]
+  }
+  
+  Note: 'Granular email notification preferences per user. Controls subscription, expiration, and promotional emails.'
+}
+
+// ============================================
+// CONTENT MANAGEMENT (ARTICLES)
+// ============================================
+
+Table dra_articles {
+  id int [pk, increment]
+  users_platform_id int [not null, note: 'Article author']
+  title varchar(512) [not null]
+  content text [not null, note: 'HTML content']
+  content_markdown text [null, note: 'Markdown source (optional)']
+  publish_status publish_status [not null, note: 'published or draft']
+  slug varchar(255) [not null, unique, note: 'URL-friendly slug']
+  created_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    users_platform_id
+    slug [unique]
+    publish_status
+  }
+  
+  Note: 'Blog articles/documentation. Supports Markdown and HTML content with SEO-friendly slugs.'
+}
+
+Table dra_categories {
+  id int [pk, increment]
+  users_platform_id int [not null]
+  title varchar(512) [not null]
+  
+  indexes {
+    users_platform_id
+  }
+  
+  Note: 'Article categories for content organization.'
+}
+
+Table dra_articles_categories {
+  article_id bigint [pk]
+  category_id bigint [pk]
+  users_platform_id int [not null]
+  
+  indexes {
+    (article_id, category_id) [pk]
+    article_id
+    category_id
+  }
+  
+  Note: 'Many-to-many junction table for articles and categories. Composite primary key.'
+}
+
+Table dra_sitemap_entries {
+  id int [pk, increment]
+  users_platform_id int [not null]
+  url varchar(2048) [not null]
+  publish_status publish_status [not null]
+  priority int [not null, default: 0, note: 'SEO priority (0-10)']
+  created_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    url
+    publish_status
+    priority [note: 'Order by SEO priority']
+  }
+  
+  Note: 'Dynamic sitemap generation for SEO. Tracks all published URLs with priorities.'
+}
+
+// ============================================
+// AUTHENTICATION & VERIFICATION
+// ============================================
+
+Table dra_verification_codes {
+  id int [pk, increment]
+  users_platform_id int [not null]
+  code varchar(1024) [not null, note: 'Verification code (email verification, password reset)']
+  expired_at timestamp [null, note: 'Code expiration time']
+  
+  indexes {
+    users_platform_id
+    code
+    expired_at [note: 'Cleanup expired codes']
+  }
+  
+  Note: 'Temporary verification codes for email verification and password reset flows.'
+}
+
+Table dra_private_beta_users {
+  id int [pk, increment]
+  first_name varchar(255) [not null]
+  last_name varchar(255) [not null]
+  phone_number varchar(255) [not null]
+  business_email varchar(320) [not null, unique]
+  company_name varchar(255) [not null]
+  country varchar(255) [not null]
+  agree_to_receive_updates boolean [not null, default: false]
+  created_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    business_email [unique]
+    country
+  }
+  
+  Note: 'Private beta program signups. Tracks early access requests with contact information.'
+}
+
+// ============================================
+// SYSTEM & OPERATIONS
+// ============================================
+
+Table dra_scheduled_backup_runs {
+  id int [pk, increment]
+  backup_id varchar(255) [null, note: 'Unique backup identifier']
+  trigger_type backup_trigger_type [not null, default: 'scheduled']
+  status backup_run_status [not null, default: 'queued']
+  started_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  completed_at timestamp [null]
+  error_message text [null, note: 'Error details if failed']
+  backup_size_bytes bigint [null, note: 'Compressed backup file size']
+  backup_filepath varchar(512) [null, note: 'Path to backup ZIP file']
+  triggered_by_user_id int [not null]
+  created_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    status
+    trigger_type
+    started_at [note: 'Query recent backups']
+    triggered_by_user_id
+  }
+  
+  Note: 'Database backup job tracking. Admin-only feature using BullMQ queue with Socket.IO progress updates. Creates pg_dump SQL + metadata.json ZIP.'
+}
+
+Table sync_history {
+  id int [pk, increment]
+  data_source_id int [not null]
+  sync_type sync_type [not null, note: 'FULL, INCREMENTAL, MANUAL, SCHEDULED']
+  status sync_status [not null, note: 'PENDING, RUNNING, COMPLETED, FAILED, PARTIAL']
+  started_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  completed_at timestamp [null]
+  duration_ms int [null, note: 'Sync duration in milliseconds']
+  records_synced int [not null, default: 0]
+  records_failed int [not null, default: 0]
+  error_message text [null]
+  metadata jsonb [null, note: 'Additional sync context']
+  created_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  
+  indexes {
+    data_source_id
+    status
+    started_at [note: 'Query sync history timeline']
+  }
+  
+  Note: 'Data synchronization history for external data sources (Google Analytics, Google Ads). Tracks sync performance and errors.'
+}
+
+// ============================================
+// RELATIONSHIPS SUMMARY
+// ============================================
+
+// User relationships
+Ref: dra_projects.users_platform_id > dra_users_platform.id [delete: cascade]
+Ref: dra_project_members.users_platform_id > dra_users_platform.id [delete: cascade]
+Ref: dra_project_members.invited_by_user_id > dra_users_platform.id [delete: set null]
+Ref: dra_project_members.project_id > dra_projects.id [delete: cascade]
+Ref: dra_project_invitations.project_id > dra_projects.id [delete: cascade]
+Ref: dra_project_invitations.invited_by_user_id > dra_users_platform.id [delete: cascade]
+Ref: dra_project_invitations.verification_code_id > dra_verification_codes.id [delete: cascade, note: 'Centralized token management']
+Ref: dra_data_sources.users_platform_id > dra_users_platform.id [delete: cascade]
+Ref: dra_data_sources.project_id > dra_projects.id [delete: cascade]
+Ref: dra_data_models.users_platform_id > dra_users_platform.id [delete: cascade]
+Ref: dra_data_models.data_source_id > dra_data_sources.id [delete: cascade]
+Ref: dra_dashboards.users_platform_id > dra_users_platform.id [delete: cascade]
+Ref: dra_dashboards.project_id > dra_projects.id [delete: cascade]
+
+// Data modeling relationships
+Ref: dra_data_model_sources.data_model_id > dra_data_models.id [delete: cascade]
+Ref: dra_data_model_sources.data_source_id > dra_data_sources.id [delete: cascade]
+Ref: dra_data_model_sources.users_platform_id > dra_users_platform.id [delete: cascade]
+Ref: dra_cross_source_join_catalog.left_data_source_id > dra_data_sources.id [delete: cascade]
+Ref: dra_cross_source_join_catalog.right_data_source_id > dra_data_sources.id [delete: cascade]
+Ref: dra_cross_source_join_catalog.created_by_user_id > dra_users_platform.id [delete: set null]
+Ref: dra_table_metadata.data_source_id > dra_data_sources.id [delete: cascade]
+Ref: dra_table_metadata.users_platform_id > dra_users_platform.id [delete: cascade]
+
+// AI data modeler relationships
+Ref: dra_ai_data_model_conversations.data_source_id > dra_data_sources.id [delete: cascade]
+Ref: dra_ai_data_model_conversations.user_id > dra_users_platform.id [delete: cascade]
+Ref: dra_ai_data_model_conversations.data_model_id > dra_data_models.id [delete: set null]
+Ref: dra_ai_data_model_messages.conversation_id > dra_ai_data_model_conversations.id [delete: cascade]
+
+// Dashboard relationships
+Ref: dra_dashboards_exported_metadata.users_platform_id > dra_users_platform.id [delete: cascade]
+Ref: dra_dashboards_exported_metadata.dashboard_id > dra_dashboards.id [delete: cascade]
+
+// Subscription relationships
+Ref: dra_user_subscriptions.users_platform_id > dra_users_platform.id [delete: cascade]
+Ref: dra_user_subscriptions.subscription_tier_id > dra_subscription_tiers.id [delete: restrict]
+Ref: dra_email_preferences.user_id > dra_users_platform.id [delete: cascade]
+
+// Content relationships
+Ref: dra_articles.users_platform_id > dra_users_platform.id [delete: cascade]
+Ref: dra_categories.users_platform_id > dra_users_platform.id [delete: cascade]
+Ref: dra_articles_categories.article_id > dra_articles.id [delete: cascade]
+Ref: dra_articles_categories.category_id > dra_categories.id [delete: cascade]
+Ref: dra_articles_categories.users_platform_id > dra_users_platform.id [delete: cascade]
+Ref: dra_sitemap_entries.users_platform_id > dra_users_platform.id [delete: cascade]
+
+// Authentication relationships
+Ref: dra_verification_codes.users_platform_id > dra_users_platform.id [delete: cascade]
+
+// Operations relationships
+Ref: dra_scheduled_backup_runs.triggered_by_user_id > dra_users_platform.id [delete: cascade]
+Ref: sync_history.data_source_id > dra_data_sources.id [delete: cascade]

@@ -30,6 +30,9 @@ const projects = computed(() => {
         user_id: project.user_platform_id,
         name: project.name,
         description: project.description || '',
+        // Owner/role information
+        is_owner: project.is_owner ?? true, // Default to true for backward compatibility
+        user_role: project.user_role || 'owner',
         // Use counts from API response
         dataSourcesCount: project.data_sources_count || 0,
         dataModelsCount: project.data_models_count || 0,
@@ -279,18 +282,57 @@ function closeMembersDialog() {
                         <template #body="{ onClick }">
                             <div class="flex flex-col justify-center">
                                 <!-- Project Name and Team Button -->
-                                <div class="flex justify-between items-center mb-3">
-                                    <div class="text-md font-bold flex-1">
-                                        {{project.name}}
+                                <div class="flex items-center mb-3">
+                                    <div class="flex justify-between items-center gap-2 flex-1">
+                                        <div class="text-md font-bold">
+                                            {{project.name}}
+                                        </div>
+                                        <!-- Owner/Member Badge -->
+                                        <div class="flex flex-col">
+                                            <span 
+                                                v-if="project.is_owner"
+                                                class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800"
+                                                title="You own this project"
+                                            >
+                                                <font-awesome icon="fas fa-crown" class="mr-1" />
+                                                Owner
+                                            </span>
+                                            <span 
+                                                v-else-if="project.user_role === 'admin'"
+                                                class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"
+                                                title="You are an admin in this project"
+                                            >
+                                                <font-awesome icon="fas fa-user-shield" class="mr-1" />
+                                                Admin
+                                            </span>
+                                            <span 
+                                                v-else-if="project.user_role === 'editor'"
+                                                class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800"
+                                                title="You are an editor in this project"
+                                            >
+                                                <font-awesome icon="fas fa-pencil" class="mr-1" />
+                                                Editor
+                                            </span>
+                                            <span 
+                                                v-else-if="project.user_role === 'viewer'"
+                                                class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800"
+                                                title="You are a viewer in this project"
+                                            >
+                                                <font-awesome icon="fas fa-eye" class="mr-1" />
+                                                Viewer
+                                            </span>
+                                            <!-- Team button - only show for owners and admins -->
+                                            <button 
+                                                v-if="project.is_owner || project.user_role === 'admin'"
+                                                @click.prevent="openMembersDialog(project.id)"
+                                                class="text-xs bg-blue-500 hover:bg-blue-600 text-white p-1 mt-1 rounded flex items-center gap-1 cursor-pointer"
+                                                title="Manage team members"
+                                            >
+                                                <font-awesome icon="fas fa-users" />
+                                                <span>Team</span>
+                                            </button>
+                                        </div>
                                     </div>
-                                    <button 
-                                        @click.prevent="openMembersDialog(project.id)"
-                                        class="text-xs bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded flex items-center gap-1 cursor-pointer"
-                                        title="Manage team members"
-                                    >
-                                        <font-awesome icon="fas fa-users" />
-                                        <span>Team</span>
-                                    </button>
                                 </div>
                                 
                                 <!-- Description -->
@@ -314,7 +356,12 @@ function closeMembersDialog() {
                         </template>
                     </notched-card>
                 </NuxtLink>
-                <div class="absolute top-5 -right-2 z-10 bg-red-500 hover:bg-red-700 border border-red-500 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer" @click="deleteProject(project.id)">
+                <!-- Delete button - only show for owned projects -->
+                <div 
+                    v-if="project.is_owner"
+                    class="absolute top-5 -right-2 z-10 bg-red-500 hover:bg-red-700 border border-red-500 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer" 
+                    @click="deleteProject(project.id)"
+                >
                     <font-awesome icon="fas fa-xmark" class="text-xl text-white" />
                 </div>
             </div>

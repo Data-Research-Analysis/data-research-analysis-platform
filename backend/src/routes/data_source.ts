@@ -16,6 +16,11 @@ import { expensiveOperationsLimiter } from '../middleware/rateLimit.js';
 import { enforceDataSourceLimit, enforceDataModelLimit } from '../middleware/tierEnforcement.js';
 import { authorize } from '../middleware/authorize.js';
 import { Permission } from '../constants/permissions.js';
+import { 
+    requireProjectPermission, 
+    requireDataSourcePermission 
+} from '../middleware/rbacMiddleware.js';
+import { EAction } from '../services/PermissionService.js';
 
 const router = express.Router();
 
@@ -60,7 +65,7 @@ router.post('/add-data-source', async (req: Request, res: Response, next: any) =
 }, validateJWT, enforceDataSourceLimit, validate([body('data_source_type').notEmpty().trim().escape(), body('host').notEmpty().trim().escape(), body('port').notEmpty().trim().escape(),
     body('schema').notEmpty().trim().escape(), body('database_name').notEmpty().trim().escape(), body('username').notEmpty().trim().escape(),
     body('password').notEmpty().trim().escape(), body('project_id').notEmpty().trim().escape(),
-]),
+]), requireProjectPermission(EAction.CREATE, 'project_id'),
 async (req: Request, res: Response) => {
     const { data_source_type, host, port, schema, database_name, username, password, project_id } = matchedData(req);
     const connection: IDBConnectionDetails = {
@@ -96,7 +101,7 @@ router.put('/update-data-source/:data_source_id', async (req: Request, res: Resp
     body('database_name').notEmpty().trim().escape(), 
     body('username').notEmpty().trim().escape(),
     body('password').notEmpty().trim().escape(),
-]),
+]), requireDataSourcePermission(EAction.UPDATE, 'data_source_id'),
 async (req: Request, res: Response) => {
     const { data_source_id, data_source_type, host, port, schema, database_name, username, password } = matchedData(req);
     const connection: IDBConnectionDetails = {
@@ -129,7 +134,7 @@ async (req: Request, res: Response) => {
 
 router.delete('/delete/:data_source_id', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([param('data_source_id').notEmpty().trim().escape().toInt()]), authorize(Permission.DATA_SOURCE_DELETE),
+}, validateJWT, validate([param('data_source_id').notEmpty().trim().escape().toInt()]), authorize(Permission.DATA_SOURCE_DELETE), requireDataSourcePermission(EAction.DELETE, 'data_source_id'),
 async (req: Request, res: Response) => {
     const { data_source_id } = matchedData(req);
     const result = await DataSourceProcessor.getInstance().deleteDataSource(data_source_id,  req.body.tokenDetails);            
@@ -142,7 +147,7 @@ async (req: Request, res: Response) => {
 
 router.get('/tables/:data_source_id', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([param('data_source_id').notEmpty().trim().escape().toInt()]),
+}, validateJWT, validate([param('data_source_id').notEmpty().trim().escape().toInt()]), requireDataSourcePermission(EAction.READ, 'data_source_id'),
 async (req: Request, res: Response) => {
     const { data_source_id } = matchedData(req);
     const tables = await DataSourceProcessor.getInstance().getTablesFromDataSource(data_source_id, req.body.tokenDetails);
@@ -231,7 +236,7 @@ router.post('/add-excel-data-source', expensiveOperationsLimiter, async (req: Re
     body('project_id').notEmpty().trim().escape(), 
     body('data_source_id').optional().trim().escape(),
     body('sheet_info').optional()
-]),
+]), requireProjectPermission(EAction.CREATE, 'project_id'),
 async (req: Request, res: Response) => {
     const { data_source_name, file_id, data, project_id, data_source_id, sheet_info } = matchedData(req);
     if (data?.columns && data.columns.length > 0) {
@@ -274,7 +279,7 @@ router.post('/add-pdf-data-source', expensiveOperationsLimiter, async (req: Requ
     body('project_id').notEmpty().trim().escape().toInt(), 
     body('data_source_id').optional().trim().escape().toInt(),
     body('sheet_info').optional()
-]),
+]), requireProjectPermission(EAction.CREATE, 'project_id'),
 async (req: Request, res: Response) => {
     const { data_source_name, file_id, data, project_id, data_source_id, sheet_info } = matchedData(req);
     try {

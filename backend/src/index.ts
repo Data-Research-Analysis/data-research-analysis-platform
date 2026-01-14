@@ -11,6 +11,7 @@ import auth from './routes/auth.js';
 import user from './routes/user.js';
 import project from './routes/project.js';
 import project_members from './routes/project_members.js';
+import project_invitations from './routes/project_invitations.js';
 import data_source from './routes/data_source.js';
 import data_model from './routes/data_model.js';
 import dashboard from './routes/dashboard.js';
@@ -33,6 +34,7 @@ import user_subscriptions from './routes/admin/user-subscriptions.js';
 import public_article from './routes/article.js';
 import sitemap from './routes/sitemap.js';
 import subscription from './routes/subscription.js';
+import email_preferences from './routes/email-preferences.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -60,6 +62,11 @@ if (process.env.BACKUP_ENABLED !== 'false') {
 }
 console.log('✅ Scheduled backup service initialized');
 
+// Start invitation expiration cron job
+import { startInvitationExpirationJob } from './jobs/expireInvitations.js';
+startInvitationExpirationJob();
+console.log('✅ Invitation expiration job started');
+
 
 
 const port = parseInt(UtilityService.getInstance().getConstants('PORT'));
@@ -84,6 +91,7 @@ app.use('/auth', auth);
 app.use('/user', user);
 app.use('/project', project);
 app.use('/project', project_members);
+app.use('/project-invitations', project_invitations);
 app.use('/data-source', data_source);
 app.use('/data-model', data_model);
 app.use('/dashboard', dashboard);
@@ -106,6 +114,7 @@ app.use('/admin/subscription-tiers', admin_subscription_tiers);
 app.use('/article', public_article);
 app.use('/sitemap.txt', sitemap);
 app.use('/subscription', subscription);
+app.use('/email-preferences', email_preferences);
 
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 app.use('/', express.static(path.join(__dirname, '../public')));
