@@ -14,7 +14,7 @@
                         placeholder="Email address" 
                         class="flex-1 min-w-[200px] px-3.5 py-2.5 border border-gray-300 rounded-md text-[15px] focus:outline-none focus:border-blue-500 transition-colors"
                     />
-                    <select v-model="inviteRole" class="min-w-[150px] px-3.5 py-2.5 border border-gray-300 rounded-md text-[15px] focus:outline-none focus:border-blue-500 transition-colors">
+                    <select v-model="inviteRole" class="min-w-[150px] px-3.5 py-2.5 border border-gray-300 rounded-md text-[15px] focus:outline-none focus:border-blue-500 transition-colors cursor-pointer">
                         <option value="viewer">Viewer (Read-only)</option>
                         <option value="editor">Editor (Can create/edit)</option>
                         <option value="admin">Admin (Full control)</option>
@@ -62,7 +62,7 @@
                                 v-if="canManageMembers && member.role !== 'owner'"
                                 v-model="member.role"
                                 @change="updateRole(member)"
-                                class="px-2.5 py-1.5 border border-gray-300 rounded text-sm"
+                                class="px-2.5 py-1.5 border border-gray-300 rounded text-sm cursor-pointer"
                             >
                                 <option value="viewer">Viewer</option>
                                 <option value="editor">Editor</option>
@@ -85,7 +85,7 @@
                         <button 
                             v-if="canManageMembers && member.role !== 'owner'"
                             @click="removeMember(member)"
-                            class="px-2.5 py-1.5 bg-red-400 text-white rounded text-sm hover:bg-red-500 transition-colors"
+                            class="px-2.5 py-1.5 bg-red-400 text-white rounded text-sm hover:bg-red-500 transition-colors cursor-pointer"
                             title="Remove member"
                         >
                             ✕
@@ -389,7 +389,19 @@ async function updateRole(member: Member) {
 }
 
 async function removeMember(member: Member) {
-    if (!confirm(`Remove ${member.user.first_name} ${member.user.last_name} from this project?`)) {
+    const { $swal } = useNuxtApp() as any;
+    const result = await $swal.fire({
+        title: 'Remove Team Member?',
+        text: `Remove ${member.user.first_name} ${member.user.last_name} from this project? This action cannot be undone.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: 'Yes, remove',
+        cancelButtonText: 'Cancel'
+    });
+    
+    if (!result.isConfirmed) {
         return;
     }
     
