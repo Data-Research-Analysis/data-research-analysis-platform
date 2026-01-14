@@ -873,7 +873,22 @@ export class DataModelProcessor {
             if (!user) {
                 return resolve([]);
             }
-            const project: DRAProject|null = await manager.findOne(DRAProject, {where: {id: projectId, users_platform: user}, relations: ['data_sources', 'data_sources.data_models', 'data_sources.project', 'users_platform']});
+            
+            // Try to find owned project first
+            let project: DRAProject|null = await manager.findOne(DRAProject, {where: {id: projectId, users_platform: user}, relations: ['data_sources', 'data_sources.data_models', 'data_sources.project', 'users_platform']});
+            
+            // If not owned, check if user is a project member
+            if (!project) {
+                const membership = await manager.findOne(DRAProjectMember, {
+                    where: {user: {id: user_id}, project: {id: projectId}},
+                    relations: ['project', 'project.data_sources', 'project.data_sources.data_models']
+                });
+                
+                if (membership?.project) {
+                    project = membership.project;
+                }
+            }
+            
             if (!project) {
                 return resolve([]);
             }

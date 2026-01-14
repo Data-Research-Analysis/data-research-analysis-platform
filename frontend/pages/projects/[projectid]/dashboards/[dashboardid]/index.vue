@@ -2,12 +2,22 @@
 import { useProjectsStore } from '@/stores/projects';
 import { useDataModelsStore } from '@/stores/data_models';
 import { useDashboardsStore } from '@/stores/dashboards';
+import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import _ from 'lodash';
+
 const projectsStore = useProjectsStore();
 const dataModelsStore = useDataModelsStore();
 const dashboardsStore = useDashboardsStore();
 const { $swal } = useNuxtApp();
 const router = useRouter();
+const route = useRoute();
+
+// Get project permissions
+const projectId = computed(() => parseInt(String(route.params.projectid)));
+const permissions = useProjectPermissions(projectId.value);
+
+// Computed property for read-only mode
+const isReadOnly = computed(() => !permissions.canUpdate.value);
 const state = reactive({
     data_model_tables: [],
     chart_mode: 'table',//table, pie, vertical_bar, horizontal_bar, vertical_bar_line, stacked_bar, multiline, heatmap, bubble, map
@@ -133,7 +143,17 @@ async function changeDataModel(event, chartId) {
         autoResizeTableContainer(chartId);
     }
 }
+
 function addChartToDashboard(chartType) {
+    if (isReadOnly.value) {
+        $swal.fire({
+            icon: 'warning',
+            title: 'View Only Mode',
+            text: 'You do not have permission to add charts to this dashboard.',
+        });
+        return;
+    }
+    
     //table, pie, vertical_bar, horizontal_bar, vertical_bar_line, stacked_bar, multiline, heatmap, bubble, stacked_area, treemap, map
     state.selected_chart = null;
     state.selected_div = null;
@@ -243,6 +263,15 @@ function handleTableResize(chartId, resizeData) {
 }
 
 function deleteChartFromDashboard(chartId) {
+    if (isReadOnly.value) {
+        $swal.fire({
+            icon: 'warning',
+            title: 'View Only Mode',
+            text: 'You do not have permission to delete charts from this dashboard.',
+        });
+        return;
+    }
+    
     state.dashboard.charts = state.dashboard.charts.filter((chart) => chart.chart_id !== chartId);
     state.selected_chart = null;
 }
@@ -602,6 +631,15 @@ async function executeQueryOnDataModels(chartId) {
     }
 }
 async function updateDashboard() {
+    if (isReadOnly.value) {
+        $swal.fire({
+            icon: 'warning',
+            title: 'View Only Mode',
+            text: 'You do not have permission to update this dashboard.',
+        });
+        return;
+    }
+    
     const token = getAuthToken();
     let url = `${baseUrl()}/dashboard/update/${dashboard.value.id}`;
     const response = await fetch(url, {
@@ -663,6 +701,15 @@ function updateContent(content, chartId) {
 }
 
 function toggleDragging(event, chartId) {
+    if (isReadOnly.value) {
+        $swal.fire({
+            icon: 'warning',
+            title: 'View Only Mode',
+            text: 'You do not have permission to modify charts from this dashboard.',
+        });
+        return;
+    }
+    
     //disable all charts
     state.is_dragging = false;
     state.is_resizing = false;
@@ -688,6 +735,14 @@ function toggleDragging(event, chartId) {
     }
 }
 function toggleResizing(chartId) {
+    if (isReadOnly.value) {
+        $swal.fire({
+            icon: 'warning',
+            title: 'View Only Mode',
+            text: 'You do not have permission to modify charts from this dashboard.',
+        });
+        return;
+    }
     //disable all charts
     state.is_dragging = false;
     state.is_resizing = false;
@@ -713,6 +768,15 @@ function toggleResizing(chartId) {
     }
 }
 function toggleAddColumns(chartId) {
+    if (isReadOnly.value) {
+        $swal.fire({
+            icon: 'warning',
+            title: 'View Only Mode',
+            text: 'You do not have permission to modify charts from this dashboard.',
+        });
+        return;
+    }
+    
     //enable target chart
     state.is_dragging = false;
     state.is_resizing = false;
@@ -938,6 +1002,15 @@ function mouseUp() {
     stopDragAndResize();
 }
 async function updateDataModel(action, data) {
+    if (isReadOnly.value) {
+        $swal.fire({
+            icon: 'warning',
+            title: 'View Only Mode',
+            text: 'You do not have permission to modify columns in this dashboard.',
+        });
+        return;
+    }
+    
     if (action === 'add') {
         const dataModel = state.data_model_tables.find((dataModelTable) => dataModelTable.model_name === data.table_name);
         if (dataModel){
@@ -963,6 +1036,14 @@ async function updateDataModel(action, data) {
     }
 }
 async function openTableDialog(chartId) {
+    if (isReadOnly.value) {
+        $swal.fire({
+            icon: 'warning',
+            title: 'View Only Mode',
+            text: 'You do not have permission to modify charts from this dashboard.',
+        });
+        return;
+    }
     state.show_table_dialog = true;
     state.selected_chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId)
@@ -1283,7 +1364,14 @@ onUnmounted(() => {
             <div class="flex flex-col ml-2 mr-2 w-full">
                 <div class="flex flex-row justify-between">
                     <tabs :project-id="project.id" class="mt-6" :class="{ 'ml-10': state.sidebar_status }"/>
-                    <div class="flex flex-row">
+                    
+                    <!-- Read-only indicator for viewers -->
+                    <div v-if="isReadOnly" class="flex items-center mt-7 px-4 py-2 bg-gray-100 border border-gray-300 rounded-lg">
+                        <font-awesome icon="fas fa-eye" class="text-gray-600 mr-2" />
+                        <span class="text-sm font-medium text-gray-700">View Only Mode</span>
+                    </div>
+                    
+                    <div v-if="!isReadOnly" class="flex flex-row">
                         <div @click="updateDashboard" class="flex flex-row items-center h-12 mt-7 text-md text-white font-bold border-r-1 border-white border-solid cursor-pointer select-none bg-primary-blue-100 hover:bg-primary-blue-400 rounded-tl-lg">
                             <h3 class="ml-2 mr-2">Update Dashboard</h3>
                         </div>

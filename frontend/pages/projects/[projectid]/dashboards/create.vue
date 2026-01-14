@@ -1,7 +1,20 @@
 <script setup>
 import { useProjectsStore } from '@/stores/projects';
 import { useDataModelsStore } from '@/stores/data_models';
+import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import _ from 'lodash';
+
+// Navigation guard for permission check
+definePageMeta({
+    middleware: (to) => {
+        const projectId = parseInt(String(to.params.projectid));
+        const permissions = useProjectPermissions(projectId);
+        if (!permissions.canCreate.value) {
+            return navigateTo(`/projects/${projectId}/dashboards`);
+        }
+    }
+});
+
 const projectsStore = useProjectsStore();
 const dataModelsStore = useDataModelsStore();
 const { $swal } = useNuxtApp();
@@ -84,6 +97,25 @@ function isChartEmpty(chart) {
 function getChartTypeLabel(chartType) {
     return chartTypeLabels[chartType] || 'Chart';
 }
+
+watch(
+    dataModelTables,
+    (newTables) => {
+        if (newTables && newTables.length > 0) {
+            state.data_model_tables = [];
+            newTables.forEach((dataModelTable) => {
+                state.data_model_tables.push({
+                    schema: dataModelTable.schema,
+                    model_name: dataModelTable.table_name,
+                    cleaned_model_name: dataModelTable.table_name.replace(/_dra.[\w\d]+/g, ''),
+                    show_model: false,
+                    columns: dataModelTable.columns,
+                });
+            });
+        }
+    },
+    { immediate: true }
+);
 
 async function changeDataModel(event, chartId) {
     const chart = state.dashboard.charts.find((chart) => {
