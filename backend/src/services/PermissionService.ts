@@ -35,6 +35,14 @@ interface PermissionMatrix {
 /**
  * Permission Service for Role-Based Access Control (RBAC)
  * Singleton service that manages permissions across all resources
+ * 
+ * This service provides the FINAL enforcement layer for resource operations.
+ * Routes use both authorize() middleware (checks ROLE_PERMISSIONS) AND 
+ * requireResourcePermission() middleware (checks this matrix).
+ * 
+ * IMPORTANT: DELETE operations are restricted to OWNER only.
+ * Even if ROLE_PERMISSIONS lists DELETE for a role, this matrix
+ * provides the ultimate enforcement.
  */
 export class PermissionService {
     private static instance: PermissionService;
@@ -42,31 +50,34 @@ export class PermissionService {
     /**
      * Permission matrix defining what each role can do
      * Format: [role][action] = boolean
+     * 
+     * This is the AUTHORITATIVE source for DELETE permissions.
+     * Only OWNER can delete resources (data sources, models, dashboards).
      */
     private permissionMatrix: PermissionMatrix = {
         [EProjectRole.OWNER]: {
             [EAction.CREATE]: true,
             [EAction.READ]: true,
             [EAction.UPDATE]: true,
-            [EAction.DELETE]: true,
+            [EAction.DELETE]: true,  // Only owners can delete
         },
         [EProjectRole.ADMIN]: {
             [EAction.CREATE]: true,
             [EAction.READ]: true,
             [EAction.UPDATE]: true,
-            [EAction.DELETE]: false, // Admins cannot delete
+            [EAction.DELETE]: false, // Admin = Editor + team management (no delete)
         },
         [EProjectRole.EDITOR]: {
             [EAction.CREATE]: true,
             [EAction.READ]: true,
             [EAction.UPDATE]: true,
-            [EAction.DELETE]: false,
+            [EAction.DELETE]: false, // Editors cannot delete
         },
         [EProjectRole.VIEWER]: {
             [EAction.CREATE]: false,
             [EAction.READ]: true,
             [EAction.UPDATE]: false,
-            [EAction.DELETE]: false,
+            [EAction.DELETE]: false, // Viewers are read-only
         },
     };
 

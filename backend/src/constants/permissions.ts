@@ -37,9 +37,13 @@ export enum Permission {
 /**
  * Maps project roles to their allowed permissions
  * 
- * OWNER: All permissions (full control)
- * ADMIN: All permissions except project deletion
- * EDITOR: Create/edit content, no member management or deletion
+ * NOTE: These permissions are checked by authorize() middleware ONLY.
+ * Actual DELETE operations are also gated by PermissionService which blocks
+ * deletion for non-owners. See PermissionService.ts for the enforcement matrix.
+ * 
+ * OWNER: All permissions (full control, including deletion)
+ * ADMIN: Manage team + create/edit resources (CANNOT delete resources)
+ * EDITOR: Create/edit resources only (CANNOT delete or manage team)
  * VIEWER: Read-only access, can execute data models
  */
 export const ROLE_PERMISSIONS: Record<EProjectRole, Permission[]> = {
@@ -48,31 +52,42 @@ export const ROLE_PERMISSIONS: Record<EProjectRole, Permission[]> = {
         ...Object.values(Permission)
     ],
     [EProjectRole.ADMIN]: [
+        // Project permissions
         Permission.PROJECT_VIEW,
         Permission.PROJECT_EDIT,
-        Permission.PROJECT_MANAGE_MEMBERS,
+        Permission.PROJECT_MANAGE_MEMBERS,  // ← Key admin privilege
+        
+        // Data source permissions (NO DELETE)
         Permission.DATA_SOURCE_VIEW,
         Permission.DATA_SOURCE_CREATE,
         Permission.DATA_SOURCE_EDIT,
-        Permission.DATA_SOURCE_DELETE,
+        
+        // Data model permissions (NO DELETE)
         Permission.DATA_MODEL_VIEW,
         Permission.DATA_MODEL_CREATE,
         Permission.DATA_MODEL_EDIT,
-        Permission.DATA_MODEL_DELETE,
         Permission.DATA_MODEL_EXECUTE,
+        
+        // Dashboard permissions (NO DELETE)
         Permission.DASHBOARD_VIEW,
         Permission.DASHBOARD_CREATE,
         Permission.DASHBOARD_EDIT,
-        Permission.DASHBOARD_DELETE,
         Permission.DASHBOARD_SHARE,
     ],
     [EProjectRole.EDITOR]: [
+        // Project permissions
         Permission.PROJECT_VIEW,
+        
+        // Data source permissions
         Permission.DATA_SOURCE_VIEW,
+        
+        // Data model permissions
         Permission.DATA_MODEL_VIEW,
         Permission.DATA_MODEL_CREATE,
         Permission.DATA_MODEL_EDIT,
         Permission.DATA_MODEL_EXECUTE,
+        
+        // Dashboard permissions
         Permission.DASHBOARD_VIEW,
         Permission.DASHBOARD_CREATE,
         Permission.DASHBOARD_EDIT,

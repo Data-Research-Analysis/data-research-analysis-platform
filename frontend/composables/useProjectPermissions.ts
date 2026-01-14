@@ -19,6 +19,17 @@ export interface ProjectPermissions {
 
 /**
  * Composable for checking user permissions in a project
+ * 
+ * Permission Matrix:
+ * - OWNER:  CREATE ✓ | READ ✓ | UPDATE ✓ | DELETE ✓ | MANAGE_TEAM ✓
+ * - ADMIN:  CREATE ✓ | READ ✓ | UPDATE ✓ | DELETE ✗ | MANAGE_TEAM ✓
+ * - EDITOR: CREATE ✓ | READ ✓ | UPDATE ✓ | DELETE ✗ | MANAGE_TEAM ✗
+ * - VIEWER: CREATE ✗ | READ ✓ | UPDATE ✗ | DELETE ✗ | MANAGE_TEAM ✗
+ * 
+ * Key Differences:
+ * - Admin = Editor + team management (cannot delete resources)
+ * - Only owners can delete data sources, models, and dashboards
+ * 
  * @param projectId - Project ID to check permissions for
  * @returns Object with permission flags
  */
@@ -55,6 +66,7 @@ export function useProjectPermissions(projectId: number | string): ProjectPermis
     // Permission matrix based on role
     const canCreate = computed(() => {
         if (!role.value) return false;
+        // Owner, Admin, Editor can create
         return ['owner', 'admin', 'editor'].includes(role.value);
     });
 
@@ -65,24 +77,26 @@ export function useProjectPermissions(projectId: number | string): ProjectPermis
 
     const canUpdate = computed(() => {
         if (!role.value) return false;
+        // Owner, Admin, Editor can update
         return ['owner', 'admin', 'editor'].includes(role.value);
     });
 
     const canDelete = computed(() => {
-        // Only owners can delete
+        // ONLY owners can delete resources
+        // Backend PermissionService.DELETE is false for admin/editor
         return isOwner.value === true;
     });
 
     const canManageTeam = computed(() => {
-        // Only owners and admins can manage team
+        // Only owners and admins can manage team members
         if (!role.value) return false;
         return isOwner.value || role.value === 'admin';
     });
 
     const canShare = computed(() => {
-        // Only owners and admins can share
+        // Owner, Admin, Editor can share dashboards
         if (!role.value) return false;
-        return isOwner.value || role.value === 'admin';
+        return ['owner', 'admin', 'editor'].includes(role.value);
     });
 
     return {
