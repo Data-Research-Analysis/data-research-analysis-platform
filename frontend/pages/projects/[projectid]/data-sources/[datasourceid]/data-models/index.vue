@@ -85,7 +85,7 @@ async function deleteDataModel(dataModelId) {
     } else {
         $swal.fire(`There was an error deleting the data model.`);
     }
-    await dataModelsStore.retrieveDataModels();
+    await dataModelsStore.retrieveDataModels(project.value.id);
     getDataModels();
 }
 
@@ -128,7 +128,7 @@ async function refreshDataModel(dataModelId, dataModelName) {
             });
             
             // Reload data models to reflect any changes
-            await dataModelsStore.retrieveDataModels();
+            await dataModelsStore.retrieveDataModels(project.value.id);
             getDataModels();
         } else {
             throw new Error('Refresh failed');

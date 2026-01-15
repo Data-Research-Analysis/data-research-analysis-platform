@@ -7,11 +7,12 @@ import { CrossSourceJoinService } from '../services/CrossSourceJoinService.js';
 import { DataSourceProcessor } from '../processors/DataSourceProcessor.js';
 const router = express.Router();
 
-router.get('/list', async (req: Request, res: Response, next: any) => {
+router.get('/list/:project_id', async (req: Request, res: Response, next: any) => {
     next();
-},validateJWT, async (req: Request, res: Response) => {
-    const data_sources_list = await DataModelProcessor.getInstance().getDataModels(req.body.tokenDetails);    
-    res.status(200).send(data_sources_list);
+}, validateJWT, validate([param('project_id').notEmpty().trim().escape().toInt()]), async (req: Request, res: Response) => {
+    const { project_id } = matchedData(req);
+    const data_models_list = await DataModelProcessor.getInstance().getDataModels(project_id, req.body.tokenDetails);    
+    res.status(200).send(data_models_list);
 });
 router.delete('/delete/:data_model_id', async (req: Request, res: Response, next: any) => {
     next();

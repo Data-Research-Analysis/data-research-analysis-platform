@@ -2621,7 +2621,7 @@ export class DataSourceProcessor {
             
             // Trigger sync
             const gaDriver = GoogleAnalyticsDriver.getInstance();
-            const syncResult = await gaDriver.syncToDatabase(dataSourceId, dataSource.users_platform.id, apiConnectionDetails);
+            const syncResult = await gaDriver.syncToDatabase(dataSourceId, user.id, apiConnectionDetails);
             
             if (syncResult) {
                 // Update last sync time in API connection details
@@ -2899,7 +2899,7 @@ export class DataSourceProcessor {
             // Trigger sync
             const { GoogleAdsDriver } = await import('../drivers/GoogleAdsDriver.js');
             const adsDriver = GoogleAdsDriver.getInstance();
-            const syncResult = await adsDriver.syncToDatabase(dataSourceId, dataSource.users_platform.id, apiConnectionDetails);
+            const syncResult = await adsDriver.syncToDatabase(dataSourceId, user.id, apiConnectionDetails);
             
             if (syncResult) {
                 // Update last sync time in API connection details

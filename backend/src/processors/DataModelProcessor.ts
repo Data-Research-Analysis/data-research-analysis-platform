@@ -184,11 +184,12 @@ export class DataModelProcessor {
     }
 
     /**
-     * Get the list of data models for a user
+     * Get the list of data models for a user in a specific project
+     * @param projectId - The project ID to filter data models by
      * @param tokenDetails 
-     * @returns list of data models
+     * @returns list of data models for the project
      */
-    async getDataModels(tokenDetails: ITokenDetails): Promise<DRADataModel[]> {
+    async getDataModels(projectId: number, tokenDetails: ITokenDetails): Promise<DRADataModel[]> {
         return new Promise<DRADataModel[]>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -203,10 +204,26 @@ export class DataModelProcessor {
             if (!user) {
                 return resolve([]);
             }
-            const dataModels = await manager.find(DRADataModel, {
-                where: {users_platform: user}, 
-                relations: ['data_source', 'users_platform', 'data_model_sources', 'data_model_sources.data_source']
+            
+            // Verify project exists and belongs to user
+            const project = await manager.findOne(DRAProject, {
+                where: {id: projectId, users_platform: user}
             });
+            if (!project) {
+                return resolve([]);
+            }
+            
+            // Query data models filtering by project through data_source relationship
+            const dataModels = await manager
+                .createQueryBuilder(DRADataModel, 'dm')
+                .leftJoinAndSelect('dm.data_source', 'ds')
+                .leftJoinAndSelect('dm.users_platform', 'up')
+                .leftJoinAndSelect('dm.data_model_sources', 'dms')
+                .leftJoinAndSelect('dms.data_source', 'dms_ds')
+                .where('dm.users_platform_id = :userId', { userId: user.id })
+                .andWhere('ds.project_id = :projectId', { projectId })
+                .getMany();
+            
             return resolve(dataModels);
         });
     }

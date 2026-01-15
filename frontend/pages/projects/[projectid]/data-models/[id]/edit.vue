@@ -68,7 +68,7 @@ onMounted(async () => {
     state.loading = true;
     try {
         // Fetch data models first
-        await dataModelsStore.retrieveDataModels();
+        await dataModelsStore.retrieveDataModels(projectId.value);
         
         // Get the specific data model
         getDataModel(dataModelId.value);
