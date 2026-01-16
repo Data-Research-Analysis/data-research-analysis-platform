@@ -38,13 +38,13 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         }
         return dataModelTables.value;
     }
-    async function retrieveDataModels() {
+    async function retrieveDataModels(projectId: number) {
         const token = getAuthToken();
         if (!token) {
             dataModels.value = [];
             return;
         }
-        const url = `${baseUrl()}/data-model/list`;
+        const url = `${baseUrl()}/data-model/list/${projectId}`;
         const response = await fetch(url, {
             method: "GET",
             headers: {

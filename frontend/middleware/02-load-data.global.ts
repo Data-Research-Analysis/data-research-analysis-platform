@@ -165,6 +165,9 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
             );
           }
           
+          // Extract projectId from route params
+          const projectId = to.params.projectid ? parseInt(String(to.params.projectid), 10) : undefined;
+          
           // Always load data sources and models for data source routes
           loadTasks.push(
             (async () => {
@@ -172,8 +175,10 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
               markDataLoaded('dataSources');
             })(),
             (async () => {
-              await dataModelsStore.retrieveDataModels();
-              markDataLoaded('dataModels');
+              if (projectId && !isNaN(projectId)) {
+                await dataModelsStore.retrieveDataModels(projectId);
+                markDataLoaded('dataModels');
+              }
             })()
           );
         } else if (isDashboardRoute(to.path)) {
@@ -187,6 +192,9 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
             );
           }
           
+          // Extract projectId from route params
+          const projectId = to.params.projectid ? parseInt(String(to.params.projectid), 10) : undefined;
+          
           // Always load data sources, models, and dashboards for dashboard routes
           loadTasks.push(
             (async () => {
@@ -194,8 +202,10 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
               markDataLoaded('dataSources');
             })(),
             (async () => {
-              await dataModelsStore.retrieveDataModels();
-              markDataLoaded('dataModels');
+              if (projectId && !isNaN(projectId)) {
+                await dataModelsStore.retrieveDataModels(projectId);
+                markDataLoaded('dataModels');
+              }
             })(),
             (async () => {
               await dashboardsStore.retrieveDashboards();

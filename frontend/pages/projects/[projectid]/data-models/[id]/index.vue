@@ -127,7 +127,7 @@ onMounted(async () => {
   loading.value = true;
   try {
     // Fetch all data models
-    await dataModelsStore.retrieveDataModels();
+    await dataModelsStore.retrieveDataModels(projectId.value);
     
     // Find the specific data model
     const models = dataModelsStore.dataModels;

@@ -43,6 +43,24 @@ export class SchemaCollectorService {
     }
 
     /**
+     * Collect schema information for specific tables only
+     * @param dataSource - TypeORM DataSource connected to the database
+     * @param schemaName - Schema name
+     * @param tableNames - Array of table names to collect schema for
+     */
+    async collectSchemaForTables(dataSource: DataSource, schemaName: string, tableNames: string[]): Promise<TableSchema[]> {
+        const databaseType = dataSource.options.type;
+        
+        if (databaseType === 'postgres') {
+            return this.collectPostgresSchemaForTables(dataSource, schemaName, tableNames);
+        } else if (databaseType === 'mysql' || databaseType === 'mariadb') {
+            return this.collectMySQLSchemaForTables(dataSource, schemaName, tableNames);
+        }
+        
+        throw new Error(`Unsupported database type: ${databaseType}`);
+    }
+
+    /**
      * Collect schema information from PostgreSQL database
      */
     private async collectPostgresSchema(dataSource: DataSource, schemaName: string): Promise<TableSchema[]> {
@@ -224,5 +242,157 @@ export class SchemaCollectorService {
      */
     getDatabaseType(dataSource: DataSource): string {
         return dataSource.options.type;
+    }
+
+    /**
+     * Collect PostgreSQL schema information for specific tables only
+     */
+    private async collectPostgresSchemaForTables(dataSource: DataSource, schemaName: string, tableNames: string[]): Promise<TableSchema[]> {
+        if (tableNames.length === 0) {
+            return [];
+        }
+
+        const tables: TableSchema[] = [];
+        
+        for (const tableName of tableNames) {
+            // Get columns
+            const columnQuery = `
+                SELECT 
+                    column_name,
+                    data_type,
+                    is_nullable,
+                    column_default,
+                    character_maximum_length
+                FROM information_schema.columns
+                WHERE table_schema = $1 AND table_name = $2
+                ORDER BY ordinal_position
+            `;
+            
+            const columns = await dataSource.query(columnQuery, [schemaName, tableName]);
+            
+            // Get primary keys
+            const pkQuery = `
+                SELECT kcu.column_name
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu
+                    ON tc.constraint_name = kcu.constraint_name
+                    AND tc.table_schema = kcu.table_schema
+                WHERE tc.constraint_type = 'PRIMARY KEY'
+                    AND tc.table_schema = $1
+                    AND tc.table_name = $2
+            `;
+            
+            const pkResults = await dataSource.query(pkQuery, [schemaName, tableName]);
+            const primaryKeys = pkResults.map((row: any) => row.column_name);
+            
+            // Get foreign keys
+            const fkQuery = `
+                SELECT
+                    tc.constraint_name,
+                    tc.table_name,
+                    kcu.column_name,
+                    ccu.table_name AS foreign_table_name,
+                    ccu.column_name AS foreign_column_name
+                FROM information_schema.table_constraints AS tc
+                JOIN information_schema.key_column_usage AS kcu
+                    ON tc.constraint_name = kcu.constraint_name
+                    AND tc.table_schema = kcu.table_schema
+                JOIN information_schema.constraint_column_usage AS ccu
+                    ON ccu.constraint_name = tc.constraint_name
+                    AND ccu.table_schema = tc.table_schema
+                WHERE tc.constraint_type = 'FOREIGN KEY'
+                    AND tc.table_schema = $1
+                    AND tc.table_name = $2
+            `;
+            
+            const foreignKeys = await dataSource.query(fkQuery, [schemaName, tableName]);
+            
+            tables.push({
+                schema: schemaName,
+                tableName,
+                columns,
+                primaryKeys,
+                foreignKeys
+            });
+        }
+        
+        return tables;
+    }
+
+    /**
+     * Collect MySQL/MariaDB schema information for specific tables only
+     */
+    private async collectMySQLSchemaForTables(dataSource: DataSource, databaseName: string, tableNames: string[]): Promise<TableSchema[]> {
+        if (tableNames.length === 0) {
+            return [];
+        }
+
+        const tables: TableSchema[] = [];
+        
+        for (const tableName of tableNames) {
+            // Get columns
+            const columnQuery = `
+                SELECT 
+                    COLUMN_NAME as column_name,
+                    DATA_TYPE as data_type,
+                    IS_NULLABLE as is_nullable,
+                    COLUMN_DEFAULT as column_default,
+                    CHARACTER_MAXIMUM_LENGTH as character_maximum_length
+                FROM information_schema.columns
+                WHERE table_schema = ? AND table_name = ?
+                ORDER BY ORDINAL_POSITION
+            `;
+            
+            const columns = await dataSource.query(columnQuery, [databaseName, tableName]);
+            
+            // Get primary keys
+            const pkQuery = `
+                SELECT kcu.COLUMN_NAME as column_name
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu
+                    ON tc.constraint_name = kcu.constraint_name
+                    AND tc.table_schema = kcu.table_schema
+                WHERE tc.constraint_type = 'PRIMARY KEY'
+                    AND tc.table_schema = ?
+                    AND tc.table_name = ?
+            `;
+            
+            const pkResults = await dataSource.query(pkQuery, [databaseName, tableName]);
+            const primaryKeys = pkResults.map((row: any) => row.column_name);
+            
+            // Get foreign keys
+            const fkQuery = `
+                SELECT
+                    kcu.constraint_name,
+                    kcu.table_name,
+                    kcu.column_name,
+                    kcu.referenced_table_name AS foreign_table_name,
+                    kcu.referenced_column_name AS foreign_column_name
+                FROM information_schema.key_column_usage kcu
+                WHERE kcu.table_schema = ?
+                    AND kcu.table_name = ?
+                    AND kcu.referenced_table_name IS NOT NULL
+            `;
+            
+            const fkResults = await dataSource.query(fkQuery, [databaseName, tableName]);
+            
+            const foreignKeys = fkResults.map((fk: any) => ({
+                constraint_name: fk.constraint_name || fk.CONSTRAINT_NAME,
+                table_name: fk.table_name || fk.TABLE_NAME,
+                column_name: fk.column_name || fk.COLUMN_NAME,
+                foreign_table_name: fk.foreign_table_name || fk.FOREIGN_TABLE_NAME,
+                foreign_column_name: fk.foreign_column_name || fk.FOREIGN_COLUMN_NAME
+            }));
+            
+            tables.push({
+                schema: databaseName,
+                tableName,
+                columns,
+                primaryKeys,
+                foreignKeys
+            });
+        }
+        
+        return tables;
     }
 }

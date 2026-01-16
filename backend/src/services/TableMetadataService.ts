@@ -70,15 +70,34 @@ export class TableMetadataService {
             tableType?: string;
         }
     ): Promise<DRATableMetadata> {
-        const metadata = new DRATableMetadata();
-        metadata.data_source_id = params.dataSourceId;
-        metadata.users_platform_id = params.usersPlatformId;
-        metadata.schema_name = params.schemaName;
-        metadata.physical_table_name = params.physicalTableName;
-        metadata.logical_table_name = params.logicalTableName;
-        metadata.original_sheet_name = params.originalSheetName;
-        metadata.file_id = params.fileId;
-        metadata.table_type = params.tableType;
+        // Check if metadata already exists
+        let metadata = await manager.findOne(DRATableMetadata, {
+            where: {
+                schema_name: params.schemaName,
+                physical_table_name: params.physicalTableName
+            }
+        });
+
+        if (metadata) {
+            // Update existing record
+            metadata.data_source_id = params.dataSourceId;
+            metadata.users_platform_id = params.usersPlatformId;
+            metadata.logical_table_name = params.logicalTableName;
+            metadata.original_sheet_name = params.originalSheetName;
+            metadata.file_id = params.fileId;
+            metadata.table_type = params.tableType;
+        } else {
+            // Create new record
+            metadata = new DRATableMetadata();
+            metadata.data_source_id = params.dataSourceId;
+            metadata.users_platform_id = params.usersPlatformId;
+            metadata.schema_name = params.schemaName;
+            metadata.physical_table_name = params.physicalTableName;
+            metadata.logical_table_name = params.logicalTableName;
+            metadata.original_sheet_name = params.originalSheetName;
+            metadata.file_id = params.fileId;
+            metadata.table_type = params.tableType;
+        }
 
         return await manager.save(metadata);
     }

@@ -185,11 +185,12 @@ export class DataModelProcessor {
     }
 
     /**
-     * Get the list of data models for a user
+     * Get the list of data models for a user in a specific project
+     * @param projectId - The project ID to filter data models by
      * @param tokenDetails 
-     * @returns list of data models
+     * @returns list of data models for the project
      */
-    async getDataModels(tokenDetails: ITokenDetails): Promise<DRADataModel[]> {
+    async getDataModels(projectId: number, tokenDetails: ITokenDetails): Promise<DRADataModel[]> {
         return new Promise<DRADataModel[]>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -205,58 +206,36 @@ export class DataModelProcessor {
                 return resolve([]);
             }
             
-            // 1. Get owned data models
-            const ownedDataModels = await manager.find(DRADataModel, {
-                where: {users_platform: user}, 
-                relations: {
-                    data_source: {
-                        project: true
+            // Verify project exists - check if user is owner or member (RBAC)
+            const project = await manager.findOne(DRAProject, {
+                where: {id: projectId, users_platform: user}
+            });
+            
+            // If user is not the owner, check if they are a project member
+            if (!project) {
+                const projectMember = await manager.findOne(DRAProjectMember, {
+                    where: {
+                        user: {id: user_id},
+                        project: {id: projectId}
                     },
-                    users_platform: true,
-                    data_model_sources: {
-                        data_source: true
-                    }
+                    relations: {project: true}
+                });
+                
+                if (!projectMember) {
+                    // User is neither owner nor member - no access
+                    return resolve([]);
                 }
-            });
+            }
             
-            // 2. Get data models from projects where user is a member
-            const memberProjects = await manager.find(DRAProjectMember, {
-                where: {user: {id: user_id}},
-                relations: {
-                    project: {
-                        data_sources: {
-                            data_models: {
-                                data_source: {
-                                    project: true
-                                },
-                                users_platform: true,
-                                data_model_sources: {
-                                    data_source: true
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-            
-            const memberDataModels = memberProjects.flatMap(m => 
-                (m.project?.data_sources || []).flatMap(ds => ds.data_models || [])
-            );
-            
-            // 3. Combine and deduplicate
-            const allDataModelsMap = new Map();
-            
-            ownedDataModels.forEach(dm => {
-                allDataModelsMap.set(dm.id, dm);
-            });
-            
-            memberDataModels.forEach(dm => {
-                if (!allDataModelsMap.has(dm.id)) {
-                    allDataModelsMap.set(dm.id, dm);
-                }
-            });
-            
-            const dataModels = Array.from(allDataModelsMap.values());
+            // Query data models filtering by project through data_source relationship
+            const dataModels = await manager
+                .createQueryBuilder(DRADataModel, 'dm')
+                .leftJoinAndSelect('dm.data_source', 'ds')
+                .leftJoinAndSelect('dm.users_platform', 'up')
+                .leftJoinAndSelect('dm.data_model_sources', 'dms')
+                .leftJoinAndSelect('dms.data_source', 'dms_ds')
+                .where('ds.project_id = :projectId', { projectId })
+                .getMany();
             
             return resolve(dataModels);
         });

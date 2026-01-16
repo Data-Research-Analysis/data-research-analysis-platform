@@ -68,7 +68,7 @@ export class RowLimitService {
             return ESubscriptionTier.FREE;
         }
         
-        return subscription.subscription_tier.tier_name;
+        return subscription.subscription_tier.tier_name as ESubscriptionTier;
     }
     
     /**

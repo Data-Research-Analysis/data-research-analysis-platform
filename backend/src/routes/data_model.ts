@@ -14,11 +14,18 @@ import {
 import { EAction } from '../services/PermissionService.js';
 const router = express.Router();
 
-router.get('/list', async (req: Request, res: Response, next: any) => {
+router.get('/list/:project_id', async (req: Request, res: Response, next: any) => {
     next();
-},validateJWT, async (req: Request, res: Response) => {
-    const data_sources_list = await DataModelProcessor.getInstance().getDataModels(req.body.tokenDetails);    
-    res.status(200).send(data_sources_list);
+}, validateJWT, validate([param('project_id').notEmpty().trim().escape().toInt()]), async (req: Request, res: Response) => {
+    const { project_id } = matchedData(req);
+    const projectIdNum = parseInt(String(project_id), 10);
+    
+    if (isNaN(projectIdNum)) {
+        return res.status(400).send({ message: 'Invalid project_id' });
+    }
+    
+    const data_models_list = await DataModelProcessor.getInstance().getDataModels(projectIdNum, req.body.tokenDetails);    
+    res.status(200).send(data_models_list);
 });
 router.delete('/delete/:data_model_id', async (req: Request, res: Response, next: any) => {
     next();

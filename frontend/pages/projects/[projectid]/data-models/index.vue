@@ -306,7 +306,7 @@ onMounted(async () => {
   loading.value = true;
   try {
     // Fetch data models
-    await dataModelsStore.retrieveDataModels();
+    await dataModelsStore.retrieveDataModels(projectId.value);
     
     // Fetch data sources
     try {
@@ -451,7 +451,7 @@ async function refreshModel(model: any) {
       });
       
       // Reload data models to reflect any changes
-      await dataModelsStore.retrieveDataModels();
+      await dataModelsStore.retrieveDataModels(projectId.value);
     } else {
       throw new Error('Refresh failed');
     }
@@ -505,6 +505,6 @@ async function deleteModel(model: any) {
     });
   }
   
-  await dataModelsStore.retrieveDataModels();
+  await dataModelsStore.retrieveDataModels(projectId.value);
 }
 </script>
