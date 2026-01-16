@@ -31,50 +31,100 @@ export class AIDataModelerController {
             const existingSession = await redisService.getFullSession(dataSourceId, userId);
 
             if (existingSession.metadata) {
-                // Session exists - restore it
-                console.log('[AIDataModelerController] Restoring session from Redis:', {
+                // Session exists - but we need to validate the schema hasn't changed
+                console.log('[AIDataModelerController] Found existing session in Redis:', {
                     conversationId: existingSession.metadata.conversationId,
                     messageCount: existingSession.messages?.length || 0,
                     hasModelDraft: !!existingSession.modelDraft,
                     hasSchemaContext: !!existingSession.schemaContext
                 });
 
-                // If session exists but has no messages, add the welcome message
-                // Get schema summary and details
-                const schemaSummary = existingSession.schemaContext 
-                    ? SchemaFormatterUtility.getSchemaSummary(existingSession.schemaContext.tables)
-                    : { tableCount: 0, totalColumns: 0 };
-                
-                const schemaDetails = existingSession.schemaContext?.tables
-                    ? AIDataModelerController.extractSchemaDetails(existingSession.schemaContext.tables)
-                    : { tables: [] };
-                
-                if (!existingSession.messages || existingSession.messages.length === 0) {
-                    console.log('[AIDataModelerController] Session has no messages, adding welcome message');
+                // Validate schema by fetching current schema and comparing table count
+                const dataSourceDetails = await AIDataModelerController.getDataSourceDetails(
+                    dataSourceId,
+                    tokenDetails
+                );
 
-                    const welcomeMessage = `Welcome! I've analyzed your database schema with **${schemaSummary.tableCount} tables** and **${schemaSummary.totalColumns} columns**.\n\nI can help you:\n• Identify analytical bottlenecks in your current schema\n• Propose optimized data models (Star Schema, OBT, etc.)\n• Suggest SQL implementation strategies\n• Recommend indexing for better query performance\n\nWhat would you like to analyze?`;
-                    
-                    const initialMessage = await redisService.addMessage(
+                if (dataSourceDetails) {
+                    const dataSource = await AIDataModelerController.createDataSource(dataSourceDetails);
+                    if (!dataSource.isInitialized) {
+                        await dataSource.initialize();
+                    }
+
+                    // Fetch table metadata to get only tables belonging to this data source
+                    const tableMetadata = await AIDataModelerController.fetchTableMetadata(
                         dataSourceId,
-                        userId,
-                        'assistant',
-                        welcomeMessage
+                        dataSourceDetails.schema,
+                        tokenDetails
                     );
 
-                    existingSession.messages = [initialMessage];
-                }
+                    const schemaCollector = new SchemaCollectorService();
+                    const tableNames = tableMetadata.map(m => m.physical_table_name);
+                    const currentTables = await schemaCollector.collectSchemaForTables(
+                        dataSource,
+                        dataSourceDetails.schema,
+                        tableNames
+                    );
 
-                res.status(200).json({
-                    conversationId: existingSession.metadata.conversationId,
-                    messages: existingSession.messages,
-                    modelDraft: existingSession.modelDraft,
-                    schemaContext: existingSession.schemaContext,
-                    schemaDetails,
-                    schemaSummary,
-                    source: 'redis',
-                    message: 'Session restored from Redis'
-                });
-                return;
+                    if (dataSource.isInitialized) {
+                        await dataSource.destroy();
+                    }
+
+                    const cachedTableCount = existingSession.schemaContext?.tables?.length || 0;
+                    const currentTableCount = currentTables.length;
+
+                    console.log('[AIDataModelerController] Schema validation:', {
+                        dataSourceId,
+                        cachedTableCount,
+                        currentTableCount,
+                        schemaChanged: cachedTableCount !== currentTableCount
+                    });
+
+                    // If schema has changed (different table count), invalidate and recreate session
+                    if (cachedTableCount !== currentTableCount) {
+                        console.log('[AIDataModelerController] Schema changed, clearing Redis session and creating new one');
+                        await redisService.clearSession(dataSourceId, userId);
+                        // Fall through to create new session below
+                    } else {
+                        // Schema matches - restore session
+                        console.log('[AIDataModelerController] Schema matches, restoring session from Redis');
+                        
+                        const schemaSummary = existingSession.schemaContext 
+                            ? SchemaFormatterUtility.getSchemaSummary(existingSession.schemaContext.tables)
+                            : { tableCount: 0, totalColumns: 0 };
+                        
+                        const schemaDetails = existingSession.schemaContext?.tables
+                            ? AIDataModelerController.extractSchemaDetails(existingSession.schemaContext.tables)
+                            : { tables: [] };
+                        
+                        if (!existingSession.messages || existingSession.messages.length === 0) {
+                            console.log('[AIDataModelerController] Session has no messages, adding welcome message');
+
+                            const welcomeMessage = `Welcome! I've analyzed your database schema with **${schemaSummary.tableCount} tables** and **${schemaSummary.totalColumns} columns**.\n\nI can help you:\n• Identify analytical bottlenecks in your current schema\n• Propose optimized data models (Star Schema, OBT, etc.)\n• Suggest SQL implementation strategies\n• Recommend indexing for better query performance\n\nWhat would you like to analyze?`;
+                            
+                            const initialMessage = await redisService.addMessage(
+                                dataSourceId,
+                                userId,
+                                'assistant',
+                                welcomeMessage
+                            );
+
+                            existingSession.messages = [initialMessage];
+                        }
+
+                        res.status(200).json({
+                            conversationId: existingSession.metadata.conversationId,
+                            messages: existingSession.messages,
+                            modelDraft: existingSession.modelDraft,
+                            schemaContext: existingSession.schemaContext,
+                            schemaDetails,
+                            schemaSummary,
+                            source: 'redis',
+                            message: 'Session restored from Redis'
+                        });
+                        return;
+                    }
+                }
             }
 
             // No existing session - create new one
@@ -95,18 +145,20 @@ export class AIDataModelerController {
                 await dataSource.initialize();
             }
 
-            // Collect schema
-            const schemaCollector = new SchemaCollectorService();
-            const tables = await schemaCollector.collectSchema(
-                dataSource,
-                dataSourceDetails.schema
-            );
-
-            // Fetch table metadata (display names) from database
+            // Fetch table metadata (display names) from database - this filters to only user's tables
             const tableMetadata = await AIDataModelerController.fetchTableMetadata(
                 dataSourceId,
                 dataSourceDetails.schema,
                 tokenDetails
+            );
+
+            // Collect schema only for tables that belong to this data source (from metadata)
+            const schemaCollector = new SchemaCollectorService();
+            const tableNames = tableMetadata.map(m => m.physical_table_name);
+            const tables = await schemaCollector.collectSchemaForTables(
+                dataSource,
+                dataSourceDetails.schema,
+                tableNames
             );
 
             // Merge display names into tables
@@ -124,6 +176,12 @@ export class AIDataModelerController {
             const schemaMarkdown = SchemaFormatterUtility.formatSchemaToMarkdown(tablesWithDisplayNames);
             const schemaSummary = SchemaFormatterUtility.getSchemaSummary(tablesWithDisplayNames);
             const schemaDetails = AIDataModelerController.extractSchemaDetails(tablesWithDisplayNames);
+
+            console.log('[AIDataModelerController] Schema summary for data source', dataSourceId, ':', {
+                tableCount: schemaSummary.tableCount,
+                totalColumns: schemaSummary.totalColumns,
+                tablesWithDisplayNamesCount: tablesWithDisplayNames.length
+            });
 
             // Close the data source connection
             if (dataSource.isInitialized) {
@@ -277,10 +335,19 @@ Keep it concise - aim for 200-300 words total.`;
                         await dataSource.initialize();
                     }
 
+                    // Fetch table metadata to get only tables belonging to this data source
+                    const tableMetadata = await AIDataModelerController.fetchTableMetadata(
+                        ds.id,
+                        dataSourceDetails.schema,
+                        tokenDetails
+                    );
+
                     const schemaCollector = new SchemaCollectorService();
-                    const tables = await schemaCollector.collectSchema(
+                    const tableNames = tableMetadata.map((m: any) => m.physical_table_name);
+                    const tables = await schemaCollector.collectSchemaForTables(
                         dataSource,
-                        dataSourceDetails.schema
+                        dataSourceDetails.schema,
+                        tableNames
                     );
 
                     await dataSource.destroy();
@@ -952,11 +1019,20 @@ Keep it concise - aim for 200-300 words total.`;
                 await dataSource.initialize();
             }
 
-            // Collect schema
+            // Fetch table metadata to get only tables belonging to this data source
+            const tableMetadata = await AIDataModelerController.fetchTableMetadata(
+                dataSourceId,
+                dataSourceDetails.schema,
+                tokenDetails
+            );
+
+            // Collect schema only for user's tables
             const schemaCollector = new SchemaCollectorService();
-            const tables = await schemaCollector.collectSchema(
+            const tableNames = tableMetadata.map(m => m.physical_table_name);
+            const tables = await schemaCollector.collectSchemaForTables(
                 dataSource,
-                dataSourceDetails.schema
+                dataSourceDetails.schema,
+                tableNames
             );
 
             // Format schema to markdown

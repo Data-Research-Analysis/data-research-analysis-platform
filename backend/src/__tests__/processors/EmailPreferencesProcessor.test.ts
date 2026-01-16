@@ -1,7 +1,7 @@
-import { EmailPreferencesProcessor } from '../../processors/EmailPreferencesProcessor';
-import { DBDriver } from '../../drivers/DBDriver';
-import { DRAEmailPreferences } from '../../models/DRAEmailPreferences';
-import { DRAUsersPlatform } from '../../models/DRAUsersPlatform';
+import { EmailPreferencesProcessor } from '../../processors/EmailPreferencesProcessor.js';
+import { DBDriver } from '../../drivers/DBDriver.js';
+import { DRAEmailPreferences } from '../../models/DRAEmailPreferences.js';
+import { DRAUsersPlatform } from '../../models/DRAUsersPlatform.js';
 
 // Mock DBDriver
 jest.mock('../../drivers/DBDriver');

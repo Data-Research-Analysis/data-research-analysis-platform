@@ -71,7 +71,7 @@ describe('Data Model Operations Integration Tests', () => {
             ];
             mockDataModelProcessor.getDataModels.mockResolvedValue(mockDataModels);
 
-            const result = await DataModelProcessor.getInstance().getDataModels(testTokenDetails);
+            const result = await DataModelProcessor.getInstance().getDataModels(1, testTokenDetails);
 
             expect(result).toEqual(mockDataModels);
             expect(mockDataModelProcessor.getDataModels).toHaveBeenCalledWith(testTokenDetails);
@@ -80,7 +80,7 @@ describe('Data Model Operations Integration Tests', () => {
         it('should handle empty data model list', async () => {
             mockDataModelProcessor.getDataModels.mockResolvedValue([]);
 
-            const result = await DataModelProcessor.getInstance().getDataModels(testTokenDetails);
+            const result = await DataModelProcessor.getInstance().getDataModels(1, testTokenDetails);
 
             expect(result).toEqual([]);
         });

@@ -420,9 +420,9 @@ export class DataSourceProcessor {
                         return resolve(false);
                     }
                     try {
-                        const query = `SELECT table_name FROM information_schema.tables WHERE table_schema = 'dra_excel' AND table_name LIKE '%_data_source_${dataSource.id}_%'`;
+                        const query = `SELECT table_name FROM information_schema.tables WHERE table_schema = 'dra_excel' AND table_name LIKE 'ds${dataSource.id}_%'`;
                         const tables = await dbConnector.query(query);
-                        console.log(`Found ${tables.length} Excel tables to delete`);
+                        console.log(`Found ${tables.length} Excel tables to delete for data source ${dataSource.id}`);
                         
                         for (let i = 0; i < tables.length; i++) {
                             const tableName = tables[i].table_name;
@@ -440,9 +440,9 @@ export class DataSourceProcessor {
                         return resolve(false);
                     }
                     try {
-                        const query = `SELECT table_name FROM information_schema.tables WHERE table_schema = 'dra_pdf' AND table_name LIKE '%_data_source_${dataSource.id}%'`;
+                        const query = `SELECT table_name FROM information_schema.tables WHERE table_schema = 'dra_pdf' AND table_name LIKE 'ds${dataSource.id}_%'`;
                         const tables = await dbConnector.query(query);
-                        console.log(`Found ${tables.length} PDF tables to delete`);
+                        console.log(`Found ${tables.length} PDF tables to delete for data source ${dataSource.id}`);
                         
                         for (let i = 0; i < tables.length; i++) {
                             const tableName = tables[i].table_name;
@@ -460,9 +460,9 @@ export class DataSourceProcessor {
                         return resolve(false);
                     }
                     try {
-                        const query = `SELECT table_name FROM information_schema.tables WHERE table_schema = 'dra_google_analytics' AND table_name LIKE '%_${dataSource.id}'`;
+                        const query = `SELECT table_name FROM information_schema.tables WHERE table_schema = 'dra_google_analytics' AND table_name LIKE 'ds${dataSource.id}_%'`;
                         const tables = await dbConnector.query(query);
-                        console.log(`Found ${tables.length} Google Analytics tables to delete`);
+                        console.log(`Found ${tables.length} Google Analytics tables to delete for data source ${dataSource.id}`);
                         
                         for (let i = 0; i < tables.length; i++) {
                             const tableName = tables[i].table_name;
@@ -480,7 +480,7 @@ export class DataSourceProcessor {
                         return resolve(false);
                     }
                     try {
-                        const query = `SELECT table_name FROM information_schema.tables WHERE table_schema = 'dra_google_ad_manager' AND table_name LIKE '%_${dataSource.id}'`;
+                        const query = `SELECT table_name FROM information_schema.tables WHERE table_schema = 'dra_google_ad_manager' AND table_name LIKE 'ds${dataSource.id}_%'`;
                         const tables = await dbConnector.query(query);
                         
                         for (const table of tables) {
@@ -499,7 +499,7 @@ export class DataSourceProcessor {
                         return resolve(false);
                     }
                     try {
-                        const query = `SELECT table_name FROM information_schema.tables WHERE table_schema = 'dra_google_ads' AND table_name LIKE '%_${dataSource.id}'`;
+                        const query = `SELECT table_name FROM information_schema.tables WHERE table_schema = 'dra_google_ads' AND table_name LIKE 'ds${dataSource.id}_%'`;
                         const tables = await dbConnector.query(query);
                         
                         for (const table of tables) {
@@ -1240,7 +1240,24 @@ export class DataSourceProcessor {
                 let columns = '';
                 let insertQueryColumns = '';
                 sourceTable.columns.forEach((column: any, index: number) => {
-                    const columnSize = column?.character_maximum_length ? `(${column?.character_maximum_length})` : '';
+                    let columnSize = '';
+                    
+                    // Only apply character_maximum_length to string types, and cap NUMERIC precision at 1000
+                    if (column?.character_maximum_length) {
+                        const maxLength = column.character_maximum_length;
+                        const columnDataType = column.data_type?.toUpperCase() || '';
+                        
+                        // For NUMERIC/DECIMAL types, cap precision at 1000 (PostgreSQL limit)
+                        if (columnDataType.includes('NUMERIC') || columnDataType.includes('DECIMAL')) {
+                            columnSize = maxLength > 1000 ? '' : `(${maxLength})`;
+                        } 
+                        // For string types, use the length as-is
+                        else if (columnDataType.includes('CHAR') || columnDataType.includes('TEXT') || columnDataType.includes('VARCHAR')) {
+                            columnSize = `(${maxLength})`;
+                        }
+                        // For other types, don't apply size
+                    }
+                    
                     const columnType = `${column.data_type}${columnSize}`;
 
                     // For cross-source models, use the column's data_source_type; for single-source, use the global dataSourceType
@@ -2621,7 +2638,7 @@ export class DataSourceProcessor {
             
             // Trigger sync
             const gaDriver = GoogleAnalyticsDriver.getInstance();
-            const syncResult = await gaDriver.syncToDatabase(dataSourceId, dataSource.users_platform.id, apiConnectionDetails);
+            const syncResult = await gaDriver.syncToDatabase(dataSourceId, user.id, apiConnectionDetails);
             
             if (syncResult) {
                 // Update last sync time in API connection details
@@ -2899,7 +2916,7 @@ export class DataSourceProcessor {
             // Trigger sync
             const { GoogleAdsDriver } = await import('../drivers/GoogleAdsDriver.js');
             const adsDriver = GoogleAdsDriver.getInstance();
-            const syncResult = await adsDriver.syncToDatabase(dataSourceId, dataSource.users_platform.id, apiConnectionDetails);
+            const syncResult = await adsDriver.syncToDatabase(dataSourceId, user.id, apiConnectionDetails);
             
             if (syncResult) {
                 // Update last sync time in API connection details

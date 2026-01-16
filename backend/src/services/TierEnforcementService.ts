@@ -168,7 +168,7 @@ export class TierEnforcementService {
      */
     private async getUpgradeTiers(
         currentTierName: ESubscriptionTier,
-        resourceType: 'project' | 'data_source' | 'dashboard' | 'ai_generation'
+        resourceType: 'project' | 'data_source' | 'data_model' | 'dashboard' | 'ai_generation'
     ): Promise<Array<{ tierName: ESubscriptionTier; limit: number | null; pricePerMonth: number }>> {
         const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
         if (!driver) {
@@ -201,6 +201,9 @@ export class TierEnforcementService {
                     case 'data_source':
                         limit = t.max_data_sources_per_project;
                         break;
+                    case 'data_model':
+                        limit = t.max_data_models_per_data_source;
+                        break;
                     case 'dashboard':
                         limit = t.max_dashboards;
                         break;
@@ -210,7 +213,7 @@ export class TierEnforcementService {
                 }
 
                 return {
-                    tierName: t.tier_name,
+                    tierName: t.tier_name as ESubscriptionTier,
                     limit,
                     pricePerMonth: Number(t.price_per_month_usd)
                 };
@@ -255,9 +258,9 @@ export class TierEnforcementService {
         });
 
         if (projectCount >= maxProjects) {
-            const upgradeTiers = await this.getUpgradeTiers(tier.tier_name, 'project');
+            const upgradeTiers = await this.getUpgradeTiers(tier.tier_name as ESubscriptionTier, 'project');
             throw new TierLimitError(
-                tier.tier_name,
+                tier.tier_name as ESubscriptionTier,
                 'project',
                 projectCount,
                 maxProjects,
@@ -306,9 +309,9 @@ export class TierEnforcementService {
         });
 
         if (dataSourceCount >= maxDataSourcesPerProject) {
-            const upgradeTiers = await this.getUpgradeTiers(tier.tier_name, 'data_source');
+            const upgradeTiers = await this.getUpgradeTiers(tier.tier_name as ESubscriptionTier, 'data_source');
             throw new TierLimitError(
-                tier.tier_name,
+                tier.tier_name as ESubscriptionTier,
                 'data_source',
                 dataSourceCount,
                 maxDataSourcesPerProject,
@@ -357,9 +360,9 @@ export class TierEnforcementService {
         });
 
         if (dataModelCount >= maxDataModelsPerDataSource) {
-            const upgradeTiers = await this.getUpgradeTiers(tier.tier_name, 'data_model');
+            const upgradeTiers = await this.getUpgradeTiers(tier.tier_name as ESubscriptionTier, 'data_model');
             throw new TierLimitError(
-                tier.tier_name,
+                tier.tier_name as ESubscriptionTier,
                 'data_model',
                 dataModelCount,
                 maxDataModelsPerDataSource,
@@ -404,9 +407,9 @@ export class TierEnforcementService {
         });
 
         if (dashboardCount >= maxDashboards) {
-            const upgradeTiers = await this.getUpgradeTiers(tier.tier_name, 'dashboard');
+            const upgradeTiers = await this.getUpgradeTiers(tier.tier_name as ESubscriptionTier, 'dashboard');
             throw new TierLimitError(
-                tier.tier_name,
+                tier.tier_name as ESubscriptionTier,
                 'dashboard',
                 dashboardCount,
                 maxDashboards,
@@ -439,9 +442,9 @@ export class TierEnforcementService {
         const currentUsage = await this.getAIGenerationCount(userId);
 
         if (currentUsage >= monthlyLimit) {
-            const upgradeTiers = await this.getUpgradeTiers(tier.tier_name, 'ai_generation');
+            const upgradeTiers = await this.getUpgradeTiers(tier.tier_name as ESubscriptionTier, 'ai_generation');
             throw new TierLimitError(
-                tier.tier_name,
+                tier.tier_name as ESubscriptionTier,
                 'ai_generation',
                 currentUsage,
                 monthlyLimit,
@@ -517,10 +520,10 @@ export class TierEnforcementService {
         const canUseAIGeneration = isAdminUser || tier.ai_generations_per_month === null || aiGenerationsUsed < tier.ai_generations_per_month;
 
         return {
-            tier: tier.tier_name,
+            tier: tier.tier_name as ESubscriptionTier,
             tierDetails: {
                 id: tier.id,
-                tierName: tier.tier_name,
+                tierName: tier.tier_name as ESubscriptionTier,
                 pricePerMonth: Number(tier.price_per_month_usd)
             },
             rowLimit: Number(tier.max_rows_per_data_model),

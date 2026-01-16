@@ -277,7 +277,19 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
             ]);
         }
         
-        console.log(`✅ Synced ${rows.length} rows to ${logicalTableName}`);
+        // Store table metadata
+        await tableMetadataService.storeTableMetadata(manager, {
+            dataSourceId,
+            usersPlatformId,
+            schemaName,
+            physicalTableName,
+            logicalTableName,
+            originalSheetName: logicalTableName,
+            fileId: propertyId,
+            tableType: 'google_analytics'
+        });
+        
+        console.log(`✅ Synced ${rows.length} rows to ${logicalTableName} (${physicalTableName})`);
     }
     
     /**
@@ -356,7 +368,19 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
             ]);
         }
         
-        console.log(`✅ Synced ${rows.length} rows to ${logicalTableName}`);
+        // Store table metadata
+        await tableMetadataService.storeTableMetadata(manager, {
+            dataSourceId,
+            usersPlatformId,
+            schemaName,
+            physicalTableName,
+            logicalTableName,
+            originalSheetName: logicalTableName,
+            fileId: propertyId,
+            tableType: 'google_analytics'
+        });
+        
+        console.log(`✅ Synced ${rows.length} rows to ${logicalTableName} (${physicalTableName})`);
     }
     
     /**
@@ -427,7 +451,19 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
             ]);
         }
         
-        console.log(`✅ Synced ${rows.length} rows to ${logicalTableName}`);
+        // Store table metadata
+        await tableMetadataService.storeTableMetadata(manager, {
+            dataSourceId,
+            usersPlatformId,
+            schemaName,
+            physicalTableName,
+            logicalTableName,
+            originalSheetName: logicalTableName,
+            fileId: propertyId,
+            tableType: 'google_analytics'
+        });
+        
+        console.log(`✅ Synced ${rows.length} rows to ${logicalTableName} (${physicalTableName})`);
     }
     
     /**
@@ -501,7 +537,19 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
             ]);
         }
         
-        console.log(`✅ Synced ${rows.length} rows to ${logicalTableName}`);
+        // Store table metadata
+        await tableMetadataService.storeTableMetadata(manager, {
+            dataSourceId,
+            usersPlatformId,
+            schemaName,
+            physicalTableName,
+            logicalTableName,
+            originalSheetName: logicalTableName,
+            fileId: propertyId,
+            tableType: 'google_analytics'
+        });
+        
+        console.log(`✅ Synced ${rows.length} rows to ${logicalTableName} (${physicalTableName})`);
     }
     
     /**
@@ -569,7 +617,19 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
             ]);
         }
         
-        console.log(`✅ Synced ${rows.length} rows to ${logicalTableName}`);
+        // Store table metadata
+        await tableMetadataService.storeTableMetadata(manager, {
+            dataSourceId,
+            usersPlatformId,
+            schemaName,
+            physicalTableName,
+            logicalTableName,
+            originalSheetName: logicalTableName,
+            fileId: propertyId,
+            tableType: 'google_analytics'
+        });
+        
+        console.log(`✅ Synced ${rows.length} rows to ${logicalTableName} (${physicalTableName})`);
     }
     
     /**
