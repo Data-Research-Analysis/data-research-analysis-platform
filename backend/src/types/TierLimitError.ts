@@ -6,7 +6,7 @@ import { ESubscriptionTier } from '../models/DRASubscriptionTier.js';
  */
 export class TierLimitError extends Error {
     public readonly tierName: ESubscriptionTier;
-    public readonly resource: 'project' | 'data_source' | 'dashboard' | 'ai_generation';
+    public readonly resource: 'project' | 'data_source' | 'data_model' | 'dashboard' | 'ai_generation';
     public readonly currentUsage: number;
     public readonly limit: number;
     public readonly upgradeTiers: Array<{
@@ -17,7 +17,7 @@ export class TierLimitError extends Error {
 
     constructor(
         tierName: ESubscriptionTier,
-        resource: 'project' | 'data_source' | 'dashboard' | 'ai_generation',
+        resource: 'project' | 'data_source' | 'data_model' | 'dashboard' | 'ai_generation',
         currentUsage: number,
         limit: number,
         upgradeTiers: Array<{

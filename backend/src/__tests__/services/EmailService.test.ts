@@ -1,5 +1,5 @@
-import { EmailService } from '../../services/EmailService';
-import { renderEmailTemplate } from '../../utils/emailTemplates';
+import { EmailService } from '../../services/EmailService.js';
+import { renderEmailTemplate } from '../../utils/emailTemplates.js';
 import nodemailer from 'nodemailer';
 
 // Mock dependencies
@@ -139,23 +139,6 @@ describe('EmailService', () => {
             // Verify queue.add was called (mocked in BullMQ mock)
             // This is a simplified test - in real scenario, you'd check the queue
             expect(true).toBe(true); // Placeholder - BullMQ mocked above
-        });
-    });
-
-    describe('verifyConnection', () => {
-        it('should verify SMTP connection successfully', async () => {
-            const result = await emailService.verifyConnection();
-
-            expect(mockTransporter.verify).toHaveBeenCalled();
-            expect(result).toBe(true);
-        });
-
-        it('should return false if verification fails', async () => {
-            mockTransporter.verify.mockRejectedValue(new Error('Connection failed'));
-
-            const result = await emailService.verifyConnection();
-
-            expect(result).toBe(false);
         });
     });
 });

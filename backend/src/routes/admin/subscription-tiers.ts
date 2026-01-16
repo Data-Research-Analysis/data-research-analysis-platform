@@ -2,7 +2,7 @@ import express, { Request, Response } from 'express';
 import { validateJWT } from '../../middleware/authenticate.js';
 import { validate } from '../../middleware/validator.js';
 import { body, matchedData, param } from 'express-validator';
-import { SubscriptionTierProcessor } from '../../processors/SubscriptionTierProcessor.js';
+import { SubscriptionTierProcessor, ISubscriptionTierData } from '../../processors/SubscriptionTierProcessor.js';
 import { ESubscriptionTier } from '../../models/DRASubscriptionTier.js';
 
 const router = express.Router();
@@ -101,7 +101,7 @@ router.post('/', async (req: Request, res: Response, next: any) => {
         .withMessage('is_active must be a boolean')
 ]), async (req: Request, res: Response) => {
     try {
-        const tierData = matchedData(req);
+        const tierData = matchedData(req) as ISubscriptionTierData;
         const tier = await SubscriptionTierProcessor.getInstance().createTier(tierData);
         
         res.status(201).json({
