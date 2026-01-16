@@ -218,12 +218,15 @@ router.post('/sync/:dataSourceId',
             }
             
             console.log(`[Google Analytics Sync] Starting sync for data source ID: ${dataSourceId}`);
+            console.log(`[Google Analytics Sync] Token details:`, req.body.tokenDetails ? 'Present' : 'Missing');
             
             // Trigger sync
             const result = await DataSourceProcessor.getInstance().syncGoogleAnalyticsDataSource(
                 dataSourceId,
                 req.body.tokenDetails
             );
+            
+            console.log(`[Google Analytics Sync] Sync result for data source ${dataSourceId}:`, result);
             
             if (result) {
                 console.log(`[Google Analytics Sync] Sync completed successfully for data source ID: ${dataSourceId}`);
@@ -232,10 +235,10 @@ router.post('/sync/:dataSourceId',
                     message: 'Sync completed successfully'
                 });
             } else {
-                console.error(`[Google Analytics Sync] Sync failed for data source ID: ${dataSourceId}`);
+                console.error(`[Google Analytics Sync] Sync returned false for data source ID: ${dataSourceId}`);
                 res.status(400).send({
                     success: false,
-                    message: 'Sync failed'
+                    message: 'Sync failed - check server logs for details'
                 });
             }
         } catch (error) {
