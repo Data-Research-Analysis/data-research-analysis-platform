@@ -411,6 +411,11 @@ function hasAdvancedFields() {
 }
 
 watch(() => state.data_table.query_options, async (value) => {
+    // Guard: Don't re-execute during save operation
+    if (state.is_saving_model) {
+        console.log('[watch query_options] Skipping during save operation');
+        return;
+    }
     await executeQueryOnExternalDataSource();
 }, { deep: true });
 watch(() => state.data_table.query_options.group_by, async (value) => {
@@ -2787,14 +2792,18 @@ function buildSQLQuery() {
     return sqlQuery;
 }
 async function saveDataModel() {
-    // Ensure JOIN conditions and table aliases are synced to data_table before save
-    state.data_table.join_conditions = [...state.join_conditions];
-    state.data_table.table_aliases = [...state.table_aliases];
+    // Set flag to prevent watch from triggering during save
+    state.is_saving_model = true;
     
-    // CRITICAL FIX: Auto-sync group_by_columns when aggregate functions exist
-    // This ensures manually selected columns are included in GROUP BY clause
-    const hasAggregates = state.data_table.query_options?.group_by?.aggregate_functions?.length > 0 ||
-                         state.data_table.query_options?.group_by?.aggregate_expressions?.length > 0;
+    try {
+        // Ensure JOIN conditions and table aliases are synced to data_table before save
+        state.data_table.join_conditions = [...state.join_conditions];
+        state.data_table.table_aliases = [...state.table_aliases];
+        
+        // CRITICAL FIX: Auto-sync group_by_columns when aggregate functions exist
+        // This ensures manually selected columns are included in GROUP BY clause
+        const hasAggregates = state.data_table.query_options?.group_by?.aggregate_functions?.length > 0 ||
+                             state.data_table.query_options?.group_by?.aggregate_expressions?.length > 0;
     
     if (hasAggregates && state.data_table.query_options?.group_by) {
         // Build set of columns used ONLY in aggregates (not in regular SELECT)
@@ -2870,6 +2879,8 @@ async function saveDataModel() {
         confirmButtonText: "Yes, build my model now!",
     });
     if (!confirmDelete) {
+        // User cancelled, clear the flag and return
+        state.is_saving_model = false;
         return;
     }
     //build the data model
@@ -2976,6 +2987,17 @@ async function saveDataModel() {
             text: 'Unfortunately, we encountered an error! Please refresh the page and try again.',
         });
     }
+    } catch (error) {
+        console.error('[saveDataModel] Error:', error);
+        $swal.fire({
+            icon: 'error',
+            title: `Error! `,
+            text: 'Unfortunately, we encountered an error! Please refresh the page and try again.',
+        });
+    } finally {
+        // Always clear the flag
+        state.is_saving_model = false;
+    }
 }
 async function executeQueryOnExternalDataSource() {
     // Guard: Prevent concurrent executions
@@ -2988,6 +3010,13 @@ async function executeQueryOnExternalDataSource() {
     // Guard: Don't execute during AI configuration application
     if (state.is_applying_ai_config) {
         console.log('[executeQuery] AI config applying, skipping...');
+        console.trace('[executeQuery] Call stack:');
+        return;
+    }
+
+    // Guard: Don't execute during save operation
+    if (state.is_saving_model) {
+        console.log('[executeQuery] Save operation in progress, skipping...');
         console.trace('[executeQuery] Call stack:');
         return;
     }
@@ -3851,7 +3880,7 @@ function validateAndTransformAIModel(aiModel) {
 onMounted(async () => {
     // Load subscription stats for row limit enforcement
     try {
-        await subscriptionStore.fetchSubscriptionStats();
+        await subscriptionStore.fetchSubscription();
         console.log('[Data Model Builder] Subscription stats loaded:', subscriptionStore.subscription?.subscription_tier?.tier_name);
     } catch (error) {
         console.error('[Data Model Builder] Failed to load subscription stats:', error);

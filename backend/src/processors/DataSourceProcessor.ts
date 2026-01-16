@@ -1240,7 +1240,24 @@ export class DataSourceProcessor {
                 let columns = '';
                 let insertQueryColumns = '';
                 sourceTable.columns.forEach((column: any, index: number) => {
-                    const columnSize = column?.character_maximum_length ? `(${column?.character_maximum_length})` : '';
+                    let columnSize = '';
+                    
+                    // Only apply character_maximum_length to string types, and cap NUMERIC precision at 1000
+                    if (column?.character_maximum_length) {
+                        const maxLength = column.character_maximum_length;
+                        const columnDataType = column.data_type?.toUpperCase() || '';
+                        
+                        // For NUMERIC/DECIMAL types, cap precision at 1000 (PostgreSQL limit)
+                        if (columnDataType.includes('NUMERIC') || columnDataType.includes('DECIMAL')) {
+                            columnSize = maxLength > 1000 ? '' : `(${maxLength})`;
+                        } 
+                        // For string types, use the length as-is
+                        else if (columnDataType.includes('CHAR') || columnDataType.includes('TEXT') || columnDataType.includes('VARCHAR')) {
+                            columnSize = `(${maxLength})`;
+                        }
+                        // For other types, don't apply size
+                    }
+                    
                     const columnType = `${column.data_type}${columnSize}`;
 
                     // For cross-source models, use the column's data_source_type; for single-source, use the global dataSourceType
