@@ -12,6 +12,7 @@ export async function validateJWT (req: any, res: any, next: any) {
             if (typeAuthorization === 'auth' && tokenDetails && tokenDetails.user_id) {
                 req.tokenDetails = tokenDetails;
                 req.body.tokenDetails = tokenDetails;
+                req.user_id = tokenDetails.user_id; // Set user_id for RBAC middleware
                 next();
             } else if (typeAuthorization === 'non-auth') {
                 next();

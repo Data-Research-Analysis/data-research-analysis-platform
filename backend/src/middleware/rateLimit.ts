@@ -174,3 +174,35 @@ export const aiOperationsLimiter = rateLimit({
         return process.env.RATE_LIMIT_ENABLED === 'false';
     }
 });
+/**
+ * Invitation rate limiter
+ * Protects project invitation endpoints from spam
+ * 
+ * Limits: 10 requests per 15 minutes per user
+ */
+export const invitationLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10,
+    message: 'Too many invitation requests, please try again later',
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req: Request) => {
+        const userId = req.body?.tokenDetails?.user_id;
+        if (userId) {
+            return userId.toString();
+        }
+        return ipKeyGenerator(req.ip || 'unknown');
+    },
+    handler: (req: Request, res: Response) => {
+        const userId = req.body?.tokenDetails?.user_id;
+        console.warn(`[Rate Limit] Invitation limit exceeded from ${userId ? `User ${userId}` : `IP ${req.ip}`}`);
+        res.status(429).json({
+            error: 'Too many requests',
+            message: 'Too many invitation requests. Please try again in 15 minutes.',
+            retryAfter: Math.ceil((req.rateLimit?.resetTime?.getTime() - Date.now()) / 1000)
+        });
+    },
+    skip: (req: Request) => {
+        return process.env.RATE_LIMIT_ENABLED === 'false';
+    }
+});

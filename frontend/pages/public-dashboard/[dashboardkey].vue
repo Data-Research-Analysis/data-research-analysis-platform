@@ -378,11 +378,13 @@ async function executeQueryOnDataModels(chartId) {
                 "Authorization-Type": "auth",
             },
             body: JSON.stringify({
-                query: sqlQuery
+                query: sqlQuery,
+                project_id: project.value?.id
             })
         });
         const data = await response.json();
-        state.response_from_data_models_rows = data;
+        // Ensure data is an array before assigning
+        state.response_from_data_models_rows = Array.isArray(data) ? data : [];
         state.response_from_data_models_columns = chart.columns.map((column) => column.column_name);
         const labelValues = [];
         const numericValues = [];

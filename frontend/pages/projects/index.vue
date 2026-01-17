@@ -1,9 +1,14 @@
 <script setup>
 import {useProjectsStore} from '@/stores/projects';
 import {useSubscriptionStore} from '@/stores/subscription';
+import {useLoggedInUserStore} from '@/stores/logged_in_user';
 import {useApiErrorHandler} from '@/composables/useApiErrorHandler';
+import {useAuthenticatedFetch, useAuthenticatedMutation} from '@/composables/useAuthenticatedFetch';
+import ProjectMembersDialog from '~/components/ProjectMembersDialog.vue';
+
 const projectsStore = useProjectsStore();
 const subscriptionStore = useSubscriptionStore();
+const loggedInUserStore = useLoggedInUserStore();
 const { $swal } = useNuxtApp();
 const { handleApiError } = useApiErrorHandler();
 
@@ -12,21 +17,36 @@ const state = reactive({
     loading: true,
     showTierLimitModal: false,
     tierLimitError: null,
+    showMembersDialog: false,
+    selectedProjectId: null,
+    selectedProjectRole: 'viewer',
 });
 
 const projects = computed(() => {
-    const projectsList = projectsStore.getProjects();
+    // Use the reactive projects ref directly instead of getProjects()
+    // to ensure we get the latest data from API calls in middleware
+    const projectsList = projectsStore.projects;
     
     return projectsList.map((project) => ({
         id: project.id,
         user_id: project.user_platform_id,
         name: project.name,
         description: project.description || '',
+        // Owner/role information - only true if explicitly true
+        is_owner: project.is_owner === true,
+        user_role: project.user_role || 'viewer', // Default to least privilege
         // Use counts from API response
         dataSourcesCount: project.data_sources_count || 0,
         dataModelsCount: project.data_models_count || 0,
         dashboardsCount: project.dashboards_count || 0,
+        members: project.members || [],
     }));
+});
+
+const selectedProjectMembers = computed(() => {
+    if (!state.selectedProjectId) return [];
+    const project = projects.value.find(p => p.id === state.selectedProjectId);
+    return project?.members || [];
 });
 
 // Hide loading once data is available
@@ -171,6 +191,27 @@ async function setSelectedProject(projectId) {
     const project = projects.value.find((project) => project.id === projectId);
     projectsStore.setSelectedProject(project);
 }
+
+async function openMembersDialog(projectId) {
+    state.selectedProjectId = projectId;
+    
+    // Determine user's role from members array
+    const currentUser = loggedInUserStore.getLoggedInUser();
+    if (currentUser && currentUser.id) {
+        const project = projects.value.find(p => p.id === projectId);
+        const memberEntry = project?.members?.find(m => m.user.id === currentUser.id);
+        state.selectedProjectRole = memberEntry?.role || 'viewer';
+    } else {
+        state.selectedProjectRole = 'viewer';
+    }
+    
+    state.showMembersDialog = true;
+}
+
+function closeMembersDialog() {
+    state.showMembersDialog = false;
+    state.selectedProjectId = null;
+}
 </script>
 <template>
     <!-- Tier Limit Modal -->
@@ -242,9 +283,58 @@ async function setSelectedProject(projectId) {
                     <notched-card class="justify-self-center mt-10">
                         <template #body="{ onClick }">
                             <div class="flex flex-col justify-center">
-                                <!-- Project Name -->
-                                <div class="text-md font-bold mb-3">
-                                    {{project.name}}
+                                <!-- Project Name and Team Button -->
+                                <div class="flex items-center mb-3">
+                                    <div class="flex justify-between items-center gap-2 flex-1">
+                                        <div class="text-md font-bold">
+                                            {{project.name}}
+                                        </div>
+                                        <!-- Owner/Member Badge -->
+                                        <div class="flex flex-col">
+                                            <span 
+                                                v-if="project.is_owner"
+                                                class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800"
+                                                title="You own this project"
+                                            >
+                                                <font-awesome icon="fas fa-crown" class="mr-1" />
+                                                Owner
+                                            </span>
+                                            <span 
+                                                v-else-if="project.user_role === 'admin'"
+                                                class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"
+                                                title="You are an admin in this project"
+                                            >
+                                                <font-awesome icon="fas fa-user-shield" class="mr-1" />
+                                                Admin
+                                            </span>
+                                            <span 
+                                                v-else-if="project.user_role === 'editor'"
+                                                class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800"
+                                                title="You are an editor in this project"
+                                            >
+                                                <font-awesome icon="fas fa-pencil" class="mr-1" />
+                                                Editor
+                                            </span>
+                                            <span 
+                                                v-else-if="project.user_role === 'viewer'"
+                                                class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800"
+                                                title="You are a viewer in this project"
+                                            >
+                                                <font-awesome icon="fas fa-eye" class="mr-1" />
+                                                Viewer
+                                            </span>
+                                            <!-- Team button - only show for owners and admins -->
+                                            <button 
+                                                v-if="project.is_owner || project.user_role === 'admin'"
+                                                @click.prevent="openMembersDialog(project.id)"
+                                                class="text-xs bg-blue-500 hover:bg-blue-600 text-white p-1 mt-1 rounded flex items-center gap-1 cursor-pointer"
+                                                title="Manage team members"
+                                            >
+                                                <font-awesome icon="fas fa-users" />
+                                                <span>Team</span>
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                                 
                                 <!-- Description -->
@@ -268,10 +358,26 @@ async function setSelectedProject(projectId) {
                         </template>
                     </notched-card>
                 </NuxtLink>
-                <div class="absolute top-5 -right-2 z-10 bg-red-500 hover:bg-red-700 border border-red-500 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer" @click="deleteProject(project.id)">
+                <!-- Delete button - only show for owned projects -->
+                <div 
+                    v-if="project.is_owner"
+                    class="absolute top-5 -right-2 z-10 bg-red-500 hover:bg-red-700 border border-red-500 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer" 
+                    @click="deleteProject(project.id)"
+                >
                     <font-awesome icon="fas fa-xmark" class="text-xl text-white" />
                 </div>
             </div>
         </div>
     </tab-content-panel>
+    
+    <!-- Project Members Dialog -->
+    <ProjectMembersDialog
+        v-if="state.selectedProjectId"
+        :project-id="state.selectedProjectId"
+        :is-open="state.showMembersDialog"
+        :user-role="state.selectedProjectRole"
+        :members="selectedProjectMembers"
+        @close="closeMembersDialog"
+        @member-updated="projectsStore.retrieveProjects()"
+    />
 </template>

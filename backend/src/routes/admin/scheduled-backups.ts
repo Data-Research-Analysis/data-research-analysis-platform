@@ -43,7 +43,7 @@ router.get('/status', validateJWT, requireAdmin, async (req: Request, res: Respo
 router.post('/start', validateJWT, requireAdmin, async (req: Request, res: Response) => {
     try {
         const service = ScheduledBackupService.getInstance();
-        const success = service.startScheduler();
+        const success = await service.startScheduler();
         
         if (success) {
             res.status(200).send({ 

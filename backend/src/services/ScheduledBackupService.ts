@@ -39,13 +39,8 @@ export class ScheduledBackupService {
         this.BACKUP_RETENTION_DAYS = parseInt(process.env.BACKUP_RETENTION_DAYS || '30');
         this.BACKUP_SYSTEM_USER_ID = parseInt(process.env.BACKUP_SYSTEM_USER_ID || '1');
 
-        // Initialize last run time from database
-        this.initializeLastRunTime();
-
-        // Start scheduler if enabled
-        if (this.BACKUP_ENABLED) {
-            this.startScheduler();
-        }
+        // Defer initialization until after database is ready
+        // Note: Call startScheduler() manually after app initialization
     }
 
     public static getInstance(): ScheduledBackupService {
@@ -75,12 +70,15 @@ export class ScheduledBackupService {
     /**
      * Start the scheduled backup task
      */
-    public startScheduler(): boolean {
+    public async startScheduler(): Promise<boolean> {
         try {
             if (this.scheduledTask) {
                 console.log('⚠️ Scheduler already running');
                 return false;
             }
+
+            // Initialize last run time from database (now safe to access DB)
+            await this.initializeLastRunTime();
 
             // Validate cron expression
             if (!cron.validate(this.BACKUP_SCHEDULE)) {
@@ -135,7 +133,7 @@ export class ScheduledBackupService {
     /**
      * Update the cron schedule and restart scheduler
      */
-    public updateSchedule(cronExpression: string): boolean {
+    public async updateSchedule(cronExpression: string): Promise<boolean> {
         try {
             // Validate new cron expression
             if (!cron.validate(cronExpression)) {
@@ -156,7 +154,7 @@ export class ScheduledBackupService {
 
             // Restart if it was running
             if (wasRunning) {
-                return this.startScheduler();
+                return await this.startScheduler();
             }
 
             console.log(`✅ Backup schedule updated to: ${cronExpression}`);
@@ -330,7 +328,7 @@ export class ScheduledBackupService {
      */
     public async updateConfig(config: Partial<ISchedulerConfig>): Promise<void> {
         if (config.schedule !== undefined && config.schedule !== this.BACKUP_SCHEDULE) {
-            this.updateSchedule(config.schedule);
+            await this.updateSchedule(config.schedule);
         }
 
         if (config.enabled !== undefined && config.enabled !== this.BACKUP_ENABLED) {
@@ -338,7 +336,7 @@ export class ScheduledBackupService {
             process.env.BACKUP_ENABLED = config.enabled.toString();
             
             if (config.enabled && !this.isRunning()) {
-                this.startScheduler();
+                await this.startScheduler();
             } else if (!config.enabled && this.isRunning()) {
                 this.stopScheduler();
             }

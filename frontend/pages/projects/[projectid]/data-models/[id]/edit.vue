@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useProjectsStore } from '@/stores/projects';
 import { useDataModelsStore } from '@/stores/data_models';
+import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import type { IDataSourceWithTables, ITableWithSource } from '@/types/ICrossSourceData';
 import type { IDataModel } from '@/types/IDataModel';
 const dataModelsStore = useDataModelsStore();
@@ -20,6 +21,9 @@ const project = computed(() => {
 });
 const projectId = computed(() => parseInt(route.params.projectid as string));
 const dataModelId = computed(() => parseInt(route.params.id as string));
+
+// Check permissions
+const permissions = useProjectPermissions(projectId.value);
 
 async function getAllProjectTables() {
     try {
@@ -92,6 +96,7 @@ onMounted(async () => {
                 :is-cross-source="true"
                 :is-edit-data-model="true"
                 :project-id="projectId"
+                :read-only="!permissions.canUpdate.value"
             />
             
             <!-- Loading state -->

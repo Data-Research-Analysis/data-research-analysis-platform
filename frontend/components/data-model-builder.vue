@@ -91,16 +91,16 @@ const state = reactive({
 
 // Computed properties for tier-based row limits
 const userRowLimit = computed(() => {
-    const limit = subscriptionStore.subscription?.subscription_tier?.max_rows_per_data_model;
+    const limit = subscriptionStore.subscriptionStats?.rowLimit;
     return limit === -1 ? 999999999 : (limit || 100000); // -1 means unlimited (enterprise)
 });
 
 const userTierName = computed(() => {
-    return subscriptionStore.subscription?.subscription_tier?.tier_name || 'FREE';
+    return subscriptionStore.subscriptionStats?.tier?.tier_name || 'FREE';
 });
 
 const isUnlimitedTier = computed(() => {
-    const limit = subscriptionStore.subscription?.subscription_tier?.max_rows_per_data_model;
+    const limit = subscriptionStore.subscriptionStats?.rowLimit;
     return limit === -1;
 });
 
@@ -156,6 +156,12 @@ const props = defineProps({
         required: false,
         default: null,
     },
+    // RBAC: Read-only mode for viewers
+    readOnly: {
+        type: Boolean,
+        required: false,
+        default: false,
+    },
 });
 const showWhereClause = computed(() => {
     return state?.data_table?.query_options?.where?.length > 0;
@@ -170,6 +176,8 @@ const showDataModelControls = computed(() => {
     return state && state.data_table && state.data_table.columns && state.data_table.columns.length > 0;
 })
 const saveButtonEnabled = computed(() => {
+    // Disabled if read-only OR if there are no selected columns
+    if (props.readOnly) return false;
     return state && state.data_table && state.data_table.columns && state.data_table.columns.filter((column) => column.is_selected_column).length > 0;
 })
 const safeDataTableColumns = computed(() => {
@@ -670,12 +678,14 @@ function syncGroupByColumns() {
 }
 
 function openDialog() {
+    if (props.readOnly) return;
     state.show_dialog = true;
 }
 function closeDialog() {
     state.show_dialog = false;
 }
 function openCalculatedColumnDialog() {
+    if (props.readOnly) return;
     state.show_calculated_column_dialog = true;
     state.calculated_column = {
         column_name: '',
@@ -835,6 +845,7 @@ function ensureReferencedColumnsExist() {
  * Open dialog to create table alias for self-referencing relationships
  */
 function openAliasDialog() {
+    if (props.readOnly) return;
     state.alias_form = {
         table: '',
         alias: ''
@@ -1176,6 +1187,7 @@ function getColumnsForTable(tableName, tableAlias = null) {
  * Open JOIN creation dialog
  */
 function openJoinDialog() {
+    if (props.readOnly) return;
     state.join_form = {
         left_table: '',
         left_table_alias: null,
@@ -4077,12 +4089,27 @@ onMounted(async () => {
 </script>
 <template>
     <tab-content-panel :corners="['top-right', 'bottom-left', 'bottom-right']">
+        <!-- Read-Only Mode Banner -->
+        <div v-if="readOnly" class="mb-4 p-4 bg-yellow-50 border-2 border-yellow-400 rounded-lg flex items-center gap-3">
+            <font-awesome icon="fas fa-eye" class="text-yellow-600 text-2xl" />
+            <div>
+                <h3 class="font-bold text-yellow-800">View-Only Mode</h3>
+                <p class="text-sm text-yellow-700">You are viewing this data model in read-only mode. All controls are disabled.</p>
+            </div>
+        </div>
+        
         <div class="flex flex-row justify-between items-center mb-5">
             <div class="font-bold text-2xl">
                 Create A Data Model from the Connected Data Source(s)
             </div>
             <button v-if="(props.dataSource && props.dataSource.id) || (props.isCrossSource && props.projectId)" @click="openAIDataModeler"
-                class="flex items-center gap-2 px-4 py-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 transition-colors duration-200 font-medium shadow-md cursor-pointer rounded-lg">
+                :disabled="readOnly"
+                :class="[
+                    'flex items-center gap-2 px-4 py-2 font-medium shadow-md rounded-lg transition-colors duration-200',
+                    readOnly 
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                        : 'bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer'
+                ]">
                 <font-awesome icon="fas fa-wand-magic-sparkles" class="w-5 h-5" />
                 Build with AI
             </button>
@@ -4154,16 +4181,18 @@ onMounted(async () => {
         <!-- View Mode Toggle -->
         <div class="flex justify-end mb-4">
             <div class="inline-flex shadow-sm" role="group">
-                <button type="button" @click="state.viewMode = 'simple'" :class="[
-                    'cursor-pointer px-4 py-2 text-sm font-medium transition-all duration-200 border border-2 border-solid border-gray-200 rounded-tl-lg',
+                <button type="button" @click="state.viewMode = 'simple'" :disabled="readOnly" :class="[
+                    'px-4 py-2 text-sm font-medium transition-all duration-200 border border-2 border-solid border-gray-200 rounded-tl-lg',
+                    readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
                     state.viewMode === 'simple'
                         ? 'bg-blue-600 text-white border-blue-600'
                         : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                 ]">
                     Simple View
                 </button>
-                <button type="button" @click="state.viewMode = 'advanced'" :class="[
-                    'cursor-pointer px-4 py-2 text-sm font-medium transition-all duration-200 border border-2 border-solid border-gray-200 rounded-tr-lg',
+                <button type="button" @click="state.viewMode = 'advanced'" :disabled="readOnly" :class="[
+                    'px-4 py-2 text-sm font-medium transition-all duration-200 border border-2 border-solid border-gray-200 rounded-tr-lg',
+                    readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
                     state.viewMode === 'advanced'
                         ? 'bg-blue-600 text-white border-blue-600'
                         : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
@@ -4203,15 +4232,21 @@ onMounted(async () => {
                                     This alias lets you use {{ alias.original_table }} in multiple roles
                                 </span>
                             </div>
-                            <button @click="removeTableAlias(index)"
-                                class="bg-red-500 text-white px-3 py-1 text-sm hover:bg-red-600 transition-colors cursor-pointer rounded-lg">
+                            <button @click="removeTableAlias(index)" :disabled="readOnly"
+                                :class="[
+                                    'px-3 py-1 text-sm transition-colors rounded-lg',
+                                    readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-red-500 text-white hover:bg-red-600 cursor-pointer'
+                                ]">
                                 Remove
                             </button>
                         </div>
                     </div>
 
-                    <button @click="openAliasDialog()"
-                        class="bg-blue-600 text-white px-4 py-2 hover:bg-blue-700 transition-colors flex items-center gap-2 cursor-pointer rounded-lg">
+                    <button @click="openAliasDialog()" :disabled="readOnly"
+                        :class="[
+                            'px-4 py-2 transition-colors flex items-center gap-2 rounded-lg',
+                            readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'
+                        ]">
                         <font-awesome icon="fas fa-plus" />
                         Add Table Alias
                     </button>
@@ -4242,8 +4277,9 @@ onMounted(async () => {
                                     <font-awesome icon="fas fa-code-branch" class="text-yellow-700" />
                                     <span class="text-xs font-semibold text-gray-600">Connect with:</span>
                                     <select :value="join.join_logic || 'AND'"
-                                        @change="updateJoinLogic(joinIndex, $event.target.value)"
-                                        class="px-3 py-1 border-2 border-yellow-500 rounded bg-white font-bold text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-yellow-600">
+                                        @change="updateJoinLogic(joinIndex, $event.target.value)" :disabled="readOnly"
+                                        class="px-3 py-1 border-2 border-yellow-500 rounded bg-white font-bold text-sm focus:outline-none focus:ring-2 focus:ring-yellow-600"
+                                        :class="readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'">
                                         <option value="AND">AND - Both conditions must match</option>
                                         <option value="OR">OR - Either condition can match</option>
                                     </select>
@@ -4281,8 +4317,9 @@ onMounted(async () => {
                                                     getTableLogicalName(join.left_table_schema, join.left_table_name) }}.{{ join.left_column_name }}
                                             </span>
                                             <select :value="join.primary_operator || '='"
-                                                @change="updateJoinOperator(joinIndex, $event.target.value)"
-                                                class="mx-2 px-2 py-1 border border-gray-400 rounded text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer rounded-lg">
+                                                @change="updateJoinOperator(joinIndex, $event.target.value)" :disabled="readOnly"
+                                                class="mx-2 px-2 py-1 border border-gray-400 rounded text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg"
+                                                :class="readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'">
                                                 <option value="=">=</option>
                                                 <option value="!=">!=</option>
                                                 <option value=">">&gt;</option>
@@ -4301,14 +4338,16 @@ onMounted(async () => {
                                             class="mt-2 ml-4">
                                             <div v-for="(addCond, condIndex) in join.additional_conditions"
                                                 :key="condIndex" class="flex items-center gap-2 mb-1 text-sm">
-                                                <select v-model="addCond.logic"
-                                                    class="px-2 py-1 border border-gray-300 text-xs rounded-lg">
+                                                <select v-model="addCond.logic" :disabled="readOnly"
+                                                    class="px-2 py-1 border border-gray-300 text-xs rounded-lg"
+                                                    :class="readOnly ? 'cursor-not-allowed opacity-50' : ''">
                                                     <option value="AND">AND</option>
                                                     <option value="OR">OR</option>
                                                 </select>
 
-                                                <select v-model="addCond.left_column"
-                                                    class="px-2 py-1 border border-gray-300 flex-1 text-xs">
+                                                <select v-model="addCond.left_column" :disabled="readOnly"
+                                                    class="px-2 py-1 border border-gray-300 flex-1 text-xs"
+                                                    :class="readOnly ? 'cursor-not-allowed opacity-50' : ''">
                                                     <option value="">Select column...</option>
                                                     <option
                                                         v-for="col in getColumnsForTable(join.left_table_name, join.left_table_alias)"
@@ -4317,8 +4356,9 @@ onMounted(async () => {
                                                     </option>
                                                 </select>
 
-                                                <select v-model="addCond.operator"
-                                                    class="px-2 py-1 border border-gray-300 text-xs">
+                                                <select v-model="addCond.operator" :disabled="readOnly"
+                                                    class="px-2 py-1 border border-gray-300 text-xs"
+                                                    :class="readOnly ? 'cursor-not-allowed opacity-50' : ''">
                                                     <option value="=">=</option>
                                                     <option value="!=">!=</option>
                                                     <option value=">">&gt;</option>
@@ -4327,8 +4367,9 @@ onMounted(async () => {
                                                     <option value="<=">&lt;=</option>
                                                 </select>
 
-                                                <select v-model="addCond.right_column"
-                                                    class="px-2 py-1 border border-gray-300 flex-1 text-xs">
+                                                <select v-model="addCond.right_column" :disabled="readOnly"
+                                                    class="px-2 py-1 border border-gray-300 flex-1 text-xs"
+                                                    :class="readOnly ? 'cursor-not-allowed opacity-50' : ''">
                                                     <option value="">Select column...</option>
                                                     <option
                                                         v-for="col in getColumnsForTable(join.right_table_name, join.right_table_alias)"
@@ -4337,22 +4378,31 @@ onMounted(async () => {
                                                     </option>
                                                 </select>
 
-                                                <button @click="removeAdditionalCondition(joinIndex, condIndex)"
-                                                    class="bg-red-500 text-white px-2 py-1 text-xs hover:bg-red-600 cursor-pointer">
+                                                <button @click="removeAdditionalCondition(joinIndex, condIndex)" :disabled="readOnly"
+                                                    :class="[
+                                                        'px-2 py-1 text-xs',
+                                                        readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-red-500 text-white hover:bg-red-600 cursor-pointer'
+                                                    ]">
                                                     <font-awesome icon="fas fa-times" />
                                                 </button>
                                             </div>
                                         </div>
 
-                                        <button @click="addAdditionalCondition(joinIndex)"
-                                            class="mt-2 text-xs text-blue-600 hover:text-blue-800 cursor-pointer rounded-lg">
+                                        <button @click="addAdditionalCondition(joinIndex)" :disabled="readOnly"
+                                            :class="[
+                                                'mt-2 text-xs rounded-lg',
+                                                readOnly ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-800 cursor-pointer'
+                                            ]">
                                             <font-awesome icon="fas fa-plus" class="mr-1" />
                                             Add AND/OR condition
                                         </button>
                                     </div>
 
-                                    <button @click="removeJoinCondition(joinIndex)"
-                                        class="bg-red-500 text-white px-3 py-1 text-sm hover:bg-red-600 transition-colors ml-2 cursor-pointer rounded-lg">
+                                    <button @click="removeJoinCondition(joinIndex)" :disabled="readOnly"
+                                        :class="[
+                                            'px-3 py-1 text-sm transition-colors ml-2 rounded-lg',
+                                            readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-red-500 text-white hover:bg-red-600 cursor-pointer'
+                                        ]">
                                         Remove
                                     </button>
                                 </div>
@@ -4360,8 +4410,11 @@ onMounted(async () => {
                         </template>
                     </div>
 
-                    <button @click="openJoinDialog()"
-                        class="bg-green-600 text-white px-4 py-2 hover:bg-green-700 transition-colors flex items-center gap-2 cursor-pointer rounded-lg">
+                    <button @click="openJoinDialog()" :disabled="readOnly"
+                        :class="[
+                            'px-4 py-2 transition-colors flex items-center gap-2 rounded-lg',
+                            readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700 cursor-pointer'
+                        ]">
                         <font-awesome icon="fas fa-plus" />
                         Add JOIN Condition
                     </button>
@@ -4428,7 +4481,7 @@ onMounted(async () => {
                         </div>
                         <draggable :list="(tableOrAlias && tableOrAlias.columns) ? tableOrAlias.columns : []" :group="{
                             name: 'tables',
-                            pull: 'clone',
+                            pull: readOnly ? false : 'clone',
                             put: false,
                         }" itemKey="name">
                             <template #item="{ element, index }">
@@ -4464,7 +4517,8 @@ onMounted(async () => {
                                         </div>
                                         <div class="w-1/3 flex flex-col justify-center">
                                             <div class="flex flex-col justify-center mr-2">
-                                                <input type="checkbox" class="cursor-pointer scale-200"
+                                                <input type="checkbox" :disabled="readOnly" 
+                                                    :class="readOnly ? 'cursor-not-allowed scale-200' : 'cursor-pointer scale-200'"
                                                     :checked="isColumnInDataModel(element.column_name, tableOrAlias.table_name, tableOrAlias.table_alias)"
                                                     @change="toggleColumnInDataModel(element, tableOrAlias.table_name, tableOrAlias.table_alias)"
                                                     v-tippy="{ content: isColumnInDataModel(element.column_name, tableOrAlias.table_name, tableOrAlias.table_alias) ? 'Uncheck to remove from data model' : 'Check to add to data model', placement: 'top' }" />
@@ -4488,8 +4542,8 @@ onMounted(async () => {
                                     placeholder="Enter Data Table Name" v-model="state.data_table.table_name" />
                             </h4>
                         </div>
-                        <draggable class="min-h-1000 bg-gray-100 rounded-lg" :list="safeDataTableColumns" group="tables"
-                            @change="changeDataModel" itemKey="name">
+                        <draggable class="min-h-1000 bg-gray-100 rounded-lg" :list="safeDataTableColumns" :group="readOnly ? 'disabled' : 'tables'"
+                            :disabled="readOnly" @change="changeDataModel" itemKey="name">
                             <template #header>
                                 <div
                                     class="w-3/4 border border-gray-400 border-dashed h-10 flex text-center self-center items-center font-bold m-auto p-5 mt-5 mb-5 text-gray-500 rounded-lg">
@@ -4564,8 +4618,11 @@ onMounted(async () => {
                                                         <td v-if="state.viewMode === 'advanced'"
                                                             class="border border-primary-blue-100 border-solid p-2 text-center">
                                                             <div class="flex flex-col mr-2">
-                                                                <select
-                                                                    class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
+                                                                <select :disabled="readOnly"
+                                                                    :class="[
+                                                                        'w-full border border-primary-blue-100 border-solid p-2 rounded-lg',
+                                                                        readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                                                                    ]"
                                                                     v-model="element.transform_function"
                                                                     @change="onTransformChange(element, $event)">
                                                                     <option v-for="func in state.transform_functions"
@@ -4577,16 +4634,19 @@ onMounted(async () => {
                                                         </td>
                                                         <td
                                                             class="border border-primary-blue-100 border-solid p-2 text-center">
-                                                            <input type="text"
-                                                                class="w-full border border-primary-blue-100 border-solid p-2 rounded-lg"
+                                                            <input type="text" :disabled="readOnly"
+                                                                :class="[
+                                                                    'w-full border border-primary-blue-100 border-solid p-2 rounded-lg',
+                                                                    readOnly ? 'cursor-not-allowed opacity-50' : ''
+                                                                ]"
                                                                 placeholder="Enter Column Alias Name"
                                                                 v-model="element.alias_name" />
                                                         </td>
                                                         <td
                                                             class="border border-primary-blue-100 border-solid p-2 text-center">
                                                             <div class="flex flex-col justify-between">
-                                                                <input type="checkbox"
-                                                                    class="cursor-pointer scale-150 mb-2"
+                                                                <input type="checkbox" :disabled="readOnly"
+                                                                    :class="readOnly ? 'cursor-not-allowed scale-150 mb-2' : 'cursor-pointer scale-150 mb-2'"
                                                                     v-model="element.is_selected_column"
                                                                     v-tippy="{ content: element.is_selected_column ? 'Uncheck to prevent the column from being added to the data model' : 'Check to add the column to the data model', placement: 'top' }" />
                                                                 
@@ -4608,8 +4668,11 @@ onMounted(async () => {
                                                                     </span>
                                                                 </div>
                                                                 
-                                                                <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold rounded-lg"
-                                                                    @click="deleteColumn(element.column_name)">
+                                                                <div :class="[
+                                                                        'h-10 flex items-center self-center mr-2 p-5 font-bold rounded-lg',
+                                                                        readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-red-500 hover:bg-red-300 cursor-pointer text-white'
+                                                                    ]"
+                                                                    @click="!readOnly && deleteColumn(element.column_name)">
                                                                     Delete
                                                                 </div>
                                                             </div>
@@ -4641,8 +4704,11 @@ onMounted(async () => {
                                                     v-model="calculated_column.expression" disabled />
                                             </div>
                                         </div>
-                                        <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 mt-8 p-5 cursor-pointer text-white font-bold rounded-lg"
-                                            @click="deleteCalculatedColumn(index)">
+                                        <div :class="[
+                                                'h-10 flex items-center self-center mr-2 mt-8 p-5 font-bold rounded-lg',
+                                                readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-red-500 hover:bg-red-300 cursor-pointer text-white'
+                                            ]"
+                                            @click="!readOnly && deleteCalculatedColumn(index)">
                                             Delete
                                         </div>
 
@@ -4654,8 +4720,11 @@ onMounted(async () => {
                                                 class="flex flex-row justify-between">
                                                 <div v-if="index > 0" class="flex flex-col w-full mr-2">
                                                     <h5 class="font-bold mb-2">Condition</h5>
-                                                    <select
-                                                        class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer"
+                                                    <select :disabled="readOnly"
+                                                        :class="[
+                                                            'w-full border border-primary-blue-100 border-solid p-2',
+                                                            readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                                                        ]"
                                                         v-model="clause.condition">
                                                         <option v-for="(condition, index) in state.condition"
                                                             :key="index" :value="index">{{ condition }}</option>
@@ -4663,8 +4732,11 @@ onMounted(async () => {
                                                 </div>
                                                 <div class="flex flex-col w-full mr-2">
                                                     <h5 class="font-bold mb-2">Column</h5>
-                                                    <select
-                                                        class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer"
+                                                    <select :disabled="readOnly"
+                                                        :class="[
+                                                            'w-full border border-primary-blue-100 border-solid p-2',
+                                                            readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                                                        ]"
                                                         v-model="clause.column" @change="whereColumnChanged">
                                                         <option v-for="col in whereColumns" :key="col.value"
                                                             :value="col.value">
@@ -4674,8 +4746,11 @@ onMounted(async () => {
                                                 </div>
                                                 <div class="flex flex-col w-full mr-2">
                                                     <h5 class="font-bold mb-2">Equality</h5>
-                                                    <select
-                                                        class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer"
+                                                    <select :disabled="readOnly"
+                                                        :class="[
+                                                            'w-full border border-primary-blue-100 border-solid p-2',
+                                                            readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                                                        ]"
                                                         v-model="clause.equality">
                                                         <option v-for="(equality, index) in state.equality" :key="index"
                                                             :value="index">{{ equality }}</option>
@@ -4683,8 +4758,11 @@ onMounted(async () => {
                                                 </div>
                                                 <div class="flex flex-col w-full mr-2">
                                                     <h5 class="font-bold mb-2">Value</h5>
-                                                    <input type="text"
-                                                        class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
+                                                    <input type="text" :disabled="readOnly"
+                                                        :class="[
+                                                            'w-full border border-primary-blue-100 border-solid p-2 rounded-lg',
+                                                            readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                                                        ]"
                                                         v-model="clause.value"
                                                         :placeholder="getValuePlaceholder(clause.equality)" />
                                                     <span
@@ -4693,13 +4771,19 @@ onMounted(async () => {
                                                         Format: 'value1','value2','value3'
                                                     </span>
                                                 </div>
-                                                <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold mt-8 rounded-lg"
-                                                    @click="removeQueryOption('WHERE', index)">
+                                                <div :class="[
+                                                        'h-10 flex items-center self-center mr-2 p-5 font-bold mt-8 rounded-lg',
+                                                        readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-red-500 hover:bg-red-300 cursor-pointer text-white'
+                                                    ]"
+                                                    @click="!readOnly && removeQueryOption('WHERE', index)">
                                                     Delete
                                                 </div>
                                                 <div v-if="index === state.data_table.query_options.where.length - 1"
-                                                    class="bg-blue-500 hover:bg-blue-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold mt-8 rounded-lg"
-                                                    @click="addQueryOption('WHERE')">
+                                                    :class="[
+                                                        'h-10 flex items-center self-center mr-2 p-5 font-bold mt-8 rounded-lg',
+                                                        readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-300 cursor-pointer text-white'
+                                                    ]"
+                                                    @click="!readOnly && addQueryOption('WHERE')">
                                                     Add
                                                 </div>
                                             </div>
@@ -4714,8 +4798,11 @@ onMounted(async () => {
                                                     <div class="flex flex-row justify-between">
                                                         <div class="flex flex-col w-1/3 mr-2">
                                                             <h5 class="font-bold mb-2">Aggregate Function</h5>
-                                                            <select
-                                                                class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer"
+                                                            <select :disabled="readOnly"
+                                                                :class="[
+                                                                    'w-full border border-primary-blue-100 border-solid p-2',
+                                                                    readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                                                                ]"
                                                                 v-model="clause.aggregate_function"
                                                                 @change="aggregateFunctionChanged">
                                                                 <option
@@ -4726,8 +4813,11 @@ onMounted(async () => {
                                                         </div>
                                                         <div class="flex flex-col w-1/3 mr-2">
                                                             <h5 class="font-bold mb-2">Column</h5>
-                                                            <select
-                                                                class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer"
+                                                            <select :disabled="readOnly"
+                                                                :class="[
+                                                                    'w-full border border-primary-blue-100 border-solid p-2',
+                                                                    readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                                                                ]"
                                                                 v-model="clause.column"
                                                                 @change="aggregateFunctionColumnChanged">
                                                                 <option v-for="column in state.data_table.columns"
@@ -4740,8 +4830,11 @@ onMounted(async () => {
                                                         </div>
                                                         <div class="flex flex-col w-1/4 mr-2">
                                                             <h5 class="font-bold mb-2">Column Alias Name</h5>
-                                                            <input type="text"
-                                                                class="w-full border border-primary-blue-100 border-solid p-2 rounded-lg"
+                                                            <input type="text" :disabled="readOnly"
+                                                                :class="[
+                                                                    'w-full border border-primary-blue-100 border-solid p-2 rounded-lg',
+                                                                    readOnly ? 'cursor-not-allowed opacity-50' : ''
+                                                                ]"
                                                                 placeholder="Enter Column Alias Name"
                                                                 v-model="clause.column_alias_name" />
                                                         </div>
@@ -4756,8 +4849,8 @@ onMounted(async () => {
                                                                 class="flex flex-col w-1/12 mr-2">
                                                                 <h5 class="font-bold mb-2">DISTINCT</h5>
                                                                 <div class="flex items-center justify-center h-full">
-                                                                    <input type="checkbox"
-                                                                        class="cursor-pointer scale-150"
+                                                                    <input type="checkbox" :disabled="readOnly"
+                                                                        :class="readOnly ? 'cursor-not-allowed scale-150' : 'cursor-pointer scale-150'"
                                                                         v-model="clause.use_distinct"
                                                                         v-tippy="{ content: 'Apply DISTINCT to eliminate duplicate values', placement: 'top' }" />
                                                                 </div>
@@ -4765,13 +4858,19 @@ onMounted(async () => {
                                                         </Transition>
                                                     </div>
                                                     <div class="flex flex-row justify-end w-full mt-2">
-                                                        <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold rounded-lg"
-                                                            @click="removeQueryOption('GROUP BY', index)">
+                                                        <div :class="[
+                                                                'h-10 flex items-center self-center mr-2 p-5 font-bold rounded-lg',
+                                                                readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-red-500 hover:bg-red-300 cursor-pointer text-white'
+                                                            ]"
+                                                            @click="!readOnly && removeQueryOption('GROUP BY', index)">
                                                             Delete
                                                         </div>
                                                         <div v-if="index === state.data_table.query_options.group_by.aggregate_functions.length - 1"
-                                                            class="bg-blue-500 hover:bg-blue-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold rounded-lg"
-                                                            @click="addQueryOption('GROUP BY')">
+                                                            :class="[
+                                                                'h-10 flex items-center self-center mr-2 p-5 font-bold rounded-lg',
+                                                                readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-300 cursor-pointer text-white'
+                                                            ]"
+                                                            @click="!readOnly && addQueryOption('GROUP BY')">
                                                             Add
                                                         </div>
                                                     </div>
@@ -4798,8 +4897,11 @@ onMounted(async () => {
                                                         <div class="flex flex-row justify-between">
                                                             <div class="flex flex-col w-1/5 mr-2">
                                                                 <h5 class="font-bold mb-2">Function</h5>
-                                                                <select
-                                                                    class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
+                                                                <select :disabled="readOnly"
+                                                                    :class="[
+                                                                        'w-full border border-primary-blue-100 border-solid p-2 rounded-lg',
+                                                                        readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                                                                    ]"
                                                                     v-model="expr.aggregate_function">
                                                                     <option
                                                                         v-for="(func, i) in state.aggregate_functions"
@@ -4809,8 +4911,11 @@ onMounted(async () => {
 
                                                             <div class="flex flex-col w-2/5 mr-2">
                                                                 <h5 class="font-bold mb-2">Expression</h5>
-                                                                <input type="text"
-                                                                    class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
+                                                                <input type="text" :disabled="readOnly"
+                                                                    :class="[
+                                                                        'w-full border border-primary-blue-100 border-solid p-2 rounded-lg',
+                                                                        readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                                                                    ]"
                                                                     v-model="expr.expression"
                                                                     placeholder="e.g., public.order_items.quantity * public.products.price" />
                                                                 <span class="text-xs text-gray-600 mt-1">
@@ -4821,8 +4926,11 @@ onMounted(async () => {
 
                                                             <div class="flex flex-col w-1/5 mr-2">
                                                                 <h5 class="font-bold mb-2">Alias</h5>
-                                                                <input type="text"
-                                                                    class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
+                                                                <input type="text" :disabled="readOnly"
+                                                                    :class="[
+                                                                        'w-full border border-primary-blue-100 border-solid p-2 rounded-lg',
+                                                                        readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                                                                    ]"
                                                                     v-model="expr.column_alias_name"
                                                                     placeholder="e.g., total_revenue" />
                                                             </div>
@@ -4830,23 +4938,29 @@ onMounted(async () => {
                                                             <div class="flex flex-col w-1/12 mr-2">
                                                                 <h5 class="font-bold mb-2">DISTINCT</h5>
                                                                 <div class="flex items-center justify-center h-full">
-                                                                    <input type="checkbox"
-                                                                        class="cursor-pointer scale-150"
+                                                                    <input type="checkbox" :disabled="readOnly"
+                                                                        :class="readOnly ? 'cursor-not-allowed scale-150' : 'cursor-pointer scale-150'"
                                                                         v-model="expr.use_distinct" />
                                                                 </div>
                                                             </div>
 
                                                             <div class="flex items-center">
-                                                                <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center p-5 cursor-pointer text-white font-bold rounded-lg"
-                                                                    @click="removeAggregateExpression(index)">
+                                                                <div :class="[
+                                                                        'h-10 flex items-center p-5 font-bold rounded-lg',
+                                                                        readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-red-500 hover:bg-red-300 cursor-pointer text-white'
+                                                                    ]"
+                                                                    @click="!readOnly && removeAggregateExpression(index)">
                                                                     Delete
                                                                 </div>
                                                             </div>
                                                         </div>
                                                     </div>
 
-                                                    <div class="w-full border border-blue-400 border-dashed h-10 flex items-center justify-center cursor-pointer hover:bg-blue-50 font-bold text-blue-600 rounded-lg"
-                                                        @click="addAggregateExpression">
+                                                    <div :class="[
+                                                            'w-full border border-blue-400 border-dashed h-10 flex items-center justify-center font-bold text-blue-600 rounded-lg',
+                                                            readOnly ? 'cursor-not-allowed bg-gray-50 text-gray-400' : 'cursor-pointer hover:bg-blue-50'
+                                                        ]"
+                                                        @click="!readOnly && addAggregateExpression()">
                                                         + Add Aggregate Expression
                                                     </div>
                                                 </div>
@@ -4861,8 +4975,11 @@ onMounted(async () => {
                                                 leave-to-class="opacity-0 translate-x-4">
                                                 <div v-if="state.viewMode === 'advanced' && state.data_table.query_options.group_by.name && (!state.data_table.query_options.group_by.aggregate_expressions || state.data_table.query_options.group_by.aggregate_expressions.length === 0)"
                                                     class="mt-4">
-                                                    <div class="w-full border border-blue-400 border-dashed h-12 flex items-center justify-center cursor-pointer hover:bg-blue-50 font-bold text-blue-600 rounded"
-                                                        @click="addAggregateExpression">
+                                                    <div :class="[
+                                                            'w-full border border-blue-400 border-dashed h-12 flex items-center justify-center font-bold text-blue-600 rounded',
+                                                            readOnly ? 'cursor-not-allowed bg-gray-50 text-gray-400' : 'cursor-pointer hover:bg-blue-50'
+                                                        ]"
+                                                        @click="!readOnly && addAggregateExpression()">
                                                         + Add Aggregate Expression (e.g., SUM(quantity * price))
                                                     </div>
                                                 </div>
@@ -4909,8 +5026,11 @@ onMounted(async () => {
                                                         </div>
                                                         <div class="flex flex-col w-full mr-2">
                                                             <h5 class="font-bold mb-2">Equality</h5>
-                                                            <select
-                                                                class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
+                                                            <select :disabled="readOnly"
+                                                                :class="[
+                                                                    'w-full border border-primary-blue-100 border-solid p-2 rounded-lg',
+                                                                    readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                                                                ]"
                                                                 v-model="clause.equality">
                                                                 <option v-for="(equality, index) in state.equality"
                                                                     :key="index" :value="index">{{ equality }}</option>
@@ -4918,19 +5038,28 @@ onMounted(async () => {
                                                         </div>
                                                         <div class="flex flex-col w-full mr-2">
                                                             <h5 class="font-bold mb-2">Value</h5>
-                                                            <input type="text"
-                                                                class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
+                                                            <input type="text" :disabled="readOnly"
+                                                                :class="[
+                                                                    'w-full border border-primary-blue-100 border-solid p-2 rounded-lg',
+                                                                    readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                                                                ]"
                                                                 v-model="clause.value" />
                                                         </div>
                                                     </div>
                                                     <div class="flex flex-row justify-end w-full mt-2">
-                                                        <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold rounded-lg"
-                                                            @click="removeQueryOption('HAVING', index)">
+                                                        <div :class="[
+                                                                'h-10 flex items-center self-center mr-2 p-5 font-bold rounded-lg',
+                                                                readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-red-500 hover:bg-red-300 cursor-pointer text-white'
+                                                            ]"
+                                                            @click="!readOnly && removeQueryOption('HAVING', index)">
                                                             Delete
                                                         </div>
                                                         <div v-if="index === state.data_table.query_options.group_by.having_conditions.length - 1"
-                                                            class="bg-blue-500 hover:bg-blue-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold rounded-lg"
-                                                            @click="addQueryOption('HAVING')">
+                                                            :class="[
+                                                                'h-10 flex items-center self-center mr-2 p-5 font-bold rounded-lg',
+                                                                readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-300 cursor-pointer text-white'
+                                                            ]"
+                                                            @click="!readOnly && addQueryOption('HAVING')">
                                                             Add
                                                         </div>
                                                     </div>
@@ -4945,8 +5074,11 @@ onMounted(async () => {
                                                 class="flex flex-row justify-between">
                                                 <div class="flex flex-col w-full mr-2">
                                                     <h5 class="font-bold mb-2">Column</h5>
-                                                    <select
-                                                        class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
+                                                    <select :disabled="readOnly"
+                                                        :class="[
+                                                            'w-full border border-primary-blue-100 border-solid p-2 rounded-lg',
+                                                            readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                                                        ]"
                                                         v-model="clause.column">
                                                         <optgroup label="Base Columns">
                                                             <option v-for="col in whereColumns" :key="col.value"
@@ -4965,20 +5097,29 @@ onMounted(async () => {
                                                 </div>
                                                 <div class="flex flex-col w-full mr-2">
                                                     <h5 class="font-bold mb-2">Order</h5>
-                                                    <select
-                                                        class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
+                                                    <select :disabled="readOnly"
+                                                        :class="[
+                                                            'w-full border border-primary-blue-100 border-solid p-2 rounded-lg',
+                                                            readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                                                        ]"
                                                         v-model="clause.order">
                                                         <option v-for="(order, index) in state.order" :key="index"
                                                             :value="index">{{ order }}</option>
                                                     </select>
                                                 </div>
-                                                <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold mt-8 rounded-lg"
-                                                    @click="removeQueryOption('ORDER BY', index)">
+                                                <div :class="[
+                                                        'h-10 flex items-center self-center mr-2 p-5 font-bold mt-8 rounded-lg',
+                                                        readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-red-500 hover:bg-red-300 cursor-pointer text-white'
+                                                    ]"
+                                                    @click="!readOnly && removeQueryOption('ORDER BY', index)">
                                                     Delete
                                                 </div>
                                                 <div v-if="index === state.data_table.query_options.order_by.length - 1"
-                                                    class="bg-blue-500 hover:bg-blue-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white font-bold mt-8 rounded-lg"
-                                                    @click="addQueryOption('ORDER BY')">
+                                                    :class="[
+                                                        'h-10 flex items-center self-center mr-2 p-5 font-bold mt-8 rounded-lg',
+                                                        readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-300 cursor-pointer text-white'
+                                                    ]"
+                                                    @click="!readOnly && addQueryOption('ORDER BY')">
                                                     Add
                                                 </div>
                                             </div>
@@ -4992,11 +5133,17 @@ onMounted(async () => {
                                                 <div class="flex flex-col w-full mr-2">
                                                     <h5 class="font-bold mb-2">Value</h5>
                                                     <div class="flex flex-row justify-between">
-                                                        <input type="number"
-                                                            class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
+                                                        <input type="number" :disabled="readOnly"
+                                                            :class="[
+                                                                'w-full border border-primary-blue-100 border-solid p-2 rounded-lg',
+                                                                readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                                                            ]"
                                                             v-model="state.data_table.query_options.offset" min="0" />
-                                                        <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center ml-2 mr-2 p-5 cursor-pointer text-white font-bold rounded-lg"
-                                                            @click="removeQueryOption('OFFSET', 0)">
+                                                        <div :class="[
+                                                                'h-10 flex items-center self-center ml-2 mr-2 p-5 font-bold rounded-lg',
+                                                                readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-red-500 hover:bg-red-300 cursor-pointer text-white'
+                                                            ]"
+                                                            @click="!readOnly && removeQueryOption('OFFSET', 0)">
                                                             Delete
                                                         </div>
                                                     </div>
@@ -5023,15 +5170,21 @@ onMounted(async () => {
                                                 <div class="flex flex-col w-full mr-2">
                                                     <h5 class="font-bold mb-2">Value</h5>
                                                     <div class="flex flex-row justify-between">
-                                                        <input type="number"
-                                                            class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
+                                                        <input type="number" :disabled="readOnly"
+                                                            :class="[
+                                                                'w-full border border-primary-blue-100 border-solid p-2 rounded-lg',
+                                                                readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                                                            ]"
                                                             v-model="state.data_table.query_options.limit" 
                                                             min="1" 
                                                             :max="userRowLimit"
                                                             @input="enforceLimitRestriction"
                                                             :placeholder="`Maximum: ${userRowLimit.toLocaleString()}`" />
-                                                        <div class="bg-red-500 hover:bg-red-300 h-10 flex items-center self-center ml-2 mr-2 p-5 cursor-pointer text-white font-bold rounded-lg"
-                                                            @click="removeQueryOption('LIMIT', 0)">
+                                                        <div :class="[
+                                                                'h-10 flex items-center self-center ml-2 mr-2 p-5 font-bold rounded-lg',
+                                                                readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-red-500 hover:bg-red-300 cursor-pointer text-white'
+                                                            ]"
+                                                            @click="!readOnly && removeQueryOption('LIMIT', 0)">
                                                             Delete
                                                         </div>
                                                     </div>
@@ -5040,13 +5193,19 @@ onMounted(async () => {
                                         </div>
                                     </div>
                                     <div v-if="showDataModelControls"
-                                        class="w-full border border-gray-400 border-dashed h-15 flex items-center justify-center mb-5 cursor-pointer mt-5 hover:bg-gray-100 font-bold rounded-lg"
-                                        @click="openDialog">
+                                        :class="[
+                                            'w-full border border-gray-400 border-dashed h-15 flex items-center justify-center mb-5 mt-5 font-bold rounded-lg',
+                                            readOnly ? 'cursor-not-allowed bg-gray-100 text-gray-400' : 'cursor-pointer hover:bg-gray-100'
+                                        ]"
+                                        @click="!readOnly && openDialog()">
                                         + Add Query Clause (for example: where, group by, order by)
                                     </div>
                                     <div v-if="showDataModelControls"
-                                        class="w-full border border-gray-400 border-dashed h-15 flex items-center justify-center mb-5 cursor-pointer mt-5 hover:bg-gray-100 font-bold rounded-lg"
-                                        @click="openCalculatedColumnDialog">
+                                        :class="[
+                                            'w-full border border-gray-400 border-dashed h-15 flex items-center justify-center mb-5 mt-5 font-bold rounded-lg',
+                                            readOnly ? 'cursor-not-allowed bg-gray-100 text-gray-400' : 'cursor-pointer hover:bg-gray-100'
+                                        ]"
+                                        @click="!readOnly && openCalculatedColumnDialog()">
                                         + Add Calculated Column/Field
                                     </div>
                                     <template v-if="showDataModelControls && saveButtonEnabled">
@@ -5075,8 +5234,11 @@ onMounted(async () => {
             <template #overlay>
                 <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                     <template v-for="queryOption in state.query_options" :key="queryOption.name">
-                        <div class="w-full border border-primary-blue-100 border-solid p-10 font-bold text-center hover:bg-gray-200 shadow-md cursor-pointer select-none rounded-lg"
-                            @click="addQueryOption(queryOption.name)">
+                        <div :class="[
+                                'w-full border border-primary-blue-100 border-solid p-10 font-bold text-center shadow-md select-none rounded-lg',
+                                readOnly ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'hover:bg-gray-200 cursor-pointer'
+                            ]"
+                            @click="!readOnly && addQueryOption(queryOption.name)">
                             {{ queryOption.name }}
                         </div>
                     </template>
@@ -5088,7 +5250,11 @@ onMounted(async () => {
             <template #overlay>
                 <div class="flex flex-col border border-primary-blue-100 border-solid p-5 rounded-lg">
                     <h5 class="font-bold mb-2">Column Name</h5>
-                    <input type="text" class="w-full border border-primary-blue-100 border-solid p-2 rounded-lg"
+                    <input type="text" :disabled="readOnly" 
+                        :class="[
+                            'w-full border border-primary-blue-100 border-solid p-2 rounded-lg',
+                            readOnly ? 'cursor-not-allowed opacity-50' : ''
+                        ]"
                         v-model="state.calculated_column.column_name" />
 
                     <!-- Helper text -->
@@ -5105,7 +5271,11 @@ onMounted(async () => {
                     <div v-for="(column, index) in state.calculated_column.columns">
                         <div v-if="index > 0" class="flex flex-col w-full mr-2">
                             <h5 class="font-bold mb-2">Operator</h5>
-                            <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
+                            <select :disabled="readOnly" 
+                                :class="[
+                                    'w-full border border-primary-blue-100 border-solid p-2 rounded-lg',
+                                    readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                                ]"
                                 v-model="column.operator">
                                 <option v-for="(operator, index) in state.add_column_operators" :key="index"
                                     :value="operator">{{ operator }}</option>
@@ -5113,7 +5283,11 @@ onMounted(async () => {
                         </div>
                         <div v-if="column.type === 'column'" class="flex flex-col w-full mr-2">
                             <h5 class="font-bold mb-2">Column / Aggregate</h5>
-                            <select class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
+                            <select :disabled="readOnly" 
+                                :class="[
+                                    'w-full border border-primary-blue-100 border-solid p-2 rounded-lg',
+                                    readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                                ]"
                                 v-model="column.column_name">
                                 <optgroup label="Base Columns">
                                     <option
@@ -5135,31 +5309,47 @@ onMounted(async () => {
                         </div>
                         <div v-else-if="column.type === 'numeric-value'" class="flex flex-col w-full mr-2">
                             <h5 class="font-bold mb-2">Numeric Value</h5>
-                            <input class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer"
+                            <input :disabled="readOnly" 
+                                :class="[
+                                    'w-full border border-primary-blue-100 border-solid p-2',
+                                    readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                                ]"
                                 type="number" v-model="column.numeric_value" />
                         </div>
 
                         <div class="flex flex-row">
                             <div v-if="index > 0"
-                                class="flex flex-row justify-center w-full bg-red-500 hover:bg-red-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white text-center font-bold mt-8 rounded-lg"
-                                @click="deleteCalculatedColumnOperation(index)">
+                                :class="[
+                                    'flex flex-row justify-center w-full h-10 flex items-center self-center mr-2 p-5 text-center font-bold mt-8 rounded-lg',
+                                    readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-red-500 hover:bg-red-300 cursor-pointer text-white'
+                                ]"
+                                @click="!readOnly && deleteCalculatedColumnOperation(index)">
                                 Delete Column
                             </div>
                             <div v-if="index === state.calculated_column.columns.length - 1"
-                                class="flex flex-row justify-center w-full bg-blue-500 hover:bg-blue-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-white text-center font-bold mt-8 rounded-lg"
-                                @click="addCalculatedColumnOperation('column')">
+                                :class="[
+                                    'flex flex-row justify-center w-full h-10 flex items-center self-center mr-2 p-5 text-center font-bold mt-8 rounded-lg',
+                                    readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-300 cursor-pointer text-white'
+                                ]"
+                                @click="!readOnly && addCalculatedColumnOperation('column')">
                                 Add Column
                             </div>
                             <div v-if="index === state.calculated_column.columns.length - 1"
-                                class="flex flex-row justify-center w-full bg-blue-500 hover:bg-blue-300 h-10 flex items-center self-center mr-2 p-5 cursor-pointer text-sm text-white text-center font-bold mt-8 rounded-lg"
-                                @click="addCalculatedColumnOperation('numeric-value')">
+                                :class="[
+                                    'flex flex-row justify-center w-full h-10 flex items-center self-center mr-2 p-5 text-sm text-center font-bold mt-8 rounded-lg',
+                                    readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-300 cursor-pointer text-white'
+                                ]"
+                                @click="!readOnly && addCalculatedColumnOperation('numeric-value')">
                                 Add Numeric Value
                             </div>
                         </div>
                     </div>
 
-                    <div class="flex flex-row justify-center w-50 h-10 bg-primary-blue-100 hover:bg-primary-blue-300 items-center self-center mt-2 p-5 cursor-pointer text-white text-sm text-center font-bold select-none rounded-lg"
-                        @click="addCalculatedColumn">
+                    <div :class="[
+                            'flex flex-row justify-center w-50 h-10 items-center self-center mt-2 p-5 text-sm text-center font-bold select-none rounded-lg',
+                            readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-primary-blue-100 hover:bg-primary-blue-300 cursor-pointer text-white'
+                        ]"
+                        @click="!readOnly && addCalculatedColumn">
                         Add Calulated Column
                     </div>
                 </div>

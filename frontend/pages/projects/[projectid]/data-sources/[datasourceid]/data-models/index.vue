@@ -3,6 +3,7 @@ import { useProjectsStore } from '@/stores/projects';
 import { useDataSourceStore } from '@/stores/data_sources';
 import { useDataModelsStore } from '@/stores/data_models';
 import { useSubscriptionStore } from '@/stores/subscription';
+import { useProjectPermissions } from '@/composables/useProjectPermissions';
 const projectsStore = useProjectsStore();
 const dataSourceStore = useDataSourceStore();
 const dataModelsStore = useDataModelsStore();
@@ -31,6 +32,27 @@ const dataSource = computed(() => {
 const dataModel = computed(() => {
     return dataModelsStore.getSelectedDataModel();
 });
+
+// Get project permissions
+const projectId = computed(() => parseInt(route.params.projectid));
+const permissions = useProjectPermissions(projectId.value);
+const canCreate = permissions.canCreate;
+const canUpdate = permissions.canUpdate;
+const canDelete = permissions.canDelete;
+
+// Debug logging
+if (import.meta.client) {
+    watch([canCreate, canUpdate, canDelete, permissions.role], () => {
+        console.log('🔐 Data Source Data Models Permissions Check:', {
+            projectId: projectId.value,
+            canCreate: canCreate.value,
+            canUpdate: canUpdate.value,
+            canDelete: canDelete.value,
+            role: permissions.role.value,
+            isViewer: permissions.isViewer.value
+        });
+    }, { immediate: true });
+}
 
 // Hide loading once data is available
 onMounted(() => {
@@ -223,7 +245,7 @@ onUnmounted(() => {
             
             <!-- Actual content -->
             <div v-else class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5">
-                <notched-card class="justify-self-center mt-10">
+                <notched-card v-if="canCreate" class="justify-self-center mt-10">
                     <template #body="{ onClick }">
                         <NuxtLink :to="`/projects/${project.id}/data-sources/${dataSource.id}/data-models/create`">
                             <div class="flex flex-col justify-center text-lg font-bold cursor-pointer items-center">
@@ -253,6 +275,7 @@ onUnmounted(() => {
                         </template>
                     </notched-card>
                     <div 
+                        v-if="canDelete"
                         v-tippy="{ content: 'Delete Data Model' }"
                         class="absolute top-5 -right-2 z-10 bg-red-500 hover:bg-red-700 border border-red-500 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer" 
                         @click="deleteDataModel(dataModel.id)"
@@ -260,6 +283,7 @@ onUnmounted(() => {
                         <font-awesome icon="fas fa-xmark" class="text-xl text-white select-none" />
                     </div>
                     <button
+                        v-if="canUpdate"
                         v-tippy="{ content: 'Refresh Data Model' }"
                         :disabled="state.refreshing_model_id === dataModel.id"
                         @click="refreshDataModel(dataModel.id, dataModel.name)"

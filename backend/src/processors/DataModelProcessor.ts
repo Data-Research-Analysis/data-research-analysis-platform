@@ -10,6 +10,7 @@ import { DataSource } from "typeorm";
 import { EDataSourceType } from "../types/EDataSourceType.js";
 import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
 import { DRAProject } from "../models/DRAProject.js";
+import { DRAProjectMember } from "../models/DRAProjectMember.js";
 import { DRADataModelSource } from "../models/DRADataModelSource.js";
 
 export class DataModelProcessor {
@@ -205,12 +206,25 @@ export class DataModelProcessor {
                 return resolve([]);
             }
             
-            // Verify project exists and belongs to user
+            // Verify project exists - check if user is owner or member (RBAC)
             const project = await manager.findOne(DRAProject, {
                 where: {id: projectId, users_platform: user}
             });
+            
+            // If user is not the owner, check if they are a project member
             if (!project) {
-                return resolve([]);
+                const projectMember = await manager.findOne(DRAProjectMember, {
+                    where: {
+                        user: {id: user_id},
+                        project: {id: projectId}
+                    },
+                    relations: {project: true}
+                });
+                
+                if (!projectMember) {
+                    // User is neither owner nor member - no access
+                    return resolve([]);
+                }
             }
             
             // Query data models filtering by project through data_source relationship
@@ -220,8 +234,7 @@ export class DataModelProcessor {
                 .leftJoinAndSelect('dm.users_platform', 'up')
                 .leftJoinAndSelect('dm.data_model_sources', 'dms')
                 .leftJoinAndSelect('dms.data_source', 'dms_ds')
-                .where('dm.users_platform_id = :userId', { userId: user.id })
-                .andWhere('ds.project_id = :projectId', { projectId })
+                .where('ds.project_id = :projectId', { projectId })
                 .getMany();
             
             return resolve(dataModels);
@@ -250,9 +263,32 @@ export class DataModelProcessor {
                 if (!user) {
                     return resolve(false);
                 }
-                const dataModel = await manager.findOne(DRADataModel, {where: {id: dataModelId, users_platform: user}});
+                
+                // First try to find data model owned by user
+                let dataModel = await manager.findOne(DRADataModel, {where: {id: dataModelId, users_platform: user}});
+                
+                // If not owned by user, check if user is a member of the data model's project
                 if (!dataModel) {
-                    return resolve(false);
+                    dataModel = await manager.findOne(DRADataModel, {
+                        where: {id: dataModelId},
+                        relations: {data_source: {project: true}}
+                    });
+                    
+                    if (dataModel?.data_source?.project) {
+                        const membership = await manager.findOne(DRAProjectMember, {
+                            where: {
+                                user: {id: user_id},
+                                project: {id: dataModel.data_source.project.id}
+                            }
+                        });
+                        
+                        if (!membership) {
+                            return resolve(false);
+                        }
+                    } else {
+                        // Data model not associated with a project, user can't access it
+                        return resolve(false);
+                    }
                 }
                 
                 // Clean up dashboard references before deleting
@@ -322,10 +358,42 @@ export class DataModelProcessor {
             }
             
             // Retrieve existing data model with relations
-            const existingDataModel = await manager.findOne(DRADataModel, {
+            // First try to find data model owned by user
+            let existingDataModel = await manager.findOne(DRADataModel, {
                 where: {id: dataModelId, users_platform: user},
                 relations: ['data_source']
             });
+            
+            // If not owned by user, check if user is a member of the data model's project
+            if (!existingDataModel) {
+                existingDataModel = await manager.findOne(DRADataModel, {
+                    where: {id: dataModelId},
+                    relations: {data_source: {project: true}}
+                });
+                
+                if (existingDataModel?.data_source?.project) {
+                    const membership = await manager.findOne(DRAProjectMember, {
+                        where: {
+                            user: {id: user_id},
+                            project: {id: existingDataModel.data_source.project.id}
+                        }
+                    });
+                    
+                    if (!membership) {
+                        console.error(`Data model ${dataModelId} found but user ${user_id} is not a project member`);
+                        return resolve(false);
+                    }
+                    
+                    // Reload with data_source relation for subsequent use
+                    existingDataModel = await manager.findOne(DRADataModel, {
+                        where: {id: dataModelId},
+                        relations: ['data_source']
+                    });
+                } else {
+                    console.error(`Data model ${dataModelId} not found or not associated with a project`);
+                    return resolve(false);
+                }
+            }
             
             if (!existingDataModel) {
                 console.error(`Data model ${dataModelId} not found or user ${user_id} does not have permission`);
@@ -403,9 +471,31 @@ export class DataModelProcessor {
                 console.error('[DataModelProcessor] Error parsing queryJSON for cross-source detection:', error);
             }
 
-            const dataSource: DRADataSource|null = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}, relations: ['data_models']});
+            // First try to find data source owned by user
+            let dataSource: DRADataSource|null = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}, relations: ['data_models']});
+            
+            // If not owned by user, check if user is a member of the data source's project
             if (!dataSource) {
-                return resolve(false);
+                dataSource = await manager.findOne(DRADataSource, {
+                    where: {id: dataSourceId},
+                    relations: {project: true, data_models: true}
+                });
+                
+                if (dataSource?.project) {
+                    const membership = await manager.findOne(DRAProjectMember, {
+                        where: {
+                            user: {id: user_id},
+                            project: {id: dataSource.project.id}
+                        }
+                    });
+                    
+                    if (!membership) {
+                        return resolve(false);
+                    }
+                } else {
+                    // Data source not associated with a project, user can't access it
+                    return resolve(false);
+                }
             }
             const connection = dataSource.connection_details;
             // Skip API-based data sources (like Google Analytics) - they don't support data models
@@ -762,7 +852,22 @@ export class DataModelProcessor {
             if (!user) {
                 return resolve([]);
             }
-            const project: DRAProject|null = await manager.findOne(DRAProject, {where: {id: projectId, users_platform: user}, relations: ['data_sources', 'data_sources.data_models', 'data_sources.project', 'users_platform']});
+            
+            // Try to find owned project first
+            let project: DRAProject|null = await manager.findOne(DRAProject, {where: {id: projectId, users_platform: user}, relations: ['data_sources', 'data_sources.data_models', 'data_sources.project', 'users_platform']});
+            
+            // If not owned, check if user is a project member
+            if (!project) {
+                const membership = await manager.findOne(DRAProjectMember, {
+                    where: {user: {id: user_id}, project: {id: projectId}},
+                    relations: ['project', 'project.data_sources', 'project.data_sources.data_models']
+                });
+                
+                if (membership?.project) {
+                    project = membership.project;
+                }
+            }
+            
             if (!project) {
                 return resolve([]);
             }

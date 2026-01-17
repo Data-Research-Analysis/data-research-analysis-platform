@@ -2,11 +2,13 @@
 import { useProjectsStore } from '@/stores/projects';
 import { useDataSourceStore } from '@/stores/data_sources';
 import { useAIDataModelerStore } from '@/stores/ai-data-modeler';
+import { useProjectPermissions } from '@/composables/useProjectPermissions';
 
 const projectsStore = useProjectsStore();
 const dataSourceStore = useDataSourceStore();
 const aiDataModelerStore = useAIDataModelerStore();
 const route = useRoute();
+const router = useRouter();
 const state = reactive({
     data_source_tables: [],
  });
@@ -16,6 +18,21 @@ const state = reactive({
 const dataSource = computed(() => {
     return dataSourceStore.getSelectedDataSource();
 });
+
+// Check permissions - viewers cannot create data models
+const projectId = computed(() => parseInt(route.params.projectid));
+const permissions = useProjectPermissions(projectId.value);
+
+// Guard: redirect if user doesn't have create permission
+if (import.meta.client) {
+    watch(() => permissions.canCreate.value, (canCreate) => {
+        if (canCreate === false) {
+            console.warn('[Data Model Create] User does not have create permission, redirecting...');
+            router.push(`/projects/${projectId.value}/data-models`);
+        }
+    }, { immediate: true });
+}
+
 async function getDataSourceTables(dataSourceId) {
     const token = getAuthToken();
     const url = `${baseUrl()}/data-source/tables/${dataSourceId}`;
@@ -50,7 +67,7 @@ onBeforeUnmount(() => {
     <div class="flex flex-col">
         <tabs :project-id="project.id"/>
         <div class="flex flex-col min-h-100 mb-10">
-            <data-model-builder v-if="(state.data_source_tables && state.data_source_tables.length)" :data-source-tables="state.data_source_tables" :data-source="dataSource"  />
+            <data-model-builder v-if="(state.data_source_tables && state.data_source_tables.length)" :data-source-tables="state.data_source_tables" :data-source="dataSource" :read-only="!permissions.canCreate.value"  />
         </div>
     </div>
 </template>

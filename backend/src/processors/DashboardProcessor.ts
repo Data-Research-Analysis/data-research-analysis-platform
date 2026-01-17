@@ -6,6 +6,7 @@ import { IDashboardDataStructure } from "../types/IDashboard.js";
 import { EDataSourceType } from "../types/EDataSourceType.js";
 import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
 import { DRAProject } from "../models/DRAProject.js";
+import { DRAProjectMember } from "../models/DRAProjectMember.js";
 import bcrypt  from 'bcryptjs';
 import { UtilityService } from "../services/UtilityService.js";
 import { DRADashboardExportMetaData } from "../models/DRADashboardExportMetaData.js";
@@ -36,7 +37,48 @@ export class DashboardProcessor {
             if (!user) {
                 return resolve([]);
             }
-            const dashboards = await manager.find(DRADashboard, {where: {users_platform: user}, relations: ['project', 'users_platform', 'export_meta_data']});
+            
+            // 1. Get owned dashboards
+            const ownedDashboards = await manager.find(DRADashboard, {
+                where: {users_platform: user}, 
+                relations: {
+                    project: true,
+                    users_platform: true,
+                    export_meta_data: true
+                }
+            });
+            
+            // 2. Get dashboards from projects where user is a member
+            const memberProjects = await manager.find(DRAProjectMember, {
+                where: {user: {id: user_id}},
+                relations: {
+                    project: {
+                        dashboards: {
+                            project: true,
+                            users_platform: true,
+                            export_meta_data: true
+                        }
+                    }
+                }
+            });
+            
+            const memberDashboards = memberProjects.flatMap(m => m.project?.dashboards || []);
+            
+            // 3. Combine and deduplicate
+            const allDashboardsMap = new Map();
+            
+            ownedDashboards.forEach(d => {
+                allDashboardsMap.set(d.id, d);
+            });
+            
+            memberDashboards.forEach(d => {
+                if (!allDashboardsMap.has(d.id)) {
+                    allDashboardsMap.set(d.id, d);
+                }
+            });
+            
+            const dashboards = Array.from(allDashboardsMap.values());
+            
             return resolve(dashboards);
         });
     }
@@ -89,14 +131,33 @@ export class DashboardProcessor {
             if (!user) {
                 return resolve(false);
             }
-            const project = await manager.findOne(DRAProject, {where: {id: projectId, users_platform: {id: user_id}}});
-            if (!project) {
-                return resolve(false);
-            }
-            const dashboard = await manager.findOne(DRADashboard, {where: {id: dashboardId, users_platform: user}});
+            
+            // First try to find dashboard owned by user
+            let dashboard = await manager.findOne(DRADashboard, {where: {id: dashboardId, users_platform: user}});
+            
+            // If not owned by user, check if user is a member of the dashboard's project
             if (!dashboard) {
-                return resolve(false);
+                dashboard = await manager.findOne(DRADashboard, {
+                    where: {id: dashboardId},
+                    relations: {project: true}
+                });
+                
+                if (dashboard?.project) {
+                    const membership = await manager.findOne(DRAProjectMember, {
+                        where: {
+                            user: {id: user_id},
+                            project: {id: dashboard.project.id}
+                        }
+                    });
+                    
+                    if (!membership) {
+                        return resolve(false);
+                    }
+                } else {
+                    return resolve(false);
+                }
             }
+            
             try {
                 // TypeScript workaround for TypeORM deep partial type
                 await manager.update(DRADashboard, {id: dashboardId}, {data: data as any});
@@ -129,9 +190,31 @@ export class DashboardProcessor {
             if (!user) {
                 return resolve(false);
             }
-            const dashboard = await manager.findOne(DRADashboard, {where: {id: dashboardId, users_platform: user}});
+            
+            // First try to find dashboard owned by user
+            let dashboard = await manager.findOne(DRADashboard, {where: {id: dashboardId, users_platform: user}});
+            
+            // If not owned by user, check if user is a member of the dashboard's project
             if (!dashboard) {
-                return resolve(false);
+                dashboard = await manager.findOne(DRADashboard, {
+                    where: {id: dashboardId},
+                    relations: {project: true}
+                });
+                
+                if (dashboard?.project) {
+                    const membership = await manager.findOne(DRAProjectMember, {
+                        where: {
+                            user: {id: user_id},
+                            project: {id: dashboard.project.id}
+                        }
+                    });
+                    
+                    if (!membership) {
+                        return resolve(false);
+                    }
+                } else {
+                    return resolve(false);
+                }
             }
 
             await manager.remove(dashboard);
@@ -154,9 +237,31 @@ export class DashboardProcessor {
             if (!user) {
                 return resolve(null);
             }
-            const dashboard = await manager.findOne(DRADashboard, {where: {id: dashboardId, users_platform: user}});
+            
+            // First try to find dashboard owned by user
+            let dashboard = await manager.findOne(DRADashboard, {where: {id: dashboardId, users_platform: user}});
+            
+            // If not owned by user, check if user is a member of the dashboard's project
             if (!dashboard) {
-                return resolve(null);
+                dashboard = await manager.findOne(DRADashboard, {
+                    where: {id: dashboardId},
+                    relations: {project: true}
+                });
+                
+                if (dashboard?.project) {
+                    const membership = await manager.findOne(DRAProjectMember, {
+                        where: {
+                            user: {id: user_id},
+                            project: {id: dashboard.project.id}
+                        }
+                    });
+                    
+                    if (!membership) {
+                        return resolve(null);
+                    }
+                } else {
+                    return resolve(null);
+                }
             }
             const exportMetaDataExisting = await manager.findOne(DRADashboardExportMetaData, {where: {dashboard: {id: dashboardId, users_platform: user}}});
             if (exportMetaDataExisting && exportMetaDataExisting.expiry_at > new Date()) {

@@ -8,7 +8,10 @@ import { SocketIODriver } from './drivers/SocketIODriver.js';
 import { generalApiLimiter } from './middleware/rateLimit.js';
 import home from './routes/home.js';
 import auth from './routes/auth.js';
+import user from './routes/user.js';
 import project from './routes/project.js';
+import project_members from './routes/project_members.js';
+import project_invitations from './routes/project_invitations.js';
 import data_source from './routes/data_source.js';
 import data_model from './routes/data_model.js';
 import dashboard from './routes/dashboard.js';
@@ -50,10 +53,19 @@ import { OAuthSessionService } from './services/OAuthSessionService.js';
 OAuthSessionService.getInstance();
 console.log('✅ OAuth session service initialized');
 
-// Initialize scheduled backup service (starts cron scheduler)
+// Initialize scheduled backup service and start scheduler
+// Note: Must happen after database initialization
 import { ScheduledBackupService } from './services/ScheduledBackupService.js';
-ScheduledBackupService.getInstance();
+const scheduledBackupService = ScheduledBackupService.getInstance();
+if (process.env.BACKUP_ENABLED !== 'false') {
+    await scheduledBackupService.startScheduler();
+}
 console.log('✅ Scheduled backup service initialized');
+
+// Start invitation expiration cron job
+import { startInvitationExpirationJob } from './jobs/expireInvitations.js';
+startInvitationExpirationJob();
+console.log('✅ Invitation expiration job started');
 
 
 
@@ -76,7 +88,10 @@ app.use(generalApiLimiter);
 
 app.use('/', home);
 app.use('/auth', auth);
+app.use('/user', user);
 app.use('/project', project);
+app.use('/project', project_members);
+app.use('/project-invitations', project_invitations);
 app.use('/data-source', data_source);
 app.use('/data-model', data_model);
 app.use('/dashboard', dashboard);

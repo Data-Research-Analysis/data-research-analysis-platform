@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Invitation</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+        .header {
+            text-align: center;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #2196F3;
+        }
+        .header h1 {
+            color: #2196F3;
+            margin: 0;
+            font-size: 24px;
+        }
+        .content {
+            padding: 20px 0;
+        }
+        .invitation-details {
+            background-color: #f0f8ff;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .invitation-details p {
+            margin: 8px 0;
+        }
+        .invitation-details strong {
+            color: #2196F3;
+        }
+        .cta-button {
+            display: inline-block;
+            padding: 15px 40px;
+            background-color: #2196F3;
+            color: #ffffff !important;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 20px 0;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        .cta-button:hover {
+            background-color: #0b7dda;
+        }
+        .expiration-notice {
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 15px 0;
+            color: #856404;
+        }
+        .footer {
+            text-align: center;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            color: #777;
+            font-size: 12px;
+        }
+        .link-backup {
+            word-break: break-all;
+            background-color: #f9f9f9;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 11px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 You're Invited!</h1>
+        </div>
+        
+        <div class="content">
+            <p>Hi there!</p>
+            
+            <p><strong>{{inviter_name}}</strong> has invited you to collaborate on a project in Data Research Analysis.</p>
+            
+            <div class="invitation-details">
+                <p><strong>Project:</strong> {{project_name}}</p>
+                <p><strong>Your Role:</strong> {{role}}</p>
+                <p><strong>Invited By:</strong> {{inviter_name}}</p>
+            </div>
+            
+            <p>Data Research Analysis is a powerful data analytics platform that lets you connect multiple data sources, build data models, and create interactive dashboards - similar to Tableau or Power BI.</p>
+            
+            <div class="expiration-notice">
+                ⏰ <strong>Note:</strong> This invitation expires in 7 days.
+            </div>
+            
+            <center>
+                <a href="https://www.dataresearchanalysis.com/invitations/accept/{{invitation_token}}" class="cta-button">
+                    Accept Invitation & Create Account
+                </a>
+            </center>
+            
+            <p style="font-size: 13px; color: #666;">
+                If you already have an account, please log in first and then click the button above to accept the invitation.
+            </p>
+            
+            <p style="font-size: 12px; color: #999; margin-top: 20px;">
+                <strong>Button not working?</strong> Copy and paste this link into your browser:
+            </p>
+            <div class="link-backup">
+                https://www.dataresearchanalysis.com/invitations/accept/{{invitation_token}}
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>© 2024 Data Research Analysis. All rights reserved.</p>
+            <p>This email was sent because someone invited you to join their project.</p>
+            <p>If you believe this is spam or sent in error, please ignore this email or contact us at <a href="mailto:hello@dataresearchanalysis.com">hello@dataresearchanalysis.com</a></p>
+        </div>
+    </div>
+</body>
+</html>

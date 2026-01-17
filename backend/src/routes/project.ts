@@ -5,6 +5,8 @@ import { body, param, matchedData } from 'express-validator';
 import { ProjectProcessor } from '../processors/ProjectProcessor.js';
 import { DataSourceProcessor } from '../processors/DataSourceProcessor.js';
 import { enforceProjectLimit } from '../middleware/tierEnforcement.js';
+import { authorize } from '../middleware/authorize.js';
+import { Permission } from '../constants/permissions.js';
 const router = express.Router();
 
 /**
@@ -35,7 +37,7 @@ router.get('/list', async (req: Request, res: Response, next: any) => {
 
 router.delete('/delete/:project_id', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([param('project_id').notEmpty().trim().toInt().escape().toInt()]), async (req: Request, res: Response) => {
+}, validateJWT, validate([param('project_id').notEmpty().trim().toInt().escape().toInt()]), authorize(Permission.PROJECT_DELETE), async (req: Request, res: Response) => {
     const { project_id } = matchedData(req);
     // Delete the project (this now handles ALL cascading deletes internally)
     const response: boolean = await ProjectProcessor.getInstance().deleteProject(project_id, req.body.tokenDetails);

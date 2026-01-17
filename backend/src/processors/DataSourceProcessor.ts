@@ -5,6 +5,7 @@ import { IAPIConnectionDetails } from "../types/IAPIConnectionDetails.js";
 import { DRADataSource } from "../models/DRADataSource.js";
 import { ITokenDetails } from "../types/ITokenDetails.js";
 import { DRAProject } from "../models/DRAProject.js";
+import { DRAProjectMember } from "../models/DRAProjectMember.js";
 import { DRADataModel } from "../models/DRADataModel.js";
 import { DRADataModelSource } from "../models/DRADataModelSource.js";
 import { DRADashboard } from "../models/DRADashboard.js";
@@ -208,27 +209,44 @@ export class DataSourceProcessor {
                 return resolve([]);
             }
             
-            // Load data sources with data_models relation 
-            const dataSources = await manager.find(DRADataSource, {
+            // 1. Get owned data sources
+            const ownedDataSources = await manager.find(DRADataSource, {
                 where: {users_platform: user},
                 relations: {
                     project: true,
                     data_models: true
-                },
-                select: {
-                    id: true,
-                    name: true,
-                    data_type: true,
-                    connection_details: true,
-                    created_at: true,
+                }
+            });
+            
+            // 2. Get data sources from projects where user is a member
+            const memberProjects = await manager.find(DRAProjectMember, {
+                where: {user: {id: user_id}},
+                relations: {
                     project: {
-                        id: true
-                    },
-                    data_models: {
-                        id: true
+                        data_sources: {
+                            data_models: true,
+                            project: true
+                        }
                     }
                 }
             });
+            
+            const memberDataSources = memberProjects.flatMap(m => m.project?.data_sources || []);
+            
+            // 3. Combine and deduplicate
+            const allDataSourcesMap = new Map();
+            
+            ownedDataSources.forEach(ds => {
+                allDataSourcesMap.set(ds.id, ds);
+            });
+            
+            memberDataSources.forEach(ds => {
+                if (!allDataSourcesMap.has(ds.id)) {
+                    allDataSourcesMap.set(ds.id, ds);
+                }
+            });
+            
+            const dataSources = Array.from(allDataSourcesMap.values());
             
             // Transform to include counts
             const dataSourcesWithCounts = dataSources.map(ds => ({
@@ -599,7 +617,37 @@ export class DataSourceProcessor {
             if (!user) {
                 return resolve(null);
             }
-            const dataSource: DRADataSource|null = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}});
+            
+            // First try to find data source owned by user
+            let dataSource: DRADataSource|null = await manager.findOne(DRADataSource, {
+                where: {id: dataSourceId, users_platform: user},
+                relations: {project: true}
+            });
+            
+            // If not owned, check if user is a member of the project that owns this data source
+            if (!dataSource) {
+                dataSource = await manager.findOne(DRADataSource, {
+                    where: {id: dataSourceId},
+                    relations: {project: true}
+                });
+                
+                if (dataSource && dataSource.project) {
+                    // Check if user is a member of this project
+                    const membership = await manager.findOne(DRAProjectMember, {
+                        where: {
+                            user: {id: user_id},
+                            project: {id: dataSource.project.id}
+                        }
+                    });
+                    
+                    if (!membership) {
+                        return resolve(null);
+                    }
+                } else {
+                    return resolve(null);
+                }
+            }
+            
             if (!dataSource) {
                 return resolve(null);
             }
@@ -905,9 +953,31 @@ export class DataSourceProcessor {
 
 
             // Handle single-source queries (original logic)
-            const dataSource: DRADataSource|null = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}});
+            // First try to find data source owned by user
+            let dataSource: DRADataSource|null = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}});
+            
+            // If not owned by user, check if user is a member of the data source's project
             if (!dataSource) {
-                return resolve(null);
+                dataSource = await manager.findOne(DRADataSource, {
+                    where: {id: dataSourceId},
+                    relations: {project: true}
+                });
+                
+                if (dataSource?.project) {
+                    const membership = await manager.findOne(DRAProjectMember, {
+                        where: {
+                            user: {id: user_id},
+                            project: {id: dataSource.project.id}
+                        }
+                    });
+                    
+                    if (!membership) {
+                        return resolve(null);
+                    }
+                } else {
+                    // Data source not associated with a project, user can't access it
+                    return resolve(null);
+                }
             }
             const connection = dataSource.connection_details;
             // Skip API-based data sources

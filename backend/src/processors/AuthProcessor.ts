@@ -3,9 +3,7 @@ import jwt, { JwtPayload } from "jsonwebtoken";
 import { DRAUsersPlatform } from '../models/DRAUsersPlatform.js';
 import { UtilityService } from '../services/UtilityService.js';
 import { IUsersPlatform } from '../types/IUsersPlatform.js';
-import { MailDriver } from '../drivers/MailDriver.js';
-import { TemplateEngineService } from '../services/TemplateEngineService.js';
-import { ITemplateRenderer } from '../interfaces/ITemplateRenderer.js';
+import { EmailService } from '../services/EmailService.js';
 import { DRAVerificationCode } from '../models/DRAVerificationCode.js';
 import { DBDriver } from '../drivers/DBDriver.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
@@ -117,14 +115,12 @@ export class AuthProcessor {
                 verificationCode.expired_at = expiredAt;
                 await manager.save(verificationCode);
                 
-                const options: Array<ITemplateRenderer> = [
-                    {key: 'name', value: `${firstName} ${lastName}`},
-                    {key: 'email_verification_code', value: emailVerificationCode},
-                    {key: 'unsubscribe_code', value: unsubscribeCode}
-                ];
-                const content = await TemplateEngineService.getInstance().render('verify-email.html', options);
-                await MailDriver.getInstance().getDriver().initialize();
-                await MailDriver.getInstance().getDriver().sendEmail(email, `${firstName} ${lastName}`, 'Welcome to Data Research Analysis', 'Hello from Data Research Analysis', content);
+                await EmailService.getInstance().sendEmailVerificationWithUnsubscribe(
+                    email,
+                    `${firstName} ${lastName}`,
+                    emailVerificationCode,
+                    unsubscribeCode
+                );
                 return resolve(true);                    
             } else {
                 return resolve(false);
@@ -198,14 +194,12 @@ export class AuthProcessor {
                     verificationCode.expired_at = expiredAt;
                     await manager.save(verificationCode);
                     
-                    const options: Array<ITemplateRenderer> = [
-                        {key: 'name', value: `${user.first_name} ${user.last_name}`},
-                        {key: 'email_verification_code', value: emailVerificationCode},
-                        {key: 'unsubscribe_code', value: unsubscribeCode}
-                    ];
-                    const content = await TemplateEngineService.getInstance().render('verify-email.html', options);
-                    await MailDriver.getInstance().getDriver().initialize();
-                    await MailDriver.getInstance().getDriver().sendEmail(user.email, `${user.first_name} ${user.last_name}`, 'Welcome to Data Research Analysis', 'Hello from Data Research Analysis', content);
+                    await EmailService.getInstance().sendEmailVerificationWithUnsubscribe(
+                        user.email,
+                        `${user.first_name} ${user.last_name}`,
+                        emailVerificationCode,
+                        unsubscribeCode
+                    );
                     return resolve(true);
                 }
                 return resolve(false);
@@ -272,15 +266,12 @@ export class AuthProcessor {
                     verificationCode.expired_at = expiredAt;
                     await manager.save(verificationCode);
 
-                    const options: Array<ITemplateRenderer> = [
-                        {key: 'name', value: `${user.first_name} ${user.last_name}`},
-                        {key: 'password_change_request_code', value: passwordChangeRequestCode},
-                        {key: 'unsubscribe_code', value: unsubscribeCode}
-                    ];
-                    const content = await TemplateEngineService.getInstance().render('password-change-request.html', options);
-                    const textContent = `Hi ${user.first_name} ${user.last_name}\n\nThank you for choosing Data Research Analysis for your data analysis needs. To change your password, please copy and paste this link into your browser: https://www.dataresearchanalysis.com/forgot-password/${passwordChangeRequestCode}\n\nIf you have any questions or need assistance, please don't hesitate to contact us at hello@dataresearchanalysis.com\n\nPlease note that the code will expire in 3 days from the receipt of this email if you do not verify your email address.\n\n`;
-                    await MailDriver.getInstance().getDriver().initialize();
-                    await MailDriver.getInstance().getDriver().sendEmail(user.email, `${user.first_name} ${user.last_name}`, 'Password Change Request @ Data Research Analysis', textContent, content);
+                    await EmailService.getInstance().sendPasswordChangeRequestWithUnsubscribe(
+                        user.email,
+                        `${user.first_name} ${user.last_name}`,
+                        passwordChangeRequestCode,
+                        unsubscribeCode
+                    );
                 }
                 // Note: Even if rate limited, we don't reveal this to the user
             }

@@ -34,7 +34,7 @@
       </div>
 
       <!-- Action Buttons -->
-      <div class="">
+      <div v-if="canCreate" class="">
         <div class="inline-flex shadow-sm" role="group">
           <!-- Single-source dropdown -->
           <div class="relative inline-block text-left">
@@ -173,6 +173,7 @@
                     <font-awesome icon="fas fa-eye" />
                   </button>
                   <button 
+                    v-if="canUpdate"
                     @click="refreshModel(item)"
                     :disabled="refreshingModelId === item.id"
                     class="text-green-600 hover:text-green-900 mr-3 cursor-pointer disabled:text-gray-400 disabled:cursor-not-allowed"
@@ -182,6 +183,7 @@
                       :class="refreshingModelId === item.id ? 'animate-spin' : ''" />
                   </button>
                   <button 
+                    v-if="canDelete"
                     @click="deleteModel(item)"
                     class="text-red-600 hover:text-red-900 cursor-pointer"
                     v-tippy="{ content: 'Delete' }">
@@ -216,6 +218,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useDataModelsStore } from '~/stores/data_models';
 import { useSubscriptionStore } from '@/stores/subscription';
+import { useProjectPermissions } from '@/composables/useProjectPermissions';
 
 const router = useRouter();
 const route = useRoute();
@@ -224,6 +227,27 @@ const subscriptionStore = useSubscriptionStore();
 const { $swal }: any = useNuxtApp();
 
 const projectId = computed(() => parseInt(route.params.projectid as string));
+
+// Get project permissions - now returns reactive computed refs
+const permissions = useProjectPermissions(projectId.value);
+const canCreate = permissions.canCreate;
+const canUpdate = permissions.canUpdate;
+const canDelete = permissions.canDelete;
+
+// Debug logging
+if (import.meta.client) {
+    watch([canCreate, canUpdate, canDelete, permissions.role], () => {
+        console.log('🔐 Data Models Permissions Check:', {
+            projectId: projectId.value,
+            canCreate: canCreate.value,
+            canUpdate: canUpdate.value,
+            canDelete: canDelete.value,
+            role: permissions.role.value,
+            isViewer: permissions.isViewer.value
+        });
+    }, { immediate: true });
+}
+
 const search = ref('');
 const loading = ref(false);
 const dataSources = ref<any[]>([]);
@@ -237,7 +261,21 @@ const headers = [
   { title: 'Actions', key: 'actions', sortable: false, align: 'end' }
 ];
 
-const dataModels = computed(() => dataModelsStore.dataModels);
+const dataModels = computed(() => {
+  const allModels = dataModelsStore.dataModels;
+  // Filter by project - check data_source.project_id or data_model_sources
+  return allModels.filter(model => {
+    // Check if model's data source belongs to this project
+    if (model.data_source?.project_id === projectId.value) {
+      return true;
+    }
+    // For federated models, check if any source belongs to this project
+    if (model.data_model_sources?.some((dms: any) => dms.data_source?.project_id === projectId.value)) {
+      return true;
+    }
+    return false;
+  });
+});
 
 const filteredModels = computed(() => {
   if (!search.value) return dataModels.value;

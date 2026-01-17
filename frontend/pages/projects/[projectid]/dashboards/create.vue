@@ -1,7 +1,20 @@
 <script setup>
 import { useProjectsStore } from '@/stores/projects';
 import { useDataModelsStore } from '@/stores/data_models';
+import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import _ from 'lodash';
+
+// Navigation guard for permission check
+definePageMeta({
+    middleware: (to) => {
+        const projectId = parseInt(String(to.params.projectid));
+        const permissions = useProjectPermissions(projectId);
+        if (!permissions.canCreate.value) {
+            return navigateTo(`/projects/${projectId}/dashboards`);
+        }
+    }
+});
+
 const projectsStore = useProjectsStore();
 const dataModelsStore = useDataModelsStore();
 const { $swal } = useNuxtApp();
@@ -84,6 +97,25 @@ function isChartEmpty(chart) {
 function getChartTypeLabel(chartType) {
     return chartTypeLabels[chartType] || 'Chart';
 }
+
+watch(
+    dataModelTables,
+    (newTables) => {
+        if (newTables && newTables.length > 0) {
+            state.data_model_tables = [];
+            newTables.forEach((dataModelTable) => {
+                state.data_model_tables.push({
+                    schema: dataModelTable.schema,
+                    model_name: dataModelTable.table_name,
+                    cleaned_model_name: dataModelTable.table_name.replace(/_dra.[\w\d]+/g, ''),
+                    show_model: false,
+                    columns: dataModelTable.columns,
+                });
+            });
+        }
+    },
+    { immediate: true }
+);
 
 async function changeDataModel(event, chartId) {
     const chart = state.dashboard.charts.find((chart) => {
@@ -201,7 +233,9 @@ function autoResizeTableContainer(chartId) {
                 // Update chart dimensions
                 chart.dimensions.width = `${newWidth}px`;
                 chart.dimensions.widthDraggable = `${newWidth}px`;
-                state.selected_div.style.width = `${newWidth}px`;
+                if (state.selected_div) {
+                    state.selected_div.style.width = `${newWidth}px`;
+                }
             }
         }
     });
@@ -265,11 +299,13 @@ async function executeQueryOnDataModels(chartId) {
                 "Authorization-Type": "auth",
             },
             body: JSON.stringify({
-                query: sqlQuery
+                query: sqlQuery,
+                project_id: parseInt(route.params.projectid)
             })
         });
         const data = await response.json();
-        state.response_from_data_models_rows = data;
+        // Ensure data is an array before assigning
+        state.response_from_data_models_rows = Array.isArray(data) ? data : [];
         state.response_from_data_models_columns = chart.columns.map((column) => column.column_name);
         const labelValues = [];
         const numericValues = [];
@@ -603,6 +639,17 @@ async function saveDashboard() {
         chart.config.resize_enabled = false;
         chart.config.add_columns_enabled = false;
     }
+    
+    if (!project.value || !project.value.id) {
+        $swal.fire({
+            icon: 'error',
+            title: `Error! `,
+            text: 'Project not loaded. Please refresh the page and try again.',
+        });
+        return;
+    }
+    
+    console.log('project', project.value)
     const response = await fetch(url, {
         method: "POST",
         headers: {
@@ -946,11 +993,12 @@ async function openTableDialog(chartId) {
             "Authorization-Type": "auth",
         },
         body: JSON.stringify({
-            query: sqlQuery
+            query: sqlQuery,
+            project_id: parseInt(route.params.projectid)
         })
     });
     const data = await response.json();
-    state.response_from_data_models_rows = data;
+    state.response_from_data_models_rows = Array.isArray(data) ? data : [];
 }
 function closeTableDialog() {
     state.show_table_dialog = false

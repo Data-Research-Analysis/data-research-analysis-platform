@@ -4,6 +4,13 @@ import { validate } from '../middleware/validator.js';
 import { body, param, matchedData } from 'express-validator';
 import { DashboardProcessor } from '../processors/DashboardProcessor.js';
 import { enforceDashboardLimit } from '../middleware/tierEnforcement.js';
+import { authorize } from '../middleware/authorize.js';
+import { Permission } from '../constants/permissions.js';
+import { 
+    requireProjectPermission, 
+    requireDashboardPermission 
+} from '../middleware/rbacMiddleware.js';
+import { EAction } from '../services/PermissionService.js';
 const router = express.Router();
 
 router.get('/list', async (req: Request, res: Response, next: any) => {
@@ -14,7 +21,7 @@ router.get('/list', async (req: Request, res: Response, next: any) => {
 });
 router.post('/add', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, enforceDashboardLimit, validate([body('project_id').notEmpty().trim().escape().toInt(), body('data').notEmpty()]),
+}, validateJWT, enforceDashboardLimit, validate([body('project_id').notEmpty().toInt(), body('data').notEmpty()]), authorize(Permission.DASHBOARD_CREATE), requireProjectPermission(EAction.CREATE, 'project_id'),
 async (req: Request, res: Response) => {
     const { project_id, data } = matchedData(req);
     const result = await DashboardProcessor.getInstance().addDashboard(project_id, data, req.body.tokenDetails);
@@ -26,7 +33,7 @@ async (req: Request, res: Response) => {
 });
 router.post('/update/:dashboard_id', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([param('dashboard_id').notEmpty().trim().escape().toInt(), body('project_id').notEmpty().trim().escape().toInt(), body('data').notEmpty()]),
+}, validateJWT, validate([param('dashboard_id').notEmpty().toInt(), body('project_id').notEmpty().toInt(), body('data').notEmpty()]), authorize(Permission.DASHBOARD_EDIT), requireDashboardPermission(EAction.UPDATE, 'dashboard_id'),
 async (req: Request, res: Response) => {
     const { dashboard_id, project_id, data } = matchedData(req);
     const result = await DashboardProcessor.getInstance().updateDashboard(dashboard_id, project_id, data, req.body.tokenDetails);
@@ -38,7 +45,7 @@ async (req: Request, res: Response) => {
 });
 router.delete('/delete/:dashboard_id', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([param('dashboard_id').notEmpty().trim().escape().toInt()]),
+}, validateJWT, validate([param('dashboard_id').notEmpty().toInt()]), authorize(Permission.DASHBOARD_DELETE), requireDashboardPermission(EAction.DELETE, 'dashboard_id'),
 async (req: Request, res: Response) => {
     const { dashboard_id } = matchedData(req);
     const result = await DashboardProcessor.getInstance().deleteDashboard(dashboard_id,  req.body.tokenDetails);            
@@ -50,7 +57,7 @@ async (req: Request, res: Response) => {
 });
 router.get('/generate-public-export-link/:dashboard_id', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([param('dashboard_id').notEmpty().trim().escape().toInt()]),
+}, validateJWT, validate([param('dashboard_id').notEmpty().trim().escape().toInt()]), authorize(Permission.DASHBOARD_SHARE), requireDashboardPermission(EAction.READ, 'dashboard_id'),
 async (req: Request, res: Response) => {
     const { dashboard_id } = matchedData(req);
     const key = await DashboardProcessor.getInstance().generatePublicExportLink(dashboard_id,  req.body.tokenDetails);            

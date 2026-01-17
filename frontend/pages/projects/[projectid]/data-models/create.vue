@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { ref, onMounted, computed, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useDataModelsStore } from '~/stores/data_models';
 import { useProjectsStore } from '~/stores/projects';
+import { useProjectPermissions } from '@/composables/useProjectPermissions';
 
 const route = useRoute();
+const router = useRouter();
 const dataModelsStore = useDataModelsStore();
 const projectsStore = useProjectsStore();
 
@@ -16,6 +18,19 @@ const error = ref<string | null>(null);
 const project = computed(() => {
     return projectsStore.getSelectedProject();
 });
+
+// Check permissions - viewers cannot create data models
+const permissions = useProjectPermissions(projectId.value);
+
+// Guard: redirect if user doesn't have create permission
+if (import.meta.client) {
+    watch(() => permissions.canCreate.value, (canCreate) => {
+        if (canCreate === false) {
+            console.warn('[Cross-Source Data Model Create] User does not have create permission, redirecting...');
+            router.push(`/projects/${projectId.value}/data-models`);
+        }
+    }, { immediate: true });
+}
 
 const fetchAllTables = async () => {
     loading.value = true;
@@ -76,7 +91,8 @@ onMounted(() => {
                 v-if="dataSourceTables && dataSourceTables.length > 0"
                 :data-source-tables="dataSourceTables"
                 :is-cross-source="true"
-                :project-id="projectId" />
+                :project-id="projectId"
+                :read-only="!permissions.canCreate.value" />
             
             <!-- Loading State -->
             <div v-else-if="loading" class="flex flex-col items-center justify-center h-96 ml-10 mr-10">

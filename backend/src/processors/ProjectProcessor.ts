@@ -7,6 +7,8 @@ import { DRADataModel } from "../models/DRADataModel.js";
 import { DRADashboard } from "../models/DRADashboard.js";
 import { EDataSourceType } from "../types/EDataSourceType.js";
 import { DRADashboardExportMetaData } from "../models/DRADashboardExportMetaData.js";
+import { DRAProjectMember } from "../models/DRAProjectMember.js";
+import { EProjectRole } from "../types/EProjectRole.js";
 export class ProjectProcessor {
     private static instance: ProjectProcessor;
     private constructor() {}
@@ -39,12 +41,25 @@ export class ProjectProcessor {
             if (!user) {
                 return resolve(false);
             }
-            const project = new DRAProject();
-            project.name = project_name;
-            project.description = description || '';
-            project.users_platform = user;
-            project.created_at = new Date();
-            await manager.save(project);
+            
+            // Use transaction to ensure both project and member entry are created
+            await manager.transaction(async (transactionManager) => {
+                const project = new DRAProject();
+                project.name = project_name;
+                project.description = description || '';
+                project.users_platform = user;
+                project.created_at = new Date();
+                const savedProject = await transactionManager.save(project);
+                
+                // Create project member entry with owner role
+                const projectMember = new DRAProjectMember();
+                projectMember.project = savedProject;
+                projectMember.user = user;
+                projectMember.role = EProjectRole.OWNER;
+                projectMember.added_at = new Date();
+                await transactionManager.save(projectMember);
+            });
+            
             return resolve(true);
         });
     }
@@ -72,20 +87,27 @@ export class ProjectProcessor {
                 return resolve([]);
             }
             
-            // Load projects with relations
-            const projects = await manager.find(DRAProject, {
+            // Load owned projects
+            const ownedProjects = await manager.find(DRAProject, {
                 where: {users_platform: user},
                 relations: {
+                    users_platform: true,
                     data_sources: {
                         data_models: true
                     },
-                    dashboards: true
+                    dashboards: true,
+                    members: {
+                        user: true
+                    }
                 },
                 select: {
                     id: true,
                     name: true,
                     description: true,
                     created_at: true,
+                    users_platform: {
+                        id: true
+                    },
                     data_sources: {
                         id: true,
                         data_models: {
@@ -94,24 +116,81 @@ export class ProjectProcessor {
                     },
                     dashboards: {
                         id: true
+                    },
+                    members: {
+                        id: true,
+                        role: true,
+                        added_at: true,
+                        user: {
+                            id: true,
+                            first_name: true,
+                            last_name: true,
+                            email: true
+                        }
                     }
                 }
             });
             
+            // Load projects where user is a member (but not owner - those are loaded above)
+            const memberProjects = await manager.find(DRAProjectMember, {
+                where: {
+                    user: {id: user_id}
+                },
+                relations: {
+                    project: {
+                        users_platform: true,
+                        data_sources: {
+                            data_models: true
+                        },
+                        dashboards: true,
+                        members: {
+                            user: true
+                        }
+                    }
+                }
+            });
+            
+            // Combine and deduplicate
+            const allProjectsMap = new Map();
+            
+            // Add owned projects
+            ownedProjects.forEach(project => {
+                allProjectsMap.set(project.id, {
+                    ...project,
+                    is_owner: true,
+                    user_role: 'owner'
+                });
+            });
+            
+            // Add member projects (skip if already in map as owner)
+            memberProjects.forEach(member => {
+                if (!allProjectsMap.has(member.project.id)) {
+                    allProjectsMap.set(member.project.id, {
+                        ...member.project,
+                        is_owner: false,
+                        user_role: member.role
+                    });
+                }
+            });
+            
             // Transform to include counts
-            const projectsWithCounts = projects.map(project => ({
+            const projectsWithCounts = Array.from(allProjectsMap.values()).map(project => ({
                 id: project.id,
-                user_platform_id: user_id,
+                user_platform_id: project.users_platform?.id || user_id,
                 name: project.name,
                 description: project.description,
                 created_at: project.created_at,
+                is_owner: project.is_owner,
+                user_role: project.user_role,
                 // Add counts
                 data_sources_count: project.data_sources?.length || 0,
                 data_models_count: project.data_sources?.reduce((sum, ds) => 
                     sum + (ds.data_models?.length || 0), 0) || 0,
                 dashboards_count: project.dashboards?.length || 0,
                 // Include full DataSources array for backward compatibility
-                DataSources: project.data_sources
+                DataSources: project.data_sources,
+                // Include members with user details
+                members: project.members || []
             }));
             
             return resolve(projectsWithCounts);

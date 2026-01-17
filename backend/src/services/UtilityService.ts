@@ -77,6 +77,7 @@ export class UtilityService {
         return {
             NODE_ENV: process.env.NODE_ENV || 'development',
             PUBLIC_BACKEND_URL: process.env.PUBLIC_BACKEND_URL || 'http://localhost:3002',
+            FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3000',
             PORT: process.env.PORT || 3002,
             RECAPTCHA_SECRET: process.env.RECAPTCHA_SECRET || '',
             JWT_SECRET: process.env.JWT_SECRET || '',
