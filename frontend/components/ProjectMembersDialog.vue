@@ -345,6 +345,7 @@ async function inviteMember() {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${getAuthToken()}`,
+                    'Authorization-Type': 'auth',
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
