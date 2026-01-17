@@ -1,6 +1,6 @@
 // Data Research Analysis Platform - Database Schema
 // Full-stack data analytics platform with Vue3/Nuxt3 frontend and Node.js/Express/TypeScript backend
-// Generated: January 12, 2026
+// Generated: January 17, 2026
 // Database: PostgreSQL
 
 Project DataResearchAnalysis {
@@ -585,7 +585,7 @@ Ref: dra_project_members.invited_by_user_id > dra_users_platform.id [delete: set
 Ref: dra_project_members.project_id > dra_projects.id [delete: cascade]
 Ref: dra_project_invitations.project_id > dra_projects.id [delete: cascade]
 Ref: dra_project_invitations.invited_by_user_id > dra_users_platform.id [delete: cascade]
-Ref: dra_project_invitations.verification_code_id > dra_verification_codes.id [delete: cascade, note: 'Centralized token management']
+Ref: dra_project_invitations.verification_code_id > dra_verification_codes.id [delete: cascade]
 Ref: dra_data_sources.users_platform_id > dra_users_platform.id [delete: cascade]
 Ref: dra_data_sources.project_id > dra_projects.id [delete: cascade]
 Ref: dra_data_models.users_platform_id > dra_users_platform.id [delete: cascade]
