@@ -1,4 +1,4 @@
-import { AppDataSource } from '../../datasources/PostgresDSMigrations.js';
+import PostgresDSMigrations from '../../datasources/PostgresDSMigrations.js';
 import { ProjectProcessor } from '../../processors/ProjectProcessor.js';
 import { DRAProject } from '../../models/DRAProject.js';
 import { DRAProjectMember } from '../../models/DRAProjectMember.js';
@@ -22,14 +22,14 @@ describe('ProjectProcessor RBAC Tests', () => {
     let testProject: DRAProject;
 
     beforeAll(async () => {
-        if (!AppDataSource.isInitialized) {
-            await AppDataSource.initialize();
+        if (!PostgresDSMigrations.isInitialized) {
+            await PostgresDSMigrations.initialize();
         }
         projectProcessor = ProjectProcessor.getInstance();
     });
 
     beforeEach(async () => {
-        const manager = AppDataSource.manager;
+        const manager = PostgresDSMigrations.manager;
 
         // Create test users
         ownerUser = manager.create(DRAUsersPlatform, {
@@ -127,7 +127,7 @@ describe('ProjectProcessor RBAC Tests', () => {
     });
 
     afterEach(async () => {
-        const manager = AppDataSource.manager;
+        const manager = PostgresDSMigrations.manager;
 
         // Clean up members
         const members = await manager.find(DRAProjectMember, {
@@ -152,8 +152,8 @@ describe('ProjectProcessor RBAC Tests', () => {
     });
 
     afterAll(async () => {
-        if (AppDataSource.isInitialized) {
-            await AppDataSource.destroy();
+        if (PostgresDSMigrations.isInitialized) {
+            await PostgresDSMigrations.destroy();
         }
     });
 
@@ -309,7 +309,7 @@ describe('ProjectProcessor RBAC Tests', () => {
         let memberProject: DRAProject;
 
         beforeEach(async () => {
-            const manager = AppDataSource.manager;
+            const manager = PostgresDSMigrations.manager;
 
             // Create project owned by adminUser
             ownedProject = manager.create(DRAProject, {
@@ -346,7 +346,7 @@ describe('ProjectProcessor RBAC Tests', () => {
         });
 
         afterEach(async () => {
-            const manager = AppDataSource.manager;
+            const manager = PostgresDSMigrations.manager;
 
             if (ownedProject) {
                 const ownedMembers = await manager.find(DRAProjectMember, {

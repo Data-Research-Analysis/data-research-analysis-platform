@@ -5,7 +5,7 @@
  */
 
 import { ProjectProcessor } from '../../processors/ProjectProcessor.js';
-import { AppDataSource } from '../../datasources/PostgresDSMigrations.js';
+import PostgresDSMigrations from '../../datasources/PostgresDSMigrations.js';
 import { DRAProject } from '../../models/DRAProject.js';
 import { DRAProjectMember } from '../../models/DRAProjectMember.js';
 import { DRAUsersPlatform } from '../../models/DRAUsersPlatform.js';
@@ -18,21 +18,21 @@ describe('ProjectProcessor - Member Creation', () => {
     let projectProcessor: ProjectProcessor;
 
     beforeAll(async () => {
-        if (!AppDataSource.isInitialized) {
-            await AppDataSource.initialize();
+        if (!PostgresDSMigrations.isInitialized) {
+            await PostgresDSMigrations.initialize();
         }
         projectProcessor = ProjectProcessor.getInstance();
     });
 
     afterAll(async () => {
-        if (AppDataSource.isInitialized) {
-            await AppDataSource.destroy();
+        if (PostgresDSMigrations.isInitialized) {
+            await PostgresDSMigrations.destroy();
         }
     });
 
     beforeEach(async () => {
         // Create a test user
-        const userRepo = AppDataSource.getRepository(DRAUsersPlatform);
+        const userRepo = PostgresDSMigrations.getRepository(DRAUsersPlatform);
         testUser = await userRepo.save({
             email: `test-member-creation-${Date.now()}@test.com`,
             first_name: 'Test',
@@ -45,9 +45,9 @@ describe('ProjectProcessor - Member Creation', () => {
 
     afterEach(async () => {
         // Clean up test data
-        const projectRepo = AppDataSource.getRepository(DRAProject);
-        const memberRepo = AppDataSource.getRepository(DRAProjectMember);
-        const userRepo = AppDataSource.getRepository(DRAUsersPlatform);
+        const projectRepo = PostgresDSMigrations.getRepository(DRAProject);
+        const memberRepo = PostgresDSMigrations.getRepository(DRAProjectMember);
+        const userRepo = PostgresDSMigrations.getRepository(DRAUsersPlatform);
 
         // Clean up using raw query since TypeORM delete with relations is complex
         await memberRepo.createQueryBuilder().delete().where('users_platform_id = :userId', { userId: testUser.id }).execute();
@@ -78,7 +78,7 @@ describe('ProjectProcessor - Member Creation', () => {
             expect(result).toBe(true);
 
             // Verify project was created
-            const projectRepo = AppDataSource.getRepository(DRAProject);
+            const projectRepo = PostgresDSMigrations.getRepository(DRAProject);
             const project = await projectRepo.findOne({
                 where: {
                     name: projectName,
@@ -89,7 +89,7 @@ describe('ProjectProcessor - Member Creation', () => {
             expect(project!.name).toBe(projectName);
 
             // Verify project member entry was created
-            const memberRepo = AppDataSource.getRepository(DRAProjectMember);
+            const memberRepo = PostgresDSMigrations.getRepository(DRAProjectMember);
             const member = await memberRepo.findOne({
                 where: {
                     project: { id: project!.id },
@@ -123,12 +123,12 @@ describe('ProjectProcessor - Member Creation', () => {
             expect(result).toBe(true);
 
             // Verify member entry exists
-            const projectRepo = AppDataSource.getRepository(DRAProject);
+            const projectRepo = PostgresDSMigrations.getRepository(DRAProject);
             const project = await projectRepo.findOne({
                 where: { name: projectName, users_platform: { id: testUser.id } }
             });
 
-            const memberRepo = AppDataSource.getRepository(DRAProjectMember);
+            const memberRepo = PostgresDSMigrations.getRepository(DRAProjectMember);
             const member = await memberRepo.findOne({
                 where: { project: { id: project!.id } },
                 relations: ['project']
@@ -152,7 +152,7 @@ describe('ProjectProcessor - Member Creation', () => {
             await projectProcessor.addProject('Project 2', 'Second project', tokenDetails);
 
             // Assert
-            const memberRepo = AppDataSource.getRepository(DRAProjectMember);
+            const memberRepo = PostgresDSMigrations.getRepository(DRAProjectMember);
             const members = await memberRepo.find({
                 where: { user: { id: testUser.id } },
                 relations: ['project']
@@ -182,13 +182,13 @@ describe('ProjectProcessor - Member Creation', () => {
             );
 
             // Assert - If project exists, member MUST exist
-            const projectRepo = AppDataSource.getRepository(DRAProject);
+            const projectRepo = PostgresDSMigrations.getRepository(DRAProject);
             const project = await projectRepo.findOne({
                 where: { name: projectName, users_platform: { id: testUser.id } }
             });
 
             if (project) {
-                const memberRepo = AppDataSource.getRepository(DRAProjectMember);
+                const memberRepo = PostgresDSMigrations.getRepository(DRAProjectMember);
                 const member = await memberRepo.findOne({
                     where: { project: { id: project.id } },
                     relations: ['project']
@@ -220,12 +220,12 @@ describe('ProjectProcessor - Member Creation', () => {
             const afterCreation = new Date();
 
             // Assert
-            const projectRepo = AppDataSource.getRepository(DRAProject);
+            const projectRepo = PostgresDSMigrations.getRepository(DRAProject);
             const project = await projectRepo.findOne({
                 where: { name: projectName, users_platform: { id: testUser.id } }
             });
 
-            const memberRepo = AppDataSource.getRepository(DRAProjectMember);
+            const memberRepo = PostgresDSMigrations.getRepository(DRAProjectMember);
             const member = await memberRepo.findOne({
                 where: { project: { id: project!.id } },
                 relations: ['project']

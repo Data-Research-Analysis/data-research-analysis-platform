@@ -1,5 +1,5 @@
 import { PermissionService, EProjectRole, EAction } from '../../services/PermissionService.js';
-import { AppDataSource } from '../../datasources/PostgresDSMigrations.js';
+import PostgresDSMigrations from '../../datasources/PostgresDSMigrations.js';
 import { DRAProject } from '../../models/DRAProject.js';
 import { DRAProjectMember } from '../../models/DRAProjectMember.js';
 import { DRAUsersPlatform } from '../../models/DRAUsersPlatform.js';
@@ -17,15 +17,15 @@ describe('PermissionService', () => {
     let testDashboard: DRADashboard;
 
     beforeAll(async () => {
-        if (!AppDataSource.isInitialized) {
-            await AppDataSource.initialize();
+        if (!PostgresDSMigrations.isInitialized) {
+            await PostgresDSMigrations.initialize();
         }
         permissionService = PermissionService.getInstance();
     });
 
     beforeEach(async () => {
         // Create test user
-        const manager = AppDataSource.manager;
+        const manager = PostgresDSMigrations.manager;
         testUser = manager.create(DRAUsersPlatform, {
             email: `test-${Date.now()}@example.com`,
             password: 'testpassword',
@@ -67,7 +67,7 @@ describe('PermissionService', () => {
     });
 
     afterEach(async () => {
-        const manager = AppDataSource.manager;
+        const manager = PostgresDSMigrations.manager;
         
         // Clean up in reverse order of dependencies
         if (testDashboard) {
@@ -97,8 +97,8 @@ describe('PermissionService', () => {
     });
 
     afterAll(async () => {
-        if (AppDataSource.isInitialized) {
-            await AppDataSource.destroy();
+        if (PostgresDSMigrations.isInitialized) {
+            await PostgresDSMigrations.destroy();
         }
     });
 
@@ -134,13 +134,13 @@ describe('PermissionService', () => {
 
     describe('getUserProjectRole', () => {
         it('should return owner role for project owner', async () => {
-            const manager = AppDataSource.manager;
+            const manager = PostgresDSMigrations.manager;
             const role = await permissionService.getUserProjectRole(testUser.id, testProject.id, manager);
             expect(role).toBe(EProjectRole.OWNER);
         });
 
         it('should return admin role for admin member', async () => {
-            const manager = AppDataSource.manager;
+            const manager = PostgresDSMigrations.manager;
             
             // Create another user
             const memberUser = manager.create(DRAUsersPlatform, {
@@ -167,7 +167,7 @@ describe('PermissionService', () => {
         });
 
         it('should return null for non-member', async () => {
-            const manager = AppDataSource.manager;
+            const manager = PostgresDSMigrations.manager;
             
             // Create another user who is not a member
             const nonMemberUser = manager.create(DRAUsersPlatform, {
@@ -187,13 +187,13 @@ describe('PermissionService', () => {
 
     describe('hasProjectAccess', () => {
         it('should return true for project owner', async () => {
-            const manager = AppDataSource.manager;
+            const manager = PostgresDSMigrations.manager;
             const hasAccess = await permissionService.hasProjectAccess(testUser.id, testProject.id, manager);
             expect(hasAccess).toBe(true);
         });
 
         it('should return true for project member', async () => {
-            const manager = AppDataSource.manager;
+            const manager = PostgresDSMigrations.manager;
             
             const memberUser = manager.create(DRAUsersPlatform, {
                 email: `member2-${Date.now()}@example.com`,
@@ -218,7 +218,7 @@ describe('PermissionService', () => {
         });
 
         it('should return false for non-member', async () => {
-            const manager = AppDataSource.manager;
+            const manager = PostgresDSMigrations.manager;
             
             const nonMemberUser = manager.create(DRAUsersPlatform, {
                 email: `nonmember2-${Date.now()}@example.com`,
@@ -237,7 +237,7 @@ describe('PermissionService', () => {
 
     describe('Resource Permission Checks', () => {
         it('should check permissions for data source', async () => {
-            const manager = AppDataSource.manager;
+            const manager = PostgresDSMigrations.manager;
             
             // Owner can delete
             const canDelete = await permissionService.canPerformActionOnDataSource(
@@ -250,7 +250,7 @@ describe('PermissionService', () => {
         });
 
         it('should check permissions for data model', async () => {
-            const manager = AppDataSource.manager;
+            const manager = PostgresDSMigrations.manager;
             
             // Owner can update
             const canUpdate = await permissionService.canPerformActionOnDataModel(
@@ -263,7 +263,7 @@ describe('PermissionService', () => {
         });
 
         it('should check permissions for dashboard', async () => {
-            const manager = AppDataSource.manager;
+            const manager = PostgresDSMigrations.manager;
             
             // Owner can delete
             const canDelete = await permissionService.canPerformActionOnDashboard(
@@ -276,7 +276,7 @@ describe('PermissionService', () => {
         });
 
         it('should deny viewer delete permissions on data source', async () => {
-            const manager = AppDataSource.manager;
+            const manager = PostgresDSMigrations.manager;
             
             const viewerUser = manager.create(DRAUsersPlatform, {
                 email: `viewer-${Date.now()}@example.com`,
@@ -308,7 +308,7 @@ describe('PermissionService', () => {
 
     describe('getProjectPermissions', () => {
         it('should return all permissions for owner', async () => {
-            const manager = AppDataSource.manager;
+            const manager = PostgresDSMigrations.manager;
             const permissions = await permissionService.getProjectPermissions(testUser.id, testProject.id, manager);
             
             expect(permissions.canCreate).toBe(true);
@@ -319,7 +319,7 @@ describe('PermissionService', () => {
         });
 
         it('should return limited permissions for viewer', async () => {
-            const manager = AppDataSource.manager;
+            const manager = PostgresDSMigrations.manager;
             
             const viewerUser = manager.create(DRAUsersPlatform, {
                 email: `viewer2-${Date.now()}@example.com`,
@@ -349,7 +349,7 @@ describe('PermissionService', () => {
         });
 
         it('should return no permissions for non-member', async () => {
-            const manager = AppDataSource.manager;
+            const manager = PostgresDSMigrations.manager;
             
             const nonMemberUser = manager.create(DRAUsersPlatform, {
                 email: `nonmember3-${Date.now()}@example.com`,
