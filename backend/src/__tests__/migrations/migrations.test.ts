@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, jest } from '@jest/globals';
 import { DataSource } from 'typeorm';
-import { PostgresDSMigrations } from '../../datasources/PostgresDSMigrations.js';
+import PostgresDSMigrations from '../../datasources/PostgresDSMigrations.js';
 
 /**
  * DRA-TEST-023: TypeORM Migration Tests

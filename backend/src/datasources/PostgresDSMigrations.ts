@@ -29,7 +29,9 @@ const port = parseInt(process.env.POSTGRESQL_PORT_MIGRATIONS);
 const database = process.env.POSTGRESQL_DB_NAME;
 const username = process.env.POSTGRESQL_USERNAME;
 const password = process.env.POSTGRESQL_PASSWORD;
-export const PostgresDSMigrations = new DataSource({
+
+// Single DataSource export - use default import in code: import PostgresDSMigrations from '...'
+export default new DataSource({
     type: "postgres",
     host: host,
     port: port,
@@ -41,7 +43,4 @@ export const PostgresDSMigrations = new DataSource({
     entities: [DRAUsersPlatform, DRAProject, DRAProjectMember, DRAProjectInvitation, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAPrivateBetaUsers, DRADashboard, DRAArticle, DRAArticleCategory, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRASubscriptionTier, DRAUserSubscription, SyncHistory],
     subscribers: [],
     migrations: ['./src/migrations/*.ts'],
-})
-
-// Export AppDataSource as an alias for backward compatibility with tests
-export const AppDataSource = PostgresDSMigrations;
+});
