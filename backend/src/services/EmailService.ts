@@ -2,6 +2,7 @@ import { Queue, Worker } from 'bullmq';
 import { MailDriver } from '../drivers/MailDriver.js';
 import { UtilityService } from './UtilityService.js';
 import { TemplateEngineService } from './TemplateEngineService.js';
+import { convert } from 'html-to-text';
 
 interface SendMailResult {
     messageId: string;
@@ -162,12 +163,14 @@ export class EmailService {
                     replacements
                 );
                 
-                // Generate plain text version (strip HTML tags)
-                textContent = htmlContent
-                    .replace(/<style[^>]*>.*?<\/style>/gs, '')
-                    .replace(/<[^>]+>/g, '')
-                    .replace(/\s+/g, ' ')
-                    .trim();
+                // Generate plain text version from HTML using a robust converter
+                textContent = convert(htmlContent || '', {
+                    wordwrap: false,
+                    selectors: [
+                        { selector: 'script', format: 'skip' },
+                        { selector: 'style', format: 'skip' }
+                    ]
+                }).trim();
             }
             
             // Send via MailDriver
