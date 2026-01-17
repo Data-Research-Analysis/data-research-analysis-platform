@@ -1,15 +1,15 @@
 import { jest } from '@jest/globals';
 import request from 'supertest';
 import express, { Application } from 'express';
-import oauthRouter from '../oauth.js';
-import { GoogleOAuthService } from '../../../../services/GoogleOAuthService.js';
-import { OAuthSessionService } from '../../../../services/OAuthSessionService.js';
-import { TokenProcessor } from '../../../../processors/TokenProcessor.js';
-import { ITokenDetails } from '../../../../types/ITokenDetails.js';
-import { EUserType } from '../../../../types/EUserType.js';
+import oauthRouter from '../../../routes/oauth.js';
+import { GoogleOAuthService } from '../../../services/GoogleOAuthService.js';
+import { OAuthSessionService } from '../../../services/OAuthSessionService.js';
+import { TokenProcessor } from '../../../processors/TokenProcessor.js';
+import { ITokenDetails } from '../../../types/ITokenDetails.js';
+import { EUserType } from '../../../types/EUserType.js';
 
 // Mock GoogleOAuthService
-jest.mock('../../services/GoogleOAuthService.js', () => ({
+jest.mock('../../../services/GoogleOAuthService.js', () => ({
     GoogleOAuthService: {
         getInstance: jest.fn(() => ({
             isConfigured: jest.fn(),

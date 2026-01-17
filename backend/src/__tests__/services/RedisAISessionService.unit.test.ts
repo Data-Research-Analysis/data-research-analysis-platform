@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
-import { RedisAISessionService } from '../RedisAISessionService.js';
-import { MockRedisClient, TestDataFactory } from '../../__tests__/mocks/MockManager.js';
+import { RedisAISessionService } from '../../services/RedisAISessionService.js';
+import { MockRedisClient, TestDataFactory } from '../mocks/MockManager.js';
 
 // Mock the Redis client
 let mockRedis: MockRedisClient;

@@ -8,8 +8,8 @@
  * - executeQueryOnExternalDataSource() with cross-source JOINs
  */
 
-import { DataSourceProcessor } from '../DataSourceProcessor.js';
-import { createMockManager, MockManager } from './mocks/mockManager.js';
+import { DataSourceProcessor } from '../../../processors/DataSourceProcessor.js';
+import { createMockManager, MockManager } from '../../processors/mocks/mockManager.js';
 import {
     mockMySQLMetadata,
     mockMySQLDataSource,
@@ -29,7 +29,7 @@ import {
     mockGoogleAdsDataSource,
     allMockMetadata,
     allMockDataSources
-} from './mocks/mockMetadata.js';
+} from '../../processors/mocks/mockMetadata.js';
 import {
     createTestQueryJSON,
     createTestColumn,
@@ -37,7 +37,7 @@ import {
     createExpectedTableMapping,
     expectTableMapToContain,
     countOccurrences
-} from './utils/testHelpers.js';
+} from '../../processors/utils/testHelpers.js';
 
 describe('DataSourceProcessor - Cross-Source Transformation', () => {
     let processor: DataSourceProcessor;

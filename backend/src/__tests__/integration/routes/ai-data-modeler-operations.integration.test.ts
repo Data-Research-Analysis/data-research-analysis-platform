@@ -1,14 +1,14 @@
 import { jest } from '@jest/globals';
 import request from 'supertest';
 import express, { Application } from 'express';
-import aiDataModelerRouter from '../ai_data_modeler.js';
-import { AIDataModelerController } from '../../../../controllers/AIDataModelerController.js';
-import { TokenProcessor } from '../../../../processors/TokenProcessor.js';
-import { ITokenDetails } from '../../../../types/ITokenDetails.js';
-import { EUserType } from '../../../../types/EUserType.js';
+import aiDataModelerRouter from '../../../routes/ai_data_modeler.js';
+import { AIDataModelerController } from '../../../controllers/AIDataModelerController.js';
+import { TokenProcessor } from '../../../processors/TokenProcessor.js';
+import { ITokenDetails } from '../../../types/ITokenDetails.js';
+import { EUserType } from '../../../types/EUserType.js';
 
 // Mock controller - use factory function
-jest.mock('../../controllers/AIDataModelerController.js', () => {
+jest.mock('../../../controllers/AIDataModelerController.js', () => {
     const mockImpl = {
         initializeSession: jest.fn(),
         initializeCrossSourceSession: jest.fn(),

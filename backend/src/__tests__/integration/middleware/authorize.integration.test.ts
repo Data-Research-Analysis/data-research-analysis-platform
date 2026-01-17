@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import request from 'supertest';
 import express from 'express';
-import { authorize, authorizeAll } from '../../../../middleware/authorize.js';
-import { Permission } from '../../../../constants/permissions.js';
+import { authorize, authorizeAll } from '../../../middleware/authorize.js';
+import { Permission } from '../../../constants/permissions.js';
 
 /**
  * Integration tests for authorization middleware

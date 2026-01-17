@@ -1,12 +1,12 @@
 import { jest } from '@jest/globals';
-import { DataSourceProcessor } from '../../../../processors/DataSourceProcessor.js';
-import { TokenProcessor } from '../../../../processors/TokenProcessor.js';
-import { UtilityService } from '../../../../services/UtilityService.js';
-import { PDFService } from '../../../../services/PDFService.js';
-import { ITokenDetails } from '../../../../types/ITokenDetails.js';
-import { EUserType } from '../../../../types/EUserType.js';
-import { EDataSourceType } from '../../../../types/EDataSourceType.js';
-import { IDBConnectionDetails } from '../../../../types/IDBConnectionDetails.js';
+import { DataSourceProcessor } from '../../../processors/DataSourceProcessor.js';
+import { TokenProcessor } from '../../../processors/TokenProcessor.js';
+import { UtilityService } from '../../../services/UtilityService.js';
+import { PDFService } from '../../../services/PDFService.js';
+import { ITokenDetails } from '../../../types/ITokenDetails.js';
+import { EUserType } from '../../../types/EUserType.js';
+import { EDataSourceType } from '../../../types/EDataSourceType.js';
+import { IDBConnectionDetails } from '../../../types/IDBConnectionDetails.js';
 
 /**
  * TEST-012: Data Source Routes Integration Tests

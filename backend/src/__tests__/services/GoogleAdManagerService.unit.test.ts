@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
-import { GoogleAdManagerService } from '../GoogleAdManagerService.js';
+import { GoogleAdManagerService } from '../../services/GoogleAdManagerService.js';
 import { GAMReportType } from '../../types/IGoogleAdManager.js';
 
 /**

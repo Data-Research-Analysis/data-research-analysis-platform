@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
-import { AIDataModelerController } from '../AIDataModelerController.js';
+import { AIDataModelerController } from '../../controllers/AIDataModelerController.js';
 import { 
     MockRedisClient, 
     MockEntityManager, 
@@ -7,7 +7,7 @@ import {
     TestDataFactory,
     createMockRequest,
     createMockResponse
-} from '../../../__tests__/mocks/MockManager.js';
+} from '../mocks/MockManager.js';
 
 // Mock dependencies
 let mockRedis: MockRedisClient;

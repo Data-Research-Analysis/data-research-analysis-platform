@@ -1,16 +1,16 @@
 import { jest } from '@jest/globals';
 import request from 'supertest';
 import express, { Application } from 'express';
-import googleAdsRouter from '../google_ads.js';
-import { GoogleAdsService } from '../../../../services/GoogleAdsService.js';
-import { GoogleAdsDriver } from '../../../../drivers/GoogleAdsDriver.js';
-import { DataSourceProcessor } from '../../../../processors/DataSourceProcessor.js';
-import { TokenProcessor } from '../../../../processors/TokenProcessor.js';
-import { ITokenDetails } from '../../../../types/ITokenDetails.js';
-import { EUserType } from '../../../../types/EUserType.js';
+import googleAdsRouter from '../../../routes/google_ads.js';
+import { GoogleAdsService } from '../../../services/GoogleAdsService.js';
+import { GoogleAdsDriver } from '../../../drivers/GoogleAdsDriver.js';
+import { DataSourceProcessor } from '../../../processors/DataSourceProcessor.js';
+import { TokenProcessor } from '../../../processors/TokenProcessor.js';
+import { ITokenDetails } from '../../../types/ITokenDetails.js';
+import { EUserType } from '../../../types/EUserType.js';
 
 // Mock GoogleAdsService
-jest.mock('../../services/GoogleAdsService.js', () => ({
+jest.mock('../../../services/GoogleAdsService.js', () => ({
     GoogleAdsService: {
         getInstance: jest.fn(() => ({
             listAccounts: jest.fn()

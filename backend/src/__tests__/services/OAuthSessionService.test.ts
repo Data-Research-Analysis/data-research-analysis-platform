@@ -30,7 +30,7 @@ jest.unstable_mockModule('../EncryptionService.js', () => ({
 }));
 
 // Now import the service
-const { OAuthSessionService } = await import('../OAuthSessionService.js');
+const { OAuthSessionService } = await import('../../services/OAuthSessionService.js');
 
 describe('OAuthSessionService', () => {
     let service: any;

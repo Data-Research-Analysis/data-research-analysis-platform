@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals';
 import request from 'supertest';
 import express, { Express } from 'express';
-import type { IOAuthTokens } from '../../../../types/IOAuthTokens.js';
+import type { IOAuthTokens } from '../../../types/IOAuthTokens.js';
 
 // Create mocks
 const mockUserId = 999;
@@ -60,7 +60,7 @@ jest.unstable_mockModule('../../middleware/validator.js', () => ({
 }));
 
 // Import router after mocking
-const { default: oauthRouter } = await import('../oauth.js');
+const { default: oauthRouter } = await import('../../../routes/oauth.js');
 
 describe('OAuth Session API Routes', () => {
     let app: Express;

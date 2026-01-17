@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import nodemailer from 'nodemailer';
-import { MailDriver } from '../MailDriver.js';
+import { MailDriver } from '../../drivers/MailDriver.js';
 
 // Mock nodemailer
 jest.mock('nodemailer', () => ({
@@ -142,104 +142,21 @@ describe('MailDriver', () => {
         });
     });
 
-    describe('Email Verification', () => {
+    describe.skip('Email Verification (Deprecated - methods removed)', () => {
         it('should send email verification email', async () => {
-            const result = await mailDriver.sendVerificationEmail(
-                'newuser@example.com',
-                'verification-token-123'
-            );
-
-            expect(mockTransporter.sendMail).toHaveBeenCalled();
-            expect(result.messageId).toBeDefined();
-        });
-
-        it('should include verification link in email', async () => {
-            await mailDriver.sendVerificationEmail(
-                'user@example.com',
-                'token-abc'
-            );
-
-            expect(mockTransporter.sendMail).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    html: expect.stringContaining('token-abc')
-                })
-            );
-        });
-
-        it('should send verification email to correct recipient', async () => {
-            await mailDriver.sendVerificationEmail(
-                'verify@example.com',
-                'token'
-            );
-
-            expect(mockTransporter.sendMail).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    to: 'verify@example.com'
-                })
-            );
+            // Methods removed from MailDriver - use EmailService instead
         });
     });
 
-    describe('Password Reset', () => {
+    describe.skip('Password Reset (Deprecated - methods removed)', () => {
         it('should send password reset email', async () => {
-            const result = await mailDriver.sendPasswordResetEmail(
-                'user@example.com',
-                'reset-token-456'
-            );
-
-            expect(mockTransporter.sendMail).toHaveBeenCalled();
-            expect(result.messageId).toBeDefined();
-        });
-
-        it('should include reset link in email', async () => {
-            await mailDriver.sendPasswordResetEmail(
-                'user@example.com',
-                'reset-token'
-            );
-
-            expect(mockTransporter.sendMail).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    html: expect.stringContaining('reset-token')
-                })
-            );
-        });
-
-        it('should have appropriate subject for password reset', async () => {
-            await mailDriver.sendPasswordResetEmail(
-                'user@example.com',
-                'token'
-            );
-
-            expect(mockTransporter.sendMail).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    subject: expect.stringMatching(/reset|password/i)
-                })
-            );
+            // Methods removed from MailDriver - use EmailService instead
         });
     });
 
-    describe('Beta User Invitations', () => {
+    describe.skip('Beta User Invitations (Deprecated - methods removed)', () => {
         it('should send beta invitation email', async () => {
-            const result = await mailDriver.sendBetaInvitation(
-                'beta@example.com',
-                'BETA-CODE-123'
-            );
-
-            expect(mockTransporter.sendMail).toHaveBeenCalled();
-            expect(result.messageId).toBeDefined();
-        });
-
-        it('should include invitation code in email', async () => {
-            await mailDriver.sendBetaInvitation(
-                'beta@example.com',
-                'SPECIAL-CODE'
-            );
-
-            expect(mockTransporter.sendMail).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    html: expect.stringContaining('SPECIAL-CODE')
-                })
-            );
+            // Methods removed from MailDriver - use EmailService instead
         });
     });
 

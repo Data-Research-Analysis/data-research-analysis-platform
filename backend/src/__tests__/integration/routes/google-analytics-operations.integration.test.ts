@@ -1,16 +1,16 @@
 import { jest } from '@jest/globals';
 import request from 'supertest';
 import express, { Application } from 'express';
-import googleAnalyticsRouter from '../google_analytics.js';
-import { GoogleAnalyticsService } from '../../../../services/GoogleAnalyticsService.js';
-import { GoogleAnalyticsDriver } from '../../../../drivers/GoogleAnalyticsDriver.js';
-import { DataSourceProcessor } from '../../../../processors/DataSourceProcessor.js';
-import { TokenProcessor } from '../../../../processors/TokenProcessor.js';
-import { ITokenDetails } from '../../../../types/ITokenDetails.js';
-import { EUserType } from '../../../../types/EUserType.js';
+import googleAnalyticsRouter from '../../../routes/google_analytics.js';
+import { GoogleAnalyticsService } from '../../../services/GoogleAnalyticsService.js';
+import { GoogleAnalyticsDriver } from '../../../drivers/GoogleAnalyticsDriver.js';
+import { DataSourceProcessor } from '../../../processors/DataSourceProcessor.js';
+import { TokenProcessor } from '../../../processors/TokenProcessor.js';
+import { ITokenDetails } from '../../../types/ITokenDetails.js';
+import { EUserType } from '../../../types/EUserType.js';
 
 // Mock GoogleAnalyticsService
-jest.mock('../../services/GoogleAnalyticsService.js', () => ({
+jest.mock('../../../services/GoogleAnalyticsService.js', () => ({
     GoogleAnalyticsService: {
         getInstance: jest.fn(() => ({
             listProperties: jest.fn(),

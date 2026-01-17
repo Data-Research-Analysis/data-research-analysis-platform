@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import request from 'supertest';
 import express from 'express';
-import categoryRouter from '../../admin/category.js';
+import categoryRouter from '../../../../routes/admin/category.js';
 
 // Mock processors
-jest.mock('../../../processors/CategoryProcessor.js', () => ({
+jest.mock('../../../../processors/CategoryProcessor.js', () => ({
     CategoryProcessor: {
         getInstance: jest.fn(() => ({
             getCategories: jest.fn(),
@@ -15,10 +15,10 @@ jest.mock('../../../processors/CategoryProcessor.js', () => ({
     }
 }));
 
-jest.mock('../../../processors/TokenProcessor.js');
+jest.mock('../../../../processors/TokenProcessor.js');
 
-import { CategoryProcessor } from '../../../../../processors/CategoryProcessor.js';
-import { EUserType } from '../../../../../types/EUserType.js';
+import { CategoryProcessor } from '../../../../processors/CategoryProcessor.js';
+import { EUserType } from '../../../../types/EUserType.js';
 
 describe('Category Management Routes Integration Tests', () => {
     let app: express.Application;

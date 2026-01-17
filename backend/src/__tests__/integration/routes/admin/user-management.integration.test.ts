@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import request from 'supertest';
 import express from 'express';
-import usersRouter from '../../admin/users.js';
+import usersRouter from '../../../../routes/admin/users.js';
 
 // Mock processors
-jest.mock('../../../processors/UserManagementProcessor.js', () => ({
+jest.mock('../../../../processors/UserManagementProcessor.js', () => ({
     UserManagementProcessor: {
         getInstance: jest.fn(() => ({
             createUser: jest.fn(),
@@ -19,10 +19,10 @@ jest.mock('../../../processors/UserManagementProcessor.js', () => ({
     }
 }));
 
-jest.mock('../../../processors/TokenProcessor.js');
+jest.mock('../../../../processors/TokenProcessor.js');
 
-import { UserManagementProcessor } from '../../../../../processors/UserManagementProcessor.js';
-import { EUserType } from '../../../../../types/EUserType.js';
+import { UserManagementProcessor } from '../../../../processors/UserManagementProcessor.js';
+import { EUserType } from '../../../../types/EUserType.js';
 
 describe('User Management Routes Integration Tests', () => {
     let app: express.Application;

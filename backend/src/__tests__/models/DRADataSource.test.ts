@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
-import { DRADataSource } from '../DRADataSource.js';
-import { EDataSourceType } from '../../../types/EDataSourceType.js';
-import { EncryptionService } from '../../../services/EncryptionService.js';
-import { IDBConnectionDetails } from '../../../types/IDBConnectionDetails.js';
+import { DRADataSource } from '../../models/DRADataSource.js';
+import { EDataSourceType } from '../../types/EDataSourceType.js';
+import { EncryptionService } from '../../services/EncryptionService.js';
+import { IDBConnectionDetails } from '../../types/IDBConnectionDetails.js';
 
 describe('DRADataSource Model', () => {
     describe('Entity Structure', () => {

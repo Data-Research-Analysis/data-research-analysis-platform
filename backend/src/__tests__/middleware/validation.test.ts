@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { Request, Response, NextFunction } from 'express';
-import { validateDataSource, validateDataModel, validateDashboard, validateUserInput } from '../../../middleware/validation.js';
-import { EDataSourceType } from '../../../types/EDataSourceType.js';
+import { validateDataSource, validateDataModel, validateDashboard, validateUserInput } from '../../middleware/validation.js';
+import { EDataSourceType } from '../../types/EDataSourceType.js';
 
 /**
  * DRA-TEST-022: Validation Middleware Tests

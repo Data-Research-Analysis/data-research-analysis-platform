@@ -1,14 +1,14 @@
 import { jest } from '@jest/globals';
 import request from 'supertest';
 import express, { Express } from 'express';
-import { DBDriver } from '../../../../drivers/DBDriver.js';
-import { DRAUsersPlatform } from '../../../../models/DRAUsersPlatform.js';
-import { DRAVerificationCode } from '../../../../models/DRAVerificationCode.js';
-import { EDataSourceType } from '../../../../types/EDataSourceType.js';
-import { EUserType } from '../../../../types/EUserType.js';
+import { DBDriver } from '../../../drivers/DBDriver.js';
+import { DRAUsersPlatform } from '../../../models/DRAUsersPlatform.js';
+import { DRAVerificationCode } from '../../../models/DRAVerificationCode.js';
+import { EDataSourceType } from '../../../types/EDataSourceType.js';
+import { EUserType } from '../../../types/EUserType.js';
 import bcrypt from 'bcryptjs';
-import { MailDriver } from '../../../../drivers/MailDriver.js';
-import { TemplateEngineService } from '../../../../services/TemplateEngineService.js';
+import { MailDriver } from '../../../drivers/MailDriver.js';
+import { TemplateEngineService } from '../../../services/TemplateEngineService.js';
 
 /**
  * TEST-011: Authentication Routes Integration Tests
