@@ -23,16 +23,18 @@ const state = reactive({
 });
 
 const projects = computed(() => {
-    const projectsList = projectsStore.getProjects();
+    // Use the reactive projects ref directly instead of getProjects()
+    // to ensure we get the latest data from API calls in middleware
+    const projectsList = projectsStore.projects;
     
     return projectsList.map((project) => ({
         id: project.id,
         user_id: project.user_platform_id,
         name: project.name,
         description: project.description || '',
-        // Owner/role information
-        is_owner: project.is_owner ?? true, // Default to true for backward compatibility
-        user_role: project.user_role || 'owner',
+        // Owner/role information - only true if explicitly true
+        is_owner: project.is_owner === true,
+        user_role: project.user_role || 'viewer', // Default to least privilege
         // Use counts from API response
         dataSourcesCount: project.data_sources_count || 0,
         dataModelsCount: project.data_models_count || 0,

@@ -1,5 +1,5 @@
 import { PermissionService, EProjectRole, EAction } from '../../services/PermissionService.js';
-import { AppDataSource } from '../../datasources/AppDataSource.js';
+import { AppDataSource } from '../../datasources/PostgresDSMigrations.js';
 import { DRAProject } from '../../models/DRAProject.js';
 import { DRAProjectMember } from '../../models/DRAProjectMember.js';
 import { DRAUsersPlatform } from '../../models/DRAUsersPlatform.js';

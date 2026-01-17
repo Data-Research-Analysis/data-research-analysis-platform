@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import { UserManagementProcessor } from '../UserManagementProcessor.js';
-import { DBDriver } from '../../../drivers/DBDriver.js';
-import { EDataSourceType } from '../../../types/EDataSourceType.js';
-import { EUserType } from '../../../types/EUserType.js';
-import { ITokenDetails } from '../../../types/ITokenDetails.js';
+import { DBDriver } from '../../drivers/DBDriver.js';
+import { EDataSourceType } from '../../types/EDataSourceType.js';
+import { EUserType } from '../../types/EUserType.js';
+import { ITokenDetails } from '../../types/ITokenDetails.js';
 
 // Mock DBDriver
 jest.mock('../../drivers/DBDriver.js');

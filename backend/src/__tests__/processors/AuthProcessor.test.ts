@@ -1,12 +1,12 @@
 import { jest } from '@jest/globals';
-import { AuthProcessor } from '../AuthProcessor.js';
-import { DBDriver } from '../../../drivers/DBDriver.js';
-import { DRAUsersPlatform } from '../../../models/DRAUsersPlatform.js';
-import { EDataSourceType } from '../../../types/EDataSourceType.js';
-import { EUserType } from '../../../types/EUserType.js';
+import { AuthProcessor } from '../../processors/AuthProcessor.js';
+import { DBDriver } from '../../drivers/DBDriver.js';
+import { DRAUsersPlatform } from '../../models/DRAUsersPlatform.js';
+import { EDataSourceType } from '../../types/EDataSourceType.js';
+import { EUserType } from '../../types/EUserType.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { UtilityService } from '../../../services/UtilityService.js';
+import { UtilityService } from '../../services/UtilityService.js';
 
 /**
  * TEST-004: AuthProcessor Unit Tests

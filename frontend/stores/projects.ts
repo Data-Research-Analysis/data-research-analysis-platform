@@ -5,9 +5,18 @@ export const useProjectsStore = defineStore('projectsDRA', () => {
     const selectedProject = ref<IProject>()
     
     function setProjects(projectsList: IProject[]) {
-        projects.value = projectsList
+        // Validate and normalize project data to ensure RBAC consistency
+        projects.value = projectsList.map(p => ({
+            ...p,
+            is_owner: p.is_owner === true, // Ensure boolean
+            user_role: p.user_role || 'viewer', // Default to least privilege
+            members: p.members || [],
+            data_sources_count: p.data_sources_count || 0,
+            data_models_count: p.data_models_count || 0,
+            dashboards_count: p.dashboards_count || 0,
+        }))
         if (import.meta.client) {
-            localStorage.setItem('projects', JSON.stringify(projectsList));
+            localStorage.setItem('projects', JSON.stringify(projects.value));
             enableRefreshDataFlag('setProjects');
         }
     }

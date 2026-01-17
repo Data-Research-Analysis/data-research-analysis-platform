@@ -88,10 +88,10 @@ export class UpdateProjectInvitationsAndTierLimits1768200000000 implements Migra
         }
 
         // 6. Set tier limits for max_members_per_project
-        await queryRunner.query(`UPDATE "dra_subscription_tiers" SET "max_members_per_project" = 3 WHERE "tier_name" = 'FREE'`);
-        await queryRunner.query(`UPDATE "dra_subscription_tiers" SET "max_members_per_project" = 10 WHERE "tier_name" = 'PRO'`);
-        await queryRunner.query(`UPDATE "dra_subscription_tiers" SET "max_members_per_project" = 50 WHERE "tier_name" = 'TEAM'`);
-        await queryRunner.query(`UPDATE "dra_subscription_tiers" SET "max_members_per_project" = NULL WHERE "tier_name" IN ('BUSINESS', 'ENTERPRISE')`);
+        await queryRunner.query(`UPDATE "dra_subscription_tiers" SET "max_members_per_project" = 3 WHERE "tier_name" = 'free'`);
+        await queryRunner.query(`UPDATE "dra_subscription_tiers" SET "max_members_per_project" = 10 WHERE "tier_name" = 'pro'`);
+        await queryRunner.query(`UPDATE "dra_subscription_tiers" SET "max_members_per_project" = 50 WHERE "tier_name" = 'team'`);
+        await queryRunner.query(`UPDATE "dra_subscription_tiers" SET "max_members_per_project" = NULL WHERE "tier_name" IN ('business', 'enterprise')`);
 
         // 7. Create index on status and expires_at for efficient queries
         await queryRunner.query(`

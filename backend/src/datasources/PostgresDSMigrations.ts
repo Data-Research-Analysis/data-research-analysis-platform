@@ -42,3 +42,6 @@ export const PostgresDSMigrations = new DataSource({
     subscribers: [],
     migrations: ['./src/migrations/*.ts'],
 })
+
+// Export AppDataSource as an alias for backward compatibility with tests
+export const AppDataSource = PostgresDSMigrations;

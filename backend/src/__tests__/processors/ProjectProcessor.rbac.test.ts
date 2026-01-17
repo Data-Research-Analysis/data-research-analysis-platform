@@ -1,11 +1,11 @@
-import { AppDataSource } from '../../../datasources/AppDataSource.js';
-import { ProjectProcessor } from '../../../processors/ProjectProcessor.js';
-import { DRAProject } from '../../../models/DRAProject.js';
-import { DRAProjectMember } from '../../../models/DRAProjectMember.js';
-import { DRAUsersPlatform } from '../../../models/DRAUsersPlatform.js';
-import { EProjectRole } from '../../../types/EProjectRole.js';
-import { ITokenDetails } from '../../../types/ITokenDetails.js';
-import { EUserType } from '../../../types/EUserType.js';
+import { AppDataSource } from '../../datasources/PostgresDSMigrations.js';
+import { ProjectProcessor } from '../../processors/ProjectProcessor.js';
+import { DRAProject } from '../../models/DRAProject.js';
+import { DRAProjectMember } from '../../models/DRAProjectMember.js';
+import { DRAUsersPlatform } from '../../models/DRAUsersPlatform.js';
+import { EProjectRole } from '../../types/EProjectRole.js';
+import { ITokenDetails } from '../../types/ITokenDetails.js';
+import { EUserType } from '../../types/EUserType.js';
 
 /**
  * RBAC Tests for ProjectProcessor

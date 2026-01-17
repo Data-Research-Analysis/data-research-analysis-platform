@@ -16,6 +16,7 @@ export class SubscriptionTierSeeder extends Seeder {
                 max_projects: 3,
                 max_data_sources_per_project: 5,
                 max_dashboards: 5,
+                max_data_models_per_data_source: 3,
                 ai_generations_per_month: 5,
                 price_per_month_usd: 0
             },
@@ -25,6 +26,7 @@ export class SubscriptionTierSeeder extends Seeder {
                 max_projects: 50,
                 max_data_sources_per_project: -1, // -1 = unlimited
                 max_dashboards: -1,
+                max_data_models_per_data_source: 10,
                 ai_generations_per_month: 25,
                 price_per_month_usd: 99
             },
@@ -34,6 +36,7 @@ export class SubscriptionTierSeeder extends Seeder {
                 max_projects: -1,
                 max_data_sources_per_project: -1,
                 max_dashboards: -1,
+                max_data_models_per_data_source: 25,
                 ai_generations_per_month: 100,
                 price_per_month_usd: 299
             },
@@ -43,6 +46,7 @@ export class SubscriptionTierSeeder extends Seeder {
                 max_projects: -1,
                 max_data_sources_per_project: -1,
                 max_dashboards: -1,
+                max_data_models_per_data_source: 50,
                 ai_generations_per_month: 500,
                 price_per_month_usd: 899
             },
@@ -52,6 +56,7 @@ export class SubscriptionTierSeeder extends Seeder {
                 max_projects: -1,
                 max_data_sources_per_project: -1,
                 max_dashboards: -1,
+                max_data_models_per_data_source: -1,
                 ai_generations_per_month: -1,
                 price_per_month_usd: 2999
             }

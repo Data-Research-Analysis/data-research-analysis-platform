@@ -1,11 +1,11 @@
 <template>
     <overlay-dialog v-if="isOpen" @close="close" :y-offset="50">
         <template v-slot:overlay>
-        <div class="w-full">
-            <h2 class="text-3xl font-bold mb-6 text-gray-900">Project Members</h2>
-            
-            <!-- Add Member Section (Admin/Owner only) -->
-            <div v-if="canManageMembers" class="mb-8 pb-8 border-b border-gray-200">
+            <div class="w-full">
+                <h2 class="text-3xl font-bold mb-6 text-gray-900">Project Members</h2>
+                
+                <!-- Add Member Section (Admin/Owner only) -->
+                <div v-if="canManageMembers" class="mb-8 pb-8 border-b border-gray-200">
                 <h3 class="text-lg font-semibold mb-4 text-gray-800">Invite Member</h3>
                 <div class="flex gap-3 flex-wrap">
                     <input 
@@ -14,7 +14,7 @@
                         placeholder="Email address" 
                         class="flex-1 min-w-[200px] px-3.5 py-2.5 border border-gray-300 rounded-md text-[15px] focus:outline-none focus:border-blue-500 transition-colors"
                     />
-                    <select v-model="inviteRole" class="min-w-[150px] px-3.5 py-2.5 border border-gray-300 rounded-md text-[15px] focus:outline-none focus:border-blue-500 transition-colors">
+                    <select v-model="inviteRole" class="min-w-[150px] px-3.5 py-2.5 border border-gray-300 rounded-md text-[15px] focus:outline-none focus:border-blue-500 transition-colors cursor-pointer">
                         <option value="viewer">Viewer (Read-only)</option>
                         <option value="editor">Editor (Can create/edit)</option>
                         <option value="admin">Admin (Full control)</option>
@@ -30,13 +30,10 @@
                 <p v-if="inviteMessage" :class="['mt-3 px-2.5 py-2.5 rounded-md text-sm', inviteError ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800']">
                     {{ inviteMessage }}
                 </p>
-            </div>
-            <div v-else class="mb-8 pb-8 border-b border-gray-200">
-                <p class="text-gray-600">You have {{ userRole }} access to this project. Only owners and admins can manage team members.</p>
-            </div>
-            
-            <!-- Members List -->
-            <div class="mt-6">
+                </div>
+                
+                <!-- Members List -->
+                <div class="mt-6">
                 <h3 class="text-lg font-semibold mb-4 text-gray-800">Current Members</h3>
                 <div v-if="loading" class="p-8 text-center text-gray-500">
                     <spinner />
@@ -62,7 +59,7 @@
                                 v-if="canManageMembers && member.role !== 'owner'"
                                 v-model="member.role"
                                 @change="updateRole(member)"
-                                class="px-2.5 py-1.5 border border-gray-300 rounded text-sm"
+                                class="px-2.5 py-1.5 border border-gray-300 rounded text-sm cursor-pointer"
                             >
                                 <option value="viewer">Viewer</option>
                                 <option value="editor">Editor</option>
@@ -85,17 +82,17 @@
                         <button 
                             v-if="canManageMembers && member.role !== 'owner'"
                             @click="removeMember(member)"
-                            class="px-2.5 py-1.5 bg-red-400 text-white rounded text-sm hover:bg-red-500 transition-colors"
+                            class="px-2.5 py-1.5 bg-red-400 text-white rounded text-sm hover:bg-red-500 transition-colors cursor-pointer"
                             title="Remove member"
                         >
                             ✕
                         </button>
                     </div>
                 </div>
-            </div>
-
-            <!-- Pending Invitations Section -->
-            <div v-if="canManageMembers" class="mt-8">
+                </div>
+                
+                <!-- Pending Invitations Section -->
+                <div v-if="canManageMembers" class="mt-8">
                 <h3 class="text-lg font-semibold mb-4 text-gray-800">Pending Invitations</h3>
                 <div v-if="loadingInvitations" class="p-8 text-center text-gray-500">
                     <spinner />
@@ -138,14 +135,14 @@
                         </div>
                     </div>
                 </div>
+                </div>
             </div>
-        </div>
         </template>
     </overlay-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 
 interface Member {
     id: number;
@@ -197,6 +194,20 @@ watch(() => props.members, (newMembers) => {
     }
 }, { immediate: true, deep: true });
 
+// Fetch pending invitations when dialog opens
+watch(() => props.isOpen, async (newValue) => {
+    if (newValue) {
+        inviteEmail.value = '';
+        inviteMessage.value = '';
+        inviteError.value = false;
+        
+        // Fetch pending invitations if user can manage members
+        if (canManageMembers.value) {
+            await fetchPendingInvitations();
+        }
+    }
+});
+
 const canManageMembers = computed(() => {
     return ['owner', 'admin'].includes(props.userRole);
 });
@@ -205,15 +216,23 @@ function close() {
     emit('close');
 }
 
-function formatDate(dateString: string) {
+function formatDate(dateString: string): string {
     const date = new Date(dateString);
     const now = new Date();
-    const diffDays = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const diffMs = date.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
     
-    if (diffDays < 0) return 'Expired';
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Tomorrow';
-    return `${diffDays} days`;
+    if (diffDays < 0) {
+        return 'expired';
+    } else if (diffDays === 0) {
+        return 'today';
+    } else if (diffDays === 1) {
+        return 'tomorrow';
+    } else if (diffDays < 7) {
+        return `in ${diffDays} days`;
+    } else {
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
 }
 
 async function fetchPendingInvitations() {
@@ -224,6 +243,7 @@ async function fetchPendingInvitations() {
         const response = await fetch(
             `${baseUrl()}/project-invitations/project/${props.projectId}`,
             {
+                method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${getAuthToken()}`,
                     'Authorization-Type': 'auth',
@@ -325,7 +345,6 @@ async function inviteMember() {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${getAuthToken()}`,
-                    'Authorization-Type': 'auth',
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
@@ -389,7 +408,19 @@ async function updateRole(member: Member) {
 }
 
 async function removeMember(member: Member) {
-    if (!confirm(`Remove ${member.user.first_name} ${member.user.last_name} from this project?`)) {
+    const { $swal } = useNuxtApp() as any;
+    const result = await $swal.fire({
+        title: 'Remove Team Member?',
+        text: `Remove ${member.user.first_name} ${member.user.last_name} from this project? This action cannot be undone.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: 'Yes, remove',
+        cancelButtonText: 'Cancel'
+    });
+    
+    if (!result.isConfirmed) {
         return;
     }
     
@@ -415,14 +446,4 @@ async function removeMember(member: Member) {
         console.error('Error removing member:', error);
     }
 }
-
-// Watch for dialog opening to reset form and fetch invitations
-watch(() => props.isOpen, (newValue) => {
-    if (newValue) {
-        inviteEmail.value = '';
-        inviteMessage.value = '';
-        inviteError.value = false;
-        fetchPendingInvitations();
-    }
-});
 </script>
