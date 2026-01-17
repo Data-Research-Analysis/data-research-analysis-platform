@@ -335,6 +335,14 @@ export class UserSubscriptionProcessor {
                     throw new Error(`Unknown email type: ${emailType}`);
             }
             
+            // Helper function to format limit values (null, undefined, or -1 = Unlimited)
+            const formatLimit = (value: number | null | undefined): string => {
+                if (value === null || value === undefined || value === -1) {
+                    return 'Unlimited';
+                }
+                return value.toString();
+            };
+            
             await emailService.sendEmail({
                 to: user.email,
                 subject,
@@ -342,10 +350,11 @@ export class UserSubscriptionProcessor {
                 templateData: {
                     userName,
                     tierName: tier.tier_name,
-                    maxProjects: tier.max_projects || 'Unlimited',
-                    maxDataSources: tier.max_data_sources_per_project || 'Unlimited',
-                    maxDashboards: tier.max_dashboards || 'Unlimited',
-                    aiGenerationsPerMonth: tier.ai_generations_per_month || 'Unlimited',
+                    maxProjects: formatLimit(tier.max_projects),
+                    maxDataSources: formatLimit(tier.max_data_sources_per_project),
+                    maxDashboards: formatLimit(tier.max_dashboards),
+                    maxMembersPerProject: formatLimit(tier.max_members_per_project),
+                    aiGenerationsPerMonth: formatLimit(tier.ai_generations_per_month),
                     maxRowsPerDataModel: tier.max_rows_per_data_model.toLocaleString(),
                     startDate: subscription.started_at,
                     expirationDate: subscription.ends_at || 'Ongoing',
