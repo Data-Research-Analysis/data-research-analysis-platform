@@ -7,7 +7,7 @@ import {
     generalApiLimiter,
     aiOperationsLimiter,
     oauthCallbackLimiter
-} from '../../../../middleware/rateLimit.js';
+} from '../../../middleware/rateLimit.js';
 
 /**
  * Integration Tests for Rate Limit Middleware

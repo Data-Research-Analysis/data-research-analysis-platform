@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@jest/globals';
-import { DRADataModel } from '../DRADataModel.js';
+import { DRADataModel } from '../../models/DRADataModel.js';
 
 describe('DRADataModel Model', () => {
     describe('Entity Structure', () => {

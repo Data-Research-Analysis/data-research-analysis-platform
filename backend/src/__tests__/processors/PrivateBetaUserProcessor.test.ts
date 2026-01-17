@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
-import { PrivateBetaUserProcessor } from '../PrivateBetaUserProcessor.js';
+import { PrivateBetaUserProcessor } from '../../processors/PrivateBetaUserProcessor.js';
 import { DBDriver } from '../../drivers/DBDriver.js';
 import { EDataSourceType } from '../../types/EDataSourceType.js';
 import { EUserType } from '../../types/EUserType.js';

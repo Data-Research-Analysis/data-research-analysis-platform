@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@jest/globals';
-import { DRAUsersPlatform } from '../DRAUsersPlatform.js';
-import { EUserType } from '../../../types/EUserType.js';
+import { DRAUsersPlatform } from '../../models/DRAUsersPlatform.js';
+import { EUserType } from '../../types/EUserType.js';
 
 describe('DRAUsersPlatform Model', () => {
     describe('Entity Structure', () => {

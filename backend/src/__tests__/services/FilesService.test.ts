@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
-import { FilesService } from '../FilesService.js';
+import { FilesService } from '../../services/FilesService.js';
 import fs from 'fs';
 import path from 'path';
 

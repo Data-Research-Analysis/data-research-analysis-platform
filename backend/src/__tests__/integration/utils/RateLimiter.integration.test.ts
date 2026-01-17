@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { RateLimiter, RateLimiterRegistry } from '../RateLimiter.js';
+import { RateLimiter, RateLimiterRegistry } from '../../../utils/RateLimiter.js';
 
 describe('RateLimiter Integration Tests', () => {
     let rateLimiter: RateLimiter;

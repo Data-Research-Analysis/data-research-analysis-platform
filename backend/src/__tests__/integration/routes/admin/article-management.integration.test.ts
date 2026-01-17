@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import request from 'supertest';
 import express from 'express';
-import articleRouter from '../../admin/article.js';
+import articleRouter from '../../../../routes/admin/article.js';
 
 // Mock processors
-jest.mock('../../../processors/ArticleProcessor.js', () => ({
+jest.mock('../../../../processors/ArticleProcessor.js', () => ({
     ArticleProcessor: {
         getInstance: jest.fn(() => ({
             getArticles: jest.fn(),
@@ -17,11 +17,11 @@ jest.mock('../../../processors/ArticleProcessor.js', () => ({
     }
 }));
 
-jest.mock('../../../processors/TokenProcessor.js');
+jest.mock('../../../../processors/TokenProcessor.js');
 
-import { ArticleProcessor } from '../../../../../processors/ArticleProcessor.js';
-import { EUserType } from '../../../../../types/EUserType.js';
-import { EPublishStatus } from '../../../../../types/EPublishStatus.js';
+import { ArticleProcessor } from '../../../../processors/ArticleProcessor.js';
+import { EUserType } from '../../../../types/EUserType.js';
+import { EPublishStatus } from '../../../../types/EPublishStatus.js';
 
 describe('Article Management Routes Integration Tests', () => {
     let app: express.Application;

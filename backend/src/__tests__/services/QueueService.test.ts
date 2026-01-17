@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { QueueService } from '../QueueService.js';
+import { QueueService } from '../../services/QueueService.js';
 
 /**
  * DRA-TEST-003: QueueService Unit Tests

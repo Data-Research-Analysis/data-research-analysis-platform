@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@jest/globals';
-import { SchemaFormatterUtility } from '../SchemaFormatter.js';
-import { TestDataFactory } from '../../../__tests__/mocks/MockManager.js';
+import { SchemaFormatterUtility } from '../../utilities/SchemaFormatter.js';
+import { TestDataFactory } from '../mocks/MockManager.js';
 
 /**
  * Unit tests for SchemaFormatter utility

@@ -1,13 +1,13 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import request from 'supertest';
 import express from 'express';
-import databaseRouter from '../../admin/database.js';
-import { EUserType } from '../../../../../types/EUserType.js';
+import databaseRouter from '../../../../routes/admin/database.js';
+import { EUserType } from '../../../../types/EUserType.js';
 
 // Mock dependencies
-jest.mock('../../../services/DatabaseBackupService.js');
-jest.mock('../../../services/QueueService.js');
-jest.mock('../../../middleware/authenticate.js', () => ({
+jest.mock('../../../../services/DatabaseBackupService.js');
+jest.mock('../../../../services/QueueService.js');
+jest.mock('../../../../middleware/authenticate.js', () => ({
     validateJWT: (req: any, res: any, next: any) => {
         // Attach mock token details
         req.tokenDetails = req.body.mockTokenDetails || {

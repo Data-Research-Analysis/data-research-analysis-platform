@@ -1,4 +1,4 @@
-import { TierEnforcementService } from '../TierEnforcementService.js';
+import { TierEnforcementService } from '../../services/TierEnforcementService.js';
 import { TierLimitError } from '../../types/TierLimitError.js';
 import { ESubscriptionTier } from '../../models/DRASubscriptionTier.js';
 import { EUserType } from '../../types/EUserType.js';

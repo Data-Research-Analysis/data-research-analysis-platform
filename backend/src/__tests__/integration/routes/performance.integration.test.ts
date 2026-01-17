@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import request from 'supertest';
 import express from 'express';
-import performanceRouter from '../performance.js';
+import performanceRouter from '../../../routes/performance.js';
 
 // Mock performance aggregator
 const mockPerformanceAggregator = {
@@ -14,13 +14,13 @@ const mockPerformanceAggregator = {
     clearOperation: jest.fn()
 };
 
-jest.mock('../../utils/PerformanceMetrics.js', () => ({
+jest.mock('../../../utils/PerformanceMetrics.js', () => ({
     globalPerformanceAggregator: mockPerformanceAggregator
 }));
 
-jest.mock('../../processors/TokenProcessor.js');
+jest.mock('../../../processors/TokenProcessor.js');
 
-import { EUserType } from '../../../../types/EUserType.js';
+import { EUserType } from '../../../types/EUserType.js';
 
 describe('Performance Monitoring Routes Integration Tests', () => {
     let app: express.Application;

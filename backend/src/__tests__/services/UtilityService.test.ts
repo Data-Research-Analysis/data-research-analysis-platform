@@ -1,4 +1,4 @@
-import { UtilityService } from '../UtilityService.js';
+import { UtilityService } from '../../services/UtilityService.js';
 import { EDataSourceType } from '../../types/EDataSourceType.js';
 
 describe('UtilityService', () => {

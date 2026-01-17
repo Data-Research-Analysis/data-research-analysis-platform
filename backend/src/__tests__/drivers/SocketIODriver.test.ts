@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import { Server as SocketIOServer } from 'socket.io';
 import { Server as HTTPServer } from 'http';
-import { SocketIODriver } from '../../../drivers/SocketIODriver.js';
+import { SocketIODriver } from '../../drivers/SocketIODriver.js';
 
 // Mock socket.io
 jest.mock('socket.io');

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
-import { GoogleOAuthService } from '../GoogleOAuthService.js';
+import { GoogleOAuthService } from '../../services/GoogleOAuthService.js';
 
 /**
  * Unit tests for GoogleOAuthService - OAuth extension for GAM

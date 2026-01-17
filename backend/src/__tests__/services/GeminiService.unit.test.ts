@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
-import { GeminiService } from '../GeminiService.js';
-import { MockGenAI } from '../../__tests__/mocks/MockManager.js';
+import { GeminiService } from '../../services/GeminiService.js';
+import { MockGenAI } from '../mocks/MockManager.js';
 
 // Mock the Google GenAI import
 jest.mock('@google/genai', () => ({

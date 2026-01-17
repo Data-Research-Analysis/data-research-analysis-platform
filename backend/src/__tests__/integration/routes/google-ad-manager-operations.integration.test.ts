@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import request from 'supertest';
 import express from 'express';
-import googleAdManagerRouter from '../google_ad_manager.js';
+import googleAdManagerRouter from '../../../routes/google_ad_manager.js';
 
 // Mock services
-jest.mock('../../services/GoogleAdManagerService.js', () => ({
+jest.mock('../../../services/GoogleAdManagerService.js', () => ({
     GoogleAdManagerService: {
         getInstance: jest.fn(() => ({
             listNetworks: jest.fn(),
@@ -33,12 +33,12 @@ jest.mock('../../processors/DataSourceProcessor.js', () => ({
     }
 }));
 
-jest.mock('../../processors/TokenProcessor.js');
+jest.mock('../../../processors/TokenProcessor.js');
 
-import { GoogleAdManagerService } from '../../../../services/GoogleAdManagerService.js';
-import { GoogleAdManagerDriver } from '../../../../drivers/GoogleAdManagerDriver.js';
-import { DataSourceProcessor } from '../../../../processors/DataSourceProcessor.js';
-import { EUserType } from '../../../../types/EUserType.js';
+import { GoogleAdManagerService } from '../../../services/GoogleAdManagerService.js';
+import { GoogleAdManagerDriver } from '../../../drivers/GoogleAdManagerDriver.js';
+import { DataSourceProcessor } from '../../../processors/DataSourceProcessor.js';
+import { EUserType } from '../../../types/EUserType.js';
 
 describe('Google Ad Manager Operations Integration Tests', () => {
     let app: express.Application;

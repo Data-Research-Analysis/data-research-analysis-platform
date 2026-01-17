@@ -1,4 +1,4 @@
-import { RowLimitService } from '../RowLimitService.js';
+import { RowLimitService } from '../../services/RowLimitService.js';
 import { ESubscriptionTier } from '../../models/DRASubscriptionTier.js';
 import { DBDriver } from '../../drivers/DBDriver.js';
 

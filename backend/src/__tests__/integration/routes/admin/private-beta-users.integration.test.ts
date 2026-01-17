@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import request from 'supertest';
 import express from 'express';
-import privateBetaUsersRouter from '../../admin/private-beta-users.js';
+import privateBetaUsersRouter from '../../../../routes/admin/private-beta-users.js';
 
 // Mock processors
-jest.mock('../../../processors/PrivateBetaUserProcessor.js', () => ({
+jest.mock('../../../../processors/PrivateBetaUserProcessor.js', () => ({
     PrivateBetaUserProcessor: {
         getInstance: jest.fn(() => ({
             getUsers: jest.fn()
@@ -12,10 +12,10 @@ jest.mock('../../../processors/PrivateBetaUserProcessor.js', () => ({
     }
 }));
 
-jest.mock('../../../processors/TokenProcessor.js');
+jest.mock('../../../../processors/TokenProcessor.js');
 
-import { PrivateBetaUserProcessor } from '../../../../../processors/PrivateBetaUserProcessor.js';
-import { EUserType } from '../../../../../types/EUserType.js';
+import { PrivateBetaUserProcessor } from '../../../../processors/PrivateBetaUserProcessor.js';
+import { EUserType } from '../../../../types/EUserType.js';
 
 describe('Private Beta Users Routes Integration Tests', () => {
     let app: express.Application;

@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { PerformanceMetrics, PerformanceAggregator } from '../PerformanceMetrics.js';
+import { PerformanceMetrics, PerformanceAggregator } from '../../utils/PerformanceMetrics.js';
 
 describe('PerformanceMetrics', () => {
     let metrics: PerformanceMetrics;

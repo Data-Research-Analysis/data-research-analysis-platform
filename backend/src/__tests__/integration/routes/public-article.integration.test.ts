@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import request from 'supertest';
 import express from 'express';
-import articleRouter from '../article.js';
+import articleRouter from '../../../routes/article.js';
 
 // Mock processors
-jest.mock('../../processors/ArticleProcessor.js', () => ({
+jest.mock('../../../processors/ArticleProcessor.js', () => ({
     ArticleProcessor: {
         getInstance: jest.fn(() => ({
             getPublicArticles: jest.fn()
@@ -12,10 +12,10 @@ jest.mock('../../processors/ArticleProcessor.js', () => ({
     }
 }));
 
-jest.mock('../../processors/TokenProcessor.js');
+jest.mock('../../../processors/TokenProcessor.js');
 
-import { ArticleProcessor } from '../../../../processors/ArticleProcessor.js';
-import { EUserType } from '../../../../types/EUserType.js';
+import { ArticleProcessor } from '../../../processors/ArticleProcessor.js';
+import { EUserType } from '../../../types/EUserType.js';
 
 describe('Public Article Routes Integration Tests', () => {
     let app: express.Application;

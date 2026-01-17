@@ -1,13 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
-import { TierEnforcementService } from '../../../services/TierEnforcementService.js';
-import { TierLimitError } from '../../../types/TierLimitError.js';
-import { ESubscriptionTier } from '../../../models/DRASubscriptionTier.js';
+import { TierEnforcementService } from '../../services/TierEnforcementService.js';
+import { TierLimitError } from '../../types/TierLimitError.js';
+import { ESubscriptionTier } from '../../models/DRASubscriptionTier.js';
 import {
     enforceProjectLimit,
     enforceDataSourceLimit,
     enforceDashboardLimit,
     enforceAIGenerationLimit,
-} from '../tierEnforcement.js';
+} from '../../middleware/tierEnforcement.js';
 
 // Mock TierEnforcementService
 jest.mock('../../services/TierEnforcementService.js');

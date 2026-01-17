@@ -1,10 +1,10 @@
 import request from 'supertest';
 import express, { Application } from 'express';
-import dashboardRouter from '../dashboard.js';
-import { DashboardProcessor } from '../../../../processors/DashboardProcessor.js';
-import { TokenProcessor } from '../../../../processors/TokenProcessor.js';
-import { ITokenDetails } from '../../../../types/ITokenDetails.js';
-import { EUserType } from '../../../../types/EUserType.js';
+import dashboardRouter from '../../../routes/dashboard.js';
+import { DashboardProcessor } from '../../../processors/DashboardProcessor.js';
+import { TokenProcessor } from '../../../processors/TokenProcessor.js';
+import { ITokenDetails } from '../../../types/ITokenDetails.js';
+import { EUserType } from '../../../types/EUserType.js';
 
 // Mock processors
 const mockAddDashboard: any = jest.fn();

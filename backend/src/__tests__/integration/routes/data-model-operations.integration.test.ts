@@ -1,9 +1,9 @@
 import { jest } from '@jest/globals';
-import { DataModelProcessor } from '../../../../processors/DataModelProcessor.js';
-import { DataSourceProcessor } from '../../../../processors/DataSourceProcessor.js';
-import { CrossSourceJoinService } from '../../../../services/CrossSourceJoinService.js';
-import { ITokenDetails } from '../../../../types/ITokenDetails.js';
-import { EUserType } from '../../../../types/EUserType.js';
+import { DataModelProcessor } from '../../../processors/DataModelProcessor.js';
+import { DataSourceProcessor } from '../../../processors/DataSourceProcessor.js';
+import { CrossSourceJoinService } from '../../../services/CrossSourceJoinService.js';
+import { ITokenDetails } from '../../../types/ITokenDetails.js';
+import { EUserType } from '../../../types/EUserType.js';
 
 /**
  * TEST-013: Data Model Routes Integration Tests

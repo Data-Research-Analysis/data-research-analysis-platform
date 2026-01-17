@@ -6,6 +6,7 @@ import { DRAUsersPlatform } from '../../models/DRAUsersPlatform.js';
 import { DRADataSource } from '../../models/DRADataSource.js';
 import { DRADataModel } from '../../models/DRADataModel.js';
 import { DRADashboard } from '../../models/DRADashboard.js';
+import { EDataSourceType } from '../../types/EDataSourceType.js';
 
 describe('PermissionService', () => {
     let permissionService: PermissionService;
@@ -42,7 +43,7 @@ describe('PermissionService', () => {
         // Create test data source
         testDataSource = manager.create(DRADataSource, {
             name: `Test DataSource ${Date.now()}`,
-            data_type: 'postgresql',
+            data_type: EDataSourceType.POSTGRESQL,
             project: testProject,
             connection_details: {}
         });

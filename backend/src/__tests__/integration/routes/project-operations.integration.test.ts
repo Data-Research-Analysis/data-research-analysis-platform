@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals';
-import { ProjectProcessor } from '../../../../processors/ProjectProcessor.js';
-import { ITokenDetails } from '../../../../types/ITokenDetails.js';
-import { EUserType } from '../../../../types/EUserType.js';
+import { ProjectProcessor } from '../../../processors/ProjectProcessor.js';
+import { ITokenDetails } from '../../../types/ITokenDetails.js';
+import { EUserType } from '../../../types/EUserType.js';
 
 /**
  * TEST-014: Project Routes Integration Tests

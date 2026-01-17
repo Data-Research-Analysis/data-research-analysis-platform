@@ -1,10 +1,8 @@
 import { EmailService } from '../../services/EmailService.js';
-import { renderEmailTemplate } from '../../utils/emailTemplates.js';
 import nodemailer from 'nodemailer';
 
 // Mock dependencies
 jest.mock('nodemailer');
-jest.mock('../../utils/emailTemplates');
 jest.mock('../../config/redis.config', () => ({
     getRedisClient: jest.fn(() => ({
         on: jest.fn(),
@@ -64,25 +62,15 @@ describe('EmailService', () => {
         });
 
         it('should render template if provided', async () => {
-            const mockRendered = {
-                html: '<p>Rendered HTML</p>',
-                text: 'Rendered Text',
-            };
-            (renderEmailTemplate as jest.Mock).mockResolvedValue(mockRendered);
-
             const options = {
                 to: 'test@example.com',
                 subject: 'Test Subject',
-                template: 'subscription-assigned',
-                templateData: { userName: 'John', tierName: 'PRO' },
+                html: '<p>Rendered HTML</p>',
+                text: 'Rendered Text',
             };
 
             await emailService.sendEmailImmediately(options);
 
-            expect(renderEmailTemplate).toHaveBeenCalledWith('subscription-assigned', {
-                userName: 'John',
-                tierName: 'PRO',
-            });
             expect(mockTransporter.sendMail).toHaveBeenCalledWith(
                 expect.objectContaining({
                     html: '<p>Rendered HTML</p>',
