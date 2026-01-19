@@ -16,6 +16,7 @@ import data_source from './routes/data_source.js';
 import data_model from './routes/data_model.js';
 import data_model_refresh from './routes/dataModelRefresh.js';
 import dashboard from './routes/dashboard.js';
+import dashboard_query from './routes/dashboardQuery.js';
 import ai_data_modeler from './routes/ai_data_modeler.js';
 import oauth from './routes/oauth.js';
 import google_analytics from './routes/google_analytics.js';
@@ -63,6 +64,13 @@ if (process.env.BACKUP_ENABLED !== 'false') {
 }
 console.log('✅ Scheduled backup service initialized');
 
+// Initialize data source sync scheduler
+import { SchedulerService } from './services/SchedulerService.js';
+if (process.env.SYNC_SCHEDULER_ENABLED !== 'false') {
+    await SchedulerService.getInstance().initialize();
+}
+console.log('✅ Data source sync scheduler initialized');
+
 // Start invitation expiration cron job
 import { startInvitationExpirationJob } from './jobs/expireInvitations.js';
 startInvitationExpirationJob();
@@ -97,6 +105,7 @@ app.use('/data-source', data_source);
 app.use('/data-model', data_model);
 app.use('/refresh', data_model_refresh);
 app.use('/dashboard', dashboard);
+app.use('/dashboard', dashboard_query);
 app.use('/ai-data-modeler', ai_data_modeler);
 app.use('/oauth', oauth);
 app.use('/google-analytics', google_analytics);
