@@ -30,7 +30,7 @@ router.post('/query',
         body('query').notEmpty().isString().trim(),
         body('query_params').optional().isObject()
     ]),
-    requireDataModelPermission(EAction.READ, 'data_model_id', 'body'),
+    requireDataModelPermission(EAction.READ, 'data_model_id'),
     async (req: Request, res: Response) => {
         try {
             const { data_model_id, query, query_params } = matchedData(req);

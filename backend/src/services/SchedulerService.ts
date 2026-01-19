@@ -1,10 +1,11 @@
 import cron from 'node-cron';
 import { PostgresDataSource } from '../datasources/PostgresDataSource.js';
 import { DRADataSource } from '../models/DRADataSource.js';
-import { GoogleAnalyticsService } from './GoogleAnalyticsService.js';
-import { GoogleAdManagerService } from './GoogleAdManagerService.js';
-import { GoogleAdsService } from './GoogleAdsService.js';
+import { DRAUsersPlatform } from '../models/DRAUsersPlatform.js';
+import { DataSourceProcessor } from '../processors/DataSourceProcessor.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
+import { EUserType } from '../types/EUserType.js';
+import { ITokenDetails } from '../types/ITokenDetails.js';
 import { In } from 'typeorm';
 import dotenv from 'dotenv';
 
@@ -54,9 +55,10 @@ export class SchedulerService {
         this.cronJob = cron.schedule('* * * * *', async () => {
             await this.processDueSyncs();
         }, {
-            scheduled: true,
             timezone: 'UTC'
         });
+        
+        this.cronJob.start();
 
         this.initialized = true;
         console.log('✅ Scheduler service initialized - checking for syncs every minute');
@@ -99,11 +101,12 @@ export class SchedulerService {
             const dueSources = await dataSource
                 .getRepository(DRADataSource)
                 .createQueryBuilder('ds')
+                .leftJoinAndSelect('ds.users_platform', 'up')
                 .where('ds.sync_enabled = :enabled', { enabled: true })
                 .andWhere('ds.sync_schedule IS NOT NULL')
                 .andWhere('ds.sync_schedule != :manual', { manual: 'manual' })
                 .andWhere('ds.next_scheduled_sync <= :now', { now })
-                .andWhere('ds.type IN (:...types)', { 
+                .andWhere('ds.data_type IN (:...types)', { 
                     types: [
                         EDataSourceType.GOOGLE_ANALYTICS,
                         EDataSourceType.GOOGLE_AD_MANAGER,
@@ -142,34 +145,77 @@ export class SchedulerService {
         this.runningSyncs.set(dataSource.id, true);
 
         try {
-            console.log(`[Scheduler] ⏰ Triggering scheduled sync for: ${dataSource.display_name} (ID: ${dataSource.id})`);
+            console.log(`[Scheduler] ⏰ Triggering scheduled sync for: ${dataSource.name} (ID: ${dataSource.id})`);
+
+            const processor = DataSourceProcessor.getInstance();
+
+            // Get API connection details for OAuth token information
+            const apiConnectionDetails = dataSource.connection_details?.api_connection_details;
+            if (!apiConnectionDetails) {
+                console.error(`[Scheduler] No API connection details found for data source ${dataSource.id}`);
+                return;
+            }
+
+            // Get user details from database
+            if (!dataSource.users_platform?.id) {
+                console.error(`[Scheduler] No user associated with data source ${dataSource.id}`);
+                return;
+            }
+
+            const host = process.env.POSTGRESQL_HOST || 'localhost';
+            const port = parseInt(process.env.POSTGRESQL_PORT || '5432');
+            const database = process.env.POSTGRESQL_DB_NAME || 'postgres_dra_db';
+            const username = process.env.POSTGRESQL_USERNAME || 'postgres';
+            const password = process.env.POSTGRESQL_PASSWORD || 'password';
+            const db = PostgresDataSource.getInstance().getDataSource(host, port, database, username, password);
+
+            if (!db.isInitialized) {
+                await db.initialize();
+            }
+
+            const user = await db.getRepository(DRAUsersPlatform).findOne({
+                where: { id: dataSource.users_platform.id }
+            });
+
+            if (!user) {
+                console.error(`[Scheduler] User not found for data source ${dataSource.id}`);
+                return;
+            }
+
+            // Build token details for sync
+            const tokenDetails: ITokenDetails = {
+                user_id: user.id,
+                email: user.email,
+                user_type: EUserType.NORMAL,
+                iat: Math.floor(Date.now() / 1000)
+            };
 
             // Trigger sync based on data source type
-            switch (dataSource.type) {
+            switch (dataSource.data_type) {
                 case EDataSourceType.GOOGLE_ANALYTICS:
-                    await GoogleAnalyticsService.getInstance().sync(dataSource.id);
+                    await processor.syncGoogleAnalyticsDataSource(dataSource.id, tokenDetails);
                     break;
 
                 case EDataSourceType.GOOGLE_AD_MANAGER:
-                    await GoogleAdManagerService.getInstance().sync(dataSource.id);
+                    await processor.syncGoogleAdManagerDataSource(dataSource.id, tokenDetails);
                     break;
 
                 case EDataSourceType.GOOGLE_ADS:
-                    await GoogleAdsService.getInstance().sync(dataSource.id);
+                    await processor.syncGoogleAdsDataSource(dataSource.id, user.id);
                     break;
 
                 default:
-                    console.warn(`[Scheduler] Unsupported data source type: ${dataSource.type}`);
+                    console.warn(`[Scheduler] Unsupported data source type: ${dataSource.data_type}`);
                     return;
             }
 
             // Update next scheduled sync time
             await this.updateNextScheduledSync(dataSource);
 
-            console.log(`[Scheduler] ✅ Scheduled sync triggered successfully for: ${dataSource.display_name}`);
+            console.log(`[Scheduler] ✅ Scheduled sync triggered successfully for: ${dataSource.name}`);
 
         } catch (error: any) {
-            console.error(`[Scheduler] ❌ Failed to trigger sync for ${dataSource.display_name}:`, error.message);
+            console.error(`[Scheduler] ❌ Failed to trigger sync for ${dataSource.name}:`, error.message);
         } finally {
             this.runningSyncs.delete(dataSource.id);
         }
@@ -191,19 +237,23 @@ export class SchedulerService {
                 await db.initialize();
             }
 
-            const nextRun = this.calculateNextRun(dataSource.sync_schedule, dataSource.sync_schedule_time);
+            const nextRun = this.calculateNextRun(
+                (dataSource as any).sync_schedule,
+                (dataSource as any).sync_schedule_time
+            );
 
             await db
                 .getRepository(DRADataSource)
-                .update(
-                    { id: dataSource.id },
-                    { 
-                        next_scheduled_sync: nextRun,
-                        updated_at: new Date()
-                    }
-                );
+                .createQueryBuilder()
+                .update()
+                .set({
+                    next_scheduled_sync: nextRun,
+                    created_at: new Date()
+                } as any)
+                .where('id = :id', { id: dataSource.id })
+                .execute();
 
-            console.log(`[Scheduler] Next sync for ${dataSource.display_name} scheduled for: ${nextRun.toISOString()}`);
+            console.log(`[Scheduler] Next sync for ${dataSource.name} scheduled for: ${nextRun.toISOString()}`);
 
         } catch (error: any) {
             console.error(`[Scheduler] Error updating next sync time:`, error.message);

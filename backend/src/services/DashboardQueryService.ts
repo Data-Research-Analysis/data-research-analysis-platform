@@ -138,12 +138,12 @@ export class DashboardQueryService {
 
         const connectionDetails = dataSource.connection_details;
 
-        switch (dataSource.type) {
+        switch (dataSource.data_type) {
             case EDataSourceType.POSTGRESQL:
                 return PostgresDataSource.getInstance().getDataSource(
                     connectionDetails.host,
                     connectionDetails.port,
-                    connectionDetails.database_name,
+                    connectionDetails.database,
                     connectionDetails.username,
                     connectionDetails.password
                 );
@@ -152,7 +152,7 @@ export class DashboardQueryService {
                 return MySQLDataSource.getInstance().getDataSource(
                     connectionDetails.host,
                     connectionDetails.port,
-                    connectionDetails.database_name,
+                    connectionDetails.database,
                     connectionDetails.username,
                     connectionDetails.password
                 );
@@ -161,13 +161,13 @@ export class DashboardQueryService {
                 return MariaDBDataSource.getInstance().getDataSource(
                     connectionDetails.host,
                     connectionDetails.port,
-                    connectionDetails.database_name,
+                    connectionDetails.database,
                     connectionDetails.username,
                     connectionDetails.password
                 );
 
             default:
-                throw new Error(`Unsupported data source type: ${dataSource.type}`);
+                throw new Error(`Unsupported data source type: ${dataSource.data_type}`);
         }
     }
 
@@ -213,8 +213,8 @@ export class DashboardQueryService {
      * Returns all columns with LIMIT clause
      */
     public buildDefaultQuery(dataModel: DRADataModel, limit: number = 1000): string {
-        const schemaName = dataModel.data_source_schema;
-        const tableName = dataModel.physical_table_name;
+        const schemaName = dataModel.schema;
+        const tableName = dataModel.name;
 
         return `SELECT * FROM "${schemaName}"."${tableName}" LIMIT ${limit}`;
     }
