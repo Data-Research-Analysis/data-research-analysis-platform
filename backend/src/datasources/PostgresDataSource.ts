@@ -16,6 +16,7 @@ import { DRASitemapEntry } from "../models/DRASitemapEntry.js";
 import { DRADashboardExportMetaData } from "../models/DRADashboardExportMetaData.js";
 import { DRAAIDataModelConversation } from "../models/DRAAIDataModelConversation.js";
 import { DRAAIDataModelMessage } from "../models/DRAAIDataModelMessage.js";
+import { DRADataModelRefreshHistory } from "../models/DRADataModelRefreshHistory.js";
 import { DRAScheduledBackupRun } from "../models/DRAScheduledBackupRun.js";
 import { DRASubscriptionTier } from "../models/DRASubscriptionTier.js";
 import { DRAUserSubscription } from "../models/DRAUserSubscription.js";
@@ -45,7 +46,7 @@ export class PostgresDataSource {
             database: database,
             synchronize: false,
             logging: true,
-            entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAPrivateBetaUsers, DRADashboard, DRAArticle, DRAArticleCategory, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRAScheduledBackupRun, DRASubscriptionTier, DRAUserSubscription, DRAProjectMember, DRAProjectInvitation, SyncHistory],
+            entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAPrivateBetaUsers, DRADashboard, DRAArticle, DRAArticleCategory, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRADataModelRefreshHistory, DRAScheduledBackupRun, DRASubscriptionTier, DRAUserSubscription, DRAProjectMember, DRAProjectInvitation, SyncHistory],
             subscribers: [],
             // Only load TypeORM migration files (exclude utility scripts like migrate-articles-markdown.ts)
             migrations: ['./src/migrations/*.ts'],

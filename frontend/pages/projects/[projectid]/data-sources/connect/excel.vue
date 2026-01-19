@@ -215,7 +215,7 @@ async function createDataSource() {
         text: `Excel data source created with ${state.sheets.length} sheets.`,
     });
     
-    router.push(`/projects/${route.params.projectid}/data-sources`);
+    router.push(`/projects/${route.params.projectid}`);
 }
 function isValidFile(file) {
   const validExtensions = ['.xlsx', '.xls', '.csv']

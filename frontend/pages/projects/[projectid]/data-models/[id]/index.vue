@@ -34,9 +34,28 @@
       </div>
 
       <!-- Content -->
-      <div v-else-if="dataModel" class="bg-white shadow-md overflow-hidden">
-        <div class="px-6 py-4">
-          <h2 class="text-lg font-semibold text-gray-900 mb-4">Data Model Details</h2>
+      <div v-else-if="dataModel" class="space-y-6">
+        <!-- Refresh Status Card -->
+        <RefreshStatusCard
+          :data-model-id="dataModelId"
+          :last-refreshed-at="dataModel.last_refreshed_at"
+          :row-count="dataModel.row_count"
+          :last-duration="dataModel.last_refresh_duration_ms"
+          :refresh-status="dataModel.refresh_status"
+          :refresh-error="dataModel.refresh_error"
+          :auto-refresh-enabled="dataModel.auto_refresh_enabled"
+          @refresh="handleRefresh"
+          @toggle-auto-refresh="handleToggleAutoRefresh" />
+        
+        <!-- Refresh History -->
+        <RefreshHistoryTable
+          :history="refreshHistory"
+          :loading="historyLoading" />
+        
+        <!-- Data Model Details -->
+        <div class="bg-white shadow-md overflow-hidden">
+          <div class="px-6 py-4">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Data Model Details</h2>
           
           <!-- Model Info -->
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -91,6 +110,7 @@
             </button>
             <pre v-if="showQueryJson" class="mt-2 bg-gray-50 p-4 rounded-lg text-xs overflow-x-auto">{{ JSON.stringify(dataModel.query, null, 2) }}</pre>
           </div>
+          </div>
         </div>
       </div>
 
@@ -110,7 +130,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useDataModelsStore } from '~/stores/data_models';
 
@@ -122,6 +142,9 @@ const dataModelId = computed(() => parseInt(route.params.id as string));
 const loading = ref(true);
 const dataModel = ref<any>(null);
 const showQueryJson = ref(false);
+const refreshHistory = ref<any[]>([]);
+const historyLoading = ref(false);
+let refreshInterval: NodeJS.Timeout | null = null;
 
 onMounted(async () => {
   loading.value = true;
@@ -135,6 +158,19 @@ onMounted(async () => {
     
     if (!dataModel.value) {
       console.error('Data model not found:', dataModelId.value);
+    } else {
+      // Load refresh history
+      await loadRefreshHistory();
+      
+      // Set up periodic refresh of data model status (every 10 seconds)
+      refreshInterval = setInterval(async () => {
+        await dataModelsStore.retrieveDataModels(projectId.value);
+        const models = dataModelsStore.dataModels;
+        const updated = models.find((m: any) => m.id === dataModelId.value);
+        if (updated) {
+          dataModel.value = updated;
+        }
+      }, 10000);
     }
   } catch (error) {
     console.error('Error loading data model:', error);
@@ -142,6 +178,77 @@ onMounted(async () => {
     loading.value = false;
   }
 });
+
+onUnmounted(() => {
+  if (refreshInterval) {
+    clearInterval(refreshInterval);
+  }
+});
+
+async function loadRefreshHistory() {
+  historyLoading.value = true;
+  try {
+    const result = await dataModelsStore.getRefreshHistory(dataModelId.value);
+    refreshHistory.value = result.history || [];
+  } catch (error) {
+    console.error('Error loading refresh history:', error);
+  } finally {
+    historyLoading.value = false;
+  }
+}
+
+async function handleRefresh() {
+  // Reload data model to get updated status
+  await dataModelsStore.retrieveDataModels(projectId.value);
+  const models = dataModelsStore.dataModels;
+  const updated = models.find((m: any) => m.id === dataModelId.value);
+  if (updated) {
+    dataModel.value = updated;
+  }
+  
+  // Reload history
+  await loadRefreshHistory();
+}
+
+async function handleToggleAutoRefresh(enabled: boolean) {
+  try {
+    const token = getAuthToken();
+    if (!token) return;
+    
+    const url = `${baseUrl()}/data-model/${dataModelId.value}`;
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        'Authorization-Type': 'auth',
+      },
+      body: JSON.stringify({
+        auto_refresh_enabled: enabled
+      })
+    });
+    
+    if (response.ok) {
+      dataModel.value.auto_refresh_enabled = enabled;
+      
+      if (import.meta.client) {
+        const Swal = (await import('sweetalert2')).default;
+        Swal.fire({
+          icon: 'success',
+          title: 'Settings Updated',
+          text: `Auto-refresh ${enabled ? 'enabled' : 'disabled'}`,
+          toast: true,
+          position: 'top-end',
+          showConfirmButton: false,
+          timer: 3000,
+          timerProgressBar: true
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Error toggling auto-refresh:', error);
+  }
+}
 
 function getModelSources() {
   if (!dataModel.value) return [];

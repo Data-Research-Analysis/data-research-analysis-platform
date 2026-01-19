@@ -1,6 +1,7 @@
 <script setup>
 import { useDataSourceStore } from '@/stores/data_sources';
 import { useProjectsStore } from '@/stores/projects';
+import { useDashboardsStore } from '~/stores/dashboards';
 import { useSubscriptionStore } from '@/stores/subscription';
 import { useGoogleAnalytics } from '@/composables/useGoogleAnalytics';
 import { useGoogleAdManager } from '@/composables/useGoogleAdManager';
@@ -17,12 +18,14 @@ import googleAdsImage from '/assets/images/google-ads.png';
 
 const dataSourceStore = useDataSourceStore();
 const projectsStore = useProjectsStore();
+const dashboardsStore = useDashboardsStore();
 const subscriptionStore = useSubscriptionStore();
 const analytics = useGoogleAnalytics();
 const gam = useGoogleAdManager();
 const ads = useGoogleAds();
 const { $swal } = useNuxtApp();
 const route = useRoute();
+const router = useRouter();
 
 // Get project ID from route
 const projectId = parseInt(String(route.params.projectid));
@@ -56,6 +59,14 @@ if (import.meta.client) {
         });
     }, { immediate: true });
 }
+
+const dashboardCount = computed(() => {
+    const allDashboards = dashboardsStore.getDashboards();
+    return allDashboards.filter((d) => {
+        const dProjectId = d.project_id || d.project?.id;
+        return dProjectId === projectId;
+    }).length;
+});
 
 const state = reactive({
     show_dialog: false,
@@ -171,6 +182,30 @@ async function deleteDataSource(dataSourceId) {
 async function setSelectedDataSource(dataSourceId) {
     const dataSource = state.data_sources.find((dataSource) => dataSource.id === dataSourceId);
     dataSourceStore.setSelectedDataSource(dataSource);
+}
+
+/**
+ * Navigate to data source detail page
+ */
+function goToDataSource(dataSourceId) {
+    router.push(`/projects/${projectId}/data-sources/${dataSourceId}`);
+}
+
+/**
+ * Get data source image by type
+ */
+function getDataSourceImage(dataType) {
+    const images = {
+        'google_analytics': googleAnalyticsImage,
+        'google_ad_manager': googleAdManagerImage,
+        'google_ads': googleAdsImage,
+        'postgresql': postgresqlImage,
+        'mysql': mysqlImage,
+        'mariadb': mariadbImage,
+        'pdf': pdfImage,
+        'excel': excelImage
+    };
+    return images[dataType] || postgresqlImage;
 }
 
 /**
@@ -427,18 +462,42 @@ onMounted(async () => {
                     </span>
                 </div>
             </div>
-            <div class="text-md">
+            <!-- Stats Bar -->
+            <div v-if="!state.loading && state.data_sources.length > 0" class="mb-6 bg-white border border-gray-200 rounded-lg p-4 flex items-center gap-6">
+                <div class="flex items-center gap-2">
+                    <font-awesome icon="fas fa-database" class="text-primary-blue-100 text-xl" />
+                    <span class="text-2xl font-bold text-gray-900">{{ state.data_sources.length }}</span>
+                    <span class="text-gray-600">Connected Source{{ state.data_sources.length !== 1 ? 's' : '' }}</span>
+                </div>
+                <div class="h-8 w-px bg-gray-300"></div>
+                <div class="flex items-center gap-2">
+                    <font-awesome icon="fas fa-chart-bar" class="text-green-600 text-xl" />
+                    <span class="text-2xl font-bold text-gray-900">
+                        {{ state.data_sources.reduce((sum, ds) => sum + ds.dataModels, 0) }}
+                    </span>
+                    <span class="text-gray-600">Total Models</span>
+                </div>
+                <div class="h-8 w-px bg-gray-300"></div>
+                <div class="flex items-center gap-2">
+                    <font-awesome icon="fas fa-chart-line" class="text-purple-600 text-xl" />
+                    <span class="text-2xl font-bold text-gray-900">{{ dashboardCount }}</span>
+                    <span class="text-gray-600">Dashboard{{ dashboardCount !== 1 ? 's' : '' }}</span>
+                </div>
+                <div class="h-8 w-px bg-gray-300"></div>
+                <div class="flex items-center gap-2">
+                    <font-awesome icon="fas fa-check-circle" class="text-green-600 text-xl" />
+                    <span class="text-2xl font-bold text-gray-900">
+                        {{ state.data_sources.filter(ds => isRecentlySynced(ds)).length }}
+                    </span>
+                    <span class="text-gray-600">Synced</span>
+                </div>
+            </div>
+
+            <div class="text-md mb-4">
                 Data sources are the basic entity that you provide. A data source can range from a simple excel file to
                 a PostgresSQL. This is the data that you provide which you will then work with in order to reach your
                 analysis goals.
             </div>
-            <div v-if="project && project.description" class="text-lg font3-bold mt-5">
-                Project Description
-            </div>
-            <div v-if="project && project.description" class="text-md">
-                {{ project.description }}
-            </div>
-
             <!-- Skeleton loader for loading state -->
             <div v-if="state.loading"
                 class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5">
@@ -474,93 +533,146 @@ onMounted(async () => {
             </div>
 
             <!-- Actual content -->
-            <div v-if="!state.loading"
-                class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5">
-                <notched-card v-if="permissions.canCreate.value" class="justify-self-center mt-10">
-                    <template #body="{ onClick }">
-                        <div class="flex flex-col justify-center text-md font-bold cursor-pointer items-center"
-                            @click="openDialog">
-                            <div
-                                class="bg-gray-300 border border-gray-300 border-solid rounded-full w-20 h-20 flex items-center justify-center mb-5">
-                                <font-awesome icon="fas fa-plus" class="text-4xl text-gray-500" />
-                            </div>
-                            Connect to External Data Source
-                        </div>
-                    </template>
-                </notched-card>
-                <div v-if="state.data_sources && state.data_sources.length" v-for="dataSource in state.data_sources"
-                    class="relative">
-                    <notched-card class="justify-self-center mt-10">
-                        <template #body="{ onClick }">
-                            <div class="flex flex-col h-full">
-                                <NuxtLink :to="`/projects/${project.id}/data-sources/${dataSource.id}/data-models`"
-                                    class="hover:text-gray-500 cursor-pointer flex-grow"
-                                    @click="setSelectedDataSource(dataSource.id)">
-                                    <div class="flex flex-col justify-start h-full">
-                                        <div class="mb-2">
-                                            <div class="text-md font-bold mb-2">
-                                                {{ dataSource.name }}
-                                            </div>
-                                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                                {{ dataSource.dataModels }} Models
-                                            </span>
-                                        </div>
+            <div v-if="!state.loading">
+                <!-- Header Section with Button -->
+                <button
+                    v-if="permissions.canCreate.value && state.data_sources.length"
+                    @click="openDialog"
+                    class="px-6 py-3 mb-4 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 transition-colors duration-200 inline-flex items-center gap-2 cursor-pointer">
+                    <font-awesome icon="fas fa-plus" />
+                    Connect Data Source
+                </button>
 
-                                        <!-- Google Analytics, Google Ad Manager & Google Ads sync status -->
-                                        <div v-if="dataSource.data_type === 'google_analytics' || dataSource.data_type === 'google_ad_manager' || dataSource.data_type === 'google_ads'"
-                                            class="mt-auto">
-                                            <div class="text-xs text-gray-500 mb-2">
-                                                <div class="flex items-center gap-1 mb-1">
-                                                    <font-awesome icon="fas fa-clock" class="text-[10px]" />
-                                                    <span>Last synced: {{ getLastSyncTime(dataSource) }}</span>
-                                                </div>
-                                                <div class="flex items-center gap-1">
-                                                    <font-awesome icon="fas fa-calendar-alt" class="text-[10px]" />
-                                                    <span>Frequency: {{ getSyncFrequency(dataSource) }}</span>
-                                                </div>
-                                            </div>
-
-                                            <!-- Sync status badge -->
-                                            <div class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium"
-                                                :class="{
-                                                    'bg-green-100 text-green-700': isRecentlySynced(dataSource),
-                                                    'bg-yellow-100 text-yellow-700': !isRecentlySynced(dataSource)
-                                                }">
-                                                <font-awesome
-                                                    :icon="isRecentlySynced(dataSource) ? 'fas fa-check-circle' : 'fas fa-exclamation-circle'"
-                                                    class="text-[10px]" />
-                                                {{ isRecentlySynced(dataSource) ? 'Up to date' : 'Needs sync' }}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </NuxtLink>
-                            </div>
-                        </template>
-                    </notched-card>
-                    <div v-if="permissions.canDelete.value" class="absolute top-5 -right-2 z-10 bg-red-500 hover:bg-red-700 border border-red-500 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer"
-                        @click="deleteDataSource(dataSource.id)" v-tippy="{ content: 'Delete Data Source' }">
-                        <font-awesome icon="fas fa-xmark" class="text-xl text-white" />
-                    </div>
-                    <NuxtLink v-if="permissions.canUpdate.value && ['postgresql', 'mysql', 'mariadb'].includes(dataSource.data_type)"
-                        :to="`/projects/${project.id}/data-sources/${dataSource.id}/edit/${dataSource.data_type}`"
-                        class="absolute top-16 -right-2 z-10 bg-blue-500 hover:bg-blue-600 border border-blue-500 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer"
-                        v-tippy="{ content: 'Edit Data Source' }">
-                        <font-awesome icon="fas fa-pen" class="text-sm text-white" />
-                    </NuxtLink> <button
-                        v-if="permissions.canUpdate.value && (dataSource.data_type === 'google_analytics' || dataSource.data_type === 'google_ad_manager' || dataSource.data_type === 'google_ads')"
-                        @click.stop="syncDataSource(dataSource.id)" :disabled="state.syncing[dataSource.id]"
-                        class="absolute top-[68px] -right-2 z-10 bg-primary-blue-100 hover:bg-primary-blue-300 border border-primary-blue-100 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                        v-tippy="{ content: state.syncing[dataSource.id] ? 'Syncing...' : 'Sync Now' }">
-                        <font-awesome :icon="state.syncing[dataSource.id] ? 'fas fa-spinner' : 'fas fa-sync'"
-                            :class="{ 'fa-spin': state.syncing[dataSource.id] }" class="text-sm text-white" />
-                    </button>
+                <!-- Empty State -->
+                <div v-if="!state.data_sources || state.data_sources.length === 0"
+                    class="text-center py-16 bg-white border border-gray-200 rounded-lg">
+                    <font-awesome icon="fas fa-database" class="text-6xl text-gray-300 mb-4" />
+                    <h3 class="text-xl font-semibold text-gray-900 mb-2">No Data Sources Yet</h3>
+                    <p class="text-gray-600 mb-6">
+                        Connect your first data source to start building data models and dashboards
+                    </p>
                     <button
-                        v-if="dataSource.data_type === 'google_analytics' || dataSource.data_type === 'google_ad_manager' || dataSource.data_type === 'google_ads'"
-                        @click.stop="viewSyncHistory(dataSource.id)"
-                        class="absolute top-[124px] -right-2 z-10 bg-gray-500 hover:bg-gray-600 border border-gray-500 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer"
-                        v-tippy="{ content: 'View Sync History' }">
-                        <font-awesome icon="fas fa-history" class="text-sm text-white" />
+                        v-if="permissions.canCreate.value"
+                        @click="openDialog"
+                        class="px-6 py-3 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 transition-colors duration-200 inline-flex items-center gap-2 cursor-pointer">
+                        <font-awesome icon="fas fa-plus" />
+                        Connect Data Source
                     </button>
+                </div>
+
+                <!-- Data Source Cards -->
+                <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div
+                        v-for="dataSource in state.data_sources"
+                        :key="dataSource.id"
+                        class="relative border border-gray-200 rounded-lg p-6 bg-white shadow-sm hover:shadow-lg hover:border-primary-blue-100 transition-all duration-200 group">
+                        
+                        <!-- Clickable area -->
+                        <div class="cursor-pointer" @click="goToDataSource(dataSource.id)">
+                            <!-- Header -->
+                            <div class="flex items-start gap-4 mb-4">
+                                <img 
+                                    :src="getDataSourceImage(dataSource.data_type)" 
+                                    :alt="dataSource.data_type"
+                                    class="h-12 w-12 object-contain" />
+                                <div class="flex-1 min-w-0">
+                                    <h3 class="text-lg font-semibold text-gray-900 truncate">
+                                        {{ dataSource.name }}
+                                    </h3>
+                                    <p class="text-sm text-gray-500 capitalize">
+                                        {{ dataSource.data_type.replace('_', ' ') }}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- Sync Status (for Google sources) -->
+                            <div v-if="['google_analytics', 'google_ad_manager', 'google_ads'].includes(dataSource.data_type)"
+                                class="mb-4">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-sm text-gray-600">Status</span>
+                                    <span 
+                                        class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium"
+                                        :class="{
+                                            'bg-green-100 text-green-700': isRecentlySynced(dataSource),
+                                            'bg-yellow-100 text-yellow-700': !isRecentlySynced(dataSource)
+                                        }">
+                                        <font-awesome 
+                                            :icon="isRecentlySynced(dataSource) ? 'fas fa-check-circle' : 'fas fa-exclamation-circle'"
+                                            class="text-[10px]" />
+                                        {{ isRecentlySynced(dataSource) ? 'Up to date' : 'Needs sync' }}
+                                    </span>
+                                </div>
+                                <div class="text-xs text-gray-500 mb-1">
+                                    <font-awesome icon="fas fa-clock" class="mr-1" />
+                                    Last synced: {{ getLastSyncTime(dataSource) }}
+                                </div>
+                                <div class="text-xs text-gray-500">
+                                    <font-awesome icon="fas fa-calendar-alt" class="mr-1" />
+                                    Frequency: {{ getSyncFrequency(dataSource) }}
+                                </div>
+                            </div>
+
+                            <!-- Models Count -->
+                            <div class="flex items-center justify-between mb-4">
+                                <span class="text-sm text-gray-600">Data Models</span>
+                                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                    {{ dataSource.dataModels }} Model{{ dataSource.dataModels !== 1 ? 's' : '' }}
+                                </span>
+                            </div>
+
+                            <!-- Action Button -->
+                            <button
+                                @click.stop="goToDataSource(dataSource.id)"
+                                class="w-full px-4 py-2 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 hover:text-white transition-all duration-200 flex items-center justify-center gap-2 group-hover:bg-primary-blue-300 group-hover:text-white cursor-pointer">
+                                <font-awesome icon="fas fa-arrow-right" />
+                                View Details
+                            </button>
+                        </div>
+
+                        <!-- Action Buttons (positioned absolutely) -->
+                        <div class="absolute top-4 right-4 flex flex-col gap-2">
+                            <!-- Delete Button -->
+                            <button
+                                v-if="permissions.canDelete.value"
+                                @click.stop="deleteDataSource(dataSource.id)"
+                                class="bg-red-500 hover:bg-red-700 border border-red-500 rounded-full w-10 h-10 flex items-center justify-center cursor-pointer transition-colors z-10"
+                                v-tippy="{ content: 'Delete Data Source' }">
+                                <font-awesome icon="fas fa-xmark" class="text-sm text-white" />
+                            </button>
+
+                            <!-- Edit Button (for database sources) -->
+                            <NuxtLink
+                                v-if="permissions.canUpdate.value && ['postgresql', 'mysql', 'mariadb'].includes(dataSource.data_type)"
+                                :to="`/projects/${project.id}/data-sources/${dataSource.id}`"
+                                @click.stop
+                                class="bg-blue-500 hover:bg-blue-600 border border-blue-500 rounded-full w-10 h-10 flex items-center justify-center cursor-pointer transition-colors z-10"
+                                v-tippy="{ content: 'Edit Data Source' }">
+                                <font-awesome icon="fas fa-pen" class="text-sm text-white" />
+                            </NuxtLink>
+
+                            <!-- Sync Button (for Google sources) -->
+                            <button
+                                v-if="permissions.canUpdate.value && ['google_analytics', 'google_ad_manager', 'google_ads'].includes(dataSource.data_type)"
+                                @click.stop="syncDataSource(dataSource.id)"
+                                :disabled="state.syncing[dataSource.id]"
+                                class="bg-primary-blue-100 hover:bg-primary-blue-300 border border-primary-blue-100 rounded-full w-10 h-10 flex items-center justify-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors z-10"
+                                v-tippy="{ content: state.syncing[dataSource.id] ? 'Syncing...' : 'Sync Now' }">
+                                <font-awesome 
+                                    :icon="state.syncing[dataSource.id] ? 'fas fa-spinner' : 'fas fa-sync'"
+                                    :class="{ 'fa-spin': state.syncing[dataSource.id] }" 
+                                    class="text-sm text-white" />
+                            </button>
+
+                            <!-- Sync History Button (for Google sources) -->
+                            <button
+                                v-if="['google_analytics', 'google_ad_manager', 'google_ads'].includes(dataSource.data_type)"
+                                @click.stop="viewSyncHistory(dataSource.id)"
+                                class="bg-gray-500 hover:bg-gray-600 border border-gray-500 rounded-full w-10 h-10 flex items-center justify-center cursor-pointer transition-colors z-10"
+                                v-tippy="{ content: 'View Sync History' }">
+                                <font-awesome icon="fas fa-history" class="text-sm text-white" />
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
             <!-- Connect Data Source Dialog -->

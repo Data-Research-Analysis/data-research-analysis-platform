@@ -153,7 +153,7 @@ async function connectDataSource() {
             state.errorMessages.push(data.message);
             await dataSourceStore.retrieveDataSources();
             setTimeout(() => {
-                router.push(`/projects/${route.params.projectid}/data-sources`);
+                router.push(`/projects/${route.params.projectid}`);
             }, 2000);
         } else {
             state.connectionSuccess = false;

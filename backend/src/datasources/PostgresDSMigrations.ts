@@ -18,6 +18,7 @@ import { DRASitemapEntry } from "../models/DRASitemapEntry.js";
 import { DRADashboardExportMetaData } from "../models/DRADashboardExportMetaData.js";
 import { DRAAIDataModelConversation } from "../models/DRAAIDataModelConversation.js";
 import { DRAAIDataModelMessage } from "../models/DRAAIDataModelMessage.js";
+import { DRADataModelRefreshHistory } from "../models/DRADataModelRefreshHistory.js";
 import { DRASubscriptionTier } from "../models/DRASubscriptionTier.js";
 import { DRAUserSubscription } from "../models/DRAUserSubscription.js";
 import { SyncHistory } from "../entities/SyncHistory.js";
@@ -40,7 +41,7 @@ export default new DataSource({
     database: database,
     synchronize: false,
     logging: true,
-    entities: [DRAUsersPlatform, DRAProject, DRAProjectMember, DRAProjectInvitation, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAPrivateBetaUsers, DRADashboard, DRAArticle, DRAArticleCategory, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRASubscriptionTier, DRAUserSubscription, SyncHistory],
+    entities: [DRAUsersPlatform, DRAProject, DRAProjectMember, DRAProjectInvitation, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAPrivateBetaUsers, DRADashboard, DRAArticle, DRAArticleCategory, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRADataModelRefreshHistory, DRASubscriptionTier, DRAUserSubscription, SyncHistory],
     subscribers: [],
     migrations: ['./src/migrations/*.ts'],
 });

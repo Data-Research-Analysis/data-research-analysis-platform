@@ -15,6 +15,10 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     const dataSources = ref<IDataSource[]>([])
     const selectedDataSource = ref<IDataSource>()
     
+    // Real-time sync state
+    const syncStatus = ref<Map<number, { status: string; progress: number }>>(new Map())
+    const syncErrors = ref<Map<number, string>>(new Map())
+    
     function setDataSources(dataSourcesList: IDataSource[]) {
         dataSources.value = dataSourcesList
         if (import.meta.client) {
@@ -582,9 +586,45 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         }
     }
 
+    /**
+     * Real-time sync status management
+     */
+    function updateSyncStatus(dataSourceId: number, status: string, progress: number = 0) {
+        syncStatus.value.set(dataSourceId, { status, progress });
+        if (import.meta.client) {
+            localStorage.setItem(`sync_status_${dataSourceId}`, JSON.stringify({ status, progress }));
+        }
+    }
+
+    function getSyncStatus(dataSourceId: number) {
+        return syncStatus.value.get(dataSourceId) || { status: 'idle', progress: 0 };
+    }
+
+    function clearSyncStatus(dataSourceId: number) {
+        syncStatus.value.delete(dataSourceId);
+        syncErrors.value.delete(dataSourceId);
+        if (import.meta.client) {
+            localStorage.removeItem(`sync_status_${dataSourceId}`);
+            localStorage.removeItem(`sync_error_${dataSourceId}`);
+        }
+    }
+
+    function setSyncError(dataSourceId: number, error: string) {
+        syncErrors.value.set(dataSourceId, error);
+        if (import.meta.client) {
+            localStorage.setItem(`sync_error_${dataSourceId}`, error);
+        }
+    }
+
+    function getSyncError(dataSourceId: number) {
+        return syncErrors.value.get(dataSourceId) || null;
+    }
+
     return {
         dataSources,
         selectedDataSource,
+        syncStatus,
+        syncErrors,
         setDataSources,
         setSelectedDataSource,
         getDataSources,
@@ -612,5 +652,11 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         addGoogleAdsDataSource,
         syncGoogleAds,
         getGoogleAdsSyncStatus,
+        // Real-time sync status methods
+        updateSyncStatus,
+        getSyncStatus,
+        clearSyncStatus,
+        setSyncError,
+        getSyncError,
     }
 });

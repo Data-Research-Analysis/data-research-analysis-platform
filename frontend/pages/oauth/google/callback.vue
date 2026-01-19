@@ -27,7 +27,7 @@ onMounted(async () => {
         // Redirect back to data sources after 3 seconds
         setTimeout(() => {
             const projectId = getProjectIdFromState(stateOAuth);
-            router.push(`/projects/${projectId}/data-sources`);
+            router.push(`/projects/${projectId}`);
         }, 3000);
         return;
     }

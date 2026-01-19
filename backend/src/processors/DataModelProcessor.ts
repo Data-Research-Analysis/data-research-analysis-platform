@@ -966,4 +966,60 @@ export class DataModelProcessor {
             }
         });
     }
+
+    /**
+     * Update data model settings
+     * @param dataModelId - The data model ID to update
+     * @param updates - Object containing fields to update
+     * @param tokenDetails - User authentication details
+     * @returns True if successful, false otherwise
+     */
+    public async updateDataModelSettings(
+        dataModelId: number,
+        updates: Partial<DRADataModel>,
+        tokenDetails: ITokenDetails
+    ): Promise<boolean> {
+        return new Promise<boolean>(async (resolve) => {
+            const { user_id } = tokenDetails;
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve(false);
+            }
+            
+            const dbConnector = await driver.getConcreteDriver();
+            if (!dbConnector) {
+                return resolve(false);
+            }
+            
+            const manager = dbConnector.manager;
+            if (!manager) {
+                return resolve(false);
+            }
+            
+            try {
+                // Verify user exists
+                const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
+                if (!user) {
+                    return resolve(false);
+                }
+                
+                // Find the data model
+                const dataModel = await manager.findOne(DRADataModel, { where: { id: dataModelId } });
+                if (!dataModel) {
+                    console.error(`[DataModelProcessor] Data model ${dataModelId} not found`);
+                    return resolve(false);
+                }
+                
+                // Update fields
+                Object.assign(dataModel, updates);
+                await manager.save(dataModel);
+                
+                console.log(`[DataModelProcessor] Updated data model ${dataModelId} settings:`, updates);
+                return resolve(true);
+            } catch (error) {
+                console.error('[DataModelProcessor] Error updating data model settings:', error);
+                return resolve(false);
+            }
+        });
+    }
 }

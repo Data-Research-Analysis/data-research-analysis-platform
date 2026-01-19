@@ -6,6 +6,9 @@ import { PostgresDataSource } from '../datasources/PostgresDataSource.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { QueueService } from './QueueService.js';
 import { EncryptionService } from './EncryptionService.js';
+import { SyncEventEmitter, SyncEventType, SyncCompletedEvent } from '../events/SyncEventEmitter.js';
+import { DataModelRefreshService } from './DataModelRefreshService.js';
+import { RefreshQueueService } from './RefreshQueueService.js';
 
 export class UtilityService {
     private static instance: UtilityService;
@@ -44,6 +47,10 @@ export class UtilityService {
           console.error('[SECURITY] Please check your ENCRYPTION_KEY in .env file');
           process.exit(1); // Fail fast - encryption is critical for security
         }
+        
+        // Initialize cascade refresh trigger
+        this.initializeCascadeRefresh();
+        
         console.log('Utilities initialized');
     }
 
@@ -420,5 +427,54 @@ export class UtilityService {
         });
         
         return sanitized;
+    }
+
+    /**
+     * Initialize cascade refresh trigger
+     * Automatically refreshes data models when their data sources sync
+     */
+    private initializeCascadeRefresh(): void {
+        const syncEmitter = SyncEventEmitter.getInstance();
+        const refreshQueue = RefreshQueueService.getInstance();
+        const refreshService = DataModelRefreshService.getInstance();
+
+        console.log('[Cascade] Initializing cascade refresh trigger');
+
+        // Listen for sync completed events
+        syncEmitter.on(SyncEventType.SYNC_COMPLETED, async (event: SyncCompletedEvent) => {
+            try {
+                console.log(`[Cascade] Data source ${event.dataSourceId} synced successfully (status: ${event.status})`);
+
+                // Only trigger cascade on successful or partial completion
+                if (event.status === 'FAILED') {
+                    console.log(`[Cascade] Skipping cascade refresh - sync failed`);
+                    return;
+                }
+
+                // Find dependent models
+                const modelIds = await refreshService.findDependentModels(event.dataSourceId);
+
+                if (modelIds.length === 0) {
+                    console.log(`[Cascade] No dependent models found for data source ${event.dataSourceId}`);
+                    return;
+                }
+
+                console.log(`[Cascade] Found ${modelIds.length} dependent models for data source ${event.dataSourceId}`);
+
+                // Queue refresh jobs for all dependent models
+                const jobIds = await refreshQueue.queueRefreshForModels(modelIds, {
+                    triggeredBy: 'cascade',
+                    triggerSourceId: event.dataSourceId,
+                    reason: `Data source ${event.dataSourceId} synced successfully with ${event.totalRecordsSynced} records`
+                });
+
+                console.log(`[Cascade] ✅ Queued ${jobIds.length} refresh jobs: ${jobIds.join(', ')}`);
+
+            } catch (error: any) {
+                console.error(`[Cascade] ❌ Error during cascade refresh:`, error.message);
+            }
+        });
+
+        console.log('[Cascade] ✅ Cascade refresh trigger initialized');
     }
 }
