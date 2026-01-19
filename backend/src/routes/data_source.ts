@@ -348,4 +348,52 @@ router.post('/upload/pdf', async (req: Request, res: Response, next: any) => {
         });
     }
 });
+
+/**
+ * PUT /api/data-source/:datasourceid/schedule
+ * Update sync schedule configuration for a data source
+ */
+router.put('/:datasourceid/schedule',
+    validateJWT,
+    validate([
+        param('datasourceid').isInt().toInt(),
+        body('sync_enabled').isBoolean(),
+        body('sync_schedule').isString().isIn(['manual', 'hourly', 'daily', 'weekly', 'monthly']),
+        body('sync_schedule_time').optional({ nullable: true }).matches(/^([01]\d|2[0-3]):([0-5]\d)$/)
+    ]),
+    requireDataSourcePermission(EAction.UPDATE, 'datasourceid'),
+    async (req: Request, res: Response) => {
+        try {
+            const { datasourceid, sync_enabled, sync_schedule, sync_schedule_time } = matchedData(req);
+
+            const result = await DataSourceProcessor.getInstance().updateSyncSchedule(
+                datasourceid,
+                sync_enabled,
+                sync_schedule,
+                sync_schedule_time,
+                req.body.tokenDetails
+            );
+
+            if (result.success) {
+                res.status(200).json({
+                    success: true,
+                    message: 'Schedule configuration updated successfully',
+                    data: result.data
+                });
+            } else {
+                res.status(400).json({
+                    success: false,
+                    message: result.message || 'Failed to update schedule configuration'
+                });
+            }
+        } catch (error: any) {
+            console.error('Schedule update error:', error);
+            res.status(500).json({
+                success: false,
+                message: error.message || 'Internal server error'
+            });
+        }
+    }
+);
+
 export default router;

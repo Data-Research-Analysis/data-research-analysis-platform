@@ -2999,4 +2999,133 @@ export class DataSourceProcessor {
             return resolve(syncResult);
         });
     }
+
+    /**
+     * Update sync schedule configuration for a data source
+     */
+    public async updateSyncSchedule(
+        dataSourceId: number,
+        syncEnabled: boolean,
+        syncSchedule: string,
+        syncScheduleTime: string | null,
+        tokenDetails: ITokenDetails
+    ): Promise<{ success: boolean; message?: string; data?: any }> {
+        try {
+            const { user_id } = tokenDetails;
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            
+            if (!driver) {
+                return { success: false, message: 'Database driver not available' };
+            }
+
+            const manager = (await driver.getConcreteDriver()).manager;
+            const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
+
+            if (!user) {
+                return { success: false, message: 'User not found' };
+            }
+
+            // Get data source
+            const dataSource = await manager.findOne(DRADataSource, {
+                where: { id: dataSourceId }
+            });
+
+            if (!dataSource) {
+                return { success: false, message: 'Data source not found' };
+            }
+
+            // Calculate next scheduled sync time if enabled
+            let nextScheduledSync: Date | null = null;
+            if (syncEnabled && syncSchedule !== 'manual') {
+                nextScheduledSync = this.calculateNextScheduledSync(syncSchedule, syncScheduleTime);
+            }
+
+            // Update using query builder to bypass TypeORM type checking for new columns
+            await manager.createQueryBuilder()
+                .update(DRADataSource)
+                .set({
+                    sync_enabled: syncEnabled,
+                    sync_schedule: syncSchedule,
+                    sync_schedule_time: syncScheduleTime,
+                    next_scheduled_sync: nextScheduledSync,
+                    created_at: new Date()
+                } as any)
+                .where('id = :id', { id: dataSourceId })
+                .execute();
+
+            return {
+                success: true,
+                message: 'Schedule configuration updated successfully',
+                data: {
+                    sync_enabled: syncEnabled,
+                    sync_schedule: syncSchedule,
+                    sync_schedule_time: syncScheduleTime,
+                    next_scheduled_sync: nextScheduledSync
+                }
+            };
+        } catch (error: any) {
+            console.error('Error updating sync schedule:', error);
+            return { success: false, message: error.message || 'Failed to update schedule' };
+        }
+    }
+
+    /**
+     * Calculate next scheduled sync time
+     */
+    private calculateNextScheduledSync(schedule: string, scheduleTime: string | null): Date {
+        const now = new Date();
+
+        switch (schedule) {
+            case 'hourly':
+                return new Date(now.getTime() + 60 * 60 * 1000);
+
+            case 'daily': {
+                const nextRun = new Date(now);
+                nextRun.setDate(nextRun.getDate() + 1);
+                
+                if (scheduleTime) {
+                    const [hours, minutes] = scheduleTime.split(':').map(Number);
+                    nextRun.setHours(hours, minutes, 0, 0);
+                } else {
+                    nextRun.setHours(0, 0, 0, 0);
+                }
+                
+                return nextRun;
+            }
+
+            case 'weekly': {
+                const nextRun = new Date(now);
+                nextRun.setDate(nextRun.getDate() + 7);
+                
+                if (scheduleTime) {
+                    const [hours, minutes] = scheduleTime.split(':').map(Number);
+                    nextRun.setHours(hours, minutes, 0, 0);
+                } else {
+                    nextRun.setHours(0, 0, 0, 0);
+                }
+                
+                return nextRun;
+            }
+
+            case 'monthly': {
+                const nextRun = new Date(now);
+                nextRun.setMonth(nextRun.getMonth() + 1);
+                
+                if (scheduleTime) {
+                    const [hours, minutes] = scheduleTime.split(':').map(Number);
+                    nextRun.setHours(hours, minutes, 0, 0);
+                } else {
+                    nextRun.setHours(0, 0, 0, 0);
+                }
+                
+                return nextRun;
+            }
+
+            default:
+                const nextRun = new Date(now);
+                nextRun.setDate(nextRun.getDate() + 1);
+                nextRun.setHours(0, 0, 0, 0);
+                return nextRun;
+        }
+    }
 }

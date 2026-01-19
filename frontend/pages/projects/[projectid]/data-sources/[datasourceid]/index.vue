@@ -59,6 +59,11 @@ const state = reactive({
     errorMessages: [] as string[],
     connectionSuccess: false,
     showPassword: false,
+    // Schedule form fields
+    scheduleFormLoading: false,
+    sync_enabled: true,
+    sync_schedule: 'manual',
+    sync_schedule_time: '02:00',
 });
 
 // Get real-time sync status from store
@@ -426,12 +431,73 @@ async function updateDataSource() {
 
 // Open schedule modal
 function openScheduleModal() {
+    // Pre-populate with current settings
+    if (state.dataSource) {
+        state.sync_enabled = state.dataSource.sync_enabled ?? true;
+        state.sync_schedule = state.dataSource.sync_schedule || 'manual';
+        state.sync_schedule_time = state.dataSource.sync_schedule_time || '02:00';
+    }
     state.show_schedule_modal = true;
 }
 
 // Close schedule modal
 function closeScheduleModal() {
     state.show_schedule_modal = false;
+    state.scheduleFormLoading = false;
+}
+
+// Save schedule configuration
+async function saveScheduleConfiguration() {
+    if (!state.dataSource) return;
+
+    state.scheduleFormLoading = true;
+
+    try {
+        const token = useCookie('token');
+        const response = await fetch(`/api/data-source/${dataSourceId}/schedule`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token.value}`
+            },
+            body: JSON.stringify({
+                sync_enabled: state.sync_enabled,
+                sync_schedule: state.sync_schedule,
+                sync_schedule_time: state.sync_schedule === 'manual' ? null : state.sync_schedule_time
+            })
+        });
+
+        if (response.ok) {
+            await $swal.fire({
+                title: 'Success',
+                text: 'Schedule configuration updated successfully',
+                icon: 'success',
+                timer: 2000,
+                showConfirmButton: false
+            });
+            
+            // Reload data source to get updated values
+            await dataSourceStore.retrieveDataSources();
+            await loadDataSource();
+            closeScheduleModal();
+        } else {
+            const data = await response.json();
+            await $swal.fire({
+                title: 'Error',
+                text: data.message || 'Failed to update schedule configuration',
+                icon: 'error'
+            });
+        }
+    } catch (error) {
+        console.error('Failed to update schedule:', error);
+        await $swal.fire({
+            title: 'Error',
+            text: 'An error occurred while updating the schedule',
+            icon: 'error'
+        });
+    } finally {
+        state.scheduleFormLoading = false;
+    }
 }
 
 // Navigate to data models
@@ -770,7 +836,7 @@ onMounted(async () => {
         </div>
     </div>
 
-    <!-- Schedule Modal (Placeholder) -->
+    <!-- Schedule Modal -->
     <overlay-dialog v-if="state.show_schedule_modal" @close="closeScheduleModal" :yOffset="90" :enable-scrolling="false">
         <template #overlay>
             <div class="max-w-2xl w-full p-6 bg-white rounded-lg">
@@ -782,15 +848,71 @@ onMounted(async () => {
                     </button>
                 </div>
 
-                <div class="text-center py-12">
-                    <font-awesome icon="fas fa-wrench" class="text-6xl text-gray-300 mb-4" />
-                    <p class="text-gray-600">Schedule configuration will be available in Phase 9</p>
+                <div class="space-y-6">
+                    <!-- Enable/Disable Sync -->
+                    <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                        <div>
+                            <label class="text-sm font-medium text-gray-900">Enable Automatic Sync</label>
+                            <p class="text-sm text-gray-600 mt-1">Turn on automatic synchronization for this data source</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" v-model="state.sync_enabled" class="sr-only peer">
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                    </div>
+
+                    <!-- Schedule Frequency -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-900 mb-2">Sync Frequency</label>
+                        <select v-model="state.sync_schedule" 
+                            :disabled="!state.sync_enabled"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed">
+                            <option value="manual">Manual (no automatic sync)</option>
+                            <option value="hourly">Every Hour</option>
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly">Monthly</option>
+                        </select>
+                        <p class="text-xs text-gray-500 mt-2">Choose how often the data source should automatically sync</p>
+                    </div>
+
+                    <!-- Schedule Time (only for daily/weekly/monthly) -->
+                    <div v-if="['daily', 'weekly', 'monthly'].includes(state.sync_schedule)">
+                        <label class="block text-sm font-medium text-gray-900 mb-2">Sync Time (UTC)</label>
+                        <input type="time" v-model="state.sync_schedule_time"
+                            :disabled="!state.sync_enabled"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                        <p class="text-xs text-gray-500 mt-2">All times are in UTC timezone</p>
+                    </div>
+
+                    <!-- Info Box -->
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div class="flex gap-3">
+                            <font-awesome icon="fas fa-info-circle" class="text-blue-600 mt-0.5" />
+                            <div class="text-sm text-blue-900">
+                                <p class="font-medium mb-1">Automatic Sync Information</p>
+                                <ul class="list-disc list-inside space-y-1 text-blue-800">
+                                    <li><strong>Hourly:</strong> Syncs at the top of every hour</li>
+                                    <li><strong>Daily:</strong> Syncs once per day at the specified time</li>
+                                    <li><strong>Weekly:</strong> Syncs once per week on the same day at the specified time</li>
+                                    <li><strong>Monthly:</strong> Syncs once per month on the same date at the specified time</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="flex justify-end gap-3 mt-6">
                     <button @click="closeScheduleModal"
-                        class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors duration-200 cursor-pointer">
-                        Close
+                        :disabled="state.scheduleFormLoading"
+                        class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                        Cancel
+                    </button>
+                    <button @click="saveScheduleConfiguration"
+                        :disabled="state.scheduleFormLoading"
+                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                        <font-awesome v-if="state.scheduleFormLoading" icon="fas fa-spinner" spin />
+                        <span>{{ state.scheduleFormLoading ? 'Saving...' : 'Save Configuration' }}</span>
                     </button>
                 </div>
             </div>
