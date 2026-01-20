@@ -3040,13 +3040,19 @@ export class DataSourceProcessor {
                 nextScheduledSync = this.calculateNextScheduledSync(syncSchedule, syncScheduleTime);
             }
 
+            // Strip seconds from time if present (HTML5 time inputs send HH:MM:SS)
+            let normalizedTime = syncScheduleTime;
+            if (syncScheduleTime && syncScheduleTime.length > 5) {
+                normalizedTime = syncScheduleTime.substring(0, 5); // Keep only HH:MM
+            }
+
             // Update using query builder to bypass TypeORM type checking for new columns
             await manager.createQueryBuilder()
                 .update(DRADataSource)
                 .set({
                     sync_enabled: syncEnabled,
                     sync_schedule: syncSchedule,
-                    sync_schedule_time: syncScheduleTime,
+                    sync_schedule_time: normalizedTime,
                     next_scheduled_sync: nextScheduledSync,
                     created_at: new Date()
                 } as any)

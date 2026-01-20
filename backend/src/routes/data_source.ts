@@ -359,7 +359,7 @@ router.put('/:datasourceid/schedule',
         param('datasourceid').isInt().toInt(),
         body('sync_enabled').isBoolean(),
         body('sync_schedule').isString().isIn(['manual', 'hourly', 'daily', 'weekly', 'monthly']),
-        body('sync_schedule_time').optional({ nullable: true }).matches(/^([01]\d|2[0-3]):([0-5]\d)$/)
+        body('sync_schedule_time').optional({ nullable: true }).matches(/^([01]\d|2[0-3]):([0-5]\d)(:[0-5]\d)?$/)
     ]),
     requireDataSourcePermission(EAction.UPDATE, 'datasourceid'),
     async (req: Request, res: Response) => {
