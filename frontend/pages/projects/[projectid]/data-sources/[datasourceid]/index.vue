@@ -454,7 +454,7 @@ async function saveScheduleConfiguration() {
 
     try {
         const token = useCookie('token');
-        const response = await fetch(`/data-source/${dataSourceId}/schedule`, {
+        const response = await fetch(`${baseUrl()}/data-source/${dataSourceId}/schedule`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
