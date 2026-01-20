@@ -453,12 +453,12 @@ async function saveScheduleConfiguration() {
     state.scheduleFormLoading = true;
 
     try {
-        const token = useCookie('token');
+        const token = getAuthToken();
         const response = await fetch(`${baseUrl()}/data-source/${dataSourceId}/schedule`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token.value}`,
+                'Authorization': `Bearer ${token}`,
                 'Authorization-Type': 'auth',
             },
             body: JSON.stringify({
