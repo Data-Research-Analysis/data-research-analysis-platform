@@ -2842,7 +2842,7 @@ export class DataSourceProcessor {
             
             // Trigger sync
             const gamDriver = GoogleAdManagerDriver.getInstance();
-            const syncResult = await gamDriver.syncToDatabase(dataSourceId, dataSource.users_platform.id, apiConnectionDetails);
+            const syncResult = await gamDriver.syncToDatabase(dataSourceId, user.id, apiConnectionDetails);
             
             if (syncResult) {
                 // Update last sync time in API connection details

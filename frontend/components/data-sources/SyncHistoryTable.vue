@@ -102,7 +102,7 @@ const displayedHistory = computed(() => {
                             {{ getSyncDuration(sync) }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {{ sync.rows_synced || '-' }}
+                            {{ sync.rows_synced !== null && sync.rows_synced !== undefined ? sync.rows_synced.toLocaleString() : 'N/A' }}
                         </td>
                     </tr>
                 </tbody>
