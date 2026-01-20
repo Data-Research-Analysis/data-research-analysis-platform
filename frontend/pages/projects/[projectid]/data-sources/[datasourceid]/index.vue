@@ -458,7 +458,8 @@ async function saveScheduleConfiguration() {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token.value}`
+                'Authorization': `Bearer ${token.value}`,
+                'Authorization-Type': 'auth',
             },
             body: JSON.stringify({
                 sync_enabled: state.sync_enabled,
