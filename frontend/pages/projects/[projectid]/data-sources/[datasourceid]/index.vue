@@ -454,7 +454,7 @@ async function saveScheduleConfiguration() {
 
     try {
         const token = useCookie('token');
-        const response = await fetch(`/api/data-source/${dataSourceId}/schedule`, {
+        const response = await fetch(`/data-source/${dataSourceId}/schedule`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -839,13 +839,9 @@ onMounted(async () => {
     <!-- Schedule Modal -->
     <overlay-dialog v-if="state.show_schedule_modal" @close="closeScheduleModal" :yOffset="90" :enable-scrolling="false">
         <template #overlay>
-            <div class="max-w-2xl w-full p-6 bg-white rounded-lg">
+            <div class="w-full p-6 bg-white rounded-lg">
                 <div class="flex items-center justify-between mb-6">
                     <h2 class="text-2xl font-bold text-gray-900">Configure Sync Schedule</h2>
-                    <button @click="closeScheduleModal"
-                        class="text-gray-500 hover:text-gray-700 transition-colors cursor-pointer">
-                        <font-awesome icon="fas fa-times" class="text-xl" />
-                    </button>
                 </div>
 
                 <div class="space-y-6">

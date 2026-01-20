@@ -350,7 +350,7 @@ router.post('/upload/pdf', async (req: Request, res: Response, next: any) => {
 });
 
 /**
- * PUT /api/data-source/:datasourceid/schedule
+ * PUT /data-source/:datasourceid/schedule
  * Update sync schedule configuration for a data source
  */
 router.put('/:datasourceid/schedule',
