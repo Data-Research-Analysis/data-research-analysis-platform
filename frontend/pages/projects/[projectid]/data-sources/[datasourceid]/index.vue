@@ -142,9 +142,10 @@ function getLastSyncTime() {
 // Get sync frequency
 function getSyncFrequency() {
     if (!state.dataSource) return 'Manual';
-    const frequency = state.dataSource.connection_details?.api_connection_details?.api_config?.sync_frequency || 'manual';
+    const frequency = state.dataSource.sync_schedule || 'manual';
     const frequencyMap: Record<string, string> = {
         'manual': 'Manual',
+        'hourly': 'Hourly',
         'daily': 'Daily',
         'weekly': 'Weekly',
         'monthly': 'Monthly'
