@@ -296,9 +296,19 @@ router.get('/sync-status/:dataSourceId',
             const lastSync = await gamDriver.getLastSyncTime(dataSourceId);
             const history = await gamDriver.getSyncHistory(dataSourceId, 10);
             
+            // Transform history to match frontend expectations
+            const transformedHistory = history.map((record: any) => ({
+                id: record.id,
+                sync_started_at: record.startedAt,
+                sync_completed_at: record.completedAt,
+                status: record.status?.toLowerCase() || 'idle',
+                rows_synced: record.recordsSynced,
+                error_message: record.errorMessage
+            }));
+            
             res.status(200).send({
                 last_sync: lastSync,
-                sync_history: history,
+                sync_history: transformedHistory,
                 message: 'Sync status retrieved successfully'
             });
         } catch (error) {

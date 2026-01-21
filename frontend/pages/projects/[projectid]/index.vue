@@ -591,7 +591,7 @@ onMounted(async () => {
                                 <div class="flex items-center justify-between mb-2">
                                     <span class="text-sm text-gray-600">Status</span>
                                     <span 
-                                        class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium"
+                                        class="inline-flex items-center gap-1 px-2 py-1 mr-10 rounded text-xs font-medium"
                                         :class="{
                                             'bg-green-100 text-green-700': isRecentlySynced(dataSource),
                                             'bg-yellow-100 text-yellow-700': !isRecentlySynced(dataSource)
