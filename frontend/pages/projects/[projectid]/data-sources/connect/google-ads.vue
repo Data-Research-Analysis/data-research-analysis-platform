@@ -25,6 +25,7 @@ const state = reactive({
     // Account selection
     accounts: [] as IGoogleAdsAccount[],
     selectedAccount: null as IGoogleAdsAccount | null,
+    selectedClientAccount: null as string | null, // For manager accounts
     loadingAccounts: false,
 
     // Configuration
@@ -124,6 +125,12 @@ function selectAccount(account: IGoogleAdsAccount) {
     state.selectedAccount = account;
     state.dataSourceName = `Google Ads - ${account.descriptiveName}`;
     
+    // If it's a manager account, don't auto-proceed - let user select client first
+    if (account.isManager && account.clientAccounts && account.clientAccounts.length > 0) {
+        state.selectedClientAccount = null;
+        return; // Stay on step 2 to allow client selection
+    }
+    
     // Check if this is a test token limited account
     if (account.descriptiveName.includes('Test Token - Limited Access')) {
         $swal.fire({
@@ -137,6 +144,35 @@ function selectAccount(account: IGoogleAdsAccount) {
             icon: 'warning',
             confirmButtonText: 'Continue Anyway'
         });
+    }
+    
+    state.currentStep = 3;
+}
+
+/**
+ * Select a client account under a manager
+ */
+function selectClientAccount(clientAccount: any) {
+    if (!state.selectedAccount) return;
+    
+    state.selectedClientAccount = clientAccount.customerId;
+    state.dataSourceName = `Google Ads - ${clientAccount.descriptiveName}`;
+    state.currentStep = 3;
+}
+
+/**
+ * Proceed to configuration after selecting manager or client
+ */
+function proceedToConfiguration() {
+    if (!state.selectedAccount) return;
+    
+    if (state.selectedAccount.isManager && !state.selectedClientAccount) {
+        $swal.fire({
+            title: 'Select a Client Account',
+            text: 'Please select a specific client account to sync, or continue to sync all clients.',
+            icon: 'warning'
+        });
+        return;
     }
     
     state.currentStep = 3;
@@ -243,7 +279,7 @@ async function connectDataSource() {
         // Add data source
         const dataSourceConfig = {
             name: state.dataSourceName,
-            customerId: state.selectedAccount.customerId,
+            customerId: state.selectedClientAccount || state.selectedAccount.customerId, // Use client if selected
             accessToken: state.accessToken,
             refreshToken: state.refreshToken,
             reportTypes: state.selectedReportTypes,
@@ -444,20 +480,57 @@ function cancel() {
                     <p class="text-gray-600">{{ state.error || 'No accounts found' }}</p>
                 </div>
 
-                <div v-else class="flex flex-col gap-3 mb-6">
-                    <div v-for="account in state.accounts" :key="account.customerId"
-                        class="flex items-center gap-4 p-5 border-2 rounded-lg cursor-pointer transition-all duration-200"
-                        :class="state.selectedAccount?.customerId === account.customerId ? 'border-primary-blue-100 bg-blue-50' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'"
-                        @click="selectAccount(account)">
-                        <div class="flex-1">
-                            <h3 class="text-base font-semibold text-gray-900 m-0 mb-1">{{ account.descriptiveName }}</h3>
-                            <p class="text-sm text-gray-600 m-0">Customer ID: {{ account.customerId }}</p>
-                            <p class="text-xs text-gray-500 m-0 mt-1">{{ account.currencyCode }} • {{ account.timeZone }}</p>
+                <div v-else class="flex flex-col gap-4 mb-6">
+                    <div v-for="account in state.accounts" :key="account.customerId" class="border-2 rounded-lg"
+                        :class="state.selectedAccount?.customerId === account.customerId ? 'border-primary-blue-100 bg-blue-50' : 'border-gray-300'">
+                        <!-- Main Account Row -->
+                        <div class="flex items-center gap-4 p-5 cursor-pointer transition-all duration-200"
+                            :class="!account.isManager && 'hover:bg-gray-50'"
+                            @click="!account.isManager && selectAccount(account)">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <h3 class="text-base font-semibold text-gray-900 m-0">{{ account.descriptiveName }}</h3>
+                                    <span v-if="account.isManager" class="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-700 rounded">
+                                        Manager Account
+                                    </span>
+                                </div>
+                                <p class="text-sm text-gray-600 m-0">Customer ID: {{ account.customerId }}</p>
+                                <p class="text-xs text-gray-500 m-0 mt-1">{{ account.currencyCode }} • {{ account.timeZone }}</p>
+                                <p v-if="account.isManager && account.clientAccounts" class="text-xs text-purple-600 m-0 mt-1">
+                                    {{ account.clientAccounts.length }} client account(s) - select one below
+                                </p>
+                            </div>
+                            <div v-if="!account.isManager">
+                                <svg v-if="state.selectedAccount?.customerId === account.customerId && !state.selectedClientAccount" 
+                                    class="w-6 h-6 text-indigo-600 stroke-[3]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                            </div>
                         </div>
-                        <div>
-                            <svg v-if="state.selectedAccount?.customerId === account.customerId" class="w-6 h-6 text-indigo-600 stroke-[3]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                <polyline points="20 6 9 17 4 12"></polyline>
-                            </svg>
+
+                        <!-- Client Accounts (for manager accounts) -->
+                        <div v-if="account.isManager && account.clientAccounts && account.clientAccounts.length > 0" 
+                            class="border-t border-gray-200 bg-gray-50 p-4">
+                            <p class="text-sm font-medium text-gray-700 mb-3">Select a client account:</p>
+                            <div class="flex flex-col gap-2">
+                                <div v-for="client in account.clientAccounts" :key="client.customerId"
+                                    class="flex items-center gap-3 p-3 border rounded cursor-pointer transition-all duration-200"
+                                    :class="state.selectedClientAccount === client.customerId 
+                                        ? 'border-indigo-500 bg-indigo-50' 
+                                        : 'border-gray-300 bg-white hover:border-gray-400 hover:bg-gray-50'"
+                                    @click="selectAccount(account); selectClientAccount(client)">
+                                    <div class="flex-1">
+                                        <p class="text-sm font-medium text-gray-900 m-0">{{ client.descriptiveName }}</p>
+                                        <p class="text-xs text-gray-600 m-0">ID: {{ client.customerId }}</p>
+                                    </div>
+                                    <div>
+                                        <svg v-if="state.selectedClientAccount === client.customerId" 
+                                            class="w-5 h-5 text-indigo-600 stroke-[3]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                            <polyline points="20 6 9 17 4 12"></polyline>
+                                        </svg>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -530,7 +603,12 @@ function cancel() {
                 <!-- Selected Account Summary -->
                 <div class="p-5 bg-gray-50 rounded-lg mb-6">
                     <h4 class="text-sm font-semibold text-gray-600 mb-3">Selected Account</h4>
-                    <div>
+                    <div v-if="state.selectedClientAccount && state.selectedAccount?.clientAccounts">
+                        <p class="text-sm text-gray-600 mb-1">Manager: {{ state.selectedAccount?.descriptiveName }}</p>
+                        <p><strong>{{ state.selectedAccount?.clientAccounts.find(c => c.customerId === state.selectedClientAccount)?.descriptiveName }}</strong></p>
+                        <p class="text-gray-600 text-sm">Customer ID: {{ state.selectedClientAccount }}</p>
+                    </div>
+                    <div v-else>
                         <p><strong>{{ state.selectedAccount?.descriptiveName }}</strong></p>
                         <p class="text-gray-600 text-sm">Customer ID: {{ state.selectedAccount?.customerId }}</p>
                     </div>

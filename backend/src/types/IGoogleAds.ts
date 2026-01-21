@@ -82,6 +82,13 @@ export interface IGoogleAdsAccount {
     descriptiveName: string;
     currencyCode: string;
     timeZone: string;
+    isManager?: boolean;
+    clientAccounts?: IGoogleAdsClientAccount[];
+}
+
+export interface IGoogleAdsClientAccount {
+    customerId: string;
+    descriptiveName: string;
 }
 
 export interface IGoogleAdsReportTypeDefinition {
