@@ -23,8 +23,9 @@ export interface IAPIConnectionDetails {
         start_date?: string;
         end_date?: string;
         
-        // Future: Google Ads specific
+        // Google Ads specific
         customer_id?: string;
+        manager_customer_id?: string;  // For client accounts under a manager
         developer_token?: string;
         
         // Additional metadata

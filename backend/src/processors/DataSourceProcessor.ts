@@ -2898,6 +2898,7 @@ export class DataSourceProcessor {
                     token_expiry: new Date(Date.now() + 3600 * 1000), // 1 hour from now
                     api_config: {
                         customer_id: syncConfig.customerId,
+                        manager_customer_id: syncConfig.managerCustomerId, // For client accounts under a manager
                         report_types: syncConfig.reportTypes || ['campaign'],
                         start_date: syncConfig.startDate,
                         end_date: syncConfig.endDate

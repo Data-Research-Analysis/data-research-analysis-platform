@@ -280,6 +280,7 @@ async function connectDataSource() {
         const dataSourceConfig = {
             name: state.dataSourceName,
             customerId: state.selectedClientAccount || state.selectedAccount.customerId, // Use client if selected
+            managerCustomerId: state.selectedClientAccount ? state.selectedAccount.customerId : undefined, // Include manager ID if client selected
             accessToken: state.accessToken,
             refreshToken: state.refreshToken,
             reportTypes: state.selectedReportTypes,

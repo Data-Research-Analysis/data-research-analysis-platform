@@ -27,6 +27,7 @@ export interface IGoogleAdsReportTypeDefinition {
 export interface IGoogleAdsSyncConfig {
     name: string;
     customerId: string;
+    managerCustomerId?: string;  // When selecting a client under a manager
     accessToken: string;
     refreshToken: string;
     reportTypes: string[];

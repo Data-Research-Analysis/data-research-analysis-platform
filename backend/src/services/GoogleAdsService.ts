@@ -287,12 +287,16 @@ export class GoogleAdsService {
         
         const url = `${GoogleAdsService.BASE_URL}/${GoogleAdsService.API_VERSION}/customers/${query.customerId}/googleAds:search`;
         
+        // For client accounts under a manager, use manager ID in login-customer-id header
+        // Otherwise use the account's own customer ID
+        const loginCustomerId = connectionDetails.api_config?.manager_customer_id || query.customerId;
+        
         const response = await fetch(url, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${connectionDetails.oauth_access_token}`,
                 'developer-token': this.getDeveloperToken(),
-                'login-customer-id': query.customerId.replace(/-/g, ''), // Remove hyphens
+                'login-customer-id': loginCustomerId.replace(/-/g, ''), // Remove hyphens
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({ query: googleAdsQuery })
