@@ -102,6 +102,10 @@ function closeDrawer() {
                         <NuxtLink to="/projects">Projects</NuxtLink>
                     </div>
                 </div>
+                <!-- Notification Bell -->
+                <div class="mr-4">
+                    <NotificationBell />
+                </div>
                 <menu-dropdown>
                     <template #menuItem="{ onClick }">
                         <div @click="onClick" class="flex flex-col justify-center items-center w-10 h-10 bg-gray-200 border border-primary-blue-100 border-solid p-1 rounded-full cursor-pointer hover:bg-gray-300 font-bold text-center text-black text-none">
