@@ -104,6 +104,14 @@ const isUnlimitedTier = computed(() => {
     return limit === -1;
 });
 
+// Check if tables have any data
+const hasTableData = computed(() => {
+    if (!state.tables || state.tables.length === 0) {
+        return false;
+    }
+    return state.tables.some(table => table.columns && table.columns.length > 0);
+});
+
 // Enforce tier limit on LIMIT input
 function enforceLimitRestriction() {
     if (state.data_table.query_options.limit > userRowLimit.value) {
@@ -4098,6 +4106,20 @@ onMounted(async () => {
             </div>
         </div>
         
+        <!-- No Data Warning Banner -->
+        <div v-if="!hasTableData" class="mb-4 p-4 bg-orange-50 border-2 border-orange-400 rounded-lg flex items-center gap-3">
+            <font-awesome icon="fas fa-exclamation-triangle" class="text-orange-600 text-2xl" />
+            <div class="flex-1">
+                <h3 class="font-bold text-orange-800">No Data Available in Tables</h3>
+                <p class="text-sm text-orange-700 mt-1">
+                    The connected data source tables contain no rows. Data models cannot be created until the tables have been populated with data.
+                </p>
+                <p class="text-sm text-orange-600 mt-2">
+                    Please ensure your data source contains data before attempting to build a data model.
+                </p>
+            </div>
+        </div>
+        
         <div class="flex flex-row justify-between items-center mb-5">
             <div class="font-bold text-2xl">
                 Create A Data Model from the Connected Data Source(s)
@@ -4484,6 +4506,13 @@ onMounted(async () => {
                             pull: readOnly ? false : 'clone',
                             put: false,
                         }" itemKey="name">
+                            <template v-if="!tableOrAlias.columns || tableOrAlias.columns.length === 0" #header>
+                                <div class="p-6 text-center text-gray-500 italic">
+                                    <font-awesome icon="fas fa-inbox" class="text-4xl mb-3 text-gray-400" />
+                                    <p class="text-sm font-medium">No columns/data available</p>
+                                    <p class="text-xs mt-1">This table is empty</p>
+                                </div>
+                            </template>
                             <template #item="{ element, index }">
                                 <div class="cursor-pointer p-1 ml-2 mr-2 rounded-lg" :class="{
                                     'bg-gray-200': !element.reference.foreign_table_schema && !isColumnUsedInAggregate(element.column_name, tableOrAlias.schema, tableOrAlias.table_name) ? index % 2 === 0 : false,
@@ -5208,12 +5237,18 @@ onMounted(async () => {
                                         @click="!readOnly && openCalculatedColumnDialog()">
                                         + Add Calculated Column/Field
                                     </div>
-                                    <template v-if="showDataModelControls && saveButtonEnabled">
+                                    <template v-if="showDataModelControls && saveButtonEnabled && hasTableData">
                                         <div v-if="showDataModelControls"
                                             class="w-full justify-center text-center items-center self-center mb-5 p-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md select-none"
                                             @click="saveDataModel">
                                             <template v-if="props.isEditDataModel">Update</template><template
                                                 v-else>Save</template> Data Model
+                                        </div>
+                                    </template>
+                                    <template v-else-if="showDataModelControls && !hasTableData">
+                                        <div
+                                            class="w-full justify-center text-center items-center self-center mb-5 p-2 bg-orange-300 text-orange-900 cursor-not-allowed font-bold shadow-md select-none">
+                                            Cannot Save - No Data in Tables
                                         </div>
                                     </template>
                                     <template v-else-if="showDataModelControls">
