@@ -215,7 +215,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         connectionDetails: IAPIConnectionDetails
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
         const reportType = this.gamService.getReportType(reportTypeString);
-
+        console.log('📊 [GAM Sync] Syncing report type:', reportType);
         switch (reportType) {
             case GAMReportType.REVENUE:
                 return await this.syncRevenueData(manager, schemaName, dataSourceId, startDate, endDate, connectionDetails);
@@ -287,7 +287,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         
         // Build and execute report query with retry logic
         const reportQuery = this.gamService.buildRevenueReportQuery(networkCode, startDate, endDate);
-        
+        console.log('📄 [GAM Sync] Revenue report query built:', reportQuery);
         const reportResult = await RetryHandler.execute(
             () => this.gamService.runReport(reportQuery, connectionDetails),
             RetryHandler.getRecommendedConfig('rate_limit')

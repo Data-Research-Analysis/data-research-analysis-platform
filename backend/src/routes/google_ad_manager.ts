@@ -6,7 +6,6 @@ import { GoogleAdManagerService } from '../services/GoogleAdManagerService.js';
 import { GoogleAdManagerDriver } from '../drivers/GoogleAdManagerDriver.js';
 import { DataSourceProcessor } from '../processors/DataSourceProcessor.js';
 import { IAPIConnectionDetails } from '../types/IAPIConnectionDetails.js';
-import { EDataSourceType } from '../types/EDataSourceType.js';
 import { expensiveOperationsLimiter } from '../middleware/rateLimit.js';
 
 const router = express.Router();
@@ -240,6 +239,7 @@ router.post('/sync/:dataSourceId',
                 dataSourceId,
                 req.body.tokenDetails
             );
+            console.log('📊 [GAM Sync] Sync process completed for data source ID:', dataSourceId, 'Result:', result);
             
             if (result) {
                 console.log(`✅ [GAM Sync] Sync completed successfully for data source ID: ${dataSourceId}`);

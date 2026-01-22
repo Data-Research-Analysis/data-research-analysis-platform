@@ -2843,7 +2843,7 @@ export class DataSourceProcessor {
             // Trigger sync
             const gamDriver = GoogleAdManagerDriver.getInstance();
             const syncResult = await gamDriver.syncToDatabase(dataSourceId, user.id, apiConnectionDetails);
-            
+            console.log('📊 [GAM Sync] Sync result for data source ID', dataSourceId, ':', syncResult);
             if (syncResult) {
                 // Update last sync time in API connection details
                 apiConnectionDetails.api_config.last_sync = new Date();
