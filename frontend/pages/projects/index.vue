@@ -11,6 +11,7 @@ const subscriptionStore = useSubscriptionStore();
 const loggedInUserStore = useLoggedInUserStore();
 const { $swal } = useNuxtApp();
 const { handleApiError } = useApiErrorHandler();
+const { isTitleTruncated } = useTruncation();
 
 const state = reactive({
     project_name: '',
@@ -306,13 +307,19 @@ function closeMembersDialog() {
                 <NuxtLink :to="`/projects/${project.id}`" @click="setSelectedProject(project.id)" class="cursor-pointer block">
                     <!-- Header with badges -->
                     <div class="flex items-start justify-between mb-3">
-                        <h3 class="text-lg font-semibold text-gray-900 group-hover:text-primary-blue-100 transition-colors flex-1 pr-2">
+                        <!-- Add truncate class -->
+                        <h3 
+                            :ref="`projectTitle-${project.id}`"
+                            :data-project-title="project.id"
+                            class="w-2/3 text-lg font-semibold text-gray-900 truncate flex-1 mr-2"
+                            v-tippy="isTitleTruncated(project.id, 'data-project-title') ? { content: project.name } : undefined"
+                        >
                             {{ project.name }}
                         </h3>
                         <!-- Role Badge -->
                         <span 
                             v-if="project.is_owner"
-                            class="inline-flex items-center px-4 py-1 mr-10 rounded text-xs font-medium bg-indigo-100 text-indigo-800 shrink-0"
+                            class="inline-flex items-center px-2 py-1 mr-10 rounded text-xs font-medium bg-indigo-100 text-indigo-800 shrink-0"
                             title="You own this project">
                             <font-awesome icon="fas fa-crown" class="mr-1" />
                             Owner

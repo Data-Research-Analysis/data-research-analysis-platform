@@ -7,6 +7,7 @@ import { useGoogleAnalytics } from '@/composables/useGoogleAnalytics';
 import { useGoogleAdManager } from '@/composables/useGoogleAdManager';
 import { useGoogleAds } from '@/composables/useGoogleAds';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
+import { useTruncation } from '@/composables/useTruncation';
 import pdfImage from '/assets/images/pdf.png';
 import excelImage from '/assets/images/excel.png';
 import postgresqlImage from '/assets/images/postgresql.png';
@@ -26,6 +27,7 @@ const ads = useGoogleAds();
 const { $swal } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
+const { isTitleTruncated } = useTruncation();
 
 // Get project ID from route
 const projectId = parseInt(String(route.params.projectid));
@@ -576,7 +578,12 @@ onMounted(async () => {
                                     :alt="dataSource.data_type"
                                     class="h-12 w-12 object-contain" />
                                 <div class="flex-1 min-w-0">
-                                    <h3 class="text-lg font-semibold text-gray-900 truncate">
+                                    <h3 
+                                        :ref="`dataSourceTitle-${dataSource.id}`"
+                                        :data-source-title="dataSource.id"
+                                        class="text-lg font-semibold text-gray-900 truncate"
+                                        v-tippy="isTitleTruncated(dataSource.id, 'data-source-title') ? { content: dataSource.name } : undefined"
+                                    >
                                         {{ dataSource.name }}
                                     </h3>
                                     <p class="text-sm text-gray-500 capitalize">

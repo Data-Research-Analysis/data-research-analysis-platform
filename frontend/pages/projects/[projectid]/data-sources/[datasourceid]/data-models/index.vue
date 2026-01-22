@@ -4,6 +4,7 @@ import { useDataSourceStore } from '@/stores/data_sources';
 import { useDataModelsStore } from '@/stores/data_models';
 import { useSubscriptionStore } from '@/stores/subscription';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
+import { useTruncation } from '@/composables/useTruncation';
 const projectsStore = useProjectsStore();
 const dataSourceStore = useDataSourceStore();
 const dataModelsStore = useDataModelsStore();
@@ -11,6 +12,7 @@ const subscriptionStore = useSubscriptionStore();
 const { $swal } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
+const { isTitleTruncated } = useTruncation();
 const state = reactive({
     data_models: [],
     refreshing_model_id: null, // Track which model is being refreshed
@@ -254,14 +256,14 @@ onUnmounted(() => {
                 <div 
                     v-for="dataModel in state.data_models" 
                     :key="dataModel.id"
-                    class="relative bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg hover:border-primary-blue-100 transition-all duration-200"
+                    class="relative bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg hover:border-primary-blue-100 transition-all duration-200 flex flex-col"
                 >
                     <!-- Action Buttons (Top Right) -->
-                    <div class="absolute top-4 right-4 flex space-x-2">
+                    <div class="absolute top-4 right-4 flex gap-1">
                         <!-- Refresh Button -->
                         <button
                             v-if="canUpdate"
-                            @click="refreshDataModel(dataModel.id, dataModel.name)"
+                            @click.stop="refreshDataModel(dataModel.id, dataModel.name)"
                             :disabled="state.refreshing_model_id === dataModel.id"
                             class="p-2 text-green-600 hover:bg-green-50 rounded-lg disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
                             v-tippy="{ content: state.refreshing_model_id === dataModel.id ? 'Refreshing...' : 'Refresh Model' }"
@@ -275,7 +277,7 @@ onUnmounted(() => {
                         <!-- Delete Button -->
                         <button
                             v-if="canDelete"
-                            @click="deleteDataModel(dataModel.id)"
+                            @click.stop="deleteDataModel(dataModel.id)"
                             class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                             v-tippy="{ content: 'Delete Model' }"
                         >
@@ -284,17 +286,22 @@ onUnmounted(() => {
                     </div>
 
                     <!-- Model Info -->
-                    <div class="space-y-4 pr-20">
+                    <div class="flex-1 space-y-4">
                         <!-- Model Name -->
-                        <div>
-                            <h3 class="text-lg font-semibold text-gray-900">
+                        <div class="pr-16">
+                            <h3 
+                                :ref="`modelTitle-${dataModel.id}`"
+                                :data-model-title="dataModel.id"
+                                class="text-base font-semibold text-gray-900 mb-2 truncate"
+                                v-tippy="isTitleTruncated(dataModel.id, 'data-model-title') ? { content: cleanDataModelName(dataModel.name) } : undefined"
+                            >
                                 {{ cleanDataModelName(dataModel.name) }}
                             </h3>
                         </div>
 
                         <!-- Data Source Badge -->
                         <div>
-                            <p class="text-xs text-gray-500 mb-2">Data Source</p>
+                            <p class="text-xs font-medium text-gray-500 mb-2">Data Source</p>
                             <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                 <font-awesome icon="fas fa-database" class="mr-1" />
                                 {{ dataSource.name }}
@@ -305,7 +312,7 @@ onUnmounted(() => {
                     <!-- View Details Button -->
                     <NuxtLink 
                         :to="`/projects/${project.id}/data-sources/${dataSource.id}/data-models/${dataModel.id}/edit`"
-                        class="mt-4 w-full block text-center bg-primary-blue-300 hover:bg-primary-blue-100 text-white py-2 px-4 rounded-lg transition-colors"
+                        class="mt-6 w-full block text-center bg-primary-blue-300 hover:bg-primary-blue-100 text-white py-2 px-4 rounded-lg transition-colors font-medium"
                     >
                         View Details
                     </NuxtLink>

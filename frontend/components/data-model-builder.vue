@@ -283,16 +283,28 @@ const numericColumnsWithAggregates = computed(() => {
     state.data_table.columns
         .filter((column) => getDataType(column.data_type) === 'NUMBER')
         .forEach((column) => {
+            const logicalName = column.table_logical_name || getTableLogicalName(column.schema, column.table_name);
+            const physicalName = `${column.schema}.${column.table_name}.${column.column_name}`;
+            
+            // Use alias if available, otherwise use fully qualified path for SQL
+            const valueForSQL = column.alias_name && column.alias_name.trim() !== ''
+                ? column.alias_name
+                : physicalName;
+            
+            // Display logical name for UI
             const displayName = column.alias_name && column.alias_name.trim() !== ''
                 ? column.alias_name
-                : `${column.schema}.${column.table_name}.${column.column_name}`;
+                : `${logicalName}.${column.column_name}`;
 
             columns.push({
-                value: displayName,
+                value: valueForSQL,
                 display: `${displayName} (Base Column)`,
+                display_short: displayName,
+                physical_name: physicalName,
                 type: 'base_column',
                 schema: column.schema,
                 table_name: column.table_name,
+                table_logical_name: logicalName,
                 column_name: column.column_name,
                 data_type: 'NUMBER'
             });
@@ -2140,7 +2152,12 @@ function deleteCalculatedColumnOperation(index) {
     }
 }
 async function addCalculatedColumn() {
+    console.log('[DEBUG addCalculatedColumn] Function called');
+    console.log('[DEBUG addCalculatedColumn] state.calculated_column:', JSON.stringify(state.calculated_column, null, 2));
+    console.log('[DEBUG addCalculatedColumn] state.data_table.calculated_columns before:', state.data_table.calculated_columns);
+    
     if (state.calculated_column.column_name === '') {
+        console.log('[DEBUG addCalculatedColumn] VALIDATION FAILED: Empty column name');
         $swal.fire({
             icon: 'error',
             title: `Error!`,
@@ -2148,7 +2165,12 @@ async function addCalculatedColumn() {
         });
         return;
     }
+    console.log('[DEBUG addCalculatedColumn] Validation 1 passed: column name is not empty');
+    
     if (state.calculated_column.columns.length === 0 || state.calculated_column.columns.filter((column) => column.column_name === '' && column.type === 'column').length > 0) {
+        console.log('[DEBUG addCalculatedColumn] VALIDATION FAILED: No columns or empty column names');
+        console.log('[DEBUG addCalculatedColumn] columns.length:', state.calculated_column.columns.length);
+        console.log('[DEBUG addCalculatedColumn] Empty column names:', state.calculated_column.columns.filter((column) => column.column_name === '' && column.type === 'column'));
         $swal.fire({
             icon: 'error',
             title: `Error!`,
@@ -2156,7 +2178,11 @@ async function addCalculatedColumn() {
         });
         return;
     }
+    console.log('[DEBUG addCalculatedColumn] Validation 2 passed: columns selected');
+    
     if (state.calculated_column.columns.length === 0 || state.calculated_column.columns.filter((column, index) => index > 0 && column.operator === null).length > 0) {
+        console.log('[DEBUG addCalculatedColumn] VALIDATION FAILED: Missing operators');
+        console.log('[DEBUG addCalculatedColumn] Columns missing operators:', state.calculated_column.columns.filter((column, index) => index > 0 && column.operator === null));
         $swal.fire({
             icon: 'error',
             title: `Error!`,
@@ -2164,14 +2190,21 @@ async function addCalculatedColumn() {
         });
         return;
     }
+    console.log('[DEBUG addCalculatedColumn] Validation 3 passed: operators selected');
 
     // Validate aggregate usage
+    console.log('[DEBUG addCalculatedColumn] Checking aggregate usage...');
+    console.log('[DEBUG addCalculatedColumn] numericColumnsWithAggregates:', numericColumnsWithAggregates.value);
     const usesAggregates = state.calculated_column.columns.some(col => {
         const colInfo = numericColumnsWithAggregates.value.find(c => c.value === col.column_name);
+        console.log('[DEBUG addCalculatedColumn] Looking up column:', col.column_name, 'Found:', colInfo);
         return colInfo && (colInfo.type === 'aggregate_function' || colInfo.type === 'aggregate_expression');
     });
+    console.log('[DEBUG addCalculatedColumn] usesAggregates:', usesAggregates);
+    console.log('[DEBUG addCalculatedColumn] showGroupByClause:', showGroupByClause.value);
 
     if (usesAggregates && !showGroupByClause.value) {
+        console.log('[DEBUG addCalculatedColumn] VALIDATION FAILED: Aggregates without GROUP BY');
         $swal.fire({
             icon: 'error',
             title: `Error!`,
@@ -2179,19 +2212,30 @@ async function addCalculatedColumn() {
         });
         return;
     }
+    console.log('[DEBUG addCalculatedColumn] Validation 4 passed: aggregate usage valid');
+    
     let expression = "";
+    console.log('[DEBUG addCalculatedColumn] Building expression...');
     for (let i = 0; i < state.calculated_column.columns.length; i++) {
         const column = state.calculated_column.columns[i];
         const operator = column.operator;
         const type = column.type;
+        
+        console.log(`[DEBUG addCalculatedColumn] Processing column ${i}:`, { column_name: column.column_name, operator, type });
 
         // Get the proper column reference (fully qualified for base columns, alias for aggregates)
         let columnRef = column.column_name;
         if (type === 'column') {
             const colInfo = numericColumnsWithAggregates.value.find(c => c.value === column.column_name);
+            console.log(`[DEBUG addCalculatedColumn] Column ${i} lookup:`, { 
+                searching_for: column.column_name, 
+                found: colInfo ? 'YES' : 'NO',
+                colInfo: colInfo 
+            });
             if (colInfo && colInfo.type === 'base_column') {
                 // Use fully qualified name for base columns
                 columnRef = `${colInfo.schema}.${colInfo.table_name}.${colInfo.column_name}`;
+                console.log(`[DEBUG addCalculatedColumn] Using qualified name:`, columnRef);
             }
             // For aggregates, use the alias (column.column_name is already the alias)
         }
@@ -2199,8 +2243,10 @@ async function addCalculatedColumn() {
         if (i === 0) {
             //the first operator will always be null, so we skip it
             expression += `${columnRef}`;
+            console.log(`[DEBUG addCalculatedColumn] Expression after column ${i}:`, expression);
         } else {
             let value = type === 'column' ? columnRef : column.numeric_value;
+            console.log(`[DEBUG addCalculatedColumn] Column ${i} operator:`, operator, 'value:', value);
             if (operator === 'ADD') {
                 expression += ` + ${value}`;
             } else if (operator === 'SUBTRACT') {
@@ -2212,15 +2258,27 @@ async function addCalculatedColumn() {
             } else if (operator === 'MODULO') {
                 expression += ` % ${value}`;
             }
+            console.log(`[DEBUG addCalculatedColumn] Expression after column ${i}:`, expression);
         }
     }
-    state.data_table.calculated_columns.push({
+    
+    const finalColumn = {
         column_name: state.calculated_column.column_name,
         expression: `ROUND(${expression}, 2)`,
         column_data_type: state.calculated_column.column_data_type,
-    });
+    };
+    console.log('[DEBUG addCalculatedColumn] Final expression:', expression);
+    console.log('[DEBUG addCalculatedColumn] Final column object to push:', finalColumn);
+    console.log('[DEBUG addCalculatedColumn] Pushing to state.data_table.calculated_columns...');
+    
+    state.data_table.calculated_columns.push(finalColumn);
+    
+    console.log('[DEBUG addCalculatedColumn] After push, calculated_columns:', state.data_table.calculated_columns);
+    console.log('[DEBUG addCalculatedColumn] Closing dialog...');
     state.show_calculated_column_dialog = false;
+    console.log('[DEBUG addCalculatedColumn] Calling executeQueryOnExternalDataSource...');
     await executeQueryOnExternalDataSource();
+    console.log('[DEBUG addCalculatedColumn] Function completed');
 }
 async function deleteCalculatedColumn(index) {
     state.data_table.calculated_columns.splice(index, 1);
@@ -2670,6 +2728,7 @@ function buildSQLQuery() {
 
     // Add calculated columns AFTER aggregates so they can reference aggregate aliases
     if (state?.data_table?.calculated_columns?.length) {
+        console.log('[buildSQLQuery] Adding calculated columns to query:', state.data_table.calculated_columns);
         state.data_table.calculated_columns.forEach((column) => {
             // Replace aggregate aliases with full aggregate expressions for PostgreSQL compatibility
             let finalExpression = column.expression;
@@ -2705,7 +2764,9 @@ function buildSQLQuery() {
             });
 
             sqlQuery += `, ${finalExpression} AS ${column.column_name}`;
+            console.log('[buildSQLQuery] Added calculated column to query:', column.column_name, 'SQL:', `${finalExpression} AS ${column.column_name}`);
         })
+        console.log('[buildSQLQuery] Query after adding calculated columns:', sqlQuery);
     }
 
     sqlQuery += ` ${fromJoinClause.join(' ')}`;
@@ -3071,6 +3132,7 @@ async function executeQueryOnExternalDataSource() {
         state.data_table.join_conditions = [...state.join_conditions];
         state.data_table.table_aliases = [...state.table_aliases];
         
+        console.log('[executeQuery] Building SQL with calculated_columns:', state.data_table.calculated_columns);
         state.sql_query = buildSQLQuery();
         state.sql_query += ` LIMIT 5 OFFSET 0`;
         console.log('[Data Model Builder - executeQueryOnExternalDataSource] SQL Query being sent:', state.sql_query);
@@ -3143,6 +3205,9 @@ async function executeQueryOnExternalDataSource() {
             }
 
             const columns = Object.keys(data[0]);
+            console.log('[executeQuery] Columns from query result:', columns);
+            console.log('[executeQuery] Number of rows returned:', data.length);
+            console.log('[executeQuery] Calculated columns in state:', state.data_table.calculated_columns);
             state.response_from_external_data_source_columns = columns;
             state.response_from_external_data_source_rows = data;
         }
@@ -4187,7 +4252,8 @@ onMounted(async () => {
                             </div>
                         </th>
                     </tr>
-                    <tr v-for="row in state.response_from_external_data_source_rows"
+                    <tr v-for="(row, rowIndex) in state.response_from_external_data_source_rows.slice(0, 5)"
+                        :key="rowIndex"
                         class="border border-primary-blue-100 border-solid p-2 text-center font-bold rounded-tr-lg">
                         <td v-for="column in state.response_from_external_data_source_columns"
                             class="border border-primary-blue-100 border-solid p-2 text-center">
@@ -5327,7 +5393,8 @@ onMounted(async () => {
                                 <optgroup label="Base Columns">
                                     <option
                                         v-for="(col, index) in numericColumnsWithAggregates.filter(c => c.type === 'base_column')"
-                                        :key="'base_' + index" :value="col.value">
+                                        :key="'base_' + index" :value="col.value"
+                                        :title="col.display_short !== col.physical_name ? col.physical_name : ''">
                                         {{ col.display }}
                                     </option>
                                 </optgroup>
@@ -5384,7 +5451,7 @@ onMounted(async () => {
                             'flex flex-row justify-center w-50 h-10 items-center self-center mt-2 p-5 text-sm text-center font-bold select-none rounded-lg',
                             readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-primary-blue-100 hover:bg-primary-blue-300 cursor-pointer text-white'
                         ]"
-                        @click="!readOnly && addCalculatedColumn">
+                        @click="!readOnly && addCalculatedColumn()">
                         Add Calulated Column
                     </div>
                 </div>

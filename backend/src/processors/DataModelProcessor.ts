@@ -6,7 +6,7 @@ import { ITokenDetails } from "../types/ITokenDetails.js";
 import { IDBConnectionDetails } from "../types/IDBConnectionDetails.js";
 import { UtilityService } from "../services/UtilityService.js";
 import { DRADataSource } from "../models/DRADataSource.js";
-import { DataSource } from "typeorm";
+import { DataSource, Brackets } from "typeorm";
 import { EDataSourceType } from "../types/EDataSourceType.js";
 import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
 import { DRAProject } from "../models/DRAProject.js";
@@ -228,13 +228,23 @@ export class DataModelProcessor {
             }
             
             // Query data models filtering by project through data_source relationship
+            // Include both single-source models (ds.project_id) and cross-source models (dms_ds.project_id)
             const dataModels = await manager
                 .createQueryBuilder(DRADataModel, 'dm')
                 .leftJoinAndSelect('dm.data_source', 'ds')
+                .leftJoinAndSelect('ds.project', 'ds_project')  // Load project for single-source models
                 .leftJoinAndSelect('dm.users_platform', 'up')
                 .leftJoinAndSelect('dm.data_model_sources', 'dms')
                 .leftJoinAndSelect('dms.data_source', 'dms_ds')
-                .where('ds.project_id = :projectId', { projectId })
+                .leftJoinAndSelect('dms_ds.project', 'dms_ds_project')  // Load project for cross-source models
+                .where(
+                    new Brackets((qb) => {
+                        // Single-source models: data_source.project_id matches
+                        qb.where('ds.project_id = :projectId', { projectId })
+                          // Cross-source models: any linked data source belongs to this project
+                          .orWhere('dms_ds.project_id = :projectId', { projectId });
+                    })
+                )
                 .getMany();
             
             return resolve(dataModels);

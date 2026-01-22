@@ -1009,6 +1009,17 @@ export class DataSourceProcessor {
                 if (queryJSON) {
                     console.log('[DataSourceProcessor] Reconstructing query from JSON to ensure JOINs are included');
                     finalQuery = this.reconstructSQLFromJSON(queryJSON);
+                    
+                    // Extract LIMIT/OFFSET from original query if not in JSON
+                    // This handles cases where LIMIT is added as SQL string (e.g., 'LIMIT 5 OFFSET 0')
+                    const limitMatch = query.match(/LIMIT\s+(\d+)/i);
+                    const offsetMatch = query.match(/OFFSET\s+(\d+)/i);
+                    if (limitMatch && !finalQuery.includes('LIMIT')) {
+                        const limit = limitMatch[1];
+                        const offset = offsetMatch ? offsetMatch[1] : '0';
+                        finalQuery += ` LIMIT ${limit} OFFSET ${offset}`;
+                        console.log('[DataSourceProcessor] Added LIMIT from original query:', limit);
+                    }
                 }
                 
                 console.log('[DataSourceProcessor] Executing query on external datasource:', finalQuery);
@@ -2392,8 +2403,10 @@ export class DataSourceProcessor {
         // Add calculated columns to SELECT
         if (query.calculated_columns && Array.isArray(query.calculated_columns)) {
             query.calculated_columns.forEach((calcCol: any) => {
-                if (calcCol.column_expression && calcCol.column_name) {
-                    selectColumns.push(`${calcCol.column_expression} AS ${calcCol.column_name}`);
+                // Frontend sends 'expression' not 'column_expression'
+                const expression = calcCol.expression || calcCol.column_expression;
+                if (expression && calcCol.column_name) {
+                    selectColumns.push(`${expression} AS ${calcCol.column_name}`);
                 }
             });
         }

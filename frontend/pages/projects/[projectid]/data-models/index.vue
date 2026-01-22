@@ -126,18 +126,18 @@
           </div>
 
           <!-- Cards Grid -->
-          <div v-else-if="filteredModels.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div v-else-if="filteredModels.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6">
             <div 
               v-for="item in filteredModels" 
               :key="item.id"
-              class="relative bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg hover:border-primary-blue-100 transition-all duration-200"
+              class="relative bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg hover:border-primary-blue-100 transition-all duration-200 flex flex-col"
             >
               <!-- Action Buttons (Top Right) -->
-              <div class="absolute top-4 right-4 flex space-x-2">
+              <div class="absolute top-4 right-4 flex gap-1">
                 <!-- Refresh Button -->
                 <button
                   v-if="canUpdate"
-                  @click="refreshModel(item)"
+                  @click.stop="refreshModel(item)"
                   :disabled="refreshingModelId === item.id"
                   class="p-2 text-green-600 hover:bg-green-50 rounded-lg disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
                   v-tippy="{ content: refreshingModelId === item.id ? 'Refreshing...' : 'Refresh Model' }"
@@ -151,7 +151,7 @@
                 <!-- Delete Button -->
                 <button
                   v-if="canDelete"
-                  @click="deleteModel(item)"
+                  @click.stop="deleteModel(item)"
                   class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                   v-tippy="{ content: 'Delete Model' }"
                 >
@@ -160,10 +160,17 @@
               </div>
 
               <!-- Model Info -->
-              <div class="space-y-4 pr-20">
+              <div class="flex-1 space-y-4">
                 <!-- Model Name & Multi-Source Badge -->
-                <div>
-                  <h3 class="text-lg font-semibold text-gray-900 mb-2">{{ item.name }}</h3>
+                <div class="pr-16">
+                  <h3 
+                    :ref="`modelTitle-${item.id}`"
+                    :data-model-title="item.id"
+                    class="text-base font-semibold text-gray-900 mb-2 truncate"
+                    v-tippy="isTitleTruncated(item.id, 'data-model-title') ? { content: cleanDataModelName(item.name) } : undefined"
+                  >
+                    {{ cleanDataModelName(item.name) }}
+                  </h3>
                   <span 
                     v-if="item.is_cross_source"
                     class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800"
@@ -175,7 +182,7 @@
 
                 <!-- Data Sources -->
                 <div>
-                  <p class="text-xs text-gray-500 mb-2">Data Source(s)</p>
+                  <p class="text-xs font-medium text-gray-500 mb-2">Data Source(s)</p>
                   <div class="flex flex-wrap gap-2">
                     <SourceBadge 
                       v-for="source in getModelSources(item)" 
@@ -197,7 +204,7 @@
               <!-- View Details Button -->
               <button
                 @click="viewModel(item)"
-                class="mt-4 w-full bg-primary-blue-300 hover:bg-primary-blue-100 text-white py-2 px-4 rounded-lg transition-colors"
+                class="mt-6 w-full bg-primary-blue-300 hover:bg-primary-blue-100 text-white py-2 px-4 rounded-lg transition-colors font-medium"
               >
                 View Details
               </button>
@@ -224,12 +231,14 @@ import { useRouter, useRoute } from 'vue-router';
 import { useDataModelsStore } from '~/stores/data_models';
 import { useSubscriptionStore } from '@/stores/subscription';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
+import { useTruncation } from '@/composables/useTruncation';
 
 const router = useRouter();
 const route = useRoute();
 const dataModelsStore = useDataModelsStore();
 const subscriptionStore = useSubscriptionStore();
 const { $swal }: any = useNuxtApp();
+const { isTitleTruncated } = useTruncation();
 
 const projectId = computed(() => parseInt(route.params.projectid as string));
 
@@ -268,14 +277,14 @@ const headers = [
 
 const dataModels = computed(() => {
   const allModels = dataModelsStore.dataModels;
-  // Filter by project - check data_source.project_id or data_model_sources
+  // Filter by project - check data_source.project.id or data_model_sources
   return allModels.filter(model => {
     // Check if model's data source belongs to this project
-    if (model.data_source?.project_id === projectId.value) {
+    if (model.data_source?.project?.id === projectId.value) {
       return true;
     }
     // For federated models, check if any source belongs to this project
-    if (model.data_model_sources?.some((dms: any) => dms.data_source?.project_id === projectId.value)) {
+    if (model.data_model_sources?.some((dms: any) => dms.data_source?.project?.id === projectId.value)) {
       return true;
     }
     return false;
@@ -399,6 +408,10 @@ function formatDate(date: string): string {
   });
 }
 
+function cleanDataModelName(name: string): string {
+  return name.replace(/_dra_[a-zA-Z0-9_]+/g, "");
+}
+
 function viewModel(model: any) {
   // Navigate to index page (view/details page)
   if (model.is_cross_source) {
@@ -422,7 +435,7 @@ function viewModel(model: any) {
 async function refreshModel(model: any) {
   // Confirmation dialog
   const { value: confirmRefresh } = await $swal.fire({
-    title: `Refresh Data Model "${model.name}"?`,
+    title: `Refresh Data Model "${cleanDataModelName(model.name)}"?`,
     text: 'This will queue the data model for refresh with the latest data.',
     icon: 'question',
     showCancelButton: true,
