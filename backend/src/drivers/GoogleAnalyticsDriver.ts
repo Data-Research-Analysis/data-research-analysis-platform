@@ -4,6 +4,8 @@ import { IAPIConnectionDetails } from '../types/IAPIConnectionDetails.js';
 import { GoogleAnalyticsService } from '../services/GoogleAnalyticsService.js';
 import { GoogleOAuthService } from '../services/GoogleOAuthService.js';
 import { TableMetadataService } from '../services/TableMetadataService.js';
+import { SyncHistoryService } from '../services/SyncHistoryService.js';
+import { SyncType } from '../entities/SyncHistory.js';
 import { DBDriver } from './DBDriver.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 
@@ -15,10 +17,12 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
     private static instance: GoogleAnalyticsDriver;
     private gaService: GoogleAnalyticsService;
     private oauthService: GoogleOAuthService;
+    private syncHistoryService: SyncHistoryService;
     
     private constructor() {
         this.gaService = GoogleAnalyticsService.getInstance();
         this.oauthService = GoogleOAuthService.getInstance();
+        this.syncHistoryService = SyncHistoryService.getInstance();
     }
     
     public static getInstance(): GoogleAnalyticsDriver {
@@ -70,8 +74,20 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         usersPlatformId: number,
         connectionDetails: IAPIConnectionDetails
     ): Promise<boolean> {
+        // Create sync history record
+        const syncRecord = await this.syncHistoryService.createSyncRecord(
+            dataSourceId,
+            SyncType.MANUAL,
+            {
+                propertyId: connectionDetails.api_config?.property_id
+            }
+        );
+        
         try {
             console.log(`🔄 Starting Google Analytics sync for data source ${dataSourceId}`);
+            
+            // Mark as running
+            await this.syncHistoryService.markAsRunning(syncRecord.id);
             
             // Ensure authentication is valid
             const isAuthenticated = await this.authenticate(connectionDetails);
@@ -97,21 +113,27 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
             await manager.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
             console.log(`✅ Schema ${schemaName} ready`);
             
-            // Sync various reports
-            await this.syncTrafficOverview(manager, schemaName, dataSourceId, usersPlatformId, propertyId, connectionDetails);
-            await this.syncPagePerformance(manager, schemaName, dataSourceId, usersPlatformId, propertyId, connectionDetails);
-            await this.syncUserAcquisition(manager, schemaName, dataSourceId, usersPlatformId, propertyId, connectionDetails);
-            await this.syncGeographic(manager, schemaName, dataSourceId, usersPlatformId, propertyId, connectionDetails);
-            await this.syncDeviceData(manager, schemaName, dataSourceId, usersPlatformId, propertyId, connectionDetails);
-            await this.syncEvents(manager, schemaName, dataSourceId, usersPlatformId, propertyId, connectionDetails);
+            // Sync various reports and track row counts
+            let totalRowsSynced = 0;
+            totalRowsSynced += await this.syncTrafficOverview(manager, schemaName, dataSourceId, usersPlatformId, propertyId, connectionDetails);
+            totalRowsSynced += await this.syncPagePerformance(manager, schemaName, dataSourceId, usersPlatformId, propertyId, connectionDetails);
+            totalRowsSynced += await this.syncUserAcquisition(manager, schemaName, dataSourceId, usersPlatformId, propertyId, connectionDetails);
+            totalRowsSynced += await this.syncGeographic(manager, schemaName, dataSourceId, usersPlatformId, propertyId, connectionDetails);
+            totalRowsSynced += await this.syncDeviceData(manager, schemaName, dataSourceId, usersPlatformId, propertyId, connectionDetails);
+            totalRowsSynced += await this.syncEvents(manager, schemaName, dataSourceId, usersPlatformId, propertyId, connectionDetails);
             
-            // Update last sync timestamp
-            await this.updateLastSyncTime(manager, schemaName, dataSourceId);
+            // Complete sync record
+            await this.syncHistoryService.completeSyncRecord(
+                syncRecord.id,
+                totalRowsSynced,
+                0
+            );
             
             console.log('✅ Google Analytics sync completed successfully');
             return true;
         } catch (error) {
             console.error('❌ Google Analytics sync failed:', error);
+            await this.syncHistoryService.markAsFailed(syncRecord.id, (error as Error).message || 'Unknown error');
             return false;
         }
     }
@@ -126,7 +148,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         usersPlatformId: number,
         propertyId: string,
         connectionDetails: IAPIConnectionDetails
-    ): Promise<void> {
+    ): Promise<number> {
         // Generate hash-based physical table name
         const tableMetadataService = TableMetadataService.getInstance();
         const logicalTableName = 'traffic_overview';
@@ -209,6 +231,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         });
         
         console.log(`✅ Synced ${rows.length} rows to ${logicalTableName} (${physicalTableName})`);
+        return rows.length;
     }
     
     /**
@@ -221,7 +244,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         usersPlatformId: number,
         propertyId: string,
         connectionDetails: IAPIConnectionDetails
-    ): Promise<void> {
+    ): Promise<number> {
         // Generate hash-based physical table name
         const tableMetadataService = TableMetadataService.getInstance();
         const logicalTableName = 'page_performance';
@@ -290,6 +313,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         });
         
         console.log(`✅ Synced ${rows.length} rows to ${logicalTableName} (${physicalTableName})`);
+        return rows.length;
     }
     
     /**
@@ -302,7 +326,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         usersPlatformId: number,
         propertyId: string,
         connectionDetails: IAPIConnectionDetails
-    ): Promise<void> {
+    ): Promise<number> {
         // Generate hash-based physical table name
         const tableMetadataService = TableMetadataService.getInstance();
         const logicalTableName = 'user_acquisition';
@@ -381,6 +405,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         });
         
         console.log(`✅ Synced ${rows.length} rows to ${logicalTableName} (${physicalTableName})`);
+        return rows.length;
     }
     
     /**
@@ -393,7 +418,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         usersPlatformId: number,
         propertyId: string,
         connectionDetails: IAPIConnectionDetails
-    ): Promise<void> {
+    ): Promise<number> {
         // Generate hash-based physical table name
         const tableMetadataService = TableMetadataService.getInstance();
         const logicalTableName = 'geographic';
@@ -464,6 +489,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         });
         
         console.log(`✅ Synced ${rows.length} rows to ${logicalTableName} (${physicalTableName})`);
+        return rows.length;
     }
     
     /**
@@ -476,7 +502,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         usersPlatformId: number,
         propertyId: string,
         connectionDetails: IAPIConnectionDetails
-    ): Promise<void> {
+    ): Promise<number> {
         // Generate hash-based physical table name
         const tableMetadataService = TableMetadataService.getInstance();
         const logicalTableName = 'device';
@@ -550,6 +576,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         });
         
         console.log(`✅ Synced ${rows.length} rows to ${logicalTableName} (${physicalTableName})`);
+        return rows.length;
     }
     
     /**
@@ -562,7 +589,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         usersPlatformId: number,
         propertyId: string,
         connectionDetails: IAPIConnectionDetails
-    ): Promise<void> {
+    ): Promise<number> {
         // Generate hash-based physical table name
         const tableMetadataService = TableMetadataService.getInstance();
         const logicalTableName = 'events';
@@ -630,30 +657,7 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
         });
         
         console.log(`✅ Synced ${rows.length} rows to ${logicalTableName} (${physicalTableName})`);
-    }
-    
-    /**
-     * Update last sync timestamp
-     */
-    private async updateLastSyncTime(manager: any, schemaName: string, dataSourceId: number): Promise<void> {
-        // Create sync_history table if it doesn't exist
-        await manager.query(`
-            CREATE TABLE IF NOT EXISTS ${schemaName}.sync_history (
-                id SERIAL PRIMARY KEY,
-                data_source_id INTEGER NOT NULL,
-                sync_started_at TIMESTAMP NOT NULL,
-                sync_completed_at TIMESTAMP NOT NULL,
-                status VARCHAR(50),
-                rows_synced INTEGER,
-                error_message TEXT
-            )
-        `);
-        
-        await manager.query(`
-            INSERT INTO ${schemaName}.sync_history 
-            (data_source_id, sync_started_at, sync_completed_at, status)
-            VALUES ($1, NOW(), NOW(), 'success')
-        `, [dataSourceId]);
+        return rows.length;
     }
     
     /**
@@ -675,82 +679,17 @@ export class GoogleAnalyticsDriver implements IAPIDriver {
     }
     
     /**
-     * Ensure schema and sync_history table exist
-     */
-    private async ensureSchemaAndSyncHistoryTable(): Promise<any> {
-        try {
-            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-            if (!driver) return null;
-            
-            const dbConnector = await driver.getConcreteDriver();
-            const manager = dbConnector.manager;
-            
-            // Create schema if it doesn't exist
-            await manager.query(`CREATE SCHEMA IF NOT EXISTS dra_google_analytics`);
-            
-            // Create sync_history table if it doesn't exist
-            await manager.query(`
-                CREATE TABLE IF NOT EXISTS dra_google_analytics.sync_history (
-                    id SERIAL PRIMARY KEY,
-                    data_source_id INTEGER NOT NULL,
-                    sync_started_at TIMESTAMP NOT NULL,
-                    sync_completed_at TIMESTAMP NOT NULL,
-                    status VARCHAR(50),
-                    rows_synced INTEGER,
-                    error_message TEXT
-                )
-            `);
-            
-            return manager;
-        } catch (error) {
-            console.error('Error ensuring schema and sync_history table:', error);
-            return null;
-        }
-    }
-    
-    /**
      * Get last sync time
      */
     public async getLastSyncTime(dataSourceId: number): Promise<Date | null> {
-        try {
-            const manager = await this.ensureSchemaAndSyncHistoryTable();
-            if (!manager) return null;
-            
-            const result = await manager.query(`
-                SELECT sync_completed_at 
-                FROM dra_google_analytics.sync_history 
-                WHERE data_source_id = $1 
-                ORDER BY sync_completed_at DESC 
-                LIMIT 1
-            `, [dataSourceId]);
-            
-            return result[0]?.sync_completed_at || null;
-        } catch (error) {
-            console.error('Error getting last sync time:', error);
-            return null;
-        }
+        const lastSync = await this.syncHistoryService.getLastSync(dataSourceId);
+        return lastSync?.completedAt || null;
     }
     
     /**
      * Get sync history
      */
     public async getSyncHistory(dataSourceId: number, limit: number = 10): Promise<any[]> {
-        try {
-            const manager = await this.ensureSchemaAndSyncHistoryTable();
-            if (!manager) return [];
-            
-            const result = await manager.query(`
-                SELECT * 
-                FROM dra_google_analytics.sync_history 
-                WHERE data_source_id = $1 
-                ORDER BY sync_completed_at DESC 
-                LIMIT $2
-            `, [dataSourceId, limit]);
-            
-            return result;
-        } catch (error) {
-            console.error('Error getting sync history:', error);
-            return [];
-        }
+        return await this.syncHistoryService.getSyncHistory(dataSourceId, limit);
     }
 }

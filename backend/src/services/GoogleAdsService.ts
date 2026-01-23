@@ -74,6 +74,35 @@ export class GoogleAdsService {
             const customerId = resourceName.split('/')[1];
             try {
                 const details = await this.getAccountDetails(customerId, accessToken);
+                
+                // Check if it's a manager account and fetch client accounts
+                const isManager = await this.isManagerAccount(customerId, accessToken);
+                if (isManager) {
+                    const clientIds = await this.listClientAccounts(customerId, accessToken);
+                    const clientAccounts = [];
+                    
+                    // Fetch details for each client (limit to prevent timeout)
+                    const maxClients = 10;
+                    for (const clientId of clientIds.slice(0, maxClients)) {
+                        try {
+                            const clientDetails = await this.getAccountDetails(clientId, accessToken);
+                            clientAccounts.push({
+                                customerId: clientId,
+                                descriptiveName: clientDetails.descriptiveName
+                            });
+                        } catch (error) {
+                            console.warn(`Failed to get client details for ${clientId}`);
+                            clientAccounts.push({
+                                customerId: clientId,
+                                descriptiveName: `Client ${clientId}`
+                            });
+                        }
+                    }
+                    
+                    details.isManager = true;
+                    details.clientAccounts = clientAccounts;
+                }
+                
                 accounts.push(details);
             } catch (error: any) {
                 const errorMessage = error.message || '';
@@ -107,6 +136,102 @@ export class GoogleAdsService {
         }
         
         return accounts;
+    }
+    
+    /**
+     * Check if an account is a manager account
+     */
+    public async isManagerAccount(customerId: string, accessToken: string): Promise<boolean> {
+        try {
+            const query = `
+                SELECT
+                    customer.manager
+                FROM customer
+                WHERE customer.id = '${customerId.replace(/-/g, '')}'
+                LIMIT 1
+            `;
+            
+            const url = `${GoogleAdsService.BASE_URL}/${GoogleAdsService.API_VERSION}/customers/${customerId}/googleAds:search`;
+            
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'developer-token': this.getDeveloperToken(),
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ query })
+            });
+            
+            if (!response.ok) {
+                console.warn(`Failed to check manager status for ${customerId}`);
+                return false;
+            }
+            
+            const data = await response.json();
+            return data.results?.[0]?.customer?.manager === true;
+        } catch (error) {
+            console.error(`Error checking manager status for ${customerId}:`, error);
+            return false;
+        }
+    }
+    
+    /**
+     * List client accounts under a manager account
+     */
+    public async listClientAccounts(managerCustomerId: string, accessToken: string): Promise<string[]> {
+        try {
+            const query = `
+                SELECT
+                    customer_client.client_customer,
+                    customer_client.status,
+                    customer_client.manager
+                FROM customer_client
+                WHERE customer_client.status = 'ENABLED'
+                AND customer_client.manager = false
+            `;
+            
+            const url = `${GoogleAdsService.BASE_URL}/${GoogleAdsService.API_VERSION}/customers/${managerCustomerId}/googleAds:search`;
+            
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'developer-token': this.getDeveloperToken(),
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ query })
+            });
+            
+            if (!response.ok) {
+                const error = await response.text();
+                console.error(`Failed to list client accounts:`, error);
+                return [];
+            }
+            
+            const data = await response.json();
+            
+            if (!data.results || data.results.length === 0) {
+                console.log('No client accounts found under manager');
+                return [];
+            }
+            
+            // Extract client customer IDs
+            const clientIds = data.results
+                .map((result: any) => result.customerClient?.clientCustomer)
+                .filter((id: any) => id)
+                .map((resourceName: string) => {
+                    // Extract ID from resource name format: customers/1234567890
+                    const parts = resourceName.split('/');
+                    return parts[parts.length - 1];
+                });
+            
+            console.log(`Found ${clientIds.length} client accounts under manager ${managerCustomerId}`);
+            return clientIds;
+        } catch (error) {
+            console.error(`Error listing client accounts for ${managerCustomerId}:`, error);
+            return [];
+        }
     }
     
     /**
@@ -162,12 +287,16 @@ export class GoogleAdsService {
         
         const url = `${GoogleAdsService.BASE_URL}/${GoogleAdsService.API_VERSION}/customers/${query.customerId}/googleAds:search`;
         
+        // For client accounts under a manager, use manager ID in login-customer-id header
+        // Otherwise use the account's own customer ID
+        const loginCustomerId = connectionDetails.api_config?.manager_customer_id || query.customerId;
+        
         const response = await fetch(url, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${connectionDetails.oauth_access_token}`,
                 'developer-token': this.getDeveloperToken(),
-                'login-customer-id': query.customerId.replace(/-/g, ''), // Remove hyphens
+                'login-customer-id': loginCustomerId.replace(/-/g, ''), // Remove hyphens
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({ query: googleAdsQuery })

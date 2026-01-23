@@ -35,7 +35,8 @@ const state = reactive({
     loading: false,
     error: null as string | null,
     showAlert: false,
-    connecting: false
+    connecting: false,
+    navigating: false
 });
 
 // Check if coming from OAuth callback
@@ -205,7 +206,7 @@ async function connectAndSync() {
             }
             
             // Redirect to data sources list
-            router.push(`/projects/${projectId}/data-sources`);
+            router.push(`/projects/${projectId}`);
         } else {
             throw new Error('Failed to add data source');
         }
@@ -225,12 +226,35 @@ async function connectAndSync() {
  * Cancel and go back
  */
 function cancel() {
-    router.push(`/projects/${projectId}/data-sources`);
+    state.navigating = true;
+    router.push(`/projects/${projectId}`);
 }
 </script>
 
 <template>
-    <div class="max-w-[900px] mx-auto py-10 px-5 sm:py-6 sm:px-4">
+    <!-- Loading/Navigating State -->
+    <div v-if="state.navigating" class="max-w-[900px] mx-auto py-10 px-5">
+        <div class="animate-pulse">
+            <div class="h-10 bg-gray-300 rounded w-3/4 mx-auto mb-4"></div>
+            <div class="h-6 bg-gray-200 rounded w-1/2 mx-auto mb-12"></div>
+            
+            <div class="bg-white rounded-lg border border-gray-200 p-8 mb-6">
+                <div class="space-y-4">
+                    <div class="h-4 bg-gray-200 rounded w-full"></div>
+                    <div class="h-4 bg-gray-200 rounded w-5/6"></div>
+                    <div class="h-4 bg-gray-200 rounded w-4/5"></div>
+                </div>
+            </div>
+            
+            <div class="flex justify-between">
+                <div class="h-10 bg-gray-300 rounded w-24"></div>
+                <div class="h-10 bg-gray-300 rounded w-32"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div v-else class="max-w-[900px] mx-auto py-10 px-5 sm:py-6 sm:px-4">
         <div class="text-center mb-10">
             <h1 class="text-4xl font-bold text-gray-900 mb-2">Connect Google Analytics</h1>
             <p class="text-base text-gray-600">Import your website analytics data into the platform</p>

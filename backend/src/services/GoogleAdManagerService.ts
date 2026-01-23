@@ -127,10 +127,9 @@ export class GoogleAdManagerService {
                 'COUNTRY_NAME',
             ],
             metrics: [
-                'TOTAL_LINE_ITEM_LEVEL_IMPRESSIONS',
-                'TOTAL_LINE_ITEM_LEVEL_CLICKS',
-                'TOTAL_LINE_ITEM_LEVEL_CPM_AND_CPC_REVENUE',
-                'TOTAL_LINE_ITEM_LEVEL_CTR',
+                'AD_SERVER_IMPRESSIONS',
+                'AD_SERVER_CLICKS',
+                'AD_SERVER_CPM_AND_CPC_REVENUE',
             ],
         };
     }
@@ -157,11 +156,9 @@ export class GoogleAdManagerService {
                 'AD_UNIT_NAME',
             ],
             metrics: [
-                'TOTAL_LINE_ITEM_LEVEL_IMPRESSIONS',
-                'TOTAL_LINE_ITEM_LEVEL_CLICKS',
-                'TOTAL_LINE_ITEM_LEVEL_CPM_AND_CPC_REVENUE',
                 'AD_SERVER_IMPRESSIONS',
                 'AD_SERVER_CLICKS',
+                'AD_SERVER_CPM_AND_CPC_REVENUE',
             ],
         };
     }
@@ -192,9 +189,9 @@ export class GoogleAdManagerService {
                 'LINE_ITEM_NAME',
             ],
             metrics: [
-                'TOTAL_LINE_ITEM_LEVEL_IMPRESSIONS',
-                'TOTAL_LINE_ITEM_LEVEL_CLICKS',
-                'TOTAL_LINE_ITEM_LEVEL_CPM_AND_CPC_REVENUE',
+                'AD_SERVER_IMPRESSIONS',
+                'AD_SERVER_CLICKS',
+                'AD_SERVER_CPM_AND_CPC_REVENUE',
             ],
         };
     }
@@ -217,11 +214,9 @@ export class GoogleAdManagerService {
             endDate,
             dimensions: ['DATE'],
             metrics: [
-                'TOTAL_LINE_ITEM_LEVEL_IMPRESSIONS',
-                'TOTAL_LINE_ITEM_LEVEL_CLICKS',
-                'TOTAL_LINE_ITEM_LEVEL_CPM_AND_CPC_REVENUE',
-                'UNFILLED_IMPRESSIONS',
-                'AD_REQUESTS',
+                'AD_SERVER_IMPRESSIONS',
+                'AD_SERVER_CLICKS',
+                'AD_SERVER_CPM_AND_CPC_REVENUE',
             ],
         };
     }
@@ -250,9 +245,9 @@ export class GoogleAdManagerService {
                 'CITY_NAME',
             ],
             metrics: [
-                'TOTAL_LINE_ITEM_LEVEL_IMPRESSIONS',
-                'TOTAL_LINE_ITEM_LEVEL_CLICKS',
-                'TOTAL_LINE_ITEM_LEVEL_CPM_AND_CPC_REVENUE',
+                'AD_SERVER_IMPRESSIONS',
+                'AD_SERVER_CLICKS',
+                'AD_SERVER_CPM_AND_CPC_REVENUE',
             ],
         };
     }
@@ -277,12 +272,12 @@ export class GoogleAdManagerService {
                 'DATE',
                 'DEVICE_CATEGORY_NAME',
                 'BROWSER_NAME',
-                'OPERATING_SYSTEM_NAME',
+                'OPERATING_SYSTEM',
             ],
             metrics: [
-                'TOTAL_LINE_ITEM_LEVEL_IMPRESSIONS',
-                'TOTAL_LINE_ITEM_LEVEL_CLICKS',
-                'TOTAL_LINE_ITEM_LEVEL_CPM_AND_CPC_REVENUE',
+                'AD_SERVER_IMPRESSIONS',
+                'AD_SERVER_CLICKS',
+                'AD_SERVER_CPM_AND_CPC_REVENUE',
             ],
         };
     }
@@ -328,47 +323,103 @@ export class GoogleAdManagerService {
                 auth: oauth2Client as any
             });
             
-            // Step 1: Create report with dimensions and metrics
-            const reportRequest: any = {
-                parent: `networks/${reportQuery.networkCode}`,
-                report: {
-                    dimensions: reportQuery.dimensions,
-                    metrics: reportQuery.metrics,
-                    dateRange: {
-                        startDate: this.formatDateForAPI(reportQuery.startDate),
-                        endDate: this.formatDateForAPI(reportQuery.endDate)
-                    }
-                }
+            // Parse date range for the API
+            const [startYear, startMonth, startDay] = reportQuery.startDate.split('-').map(Number);
+            const [endYear, endMonth, endDay] = reportQuery.endDate.split('-').map(Number);
+            
+            // Convert string dimension/metric names to enum numbers
+            const dimensionEnumMap: { [key: string]: number } = {
+                'DATE': 3,
+                'AD_UNIT_ID': 25,
+                'AD_UNIT_NAME': 26,
+                'COUNTRY_CODE': 466,
+                'COUNTRY_NAME': 12,
+                'REGION_NAME': 458,
+                'CITY_NAME': 452,
+                'DEVICE_CATEGORY_NAME': 15,
+                'BROWSER_NAME': 236,
+                'OPERATING_SYSTEM': 21,
+                'ADVERTISER_ID': 131,
+                'ADVERTISER_NAME': 132,
+                'ORDER_ID': 7,
+                'ORDER_NAME': 8,
+                'LINE_ITEM_ID': 1,
+                'LINE_ITEM_NAME': 2,
             };
             
-            console.log('📝 Creating report job...');
-            const createResponse = await reportClient.createReport(reportRequest);
-            const report = Array.isArray(createResponse) ? createResponse[0] : createResponse;
-            const reportName = report.name!;
+            const metricEnumMap: { [key: string]: number } = {
+                'AD_SERVER_IMPRESSIONS': 6,
+                'AD_SERVER_CLICKS': 7,
+                'AD_SERVER_CPM_AND_CPC_REVENUE': 33,  // Use AD_SERVER_REVENUE
+                'AD_SERVER_REVENUE': 33,
+                'AD_SERVER_CTR': 8,
+            };
             
+            const dimensions = reportQuery.dimensions.map(dim => dimensionEnumMap[dim] || 0);
+            const metrics = reportQuery.metrics.map(met => metricEnumMap[met] || metricEnumMap['AD_SERVER_IMPRESSIONS']);
+            
+            // Step 1: Create report using client library
+            console.log('📝 Creating report job via client library...');
+            const [createResponse] = await reportClient.createReport({
+                parent: `networks/${reportQuery.networkCode}`,
+                report: {
+                    reportDefinition: {
+                        dimensions,
+                        metrics,
+                        dateRange: {
+                            fixed: {
+                                startDate: {
+                                    year: startYear,
+                                    month: startMonth,
+                                    day: startDay
+                                },
+                                endDate: {
+                                    year: endYear,
+                                    month: endMonth,
+                                    day: endDay
+                                }
+                            }
+                        },
+                        reportType: 1 // HISTORICAL = 1 (required field)
+                    }
+                }
+            });
+            
+            const reportName = createResponse.name;
             console.log(`📋 Report created: ${reportName}`);
             
-            // Step 2: Run the report (initiates async generation)
-            console.log('🚀 Starting report generation...');
-            await reportClient.runReport({ name: reportName });
+            // Step 2: Run the report using client library (returns LRO)
+            console.log('🚀 Starting report generation via client library...');
+            const [operation] = await reportClient.runReport({
+                name: reportName
+            });
+            console.log(`✅ Report execution started, operation: ${operation.name}`);
             
-            // Step 3: Poll for completion with exponential backoff
-            await this.pollReportCompletion(reportClient, reportName, 300000); // 5 min timeout
+            // Step 3: Wait for the operation to complete (with timeout)
+            console.log('⏳ Waiting for report generation to complete...');
+            const [response] = await operation.promise();
+            console.log(`✅ Report generation completed`);
             
-            // Step 4: Fetch report results
-            const rows = await this.fetchReportResults(reportClient, reportName);
+            // Step 4: Fetch report results using the report_result from the response
+            const reportResult = response.reportResult;
+            if (!reportResult) {
+                throw new Error('No report result returned from completed operation');
+            }
+            console.log(`📥 Fetching results from: ${reportResult}`);
+            const rows = await this.fetchReportResults(reportClient, reportResult);
             
-            const response: IGAMReportResponse = {
-                reportId: reportName,
+            const reportResponse: IGAMReportResponse = {
+                reportId: reportName!,
                 status: 'COMPLETED',
                 rows: rows
             };
             
             console.log(`✅ Report execution completed with ${rows.length} rows`);
             
-            return response;
+            return reportResponse;
         } catch (error: any) {
             console.error('❌ Failed to run GAM report:', error);
+            console.error('❌ Error details:', JSON.stringify(error, null, 2));
             
             // Provide user-friendly error messages
             if (error.code === 7 || error.code === 16) {
@@ -399,43 +450,6 @@ export class GoogleAdManagerService {
         };
         
         return typeMap[reportTypeString.toLowerCase()] || GAMReportType.REVENUE;
-    }
-    
-    /**
-     * Poll for report completion with exponential backoff
-     * @private
-     */
-    private async pollReportCompletion(
-        client: ReportServiceClient,
-        reportName: string,
-        maxWaitMs: number
-    ): Promise<void> {
-        const startTime = Date.now();
-        let attempt = 0;
-        
-        while (Date.now() - startTime < maxWaitMs) {
-            const getResponse = await client.getReport({ name: reportName });
-            const report: any = Array.isArray(getResponse) ? getResponse[0] : getResponse;
-            
-            console.log(`   Polling attempt ${attempt + 1}, state: ${report.state}`);
-            
-            if (report.state === 'DONE' || report.state === 'SUCCEEDED') {
-                console.log('✅ Report generation completed');
-                return;
-            }
-            
-            if (report.state === 'FAILED' || report.state === 'ERROR') {
-                throw new Error(`Report generation failed: ${report.error?.message || 'Unknown error'}`);
-            }
-            
-            // Exponential backoff: 5s, 10s, 20s, 40s, 60s (max)
-            const waitMs = Math.min(5000 * Math.pow(2, attempt), 60000);
-            console.log(`   Waiting ${waitMs}ms before next check...`);
-            await this.sleep(waitMs);
-            attempt++;
-        }
-        
-        throw new Error('Report generation timeout after 5 minutes');
     }
     
     /**

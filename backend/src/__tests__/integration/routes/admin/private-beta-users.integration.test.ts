@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import request from 'supertest';
 import express from 'express';
-import privateBetaUsersRouter from '../../../../routes/admin/private-beta-users.js';
+import privateBetaUsersRouter from '../../../../routes/admin/private_beta_users.js';
 
 // Mock processors
 jest.mock('../../../../processors/PrivateBetaUserProcessor.js', () => ({

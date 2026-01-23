@@ -6,7 +6,6 @@ import { GoogleAdManagerService } from '../services/GoogleAdManagerService.js';
 import { GoogleAdManagerDriver } from '../drivers/GoogleAdManagerDriver.js';
 import { DataSourceProcessor } from '../processors/DataSourceProcessor.js';
 import { IAPIConnectionDetails } from '../types/IAPIConnectionDetails.js';
-import { EDataSourceType } from '../types/EDataSourceType.js';
 import { expensiveOperationsLimiter } from '../middleware/rateLimit.js';
 
 const router = express.Router();
@@ -240,6 +239,7 @@ router.post('/sync/:dataSourceId',
                 dataSourceId,
                 req.body.tokenDetails
             );
+            console.log('📊 [GAM Sync] Sync process completed for data source ID:', dataSourceId, 'Result:', result);
             
             if (result) {
                 console.log(`✅ [GAM Sync] Sync completed successfully for data source ID: ${dataSourceId}`);
@@ -296,9 +296,19 @@ router.get('/sync-status/:dataSourceId',
             const lastSync = await gamDriver.getLastSyncTime(dataSourceId);
             const history = await gamDriver.getSyncHistory(dataSourceId, 10);
             
+            // Transform history to match frontend expectations
+            const transformedHistory = history.map((record: any) => ({
+                id: record.id,
+                sync_started_at: record.startedAt,
+                sync_completed_at: record.completedAt,
+                status: record.status?.toLowerCase() || 'idle',
+                rows_synced: record.recordsSynced,
+                error_message: record.errorMessage
+            }));
+            
             res.status(200).send({
                 last_sync: lastSync,
-                sync_history: history,
+                sync_history: transformedHistory,
                 message: 'Sync status retrieved successfully'
             });
         } catch (error) {

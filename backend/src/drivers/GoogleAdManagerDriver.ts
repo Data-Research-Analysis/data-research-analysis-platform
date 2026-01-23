@@ -215,7 +215,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         connectionDetails: IAPIConnectionDetails
     ): Promise<{ recordsSynced: number; recordsFailed: number }> {
         const reportType = this.gamService.getReportType(reportTypeString);
-
+        console.log('📊 [GAM Sync] Syncing report type:', reportType);
         switch (reportType) {
             case GAMReportType.REVENUE:
                 return await this.syncRevenueData(manager, schemaName, dataSourceId, startDate, endDate, connectionDetails);
@@ -287,7 +287,7 @@ export class GoogleAdManagerDriver implements IAPIDriver {
         
         // Build and execute report query with retry logic
         const reportQuery = this.gamService.buildRevenueReportQuery(networkCode, startDate, endDate);
-        
+        console.log('📄 [GAM Sync] Revenue report query built:', reportQuery);
         const reportResult = await RetryHandler.execute(
             () => this.gamService.runReport(reportQuery, connectionDetails),
             RetryHandler.getRecommendedConfig('rate_limit')
@@ -1145,29 +1145,8 @@ export class GoogleAdManagerDriver implements IAPIDriver {
      * Get last sync timestamp for a data source
      */
     public async getLastSyncTime(dataSourceId: number): Promise<Date | null> {
-        try {
-            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-            if (!driver) {
-                return null;
-            }
-            const dbConnector = await driver.getConcreteDriver();
-            
-            // Query the most recent synced_at timestamp from any GAM table
-            const result = await dbConnector.query(`
-                SELECT MAX(synced_at) as last_sync
-                FROM information_schema.tables
-                WHERE table_schema = 'dra_google_ad_manager'
-            `);
-            
-            if (result && result[0] && result[0].last_sync) {
-                return new Date(result[0].last_sync);
-            }
-            
-            return null;
-        } catch (error) {
-            console.error('❌ Failed to get last sync time:', error);
-            return null;
-        }
+        const lastSync = await this.syncHistoryService.getLastSync(dataSourceId);
+        return lastSync?.completedAt || null;
     }
     
     /**

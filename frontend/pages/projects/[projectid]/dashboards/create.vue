@@ -6,10 +6,30 @@ import _ from 'lodash';
 
 // Navigation guard for permission check
 definePageMeta({
-    middleware: (to) => {
+    middleware: async (to) => {
         const projectId = parseInt(String(to.params.projectid));
+        const projectsStore = useProjectsStore();
+        
+        // Ensure projects are loaded from localStorage before checking permissions
+        if (import.meta.client && projectsStore.projects.length === 0) {
+            projectsStore.getProjects();
+            // Wait for next tick to ensure reactive state has updated
+            await nextTick();
+        }
+        
         const permissions = useProjectPermissions(projectId);
+        
+        // Debug logging
+        console.log('🔐 Permission check:', {
+            projectId,
+            projectsCount: projectsStore.projects.length,
+            canCreate: permissions.canCreate.value,
+            role: permissions.role.value,
+            isOwner: permissions.isOwner.value
+        });
+        
         if (!permissions.canCreate.value) {
+            console.warn('❌ Permission denied, redirecting to dashboards list');
             return navigateTo(`/projects/${projectId}/dashboards`);
         }
     }
@@ -101,17 +121,24 @@ function getChartTypeLabel(chartType) {
 watch(
     dataModelTables,
     (newTables) => {
+        console.log('🔍 Watcher triggered - newTables:', newTables);
         if (newTables && newTables.length > 0) {
             state.data_model_tables = [];
             newTables.forEach((dataModelTable) => {
+                console.log('📊 Processing dataModelTable:', {
+                    schema: dataModelTable.schema,
+                    table_name: dataModelTable.table_name,
+                    logical_name: dataModelTable.logical_name
+                });
                 state.data_model_tables.push({
                     schema: dataModelTable.schema,
                     model_name: dataModelTable.table_name,
-                    cleaned_model_name: dataModelTable.table_name.replace(/_dra.[\w\d]+/g, ''),
+                    cleaned_model_name: dataModelTable.logical_name || dataModelTable.table_name.replace(/_dra.[\w\d]+/g, ''),
                     show_model: false,
                     columns: dataModelTable.columns,
                 });
             });
+            console.log('✅ Final state.data_model_tables:', state.data_model_tables);
         }
     },
     { immediate: true }

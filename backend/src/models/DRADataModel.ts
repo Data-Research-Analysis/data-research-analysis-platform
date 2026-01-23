@@ -3,6 +3,7 @@ import { DRAUsersPlatform } from './DRAUsersPlatform.js';
 import { DRADataSource } from './DRADataSource.js';
 import { DRAAIDataModelConversation } from './DRAAIDataModelConversation.js';
 import { DRADataModelSource } from './DRADataModelSource.js';
+import { DRADataModelRefreshHistory } from './DRADataModelRefreshHistory.js';
 @Entity('dra_data_models')
 export class DRADataModel {
     @PrimaryGeneratedColumn()
@@ -22,6 +23,24 @@ export class DRADataModel {
     @Column({ type: 'jsonb', default: {}, name: 'execution_metadata' })
     execution_metadata!: Record<string, any>
     
+    @Column({ type: 'timestamp', nullable: true, name: 'last_refreshed_at' })
+    last_refreshed_at?: Date
+    
+    @Column({ type: 'varchar', length: 20, default: 'IDLE', name: 'refresh_status' })
+    refresh_status!: 'IDLE' | 'QUEUED' | 'REFRESHING' | 'COMPLETED' | 'FAILED'
+    
+    @Column({ type: 'text', nullable: true, name: 'refresh_error' })
+    refresh_error?: string
+    
+    @Column({ type: 'int', nullable: true, name: 'row_count' })
+    row_count?: number
+    
+    @Column({ type: 'int', nullable: true, name: 'last_refresh_duration_ms' })
+    last_refresh_duration_ms?: number
+    
+    @Column({ type: 'boolean', default: true, name: 'auto_refresh_enabled' })
+    auto_refresh_enabled!: boolean
+    
     @CreateDateColumn({ type: 'timestamp', name: 'created_at' })
     created_at!: Date
         
@@ -38,4 +57,7 @@ export class DRADataModel {
 
     @OneToMany(() => DRAAIDataModelConversation, (conversation) => conversation.data_model)
     ai_conversations!: Relation<DRAAIDataModelConversation>[];
+
+    @OneToMany(() => DRADataModelRefreshHistory, (history) => history.data_model)
+    refresh_history!: Relation<DRADataModelRefreshHistory>[];
 }

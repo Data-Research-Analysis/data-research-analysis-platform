@@ -212,4 +212,55 @@ async (req: Request, res: Response) => {
     }
 });
 
+/**
+ * PATCH /:data_model_id
+ * Update data model settings (e.g., auto_refresh_enabled)
+ */
+router.patch('/:data_model_id',
+    validateJWT,
+    validate([param('data_model_id').notEmpty().trim().escape().toInt()]),
+    requireDataModelPermission(EAction.UPDATE, 'data_model_id'),
+    async (req: Request, res: Response) => {
+        try {
+            const { data_model_id } = matchedData(req);
+            const dataModelId = parseInt(String(data_model_id), 10);
+            
+            // Only allow updating specific fields
+            const allowedFields = ['auto_refresh_enabled'];
+            const updates: any = {};
+            
+            for (const field of allowedFields) {
+                if (req.body[field] !== undefined) {
+                    updates[field] = req.body[field];
+                }
+            }
+            
+            if (Object.keys(updates).length === 0) {
+                return res.status(400).send({ message: 'No valid fields to update' });
+            }
+            
+            const result = await DataModelProcessor.getInstance().updateDataModelSettings(
+                dataModelId,
+                updates,
+                req.body.tokenDetails
+            );
+            
+            if (result) {
+                res.status(200).send({ 
+                    message: 'Data model settings updated successfully',
+                    updates 
+                });
+            } else {
+                res.status(400).send({ message: 'Failed to update data model settings' });
+            }
+        } catch (error: any) {
+            console.error('[DataModel] Error updating settings:', error);
+            res.status(500).send({ 
+                message: 'Failed to update data model settings',
+                error: error.message 
+            });
+        }
+    }
+);
+
 export default router;

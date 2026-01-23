@@ -1,12 +1,13 @@
-<script setup>
+<script setup lang="ts">
+// Redirect to project page - data sources are now shown on the main project page
 const route = useRoute();
 const router = useRouter();
-onMounted(() => {
-    let path = route.fullPath.split('/');
-    path = path.filter((item, index) => index < path.length - 1).join('/');
-    router.push(path);
-});
+const projectId = route.params.projectid;
+
+// Immediate redirect
+router.push(`/projects/${projectId}`);
 </script>
+
 <template>
-    <div class="min-h-100"></div>
+  <!-- This page redirects to the project page -->
 </template>

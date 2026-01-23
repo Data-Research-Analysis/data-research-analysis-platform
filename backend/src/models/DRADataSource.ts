@@ -86,6 +86,19 @@ export class DRADataSource {
     connection_details!: IConnectionDetails
     @Column({ type: 'timestamp', nullable: true })
     created_at!: Date
+    
+    // Sync schedule configuration
+    @Column({ type: 'varchar', length: 20, default: 'manual' })
+    sync_schedule!: string
+    
+    @Column({ type: 'time', nullable: true })
+    sync_schedule_time!: string | null
+    
+    @Column({ type: 'boolean', default: true })
+    sync_enabled!: boolean
+    
+    @Column({ type: 'timestamp', nullable: true })
+    next_scheduled_sync!: Date | null
 
     @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.data_sources)
     @JoinColumn({ name: 'users_platform_id', referencedColumnName: 'id' })

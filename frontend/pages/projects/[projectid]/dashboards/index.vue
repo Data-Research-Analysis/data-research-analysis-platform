@@ -147,80 +147,116 @@ function checkDashboardLimit() {
                 Dashboards are where you will be building your charts and visualizations based on your data models.
             </div>
 
+            <!-- Create Button -->
+            <div v-if="permissions.canCreate.value" class="mb-6 mt-6">
+                <NuxtLink 
+                    v-if="subscriptionStore.canCreateDashboard"
+                    :to="`/projects/${project.id}/dashboards/create`"
+                    class="inline-flex items-center px-4 py-2 bg-primary-blue-300 hover:bg-primary-blue-100 text-white rounded-lg transition-colors"
+                >
+                    <font-awesome icon="fas fa-plus" class="mr-2" />
+                    Create Dashboard
+                </NuxtLink>
+                <button
+                    v-else
+                    @click="checkDashboardLimit"
+                    class="inline-flex items-center px-4 py-2 bg-gray-300 text-gray-600 rounded-lg cursor-not-allowed"
+                >
+                    <font-awesome icon="fas fa-plus" class="mr-2" />
+                    Create Dashboard
+                    <span class="ml-2 text-xs text-red-500">Limit Reached</span>
+                </button>
+            </div>
+
             <!-- Skeleton loader for loading state -->
-            <div v-if="state.loading"
-                class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5">
-                <div v-for="i in 6" :key="i" class="mt-10">
-                    <div class="border border-primary-blue-100 border-solid p-6 shadow-md bg-white min-h-[180px]">
-                        <div class="animate-pulse">
-                            <div class="h-6 bg-gray-300 rounded w-3/4 mb-4"></div>
-                            <div class="space-y-2">
-                                <div class="h-4 bg-gray-200 rounded w-full"></div>
-                                <div class="h-4 bg-gray-200 rounded w-5/6"></div>
-                                <div class="h-4 bg-gray-200 rounded w-4/5"></div>
-                            </div>
-                        </div>
-                    </div>
+            <div v-if="state.loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div v-for="i in 6" :key="i" class="bg-white border border-gray-200 rounded-lg p-6 animate-pulse">
+                    <div class="h-6 bg-gray-200 rounded w-3/4 mb-4"></div>
+                    <div class="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
+                    <div class="h-4 bg-gray-200 rounded w-full mt-6"></div>
                 </div>
             </div>
 
-            <!-- Actual content -->
-            <div v-else class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5">
-                <notched-card v-if="permissions.canCreate.value" class="justify-self-center mt-10">
-                    <template #body="{ onClick }">
-                        <NuxtLink 
-                            v-if="subscriptionStore.canCreateDashboard"
-                            :to="`/projects/${project.id}/dashboards/create`"
-                        >
-                            <div class="flex flex-col justify-center text-md font-bold cursor-pointer items-center">
-                                <div
-                                    class="bg-gray-300 border border-gray-300 border-solid rounded-full w-20 h-20 flex items-center justify-center mb-5">
-                                    <font-awesome icon="fas fa-plus" class="text-4xl text-gray-500" />
-                                </div>
-                                Create Dashboard
-                            </div>
-                        </NuxtLink>
-                        <div
-                            v-else
-                            @click="checkDashboardLimit"
-                            class="flex flex-col justify-center text-md font-bold cursor-pointer items-center"
-                        >
-                            <div
-                                class="bg-gray-300 border border-gray-300 border-solid rounded-full w-20 h-20 flex items-center justify-center mb-5">
-                                <font-awesome icon="fas fa-plus" class="text-4xl text-gray-500" />
-                            </div>
-                            <div>Create Dashboard</div>
-                            <div class="text-xs text-red-500 mt-1">Limit Reached</div>
-                        </div>
-                    </template>
-                </notched-card>
-                <div v-for="dashboard in dashboards" class="relative">
-                    <notched-card class="justify-self-center mt-10">
-                        <template #body="{ onClick }">
-                            <!-- Validation Alert Badge -->
-                            <div v-if="dashboard.needs_validation"
-                                v-tippy="{ content: 'This dashboard uses data models that have been updated. Please review and update the dashboard.' }"
-                                class="absolute top-2 left-2 bg-orange-500 text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1 z-10">
-                                <font-awesome icon="fas fa-exclamation-triangle" class="text-xs" />
-                                Needs Update
-                            </div>
-
-                            <NuxtLink :to="`/projects/${project.id}/dashboards/${dashboard.id}`"
-                                class="hover:text-gray-500 cursor-pointer">
-                                <div class="flex flex-col justify-start h-full">
-                                    <div class="text-md font-bold">
-                                        Dashboard {{ dashboard.id }}
-                                    </div>
-                                </div>
-                            </NuxtLink>
-                        </template>
-                    </notched-card>
-                    <div v-if="permissions.canDelete.value" v-tippy="{ content: 'Delete Dashboard' }"
-                        class="absolute top-5 -right-2 z-10 bg-red-500 hover:bg-red-700 border border-red-500 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer"
-                        @click="deleteDashboard(dashboard.id)">
-                        <font-awesome icon="fas fa-xmark" class="text-xl text-white select-none" />
+            <!-- Cards Grid -->
+            <div v-else-if="dashboards.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div 
+                    v-for="dashboard in dashboards" 
+                    :key="dashboard.id"
+                    class="relative bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg hover:border-primary-blue-100 transition-all duration-200"
+                >
+                    <!-- Validation Alert Badge -->
+                    <div 
+                        v-if="dashboard.needs_validation"
+                        v-tippy="{ content: 'This dashboard uses data models that have been updated. Please review and update the dashboard.' }"
+                        class="absolute top-2 left-2 bg-orange-500 text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1 z-10"
+                    >
+                        <font-awesome icon="fas fa-exclamation-triangle" class="text-xs" />
+                        Needs Update
                     </div>
+
+                    <!-- Action Buttons (Top Right) -->
+                    <div class="absolute top-4 right-4 flex space-x-2">
+                        <!-- Delete Button -->
+                        <button
+                            v-if="permissions.canDelete.value"
+                            @click="deleteDashboard(dashboard.id)"
+                            class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            v-tippy="{ content: 'Delete Dashboard' }"
+                        >
+                            <font-awesome icon="fas fa-trash" />
+                        </button>
+                    </div>
+
+                    <!-- Dashboard Info -->
+                    <div class="space-y-4 pr-20">
+                        <!-- Dashboard Name -->
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-900">
+                                Dashboard {{ dashboard.id }}
+                            </h3>
+                        </div>
+
+                        <!-- Dashboard Metadata (placeholder for future enhancements) -->
+                        <div class="text-xs text-gray-500">
+                            <font-awesome icon="far fa-chart-bar" class="mr-1" />
+                            Interactive Dashboard
+                        </div>
+                    </div>
+
+                    <!-- View Dashboard Button -->
+                    <NuxtLink 
+                        :to="`/projects/${project.id}/dashboards/${dashboard.id}`"
+                        class="mt-4 w-full block text-center bg-primary-blue-300 hover:bg-primary-blue-100 text-white py-2 px-4 rounded-lg transition-colors"
+                    >
+                        View Dashboard
+                    </NuxtLink>
                 </div>
+            </div>
+
+            <!-- Empty State -->
+            <div v-else class="text-center py-12">
+                <font-awesome icon="fas fa-chart-bar" class="text-gray-400 text-6xl mb-4" />
+                <p class="text-xl font-semibold text-gray-900">No dashboards yet</p>
+                <p class="text-sm text-gray-500 mt-2 mb-4">
+                    Create your first dashboard to visualize your data
+                </p>
+                <NuxtLink 
+                    v-if="permissions.canCreate.value && subscriptionStore.canCreateDashboard"
+                    :to="`/projects/${project.id}/dashboards/create`"
+                    class="inline-flex items-center px-4 py-2 bg-primary-blue-300 hover:bg-primary-blue-100 text-white rounded-lg transition-colors"
+                >
+                    <font-awesome icon="fas fa-plus" class="mr-2" />
+                    Create Dashboard
+                </NuxtLink>
+                <button
+                    v-else-if="permissions.canCreate.value"
+                    @click="checkDashboardLimit"
+                    class="inline-flex items-center px-4 py-2 bg-gray-300 text-gray-600 rounded-lg cursor-not-allowed"
+                >
+                    <font-awesome icon="fas fa-plus" class="mr-2" />
+                    Create Dashboard
+                    <span class="ml-2 text-xs text-red-500">Limit Reached</span>
+                </button>
             </div>
         </tab-content-panel>
     </div>

@@ -227,6 +227,70 @@ export class GoogleAdsDriver implements IAPIDriver {
             throw new Error('Customer ID not configured');
         }
 
+        // Check if this is a manager account
+        const isManager = await this.adsService.isManagerAccount(customerId, connectionDetails.oauth_access_token);
+        
+        if (isManager) {
+            console.log(`⚠️  Manager account detected (${customerId}). Fetching client accounts...`);
+            const clientAccounts = await this.adsService.listClientAccounts(customerId, connectionDetails.oauth_access_token);
+            
+            if (clientAccounts.length === 0) {
+                console.warn('No client accounts found under manager');
+                return { recordsSynced: 0, recordsFailed: 0 };
+            }
+            
+            console.log(`📊 Syncing ${clientAccounts.length} client accounts under manager`);
+            
+            let totalRecordsSynced = 0;
+            let totalRecordsFailed = 0;
+            
+            // Sync each client account
+            for (const clientId of clientAccounts) {
+                try {
+                    const result = await this.syncCampaignDataForAccount(
+                        manager,
+                        schemaName,
+                        dataSourceId,
+                        clientId,
+                        startDate,
+                        endDate,
+                        connectionDetails
+                    );
+                    totalRecordsSynced += result.recordsSynced;
+                    totalRecordsFailed += result.recordsFailed;
+                } catch (error: any) {
+                    console.error(`Failed to sync client account ${clientId}:`, error.message);
+                    totalRecordsFailed++;
+                }
+            }
+            
+            return { recordsSynced: totalRecordsSynced, recordsFailed: totalRecordsFailed };
+        }
+        
+        // Regular account - sync directly
+        return await this.syncCampaignDataForAccount(
+            manager,
+            schemaName,
+            dataSourceId,
+            customerId,
+            startDate,
+            endDate,
+            connectionDetails
+        );
+    }
+    
+    /**
+     * Sync campaign data for a specific account (helper method)
+     */
+    private async syncCampaignDataForAccount(
+        manager: any,
+        schemaName: string,
+        dataSourceId: number,
+        customerId: string,
+        startDate: string,
+        endDate: string,
+        connectionDetails: IAPIConnectionDetails
+    ): Promise<{ recordsSynced: number; recordsFailed: number }> {
         // Generate hash-based physical table name
         const tableMetadataService = TableMetadataService.getInstance();
         const logicalTableName = 'campaigns';
@@ -259,8 +323,7 @@ export class GoogleAdsDriver implements IAPIDriver {
             )
         `);
         
-        console.log(`✅ Table ${fullTableName} ready`);
-        
+        console.log(`✅ Table ${fullTableName} ready for account ${customerId}`);
         
         // Build and execute report query with retry logic
         const reportQuery: IGoogleAdsReportQuery = {
@@ -278,14 +341,14 @@ export class GoogleAdsDriver implements IAPIDriver {
         );
         
         if (!reportResult.success || !reportResult.data) {
-            console.error(`❌ Failed to fetch campaign report after ${reportResult.attempts} attempts:`, reportResult.error?.message);
+            console.error(`❌ Failed to fetch campaign report for ${customerId} after ${reportResult.attempts} attempts:`, reportResult.error?.message);
             throw reportResult.error || new Error('Failed to fetch campaign report');
         }
         
         const reportResponse = reportResult.data;
         
         if (!reportResponse.rows || reportResponse.rows.length === 0) {
-            console.log('ℹ️  No data returned from Google Ads for campaign report');
+            console.log(`ℹ️  No data returned from Google Ads for campaign report (account ${customerId})`);
             return { recordsSynced: 0, recordsFailed: 0 };
         }
         
@@ -294,7 +357,7 @@ export class GoogleAdsDriver implements IAPIDriver {
         // Upsert for deduplication
         await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'campaign_id']);
         
-        console.log(`✅ Synced ${transformedData.length} campaign records`);
+        console.log(`✅ Synced ${transformedData.length} campaign records for account ${customerId}`);
         return { recordsSynced: transformedData.length, recordsFailed: 0 };
     }
     
@@ -315,6 +378,70 @@ export class GoogleAdsDriver implements IAPIDriver {
             throw new Error('Customer ID not configured');
         }
 
+        // Check if this is a manager account
+        const isManager = await this.adsService.isManagerAccount(customerId, connectionDetails.oauth_access_token);
+        
+        if (isManager) {
+            console.log(`⚠️  Manager account detected (${customerId}). Fetching client accounts...`);
+            const clientAccounts = await this.adsService.listClientAccounts(customerId, connectionDetails.oauth_access_token);
+            
+            if (clientAccounts.length === 0) {
+                console.warn('No client accounts found under manager');
+                return { recordsSynced: 0, recordsFailed: 0 };
+            }
+            
+            console.log(`📊 Syncing ${clientAccounts.length} client accounts under manager`);
+            
+            let totalRecordsSynced = 0;
+            let totalRecordsFailed = 0;
+            
+            // Sync each client account
+            for (const clientId of clientAccounts) {
+                try {
+                    const result = await this.syncKeywordDataForAccount(
+                        manager,
+                        schemaName,
+                        dataSourceId,
+                        clientId,
+                        startDate,
+                        endDate,
+                        connectionDetails
+                    );
+                    totalRecordsSynced += result.recordsSynced;
+                    totalRecordsFailed += result.recordsFailed;
+                } catch (error: any) {
+                    console.error(`Failed to sync client account ${clientId}:`, error.message);
+                    totalRecordsFailed++;
+                }
+            }
+            
+            return { recordsSynced: totalRecordsSynced, recordsFailed: totalRecordsFailed };
+        }
+        
+        // Regular account - sync directly
+        return await this.syncKeywordDataForAccount(
+            manager,
+            schemaName,
+            dataSourceId,
+            customerId,
+            startDate,
+            endDate,
+            connectionDetails
+        );
+    }
+    
+    /**
+     * Sync keyword data for a specific account (helper method)
+     */
+    private async syncKeywordDataForAccount(
+        manager: any,
+        schemaName: string,
+        dataSourceId: number,
+        customerId: string,
+        startDate: string,
+        endDate: string,
+        connectionDetails: IAPIConnectionDetails
+    ): Promise<{ recordsSynced: number; recordsFailed: number }> {
         // Generate hash-based physical table name
         const tableMetadataService = TableMetadataService.getInstance();
         const logicalTableName = 'keywords';
@@ -347,10 +474,10 @@ export class GoogleAdsDriver implements IAPIDriver {
             )
         `);
         
-        console.log(`✅ Table ${fullTableName} ready`);
+        console.log(`✅ Table ${fullTableName} ready for account ${customerId}`);
         
         const reportQuery: IGoogleAdsReportQuery = {
-            customerId: customerId!,
+            customerId,
             startDate,
             endDate,
             reportType: GoogleAdsReportType.KEYWORD,
@@ -373,11 +500,11 @@ export class GoogleAdsDriver implements IAPIDriver {
             return { recordsSynced: 0, recordsFailed: 0 };
         }
         
-        const transformedData = this.transformKeywordData(reportResponse, customerId!);
+        const transformedData = this.transformKeywordData(reportResponse, customerId);
         await this.bulkUpsert(manager, fullTableName, transformedData, 
             ['date', 'keyword_text', 'match_type', 'campaign_name', 'ad_group_name']);
         
-        console.log(`✅ Synced ${transformedData.length} keyword records`);
+        console.log(`✅ Synced ${transformedData.length} keyword records for account ${customerId}`);
         return { recordsSynced: transformedData.length, recordsFailed: 0 };
     }
     
@@ -398,6 +525,70 @@ export class GoogleAdsDriver implements IAPIDriver {
             throw new Error('Customer ID not configured');
         }
 
+        // Check if this is a manager account
+        const isManager = await this.adsService.isManagerAccount(customerId, connectionDetails.oauth_access_token);
+        
+        if (isManager) {
+            console.log(`⚠️  Manager account detected (${customerId}). Fetching client accounts...`);
+            const clientAccounts = await this.adsService.listClientAccounts(customerId, connectionDetails.oauth_access_token);
+            
+            if (clientAccounts.length === 0) {
+                console.warn('No client accounts found under manager');
+                return { recordsSynced: 0, recordsFailed: 0 };
+            }
+            
+            console.log(`📊 Syncing ${clientAccounts.length} client accounts under manager`);
+            
+            let totalRecordsSynced = 0;
+            let totalRecordsFailed = 0;
+            
+            // Sync each client account
+            for (const clientId of clientAccounts) {
+                try {
+                    const result = await this.syncGeographicDataForAccount(
+                        manager,
+                        schemaName,
+                        dataSourceId,
+                        clientId,
+                        startDate,
+                        endDate,
+                        connectionDetails
+                    );
+                    totalRecordsSynced += result.recordsSynced;
+                    totalRecordsFailed += result.recordsFailed;
+                } catch (error: any) {
+                    console.error(`Failed to sync client account ${clientId}:`, error.message);
+                    totalRecordsFailed++;
+                }
+            }
+            
+            return { recordsSynced: totalRecordsSynced, recordsFailed: totalRecordsFailed };
+        }
+        
+        // Regular account - sync directly
+        return await this.syncGeographicDataForAccount(
+            manager,
+            schemaName,
+            dataSourceId,
+            customerId,
+            startDate,
+            endDate,
+            connectionDetails
+        );
+    }
+    
+    /**
+     * Sync geographic data for a specific account (helper method)
+     */
+    private async syncGeographicDataForAccount(
+        manager: any,
+        schemaName: string,
+        dataSourceId: number,
+        customerId: string,
+        startDate: string,
+        endDate: string,
+        connectionDetails: IAPIConnectionDetails
+    ): Promise<{ recordsSynced: number; recordsFailed: number }> {
         // Generate hash-based physical table name
         const tableMetadataService = TableMetadataService.getInstance();
         const logicalTableName = 'geographic';
@@ -427,7 +618,7 @@ export class GoogleAdsDriver implements IAPIDriver {
         `);
         
         const reportQuery: IGoogleAdsReportQuery = {
-            customerId: customerId!,
+            customerId,
             startDate,
             endDate,
             reportType: GoogleAdsReportType.GEOGRAPHIC,
@@ -444,10 +635,10 @@ export class GoogleAdsDriver implements IAPIDriver {
             return { recordsSynced: 0, recordsFailed: 0 };
         }
         
-        const transformedData = this.transformGeographicData(reportResult.data, customerId!);
+        const transformedData = this.transformGeographicData(reportResult.data, customerId);
         await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'country', 'region', 'city']);
         
-        console.log(`✅ Synced ${transformedData.length} geographic records`);
+        console.log(`✅ Synced ${transformedData.length} geographic records for account ${customerId}`);
         return { recordsSynced: transformedData.length, recordsFailed: 0 };
     }
     
@@ -468,6 +659,70 @@ export class GoogleAdsDriver implements IAPIDriver {
             throw new Error('Customer ID not configured');
         }
 
+        // Check if this is a manager account
+        const isManager = await this.adsService.isManagerAccount(customerId, connectionDetails.oauth_access_token);
+        
+        if (isManager) {
+            console.log(`⚠️  Manager account detected (${customerId}). Fetching client accounts...`);
+            const clientAccounts = await this.adsService.listClientAccounts(customerId, connectionDetails.oauth_access_token);
+            
+            if (clientAccounts.length === 0) {
+                console.warn('No client accounts found under manager');
+                return { recordsSynced: 0, recordsFailed: 0 };
+            }
+            
+            console.log(`📊 Syncing ${clientAccounts.length} client accounts under manager`);
+            
+            let totalRecordsSynced = 0;
+            let totalRecordsFailed = 0;
+            
+            // Sync each client account
+            for (const clientId of clientAccounts) {
+                try {
+                    const result = await this.syncDeviceDataForAccount(
+                        manager,
+                        schemaName,
+                        dataSourceId,
+                        clientId,
+                        startDate,
+                        endDate,
+                        connectionDetails
+                    );
+                    totalRecordsSynced += result.recordsSynced;
+                    totalRecordsFailed += result.recordsFailed;
+                } catch (error: any) {
+                    console.error(`Failed to sync client account ${clientId}:`, error.message);
+                    totalRecordsFailed++;
+                }
+            }
+            
+            return { recordsSynced: totalRecordsSynced, recordsFailed: totalRecordsFailed };
+        }
+        
+        // Regular account - sync directly
+        return await this.syncDeviceDataForAccount(
+            manager,
+            schemaName,
+            dataSourceId,
+            customerId,
+            startDate,
+            endDate,
+            connectionDetails
+        );
+    }
+    
+    /**
+     * Sync device data for a specific account (helper method)
+     */
+    private async syncDeviceDataForAccount(
+        manager: any,
+        schemaName: string,
+        dataSourceId: number,
+        customerId: string,
+        startDate: string,
+        endDate: string,
+        connectionDetails: IAPIConnectionDetails
+    ): Promise<{ recordsSynced: number; recordsFailed: number }> {
         // Generate hash-based physical table name
         const tableMetadataService = TableMetadataService.getInstance();
         const logicalTableName = 'device';
@@ -497,7 +752,7 @@ export class GoogleAdsDriver implements IAPIDriver {
         `);
         
         const reportQuery: IGoogleAdsReportQuery = {
-            customerId: customerId!,
+            customerId,
             startDate,
             endDate,
             reportType: GoogleAdsReportType.DEVICE,
@@ -514,10 +769,10 @@ export class GoogleAdsDriver implements IAPIDriver {
             return { recordsSynced: 0, recordsFailed: 0 };
         }
         
-        const transformedData = this.transformDeviceData(reportResult.data, customerId!);
+        const transformedData = this.transformDeviceData(reportResult.data, customerId);
         await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'device']);
         
-        console.log(`✅ Synced ${transformedData.length} device records`);
+        console.log(`✅ Synced ${transformedData.length} device records for account ${customerId}`);
         return { recordsSynced: transformedData.length, recordsFailed: 0 };
     }
     

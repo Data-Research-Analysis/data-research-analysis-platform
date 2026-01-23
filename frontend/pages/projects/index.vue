@@ -11,6 +11,7 @@ const subscriptionStore = useSubscriptionStore();
 const loggedInUserStore = useLoggedInUserStore();
 const { $swal } = useNuxtApp();
 const { handleApiError } = useApiErrorHandler();
+const { isTitleTruncated } = useTruncation();
 
 const state = reactive({
     project_name: '',
@@ -246,125 +247,158 @@ function closeMembersDialog() {
                 </span>
             </div>
         </div>
-        <div class="text-md">
+        <div class="text-md mb-6">
             All of your data and files will be contained within projects. All projects are isolated from one another and help with organization of your analysis.
         </div>
-        
+        <!-- Header Section -->
+        <div class="flex flex-row items-center justify-start mb-5">
+            <button
+                @click="addProject"
+                class="px-6 py-3 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 transition-colors duration-200 inline-flex items-center gap-2 cursor-pointer">
+                <font-awesome icon="fas fa-plus" />
+                Create Project
+            </button>
+        </div>
+
         <!-- Skeleton loader for loading state -->
-        <div v-if="state.loading" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5">
-            <div v-for="i in 6" :key="i" class="mt-10">
-                <div class="border border-primary-blue-100 border-solid p-6 shadow-md bg-white min-h-[180px] rounded-lg">
+        <div v-if="state.loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div v-for="i in 6" :key="i">
+                <div class="border border-gray-200 rounded-lg p-6 bg-white shadow-sm">
                     <div class="animate-pulse">
                         <div class="h-6 bg-gray-300 rounded w-3/4 mb-4"></div>
-                        <div class="space-y-2">
+                        <div class="space-y-2 mb-4">
                             <div class="h-4 bg-gray-200 rounded w-full"></div>
                             <div class="h-4 bg-gray-200 rounded w-5/6"></div>
-                            <div class="h-4 bg-gray-200 rounded w-4/5"></div>
+                        </div>
+                        <div class="flex gap-2">
+                            <div class="h-6 bg-gray-200 rounded w-20"></div>
+                            <div class="h-6 bg-gray-200 rounded w-20"></div>
+                            <div class="h-6 bg-gray-200 rounded w-24"></div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
         
-        <!-- Actual content -->
-        <div v-else class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5">
-            <notched-card class="justify-self-center mt-10">
-                <template #body="{ onClick }">
-                    <div class="flex flex-col justify-center text-xl font-bold cursor-pointer items-center" @click="addProject">
-                        <div class="bg-gray-300 border border-gray-300 border-solid rounded-full w-20 h-20 flex items-center justify-center mb-5">
-                            <font-awesome icon="fas fa-plus" class="text-4xl text-gray-500" />
-                        </div>
-                        Add Project
+        <!-- Empty State -->
+        <div v-else-if="projects.length === 0"
+            class="text-center py-16 bg-white border border-gray-200 rounded-lg">
+            <font-awesome icon="fas fa-folder-open" class="text-6xl text-gray-300 mb-4" />
+            <h3 class="text-xl font-semibold text-gray-900 mb-2">No Projects Yet</h3>
+            <p class="text-gray-600 mb-6">
+                Create your first project to start organizing your data analysis
+            </p>
+            <button
+                @click="addProject"
+                class="px-6 py-3 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 transition-colors duration-200 inline-flex items-center gap-2 cursor-pointer">
+                <font-awesome icon="fas fa-plus" />
+                Create Project
+            </button>
+        </div>
+        
+        <!-- Projects Grid -->
+        <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div
+                v-for="project in projects"
+                :key="project.id"
+                class="relative border border-gray-200 rounded-lg p-6 bg-white shadow-sm hover:shadow-lg hover:border-primary-blue-100 transition-all duration-200 group">
+                
+                <!-- Clickable area -->
+                <NuxtLink :to="`/projects/${project.id}`" @click="setSelectedProject(project.id)" class="cursor-pointer block">
+                    <!-- Header with badges -->
+                    <div class="flex items-start justify-between mb-3">
+                        <!-- Add truncate class -->
+                        <h3 
+                            :ref="`projectTitle-${project.id}`"
+                            :data-project-title="project.id"
+                            class="w-2/3 text-lg font-semibold text-gray-900 truncate flex-1 mr-2"
+                            v-tippy="isTitleTruncated(project.id, 'data-project-title') ? { content: project.name } : undefined"
+                        >
+                            {{ project.name }}
+                        </h3>
+                        <!-- Role Badge -->
+                        <span 
+                            v-if="project.is_owner"
+                            class="inline-flex items-center px-2 py-1 mr-10 rounded text-xs font-medium bg-indigo-100 text-indigo-800 shrink-0"
+                            title="You own this project">
+                            <font-awesome icon="fas fa-crown" class="mr-1" />
+                            Owner
+                        </span>
+                        <span 
+                            v-else-if="project.user_role === 'admin'"
+                            class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800 shrink-0"
+                            title="You are an admin in this project">
+                            <font-awesome icon="fas fa-user-shield" class="mr-1" />
+                            Admin
+                        </span>
+                        <span 
+                            v-else-if="project.user_role === 'editor'"
+                            class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800 shrink-0"
+                            title="You are an editor in this project">
+                            <font-awesome icon="fas fa-pencil" class="mr-1" />
+                            Editor
+                        </span>
+                        <span 
+                            v-else-if="project.user_role === 'viewer'"
+                            class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800 shrink-0"
+                            title="You are a viewer in this project">
+                            <font-awesome icon="fas fa-eye" class="mr-1" />
+                            Viewer
+                        </span>
                     </div>
-                </template>
-            </notched-card>
-            <div v-for="project in projects" :key="project.id" class="relative">
-                <NuxtLink :to="`/projects/${project.id}`" class="hover:text-gray-500 cursor-pointer" @click="setSelectedProject(project.id)">
-                    <notched-card class="justify-self-center mt-10">
-                        <template #body="{ onClick }">
-                            <div class="flex flex-col justify-center">
-                                <!-- Project Name and Team Button -->
-                                <div class="flex items-center mb-3">
-                                    <div class="flex justify-between items-center gap-2 flex-1">
-                                        <div class="text-md font-bold">
-                                            {{project.name}}
-                                        </div>
-                                        <!-- Owner/Member Badge -->
-                                        <div class="flex flex-col">
-                                            <span 
-                                                v-if="project.is_owner"
-                                                class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800"
-                                                title="You own this project"
-                                            >
-                                                <font-awesome icon="fas fa-crown" class="mr-1" />
-                                                Owner
-                                            </span>
-                                            <span 
-                                                v-else-if="project.user_role === 'admin'"
-                                                class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"
-                                                title="You are an admin in this project"
-                                            >
-                                                <font-awesome icon="fas fa-user-shield" class="mr-1" />
-                                                Admin
-                                            </span>
-                                            <span 
-                                                v-else-if="project.user_role === 'editor'"
-                                                class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800"
-                                                title="You are an editor in this project"
-                                            >
-                                                <font-awesome icon="fas fa-pencil" class="mr-1" />
-                                                Editor
-                                            </span>
-                                            <span 
-                                                v-else-if="project.user_role === 'viewer'"
-                                                class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800"
-                                                title="You are a viewer in this project"
-                                            >
-                                                <font-awesome icon="fas fa-eye" class="mr-1" />
-                                                Viewer
-                                            </span>
-                                            <!-- Team button - only show for owners and admins -->
-                                            <button 
-                                                v-if="project.is_owner || project.user_role === 'admin'"
-                                                @click.prevent="openMembersDialog(project.id)"
-                                                class="text-xs bg-blue-500 hover:bg-blue-600 text-white p-1 mt-1 rounded flex items-center gap-1 cursor-pointer"
-                                                title="Manage team members"
-                                            >
-                                                <font-awesome icon="fas fa-users" />
-                                                <span>Team</span>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <!-- Description -->
-                                <div v-if="project.description" class="text-xs text-gray-500 line-clamp-2 mb-3">
-                                    {{project.description}}
-                                </div>
-                                
-                                <!-- Statistics Badges -->
-                                <div class="flex flex-wrap gap-2">
-                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                        {{project.dataSourcesCount}} Sources
-                                    </span>
-                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                        {{project.dataModelsCount}} Models
-                                    </span>
-                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                        {{project.dashboardsCount}} Dashboards
-                                    </span>
-                                </div>
-                            </div>
-                        </template>
-                    </notched-card>
+                    
+                    <!-- Description -->
+                    <p v-if="project.description" class="text-sm text-gray-600 mb-4 line-clamp-2">
+                        {{ project.description }}
+                    </p>
+                    <p v-else class="text-sm text-gray-400 italic mb-4">
+                        No description
+                    </p>
+                    
+                    <!-- Statistics -->
+                    <div class="flex flex-wrap gap-2 mb-4">
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            <font-awesome icon="fas fa-database" class="mr-1 text-[10px]" />
+                            {{ project.dataSourcesCount }} Source{{ project.dataSourcesCount !== 1 ? 's' : '' }}
+                        </span>
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            <font-awesome icon="fas fa-chart-bar" class="mr-1 text-[10px]" />
+                            {{ project.dataModelsCount }} Model{{ project.dataModelsCount !== 1 ? 's' : '' }}
+                        </span>
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                            <font-awesome icon="fas fa-chart-line" class="mr-1 text-[10px]" />
+                            {{ project.dashboardsCount }} Dashboard{{ project.dashboardsCount !== 1 ? 's' : '' }}
+                        </span>
+                    </div>
+
+                    <!-- Action Button -->
+                    <button
+                        @click.prevent="setSelectedProject(project.id); $router.push(`/projects/${project.id}`)"
+                        class="w-full px-4 py-2 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 hover:text-white transition-all duration-200 flex items-center justify-center gap-2 group-hover:bg-primary-blue-300 group-hover:text-white cursor-pointer">
+                        <font-awesome icon="fas fa-arrow-right" />
+                        Open Project
+                    </button>
                 </NuxtLink>
-                <!-- Delete button - only show for owned projects -->
-                <div 
-                    v-if="project.is_owner"
-                    class="absolute top-5 -right-2 z-10 bg-red-500 hover:bg-red-700 border border-red-500 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer" 
-                    @click="deleteProject(project.id)"
-                >
-                    <font-awesome icon="fas fa-xmark" class="text-xl text-white" />
+
+                <!-- Action Buttons (positioned absolutely) -->
+                <div class="absolute top-4 right-4 flex flex-col gap-2">
+                    <!-- Team Management Button -->
+                    <button 
+                        v-if="project.is_owner || project.user_role === 'admin'"
+                        @click.stop="openMembersDialog(project.id)"
+                        class="bg-blue-500 hover:bg-blue-600 border border-blue-500 rounded-full w-10 h-10 flex items-center justify-center cursor-pointer transition-colors z-10"
+                        v-tippy="{ content: 'Manage Team' }">
+                        <font-awesome icon="fas fa-users" class="text-sm text-white" />
+                    </button>
+
+                    <!-- Delete Button -->
+                    <button 
+                        v-if="project.is_owner"
+                        @click.stop="deleteProject(project.id)"
+                        class="bg-red-500 hover:bg-red-700 border border-red-500 rounded-full w-10 h-10 flex items-center justify-center cursor-pointer transition-colors z-10"
+                        v-tippy="{ content: 'Delete Project' }">
+                        <font-awesome icon="fas fa-xmark" class="text-sm text-white" />
+                    </button>
                 </div>
             </div>
         </div>

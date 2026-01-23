@@ -201,15 +201,15 @@ function formatDate(dateString) {
                                                 <font-awesome icon="fas fa-edit" class="text-base" />
                                                 <span>Edit</span>
                                             </NuxtLink>
-                                            <button @click="changeUserType(user.id, user.user_type)" class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-yellow-100 hover:bg-yellow-200 text-yellow-700 hover:text-yellow-900">
+                                            <button @click="changeUserType(user.id, user.user_type)" class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-yellow-100 hover:bg-yellow-200 text-yellow-700 hover:text-yellow-900 cursor-pointer">
                                                 <font-awesome icon="fas fa-user-shield" class="text-base" />
                                                 <span>{{ user.user_type === 'admin' ? 'Make Normal' : 'Make Admin' }}</span>
                                             </button>
-                                            <button @click="toggleEmailVerification(user.id)" class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-purple-100 hover:bg-purple-200 text-purple-700 hover:text-purple-900">
+                                            <button @click="toggleEmailVerification(user.id)" class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-purple-100 hover:bg-purple-200 text-purple-700 hover:text-purple-900 cursor-pointer">
                                                 <font-awesome :icon="user.email_verified_at ? 'fas fa-envelope-open-text' : 'fas fa-envelope'" class="text-base" />
                                                 <span>{{ user.email_verified_at ? 'Unverify Email' : 'Verify Email' }}</span>
                                             </button>
-                                            <button @click="deleteUser(user.id)" class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-red-100 hover:bg-red-200 text-red-700 hover:text-red-900">
+                                            <button @click="deleteUser(user.id)" class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-red-100 hover:bg-red-200 text-red-700 hover:text-red-900 cursor-pointer">
                                                 <font-awesome icon="fas fa-trash" class="text-base" />
                                                 <span>Delete</span>
                                             </button>

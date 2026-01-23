@@ -38,10 +38,10 @@ const isInInvitationAccept = computed(() => {
 });
 </script>
 <template>
-    <div class="relative data-research-analysis">
+    <div class="relative flex flex-col min-h-screen data-research-analysis">
         <header-nav />
         <breadcrumbs v-if="state.authenticated && !isInPublicDashboard && !isInOauthCallback && !isInInvitationAccept" />
-        <div class="flex "
+        <div class="flex flex-grow"
         :class="{
             'flex-row': state.authenticated,
             'flex-col': !state.authenticated,

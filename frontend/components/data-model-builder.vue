@@ -104,6 +104,14 @@ const isUnlimitedTier = computed(() => {
     return limit === -1;
 });
 
+// Check if tables have any data
+const hasTableData = computed(() => {
+    if (!state.tables || state.tables.length === 0) {
+        return false;
+    }
+    return state.tables.some(table => table.columns && table.columns.length > 0);
+});
+
 // Enforce tier limit on LIMIT input
 function enforceLimitRestriction() {
     if (state.data_table.query_options.limit > userRowLimit.value) {
@@ -275,16 +283,28 @@ const numericColumnsWithAggregates = computed(() => {
     state.data_table.columns
         .filter((column) => getDataType(column.data_type) === 'NUMBER')
         .forEach((column) => {
+            const logicalName = column.table_logical_name || getTableLogicalName(column.schema, column.table_name);
+            const physicalName = `${column.schema}.${column.table_name}.${column.column_name}`;
+            
+            // Use alias if available, otherwise use fully qualified path for SQL
+            const valueForSQL = column.alias_name && column.alias_name.trim() !== ''
+                ? column.alias_name
+                : physicalName;
+            
+            // Display logical name for UI
             const displayName = column.alias_name && column.alias_name.trim() !== ''
                 ? column.alias_name
-                : `${column.schema}.${column.table_name}.${column.column_name}`;
+                : `${logicalName}.${column.column_name}`;
 
             columns.push({
-                value: displayName,
+                value: valueForSQL,
                 display: `${displayName} (Base Column)`,
+                display_short: displayName,
+                physical_name: physicalName,
                 type: 'base_column',
                 schema: column.schema,
                 table_name: column.table_name,
+                table_logical_name: logicalName,
                 column_name: column.column_name,
                 data_type: 'NUMBER'
             });
@@ -1322,9 +1342,14 @@ async function createJoinCondition() {
     };
 
     state.join_conditions.push(newJoin);
+    
+    // CRITICAL: Immediately sync to data_table before query execution
+    // This ensures JOINs are included in the query JSON sent to backend
+    state.data_table.join_conditions = [...state.join_conditions];
 
     console.log('[createJoinCondition] Created new JOIN:', newJoin);
     console.log('[createJoinCondition] Total JOINs now:', state.join_conditions.length);
+    console.log('[createJoinCondition] Synced to data_table.join_conditions');
 
     $swal.fire({
         icon: 'success',
@@ -2132,7 +2157,12 @@ function deleteCalculatedColumnOperation(index) {
     }
 }
 async function addCalculatedColumn() {
+    console.log('[DEBUG addCalculatedColumn] Function called');
+    console.log('[DEBUG addCalculatedColumn] state.calculated_column:', JSON.stringify(state.calculated_column, null, 2));
+    console.log('[DEBUG addCalculatedColumn] state.data_table.calculated_columns before:', state.data_table.calculated_columns);
+    
     if (state.calculated_column.column_name === '') {
+        console.log('[DEBUG addCalculatedColumn] VALIDATION FAILED: Empty column name');
         $swal.fire({
             icon: 'error',
             title: `Error!`,
@@ -2140,7 +2170,12 @@ async function addCalculatedColumn() {
         });
         return;
     }
+    console.log('[DEBUG addCalculatedColumn] Validation 1 passed: column name is not empty');
+    
     if (state.calculated_column.columns.length === 0 || state.calculated_column.columns.filter((column) => column.column_name === '' && column.type === 'column').length > 0) {
+        console.log('[DEBUG addCalculatedColumn] VALIDATION FAILED: No columns or empty column names');
+        console.log('[DEBUG addCalculatedColumn] columns.length:', state.calculated_column.columns.length);
+        console.log('[DEBUG addCalculatedColumn] Empty column names:', state.calculated_column.columns.filter((column) => column.column_name === '' && column.type === 'column'));
         $swal.fire({
             icon: 'error',
             title: `Error!`,
@@ -2148,7 +2183,11 @@ async function addCalculatedColumn() {
         });
         return;
     }
+    console.log('[DEBUG addCalculatedColumn] Validation 2 passed: columns selected');
+    
     if (state.calculated_column.columns.length === 0 || state.calculated_column.columns.filter((column, index) => index > 0 && column.operator === null).length > 0) {
+        console.log('[DEBUG addCalculatedColumn] VALIDATION FAILED: Missing operators');
+        console.log('[DEBUG addCalculatedColumn] Columns missing operators:', state.calculated_column.columns.filter((column, index) => index > 0 && column.operator === null));
         $swal.fire({
             icon: 'error',
             title: `Error!`,
@@ -2156,14 +2195,21 @@ async function addCalculatedColumn() {
         });
         return;
     }
+    console.log('[DEBUG addCalculatedColumn] Validation 3 passed: operators selected');
 
     // Validate aggregate usage
+    console.log('[DEBUG addCalculatedColumn] Checking aggregate usage...');
+    console.log('[DEBUG addCalculatedColumn] numericColumnsWithAggregates:', numericColumnsWithAggregates.value);
     const usesAggregates = state.calculated_column.columns.some(col => {
         const colInfo = numericColumnsWithAggregates.value.find(c => c.value === col.column_name);
+        console.log('[DEBUG addCalculatedColumn] Looking up column:', col.column_name, 'Found:', colInfo);
         return colInfo && (colInfo.type === 'aggregate_function' || colInfo.type === 'aggregate_expression');
     });
+    console.log('[DEBUG addCalculatedColumn] usesAggregates:', usesAggregates);
+    console.log('[DEBUG addCalculatedColumn] showGroupByClause:', showGroupByClause.value);
 
     if (usesAggregates && !showGroupByClause.value) {
+        console.log('[DEBUG addCalculatedColumn] VALIDATION FAILED: Aggregates without GROUP BY');
         $swal.fire({
             icon: 'error',
             title: `Error!`,
@@ -2171,19 +2217,30 @@ async function addCalculatedColumn() {
         });
         return;
     }
+    console.log('[DEBUG addCalculatedColumn] Validation 4 passed: aggregate usage valid');
+    
     let expression = "";
+    console.log('[DEBUG addCalculatedColumn] Building expression...');
     for (let i = 0; i < state.calculated_column.columns.length; i++) {
         const column = state.calculated_column.columns[i];
         const operator = column.operator;
         const type = column.type;
+        
+        console.log(`[DEBUG addCalculatedColumn] Processing column ${i}:`, { column_name: column.column_name, operator, type });
 
         // Get the proper column reference (fully qualified for base columns, alias for aggregates)
         let columnRef = column.column_name;
         if (type === 'column') {
             const colInfo = numericColumnsWithAggregates.value.find(c => c.value === column.column_name);
+            console.log(`[DEBUG addCalculatedColumn] Column ${i} lookup:`, { 
+                searching_for: column.column_name, 
+                found: colInfo ? 'YES' : 'NO',
+                colInfo: colInfo 
+            });
             if (colInfo && colInfo.type === 'base_column') {
                 // Use fully qualified name for base columns
                 columnRef = `${colInfo.schema}.${colInfo.table_name}.${colInfo.column_name}`;
+                console.log(`[DEBUG addCalculatedColumn] Using qualified name:`, columnRef);
             }
             // For aggregates, use the alias (column.column_name is already the alias)
         }
@@ -2191,8 +2248,10 @@ async function addCalculatedColumn() {
         if (i === 0) {
             //the first operator will always be null, so we skip it
             expression += `${columnRef}`;
+            console.log(`[DEBUG addCalculatedColumn] Expression after column ${i}:`, expression);
         } else {
             let value = type === 'column' ? columnRef : column.numeric_value;
+            console.log(`[DEBUG addCalculatedColumn] Column ${i} operator:`, operator, 'value:', value);
             if (operator === 'ADD') {
                 expression += ` + ${value}`;
             } else if (operator === 'SUBTRACT') {
@@ -2204,15 +2263,27 @@ async function addCalculatedColumn() {
             } else if (operator === 'MODULO') {
                 expression += ` % ${value}`;
             }
+            console.log(`[DEBUG addCalculatedColumn] Expression after column ${i}:`, expression);
         }
     }
-    state.data_table.calculated_columns.push({
+    
+    const finalColumn = {
         column_name: state.calculated_column.column_name,
         expression: `ROUND(${expression}, 2)`,
         column_data_type: state.calculated_column.column_data_type,
-    });
+    };
+    console.log('[DEBUG addCalculatedColumn] Final expression:', expression);
+    console.log('[DEBUG addCalculatedColumn] Final column object to push:', finalColumn);
+    console.log('[DEBUG addCalculatedColumn] Pushing to state.data_table.calculated_columns...');
+    
+    state.data_table.calculated_columns.push(finalColumn);
+    
+    console.log('[DEBUG addCalculatedColumn] After push, calculated_columns:', state.data_table.calculated_columns);
+    console.log('[DEBUG addCalculatedColumn] Closing dialog...');
     state.show_calculated_column_dialog = false;
+    console.log('[DEBUG addCalculatedColumn] Calling executeQueryOnExternalDataSource...');
     await executeQueryOnExternalDataSource();
+    console.log('[DEBUG addCalculatedColumn] Function completed');
 }
 async function deleteCalculatedColumn(index) {
     state.data_table.calculated_columns.splice(index, 1);
@@ -2662,6 +2733,7 @@ function buildSQLQuery() {
 
     // Add calculated columns AFTER aggregates so they can reference aggregate aliases
     if (state?.data_table?.calculated_columns?.length) {
+        console.log('[buildSQLQuery] Adding calculated columns to query:', state.data_table.calculated_columns);
         state.data_table.calculated_columns.forEach((column) => {
             // Replace aggregate aliases with full aggregate expressions for PostgreSQL compatibility
             let finalExpression = column.expression;
@@ -2697,7 +2769,9 @@ function buildSQLQuery() {
             });
 
             sqlQuery += `, ${finalExpression} AS ${column.column_name}`;
+            console.log('[buildSQLQuery] Added calculated column to query:', column.column_name, 'SQL:', `${finalExpression} AS ${column.column_name}`);
         })
+        console.log('[buildSQLQuery] Query after adding calculated columns:', sqlQuery);
     }
 
     sqlQuery += ` ${fromJoinClause.join(' ')}`;
@@ -2808,6 +2882,35 @@ async function saveDataModel() {
     state.is_saving_model = true;
     
     try {
+        // VALIDATION: Check if this is truly cross-source or same-source with multiple tables
+        if (props.isCrossSource) {
+            const uniqueDataSourceIds = new Set(
+                state.data_table.columns
+                    .filter(col => col.data_source_id)
+                    .map(col => col.data_source_id)
+            );
+            
+            console.log('[saveDataModel] Cross-source validation - Unique data sources:', Array.from(uniqueDataSourceIds));
+            
+            if (uniqueDataSourceIds.size === 1) {
+                const result = await $swal.fire({
+                    icon: 'warning',
+                    title: 'Same Data Source Detected',
+                    html: `All columns are from the same data source (ID: ${Array.from(uniqueDataSourceIds)[0]}). Cross-source mode is designed for combining data from <strong>different</strong> data sources.<br /><br />This may cause resolution issues. Continue anyway?`,
+                    showCancelButton: true,
+                    confirmButtonColor: '#3C8DBC',
+                    cancelButtonColor: '#DD4B39',
+                    confirmButtonText: 'Continue Anyway',
+                    cancelButtonText: 'Cancel'
+                });
+                
+                if (!result.isConfirmed) {
+                    state.is_saving_model = false;
+                    return;
+                }
+            }
+        }
+        
         // Ensure JOIN conditions and table aliases are synced to data_table before save
         state.data_table.join_conditions = [...state.join_conditions];
         state.data_table.table_aliases = [...state.table_aliases];
@@ -3058,11 +3161,37 @@ async function executeQueryOnExternalDataSource() {
         state.response_from_external_data_source_columns = [];
         state.response_from_external_data_source_rows = [];
         
+        // CRITICAL: For cross-source models, ensure all columns have data_source_id
+        // This is needed for backend's resolveTableNamesForCrossSource() to work
+        if (props.isCrossSource) {
+            console.log('[executeQuery] Cross-source model detected, validating data_source_id for all columns');
+            let missingCount = 0;
+            state.data_table.columns.forEach(col => {
+                if (!col.data_source_id) {
+                    // Backfill from state.tables metadata
+                    const sourceTable = state.tables.find(t => 
+                        t.table_name === col.table_name && t.schema === col.schema
+                    );
+                    if (sourceTable?.data_source_id) {
+                        col.data_source_id = sourceTable.data_source_id;
+                        missingCount++;
+                        console.log(`[executeQuery] Backfilled data_source_id for ${col.schema}.${col.table_name}.${col.column_name}`);
+                    } else {
+                        console.error(`[executeQuery] CRITICAL: Cannot find data_source_id for ${col.schema}.${col.table_name}.${col.column_name}`);
+                    }
+                }
+            });
+            if (missingCount > 0) {
+                console.log(`[executeQuery] Backfilled ${missingCount} columns with missing data_source_id`);
+            }
+        }
+        
         // CRITICAL: Sync JOIN conditions to data_table before building query
         // This ensures the JSON sent to backend includes all JOINs
         state.data_table.join_conditions = [...state.join_conditions];
         state.data_table.table_aliases = [...state.table_aliases];
         
+        console.log('[executeQuery] Building SQL with calculated_columns:', state.data_table.calculated_columns);
         state.sql_query = buildSQLQuery();
         state.sql_query += ` LIMIT 5 OFFSET 0`;
         console.log('[Data Model Builder - executeQueryOnExternalDataSource] SQL Query being sent:', state.sql_query);
@@ -3135,6 +3264,9 @@ async function executeQueryOnExternalDataSource() {
             }
 
             const columns = Object.keys(data[0]);
+            console.log('[executeQuery] Columns from query result:', columns);
+            console.log('[executeQuery] Number of rows returned:', data.length);
+            console.log('[executeQuery] Calculated columns in state:', state.data_table.calculated_columns);
             state.response_from_external_data_source_columns = columns;
             state.response_from_external_data_source_rows = data;
         }
@@ -3177,6 +3309,9 @@ async function toggleColumnInDataModel(column, tableName, tableAlias = null) {
             t.table_name === tableName && t.schema === newColumn.schema
         );
         newColumn.table_logical_name = sourceTable?.logical_name || tableName;
+        
+        // CRITICAL: For cross-source models, include data_source_id so backend can map tables
+        newColumn.data_source_id = sourceTable?.data_source_id;
         
         newColumn.display_name = tableAlias
             ? `${tableAlias}.${column.column_name}`
@@ -4098,6 +4233,20 @@ onMounted(async () => {
             </div>
         </div>
         
+        <!-- No Data Warning Banner -->
+        <div v-if="!hasTableData" class="mb-4 p-4 bg-orange-50 border-2 border-orange-400 rounded-lg flex items-center gap-3">
+            <font-awesome icon="fas fa-exclamation-triangle" class="text-orange-600 text-2xl" />
+            <div class="flex-1">
+                <h3 class="font-bold text-orange-800">No Data Available in Tables</h3>
+                <p class="text-sm text-orange-700 mt-1">
+                    The connected data source tables contain no rows. Data models cannot be created until the tables have been populated with data.
+                </p>
+                <p class="text-sm text-orange-600 mt-2">
+                    Please ensure your data source contains data before attempting to build a data model.
+                </p>
+            </div>
+        </div>
+        
         <div class="flex flex-row justify-between items-center mb-5">
             <div class="font-bold text-2xl">
                 Create A Data Model from the Connected Data Source(s)
@@ -4165,7 +4314,8 @@ onMounted(async () => {
                             </div>
                         </th>
                     </tr>
-                    <tr v-for="row in state.response_from_external_data_source_rows"
+                    <tr v-for="(row, rowIndex) in state.response_from_external_data_source_rows.slice(0, 5)"
+                        :key="rowIndex"
                         class="border border-primary-blue-100 border-solid p-2 text-center font-bold rounded-tr-lg">
                         <td v-for="column in state.response_from_external_data_source_columns"
                             class="border border-primary-blue-100 border-solid p-2 text-center">
@@ -4484,6 +4634,13 @@ onMounted(async () => {
                             pull: readOnly ? false : 'clone',
                             put: false,
                         }" itemKey="name">
+                            <template v-if="!tableOrAlias.columns || tableOrAlias.columns.length === 0" #header>
+                                <div class="p-6 text-center text-gray-500 italic">
+                                    <font-awesome icon="fas fa-inbox" class="text-4xl mb-3 text-gray-400" />
+                                    <p class="text-sm font-medium">No columns/data available</p>
+                                    <p class="text-xs mt-1">This table is empty</p>
+                                </div>
+                            </template>
                             <template #item="{ element, index }">
                                 <div class="cursor-pointer p-1 ml-2 mr-2 rounded-lg" :class="{
                                     'bg-gray-200': !element.reference.foreign_table_schema && !isColumnUsedInAggregate(element.column_name, tableOrAlias.schema, tableOrAlias.table_name) ? index % 2 === 0 : false,
@@ -5208,12 +5365,18 @@ onMounted(async () => {
                                         @click="!readOnly && openCalculatedColumnDialog()">
                                         + Add Calculated Column/Field
                                     </div>
-                                    <template v-if="showDataModelControls && saveButtonEnabled">
+                                    <template v-if="showDataModelControls && saveButtonEnabled && hasTableData">
                                         <div v-if="showDataModelControls"
                                             class="w-full justify-center text-center items-center self-center mb-5 p-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md select-none"
                                             @click="saveDataModel">
                                             <template v-if="props.isEditDataModel">Update</template><template
                                                 v-else>Save</template> Data Model
+                                        </div>
+                                    </template>
+                                    <template v-else-if="showDataModelControls && !hasTableData">
+                                        <div
+                                            class="w-full justify-center text-center items-center self-center mb-5 p-2 bg-orange-300 text-orange-900 cursor-not-allowed font-bold shadow-md select-none">
+                                            Cannot Save - No Data in Tables
                                         </div>
                                     </template>
                                     <template v-else-if="showDataModelControls">
@@ -5292,7 +5455,8 @@ onMounted(async () => {
                                 <optgroup label="Base Columns">
                                     <option
                                         v-for="(col, index) in numericColumnsWithAggregates.filter(c => c.type === 'base_column')"
-                                        :key="'base_' + index" :value="col.value">
+                                        :key="'base_' + index" :value="col.value"
+                                        :title="col.display_short !== col.physical_name ? col.physical_name : ''">
                                         {{ col.display }}
                                     </option>
                                 </optgroup>
@@ -5349,7 +5513,7 @@ onMounted(async () => {
                             'flex flex-row justify-center w-50 h-10 items-center self-center mt-2 p-5 text-sm text-center font-bold select-none rounded-lg',
                             readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-primary-blue-100 hover:bg-primary-blue-300 cursor-pointer text-white'
                         ]"
-                        @click="!readOnly && addCalculatedColumn">
+                        @click="!readOnly && addCalculatedColumn()">
                         Add Calulated Column
                     </div>
                 </div>

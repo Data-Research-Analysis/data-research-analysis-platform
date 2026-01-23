@@ -13,7 +13,6 @@ export const mockMySQLMetadata: MockMetadataRecord[] = [
         physical_table_name: 'orders_abc123_22',
         schema_name: 'dra_mysql_22',
         data_source_id: 22,
-        original_table_name: 'orders',
         logical_table_name: 'Orders',
         table_type: 'mysql'
     },
@@ -21,7 +20,6 @@ export const mockMySQLMetadata: MockMetadataRecord[] = [
         physical_table_name: 'products_def456_22',
         schema_name: 'dra_mysql_22',
         data_source_id: 22,
-        original_table_name: 'products',
         logical_table_name: 'Products',
         table_type: 'mysql'
     },
@@ -29,7 +27,6 @@ export const mockMySQLMetadata: MockMetadataRecord[] = [
         physical_table_name: 'order_items_ghi789_22',
         schema_name: 'dra_mysql_22',
         data_source_id: 22,
-        original_table_name: 'order_items',
         logical_table_name: 'Order Items',
         table_type: 'mysql'
     }
@@ -58,7 +55,6 @@ export const mockMariaDBMetadata: MockMetadataRecord[] = [
         physical_table_name: 'customers_jkl012_23',
         schema_name: 'dra_mariadb_23',
         data_source_id: 23,
-        original_table_name: 'customers',
         logical_table_name: 'Customers',
         table_type: 'mariadb'
     },
@@ -66,7 +62,6 @@ export const mockMariaDBMetadata: MockMetadataRecord[] = [
         physical_table_name: 'invoices_mno345_23',
         schema_name: 'dra_mariadb_23',
         data_source_id: 23,
-        original_table_name: 'invoices',
         logical_table_name: 'Invoices',
         table_type: 'mariadb'
     }
@@ -95,7 +90,6 @@ export const mockPostgreSQLMetadata: MockMetadataRecord[] = [
         physical_table_name: 'users_pqr678_15',
         schema_name: 'dra_postgresql_15',
         data_source_id: 15,
-        original_table_name: 'users',
         logical_table_name: 'Users',
         table_type: 'postgresql'
     },
@@ -103,7 +97,6 @@ export const mockPostgreSQLMetadata: MockMetadataRecord[] = [
         physical_table_name: 'events_stu901_15',
         schema_name: 'dra_postgresql_15',
         data_source_id: 15,
-        original_table_name: 'events',
         logical_table_name: 'Events',
         table_type: 'postgresql'
     }
@@ -132,16 +125,16 @@ export const mockExcelMetadata: MockMetadataRecord[] = [
         physical_table_name: 'sales_data_source_10_1',
         schema_name: 'dra_excel',
         data_source_id: 10,
-        original_table_name: 'sales',
         logical_table_name: 'Sales Data',
+        original_sheet_name: 'Sales',
         table_type: 'excel'
     },
     {
         physical_table_name: 'inventory_data_source_10_2',
         schema_name: 'dra_excel',
         data_source_id: 10,
-        original_table_name: 'inventory',
         logical_table_name: 'Inventory',
+        original_sheet_name: 'Inventory',
         table_type: 'excel'
     }
 ];
@@ -165,7 +158,6 @@ export const mockPDFMetadata: MockMetadataRecord[] = [
         physical_table_name: 'document_data_source_20',
         schema_name: 'dra_pdf',
         data_source_id: 20,
-        original_table_name: 'document',
         logical_table_name: 'PDF Document',
         table_type: 'pdf'
     }
@@ -190,7 +182,6 @@ export const mockGAMetadata: MockMetadataRecord[] = [
         physical_table_name: 'device_15',
         schema_name: 'dra_google_analytics',
         data_source_id: 15,
-        original_table_name: 'device',
         logical_table_name: 'Device Report',
         table_type: 'google_analytics'
     },
@@ -198,7 +189,6 @@ export const mockGAMetadata: MockMetadataRecord[] = [
         physical_table_name: 'traffic_overview_15',
         schema_name: 'dra_google_analytics',
         data_source_id: 15,
-        original_table_name: 'traffic_overview',
         logical_table_name: 'Traffic Overview',
         table_type: 'google_analytics'
     },
@@ -206,7 +196,6 @@ export const mockGAMetadata: MockMetadataRecord[] = [
         physical_table_name: 'user_acquisition_15',
         schema_name: 'dra_google_analytics',
         data_source_id: 15,
-        original_table_name: 'user_acquisition',
         logical_table_name: 'User Acquisition',
         table_type: 'google_analytics'
     }
@@ -232,7 +221,6 @@ export const mockGAMMetadata: MockMetadataRecord[] = [
         physical_table_name: 'network_12345_7',
         schema_name: 'dra_google_ad_manager',
         data_source_id: 7,
-        original_table_name: 'network_12345',
         logical_table_name: 'Ad Manager Network',
         table_type: 'google_ad_manager'
     },
@@ -240,7 +228,6 @@ export const mockGAMMetadata: MockMetadataRecord[] = [
         physical_table_name: 'revenue_12345_7',
         schema_name: 'dra_google_ad_manager',
         data_source_id: 7,
-        original_table_name: 'revenue_12345',
         logical_table_name: 'Revenue Report',
         table_type: 'google_ad_manager'
     }
@@ -266,7 +253,6 @@ export const mockGoogleAdsMetadata: MockMetadataRecord[] = [
         physical_table_name: 'campaigns_8',
         schema_name: 'dra_google_ads',
         data_source_id: 8,
-        original_table_name: 'campaigns',
         logical_table_name: 'Campaigns',
         table_type: 'google_ads'
     },
@@ -274,7 +260,6 @@ export const mockGoogleAdsMetadata: MockMetadataRecord[] = [
         physical_table_name: 'ad_groups_8',
         schema_name: 'dra_google_ads',
         data_source_id: 8,
-        original_table_name: 'ad_groups',
         logical_table_name: 'Ad Groups',
         table_type: 'google_ads'
     }

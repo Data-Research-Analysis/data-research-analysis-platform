@@ -14,7 +14,9 @@ import project_members from './routes/project_members.js';
 import project_invitations from './routes/project_invitations.js';
 import data_source from './routes/data_source.js';
 import data_model from './routes/data_model.js';
+import data_model_refresh from './routes/data_model_refresh.js';
 import dashboard from './routes/dashboard.js';
+import dashboard_query from './routes/dashboard_query.js';
 import ai_data_modeler from './routes/ai_data_modeler.js';
 import oauth from './routes/oauth.js';
 import google_analytics from './routes/google_analytics.js';
@@ -24,17 +26,17 @@ import performance from './routes/performance.js';
 import article from './routes/admin/article.js';
 import category from './routes/admin/category.js';
 import image from './routes/admin/image.js';
-import private_beta_users from './routes/admin/private-beta-users.js';
+import private_beta_users from './routes/admin/private_beta_users.js';
 import users from './routes/admin/users.js';
 import database from './routes/admin/database.js';
-import scheduled_backups from './routes/admin/scheduled-backups.js';
+import scheduled_backups from './routes/admin/scheduled_backups.js';
 import admin_sitemap from './routes/admin/sitemap.js';
-import admin_subscription_tiers from './routes/admin/subscription-tiers.js';
-import user_subscriptions from './routes/admin/user-subscriptions.js';
+import admin_subscription_tiers from './routes/admin/subscription_tiers.js';
+import user_subscriptions from './routes/admin/user_subscriptions.js';
 import public_article from './routes/article.js';
 import sitemap from './routes/sitemap.js';
 import subscription from './routes/subscription.js';
-import email_preferences from './routes/email-preferences.js';
+import email_preferences from './routes/email_preferences.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -61,6 +63,13 @@ if (process.env.BACKUP_ENABLED !== 'false') {
     await scheduledBackupService.startScheduler();
 }
 console.log('✅ Scheduled backup service initialized');
+
+// Initialize data source sync scheduler
+import { SchedulerService } from './services/SchedulerService.js';
+if (process.env.SYNC_SCHEDULER_ENABLED !== 'false') {
+    await SchedulerService.getInstance().initialize();
+}
+console.log('✅ Data source sync scheduler initialized');
 
 // Start invitation expiration cron job
 import { startInvitationExpirationJob } from './jobs/expireInvitations.js';
@@ -94,7 +103,9 @@ app.use('/project', project_members);
 app.use('/project-invitations', project_invitations);
 app.use('/data-source', data_source);
 app.use('/data-model', data_model);
+app.use('/refresh', data_model_refresh);
 app.use('/dashboard', dashboard);
+app.use('/dashboard', dashboard_query);
 app.use('/ai-data-modeler', ai_data_modeler);
 app.use('/oauth', oauth);
 app.use('/google-analytics', google_analytics);

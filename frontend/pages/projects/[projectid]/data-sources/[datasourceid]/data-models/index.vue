@@ -4,6 +4,7 @@ import { useDataSourceStore } from '@/stores/data_sources';
 import { useDataModelsStore } from '@/stores/data_models';
 import { useSubscriptionStore } from '@/stores/subscription';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
+import { useTruncation } from '@/composables/useTruncation';
 const projectsStore = useProjectsStore();
 const dataSourceStore = useDataSourceStore();
 const dataModelsStore = useDataModelsStore();
@@ -11,6 +12,7 @@ const subscriptionStore = useSubscriptionStore();
 const { $swal } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
+const { isTitleTruncated } = useTruncation();
 const state = reactive({
     data_models: [],
     refreshing_model_id: null, // Track which model is being refreshed
@@ -229,73 +231,109 @@ onUnmounted(() => {
                 </div>
             </div>
             
+            <!-- Create Button -->
+            <div v-if="canCreate" class="mb-6">
+                <NuxtLink 
+                    :to="`/projects/${project.id}/data-sources/${dataSource.id}/data-models/create`"
+                    class="inline-flex items-center px-4 py-2 bg-primary-blue-300 hover:bg-primary-blue-100 text-white rounded-lg transition-colors"
+                >
+                    <font-awesome icon="fas fa-plus" class="mr-2" />
+                    Create New Data Model
+                </NuxtLink>
+            </div>
+
             <!-- Skeleton loader for loading state -->
-            <div v-if="state.loading" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5">
-                <div v-for="i in 6" :key="i" class="mt-10">
-                    <div class="border border-primary-blue-100 border-solid p-6 shadow-md bg-white min-h-[180px]">
-                        <div class="animate-pulse">
-                            <div class="h-6 bg-gray-300 rounded w-3/4 mb-4"></div>
-                            <div class="space-y-2 mt-4">
-                                <div class="h-4 bg-gray-200 rounded w-1/2"></div>
-                            </div>
-                        </div>
-                    </div>
+            <div v-if="state.loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div v-for="i in 6" :key="i" class="bg-white border border-gray-200 rounded-lg p-6 animate-pulse">
+                    <div class="h-6 bg-gray-200 rounded w-3/4 mb-4"></div>
+                    <div class="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
+                    <div class="h-4 bg-gray-200 rounded w-full mt-6"></div>
                 </div>
             </div>
             
-            <!-- Actual content -->
-            <div v-else class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5">
-                <notched-card v-if="canCreate" class="justify-self-center mt-10">
-                    <template #body="{ onClick }">
-                        <NuxtLink :to="`/projects/${project.id}/data-sources/${dataSource.id}/data-models/create`">
-                            <div class="flex flex-col justify-center text-lg font-bold cursor-pointer items-center">
-                                <div class="bg-gray-300 border border-gray-300 border-solid rounded-full w-20 h-20 flex items-center justify-center mb-5">
-                                    <font-awesome icon="fas fa-plus" class="text-4xl text-gray-500" />
-                                </div>
-                                Create New Data Model
-                            </div>
-                        </NuxtLink>
-                    </template>
-                </notched-card>
-                <div v-for="dataModel in state.data_models" class="relative">
-                    <notched-card class="justify-self-center mt-10">
-                        <template #body="{ onClick }">
-                            <NuxtLink :to="`/projects/${project.id}/data-sources/${dataSource.id}/data-models/${dataModel.id}/edit`" class="hover:text-gray-500 cursor-pointer">
-                                <div class="flex flex-col justify-start h-full">
-                                    <div class="text-md font-bold">
-                                        {{cleanDataModelName(dataModel.name)}}
-                                    </div>
-                                    <div class="flex flex-row justify-between mt-4 mb-10">
-                                        <ul class="text-xs">
-                                            <li>Data Models</li>
-                                        </ul>
-                                    </div>
-                                </div>
-                            </NuxtLink>
-                        </template>
-                    </notched-card>
-                    <div 
-                        v-if="canDelete"
-                        v-tippy="{ content: 'Delete Data Model' }"
-                        class="absolute top-5 -right-2 z-10 bg-red-500 hover:bg-red-700 border border-red-500 border-solid rounded-full w-10 h-10 flex items-center justify-center mb-5 cursor-pointer" 
-                        @click="deleteDataModel(dataModel.id)"
-                    >
-                        <font-awesome icon="fas fa-xmark" class="text-xl text-white select-none" />
+            <!-- Cards Grid -->
+            <div v-else-if="state.data_models.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div 
+                    v-for="dataModel in state.data_models" 
+                    :key="dataModel.id"
+                    class="relative bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg hover:border-primary-blue-100 transition-all duration-200 flex flex-col"
+                >
+                    <!-- Action Buttons (Top Right) -->
+                    <div class="absolute top-4 right-4 flex gap-1">
+                        <!-- Refresh Button -->
+                        <button
+                            v-if="canUpdate"
+                            @click.stop="refreshDataModel(dataModel.id, dataModel.name)"
+                            :disabled="state.refreshing_model_id === dataModel.id"
+                            class="p-2 text-green-600 hover:bg-green-50 rounded-lg disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
+                            v-tippy="{ content: state.refreshing_model_id === dataModel.id ? 'Refreshing...' : 'Refresh Model' }"
+                        >
+                            <font-awesome 
+                                :icon="state.refreshing_model_id === dataModel.id ? 'fas fa-spinner' : 'fas fa-sync'" 
+                                :class="{'animate-spin': state.refreshing_model_id === dataModel.id}"
+                            />
+                        </button>
+
+                        <!-- Delete Button -->
+                        <button
+                            v-if="canDelete"
+                            @click.stop="deleteDataModel(dataModel.id)"
+                            class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            v-tippy="{ content: 'Delete Model' }"
+                        >
+                            <font-awesome icon="fas fa-trash" />
+                        </button>
                     </div>
-                    <button
-                        v-if="canUpdate"
-                        v-tippy="{ content: 'Refresh Data Model' }"
-                        :disabled="state.refreshing_model_id === dataModel.id"
-                        @click="refreshDataModel(dataModel.id, dataModel.name)"
-                        class="absolute top-16 -right-2 z-10 bg-green-500 hover:bg-green-600 disabled:bg-gray-400 border border-green-500 border-solid rounded-full w-10 h-10 flex items-center justify-center cursor-pointer transition-colors"
+
+                    <!-- Model Info -->
+                    <div class="flex-1 space-y-4">
+                        <!-- Model Name -->
+                        <div class="pr-16">
+                            <h3 
+                                :ref="`modelTitle-${dataModel.id}`"
+                                :data-model-title="dataModel.id"
+                                class="text-base font-semibold text-gray-900 mb-2 truncate"
+                                v-tippy="isTitleTruncated(dataModel.id, 'data-model-title') ? { content: cleanDataModelName(dataModel.name) } : undefined"
+                            >
+                                {{ cleanDataModelName(dataModel.name) }}
+                            </h3>
+                        </div>
+
+                        <!-- Data Source Badge -->
+                        <div>
+                            <p class="text-xs font-medium text-gray-500 mb-2">Data Source</p>
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                <font-awesome icon="fas fa-database" class="mr-1" />
+                                {{ dataSource.name }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- View Details Button -->
+                    <NuxtLink 
+                        :to="`/projects/${project.id}/data-sources/${dataSource.id}/data-models/${dataModel.id}/edit`"
+                        class="mt-6 w-full block text-center bg-primary-blue-300 hover:bg-primary-blue-100 text-white py-2 px-4 rounded-lg transition-colors font-medium"
                     >
-                        <font-awesome 
-                            :icon="state.refreshing_model_id === dataModel.id ? 'fas fa-spinner' : 'fas fa-sync'" 
-                            :class="{'animate-spin': state.refreshing_model_id === dataModel.id}"
-                            class="text-xl text-white select-none" 
-                        />
-                    </button>
+                        View Details
+                    </NuxtLink>
                 </div>
+            </div>
+
+            <!-- Empty State -->
+            <div v-else class="text-center py-12">
+                <font-awesome icon="fas fa-table" class="text-gray-400 text-6xl mb-4" />
+                <p class="text-xl font-semibold text-gray-900">No data models yet</p>
+                <p class="text-sm text-gray-500 mt-2 mb-4">
+                    Create your first data model for this data source
+                </p>
+                <NuxtLink 
+                    v-if="canCreate"
+                    :to="`/projects/${project.id}/data-sources/${dataSource.id}/data-models/create`"
+                    class="inline-flex items-center px-4 py-2 bg-primary-blue-300 hover:bg-primary-blue-100 text-white rounded-lg transition-colors"
+                >
+                    <font-awesome icon="fas fa-plus" class="mr-2" />
+                    Create Data Model
+                </NuxtLink>
             </div>
         </tab-content-panel>
     </div>

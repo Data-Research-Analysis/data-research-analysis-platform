@@ -7,6 +7,13 @@ export interface IGoogleAdsAccount {
     descriptiveName: string;
     currencyCode: string;
     timeZone: string;
+    isManager?: boolean;
+    clientAccounts?: IGoogleAdsClientAccount[];
+}
+
+export interface IGoogleAdsClientAccount {
+    customerId: string;
+    descriptiveName: string;
 }
 
 export interface IGoogleAdsReportTypeDefinition {
@@ -20,6 +27,7 @@ export interface IGoogleAdsReportTypeDefinition {
 export interface IGoogleAdsSyncConfig {
     name: string;
     customerId: string;
+    managerCustomerId?: string;  // When selecting a client under a manager
     accessToken: string;
     refreshToken: string;
     reportTypes: string[];

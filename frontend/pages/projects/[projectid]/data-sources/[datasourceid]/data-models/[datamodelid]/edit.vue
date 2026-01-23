@@ -8,7 +8,7 @@ const projectsStore = useProjectsStore();
 const dataSourceStore = useDataSourceStore();
 const route = useRoute();
 const state = reactive({
-    data_source_tables: [],
+    data_source_tables: null, // null initially to show loading state
     data_model: {},
 });
 const project = computed(() => {
@@ -34,7 +34,8 @@ async function getDataSourceTables(dataSourceId) {
         },
     });
     const data = await response.json();
-    state.data_source_tables = data
+    // Ensure we always set an array (even if empty) so the component can handle it
+    state.data_source_tables = Array.isArray(data) ? data : [];
 }
 function getDataModel(dataModelId) {
     state.data_model = {};
@@ -51,7 +52,20 @@ onMounted(async () => {
     <div v-if="project" class="flex flex-col">
         <tabs :project-id="project.id"/>
         <div class="flex flex-col min-h-100 mb-10">
-            <data-model-builder v-if="(state.data_source_tables && state.data_source_tables.length) && (state.data_model && state.data_model.query)" :data-source-tables="state.data_source_tables" :data-model="state.data_model" :data-source="dataSource" :is-edit-data-model="true" :read-only="!permissions.canUpdate.value" />
+            <!-- Show builder if we have tables data (even if empty) and data model -->
+            <data-model-builder 
+                v-if="state.data_source_tables !== null && state.data_model && state.data_model.query" 
+                :data-source-tables="state.data_source_tables" 
+                :data-model="state.data_model" 
+                :data-source="dataSource" 
+                :is-edit-data-model="true" 
+                :read-only="!permissions.canUpdate.value" />
+            
+            <!-- Loading state -->
+            <div v-else-if="state.data_source_tables === null" class="flex flex-col items-center justify-center h-96 ml-10 mr-10">
+                <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600"></div>
+                <p class="text-lg font-semibold text-gray-700 mt-4">Loading tables...</p>
+            </div>
         </div>
     </div>
     

@@ -113,90 +113,102 @@
           </div>
         </div>
 
-        <!-- Table -->
-        <div class="overflow-x-auto">
-          <table v-if="!loading && filteredModels.length > 0" class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-              <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Name
-                </th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Data Source(s)
-                </th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Created
-                </th>
-                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-              <tr v-for="item in filteredModels" :key="item.id" class="hover:bg-gray-50">
-                <!-- Name with cross-source indicator -->
-                <td class="px-6 py-4 whitespace-nowrap">
-                  <div class="flex items-center">
-                    <span class="text-sm font-medium text-gray-900">{{ item.name }}</span>
-                    <span 
-                      v-if="item.is_cross_source"
-                      class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                      <font-awesome icon="fas fa-link" class="mr-1 text-[10px]" />
-                      Multi-Source
-                    </span>
-                  </div>
-                </td>
+        <!-- Card Grid -->
+        <div>
+          <!-- Loading State -->
+          <div v-if="loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div v-for="i in 6" :key="i" class="bg-white border border-gray-200 rounded-lg p-6 animate-pulse">
+              <div class="h-6 bg-gray-200 rounded w-3/4 mb-4"></div>
+              <div class="h-4 bg-gray-200 rounded w-1/2 mb-6"></div>
+              <div class="h-4 bg-gray-200 rounded w-full mb-2"></div>
+              <div class="h-4 bg-gray-200 rounded w-5/6"></div>
+            </div>
+          </div>
 
-                <!-- Data source(s) -->
-                <td class="px-6 py-4">
-                  <div class="flex flex-wrap gap-1">
+          <!-- Cards Grid -->
+          <div v-else-if="filteredModels.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6">
+            <div 
+              v-for="item in filteredModels" 
+              :key="item.id"
+              class="relative bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg hover:border-primary-blue-100 transition-all duration-200 flex flex-col"
+            >
+              <!-- Action Buttons (Top Right) -->
+              <div class="absolute top-4 right-4 flex gap-1">
+                <!-- Refresh Button -->
+                <button
+                  v-if="canUpdate"
+                  @click.stop="refreshModel(item)"
+                  :disabled="refreshingModelId === item.id"
+                  class="p-2 text-green-600 hover:bg-green-50 rounded-lg disabled:text-gray-400 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  v-tippy="{ content: refreshingModelId === item.id ? 'Refreshing...' : 'Refresh Model' }"
+                >
+                  <font-awesome 
+                    :icon="refreshingModelId === item.id ? 'fas fa-spinner' : 'fas fa-refresh'" 
+                    :class="refreshingModelId === item.id ? 'animate-spin' : ''" 
+                  />
+                </button>
+
+                <!-- Delete Button -->
+                <button
+                  v-if="canDelete"
+                  @click.stop="deleteModel(item)"
+                  class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                  v-tippy="{ content: 'Delete Model' }"
+                >
+                  <font-awesome icon="fas fa-trash" />
+                </button>
+              </div>
+
+              <!-- Model Info -->
+              <div class="flex-1 space-y-4">
+                <!-- Model Name & Multi-Source Badge -->
+                <div class="pr-16">
+                  <h3 
+                    :ref="`modelTitle-${item.id}`"
+                    :data-model-title="item.id"
+                    class="text-base font-semibold text-gray-900 mb-2 truncate"
+                    v-tippy="isTitleTruncated(item.id, 'data-model-title') ? { content: cleanDataModelName(item.name) } : undefined"
+                  >
+                    {{ cleanDataModelName(item.name) }}
+                  </h3>
+                  <span 
+                    v-if="item.is_cross_source"
+                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800"
+                  >
+                    <font-awesome icon="fas fa-link" class="mr-1 text-[10px]" />
+                    Multi-Source
+                  </span>
+                </div>
+
+                <!-- Data Sources -->
+                <div>
+                  <p class="text-xs font-medium text-gray-500 mb-2">Data Source(s)</p>
+                  <div class="flex flex-wrap gap-2">
                     <SourceBadge 
                       v-for="source in getModelSources(item)" 
                       :key="source.id"
                       :source-type="source.data_type"
                       :source-name="source.name"
-                      size="small" />
+                      size="small" 
+                    />
                   </div>
-                </td>
+                </div>
 
-                <!-- Created date -->
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {{ item.created_at ? formatDate(item.created_at) : 'N/A' }}
-                </td>
+                <!-- Created Date -->
+                <div class="text-xs text-gray-500">
+                  <font-awesome icon="far fa-calendar" class="mr-1" />
+                  Created {{ item.created_at ? formatDate(item.created_at) : 'N/A' }}
+                </div>
+              </div>
 
-                <!-- Actions -->
-                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <button 
-                    @click="viewModel(item)"
-                    class="text-blue-600 hover:text-blue-900 mr-3 cursor-pointer"
-                    v-tippy="{ content: 'View' }">
-                    <font-awesome icon="fas fa-eye" />
-                  </button>
-                  <button 
-                    v-if="canUpdate"
-                    @click="refreshModel(item)"
-                    :disabled="refreshingModelId === item.id"
-                    class="text-green-600 hover:text-green-900 mr-3 cursor-pointer disabled:text-gray-400 disabled:cursor-not-allowed"
-                    v-tippy="{ content: 'Refresh' }">
-                    <font-awesome 
-                      :icon="refreshingModelId === item.id ? 'fas fa-spinner' : 'fas fa-refresh'" 
-                      :class="refreshingModelId === item.id ? 'animate-spin' : ''" />
-                  </button>
-                  <button 
-                    v-if="canDelete"
-                    @click="deleteModel(item)"
-                    class="text-red-600 hover:text-red-900 cursor-pointer"
-                    v-tippy="{ content: 'Delete' }">
-                    <font-awesome icon="fas fa-trash" />
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-
-          <!-- Loading State -->
-          <div v-else-if="loading" class="flex items-center justify-center py-12">
-            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+              <!-- View Details Button -->
+              <button
+                @click="viewModel(item)"
+                class="mt-6 w-full bg-primary-blue-300 hover:bg-primary-blue-100 text-white py-2 px-4 rounded-lg transition-colors font-medium cursor-pointer"
+              >
+                View Details
+              </button>
+            </div>
           </div>
 
           <!-- Empty State -->
@@ -219,12 +231,14 @@ import { useRouter, useRoute } from 'vue-router';
 import { useDataModelsStore } from '~/stores/data_models';
 import { useSubscriptionStore } from '@/stores/subscription';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
+import { useTruncation } from '@/composables/useTruncation';
 
 const router = useRouter();
 const route = useRoute();
 const dataModelsStore = useDataModelsStore();
 const subscriptionStore = useSubscriptionStore();
 const { $swal }: any = useNuxtApp();
+const { isTitleTruncated } = useTruncation();
 
 const projectId = computed(() => parseInt(route.params.projectid as string));
 
@@ -263,14 +277,14 @@ const headers = [
 
 const dataModels = computed(() => {
   const allModels = dataModelsStore.dataModels;
-  // Filter by project - check data_source.project_id or data_model_sources
+  // Filter by project - check data_source.project.id or data_model_sources
   return allModels.filter(model => {
     // Check if model's data source belongs to this project
-    if (model.data_source?.project_id === projectId.value) {
+    if (model.data_source?.project?.id === projectId.value) {
       return true;
     }
     // For federated models, check if any source belongs to this project
-    if (model.data_model_sources?.some((dms: any) => dms.data_source?.project_id === projectId.value)) {
+    if (model.data_model_sources?.some((dms: any) => dms.data_source?.project?.id === projectId.value)) {
       return true;
     }
     return false;
@@ -394,6 +408,10 @@ function formatDate(date: string): string {
   });
 }
 
+function cleanDataModelName(name: string): string {
+  return name.replace(/_dra_[a-zA-Z0-9_]+/g, "");
+}
+
 function viewModel(model: any) {
   // Navigate to index page (view/details page)
   if (model.is_cross_source) {
@@ -417,11 +435,12 @@ function viewModel(model: any) {
 async function refreshModel(model: any) {
   // Confirmation dialog
   const { value: confirmRefresh } = await $swal.fire({
-    title: `Refresh Data Model "${model.name}"?`,
-    text: 'This will update the data model with the latest data from the external source.',
+    title: `Refresh Data Model "${cleanDataModelName(model.name)}"?`,
+    text: 'This will queue the data model for refresh with the latest data.',
     icon: 'question',
     showCancelButton: true,
     confirmButtonText: 'Yes, refresh now!',
+    confirmButtonColor: '#4F46E5'
   });
   
   if (!confirmRefresh) return;
@@ -430,36 +449,25 @@ async function refreshModel(model: any) {
   refreshingModelId.value = model.id;
   
   try {
-    const token = getAuthToken();
-    const response = await fetch(
-      `${baseUrl()}/data-model/refresh/${model.id}`, 
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          'Authorization-Type': 'auth',
-        },
-      }
-    );
+    // Use the new queue-based refresh API
+    await dataModelsStore.refreshDataModel(model.id);
     
-    if (response.status === 200) {
-      await $swal.fire({
-        icon: 'success',
-        title: 'Refreshed!',
-        text: 'The data model has been updated with the latest data.',
-      });
-      
-      // Reload data models to reflect any changes
-      await dataModelsStore.retrieveDataModels(projectId.value);
-    } else {
-      throw new Error('Refresh failed');
-    }
-  } catch (error) {
+    await $swal.fire({
+      icon: 'success',
+      title: 'Refresh Queued!',
+      text: 'The data model refresh has been queued. You will receive a notification when complete.',
+      timer: 3000,
+      showConfirmButton: false
+    });
+    
+    // Reload data models to reflect any changes
+    await dataModelsStore.retrieveDataModels(projectId.value);
+  } catch (error: any) {
     await $swal.fire({
       icon: 'error',
       title: 'Refresh Failed',
-      text: 'There was an error refreshing the data model. Please try again.',
+      text: error.message || 'There was an error refreshing the data model. Please try again.',
+      confirmButtonColor: '#4F46E5'
     });
   } finally {
     refreshingModelId.value = null;
