@@ -10,4 +10,8 @@ export const ISocketEvent = {
     SCHEDULED_BACKUP_COMPLETED: 'scheduled-backup-completed',
     SCHEDULED_BACKUP_FAILED: 'scheduled-backup-failed',
     SCHEDULED_BACKUP_PROGRESS: 'scheduled-backup-progress',
+    NOTIFICATION_NEW: 'notification-new',
+    NOTIFICATION_READ: 'notification-read',
+    NOTIFICATION_MARK_ALL_READ: 'notification-mark-all-read',
+    NOTIFICATION_DELETED: 'notification-deleted',
 };
