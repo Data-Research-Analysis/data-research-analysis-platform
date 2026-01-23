@@ -119,11 +119,12 @@ describe('DataSourceProcessor - Cross-Source Transformation', () => {
         });
 
         it('should handle pattern matching fallback for MySQL tables', async () => {
-            // Add metadata without logical_table_name
+            // Add metadata for pattern matching test
             mockManager.clear();
             mockManager.addMetadata([
                 {
                     physical_table_name: 'customers_xyz999_22',
+                    logical_table_name: 'customers',
                     schema_name: 'dra_mysql_22',
                     data_source_id: 22,
                     table_type: 'mysql'
