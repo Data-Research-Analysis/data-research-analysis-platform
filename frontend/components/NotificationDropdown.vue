@@ -1,12 +1,12 @@
 <template>
-  <div class="notification-dropdown" @click.stop>
+  <div class="fixed bg-white rounded-xl shadow-2xl w-[400px] max-w-[calc(100vw-2rem)] max-h-[600px] flex flex-col overflow-hidden sm:w-[400px]" @click.stop>
     <!-- Header -->
-    <div class="dropdown-header">
-      <h3 class="header-title">Notifications</h3>
+    <div class="px-5 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+      <h3 class="m-0 text-lg font-semibold text-gray-900">Notifications</h3>
       <button
         v-if="hasUnread"
         @click="handleMarkAllRead"
-        class="mark-all-read-btn"
+        class="bg-transparent border-none text-blue-500 text-sm font-medium cursor-pointer px-2 py-1 rounded hover:bg-blue-50 transition-colors"
         type="button"
       >
         Mark all as read
@@ -14,22 +14,22 @@
     </div>
 
     <!-- Body -->
-    <div class="dropdown-body">
+    <div class="flex-1 overflow-y-auto max-h-[480px] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded [&::-webkit-scrollbar-thumb:hover]:bg-gray-400">
       <!-- Loading state -->
-      <div v-if="loading" class="loading-state">
-        <div class="loading-spinner"></div>
-        <p>Loading notifications...</p>
+      <div v-if="loading" class="py-10 px-5 text-center text-gray-500">
+        <div class="w-8 h-8 border-3 border-gray-200 border-t-blue-500 rounded-full animate-spin mx-auto mb-3"></div>
+        <p class="m-0">Loading notifications...</p>
       </div>
 
       <!-- Empty state -->
-      <div v-else-if="notifications.length === 0" class="empty-state">
-        <font-awesome-icon :icon="['fas', 'bell-slash']" class="empty-icon" />
-        <p>No notifications</p>
-        <span class="empty-subtitle">You're all caught up!</span>
+      <div v-else-if="notifications.length === 0" class="py-15 px-5 text-center text-gray-500">
+        <font-awesome-icon :icon="['fas', 'bell-slash']" class="text-5xl text-gray-300 mb-4" />
+        <p class="m-0 mb-1 text-base font-medium text-gray-700">No notifications</p>
+        <span class="text-sm text-gray-400">You're all caught up!</span>
       </div>
 
       <!-- Notifications list -->
-      <div v-else class="notifications-list">
+      <div v-else class="flex flex-col">
         <NotificationItem
           v-for="notification in notifications"
           :key="notification.id"
@@ -41,8 +41,8 @@
     </div>
 
     <!-- Footer -->
-    <div class="dropdown-footer">
-      <NuxtLink to="/notifications" class="view-all-link" @click="$emit('close')">
+    <div class="py-3 px-5 border-t border-gray-200 text-center bg-gray-50">
+      <NuxtLink to="/notifications" class="text-blue-500 no-underline text-sm font-medium hover:text-blue-600 hover:underline transition-colors" @click="$emit('close')">
         View all notifications
       </NuxtLink>
     </div>
@@ -99,154 +99,3 @@ async function handleDelete(notificationId: number) {
   }
 }
 </script>
-
-<style scoped>
-.notification-dropdown {
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-  width: 400px;
-  max-height: 600px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-/* Header */
-.dropdown-header {
-  padding: 16px 20px;
-  border-bottom: 1px solid #e5e7eb;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #f9fafb;
-}
-
-.header-title {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: #111827;
-}
-
-.mark-all-read-btn {
-  background: none;
-  border: none;
-  color: #3b82f6;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: background-color 0.2s;
-}
-
-.mark-all-read-btn:hover {
-  background-color: rgba(59, 130, 246, 0.1);
-}
-
-/* Body */
-.dropdown-body {
-  flex: 1;
-  overflow-y: auto;
-  max-height: 480px;
-}
-
-.dropdown-body::-webkit-scrollbar {
-  width: 6px;
-}
-
-.dropdown-body::-webkit-scrollbar-track {
-  background: #f1f1f1;
-}
-
-.dropdown-body::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 3px;
-}
-
-.dropdown-body::-webkit-scrollbar-thumb:hover {
-  background: #a1a1a1;
-}
-
-/* Loading state */
-.loading-state {
-  padding: 40px 20px;
-  text-align: center;
-  color: #6b7280;
-}
-
-.loading-spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid #e5e7eb;
-  border-top-color: #3b82f6;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  margin: 0 auto 12px;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-/* Empty state */
-.empty-state {
-  padding: 60px 20px;
-  text-align: center;
-  color: #6b7280;
-}
-
-.empty-icon {
-  font-size: 48px;
-  color: #d1d5db;
-  margin-bottom: 16px;
-}
-
-.empty-state p {
-  margin: 0 0 4px;
-  font-size: 16px;
-  font-weight: 500;
-  color: #374151;
-}
-
-.empty-subtitle {
-  font-size: 14px;
-  color: #9ca3af;
-}
-
-/* Notifications list */
-.notifications-list {
-  display: flex;
-  flex-direction: column;
-}
-
-/* Footer */
-.dropdown-footer {
-  padding: 12px 20px;
-  border-top: 1px solid #e5e7eb;
-  text-align: center;
-  background: #f9fafb;
-}
-
-.view-all-link {
-  color: #3b82f6;
-  text-decoration: none;
-  font-size: 14px;
-  font-weight: 500;
-  transition: color 0.2s;
-}
-
-.view-all-link:hover {
-  color: #2563eb;
-  text-decoration: underline;
-}
-
-/* Responsive */
-@media (max-width: 480px) {
-  .notification-dropdown {
-    width: calc(100vw - 32px);
-    max-width: 400px;
-  }
-}
-</style>

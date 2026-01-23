@@ -1,35 +1,48 @@
 <template>
-  <div class="notification-bell-container" v-if="import.meta.client">
+  <div class="relative inline-block">
     <button
+      ref="buttonRef"
       @click="toggleDropdown"
-      class="notification-bell-button"
+      class="relative bg-transparent border-none cursor-pointer p-2 rounded-md transition-colors duration-200 text-white hover:bg-black/5"
       aria-label="Notifications"
       type="button"
     >
-      <font-awesome-icon :icon="['fas', 'bell']" class="bell-icon" />
-      <span v-if="hasUnread" class="notification-badge">
+      <font-awesome-icon :icon="['fas', 'bell']" class="text-xl" />
+      <span v-if="hasUnread" class="absolute top-1 right-1 bg-red-500 text-white rounded-full px-1.5 py-0.5 text-xs font-semibold min-w-[18px] h-[18px] flex items-center justify-center shadow-md">
         {{ unreadCount > 99 ? '99+' : unreadCount }}
       </span>
     </button>
 
-    <Teleport to="body">
-      <Transition name="dropdown-fade">
-        <NotificationDropdown
-          v-if="isOpen"
-          @close="closeDropdown"
-          :style="dropdownStyle"
+    <ClientOnly>
+      <Teleport to="body">
+        <Transition
+          enter-active-class="transition-all duration-200"
+          leave-active-class="transition-all duration-200"
+          enter-from-class="opacity-0 -translate-y-2"
+          leave-to-class="opacity-0 -translate-y-2"
+        >
+          <NotificationDropdown
+            v-if="isOpen && isClient"
+            @close="closeDropdown"
+            :style="dropdownStyle"
+          />
+        </Transition>
+      </Teleport>
+
+      <!-- Backdrop overlay -->
+      <Transition
+        enter-active-class="transition-opacity duration-200"
+        leave-active-class="transition-opacity duration-200"
+        enter-from-class="opacity-0"
+        leave-to-class="opacity-0"
+      >
+        <div
+          v-if="isOpen && isClient"
+          class="fixed inset-0 bg-black/30 z-[9998]"
+          @click="closeDropdown"
         />
       </Transition>
-    </Teleport>
-
-    <!-- Backdrop overlay -->
-    <Transition name="backdrop-fade">
-      <div
-        v-if="isOpen"
-        class="notification-backdrop"
-        @click="closeDropdown"
-      />
-    </Transition>
+    </ClientOnly>
   </div>
 </template>
 
@@ -43,12 +56,13 @@ const notificationStore = useNotificationStore();
 const userStore = useLoggedInUserStore();
 
 const isOpen = ref(false);
+const isClient = ref(false);
 const buttonRef = ref<HTMLElement | null>(null);
 
 const { unreadCount, hasUnread } = storeToRefs(notificationStore);
 
 const dropdownStyle = computed(() => {
-  if (!import.meta.client || !buttonRef.value) return {};
+  if (!isClient.value || !buttonRef.value) return {};
   
   const rect = buttonRef.value.getBoundingClientRect();
   return {
@@ -80,95 +94,23 @@ function handleKeydown(event: KeyboardEvent) {
 }
 
 onMounted(() => {
-  if (import.meta.client) {
-    // Initialize Socket.IO connection
-    const user = userStore.getLoggedInUser();
-    if (user?.id) {
-      notificationStore.initializeSocket(user.id);
-      notificationStore.fetchUnreadCount();
-    }
-
-    // Add keyboard event listener
-    window.addEventListener('keydown', handleKeydown);
+  // Set client flag for SSR safety
+  isClient.value = true;
+  
+  // Initialize Socket.IO connection
+  const user = userStore.getLoggedInUser();
+  if (user?.id) {
+    notificationStore.initializeSocket(user.id);
+    notificationStore.fetchUnreadCount();
   }
+
+  // Add keyboard event listener
+  window.addEventListener('keydown', handleKeydown);
 });
 
 onBeforeUnmount(() => {
-  if (import.meta.client) {
+  if (isClient.value) {
     window.removeEventListener('keydown', handleKeydown);
   }
 });
 </script>
-
-<style scoped>
-.notification-bell-container {
-  position: relative;
-  display: inline-block;
-}
-
-.notification-bell-button {
-  position: relative;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 6px;
-  transition: background-color 0.2s;
-  color: var(--text-primary, #333);
-}
-
-.notification-bell-button:hover {
-  background-color: rgba(0, 0, 0, 0.05);
-}
-
-.bell-icon {
-  font-size: 20px;
-}
-
-.notification-badge {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  background: #ff4444;
-  color: white;
-  border-radius: 10px;
-  padding: 2px 6px;
-  font-size: 11px;
-  font-weight: 600;
-  min-width: 18px;
-  height: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-.notification-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.3);
-  z-index: 9998;
-}
-
-/* Transitions */
-.dropdown-fade-enter-active,
-.dropdown-fade-leave-active {
-  transition: opacity 0.2s, transform 0.2s;
-}
-
-.dropdown-fade-enter-from,
-.dropdown-fade-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
-}
-
-.backdrop-fade-enter-active,
-.backdrop-fade-leave-active {
-  transition: opacity 0.2s;
-}
-
-.backdrop-fade-enter-from,
-.backdrop-fade-leave-to {
-  opacity: 0;
-}
-</style>

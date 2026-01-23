@@ -55,6 +55,14 @@ export default defineNuxtConfig({
     plugins: [
       tailwindcss(),
     ],
+    optimizeDeps: {
+      esbuildOptions: {
+        target: 'esnext',
+      },
+    },
+    build: {
+      target: 'esnext',
+    },
   },
   plugins: [
     { src: '~/plugins/recaptcha.ts', mode: 'client' },
@@ -64,7 +72,9 @@ export default defineNuxtConfig({
     { src: '~/plugins/htmlToImage.ts', mode: 'client' },
     { src: '~/plugins/sweetalert2.ts', mode: 'client' },
     { src: '~/plugins/vuetippy.client.ts', mode: 'client' },
+    { src: '~/plugins/api-loader.ts', mode: 'client' },
     // fontawesome.ts is universal (works on server for SSR icons)
+    // init-user.client.ts, navigation-perf.client.ts, prefetch-links.client.ts auto-detected by .client.ts suffix
   ],
   modules: [
     'nuxt-gtag',

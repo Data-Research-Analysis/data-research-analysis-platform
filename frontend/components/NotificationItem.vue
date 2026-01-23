@@ -1,25 +1,28 @@
 <template>
   <div
-    class="notification-item"
-    :class="{ 'unread': !notification.isRead }"
+    class="relative flex items-start px-5 py-4 border-b border-gray-200 cursor-pointer transition-colors hover:bg-gray-50 last:border-b-0 group"
+    :class="{ 'bg-blue-50': !notification.isRead }"
     @click="$emit('click')"
   >
+    <!-- Unread indicator bar -->
+    <div v-if="!notification.isRead" class="absolute left-0 top-0 bottom-0 w-1 bg-blue-500"></div>
+    
     <!-- Icon -->
-    <div class="notification-icon">
-      <font-awesome-icon :icon="getIcon(notification.type)" :class="getIconClass(notification.type)" />
+    <div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center mr-3 text-lg" :class="getIconClass(notification.type)">
+      <font-awesome-icon :icon="getIcon(notification.type)" />
     </div>
 
     <!-- Content -->
-    <div class="notification-content">
-      <h4 class="notification-title">{{ notification.title }}</h4>
-      <p class="notification-message">{{ notification.message }}</p>
-      <span class="notification-time">{{ formatTime(notification.createdAt) }}</span>
+    <div class="flex-1 min-w-0">
+      <h4 class="m-0 mb-1 text-sm text-gray-900 leading-tight" :class="{ 'font-semibold': !notification.isRead, 'font-medium': notification.isRead }">{{ notification.title }}</h4>
+      <p class="m-0 mb-1.5 text-[13px] text-gray-500 leading-relaxed line-clamp-2">{{ notification.message }}</p>
+      <span class="text-xs text-gray-400">{{ formatTime(notification.createdAt) }}</span>
     </div>
 
     <!-- Delete button -->
     <button
       @click.stop="$emit('delete')"
-      class="delete-btn"
+      class="flex-shrink-0 bg-transparent border-none text-gray-400 cursor-pointer p-1 rounded transition-all opacity-0 group-hover:opacity-100 ml-2 hover:bg-red-100 hover:text-red-500"
       aria-label="Delete notification"
       type="button"
     >
@@ -63,22 +66,22 @@ function getIcon(type: NotificationType): string[] {
 
 function getIconClass(type: NotificationType): string {
   const classMap: Record<NotificationType, string> = {
-    [NotificationType.PROJECT_INVITATION]: 'icon-blue',
-    [NotificationType.PROJECT_MEMBER_ADDED]: 'icon-green',
-    [NotificationType.PROJECT_MEMBER_REMOVED]: 'icon-gray',
-    [NotificationType.DATA_SOURCE_SYNC_COMPLETE]: 'icon-green',
-    [NotificationType.DATA_SOURCE_SYNC_FAILED]: 'icon-red',
-    [NotificationType.DASHBOARD_SHARED]: 'icon-purple',
-    [NotificationType.DASHBOARD_COMMENT]: 'icon-blue',
-    [NotificationType.SYSTEM_UPDATE]: 'icon-blue',
-    [NotificationType.ACCOUNT_UPDATE]: 'icon-gray',
-    [NotificationType.SUBSCRIPTION_EXPIRING]: 'icon-orange',
-    [NotificationType.PAYMENT_RECEIVED]: 'icon-green',
-    [NotificationType.PAYMENT_FAILED]: 'icon-red',
-    [NotificationType.SECURITY_ALERT]: 'icon-red'
+    [NotificationType.PROJECT_INVITATION]: 'bg-blue-100 text-blue-500',
+    [NotificationType.PROJECT_MEMBER_ADDED]: 'bg-green-100 text-green-500',
+    [NotificationType.PROJECT_MEMBER_REMOVED]: 'bg-gray-100 text-gray-500',
+    [NotificationType.DATA_SOURCE_SYNC_COMPLETE]: 'bg-green-100 text-green-500',
+    [NotificationType.DATA_SOURCE_SYNC_FAILED]: 'bg-red-100 text-red-500',
+    [NotificationType.DASHBOARD_SHARED]: 'bg-purple-100 text-purple-500',
+    [NotificationType.DASHBOARD_COMMENT]: 'bg-blue-100 text-blue-500',
+    [NotificationType.SYSTEM_UPDATE]: 'bg-blue-100 text-blue-500',
+    [NotificationType.ACCOUNT_UPDATE]: 'bg-gray-100 text-gray-500',
+    [NotificationType.SUBSCRIPTION_EXPIRING]: 'bg-orange-100 text-orange-500',
+    [NotificationType.PAYMENT_RECEIVED]: 'bg-green-100 text-green-500',
+    [NotificationType.PAYMENT_FAILED]: 'bg-red-100 text-red-500',
+    [NotificationType.SECURITY_ALERT]: 'bg-red-100 text-red-500'
   };
 
-  return classMap[type] || 'icon-gray';
+  return classMap[type] || 'bg-gray-100 text-gray-500';
 }
 
 function formatTime(date: Date | string): string {
@@ -103,136 +106,3 @@ function formatTime(date: Date | string): string {
 }
 </script>
 
-<style scoped>
-.notification-item {
-  display: flex;
-  align-items: flex-start;
-  padding: 16px 20px;
-  border-bottom: 1px solid #e5e7eb;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  position: relative;
-}
-
-.notification-item:hover {
-  background-color: #f9fafb;
-}
-
-.notification-item:last-child {
-  border-bottom: none;
-}
-
-.notification-item.unread {
-  background-color: #eff6ff;
-}
-
-.notification-item.unread::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 4px;
-  background-color: #3b82f6;
-}
-
-.notification-item.unread .notification-title {
-  font-weight: 600;
-}
-
-/* Icon */
-.notification-icon {
-  flex-shrink: 0;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 12px;
-  font-size: 18px;
-}
-
-.icon-blue {
-  background-color: #dbeafe;
-  color: #3b82f6;
-}
-
-.icon-green {
-  background-color: #d1fae5;
-  color: #10b981;
-}
-
-.icon-red {
-  background-color: #fee2e2;
-  color: #ef4444;
-}
-
-.icon-orange {
-  background-color: #ffedd5;
-  color: #f59e0b;
-}
-
-.icon-purple {
-  background-color: #f3e8ff;
-  color: #a855f7;
-}
-
-.icon-gray {
-  background-color: #f3f4f6;
-  color: #6b7280;
-}
-
-/* Content */
-.notification-content {
-  flex: 1;
-  min-width: 0;
-}
-
-.notification-title {
-  margin: 0 0 4px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #111827;
-  line-height: 1.4;
-}
-
-.notification-message {
-  margin: 0 0 6px;
-  font-size: 13px;
-  color: #6b7280;
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.notification-time {
-  font-size: 12px;
-  color: #9ca3af;
-}
-
-/* Delete button */
-.delete-btn {
-  flex-shrink: 0;
-  background: none;
-  border: none;
-  color: #9ca3af;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  transition: all 0.2s;
-  opacity: 0;
-  margin-left: 8px;
-}
-
-.notification-item:hover .delete-btn {
-  opacity: 1;
-}
-
-.delete-btn:hover {
-  background-color: #fee2e2;
-  color: #ef4444;
-}
-</style>
