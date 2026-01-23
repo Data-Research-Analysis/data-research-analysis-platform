@@ -158,7 +158,7 @@ function editEntry(entry) {
                                         <div class="flex justify-end gap-2">
                                             <button
                                                 @click="editEntry(entry)"
-                                                class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-blue-100 hover:bg-blue-200 text-blue-700 hover:text-blue-900"
+                                                class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-blue-100 hover:bg-blue-200 text-blue-700 hover:text-blue-900 cursor-pointer"
                                             >
                                                 <font-awesome icon="fas fa-edit" class="text-base" />
                                                 <span>Edit</span>
@@ -166,7 +166,7 @@ function editEntry(entry) {
                                             <button
                                                 v-if="entry.publish_status === 'draft'"
                                                 @click="publishEntry(entry.id)"
-                                                class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-green-100 hover:bg-green-200 text-green-700 hover:text-green-900"
+                                                class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-green-100 hover:bg-green-200 text-green-700 hover:text-green-900 cursor-pointer"
                                             >
                                                 <font-awesome icon="fas fa-paper-plane" class="text-base" />
                                                 <span>Publish</span>
@@ -174,14 +174,14 @@ function editEntry(entry) {
                                             <button
                                                 v-else
                                                 @click="unpublishEntry(entry.id)"
-                                                class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-orange-100 hover:bg-orange-200 text-orange-700 hover:text-orange-900"
+                                                class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-orange-100 hover:bg-orange-200 text-orange-700 hover:text-orange-900 cursor-pointer"
                                             >
                                                 <font-awesome icon="fas fa-file-archive" class="text-base" />
                                                 <span>Unpublish</span>
                                             </button>
                                             <button
                                                 @click="deleteEntry(entry.id)"
-                                                class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-red-100 hover:bg-red-200 text-red-700 hover:text-red-900"
+                                                class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-red-100 hover:bg-red-200 text-red-700 hover:text-red-900 cursor-pointer"
                                             >
                                                 <font-awesome icon="fas fa-trash" class="text-base" />
                                                 <span>Delete</span>

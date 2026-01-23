@@ -29,7 +29,7 @@ SELECT
     schema_name,
     physical_table_name,
     logical_table_name,
-    original_table_name,
+    original_sheet_name,
     table_type
 FROM dra_table_metadata
 WHERE data_source_id = 22
@@ -40,11 +40,11 @@ SELECT
     data_source_id,
     schema_name,
     physical_table_name,
-    original_table_name
+    logical_table_name
 FROM dra_table_metadata
 WHERE data_source_id = 22
 AND (
-    original_table_name IN ('orders', 'products', 'order_items')
+    logical_table_name IN ('orders', 'products', 'order_items')
     OR physical_table_name LIKE '%orders%'
     OR physical_table_name LIKE '%products%'
     OR physical_table_name LIKE '%order_items%'

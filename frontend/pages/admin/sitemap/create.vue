@@ -139,7 +139,7 @@ async function submitForm() {
                         <button
                             type="submit"
                             :disabled="state.submitting"
-                            class="px-6 py-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 font-bold rounded-lg shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                            class="px-6 py-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 font-bold rounded-lg shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center"
                         >
                             <span v-if="!state.submitting">Add Entry</span>
                             <span v-else class="flex items-center">
@@ -152,7 +152,7 @@ async function submitForm() {
                         </button>
                         <NuxtLink
                             to="/admin/sitemap"
-                            class="px-6 py-2 bg-gray-300 text-gray-700 hover:bg-gray-400 font-bold rounded-lg shadow-md text-center"
+                            class="px-6 py-2 bg-gray-300 text-gray-700 hover:bg-gray-400 font-bold rounded-lg shadow-md text-center cursor-pointer"
                         >
                             Cancel
                         </NuxtLink>

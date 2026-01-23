@@ -225,7 +225,7 @@ onUnmounted(() => {
                                 </button>
                                 <button
                                     @click="goBack"
-                                    class="inline-flex items-center px-6 py-3 border border-gray-300 text-base font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50"
+                                    class="inline-flex items-center px-6 py-3 border border-gray-300 text-base font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 cursor-pointer"
                                 >
                                     Cancel
                                 </button>

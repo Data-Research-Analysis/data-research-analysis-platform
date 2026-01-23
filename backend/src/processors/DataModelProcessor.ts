@@ -881,18 +881,57 @@ export class DataModelProcessor {
             if (!project) {
                 return resolve([]);
             }
+            
+            // Get ALL data models for the project (including cross-source models)
+            // Use query builder to handle both single-source AND cross-source models
+            const allDataModels = await manager
+                .createQueryBuilder(DRADataModel, 'dm')
+                .leftJoinAndSelect('dm.data_source', 'ds')
+                .leftJoinAndSelect('ds.project', 'ds_project')
+                .leftJoinAndSelect('dm.data_model_sources', 'dms')
+                .leftJoinAndSelect('dms.data_source', 'dms_ds')
+                .leftJoinAndSelect('dms_ds.project', 'dms_ds_project')
+                .where(
+                    new Brackets((qb) => {
+                        // Single-source models: data_source.project_id matches
+                        qb.where('ds.project_id = :projectId', { projectId })
+                          // Cross-source models: any linked data source belongs to this project
+                          .orWhere('dms_ds.project_id = :projectId', { projectId });
+                    })
+                )
+                .getMany();
+            
+            console.log(`[DataModelProcessor] Found ${allDataModels.length} total data models for project ${projectId}`);
+            allDataModels.forEach((dm, idx) => {
+                console.log(`  DataModel [${idx}] ID:${dm.id}, Name:${dm.name}, Schema:${dm.schema}, DataSource:${dm.data_source?.id || 'NULL (cross-source)'}, IsCrossSource:${dm.is_cross_source || false}`);
+            });
+            
             const dataSources: DRADataSource[] = project.data_sources;
             let tables:any[] = [];
+            
+            // Separate single-source and cross-source models
+            const singleSourceModels = allDataModels.filter(dm => dm.data_source !== null && dm.data_source !== undefined);
+            const crossSourceModels = allDataModels.filter(dm => dm.is_cross_source === true || dm.data_source === null);
+            
+            console.log(`[DataModelProcessor] Processing ${singleSourceModels.length} single-source and ${crossSourceModels.length} cross-source models`);
+            
+            // Process each data source to get the table schemas for single-source models
             for (let i=0; i<dataSources.length; i++) {
                 const dataSource = dataSources[i];
-                const dataModels = dataSource?.data_models || [];
-                if (!dataModels) {
+                
+                // Get all single-source data models for this data source
+                const dataModelsForSource = singleSourceModels.filter(dm => dm.data_source?.id === dataSource.id);
+                
+                if (dataModelsForSource.length === 0) {
                     continue;
                 }
-                const dataModelsTableNames = dataModels.map((dataModel) => {
+                
+                const dataModelsTableNames = dataModelsForSource.map((dataModel) => {
                     return {
+                        data_model_id: dataModel.id,
                         schema: dataModel.schema,
                         table_name: dataModel.name,
+                        is_cross_source: false
                     }
                 })
                 if (dataModelsTableNames?.length === 0) {
@@ -908,6 +947,18 @@ export class DataModelProcessor {
                     query += ` AND tb.table_schema IN (${dataModelsTableNames.map((model) => `'${model.schema}'`).join(',')})`;
                 }
                 let tablesSchema = await dbConnector.query(query);
+                
+                // Query logical table names from metadata
+                const logicalNamesQuery = `
+                    SELECT physical_table_name, schema_name, logical_table_name
+                    FROM dra_table_metadata
+                    WHERE data_source_id = $1
+                `;
+                const logicalNames = await manager.query(logicalNamesQuery, [dataSource.id]);
+                const logicalNameMap = new Map(
+                    logicalNames.map((row: any) => [`${row.schema_name}.${row.physical_table_name}`, row.logical_table_name])
+                );
+                
                 for (let i=0; i < dataModelsTableNames.length; i++) {
                     const dataModelTableName = dataModelsTableNames[i];
                     query = `SELECT * FROM "${dataModelTableName.schema}"."${dataModelTableName.table_name}"`;
@@ -919,15 +970,41 @@ export class DataModelProcessor {
                         tableSchema.rows = rowsData;
                     }
                 }
-                let tempTables = tablesSchema.map((table: any) => {
-                    return {
+                
+                // Get unique tables (tablesSchema has one row per column, we need unique tables)
+                const uniqueTables = _.uniqBy(tablesSchema, (row: any) => `${row.table_schema}.${row.table_name}`);
+                
+                let tempTables = uniqueTables.map((table: any) => {
+                    const tableKey = `${table.table_schema}.${table.table_name}`;
+                    const logicalName = logicalNameMap.get(tableKey) || table.table_name;
+                    
+                    // Find all data models that use this physical table
+                    const relatedDataModels = dataModelsTableNames.filter(dm => 
+                        dm.schema === table.table_schema && dm.table_name === table.table_name
+                    );
+                    
+                    // Create a separate entry for each data model
+                    return relatedDataModels.map(dm => ({
+                        data_model_id: dm.data_model_id,
                         table_name: table.table_name,
                         schema: table.table_schema,
+                        logical_name: logicalName,
+                        is_cross_source: dm.is_cross_source,
                         columns: [],
                         rows: table.rows,
-                    }
+                    }));
+                }).flat();
+                
+                // Deduplicate by data_model_id to preserve different data models with same physical table
+                console.log(`[DataModelProcessor] Before deduplication for data source ${dataSource.id}: ${tempTables.length} tables`);
+                tempTables.forEach((t: any, idx: number) => {
+                    console.log(`  [${idx}] DM:${t.data_model_id} ${t.schema}.${t.table_name} (logical: ${t.logical_name}) CrossSource:${t.is_cross_source}`);
                 });
-                tempTables = _.uniqBy(tempTables, 'table_name');
+                tempTables = _.uniqBy(tempTables, 'data_model_id');
+                console.log(`[DataModelProcessor] After deduplication: ${tempTables.length} tables`);
+                tempTables.forEach((t: any, idx: number) => {
+                    console.log(`  [${idx}] DM:${t.data_model_id} ${t.schema}.${t.table_name} (logical: ${t.logical_name}) CrossSource:${t.is_cross_source}`);
+                });
                 tempTables.forEach((table: any) => {
                     tablesSchema.forEach((result: any) => {
                         if (table.table_name === result.table_name) {
@@ -945,7 +1022,102 @@ export class DataModelProcessor {
                 });
                 tables.push(tempTables);
             }
-            return resolve(tables.flat());
+            
+            // Process cross-source models (these don't belong to a specific data source)
+            if (crossSourceModels.length > 0) {
+                console.log(`[DataModelProcessor] Processing ${crossSourceModels.length} cross-source models`);
+                
+                const crossSourceTableNames = crossSourceModels.map((dataModel) => {
+                    return {
+                        data_model_id: dataModel.id,
+                        schema: dataModel.schema,
+                        table_name: dataModel.name,
+                        is_cross_source: true
+                    }
+                });
+                
+                // Query information_schema for cross-source model tables
+                let query = `SELECT tb.table_catalog, tb.table_schema, tb.table_name, co.column_name, co.data_type, co.character_maximum_length
+                    FROM information_schema.tables AS tb
+                    JOIN information_schema.columns AS co
+                    ON tb.table_name = co.table_name
+                    AND tb.table_type = 'BASE TABLE'`;
+                if (crossSourceTableNames.length) {
+                    query += ` AND tb.table_name IN (${crossSourceTableNames.map((model) => `'${model.table_name}'`).join(',')})`;
+                    query += ` AND tb.table_schema IN (${crossSourceTableNames.map((model) => `'${model.schema}'`).join(',')})`;
+                }
+                
+                let tablesSchema = await dbConnector.query(query);
+                
+                // Query logical table names from metadata
+                const logicalNameMap = new Map<string, string>();
+                const tableKeys = crossSourceTableNames.map(t => `('${t.schema}', '${t.table_name}')`).join(',');
+                if (tableKeys) {
+                    const logicalNameQuery = `
+                        SELECT schema_name, physical_table_name, logical_table_name
+                        FROM dra_table_metadata
+                        WHERE (schema_name, physical_table_name) IN (${tableKeys})
+                    `;
+                    const logicalNameResults = await dbConnector.query(logicalNameQuery);
+                    logicalNameResults.forEach((row: any) => {
+                        const key = `${row.schema_name}.${row.physical_table_name}`;
+                        logicalNameMap.set(key, row.logical_table_name);
+                    });
+                }
+                
+                // Get unique tables
+                const uniqueTables = _.uniqBy(tablesSchema, (row: any) => `${row.table_schema}.${row.table_name}`);
+                
+                let tempTables = uniqueTables.map((table: any) => {
+                    const tableKey = `${table.table_schema}.${table.table_name}`;
+                    const logicalName = logicalNameMap.get(tableKey) || table.table_name;
+                    
+                    const relatedDataModels = crossSourceTableNames.filter(dm => 
+                        dm.schema === table.table_schema && dm.table_name === table.table_name
+                    );
+                    
+                    return relatedDataModels.map(dm => ({
+                        data_model_id: dm.data_model_id,
+                        table_name: table.table_name,
+                        schema: table.table_schema,
+                        logical_name: logicalName,
+                        is_cross_source: true,
+                        columns: [],
+                        rows: [],
+                    }));
+                }).flat();
+                
+                console.log(`[DataModelProcessor] Cross-source models: ${tempTables.length} tables`);
+                tempTables.forEach((t: any, idx: number) => {
+                    console.log(`  CrossSource [${idx}] DM:${t.data_model_id} ${t.schema}.${t.table_name} (logical: ${t.logical_name})`);
+                });
+                
+                // Add columns to cross-source tables
+                tempTables.forEach((table: any) => {
+                    tablesSchema.forEach((result: any) => {
+                        if (table.table_name === result.table_name) {
+                            table.columns.push({
+                                column_name: result.column_name,
+                                data_type: result.data_type,
+                                character_maximum_length: result.character_maximum_length,
+                                table_name: table.table_name,
+                                schema: table.schema,
+                                alias_name: '',
+                                is_selected_column: true,
+                            });
+                        }
+                    });
+                });
+                
+                tables.push(tempTables);
+            }
+            
+            const finalResult = tables.flat();
+            console.log(`[DataModelProcessor] Final result: ${finalResult.length} tables total`);
+            finalResult.forEach((t: any, idx: number) => {
+                console.log(`  Final [${idx}] DM:${t.data_model_id} ${t.schema}.${t.table_name} (logical: ${t.logical_name}) CrossSource:${t.is_cross_source}`);
+            });
+            return resolve(finalResult);
         });
     }
 

@@ -139,7 +139,7 @@
                   v-if="canUpdate"
                   @click.stop="refreshModel(item)"
                   :disabled="refreshingModelId === item.id"
-                  class="p-2 text-green-600 hover:bg-green-50 rounded-lg disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
+                  class="p-2 text-green-600 hover:bg-green-50 rounded-lg disabled:text-gray-400 disabled:cursor-not-allowed transition-colors cursor-pointer"
                   v-tippy="{ content: refreshingModelId === item.id ? 'Refreshing...' : 'Refresh Model' }"
                 >
                   <font-awesome 
@@ -152,7 +152,7 @@
                 <button
                   v-if="canDelete"
                   @click.stop="deleteModel(item)"
-                  class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                   v-tippy="{ content: 'Delete Model' }"
                 >
                   <font-awesome icon="fas fa-trash" />
@@ -204,7 +204,7 @@
               <!-- View Details Button -->
               <button
                 @click="viewModel(item)"
-                class="mt-6 w-full bg-primary-blue-300 hover:bg-primary-blue-100 text-white py-2 px-4 rounded-lg transition-colors font-medium"
+                class="mt-6 w-full bg-primary-blue-300 hover:bg-primary-blue-100 text-white py-2 px-4 rounded-lg transition-colors font-medium cursor-pointer"
               >
                 View Details
               </button>

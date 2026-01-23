@@ -97,7 +97,7 @@ const refreshList = () => {
             <h3 class="text-lg font-semibold text-gray-900">Available Backups</h3>
             <button
                 @click="refreshList"
-                class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer"
                 :disabled="loading"
             >
                 <font-awesome-icon 
@@ -172,7 +172,7 @@ const refreshList = () => {
                             <div class="flex items-center justify-end space-x-2">
                                 <button
                                     @click="downloadBackup(backup.id)"
-                                    class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                                    class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer"
                                     v-tippy="{ content: 'Download Backup' }"
                                 >
                                     <font-awesome-icon icon="fa-solid fa-download" class="mr-1" />
@@ -180,7 +180,7 @@ const refreshList = () => {
                                 </button>
                                 <button
                                     @click="deleteBackup(backup)"
-                                    class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                                    class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 cursor-pointer"
                                     v-tippy="{ content: 'Delete Backup' }"
                                 >
                                     <font-awesome-icon icon="fa-solid fa-trash" />

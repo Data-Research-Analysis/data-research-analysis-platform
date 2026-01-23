@@ -7,9 +7,9 @@ export interface MockMetadataRecord {
     physical_table_name: string;
     schema_name: string;
     data_source_id: number;
-    original_table_name?: string;
-    logical_table_name?: string;
+    logical_table_name: string;
     table_type?: string;
+    original_sheet_name?: string; // For Excel/CSV files
 }
 
 export interface MockDataSourceRecord {
@@ -78,9 +78,11 @@ export class MockManager {
             results = results.filter(m => m.data_source_id === params[0]);
         }
         
-        // Filter by original_table_name (second param)
+        // Filter by physical_table_name or logical_table_name (second param)
         if (params[1] !== undefined) {
-            results = results.filter(m => m.original_table_name === params[1]);
+            results = results.filter(m => 
+                m.physical_table_name === params[1] || m.logical_table_name === params[1]
+            );
         }
         
         // Handle LIKE pattern matching

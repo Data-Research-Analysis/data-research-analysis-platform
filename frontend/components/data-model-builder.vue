@@ -1342,9 +1342,14 @@ async function createJoinCondition() {
     };
 
     state.join_conditions.push(newJoin);
+    
+    // CRITICAL: Immediately sync to data_table before query execution
+    // This ensures JOINs are included in the query JSON sent to backend
+    state.data_table.join_conditions = [...state.join_conditions];
 
     console.log('[createJoinCondition] Created new JOIN:', newJoin);
     console.log('[createJoinCondition] Total JOINs now:', state.join_conditions.length);
+    console.log('[createJoinCondition] Synced to data_table.join_conditions');
 
     $swal.fire({
         icon: 'success',
@@ -2877,6 +2882,35 @@ async function saveDataModel() {
     state.is_saving_model = true;
     
     try {
+        // VALIDATION: Check if this is truly cross-source or same-source with multiple tables
+        if (props.isCrossSource) {
+            const uniqueDataSourceIds = new Set(
+                state.data_table.columns
+                    .filter(col => col.data_source_id)
+                    .map(col => col.data_source_id)
+            );
+            
+            console.log('[saveDataModel] Cross-source validation - Unique data sources:', Array.from(uniqueDataSourceIds));
+            
+            if (uniqueDataSourceIds.size === 1) {
+                const result = await $swal.fire({
+                    icon: 'warning',
+                    title: 'Same Data Source Detected',
+                    html: `All columns are from the same data source (ID: ${Array.from(uniqueDataSourceIds)[0]}). Cross-source mode is designed for combining data from <strong>different</strong> data sources.<br /><br />This may cause resolution issues. Continue anyway?`,
+                    showCancelButton: true,
+                    confirmButtonColor: '#3C8DBC',
+                    cancelButtonColor: '#DD4B39',
+                    confirmButtonText: 'Continue Anyway',
+                    cancelButtonText: 'Cancel'
+                });
+                
+                if (!result.isConfirmed) {
+                    state.is_saving_model = false;
+                    return;
+                }
+            }
+        }
+        
         // Ensure JOIN conditions and table aliases are synced to data_table before save
         state.data_table.join_conditions = [...state.join_conditions];
         state.data_table.table_aliases = [...state.table_aliases];
@@ -3127,6 +3161,31 @@ async function executeQueryOnExternalDataSource() {
         state.response_from_external_data_source_columns = [];
         state.response_from_external_data_source_rows = [];
         
+        // CRITICAL: For cross-source models, ensure all columns have data_source_id
+        // This is needed for backend's resolveTableNamesForCrossSource() to work
+        if (props.isCrossSource) {
+            console.log('[executeQuery] Cross-source model detected, validating data_source_id for all columns');
+            let missingCount = 0;
+            state.data_table.columns.forEach(col => {
+                if (!col.data_source_id) {
+                    // Backfill from state.tables metadata
+                    const sourceTable = state.tables.find(t => 
+                        t.table_name === col.table_name && t.schema === col.schema
+                    );
+                    if (sourceTable?.data_source_id) {
+                        col.data_source_id = sourceTable.data_source_id;
+                        missingCount++;
+                        console.log(`[executeQuery] Backfilled data_source_id for ${col.schema}.${col.table_name}.${col.column_name}`);
+                    } else {
+                        console.error(`[executeQuery] CRITICAL: Cannot find data_source_id for ${col.schema}.${col.table_name}.${col.column_name}`);
+                    }
+                }
+            });
+            if (missingCount > 0) {
+                console.log(`[executeQuery] Backfilled ${missingCount} columns with missing data_source_id`);
+            }
+        }
+        
         // CRITICAL: Sync JOIN conditions to data_table before building query
         // This ensures the JSON sent to backend includes all JOINs
         state.data_table.join_conditions = [...state.join_conditions];
@@ -3250,6 +3309,9 @@ async function toggleColumnInDataModel(column, tableName, tableAlias = null) {
             t.table_name === tableName && t.schema === newColumn.schema
         );
         newColumn.table_logical_name = sourceTable?.logical_name || tableName;
+        
+        // CRITICAL: For cross-source models, include data_source_id so backend can map tables
+        newColumn.data_source_id = sourceTable?.data_source_id;
         
         newColumn.display_name = tableAlias
             ? `${tableAlias}.${column.column_name}`

@@ -119,7 +119,7 @@ describe('DataSourceProcessor - Cross-Source Transformation', () => {
         });
 
         it('should handle pattern matching fallback for MySQL tables', async () => {
-            // Add metadata without original_table_name
+            // Add metadata without logical_table_name
             mockManager.clear();
             mockManager.addMetadata([
                 {
@@ -213,7 +213,7 @@ describe('DataSourceProcessor - Cross-Source Transformation', () => {
                     physical_table_name: 'analytics_table_abc_15',
                     schema_name: 'dra_postgresql_15',
                     data_source_id: 15,
-                    original_table_name: 'analytics_table',
+                    logical_table_name: 'analytics_table',
                     table_type: 'postgresql'
                 }
             ]);
@@ -260,7 +260,7 @@ describe('DataSourceProcessor - Cross-Source Transformation', () => {
 
             const tableMap = await (processor as any).resolveTableNamesForCrossSource(7, queryJSON, mockManager);
 
-            // Should find via original_table_name match
+            // Should find via physical_table_name or logical_table_name match
             const salesMapping = tableMap.get('dra_excel.sales');
             if (salesMapping) {
                 expect(salesMapping.table_name).toContain('data_source_10');

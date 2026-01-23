@@ -164,15 +164,15 @@ async function deleteCategory(categoryId) {
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                         <div class="flex justify-end gap-2">
-                                            <button v-if="state.is_editing && state.category_id_editing === category.id" @click="submitEditingChanges" class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-green-100 hover:bg-green-200 text-green-700 hover:text-green-900">
+                                            <button v-if="state.is_editing && state.category_id_editing === category.id" @click="submitEditingChanges" class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-green-100 hover:bg-green-200 text-green-700 hover:text-green-900 cursor-pointer">
                                                 <font-awesome icon="fas fa-check" class="text-base" />
                                                 <span>Save</span>
                                             </button>
-                                            <button v-else @click="beginEditCategory(category.id)" class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-blue-100 hover:bg-blue-200 text-blue-700 hover:text-blue-900">
+                                            <button v-else @click="beginEditCategory(category.id)" class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-blue-100 hover:bg-blue-200 text-blue-700 hover:text-blue-900 cursor-pointer">
                                                 <font-awesome icon="fas fa-edit" class="text-base" />
                                                 <span>Edit</span>
                                             </button>
-                                            <button @click="deleteCategory(category.id)" class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-red-100 hover:bg-red-200 text-red-700 hover:text-red-900">
+                                            <button @click="deleteCategory(category.id)" class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-red-100 hover:bg-red-200 text-red-700 hover:text-red-900 cursor-pointer">
                                                 <font-awesome icon="fas fa-trash" class="text-base" />
                                                 <span>Delete</span>
                                             </button>

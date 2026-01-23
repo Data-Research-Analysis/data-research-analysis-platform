@@ -114,7 +114,7 @@ onUnmounted(() => {
 
                             <button
                                 @click="createBackup"
-                                class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                                class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer"
                             >
                                 <font-awesome-icon icon="fa-solid fa-database" class="mr-2" />
                                 Create Backup Now
@@ -204,7 +204,7 @@ onUnmounted(() => {
                     <div v-if="!isBackupInProgress">
                         <button
                             @click="goBack"
-                            class="inline-flex items-center text-sm text-gray-600 hover:text-gray-900"
+                            class="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 cursor-pointer"
                         >
                             <font-awesome-icon icon="fa-solid fa-arrow-left" class="mr-2" />
                             Back to Database Management
