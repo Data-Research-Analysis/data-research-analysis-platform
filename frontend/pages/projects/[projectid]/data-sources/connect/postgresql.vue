@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { useReCaptcha } from "vue-recaptcha-v3";
 import { useDataSourceStore } from '@/stores/data_sources';
 const dataSourceStore = useDataSourceStore();
@@ -80,13 +80,11 @@ async function testConnection() {
         const token = getAuthToken();
         if (recaptchaToken) {
             const requestOptions = {
-                method: "POST",
                 headers: {
-                    "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
                 },
-                body: JSON.stringify({
+                body: {
                     data_source_type: "postgresql",
                     host: state.host,
                     port: state.port,
@@ -94,19 +92,20 @@ async function testConnection() {
                     database_name: state.database_name,
                     username: state.username,
                     password: state.password,
-                }),
+                },
             };
-            const response = await fetch(`${baseUrl()}/data-source/test-connection`, requestOptions);
-            if (response.status === 200) {
+            try {
+                const data = await $fetch(`${baseUrl()}/data-source/test-connection`, {
+                    method: "POST",
+                    ...requestOptions
+                });
                 state.connectionSuccess = true;
                 state.showAlert = true;
-                const data = await response.json();
                 state.errorMessages.push("Connection successful!");
-            } else {
-             state.connectionSuccess = false;
+            } catch (error) {
+                state.connectionSuccess = false;
                 state.showAlert = true;
-                const data = await response.json();
-                state.errorMessages.push(data.message);
+                state.errorMessages.push(error.data?.message || 'Connection test failed.');
             }
         }
     }
@@ -128,13 +127,11 @@ async function connectDataSource() {
     const token = getAuthToken();
     if (recaptchaToken) {
         const requestOptions = {
-            method: "POST",
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
-            body: JSON.stringify({
+            body: {
                 project_id: parseInt(route.params.projectid),
                 data_source_type: "postgresql",
                 host: state.host,
@@ -143,23 +140,24 @@ async function connectDataSource() {
                 database_name: state.database_name,
                 username: state.username,
                 password: state.password,
-            }),
+            },
         };
-        const response = await fetch(`${baseUrl()}/data-source/create-data-source`, requestOptions);
-        if (response.status === 200) {
+        try {
+            const data = await $fetch(`${baseUrl()}/data-source/create-data-source`, {
+                method: "POST",
+                ...requestOptions
+            });
             state.connectionSuccess = true;
             state.showAlert = true;
-            const data = await response.json();
             state.errorMessages.push(data.message);
             await dataSourceStore.retrieveDataSources();
             setTimeout(() => {
                 router.push(`/projects/${route.params.projectid}`);
             }, 2000);
-        } else {
+        } catch (error: any) {
             state.connectionSuccess = false;
             state.showAlert = true;
-            const data = await response.json();
-            state.errorMessages.push(data.message);
+            state.errorMessages.push(error.data?.message || 'Failed to create data source.');
             state.loading = false;
         }
     } else {

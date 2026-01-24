@@ -34,22 +34,15 @@ export const useGAMExport = () => {
             exportProgress.value = 0;
             error.value = null;
 
-            const response = await fetch(`${API_BASE_URL}/exports/create`, {
+            const result = await $fetch(`${API_BASE_URL}/exports/create`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
+                    'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify(options)
-            });
+                body: options
+            }) as any;
 
             exportProgress.value = 50;
-
-            if (!response.ok) {
-                throw new Error(`Export failed: ${response.statusText}`);
-            }
-
-            const result = await response.json();
 
             exportProgress.value = 100;
 
@@ -125,19 +118,11 @@ export const useGAMExport = () => {
         try {
             error.value = null;
 
-            const response = await fetch(`${API_BASE_URL}/exports/history/${dataSourceId}?limit=${limit}`, {
-                method: 'GET',
+            const result = await $fetch(`${API_BASE_URL}/exports/history/${dataSourceId}?limit=${limit}`, {
                 headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
+                    'Authorization': `Bearer ${token}`
                 }
-            });
-
-            if (!response.ok) {
-                throw new Error(`Failed to fetch export history: ${response.statusText}`);
-            }
-
-            const result = await response.json();
+            }) as any;
 
             if (!result.success) {
                 throw new Error(result.message || 'Failed to fetch export history');
@@ -161,19 +146,11 @@ export const useGAMExport = () => {
         }
 
         try {
-            const response = await fetch(`${API_BASE_URL}/exports/columns/${reportType}/${networkCode}`, {
-                method: 'GET',
+            const result = await $fetch(`${API_BASE_URL}/exports/columns/${reportType}/${networkCode}`, {
                 headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
+                    'Authorization': `Bearer ${token}`
                 }
-            });
-
-            if (!response.ok) {
-                throw new Error(`Failed to fetch columns: ${response.statusText}`);
-            }
-
-            const result = await response.json();
+            }) as any;
 
             if (!result.success) {
                 throw new Error(result.message || 'Failed to fetch columns');
@@ -198,19 +175,12 @@ export const useGAMExport = () => {
         }
 
         try {
-            const response = await fetch(`${API_BASE_URL}/exports/${fileName}`, {
+            const result = await $fetch(`${API_BASE_URL}/exports/${fileName}`, {
                 method: 'DELETE',
                 headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
+                    'Authorization': `Bearer ${token}`
                 }
-            });
-
-            if (!response.ok) {
-                throw new Error(`Failed to delete export: ${response.statusText}`);
-            }
-
-            const result = await response.json();
+            }) as any;
 
             return result.success;
         } catch (err: any) {

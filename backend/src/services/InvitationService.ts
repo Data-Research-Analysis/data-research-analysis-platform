@@ -12,6 +12,7 @@ import { DRAUserSubscription } from '../models/DRAUserSubscription.js';
 import { IInvitationCreate, IInvitationResponse, IInvitationAccept } from '../interfaces/IInvitation.js';
 import { EProjectRole } from '../types/EProjectRole.js';
 import { EmailService } from './EmailService.js';
+import { NotificationHelperService } from './NotificationHelperService.js';
 
 const INVITATION_EXPIRY_DAYS = 7;
 const TOKEN_LENGTH = 64;
@@ -29,6 +30,7 @@ const TOKEN_LENGTH = 64;
 export class InvitationService {
     private static instance: InvitationService;
     private emailService: EmailService;
+    private notificationHelper = NotificationHelperService.getInstance();
 
     private constructor() {
         this.emailService = EmailService.getInstance();
@@ -343,6 +345,23 @@ export class InvitationService {
         invitation.status = 'accepted';
         invitation.accepted_at = new Date();
         await manager.save(invitation);
+
+        // Send notification to the inviter
+        await this.notificationHelper.notifyInvitationAccepted(
+            invitation.invited_by.id,
+            invitation.project.id,
+            invitation.project.name,
+            `${user.first_name} ${user.last_name}`.trim() || user.email
+        );
+
+        // Notify the new member they were added
+        await this.notificationHelper.notifyProjectMemberAdded(
+            user.id,
+            invitation.project.id,
+            invitation.project.name,
+            `${user.first_name} ${user.last_name}`.trim() || user.email,
+            invitation.role
+        );
 
         return {
             success: true,

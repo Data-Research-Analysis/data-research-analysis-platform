@@ -304,19 +304,17 @@ async function executeQueryOnDataModels(chartId) {
         const sqlQuery = chart.sql_query;
         const token = getAuthToken();
         const url = `${baseUrl()}/data-model/execute-query-on-data-model`;
-        const response = await fetch(url, {
+        const data = await $fetch(url, {
             method: "POST",
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
-            body: JSON.stringify({
+            body: {
                 query: sqlQuery,
                 project_id: parseInt(route.params.projectid)
-            })
+            }
         });
-        const data = await response.json();
         // Ensure data is an array before assigning
         state.response_from_data_models_rows = Array.isArray(data) ? data : [];
         state.response_from_data_models_columns = chart.columns.map((column) => column.column_name);
@@ -642,25 +640,24 @@ async function updateDashboard() {
     
     const token = getAuthToken();
     let url = `${baseUrl()}/dashboard/update/${dashboard.value.id}`;
-    const response = await fetch(url, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`,
-            "Authorization-Type": "auth",
-        },
-        body: JSON.stringify({
-            project_id: project.value.id,
-            data: state.dashboard,
-        })
-    });
-    if (response.status === 200) {
+    try {
+        await $fetch(url, {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Authorization-Type": "auth",
+            },
+            body: {
+                project_id: project.value.id,
+                data: state.dashboard,
+            }
+        });
         $swal.fire({
             icon: 'success',
             title: `Success! `,
             text: 'The dashboard has been sucessfully updated.',
         });
-    } else {
+    } catch (error) {
         $swal.fire({
             icon: 'error',
             title: `Error! `,
@@ -671,12 +668,11 @@ async function updateDashboard() {
 async function dismissValidationAlert() {
     try {
         const token = getAuthToken();
-        await fetch(
+        await $fetch(
             `${baseUrl()}/dashboard/clear-validation/${dashboard.value.id}`,
             {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
                 },
@@ -1051,19 +1047,17 @@ async function openTableDialog(chartId) {
     state.response_from_data_models_columns = state.selected_chart.columns.map((column) => column.column_name);
     const token = getAuthToken();
     const url = `${baseUrl()}/data-model/execute-query-on-data-model`;
-    const response = await fetch(url, {
+    const data = await $fetch(url, {
         method: "POST",
         headers: {
-            "Content-Type": "application/json",
             "Authorization": `Bearer ${token}`,
             "Authorization-Type": "auth",
         },
-        body: JSON.stringify({
+        body: {
             query: sqlQuery,
             project_id: parseInt(route.params.projectid)
-        })
+        }
     });
-    const data = await response.json();
     state.response_from_data_models_rows = Array.isArray(data) ? data : [];
 }
 function closeTableDialog() {
@@ -1256,34 +1250,21 @@ async function exportAsWebPage(closeMenu) {
         let url = `${baseUrl()}/dashboard/generate-public-export-link/${dashboard.value.id}`;
         console.log('Calling API:', url);
         
-        const response = await fetch(url, {
+        const data = await $fetch(url, {
             method: "GET",
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
         });
         
-        console.log('Response status:', response.status);
+        console.log('Public link generated:', data);
+        await dashboardsStore.retrieveDashboards();
         
-        if (response.status === 200) {
-            const data = await response.json();
-            console.log('Public link generated:', data);
-            await dashboardsStore.retrieveDashboards();
-            
-            // Construct the public dashboard URL directly without using router
-            const publicDashboardUrl = `${window.location.origin}/public-dashboard/${data.key}`;
-            console.log('Opening public dashboard:', publicDashboardUrl);
-            window.open(publicDashboardUrl, '_blank');
-        } else {
-            console.error('API returned non-200 status:', response.status);
-            $swal.fire({
-                icon: 'error',
-                title: `Error! `,
-                text: 'Unfortunately, we encountered an error! Please refresh the page and try again.',
-            });
-        }
+        // Construct the public dashboard URL directly without using router
+        const publicDashboardUrl = `${window.location.origin}/public-dashboard/${data.key}`;
+        console.log('Opening public dashboard:', publicDashboardUrl);
+        window.open(publicDashboardUrl, '_blank');
     } catch (error) {
         console.error('Error in exportAsWebPage:', error);
         $swal.fire({

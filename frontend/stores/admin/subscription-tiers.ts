@@ -35,20 +35,13 @@ export const useSubscriptionTiersStore = defineStore('subscriptionTiers', () => 
             }
 
             const url = `${baseUrl()}/admin/subscription-tiers${includeInactive ? '?includeInactive=true' : ''}`;
-            const response = await fetch(url, {
-                method: 'GET',
+            const data = await $fetch(url, {
                 headers: {
-                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth',
                 },
             });
 
-            if (!response.ok) {
-                throw new Error(`Failed to fetch tiers: ${response.statusText}`);
-            }
-
-            const data = await response.json();
             setTiers(data.data || data);
             return data.data || data;
         } catch (err: any) {
@@ -70,22 +63,15 @@ export const useSubscriptionTiersStore = defineStore('subscriptionTiers', () => 
             }
 
             const url = `${baseUrl()}/admin/subscription-tiers`;
-            const response = await fetch(url, {
+            const data = await $fetch(url, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth',
                 },
-                body: JSON.stringify(tierData),
+                body: tierData,
             });
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || `Failed to create tier: ${response.statusText}`);
-            }
-
-            const data = await response.json();
             // Refresh tiers list after creating
             await fetchTiers();
             return data.data || data;
@@ -108,22 +94,15 @@ export const useSubscriptionTiersStore = defineStore('subscriptionTiers', () => 
             }
 
             const url = `${baseUrl()}/admin/subscription-tiers/${id}`;
-            const response = await fetch(url, {
+            const data = await $fetch(url, {
                 method: 'PUT',
                 headers: {
-                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth',
                 },
-                body: JSON.stringify(tierData),
+                body: tierData,
             });
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || `Failed to update tier: ${response.statusText}`);
-            }
-
-            const data = await response.json();
             // Refresh tiers list after updating
             await fetchTiers();
             return data.data || data;
@@ -146,21 +125,14 @@ export const useSubscriptionTiersStore = defineStore('subscriptionTiers', () => 
             }
 
             const url = `${baseUrl()}/admin/subscription-tiers/${id}`;
-            const response = await fetch(url, {
+            const data = await $fetch(url, {
                 method: 'DELETE',
                 headers: {
-                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth',
                 },
             });
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || `Failed to delete tier: ${response.statusText}`);
-            }
-
-            const data = await response.json();
             // Refresh tiers list after deleting
             await fetchTiers();
             return data;

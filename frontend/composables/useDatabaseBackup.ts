@@ -11,8 +11,8 @@ export interface IBackupMetadata {
 }
 
 export const useDatabaseBackup = () => {
-    const { $swal, $socketio } = useNuxtApp();
-    const authToken = useCookie('dra_auth_token');
+    const { $swal, $socketio } = useNuxtApp() as any;
+    const authToken = getAuthToken();
     
     // State
     const isBackupInProgress = ref(false);
@@ -41,8 +41,7 @@ export const useDatabaseBackup = () => {
                     const response = await $fetch(`${baseUrl()}/admin/database/backup`, {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${authToken.value}`,
+                            'Authorization': `Bearer ${authToken}`,
                             'Authorization-Type': 'auth'
                         }
                     });
@@ -73,9 +72,8 @@ export const useDatabaseBackup = () => {
         isLoadingBackups.value = true;
         try {
             const response: any = await $fetch(`${baseUrl()}/admin/database/backups`, {
-                method: 'GET',
                 headers: {
-                    'Authorization': `Bearer ${authToken.value}`,
+                    'Authorization': `Bearer ${authToken}`,
                     'Authorization-Type': 'auth'
                 }
             });
@@ -103,7 +101,7 @@ export const useDatabaseBackup = () => {
             const url = `${baseUrl()}/admin/database/backup/${backupId}`;
             const response = await fetch(url, {
                 headers: {
-                    'Authorization': `Bearer ${authToken.value}`,
+                    'Authorization': `Bearer ${authToken}`,
                     'Authorization-Type': 'auth'
                 }
             });
@@ -155,7 +153,7 @@ export const useDatabaseBackup = () => {
             await $fetch(`${baseUrl()}/admin/database/backup/${backupId}`, {
                 method: 'DELETE',
                 headers: {
-                    'Authorization': `Bearer ${authToken.value}`,
+                    'Authorization': `Bearer ${authToken}`,
                     'Authorization-Type': 'auth'
                 }
             });
@@ -231,10 +229,10 @@ export const useDatabaseBackup = () => {
      */
     const getBackupInfo = async (backupId: string): Promise<IBackupMetadata | null> => {
         try {
-            const response: any = await $fetch(`${baseUrl()}/admin/database/backup/${backupId}/info`, {
+            const response: any = await fetch(`${baseUrl()}/admin/database/backup/${backupId}/info`, {
                 method: 'GET',
                 headers: {
-                    'Authorization': `Bearer ${authToken.value}`,
+                    'Authorization': `Bearer ${authToken}`,
                     'Authorization-Type': 'auth'
                 }
             });

@@ -5,6 +5,7 @@ import cors from 'cors';
 import { createServer } from 'http';
 import { UtilityService } from './services/UtilityService.js';
 import { SocketIODriver } from './drivers/SocketIODriver.js';
+import { DBDriver } from './drivers/DBDriver.js';
 import { generalApiLimiter } from './middleware/rateLimit.js';
 import home from './routes/home.js';
 import auth from './routes/auth.js';
@@ -37,6 +38,7 @@ import public_article from './routes/article.js';
 import sitemap from './routes/sitemap.js';
 import subscription from './routes/subscription.js';
 import email_preferences from './routes/email_preferences.js';
+import notifications from './routes/notifications.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -49,6 +51,15 @@ const httpServer = createServer(app);
 
 // Initialize utility services
 await UtilityService.getInstance().initialize();
+
+// Initialize NotificationProcessor with database connection
+import { NotificationProcessor } from './processors/NotificationProcessor.js';
+import { PostgresDriver } from './drivers/PostgresDriver.js';
+import { EDataSourceType } from './types/EDataSourceType.js';
+const dbDriver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+const dataSource = await dbDriver.getConcreteDriver();
+NotificationProcessor.getInstance().initialize(dataSource);
+console.log('✅ Notification processor initialized');
 
 // Initialize OAuth session service (starts cleanup scheduler)
 import { OAuthSessionService } from './services/OAuthSessionService.js';
@@ -126,6 +137,7 @@ app.use('/article', public_article);
 app.use('/sitemap.txt', sitemap);
 app.use('/subscription', subscription);
 app.use('/email-preferences', email_preferences);
+app.use('/notifications', notifications);
 
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 app.use('/', express.static(path.join(__dirname, '../public')));

@@ -116,16 +116,14 @@ async function fetchInvitations() {
     loading.value = true;
     const authToken = getAuthToken();
     
-    const response = await fetch(`${useRuntimeConfig().public.apiBase}/project-invitations/user`, {
+    const data = await $fetch(`${useRuntimeConfig().public.apiBase}/project-invitations/user`, {
       headers: {
         'Authorization': `Bearer ${authToken}`,
         'authorization-type': 'auth'
       }
     });
 
-    const data = await response.json();
-
-    if (response.ok && data.success) {
+    if (data.success) {
       invitations.value = data.invitations;
     }
   } catch (error) {
@@ -143,19 +141,16 @@ async function acceptInvitation(token: string) {
     accepting.value = invite.id;
     const authToken = getAuthToken();
     
-    const response = await fetch(`${useRuntimeConfig().public.apiBase}/project-invitations/accept`, {
+    const data = await $fetch(`${useRuntimeConfig().public.apiBase}/project-invitations/accept`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         'Authorization': `Bearer ${authToken}`,
         'authorization-type': 'auth'
       },
-      body: JSON.stringify({ token })
+      body: { token }
     });
 
-    const data = await response.json();
-
-    if (!response.ok || !data.success) {
+    if (!data.success) {
       alert(data.message || 'Failed to accept invitation');
       return;
     }

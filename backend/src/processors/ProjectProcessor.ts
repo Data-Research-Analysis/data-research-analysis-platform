@@ -9,8 +9,10 @@ import { EDataSourceType } from "../types/EDataSourceType.js";
 import { DRADashboardExportMetaData } from "../models/DRADashboardExportMetaData.js";
 import { DRAProjectMember } from "../models/DRAProjectMember.js";
 import { EProjectRole } from "../types/EProjectRole.js";
+import { NotificationHelperService } from "../services/NotificationHelperService.js";
 export class ProjectProcessor {
     private static instance: ProjectProcessor;
+    private notificationHelper = NotificationHelperService.getInstance();
     private constructor() {}
 
     public static getInstance(): ProjectProcessor {
@@ -43,6 +45,7 @@ export class ProjectProcessor {
             }
             
             // Use transaction to ensure both project and member entry are created
+            let savedProjectId: number;
             await manager.transaction(async (transactionManager) => {
                 const project = new DRAProject();
                 project.name = project_name;
@@ -50,6 +53,7 @@ export class ProjectProcessor {
                 project.users_platform = user;
                 project.created_at = new Date();
                 const savedProject = await transactionManager.save(project);
+                savedProjectId = savedProject.id;
                 
                 // Create project member entry with owner role
                 const projectMember = new DRAProjectMember();
@@ -59,6 +63,9 @@ export class ProjectProcessor {
                 projectMember.added_at = new Date();
                 await transactionManager.save(projectMember);
             });
+            
+            // Send notification
+            await this.notificationHelper.notifyProjectCreated(user_id, savedProjectId!, project_name);
             
             return resolve(true);
         });
@@ -269,9 +276,25 @@ export class ProjectProcessor {
                             console.error(`Error deleting PDF tables:`, error);
                         }
                     }
-                }                
+                }
+                
+                // Store project name for notification before deletion
+                const projectName = project.name;
+                
+                // Get all project members to notify them
+                const projectMembers = await manager.find(DRAProjectMember, {
+                    where: { project: { id: projectId } },
+                    relations: ['user']
+                });
+                
                 // Finally, remove the project
                 await manager.remove(project);
+                
+                // Send notifications to all project members
+                for (const member of projectMembers) {
+                    await this.notificationHelper.notifyProjectDeleted(member.user.id, projectName);
+                }
+                
                 return resolve(true);
             } catch (error) {
                 console.error(`Fatal error deleting project ${projectId}:`, error);

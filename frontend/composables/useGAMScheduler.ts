@@ -44,15 +44,11 @@ export const useGAMScheduler = () => {
 
     try {
       const token = getAuthToken();
-      const response = await fetch(`${baseURL}/scheduler/jobs`, {
-        method: 'GET',
+      const data = await $fetch(`${baseURL}/scheduler/jobs`, {
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         }
       });
-
-      const data = await response.json();
 
       if (data.success) {
         scheduledJobs.value = data.data || [];
@@ -79,15 +75,11 @@ export const useGAMScheduler = () => {
 
     try {
       const token = getAuthToken();
-      const response = await fetch(`${baseURL}/scheduler/jobs/${dataSourceId}`, {
-        method: 'GET',
+      const data = await $fetch(`${baseURL}/scheduler/jobs/${dataSourceId}`, {
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         }
       });
-
-      const data = await response.json();
 
       if (data.success) {
         currentJob.value = data.data;
@@ -116,15 +108,12 @@ export const useGAMScheduler = () => {
 
     try {
       const token = getAuthToken();
-      const response = await fetch(`${baseURL}/scheduler/jobs/${dataSourceId}/schedule`, {
+      const data = await $fetch(`${baseURL}/scheduler/jobs/${dataSourceId}/schedule`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         }
       });
-
-      const data = await response.json();
 
       if (data.success) {
         await fetchScheduledJobs(); // Refresh list
@@ -151,15 +140,12 @@ export const useGAMScheduler = () => {
 
     try {
       const token = getAuthToken();
-      const response = await fetch(`${baseURL}/scheduler/jobs/${dataSourceId}/pause`, {
+      const data = await $fetch(`${baseURL}/scheduler/jobs/${dataSourceId}/pause`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         }
       });
-
-      const data = await response.json();
 
       if (data.success) {
         await fetchScheduledJobs(); // Refresh list
@@ -186,15 +172,12 @@ export const useGAMScheduler = () => {
 
     try {
       const token = getAuthToken();
-      const response = await fetch(`${baseURL}/scheduler/jobs/${dataSourceId}/resume`, {
+      const data = await $fetch(`${baseURL}/scheduler/jobs/${dataSourceId}/resume`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         }
       });
-
-      const data = await response.json();
 
       if (data.success) {
         await fetchScheduledJobs(); // Refresh list
@@ -221,15 +204,12 @@ export const useGAMScheduler = () => {
 
     try {
       const token = getAuthToken();
-      const response = await fetch(`${baseURL}/scheduler/jobs/${dataSourceId}/trigger`, {
+      const data = await $fetch(`${baseURL}/scheduler/jobs/${dataSourceId}/trigger`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         }
       });
-
-      const data = await response.json();
 
       if (data.success) {
         await fetchScheduledJobs(); // Refresh list
@@ -256,15 +236,12 @@ export const useGAMScheduler = () => {
 
     try {
       const token = getAuthToken();
-      const response = await fetch(`${baseURL}/scheduler/jobs/${dataSourceId}`, {
+      const data = await $fetch(`${baseURL}/scheduler/jobs/${dataSourceId}`, {
         method: 'DELETE',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         }
       });
-
-      const data = await response.json();
 
       if (data.success) {
         await fetchScheduledJobs(); // Refresh list
@@ -291,15 +268,11 @@ export const useGAMScheduler = () => {
 
     try {
       const token = getAuthToken();
-      const response = await fetch(`${baseURL}/scheduler/stats`, {
-        method: 'GET',
+      const data = await $fetch(`${baseURL}/scheduler/stats`, {
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         }
       });
-
-      const data = await response.json();
 
       if (data.success) {
         stats.value = data.data;

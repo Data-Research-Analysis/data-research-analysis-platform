@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { useReCaptcha } from "vue-recaptcha-v3";
 import { useLoggedInUserStore } from "@/stores/logged_in_user";
 const router = useRouter();
@@ -44,27 +44,26 @@ async function changePasswordRequest() {
             const recaptchaResponse = await verifyRecaptchaToken(state.token, recaptchaToken);
             if (recaptchaResponse.success && recaptchaResponse.action === "passwordResetForm" && recaptchaResponse.score > 0.8) {
                 const requestOptions = {
-                method: "POST",
                 headers: {
-                    "Content-Type": "application/json",
                     "Authorization": `Bearer ${state.token}`,
                     "Authorization-Type": "non-auth",
                 },
-                body: JSON.stringify({
+                body: {
                   email: state.email,
-                }),
+                },
               };
-              const response = await fetch(`${baseUrl()}/auth/password-change-request`, requestOptions);
-              // Always expect 200 status for security reasons (no email enumeration)
-              if (response.status === 200) {
+              try {
+                const data = await $fetch(`${baseUrl()}/auth/password-change-request`, {
+                  method: "POST",
+                  ...requestOptions
+                });
                 state.passwordChangeRequestSuccess = true;
                 state.showAlert = true;
-                const data = await response.json();
                 state.errorMessages.push(data.message);
                 state.loading = false;
-              } else {
-                // This should rarely happen now, but handle gracefully
-                state.passwordChangeRequestSuccess = true; // Still show success for security
+              } catch (error: any) {
+                // For security, still show success message to prevent email enumeration
+                state.passwordChangeRequestSuccess = true;
                 state.showAlert = true;
                 state.errorMessages.push("If this email address exists in our system, you will receive a password reset link shortly. Please check your email and spam folder.");
                 state.loading = false;

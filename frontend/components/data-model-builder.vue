@@ -3029,14 +3029,13 @@ async function saveDataModel() {
         saved: dataTableForSave.columns.length
     });
 
-    const response = await fetch(url, {
+    const responseData = await $fetch(url, {
         method: "POST",
         headers: {
-            "Content-Type": "application/json",
             "Authorization": `Bearer ${token}`,
             "Authorization-Type": "auth",
         },
-        body: JSON.stringify({
+        body: {
             data_source_id: props.isCrossSource ? null : route.params.datasourceid,
             project_id: props.isCrossSource ? props.projectId : null,
             query: state.sql_query,
@@ -3044,64 +3043,54 @@ async function saveDataModel() {
             data_model_name: state.data_table.table_name,
             data_model_id: props.isEditDataModel ? props.dataModel.id : null,
             is_cross_source: props.isCrossSource || false,
-        })
-    });
-
-    const responseData = await response.json();
-
-    if (response.status === 200) {
-        // Save AI conversation if one exists
-        if (aiDataModelerStore.conversationId && aiDataModelerStore.messages.length > 0) {
-            try {
-                const dataModelId = props.isEditDataModel
-                    ? props.dataModel.id
-                    : responseData.data_model_id;
-
-                if (dataModelId) {
-                    // Ensure currentDataSourceId is set before saving (it should be from initializeConversation)
-                    // But set it as fallback in case the drawer was closed
-                    if (!aiDataModelerStore.currentDataSourceId) {
-                        aiDataModelerStore.currentDataSourceId = Number(route.params.datasourceid);
-                    }
-
-                    console.log('Saving AI conversation with:', {
-                        dataSourceId: aiDataModelerStore.currentDataSourceId,
-                        dataModelId,
-                        title: state.data_table.table_name || 'AI Generated Model',
-                        messagesCount: aiDataModelerStore.messages.length
-                    });
-
-                    const saved = await aiDataModelerStore.saveConversation(
-                        dataModelId,
-                        state.data_table.table_name || 'AI Generated Model'
-                    );
-
-                    if (saved) {
-                        console.log('AI conversation saved successfully');
-                    } else {
-                        console.warn('AI conversation save returned false');
-                    }
-                }
-            } catch (error) {
-                // Log error but don't block the data model save success
-                console.error('Failed to save AI conversation:', error);
-            }
-        } else {
-            console.log('No AI conversation to save:', {
-                hasConversationId: !!aiDataModelerStore.conversationId,
-                messagesCount: aiDataModelerStore.messages.length
-            });
         }
+    });
+    
+    // Save AI conversation if one exists
+    if (aiDataModelerStore.conversationId && aiDataModelerStore.messages.length > 0) {
+        try {
+            const dataModelId = props.isEditDataModel
+                ? props.dataModel.id
+                : responseData.data_model_id;
 
-        // enableRefreshDataFlag('clearDataModels');
-        router.push(`/projects/${route.params.projectid}/data-sources/${route.params.datasourceid}/data-models`);
+            if (dataModelId) {
+                // Ensure currentDataSourceId is set before saving (it should be from initializeConversation)
+                // But set it as fallback in case the drawer was closed
+                if (!aiDataModelerStore.currentDataSourceId) {
+                    aiDataModelerStore.currentDataSourceId = Number(route.params.datasourceid);
+                }
+
+                console.log('Saving AI conversation with:', {
+                    dataSourceId: aiDataModelerStore.currentDataSourceId,
+                    dataModelId,
+                    title: state.data_table.table_name || 'AI Generated Model',
+                    messagesCount: aiDataModelerStore.messages.length
+                });
+
+                const saved = await aiDataModelerStore.saveConversation(
+                    dataModelId,
+                    state.data_table.table_name || 'AI Generated Model'
+                );
+
+                if (saved) {
+                    console.log('AI conversation saved successfully');
+                } else {
+                    console.warn('AI conversation save returned false');
+                }
+            }
+        } catch (error) {
+            // Log error but don't block the data model save success
+            console.error('Failed to save AI conversation:', error);
+        }
     } else {
-        $swal.fire({
-            icon: 'error',
-            title: `Error! `,
-            text: 'Unfortunately, we encountered an error! Please refresh the page and try again.',
+        console.log('No AI conversation to save:', {
+            hasConversationId: !!aiDataModelerStore.conversationId,
+            messagesCount: aiDataModelerStore.messages.length
         });
     }
+
+    // enableRefreshDataFlag('clearDataModels');
+    router.push(`/projects/${route.params.projectid}/data-sources/${route.params.datasourceid}/data-models`);
     } catch (error) {
         console.error('[saveDataModel] Error:', error);
         $swal.fire({
@@ -3213,36 +3202,21 @@ async function executeQueryOnExternalDataSource() {
             requestBody.data_source_id = route.params.datasourceid;
         }
 
-        const response = await fetch(url, {
+        const response = await $fetch(url, {
             method: "POST",
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
-            body: JSON.stringify(requestBody)
+            body: requestBody
         });
 
-        // Check if response has content before parsing JSON
-        if (!response.ok || response.status === 204) {
-            console.warn('[Data Model Builder] Query execution returned no content or error:', response.status);
-            return;
-        }
-
-        const text = await response.text();
-        if (!text) {
-            console.warn('[Data Model Builder] Query execution returned empty response');
-            return;
-        }
-
-        const responseData = JSON.parse(text);
-        
         // Store metadata if present (includes row limit info)
-        if (responseData.metadata) {
-            state.query_metadata = responseData.metadata;
+        if (response.metadata) {
+            state.query_metadata = response.metadata;
         }
         
-        const data = responseData.results || responseData;
+        const data = response.results || response;
         
         if (data && data.length) {
             // Check for array values in result (indicates potential cartesian product)

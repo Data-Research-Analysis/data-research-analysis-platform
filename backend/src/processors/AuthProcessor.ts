@@ -8,10 +8,15 @@ import { DRAVerificationCode } from '../models/DRAVerificationCode.js';
 import { DBDriver } from '../drivers/DBDriver.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { EUserType } from '../types/EUserType.js';
+import { NotificationHelperService } from '../services/NotificationHelperService.js';
+import { NotificationHelperService } from '../services/NotificationHelperService.js';
 
 export class AuthProcessor {
     private static instance: AuthProcessor;
+    private notificationHelper: NotificationHelperService;
+    
     private constructor() {
+        this.notificationHelper = NotificationHelperService.getInstance();
     }
 
     public static getInstance(): AuthProcessor {
@@ -141,6 +146,10 @@ export class AuthProcessor {
                     } else {
                         user.email_verified_at = new Date();
                         await manager.save(user);
+                        
+                        // Send notification for successful email verification
+                        await this.notificationHelper.notifyEmailVerified(user.id, user.email);
+                        
                         return resolve(true);
                     }
                 }

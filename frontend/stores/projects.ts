@@ -39,15 +39,13 @@ export const useProjectsStore = defineStore('projectsDRA', () => {
             return;
         }
         const url = `${baseUrl()}/project/list`;
-        const response = await fetch(url, {
+        const data = await $fetch(url, {
             method: "GET",
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
         });
-        const data = await response.json();
         setProjects(data)
     }
     function getSelectedProject() {

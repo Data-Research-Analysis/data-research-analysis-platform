@@ -70,31 +70,29 @@ async function loginUser() {
             const recaptchaResponse = await verifyRecaptchaToken(state.token, recaptchaToken);
             if (recaptchaResponse.success && recaptchaResponse.action === "loginForm" && recaptchaResponse.score > 0.8) {
                 const requestOptions = {
-                method: "POST",
                 headers: {
-                    "Content-Type": "application/json",
                     "Authorization": `Bearer ${state.token}`,
                     "Authorization-Type": "non-auth",
                 },
-                body: JSON.stringify({
+                body: {
                   email: state.email,
                   password: state.password,
-                }),
+                },
               };
-              const response = await fetch(`${baseUrl()}/auth/login`, requestOptions);
-              if (response.status === 200) {
+              try {
+                const data = await $fetch(`${baseUrl()}/auth/login`, {
+                  method: "POST",
+                  ...requestOptions
+                });
                 state.loginSuccess = true;
                 state.showAlert = true;
-                const data = await response.json();
                 loggedInUserStore.setLoggedInUser(data);
-                // state.errorMessages.push(data.message);
                 setAuthToken(data.token);
                 router.push('/projects');
-              } else {
+              } catch (error) {
                 state.loginSuccess = false;
                 state.showAlert = true;
-                const data = await response.json();
-                state.errorMessages.push(data.message);
+                state.errorMessages.push(error.data?.message || 'Login failed. Please try again.');
                 state.loading = false;
               }
             } else {

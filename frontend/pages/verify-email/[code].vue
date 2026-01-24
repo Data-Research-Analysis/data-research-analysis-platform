@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { useReCaptcha } from "vue-recaptcha-v3";
 const router = useRouter();
 const route = useRoute();
@@ -39,17 +39,15 @@ async function verifyToken() {
         state.showAlert = true;
     } else {
         const requestOptions = {
-            method: "GET",
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${state.token}`,
                 "Authorization-Type": "non-auth",
             },
         };
-        const response = await fetch(`${baseUrl()}/auth/verify-email/${encodeURIComponent(state.code)}`, requestOptions);
-        if (response.status === 200) {
+        try {
+            await $fetch(`${baseUrl()}/auth/verify-email/${encodeURIComponent(state.code)}`, requestOptions);
             state.verificationSuccess = true;
-        } else {
+        } catch (error: any) {
             state.verificationSuccess = false;
             state.showResendCodeButton = true;
         }
@@ -58,25 +56,21 @@ async function verifyToken() {
 async function resendCode() {
     state.errorMessages = [];
     const requestOptions = {
-        method: "GET",
         headers: {
-            "Content-Type": "application/json",
             "Authorization": `Bearer ${state.token}`,
         },
     };
-    const response = await fetch(`${baseUrl()}/auth/resend-code/${encodeURIComponent(state.code)}`, requestOptions);
-    if (response.status === 200) {
+    try {
+        const data = await $fetch(`${baseUrl()}/auth/resend-code/${encodeURIComponent(state.code)}`, requestOptions);
         state.verificationSuccess = false;
         state.resendSuccess = true;
         state.showAlert = true;
-        const data = await response.json();
         state.errorMessages.push('The new verification code has been sent to your email.');
-    } else {
+    } catch (error: any) {
         state.verificationSuccess = false;
         state.resendSuccess = false;
         state.showAlert = true;
-        const data = await response.json();
-        state.errorMessages.push(data.message);
+        state.errorMessages.push(error.data?.message || 'Failed to resend code.');
     }
     state.showResendCodeButton = false;
 }

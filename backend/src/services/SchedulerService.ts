@@ -8,6 +8,7 @@ import { EUserType } from '../types/EUserType.js';
 import { ITokenDetails } from '../types/ITokenDetails.js';
 import { In } from 'typeorm';
 import dotenv from 'dotenv';
+import { NotificationHelperService } from './NotificationHelperService.js';
 
 dotenv.config();
 
@@ -29,8 +30,11 @@ export class SchedulerService {
     private cronJob: cron.ScheduledTask | null = null;
     private runningSyncs: Map<number, boolean> = new Map(); // Track running syncs to prevent overlaps
     private initialized: boolean = false;
+    private notificationHelper: NotificationHelperService;
 
-    private constructor() {}
+    private constructor() {
+        this.notificationHelper = NotificationHelperService.getInstance();
+    }
 
     public static getInstance(): SchedulerService {
         if (!SchedulerService.instance) {
@@ -213,9 +217,22 @@ export class SchedulerService {
             await this.updateNextScheduledSync(dataSource);
 
             console.log(`[Scheduler] ✅ Scheduled sync triggered successfully for: ${dataSource.name}`);
+            
+            // Send success notification
+            await this.notificationHelper.notifyScheduledSyncComplete(
+                dataSource.users_platform.id,
+                dataSource.name
+            );
 
         } catch (error: any) {
             console.error(`[Scheduler] ❌ Failed to trigger sync for ${dataSource.name}:`, error.message);
+            
+            // Send failure notification
+            await this.notificationHelper.notifyScheduledSyncFailed(
+                dataSource.users_platform.id,
+                dataSource.name,
+                error.message
+            );
         } finally {
             this.runningSyncs.delete(dataSource.id);
         }

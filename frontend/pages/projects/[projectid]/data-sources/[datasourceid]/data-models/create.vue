@@ -36,15 +36,12 @@ if (import.meta.client) {
 async function getDataSourceTables(dataSourceId) {
     const token = getAuthToken();
     const url = `${baseUrl()}/data-source/tables/${dataSourceId}`;
-    const response = await fetch(url, {
-        method: "GET",
+    const data = await $fetch(url, {
         headers: {
-            "Content-Type": "application/json",
             "Authorization": `Bearer ${token}`,
             "Authorization-Type": "auth",
         },
     });
-    const data = await response.json();
     // Ensure we always set an array (even if empty) so the component can handle it
     state.data_source_tables = Array.isArray(data) ? data : [];
 }

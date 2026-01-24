@@ -1,7 +1,7 @@
 import { getAuthToken } from './AuthToken';
 
 export const useDatabaseRestore = () => {
-    const { $swal, $socketio } = useNuxtApp();
+    const { $swal, $socketio } = useNuxtApp() as any;
     const authToken = useCookie('dra_auth_token');
     const router = useRouter();
 
@@ -132,10 +132,10 @@ export const useDatabaseRestore = () => {
             restoreStatus.value = 'Uploading backup file...';
             currentStep.value = 'Uploading';
 
-            const response = await $fetch(`${baseUrl()}/admin/database/restore`, {
+            const response = await fetch(`${baseUrl()}/admin/database/restore`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${authToken.value}`,
+                    'Authorization': `Bearer ${authToken}`,
                     'Authorization-Type': 'auth'
                 },
                 body: formData

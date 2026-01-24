@@ -216,19 +216,18 @@ async function handleToggleAutoRefresh(enabled: boolean) {
     if (!token) return;
     
     const url = `${baseUrl()}/data-model/${dataModelId.value}`;
-    const response = await fetch(url, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-        'Authorization-Type': 'auth',
-      },
-      body: JSON.stringify({
-        auto_refresh_enabled: enabled
-      })
-    });
-    
-    if (response.ok) {
+    try {
+      await $fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Authorization-Type': 'auth',
+        },
+        body: {
+          auto_refresh_enabled: enabled
+        }
+      });
+      
       dataModel.value.auto_refresh_enabled = enabled;
       
       if (import.meta.client) {
@@ -244,9 +243,11 @@ async function handleToggleAutoRefresh(enabled: boolean) {
           timerProgressBar: true
         });
       }
+    } catch (error) {
+      console.error('Error toggling auto-refresh:', error);
     }
   } catch (error) {
-    console.error('Error toggling auto-refresh:', error);
+    console.error('Error in handleToggleAutoRefresh:', error);
   }
 }
 

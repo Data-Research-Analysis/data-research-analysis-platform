@@ -76,19 +76,11 @@ export const useGAMRateLimit = () => {
             isLoading.value = true;
             error.value = null;
 
-            const response = await fetch(`${API_BASE_URL}/google-ad-manager/rate-limit`, {
-                method: 'GET',
+            const result = await $fetch(`${API_BASE_URL}/google-ad-manager/rate-limit`, {
                 headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
+                    'Authorization': `Bearer ${token}`
                 }
             });
-
-            if (!response.ok) {
-                throw new Error(`Failed to fetch rate limit status: ${response.statusText}`);
-            }
-
-            const result = await response.json();
 
             if (!result.success) {
                 throw new Error(result.message || 'Failed to fetch rate limit status');

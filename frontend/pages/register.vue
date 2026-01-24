@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { useReCaptcha } from "vue-recaptcha-v3";
 const recaptcha = useReCaptcha();
 
@@ -100,35 +100,34 @@ async function createAccount() {
             const recaptchaResponse = await verifyRecaptchaToken(state.token, recaptchaToken);
             if (recaptchaResponse.success && recaptchaResponse.action === "registerForm" && recaptchaResponse.score > 0.8) {
                 const requestOptions = {
-                method: "POST",
                 headers: {
-                    "Content-Type": "application/json",
                     "Authorization": `Bearer ${state.token}`,
                     "Authorization-Type": "non-auth",
                 },
-                body: JSON.stringify({
+                body: {
                   first_name: state.firstName,
                   last_name: state.lastName,  
                   email: state.email,
                   password: state.password,
-                }),
+                },
               };
-              const response = await fetch(`${baseUrl()}/auth/register`, requestOptions);
-              if (response.status === 200) {
+              try {
+                const data = await $fetch(`${baseUrl()}/auth/register`, {
+                  method: "POST",
+                  ...requestOptions
+                });
                 state.registrationSuccess = true;
                 state.showAlert = true;
-                const data = await response.json();
                 state.errorMessages.push(data.message);
                 state.firstName = "";
                 state.lastName = "";
                 state.email = "";
                 state.password = "";
                 state.rePassword = "";
-              } else {
+              } catch (error: any) {
                 state.registrationSuccess = false;
                 state.showAlert = true;
-                const data = await response.json();
-                state.errorMessages.push(data.message);
+                state.errorMessages.push(error.data?.message || 'Registration failed. Please try again.');
               }
             } else {
                 state.registrationSuccess = false;

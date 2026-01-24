@@ -175,10 +175,9 @@ onMounted(async () => {
 async function fetchInvitation() {
   try {
     loading.value = true;
-    const response = await fetch(`${useRuntimeConfig().public.NUXT_API_URL}/project-invitations/token/${token.value}`);
-    const data = await response.json();
+    const data = await $fetch(`${useRuntimeConfig().public.NUXT_API_URL}/project-invitations/token/${token.value}`);
 
-    if (!response.ok || !data.success) {
+    if (!data.success) {
       error.value = data.message || 'Failed to load invitation';
       return;
     }
@@ -228,20 +227,17 @@ async function acceptInvitation() {
     }
     
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
       'Authorization': `Bearer ${authToken}`,
       'authorization-type': 'auth'
     };
     
-    const response = await fetch(`${useRuntimeConfig().public.NUXT_API_URL}/project-invitations/accept`, {
+    const data = await $fetch(`${useRuntimeConfig().public.NUXT_API_URL}/project-invitations/accept`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ token: token.value })
+      body: { token: token.value }
     });
 
-    const data = await response.json();
-
-    if (!response.ok || !data.success) {
+    if (!data.success) {
       error.value = data.message || 'Failed to accept invitation';
       return;
     }

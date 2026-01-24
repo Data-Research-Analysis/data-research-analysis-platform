@@ -31,7 +31,6 @@
             v-for="notification in filteredNotifications"
             :key="notification.id"
             :notification="notification"
-            @click="handleNotificationClick(notification)"
             @delete="handleDelete(notification.id)"
           />
 
@@ -71,6 +70,7 @@ useHead({
 // Store
 const notificationStore = useNotificationStore();
 const { $swal } = useNuxtApp();
+const swal = $swal as any;
 
 // State
 const state = reactive({
@@ -91,13 +91,38 @@ const hasUnread = computed(() => notificationStore.hasUnread);
 
 const notificationTypes = computed(() => [
   { value: 'all', label: 'All Types' },
+  // Project Management
+  { value: NotificationType.PROJECT_CREATED, label: 'Project Created' },
   { value: NotificationType.PROJECT_INVITATION, label: 'Project Invitations' },
   { value: NotificationType.PROJECT_MEMBER_ADDED, label: 'Member Added' },
+  { value: NotificationType.PROJECT_MEMBER_REMOVED, label: 'Member Removed' },
+  { value: NotificationType.PROJECT_ROLE_CHANGED, label: 'Role Changed' },
+  { value: NotificationType.INVITATION_ACCEPTED, label: 'Invitation Accepted' },
+  // Data Sources
+  { value: NotificationType.DATA_SOURCE_CREATED, label: 'Data Source Created' },
   { value: NotificationType.DATA_SOURCE_SYNC_COMPLETE, label: 'Sync Complete' },
   { value: NotificationType.DATA_SOURCE_SYNC_FAILED, label: 'Sync Failed' },
+  { value: NotificationType.DATA_SOURCE_SCHEDULED_SYNC_COMPLETE, label: 'Scheduled Sync Complete' },
+  { value: NotificationType.DATA_SOURCE_CONNECTION_FAILED, label: 'Connection Failed' },
+  { value: NotificationType.OAUTH_TOKEN_EXPIRING, label: 'OAuth Token Expiring' },
+  // Data Models
+  { value: NotificationType.DATA_MODEL_CREATED, label: 'Data Model Created' },
+  { value: NotificationType.AI_MODEL_READY, label: 'AI Models Ready' },
+  // Dashboards
+  { value: NotificationType.DASHBOARD_CREATED, label: 'Dashboard Created' },
   { value: NotificationType.DASHBOARD_SHARED, label: 'Dashboard Shared' },
+  { value: NotificationType.DASHBOARD_EXPORT_COMPLETE, label: 'Export Complete' },
+  // Account & Subscriptions
+  { value: NotificationType.EMAIL_VERIFIED, label: 'Email Verified' },
+  { value: NotificationType.PASSWORD_CHANGED, label: 'Password Changed' },
+  { value: NotificationType.SUBSCRIPTION_ASSIGNED, label: 'Subscription Assigned' },
+  { value: NotificationType.SUBSCRIPTION_EXPIRING, label: 'Subscription Expiring' },
+  { value: NotificationType.TIER_LIMIT_REACHED, label: 'Tier Limit Reached' },
+  // System
   { value: NotificationType.SYSTEM_UPDATE, label: 'System Updates' },
-  { value: NotificationType.SECURITY_ALERT, label: 'Security Alerts' }
+  { value: NotificationType.SECURITY_ALERT, label: 'Security Alerts' },
+  // Admin
+  { value: NotificationType.BACKUP_COMPLETED, label: 'Backup Completed' },
 ]);
 
 const filteredNotifications = computed(() => {
@@ -128,8 +153,8 @@ async function fetchNotifications(page = 1) {
     state.currentPage = page;
   } catch (error) {
     console.error('Failed to fetch notifications:', error);
-    if ($swal) {
-      $swal.fire({
+    if (swal) {
+      swal.fire({
         icon: 'error',
         title: 'Error',
         text: 'Failed to load notifications. Please try again.'
@@ -144,29 +169,13 @@ async function loadMore() {
   await fetchNotifications(state.currentPage + 1);
 }
 
-async function handleNotificationClick(notification: INotificationData) {
-  // Mark as read if unread
-  if (!notification.isRead) {
-    try {
-      await notificationStore.markAsRead(notification.id);
-    } catch (error) {
-      console.error('Failed to mark as read:', error);
-    }
-  }
-
-  // Navigate to link if exists
-  if (notification.link) {
-    navigateTo(notification.link);
-  }
-}
-
 async function handleMarkAllRead() {
   if (!hasUnread.value) return;
 
   try {
     await notificationStore.markAllAsRead();
-    if ($swal) {
-      $swal.fire({
+    if (swal) {
+      swal.fire({
         icon: 'success',
         title: 'Success',
         text: 'All notifications marked as read',
@@ -176,8 +185,8 @@ async function handleMarkAllRead() {
     }
   } catch (error) {
     console.error('Failed to mark all as read:', error);
-    if ($swal) {
-      $swal.fire({
+    if (swal) {
+      swal.fire({
         icon: 'error',
         title: 'Error',
         text: 'Failed to mark all as read. Please try again.'
@@ -189,7 +198,7 @@ async function handleMarkAllRead() {
 async function handleClearAll() {
   if (notifications.value.length === 0) return;
 
-  const result = await $swal?.fire({
+  const result = await swal?.fire({
     icon: 'warning',
     title: 'Clear All Notifications?',
     text: 'This action cannot be undone. All notifications will be permanently deleted.',
@@ -207,8 +216,8 @@ async function handleClearAll() {
       );
       await Promise.all(deletePromises);
       
-      if ($swal) {
-        $swal.fire({
+      if (swal) {
+        swal.fire({
           icon: 'success',
           title: 'Cleared',
           text: 'All notifications have been deleted',
@@ -218,8 +227,8 @@ async function handleClearAll() {
       }
     } catch (error) {
       console.error('Failed to clear notifications:', error);
-      if ($swal) {
-        $swal.fire({
+      if (swal) {
+        swal.fire({
           icon: 'error',
           title: 'Error',
           text: 'Failed to clear notifications. Please try again.'
@@ -251,12 +260,7 @@ function handleKeydown(event: KeyboardEvent) {
       event.preventDefault();
       state.selectedIndex = Math.max(state.selectedIndex - 1, 0);
       break;
-    case 'Enter': // Open selected
-      event.preventDefault();
-      if (state.selectedIndex >= 0 && state.selectedIndex < items.length) {
-        handleNotificationClick(items[state.selectedIndex]);
-      }
-      break;
+
     case 'r': // Mark as read
       event.preventDefault();
       if (state.selectedIndex >= 0 && state.selectedIndex < items.length) {

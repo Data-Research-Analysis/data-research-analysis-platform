@@ -27,25 +27,25 @@ async function addCategory() {
     if (categoryTitle) {
         const token = getAuthToken();
         const requestOptions = {
-            method: "POST",
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
-            body: JSON.stringify({
+            body: {
                 title: categoryTitle,
-            }),
+            },
         };
-        const response = await fetch(`${baseUrl()}/admin/category/add`, requestOptions);
-        if (response && response.status === 200) {
-            const data = await response.json();
+        try {
+            await $fetch(`${baseUrl()}/admin/category/add`, {
+                method: "POST",
+                ...requestOptions
+            });
             $swal.fire({
                 title: `The category ${categoryTitle} has been created successfully.`,
                 confirmButtonColor: "#3C8DBC",
             });
             await articlesStore.retrieveCategories();
-        } else {
+        } catch (error) {
             $swal.fire({
                 title: `There was an error creating the category ${categoryTitle}.`,
                 confirmButtonColor: "#3C8DBC",
@@ -56,24 +56,25 @@ async function addCategory() {
 async function submitEditingChanges() {
     const token = getAuthToken();
     const requestOptions = {
-        method: "POST",
         headers: {
-            "Content-Type": "application/json",
             "Authorization": `Bearer ${token}`,
             "Authorization-Type": "auth",
         },
-        body: JSON.stringify({
+        body: {
             category_id: state.category_id_editing,
             title: state.category_title_editing,
-        }),
+        },
     };
-    const response = await fetch(`${baseUrl()}/admin/category/edit`, requestOptions);
-    if (response && response.status === 200) {
+    try {
+        await $fetch(`${baseUrl()}/admin/category/edit`, {
+            method: "POST",
+            ...requestOptions
+        });
         $swal.fire({
             title: `The category title has been changed successfully.`,
             confirmButtonColor: "#3C8DBC",
         });
-    } else {
+    } catch (error) {
         $swal.fire({
             title: `There was an error changing the category title.`,
             confirmButtonColor: "#3C8DBC",
@@ -103,23 +104,19 @@ async function deleteCategory(categoryId) {
     }
     const token = getAuthToken();
     const requestOptions = {
-        method: "DELETE",
         headers: {
-            "Content-Type": "application/json",
             "Authorization": `Bearer ${token}`,
             "Authorization-Type": "auth",
         },
     };
     try {
-        const response = await fetch(`${baseUrl()}/admin/category/delete/${categoryId}`, requestOptions);
-        if (response && response.status === 200) {
-            const data = await response.json();
-            $swal.fire(`The category has been deleted successfully.`);
-        } else {
-            $swal.fire(`There was an error deleting the category.`);
-        }
+        await $fetch(`${baseUrl()}/admin/category/delete/${categoryId}`, {
+            method: "DELETE",
+            ...requestOptions
+        });
+        $swal.fire(`The category has been deleted successfully.`);
     } catch (error) {
-        $swal.fire(`A network error occurred while deleting the category.`);
+        $swal.fire(`There was an error deleting the category.`);
     }
     await articlesStore.retrieveCategories();
 }

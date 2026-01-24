@@ -20,15 +20,7 @@ export function baseUrl() {
     return config.public.NUXT_API_URL;
 }
 export async function getGeneratedToken() {
-    const url = `${baseUrl()}/generate-token`;
-    const response = await fetch(url, {
-        method: "GET",
-        headers: {
-            "Content-Type": "application/json",
-        },
-    });
-    return await response.json();
-
+    return await $fetch(`${baseUrl()}/generate-token`);
 }
 export async function getRecaptchaToken (recaptcha:IReCaptchaComposition, type: string) {
     const { executeRecaptcha, recaptchaLoaded } = recaptcha;
@@ -37,17 +29,14 @@ export async function getRecaptchaToken (recaptcha:IReCaptchaComposition, type: 
     return token;
 }
 export async function verifyRecaptchaToken (authToken: string, recaptchaToken: string) {
-    const url = `${baseUrl()}/verify-recaptcha`;
-    const captchaResponse = await fetch(url, {
+    return await $fetch(`${baseUrl()}/verify-recaptcha`, {
         method: "POST",
         headers: {
-            "Content-Type": "application/json",
             "Authorization": `Bearer ${authToken}`,
             "Authorization-Type": "non-auth",
         },
-        body: JSON.stringify({ recaptcha_token: recaptchaToken }),
+        body: { recaptcha_token: recaptchaToken },
     });
-    return await captchaResponse.json();
 }
 export function getDataType(dataType: string) {
     if (dataType === "text" || dataType === "bpchar" || dataType === "char" || dataType === "varchar" || dataType === "character varying" || dataType === "character" || dataType === "USER-DEFINED") {

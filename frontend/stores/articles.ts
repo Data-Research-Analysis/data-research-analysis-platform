@@ -70,16 +70,12 @@ export const useArticlesStore = defineStore('articlesDRA', () => {
             setCategories([]);
             return;
         }
-        const url = `${baseUrl()}/admin/category/list`;
-        const response = await fetch(url, {
-            method: "GET",
+        const data = await $fetch(`${baseUrl()}/admin/category/list`, {
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
         });
-        const data = await response.json();
         setCategories(data);
     }
     async function retrieveArticles() {
@@ -88,32 +84,24 @@ export const useArticlesStore = defineStore('articlesDRA', () => {
             setArticles([]);
             return;
         }
-        const url = `${baseUrl()}/admin/article/list`;
-        const response = await fetch(url, {
-            method: "GET",
+        const data = await $fetch(`${baseUrl()}/admin/article/list`, {
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
         });
-        const data = await response.json();
         setArticles(data);
     }
     async function retrievePublicArticles() {
         const responseToken = await getGeneratedToken();
         const token = responseToken.token;
 
-        const url = `${baseUrl()}/article/list`;
-        const response = await fetch(url, {
-            method: "GET",
+        const data = await $fetch(`${baseUrl()}/article/list`, {
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "non-auth",
             },
         });
-        const data = await response.json();
         setArticles(data);
     }
     return {

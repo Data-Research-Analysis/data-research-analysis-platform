@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { useReCaptcha } from "vue-recaptcha-v3";
 const recaptcha = useReCaptcha();
 
@@ -94,28 +94,26 @@ async function applyForPrivateBeta() {
         if (response.success && response.action === "privateBetaForm" && response.score > 0.8) {
             state.privateBetaStep = 2;
                 const url = `${baseUrl()}/private-beta-apply`;
-                const privateBetaResponse = await fetch(url, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${state.token}`,
-                        "Authorization-Type": "non-auth",
-                    },
-                    body: JSON.stringify({
-                        first_name: state.firstName,
-                        last_name: state.lastName,
-                        phone_number: `${state.phoneCountryCode}${state.phoneNumber}`,
-                        business_email: state.businessEmail,
-                        company_name: state.companyName,
-                        agree_to_receive_updates: state.agreeToReceiveUpdates,
-                        country: state.country,
-                    }),
-                });
-                if (privateBetaResponse.status === 200) {
+                try {
+                    await $fetch(url, {
+                        method: "POST",
+                        headers: {
+                            "Authorization": `Bearer ${state.token}`,
+                            "Authorization-Type": "non-auth",
+                        },
+                        body: {
+                            first_name: state.firstName,
+                            last_name: state.lastName,
+                            phone_number: `${state.phoneCountryCode}${state.phoneNumber}`,
+                            business_email: state.businessEmail,
+                            company_name: state.companyName,
+                            agree_to_receive_updates: state.agreeToReceiveUpdates,
+                            country: state.country,
+                        },
+                    });
                     state.privateBetaStep = 2;
-                } else {
-                    const decodedResponse = await privateBetaResponse.json();
-                    const message = decodedResponse.message;
+                } catch (error: any) {
+                    const message = error.data?.message || error.message;
                     state.subscriptionError = true;
                     state.subscriptionErrorMessage = message;//"*Oops!! We detected an anomaly. Please wait before you submit again.";
                     state.privateBetaStep = 1;

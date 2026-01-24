@@ -30,15 +30,12 @@ export const usePrivateBetaUserStore = defineStore('privateBetaUserStore', () =>
             return;
         }
         const url = `${baseUrl()}/admin/private-beta-users/list`;
-        const response = await fetch(url, {
-            method: "GET",
+        const data = await $fetch(url, {
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
         });
-        const data = await response.json();
         setPrivateBetaUsers(data);
     }
     return {
