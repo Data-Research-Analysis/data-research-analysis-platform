@@ -156,17 +156,18 @@ export const useNotificationStore = defineStore('notifications', {
         /**
          * Initialize Socket.IO connection for real-time updates
          */
-        initializeSocket(userId: number) {
+        initializeSocket(userId: number, socketUrl: string) {
+            // Only run on client side
+            if (!import.meta.client) {
+                return;
+            }
+
             if (this.socket || this.initialized) {
                 console.log('Socket already initialized');
                 return;
             }
 
             try {
-                // Get Socket.IO server URL from runtime config or fall back to localhost
-                const config = useRuntimeConfig();
-                const socketUrl = config.public.apiUrl || 'http://localhost:3002';
-
                 // Connect to Socket.IO server
                 this.socket = io(socketUrl, {
                     auth: { userId },

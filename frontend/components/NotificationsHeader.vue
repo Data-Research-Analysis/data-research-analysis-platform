@@ -1,5 +1,14 @@
 <template>
   <div class="mb-8">
+    <!-- Back Button -->
+    <button
+      @click="goBack"
+      class="mb-4 flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+    >
+      <font-awesome-icon :icon="['fas', 'arrow-left']" />
+      <span>Back</span>
+    </button>
+
     <!-- Title & Stats -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div>
@@ -53,6 +62,8 @@
 </template>
 
 <script setup lang="ts">
+const router = useRouter();
+
 defineProps<{
   unreadCount: number;
   totalCount: number;
@@ -64,4 +75,14 @@ const emit = defineEmits<{
   'mark-all-read': [];
   'clear-all': [];
 }>();
+
+function goBack() {
+  // Check if there's history to go back to
+  if (window.history.length > 1) {
+    router.back();
+  } else {
+    // Fallback to projects page if no history
+    router.push('/projects');
+  }
+}
 </script>
