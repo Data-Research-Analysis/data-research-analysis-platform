@@ -50,6 +50,7 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useNotificationStore } from '~/stores/notifications';
 import type { INotificationData } from '~/types/INotification';
 

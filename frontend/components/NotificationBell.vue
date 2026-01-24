@@ -100,7 +100,16 @@ onMounted(() => {
   // Initialize Socket.IO connection
   const user = userStore.getLoggedInUser();
   if (user?.id) {
-    notificationStore.initializeSocket(user.id);
+    // Get Socket.IO server URL from runtime config
+    const config = useRuntimeConfig();
+    const socketHost = config.public.NUXT_SOCKETIO_SERVER_URL || 'http://localhost';
+    const socketPort = config.public.NUXT_SOCKETIO_SERVER_PORT || 3002;
+    let socketUrl = `${socketHost}:${socketPort}`;
+    if (config.public.NUXT_ENV === 'production') {
+      socketUrl = `${socketHost}`;
+    }
+    
+    notificationStore.initializeSocket(user.id, socketUrl);
     notificationStore.fetchUnreadCount();
   }
 
