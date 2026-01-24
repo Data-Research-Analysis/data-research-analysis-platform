@@ -9,7 +9,6 @@ import { DBDriver } from '../drivers/DBDriver.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { EUserType } from '../types/EUserType.js';
 import { NotificationHelperService } from '../services/NotificationHelperService.js';
-import { NotificationHelperService } from '../services/NotificationHelperService.js';
 
 export class AuthProcessor {
     private static instance: AuthProcessor;
@@ -148,7 +147,7 @@ export class AuthProcessor {
                         await manager.save(user);
                         
                         // Send notification for successful email verification
-                        await this.notificationHelper.notifyEmailVerified(user.id, user.email);
+                        await this.notificationHelper.notifyEmailVerified(user.id);
                         
                         return resolve(true);
                     }

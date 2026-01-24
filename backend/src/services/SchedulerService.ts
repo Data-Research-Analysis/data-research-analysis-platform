@@ -221,7 +221,9 @@ export class SchedulerService {
             // Send success notification
             await this.notificationHelper.notifyScheduledSyncComplete(
                 dataSource.users_platform.id,
-                dataSource.name
+                dataSource.id,
+                dataSource.name,
+                0 // recordCount - will be updated when sync completes
             );
 
         } catch (error: any) {
@@ -230,6 +232,7 @@ export class SchedulerService {
             // Send failure notification
             await this.notificationHelper.notifyScheduledSyncFailed(
                 dataSource.users_platform.id,
+                dataSource.id,
                 dataSource.name,
                 error.message
             );
