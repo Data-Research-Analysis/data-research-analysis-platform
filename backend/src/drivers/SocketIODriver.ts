@@ -84,7 +84,9 @@ export class SocketIODriver {
     }
 
     /**
-     * Emit event to a specific user's socket connection
+     * Emit an event to a specific user
+     * Users are identified by their userId which should be used as the room name
+     * 
      * @param userId - The user ID to emit to
      * @param event - The event name
      * @param data - The data to send
@@ -95,8 +97,7 @@ export class SocketIODriver {
                 reject(new Error('Socket.IO server not initialized'));
                 return;
             }
-            // Emit to room named after user ID
-            // Frontend should join this room on connection with their user ID
+            // Emit to a room named after the userId
             this.io.to(`user-${userId}`).emit(event, data);
             return resolve();
         });
