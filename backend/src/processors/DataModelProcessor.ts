@@ -1208,8 +1208,8 @@ export class DataModelProcessor {
                 
                 console.log(`[DataModelProcessor] Updated data model ${dataModelId} settings:`, updates);
                 
-                // Send notification
-                await this.notificationHelper.notifyDataModelUpdated(user_id, dataModel.name);
+                // Notification removed - notifyDataModelUpdated method not yet implemented
+                // TODO: Implement notifyDataModelUpdated in NotificationHelperService
                 
                 return resolve(true);
             } catch (error) {

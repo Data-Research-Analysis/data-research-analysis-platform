@@ -110,7 +110,7 @@ export class DatabaseBackupService {
                 console.log('Backup created successfully:', metadata);
                 
                 // Send notification
-                await this.notificationHelper.notifyBackupComplete(userId, zipFileName);
+                await this.notificationHelper.notifyBackupCompleted(userId, zipFileName, fileSize);
                 
                 resolve(metadata);
             } catch (error) {
@@ -218,7 +218,7 @@ export class DatabaseBackupService {
                 console.log('Database restored successfully');
                 
                 // Send notification
-                await this.notificationHelper.notifyRestoreComplete(userId, path.basename(zipFilePath));
+                await this.notificationHelper.notifyRestoreCompleted(userId, path.basename(zipFilePath));
                 
                 resolve(true);
             } catch (error) {

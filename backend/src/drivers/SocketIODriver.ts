@@ -83,5 +83,24 @@ export class SocketIODriver {
         });
     }
 
+    /**
+     * Emit event to a specific user's socket connection
+     * @param userId - The user ID to emit to
+     * @param event - The event name
+     * @param data - The data to send
+     */
+    public async emitToUser(userId: number, event: string, data: any): Promise<void> {
+        return new Promise<void>(async (resolve, reject) => {
+            if (!this.io) {
+                reject(new Error('Socket.IO server not initialized'));
+                return;
+            }
+            // Emit to room named after user ID
+            // Frontend should join this room on connection with their user ID
+            this.io.to(`user-${userId}`).emit(event, data);
+            return resolve();
+        });
+    }
+
     
 }

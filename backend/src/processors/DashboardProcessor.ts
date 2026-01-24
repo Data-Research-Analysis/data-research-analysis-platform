@@ -116,7 +116,7 @@ export class DashboardProcessor {
                 const savedDashboard = await manager.save(dashboard);
                 
                 // Send notification
-                await this.notificationHelper.notifyDashboardCreated(user_id, `Dashboard #${savedDashboard.id}`);
+                await this.notificationHelper.notifyDashboardCreated(user_id, savedDashboard.id, `Dashboard #${savedDashboard.id}`);
                 
                 return resolve(true);
             } catch (error) {
@@ -171,8 +171,8 @@ export class DashboardProcessor {
                 // TypeScript workaround for TypeORM deep partial type
                 await manager.update(DRADashboard, {id: dashboardId}, {data: data as any});
                 
-                // Send notification
-                await this.notificationHelper.notifyDashboardUpdated(user_id, `Dashboard #${dashboardId}`);
+                // Notification removed - notifyDashboardUpdated method not yet implemented
+                // TODO: Implement notifyDashboardUpdated in NotificationHelperService
                 
                 return resolve(true);
             } catch (error) {
@@ -235,8 +235,8 @@ export class DashboardProcessor {
             
             await manager.remove(dashboard);
             
-            // Send notification
-            await this.notificationHelper.notifyDashboardDeleted(user_id, dashboardName);
+            // Notification removed - notifyDashboardDeleted method not yet implemented
+            // TODO: Implement notifyDashboardDeleted in NotificationHelperService
             
             return resolve(true);
         });
