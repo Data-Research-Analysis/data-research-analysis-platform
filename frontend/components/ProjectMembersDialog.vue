@@ -240,19 +240,17 @@ async function fetchPendingInvitations() {
     
     try {
         loadingInvitations.value = true;
-        const response = await fetch(
+        const data = await $fetch<{success: boolean, invitations: any[]}>(
             `${baseUrl()}/project-invitations/project/${props.projectId}`,
             {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${getAuthToken()}`,
                     'Authorization-Type': 'auth',
-                    'Content-Type': 'application/json'
                 }
             }
         );
         
-        const data = await response.json();
         if (data.success) {
             pendingInvitations.value = data.invitations || [];
         }
@@ -266,19 +264,17 @@ async function fetchPendingInvitations() {
 async function resendInvitation(invitationId: number) {
     try {
         resending.value = invitationId;
-        const response = await fetch(
+        const data = await $fetch<{success: boolean, message: string}>(
             `${baseUrl()}/project-invitations/${invitationId}/resend`,
             {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${getAuthToken()}`,
                     'Authorization-Type': 'auth',
-                    'Content-Type': 'application/json'
                 }
             }
         );
         
-        const data = await response.json();
         if (data.success) {
             inviteMessage.value = 'Invitation resent successfully';
             inviteError.value = false;
@@ -301,19 +297,17 @@ async function cancelInvitation(invitationId: number) {
     
     try {
         cancelling.value = invitationId;
-        const response = await fetch(
+        const data = await $fetch<{success: boolean}>(
             `${baseUrl()}/project-invitations/${invitationId}`,
             {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${getAuthToken()}`,
                     'Authorization-Type': 'auth',
-                    'Content-Type': 'application/json'
                 }
             }
         );
         
-        const data = await response.json();
         if (data.success) {
             pendingInvitations.value = pendingInvitations.value.filter(i => i.id !== invitationId);
             inviteMessage.value = 'Invitation cancelled';
@@ -339,24 +333,21 @@ async function inviteMember() {
     inviteError.value = false;
     
     try {
-        const response = await fetch(
+        const data = await $fetch<{success: boolean, message: string, invitation: any}>(
             `${baseUrl()}/project-invitations`,
             {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${getAuthToken()}`,
                     'Authorization-Type': 'auth',
-                    'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
+                body: {
                     projectId: props.projectId,
                     email: inviteEmail.value,
                     role: inviteRole.value
-                })
+                }
             }
         );
-        
-        const data = await response.json();
         
         if (data.success) {
             if (data.invitation?.addedDirectly) {
@@ -382,19 +373,17 @@ async function inviteMember() {
 
 async function updateRole(member: Member) {
     try {
-        const response = await fetch(`${baseUrl()}/project/${props.projectId}/members/${member.user.id}`, {
+        const data = await $fetch<{success: boolean, message: string}>(`${baseUrl()}/project/${props.projectId}/members/${member.user.id}`, {
             method: 'PUT',
             headers: {
                 'Authorization': `Bearer ${getAuthToken()}`,
                 'Authorization-Type': 'auth',
-                'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
+            body: {
                 role: member.role
-            })
+            }
         });
         
-        const data = await response.json();
         if (data.success) {
             emit('memberUpdated');
         } else {
@@ -426,16 +415,14 @@ async function removeMember(member: Member) {
     }
     
     try {
-        const response = await fetch(`${baseUrl()}/project/${props.projectId}/members/${member.user.id}`, {
+        const data = await $fetch<{success: boolean, message: string}>(`${baseUrl()}/project/${props.projectId}/members/${member.user.id}`, {
             method: 'DELETE',
             headers: {
                 'Authorization': `Bearer ${getAuthToken()}`,
                 'Authorization-Type': 'auth',
-                'Content-Type': 'application/json'
             }
         });
         
-        const data = await response.json();
         if (data.success) {
             // Remove from local members
             localMembers.value = localMembers.value.filter(m => m.user.id !== member.user.id);

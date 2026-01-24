@@ -161,14 +161,13 @@ async function createDataSource() {
         
         // Convert sheet data to the expected format
         const sheetRows = sheet.rows.map(row => row.data || row);        
-        const response = await fetch(url, {
+        const response = await $fetch(url, {
             method: "POST",
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
-            body: JSON.stringify({
+            body: {
                 file_id: file.id,
                 data: {
                     columns: sheet.columns.map((column) => {
@@ -191,18 +190,12 @@ async function createDataSource() {
                     original_sheet_name: sheet.metadata.originalSheetName,
                     sheet_index: sheet.sheetIndex
                 }
-            })
+            }
         });
         
-        if (response.status === 200) {
-            const data = await response.json();
-            dataSourceId = data.result.data_source_id;
-            file.status = 'uploaded';
-            console.log(`Sheet ${sheet.name} uploaded successfully`);
-        } else {
-            file.status = 'failed';
-            console.error(`Failed to upload sheet ${sheet.name}`);
-        }
+        dataSourceId = response.result.data_source_id;
+        file.status = 'uploaded';
+        console.log(`Sheet ${sheet.name} uploaded successfully`);
         
         await sleep(1000);
     }

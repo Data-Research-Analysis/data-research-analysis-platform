@@ -11,15 +11,12 @@ async function getDataModels() {
     state.data_models = [];
     const token = getAuthToken();
     const url = `${baseUrl()}/data-models/list`;
-    const response = await fetch(url, {
-        method: "GET",
+    const data = await $fetch(url, {
         headers: {
-            "Content-Type": "application/json",
             "Authorization": `Bearer ${token}`,
             "Authorization-Type": "auth",
         },
     });
-    const data = await response.json();
     state.data_models = data.map((dataSource) => {
         return {
             id: dataSource.id,

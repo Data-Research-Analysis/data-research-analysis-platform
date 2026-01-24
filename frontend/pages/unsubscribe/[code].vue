@@ -31,17 +31,15 @@ async function unsubscribe() {
         state.unsubscribeSuccess = false;
     } else {
         const requestOptions = {
-            method: "GET",
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${state.token}`,
                 "Authorization-Type": "non-auth",
             },
         };
-        const response = await fetch(`${baseUrl()}/auth/unsubscribe/${encodeURIComponent(state.code)}`, requestOptions);
-        if (response.status === 200) {
+        try {
+            await $fetch(`${baseUrl()}/auth/unsubscribe/${encodeURIComponent(state.code)}`, requestOptions);
             state.unsubscribeSuccess = true;
-        } else {
+        } catch (error) {
             state.unsubscribeSuccess = false;
         }
     }

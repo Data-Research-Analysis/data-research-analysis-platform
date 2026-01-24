@@ -56,15 +56,12 @@ export const useSitemapStore = defineStore('sitemapDRA', () => {
             return;
         }
         const url = `${baseUrl()}/admin/sitemap/list`;
-        const response = await fetch(url, {
-            method: "GET",
+        const data = await $fetch(url, {
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
         });
-        const data = await response.json();
         setSitemapEntries(data);
     }
 
@@ -74,25 +71,20 @@ export const useSitemapStore = defineStore('sitemapDRA', () => {
             return false;
         }
         const apiUrl = `${baseUrl()}/admin/sitemap/add`;
-        const response = await fetch(apiUrl, {
+        await $fetch(apiUrl, {
             method: "POST",
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
-            body: JSON.stringify({
+            body: {
                 url,
                 publish_status: publishStatus,
                 priority
-            }),
+            },
         });
-        const data = await response.json();
-        if (response.ok) {
-            await retrieveSitemapEntries();
-            return true;
-        }
-        return false;
+        await retrieveSitemapEntries();
+        return true;
     }
 
     async function editSitemapEntry(entryId: number, url: string, priority: number) {
@@ -101,25 +93,20 @@ export const useSitemapStore = defineStore('sitemapDRA', () => {
             return false;
         }
         const apiUrl = `${baseUrl()}/admin/sitemap/edit`;
-        const response = await fetch(apiUrl, {
+        await $fetch(apiUrl, {
             method: "POST",
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
-            body: JSON.stringify({
+            body: {
                 entry_id: entryId,
                 url,
                 priority
-            }),
+            },
         });
-        const data = await response.json();
-        if (response.ok) {
-            await retrieveSitemapEntries();
-            return true;
-        }
-        return false;
+        await retrieveSitemapEntries();
+        return true;
     }
 
     async function publishEntry(entryId: number) {
@@ -128,19 +115,14 @@ export const useSitemapStore = defineStore('sitemapDRA', () => {
             return false;
         }
         const url = `${baseUrl()}/admin/sitemap/publish/${entryId}`;
-        const response = await fetch(url, {
-            method: "GET",
+        await $fetch(url, {
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
         });
-        if (response.ok) {
-            await retrieveSitemapEntries();
-            return true;
-        }
-        return false;
+        await retrieveSitemapEntries();
+        return true;
     }
 
     async function unpublishEntry(entryId: number) {
@@ -149,19 +131,14 @@ export const useSitemapStore = defineStore('sitemapDRA', () => {
             return false;
         }
         const url = `${baseUrl()}/admin/sitemap/unpublish/${entryId}`;
-        const response = await fetch(url, {
-            method: "GET",
+        await $fetch(url, {
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
         });
-        if (response.ok) {
-            await retrieveSitemapEntries();
-            return true;
-        }
-        return false;
+        await retrieveSitemapEntries();
+        return true;
     }
 
     async function deleteEntry(entryId: number) {
@@ -170,19 +147,15 @@ export const useSitemapStore = defineStore('sitemapDRA', () => {
             return false;
         }
         const url = `${baseUrl()}/admin/sitemap/delete/${entryId}`;
-        const response = await fetch(url, {
+        await $fetch(url, {
             method: "DELETE",
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
         });
-        if (response.ok) {
-            await retrieveSitemapEntries();
-            return true;
-        }
-        return false;
+        await retrieveSitemapEntries();
+        return true;
     }
 
     async function reorderEntries(entryIds: number[]) {
@@ -191,22 +164,18 @@ export const useSitemapStore = defineStore('sitemapDRA', () => {
             return false;
         }
         const url = `${baseUrl()}/admin/sitemap/reorder`;
-        const response = await fetch(url, {
+        await $fetch(url, {
             method: "POST",
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
-            body: JSON.stringify({
+            body: {
                 entry_ids: entryIds
-            }),
+            },
         });
-        if (response.ok) {
-            await retrieveSitemapEntries();
-            return true;
-        }
-        return false;
+        await retrieveSitemapEntries();
+        return true;
     }
 
     return {

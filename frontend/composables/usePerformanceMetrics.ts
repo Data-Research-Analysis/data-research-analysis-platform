@@ -72,19 +72,11 @@ export const usePerformanceMetrics = () => {
             isLoading.value = true;
             error.value = null;
 
-            const response = await fetch(`${API_BASE_URL}/performance/metrics`, {
-                method: 'GET',
+            const result = await $fetch(`${API_BASE_URL}/performance/metrics`, {
                 headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
+                    'Authorization': `Bearer ${token}`
                 }
             });
-
-            if (!response.ok) {
-                throw new Error(`Failed to fetch metrics: ${response.statusText}`);
-            }
-
-            const result = await response.json();
 
             if (!result.success) {
                 throw new Error(result.message || 'Failed to fetch metrics');
@@ -113,25 +105,21 @@ export const usePerformanceMetrics = () => {
             isLoading.value = true;
             error.value = null;
 
-            const response = await fetch(
+            const result = await $fetch(
                 `${API_BASE_URL}/performance/metrics/${encodeURIComponent(operationName)}`,
                 {
-                    method: 'GET',
                     headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
+                        'Authorization': `Bearer ${token}`
                     }
                 }
-            );
-
-            if (!response.ok) {
-                if (response.status === 404) {
+            ).catch((error) => {
+                if (error.statusCode === 404) {
                     return null;
                 }
-                throw new Error(`Failed to fetch operation metrics: ${response.statusText}`);
-            }
+                throw error;
+            });
 
-            const result = await response.json();
+            if (!result) return null;
 
             if (!result.success) {
                 throw new Error(result.message || 'Failed to fetch operation metrics');
@@ -161,22 +149,14 @@ export const usePerformanceMetrics = () => {
             isLoading.value = true;
             error.value = null;
 
-            const response = await fetch(
+            const result = await $fetch(
                 `${API_BASE_URL}/performance/slowest?limit=${limit}`,
                 {
-                    method: 'GET',
                     headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
+                        'Authorization': `Bearer ${token}`
                     }
                 }
             );
-
-            if (!response.ok) {
-                throw new Error(`Failed to fetch slowest operations: ${response.statusText}`);
-            }
-
-            const result = await response.json();
 
             if (!result.success) {
                 throw new Error(result.message || 'Failed to fetch slowest operations');
@@ -205,19 +185,11 @@ export const usePerformanceMetrics = () => {
             isLoading.value = true;
             error.value = null;
 
-            const response = await fetch(`${API_BASE_URL}/performance/bottlenecks`, {
-                method: 'GET',
+            const result = await $fetch(`${API_BASE_URL}/performance/bottlenecks`, {
                 headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
+                    'Authorization': `Bearer ${token}`
                 }
             });
-
-            if (!response.ok) {
-                throw new Error(`Failed to fetch bottlenecks: ${response.statusText}`);
-            }
-
-            const result = await response.json();
 
             if (!result.success) {
                 throw new Error(result.message || 'Failed to fetch bottlenecks');
@@ -261,19 +233,12 @@ export const usePerformanceMetrics = () => {
                 ? `${API_BASE_URL}/performance/metrics?operation=${encodeURIComponent(operationName)}`
                 : `${API_BASE_URL}/performance/metrics`;
 
-            const response = await fetch(url, {
+            const result = await $fetch<{success: boolean, message: string, deletedCount: number}>(url, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
                 }
             });
-
-            if (!response.ok) {
-                throw new Error(`Failed to clear metrics: ${response.statusText}`);
-            }
-
-            const result = await response.json();
 
             if (!result.success) {
                 throw new Error(result.message || 'Failed to clear metrics');

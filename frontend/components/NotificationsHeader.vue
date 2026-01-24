@@ -19,7 +19,7 @@
       <!-- Action Buttons -->
       <div class="flex items-center gap-3">
         <button
-          @click="$emit('mark-all-read')"
+          @click="emit('mark-all-read')"
           :disabled="!hasUnread || loading"
           class="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors cursor-pointer"
         >
@@ -28,7 +28,7 @@
         </button>
 
         <button
-          @click="$emit('clear-all')"
+          @click="emit('clear-all')"
           :disabled="totalCount === 0 || loading"
           class="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors cursor-pointer"
         >
@@ -60,7 +60,7 @@ defineProps<{
   loading: boolean;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   'mark-all-read': [];
   'clear-all': [];
 }>();

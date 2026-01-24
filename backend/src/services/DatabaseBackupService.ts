@@ -6,6 +6,7 @@ import path from 'path';
 import archiver from 'archiver';
 import AdmZip from 'adm-zip';
 import dotenv from 'dotenv';
+import { NotificationHelperService } from "./NotificationHelperService.js";
 
 const execAsync = promisify(exec);
 
@@ -22,9 +23,11 @@ export interface IBackupMetadata {
 export class DatabaseBackupService {
     private static instance: DatabaseBackupService;
     private backupStoragePath: string;
+    private notificationHelper: NotificationHelperService;
 
     private constructor() {
         this.backupStoragePath = process.env.BACKUP_STORAGE_PATH || './backend/private/backups';
+        this.notificationHelper = NotificationHelperService.getInstance();
         this.ensureBackupDirectoryExists();
     }
 
@@ -105,6 +108,10 @@ export class DatabaseBackupService {
                 await this.saveBackupMetadata(metadata);
 
                 console.log('Backup created successfully:', metadata);
+                
+                // Send notification
+                await this.notificationHelper.notifyBackupComplete(userId, zipFileName);
+                
                 resolve(metadata);
             } catch (error) {
                 console.error('Error creating backup:', error);
@@ -209,6 +216,10 @@ export class DatabaseBackupService {
                 progressCallback?.(100, 'Restore completed successfully');
 
                 console.log('Database restored successfully');
+                
+                // Send notification
+                await this.notificationHelper.notifyRestoreComplete(userId, path.basename(zipFilePath));
+                
                 resolve(true);
             } catch (error) {
                 console.error('Error restoring database:', error);

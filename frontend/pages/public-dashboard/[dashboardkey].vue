@@ -370,19 +370,17 @@ async function executeQueryOnDataModels(chartId) {
         const sqlQuery = chart.sql_query;
         const token = getAuthToken();
         const url = `${baseUrl()}/data-model/execute-query-on-data-model`;
-        const response = await fetch(url, {
+        const data = await $fetch(url, {
             method: "POST",
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
-            body: JSON.stringify({
+            body: {
                 query: sqlQuery,
                 project_id: project.value?.id
-            })
+            }
         });
-        const data = await response.json();
         // Ensure data is an array before assigning
         state.response_from_data_models_rows = Array.isArray(data) ? data : [];
         state.response_from_data_models_columns = chart.columns.map((column) => column.column_name);

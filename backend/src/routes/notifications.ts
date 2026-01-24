@@ -70,7 +70,7 @@ router.get('/', validateJWT, async (req: Request, res: Response): Promise<void> 
 });
 
 /**
- * GET /api/notifications/unread-count
+ * GET /notifications/unread-count
  * Get unread notification count for authenticated user
  * 
  * Auth: Required (JWT)

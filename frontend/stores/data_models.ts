@@ -65,16 +65,12 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
             dataModels.value = [];
             return;
         }
-        const url = `${baseUrl()}/data-model/list/${projectId}`;
-        const response = await fetch(url, {
-            method: "GET",
+        const data = await $fetch<IDataModel[]>(`${baseUrl()}/data-model/list/${projectId}`, {
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
         });
-        const data = await response.json();
         setDataModels(data)
     }
     async function retrieveDataModelTables(projectId: number) {
@@ -87,16 +83,12 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
             setDataModelTables([]);
             return;
         }
-        const url = `${baseUrl()}/data-model/tables/project/${projectId}`;
-        const response = await fetch(url, {
-            method: "GET",
+        const data = await $fetch(`${baseUrl()}/data-model/tables/project/${projectId}`, {
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
-        });
-        const data = await response.json();
+        }) as any;
         setDataModelTables(data);
     }
     function getSelectedDataModel() {
@@ -135,21 +127,12 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         }
         
         try {
-            const url = `${baseUrl()}/data-model/projects/${projectId}/all-tables`;
-            const response = await fetch(url, {
-                method: 'GET',
+            const data = await $fetch(`${baseUrl()}/data-model/projects/${projectId}/all-tables`, {
                 headers: {
-                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth',
                 },
-            });
-            
-            if (!response.ok) {
-                throw new Error(`Failed to fetch tables: ${response.statusText}`);
-            }
-            
-            const data = await response.json();
+            }) as any;
             return data;
         } catch (error) {
             console.error('[CrossSource] Error fetching all project tables:', error);
@@ -168,25 +151,17 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         }
         
         try {
-            const url = `${baseUrl()}/data-model/suggest-joins`;
-            const response = await fetch(url, {
+            const suggestions = await $fetch(`${baseUrl()}/data-model/suggest-joins`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth',
                 },
-                body: JSON.stringify({
+                body: {
                     leftTable,
                     rightTable
-                })
-            });
-            
-            if (!response.ok) {
-                throw new Error(`Failed to suggest joins: ${response.statusText}`);
-            }
-            
-            const suggestions = await response.json();
+                }
+            }) as any;
             return suggestions;
         } catch (error) {
             console.error('[CrossSource] Error suggesting joins:', error);
@@ -205,21 +180,14 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         }
         
         try {
-            const url = `${baseUrl()}/data-model/save-join-to-catalog`;
-            const response = await fetch(url, {
+            await $fetch(`${baseUrl()}/data-model/save-join-to-catalog`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth',
                 },
-                body: JSON.stringify(joinDefinition)
+                body: joinDefinition
             });
-            
-            if (!response.ok) {
-                throw new Error(`Failed to save join: ${response.statusText}`);
-            }
-            
             return true;
         } catch (error) {
             console.error('[CrossSource] Error saving join to catalog:', error);
@@ -245,14 +213,13 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         if (metadata && dataModels.value.length > 0) {
             const modelIndex = dataModels.value.findIndex(m => m.id === dataModelId);
             if (modelIndex !== -1) {
-                dataModels.value[modelIndex] = {
-                    ...dataModels.value[modelIndex],
-                    refresh_status: status,
-                    last_refreshed_at: metadata.lastRefreshedAt || dataModels.value[modelIndex].last_refreshed_at,
-                    row_count: metadata.rowCount || dataModels.value[modelIndex].row_count,
-                    last_refresh_duration_ms: metadata.duration || dataModels.value[modelIndex].last_refresh_duration_ms,
-                    refresh_error: metadata.error || null
-                };
+                const updatedModel = { ...dataModels.value[modelIndex] } as any;
+                updatedModel.refresh_status = status;
+                if (metadata.lastRefreshedAt) updatedModel.last_refreshed_at = metadata.lastRefreshedAt;
+                if (metadata.rowCount !== undefined) updatedModel.row_count = metadata.rowCount;
+                if (metadata.duration !== undefined) updatedModel.last_refresh_duration_ms = metadata.duration;
+                if (metadata.error !== undefined) updatedModel.refresh_error = metadata.error;
+                dataModels.value[modelIndex] = updatedModel;
                 setDataModels([...dataModels.value]);
             }
         }
@@ -306,22 +273,13 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
             throw new Error('Authentication required');
         }
         
-        const url = `${baseUrl()}/refresh/data-model/${dataModelId}`;
-        const response = await fetch(url, {
+        const data = await $fetch(`${baseUrl()}/refresh/data-model/${dataModelId}`, {
             method: "POST",
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
-        });
-        
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.message || 'Failed to trigger refresh');
-        }
-        
-        const data = await response.json();
+        }) as any;
         
         // Track the job
         if (data.jobId) {
@@ -338,22 +296,13 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
             throw new Error('Authentication required');
         }
         
-        const url = `${baseUrl()}/refresh/cascade/${dataSourceId}`;
-        const response = await fetch(url, {
+        const data = await $fetch(`${baseUrl()}/refresh/cascade/${dataSourceId}`, {
             method: "POST",
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
-        });
-        
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.message || 'Failed to trigger cascade refresh');
-        }
-        
-        const data = await response.json();
+        }) as any;
         
         // Track all jobs
         if (data.jobIds && Array.isArray(data.jobIds)) {
@@ -374,22 +323,14 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
             throw new Error('Authentication required');
         }
         
-        const url = `${baseUrl()}/refresh/history/${dataModelId}`;
-        const response = await fetch(url, {
-            method: "GET",
+        const data = await $fetch(`${baseUrl()}/refresh/history/${dataModelId}`, {
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
         });
         
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.message || 'Failed to get refresh history');
-        }
-        
-        return await response.json();
+        return data;
     }
     
     return {

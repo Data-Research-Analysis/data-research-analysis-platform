@@ -489,23 +489,24 @@ async function deleteModel(model: any) {
   
   const token = getAuthToken();
   const requestOptions = {
-    method: 'DELETE',
     headers: {
-      'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`,
       'Authorization-Type': 'auth',
     },
   };
   
-  const response = await fetch(`${baseUrl()}/data-model/delete/${model.id}`, requestOptions);
-  
-  if (response && response.status === 200) {
+  try {
+    await $fetch(`${baseUrl()}/data-model/delete/${model.id}`, {
+      method: 'DELETE',
+      ...requestOptions
+    });
+    
     await $swal.fire({
       icon: 'success',
       title: 'Deleted!',
       text: 'The data model has been deleted successfully.',
     });
-  } else {
+  } catch (error) {
     await $swal.fire({
       icon: 'error',
       title: 'Error',

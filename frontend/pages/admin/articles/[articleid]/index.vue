@@ -99,22 +99,21 @@ async function updateArticle() {
     const title = state.title;
     const content = state.content;
     const categories = state.menuFilteredData.map((item) => item.id);
-    const response = await fetch(url, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`,
-            "Authorization-Type": "auth",
-        },
-        body: JSON.stringify({
-            article_id: article.value.article.id,
-            title: title,
-            content: content,
-            content_markdown: state.contentMarkdown,  // NEW: Send markdown
-            categories: categories,
-        })
-    });
-    if (response.status === 200) {
+    try {
+        await $fetch(url, {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Authorization-Type": "auth",
+            },
+            body: {
+                article_id: article.value.article.id,
+                title: title,
+                content: content,
+                content_markdown: state.contentMarkdown,  // NEW: Send markdown
+                categories: categories,
+            }
+        });
         hasUnsavedChanges.value = false // Clear unsaved changes flag
         await $swal.fire({
             icon: 'success',
@@ -122,7 +121,7 @@ async function updateArticle() {
             text: 'The article has been successfully updated.',
         });
         window.location.reload();
-    } else {
+    } catch (error) {
         await $swal.fire({
             icon: 'error',
             title: `Error! `,
@@ -145,29 +144,20 @@ async function unpublishArticle() {
     if (result.isConfirmed) {
         try {
             const token = getAuthToken();
-            const response = await fetch(`${baseUrl()}/admin/article/unpublish/${article.value.article.id}`, {
-                method: "GET",
+            await $fetch(`${baseUrl()}/admin/article/unpublish/${article.value.article.id}`, {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
                 },
             });
             
-            if (response.status === 200) {
-                hasUnsavedChanges.value = false
-                await $swal.fire({
-                    icon: 'success',
-                    title: 'Success!',
-                    text: 'Article unpublished successfully',
-                });
-                window.location.reload();
-            } else {
-                await $swal.fire({
-                    icon: 'error',
-                    title: 'Error!',
-                    text: 'There was an error unpublishing the article.',
-                });
-            }
+            hasUnsavedChanges.value = false
+            await $swal.fire({
+                icon: 'success',
+                title: 'Success!',
+                text: 'Article unpublished successfully',
+            });
+            window.location.reload();
         } catch (error) {
             console.log("error", error);
             await $swal.fire({
@@ -193,29 +183,20 @@ async function publishArticle() {
     if (result.isConfirmed) {
         try {
             const token = getAuthToken();
-            const response = await fetch(`${baseUrl()}/admin/article/publish/${article.value.article.id}`, {
-                method: "GET",
+            await $fetch(`${baseUrl()}/admin/article/publish/${article.value.article.id}`, {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
                 },
             });
             
-            if (response.status === 200) {
-                hasUnsavedChanges.value = false
-                await $swal.fire({
-                    icon: 'success',
-                    title: 'Success!',
-                    text: 'Article published successfully',
-                });
-                window.location.reload();
-            } else {
-                await $swal.fire({
-                    icon: 'error',
-                    title: 'Error!',
-                    text: 'There was an error publishing the article.',
-                });
-            }
+            hasUnsavedChanges.value = false
+            await $swal.fire({
+                icon: 'success',
+                title: 'Success!',
+                text: 'Article published successfully',
+            });
+            window.location.reload();
         } catch (error) {
             console.log("error", error);
             await $swal.fire({

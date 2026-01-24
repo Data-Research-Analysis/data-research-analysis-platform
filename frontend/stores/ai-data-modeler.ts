@@ -114,22 +114,14 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
             }
 
             const url = `${baseUrl()}/ai-data-modeler/session/initialize`;
-            const response = await fetch(url, {
+            const data = await $fetch(url, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth'
                 },
-                body: JSON.stringify({ dataSourceId: parseInt(String(dataSourceId)) })
+                body: { dataSourceId: parseInt(String(dataSourceId)) }
             });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to initialize session');
-            }
-
-            const data = await response.json();
             
             console.log('[AI Store] Initialize response:', {
                 source: data.source,
@@ -201,25 +193,17 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
             }
 
             const url = `${baseUrl()}/ai-data-modeler/session/initialize-cross-source`;
-            const response = await fetch(url, {
+            const data = await $fetch(url, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth'
                 },
-                body: JSON.stringify({ 
+                body: { 
                     projectId: projectIdValue,
                     dataSources: dataSourcesArray 
-                })
+                }
             });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to initialize cross-source session');
-            }
-
-            const data = await response.json();
             
             console.log('[AI Store] Initialize cross-source response:', {
                 conversationId: data.conversationId,
@@ -298,22 +282,14 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
                 requestBody.dataSourceId = currentDataSourceId.value;
             }
 
-            const response = await fetch(url, {
+            const data = await $fetch(url, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth'
                 },
-                body: JSON.stringify(requestBody)
+                body: requestBody
             });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to send message');
-            }
-
-            const data = await response.json();
 
             // Add AI response
             const aiMessage: IMessage = {
@@ -385,24 +361,18 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
             }
 
             const url = `${baseUrl()}/ai-data-modeler/session/model-draft`;
-            const response = await fetch(url, {
+            const data = await $fetch(url, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth'
                 },
-                body: JSON.stringify({
+                body: {
                     dataSourceId: currentDataSourceId.value,
                     modelState
-                })
+                }
             });
 
-            if (!response.ok) {
-                return false;
-            }
-
-            const data = await response.json();
             modelDraft.value = {
                 ...modelState,
                 lastModified: data.lastModified,
@@ -433,24 +403,18 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
             }
 
             const url = `${baseUrl()}/ai-data-modeler/session/save`;
-            const response = await fetch(url, {
+            await $fetch(url, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth'
                 },
-                body: JSON.stringify({
+                body: {
                     dataSourceId: currentDataSourceId.value,
                     dataModelId,
                     title
-                })
+                }
             });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to save conversation');
-            }
 
             // Clear local state
             isDirty.value = false;
@@ -477,7 +441,7 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
             }
 
             const url = `${baseUrl()}/ai-data-modeler/session/${currentDataSourceId.value}`;
-            await fetch(url, {
+            await $fetch(url, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -509,26 +473,15 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
             console.log('[AI Store] Attempting to load conversation for data model:', dataModelId);
 
             const url = `${baseUrl()}/ai-data-modeler/conversations/${dataModelId}`;
-            const response = await fetch(url, {
+            const data = await $fetch(url, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth'
                 }
-            });
+            }) as any;
 
-            console.log('[AI Store] Load conversation response status:', response.status);
-
-            if (!response.ok) {
-                if (response.status === 404) {
-                    console.log('[AI Store] No conversation found for data model:', dataModelId);
-                    return false;
-                }
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to load conversation');
-            }
-
-            const data = await response.json();
+            console.log('[AI Store] Load conversation response successful');
             const conversation = data.conversation;
 
             console.log('[AI Store] Loaded conversation from database:', {
@@ -551,10 +504,14 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
             isRestored.value = true;
             isDirty.value = false;
             return true;
-        } catch (err) {
+        } catch (err: any) {
             console.error('[AI Store] Error loading conversation:', err);
             // Don't set error.value for 404s, just return false
-            if (err instanceof Error && !err.message.includes('404')) {
+            if (err.statusCode === 404) {
+                console.log('[AI Store] No conversation found for data model:', dataModelId);
+                return false;
+            }
+            if (err instanceof Error) {
                 error.value = err.message;
             }
             return false;

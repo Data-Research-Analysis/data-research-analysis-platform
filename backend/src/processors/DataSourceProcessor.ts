@@ -22,8 +22,10 @@ import { GoogleAnalyticsDriver } from "../drivers/GoogleAnalyticsDriver.js";
 import { GoogleAdManagerDriver } from "../drivers/GoogleAdManagerDriver.js";
 import { FederatedQueryService } from "../services/FederatedQueryService.js";
 import { TableMetadataService } from "../services/TableMetadataService.js";
+import { NotificationHelperService } from "../services/NotificationHelperService.js";
 export class DataSourceProcessor {
     private static instance: DataSourceProcessor;
+    private notificationHelper = NotificationHelperService.getInstance();
     private constructor() {}
 
     public static getInstance(): DataSourceProcessor {
@@ -342,7 +344,16 @@ export class DataSourceProcessor {
                 dataSource.data_type = UtilityService.getInstance().getDataSourceType(connection.data_source_type);
                 dataSource.project = project;
                 dataSource.users_platform = user;
-                await manager.save(dataSource);
+                const savedDataSource = await manager.save(dataSource);
+                
+                // Send notification
+                await this.notificationHelper.notifyDataSourceCreated(
+                    user_id,
+                    savedDataSource.id,
+                    savedDataSource.name,
+                    connection.data_source_type
+                );
+                
                 return resolve(true);
             }
             return resolve(false);
@@ -530,9 +541,16 @@ export class DataSourceProcessor {
                     }
                 }
                 
+                // Store data source name for notification
+                const dataSourceName = dataSource.name;
+                
                 // Remove the data source record
                 await manager.remove(dataSource);
                 console.log(`Successfully deleted data source ${dataSourceId}`);
+                
+                // Send notification
+                await this.notificationHelper.notifyDataSourceDeleted(user_id, dataSourceName);
+                
                 return resolve(true);
             } catch (error) {
                 console.error(`Fatal error deleting data source ${dataSourceId}:`, error);
@@ -2880,6 +2898,22 @@ export class DataSourceProcessor {
                 connection.api_connection_details = apiConnectionDetails;
                 dataSource.connection_details = connection;
                 await manager.save(dataSource);
+                
+                // Send success notification (simple version - can be enhanced with record count)
+                await this.notificationHelper.notifyDataSourceSyncComplete(
+                    user_id,
+                    dataSourceId,
+                    dataSource.name,
+                    0 // Record count not available in current implementation
+                );
+            } else {
+                // Send failure notification
+                await this.notificationHelper.notifyDataSourceSyncFailed(
+                    user_id,
+                    dataSourceId,
+                    dataSource.name,
+                    'Sync operation failed'
+                );
             }
             
             return resolve(syncResult);
@@ -3014,6 +3048,22 @@ export class DataSourceProcessor {
                 connection.api_connection_details = apiConnectionDetails;
                 dataSource.connection_details = connection;
                 await manager.save(dataSource);
+                
+                // Send success notification
+                await this.notificationHelper.notifyDataSourceSyncComplete(
+                    user_id,
+                    dataSourceId,
+                    dataSource.name,
+                    0 // Record count not available
+                );
+            } else {
+                // Send failure notification
+                await this.notificationHelper.notifyDataSourceSyncFailed(
+                    user_id,
+                    dataSourceId,
+                    dataSource.name,
+                    'Sync operation failed'
+                );
             }
             
             return resolve(syncResult);
@@ -3159,6 +3209,22 @@ export class DataSourceProcessor {
                 connection.api_connection_details = apiConnectionDetails;
                 dataSource.connection_details = connection;
                 await manager.save(dataSource);
+                
+                // Send success notification
+                await this.notificationHelper.notifyDataSourceSyncComplete(
+                    user_id,
+                    dataSourceId,
+                    dataSource.name,
+                    0 // Record count not available
+                );
+            } else {
+                // Send failure notification
+                await this.notificationHelper.notifyDataSourceSyncFailed(
+                    user_id,
+                    dataSourceId,
+                    dataSource.name,
+                    'Sync operation failed'
+                );
             }
             
             return resolve(syncResult);

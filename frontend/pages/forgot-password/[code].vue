@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { useReCaptcha } from "vue-recaptcha-v3";
 const router = useRouter();
 const route = useRoute();
@@ -43,21 +43,18 @@ async function verifyToken() {
         state.showAlert = true;
     } else {
         const requestOptions = {
-            method: "GET",
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${state.token}`,
                 "Authorization-Type": "non-auth",
             },
         };
-        const response = await fetch(`${baseUrl()}/auth/verify-change-password-token/${encodeURIComponent(state.code)}`, requestOptions);
-        if (response.status === 200) {
+        try {
+            await $fetch(`${baseUrl()}/auth/verify-change-password-token/${encodeURIComponent(state.code)}`, requestOptions);
             state.tokenValid = true;
-        } else {
+        } catch (error: any) {
             state.tokenValid = false;
             state.showAlert = true;
-            const data = await response.json();
-            state.errorMessages.push(data.message);
+            state.errorMessages.push(error.data?.message || 'Token verification failed.');
         }
     }
 }
@@ -95,22 +92,22 @@ async function changePassword() {
             const recaptchaResponse = await verifyRecaptchaToken(state.token, recaptchaToken);
             if (recaptchaResponse.success && recaptchaResponse.action === "changePasswordForm" && recaptchaResponse.score > 0.8) {
                 const requestOptions = {
-                    method: "POST",
                     headers: {
-                        "Content-Type": "application/json",
                         "Authorization": `Bearer ${state.token}`,
                         "Authorization-Type": "non-auth",
                     },
-                    body: JSON.stringify({
+                    body: {
                         code: state.code,
                         password: state.newPassword,
-                    }),
+                    },
                 };
-                const response = await fetch(`${baseUrl()}/auth/update-password`, requestOptions);
-                if (response.status === 200) {
+                try {
+                    const data = await $fetch(`${baseUrl()}/auth/update-password`, {
+                        method: "POST",
+                        ...requestOptions
+                    });
                     state.passwordChangeSuccess = true;
                     state.showAlert = true;
-                    const data = await response.json();
                     state.errorMessages.push(data.message);
                     state.loading = false;
                     
@@ -118,11 +115,10 @@ async function changePassword() {
                     setTimeout(() => {
                         router.push('/login');
                     }, 3000);
-                } else {
+                } catch (error: any) {
                     state.passwordChangeSuccess = false;
                     state.showAlert = true;
-                    const data = await response.json();
-                    state.errorMessages.push(data.message);
+                    state.errorMessages.push(error.data?.message || 'Password change failed.');
                     state.loading = false;
                 }
             } else {

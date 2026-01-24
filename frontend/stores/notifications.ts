@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia';
 import type { INotificationData, INotificationListResponse } from '~/types/INotification';
 import { io, Socket } from 'socket.io-client';
+import { getAuthToken } from '~/composables/AuthToken';
+import { baseUrl } from '~/composables/Utils';
 
 export const useNotificationStore = defineStore('notifications', {
     state: () => ({
@@ -27,12 +29,17 @@ export const useNotificationStore = defineStore('notifications', {
             this.error = null;
 
             try {
-                const response = await $fetch<INotificationListResponse>('/api/notifications', {
-                    params: { page, limit }
+                const token = getAuthToken();
+                const params = new URLSearchParams({ page: page.toString(), limit: limit.toString() });
+                const data = await $fetch<INotificationListResponse>(`${baseUrl()}/notifications?${params}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Authorization-Type': 'auth'
+                    }
                 });
 
-                this.notifications = response.notifications;
-                return response;
+                this.notifications = data.notifications;
+                return data;
             } catch (err: any) {
                 this.error = err.message || 'Failed to fetch notifications';
                 console.error('Error fetching notifications:', err);
@@ -47,9 +54,15 @@ export const useNotificationStore = defineStore('notifications', {
          */
         async fetchUnreadCount() {
             try {
-                const response = await $fetch<{ unreadCount: number }>('/api/notifications/unread-count');
-                this.unreadCount = response.unreadCount;
-                return response.unreadCount;
+                const token = getAuthToken();
+                const data = await $fetch<{ unreadCount: number }>(`${baseUrl()}/notifications/unread-count`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Authorization-Type': 'auth'
+                    }
+                });
+                this.unreadCount = data.unreadCount;
+                return data.unreadCount;
             } catch (err: any) {
                 console.error('Error fetching unread count:', err);
                 throw err;
@@ -61,8 +74,13 @@ export const useNotificationStore = defineStore('notifications', {
          */
         async markAsRead(notificationId: number) {
             try {
-                await $fetch(`/api/notifications/${notificationId}/read`, {
-                    method: 'PUT'
+                const token = getAuthToken();
+                await $fetch(`${baseUrl()}/notifications/${notificationId}/read`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Authorization-Type': 'auth'
+                    }
                 });
 
                 // Optimistic update
@@ -83,8 +101,13 @@ export const useNotificationStore = defineStore('notifications', {
          */
         async markAllAsRead() {
             try {
-                await $fetch('/api/notifications/mark-all-read', {
-                    method: 'PUT'
+                const token = getAuthToken();
+                await $fetch(`${baseUrl()}/notifications/mark-all-read`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Authorization-Type': 'auth'
+                    }
                 });
 
                 // Optimistic update
@@ -106,8 +129,13 @@ export const useNotificationStore = defineStore('notifications', {
          */
         async deleteNotification(notificationId: number) {
             try {
-                await $fetch(`/api/notifications/${notificationId}`, {
-                    method: 'DELETE'
+                const token = getAuthToken();
+                await $fetch(`${baseUrl()}/notifications/${notificationId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Authorization-Type': 'auth'
+                    }
                 });
 
                 // Optimistic update

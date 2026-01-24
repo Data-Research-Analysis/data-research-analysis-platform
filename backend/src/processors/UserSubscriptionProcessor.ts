@@ -5,6 +5,7 @@ import { DRASubscriptionTier, ESubscriptionTier } from "../models/DRASubscriptio
 import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
 import { EmailService } from "../services/EmailService.js";
 import { EmailPreferencesProcessor } from "./EmailPreferencesProcessor.js";
+import { NotificationHelperService } from "../services/NotificationHelperService.js";
 
 export interface IUserSubscriptionData {
     subscription_id?: number;
@@ -25,8 +26,11 @@ export interface IUserSubscriptionData {
 
 export class UserSubscriptionProcessor {
     private static instance: UserSubscriptionProcessor;
+    private notificationHelper: NotificationHelperService;
     
-    private constructor() {}
+    private constructor() {
+        this.notificationHelper = NotificationHelperService.getInstance();
+    }
     
     public static getInstance(): UserSubscriptionProcessor {
         if (!UserSubscriptionProcessor.instance) {
@@ -157,10 +161,21 @@ export class UserSubscriptionProcessor {
             
             const savedSubscription = await transactionalEntityManager.save(newSubscription);
             
+            console.log(`[UserSubscriptionProcessor] Subscription saved, ID: ${savedSubscription.id}, User: ${userId}, Tier: ${tier.tier_name}`);
+            
             // Send email notification (async, don't wait)
             this.sendSubscriptionEmail(user, tier, savedSubscription, 'assigned').catch(err => {
                 console.error('[UserSubscriptionProcessor] Failed to send subscription email:', err);
             });
+            
+            // Send notification
+            console.log(`[UserSubscriptionProcessor] Calling notifySubscriptionAssigned for user ${userId}, tier ${tier.tier_name}`);
+            try {
+                await this.notificationHelper.notifySubscriptionAssigned(userId, tier.tier_name, newSubscription.ends_at);
+                console.log(`[UserSubscriptionProcessor] Successfully called notifySubscriptionAssigned`);
+            } catch (error) {
+                console.error('[UserSubscriptionProcessor] Failed to send notification:', error);
+            }
             
             // Return subscription data with tier details
             return {

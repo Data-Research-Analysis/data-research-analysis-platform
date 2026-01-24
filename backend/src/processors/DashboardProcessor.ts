@@ -10,10 +10,15 @@ import { DRAProjectMember } from "../models/DRAProjectMember.js";
 import bcrypt  from 'bcryptjs';
 import { UtilityService } from "../services/UtilityService.js";
 import { DRADashboardExportMetaData } from "../models/DRADashboardExportMetaData.js";
+import { NotificationHelperService } from "../services/NotificationHelperService.js";
 
 export class DashboardProcessor {
     private static instance: DashboardProcessor;
-    private constructor() {}
+    private notificationHelper: NotificationHelperService;
+    
+    private constructor() {
+        this.notificationHelper = NotificationHelperService.getInstance();
+    }
 
     public static getInstance(): DashboardProcessor {
         if (!DashboardProcessor.instance) {
@@ -108,7 +113,11 @@ export class DashboardProcessor {
                 dashboard.project = project;
                 dashboard.users_platform = user;
                 dashboard.data = data;
-                await manager.save(dashboard);
+                const savedDashboard = await manager.save(dashboard);
+                
+                // Send notification
+                await this.notificationHelper.notifyDashboardCreated(user_id, `Dashboard #${savedDashboard.id}`);
+                
                 return resolve(true);
             } catch (error) {
                 console.log('error', error);
@@ -161,6 +170,10 @@ export class DashboardProcessor {
             try {
                 // TypeScript workaround for TypeORM deep partial type
                 await manager.update(DRADashboard, {id: dashboardId}, {data: data as any});
+                
+                // Send notification
+                await this.notificationHelper.notifyDashboardUpdated(user_id, `Dashboard #${dashboardId}`);
+                
                 return resolve(true);
             } catch (error) {
                 console.log('error', error);
@@ -217,7 +230,14 @@ export class DashboardProcessor {
                 }
             }
 
+            // Store dashboard info for notification
+            const dashboardName = `Dashboard #${dashboard.id}`;
+            
             await manager.remove(dashboard);
+            
+            // Send notification
+            await this.notificationHelper.notifyDashboardDeleted(user_id, dashboardName);
+            
             return resolve(true);
         });
     }

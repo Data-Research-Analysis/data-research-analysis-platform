@@ -217,12 +217,9 @@ export const useSSRPerformance = () => {
     if (!import.meta.client) return
 
     try {
-      await fetch(endpoint, {
+      await $fetch(endpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(metrics.value),
+        body: metrics.value,
       })
     } catch (error) {
       console.warn('Failed to send metrics to analytics:', error)

@@ -44,20 +44,14 @@ export const useEmailPreferencesStore = defineStore('emailPreferences', () => {
             }
 
             const url = `${baseUrl()}/user/email-preferences`;
-            const response = await fetch(url, {
+            const data = await $fetch(url, {
                 method: 'GET',
                 headers: {
-                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth',
                 },
             });
 
-            if (!response.ok) {
-                throw new Error(`Failed to fetch email preferences: ${response.statusText}`);
-            }
-
-            const data = await response.json();
             const prefs = data.data || data;
             setPreferences(prefs);
             return prefs;
@@ -80,21 +74,15 @@ export const useEmailPreferencesStore = defineStore('emailPreferences', () => {
             }
 
             const url = `${baseUrl()}/user/email-preferences`;
-            const response = await fetch(url, {
+            const data = await $fetch(url, {
                 method: 'PUT',
                 headers: {
-                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth',
                 },
-                body: JSON.stringify(prefs),
-            });
+                body: prefs,
+            }) as any;
 
-            if (!response.ok) {
-                throw new Error(`Failed to update email preferences: ${response.statusText}`);
-            }
-
-            const data = await response.json();
             const updatedPrefs = data.data || data;
             setPreferences(updatedPrefs);
             return updatedPrefs;

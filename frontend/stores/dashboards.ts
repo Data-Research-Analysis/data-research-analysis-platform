@@ -38,30 +38,26 @@ export const useDashboardsStore = defineStore('dashboardsDRA', () => {
             return;
         }
         const url = `${baseUrl()}/dashboard/list`;
-        const response = await fetch(url, {
+        const data = await $fetch(url, {
             method: "GET",
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
         });
-        const data = await response.json();
         setDashboards(data)
     }
     async function retrievePublicDashboard(key: string) {
         const responseToken = await getGeneratedToken();
         const token = responseToken.token;
         const url = `${baseUrl()}/dashboard/public-dashboard-link/${encodeURIComponent(key)}`;
-        const response = await fetch(url, {
+        const data = await $fetch(url, {
             method: "GET",
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "non-auth",
             },
         });
-        const data = await response.json();
         setSelectedDashboard(data)
         return data;
     }

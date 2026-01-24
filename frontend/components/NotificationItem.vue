@@ -2,7 +2,7 @@
   <div
     class="relative flex items-start px-5 py-4 border-b border-gray-200 cursor-pointer transition-colors hover:bg-gray-50 last:border-b-0 group"
     :class="{ 'bg-blue-50': !notification.isRead }"
-    @click="$emit('click')"
+    @click="emit('click')"
   >
     <!-- Unread indicator bar -->
     <div v-if="!notification.isRead" class="absolute left-0 top-0 bottom-0 w-1 bg-blue-500"></div>
@@ -21,7 +21,7 @@
 
     <!-- Delete button -->
     <button
-      @click.stop="$emit('delete')"
+      @click.stop="emit('delete')"
       class="flex-shrink-0 bg-transparent border-none text-gray-400 cursor-pointer p-1 rounded transition-all opacity-0 group-hover:opacity-100 ml-2 hover:bg-red-100 hover:text-red-500"
       aria-label="Delete notification"
       type="button"
@@ -45,7 +45,7 @@ const emit = defineEmits<{
 }>();
 
 function getIcon(type: NotificationType): string[] {
-  const iconMap: Record<NotificationType, string[]> = {
+  const iconMap: Partial<Record<NotificationType, string[]>> = {
     [NotificationType.PROJECT_INVITATION]: ['fas', 'user-plus'],
     [NotificationType.PROJECT_MEMBER_ADDED]: ['fas', 'users'],
     [NotificationType.PROJECT_MEMBER_REMOVED]: ['fas', 'user-minus'],
@@ -65,7 +65,7 @@ function getIcon(type: NotificationType): string[] {
 }
 
 function getIconClass(type: NotificationType): string {
-  const classMap: Record<NotificationType, string> = {
+  const classMap: Partial<Record<NotificationType, string>> = {
     [NotificationType.PROJECT_INVITATION]: 'bg-blue-100 text-blue-500',
     [NotificationType.PROJECT_MEMBER_ADDED]: 'bg-green-100 text-green-500',
     [NotificationType.PROJECT_MEMBER_REMOVED]: 'bg-gray-100 text-gray-500',

@@ -12,9 +12,11 @@ import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
 import { DRAProject } from "../models/DRAProject.js";
 import { DRAProjectMember } from "../models/DRAProjectMember.js";
 import { DRADataModelSource } from "../models/DRADataModelSource.js";
+import { NotificationHelperService } from "../services/NotificationHelperService.js";
 
 export class DataModelProcessor {
     private static instance: DataModelProcessor;
+    private notificationHelper = NotificationHelperService.getInstance();
     private constructor() {}
 
     public static getInstance(): DataModelProcessor {
@@ -333,9 +335,17 @@ export class DataModelProcessor {
                 // Drop the physical table
                 const dbConnector = await driver.getConcreteDriver();
                 await dbConnector.query(`DROP TABLE IF EXISTS ${dataModel.schema}.${dataModel.name}`);
+                
+                // Store data model name for notification
+                const dataModelName = dataModel.name;
+                
                 // Remove the data model record
                 await manager.remove(dataModel);
                 console.log(`Successfully deleted data model ${dataModelId}`);
+                
+                // Send notification
+                await this.notificationHelper.notifyDataModelDeleted(user_id, dataModelName);
+                
                 return resolve(true);
             } catch (error) {
                 console.error(`Fatal error deleting data model ${dataModelId}:`, error);
@@ -1197,6 +1207,10 @@ export class DataModelProcessor {
                 await manager.save(dataModel);
                 
                 console.log(`[DataModelProcessor] Updated data model ${dataModelId} settings:`, updates);
+                
+                // Send notification
+                await this.notificationHelper.notifyDataModelUpdated(user_id, dataModel.name);
+                
                 return resolve(true);
             } catch (error) {
                 console.error('[DataModelProcessor] Error updating data model settings:', error);

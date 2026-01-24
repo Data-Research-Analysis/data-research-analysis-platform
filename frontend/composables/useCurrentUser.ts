@@ -33,33 +33,27 @@ export const useCurrentUser = () => {
           return null;
         }
 
-        // Fetch current user from backend
-        const response = await fetch(`${apiUrl}/auth/me`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${authToken}`,
-            'Authorization-Type': 'auth',
-          },
-        });
-
-        // Handle unauthorized (token expired or invalid)
-        if (response.status === 401 || response.status === 404) {
-          // Just return null - don't redirect here
-          // Let the authorization middleware handle redirects
-          console.warn('User authentication failed, token may be invalid');
+        try {
+          // Fetch current user from backend
+          const userData = await $fetch<IUsersPlatform>(`${apiUrl}/auth/me`, {
+            headers: {
+              'Authorization': `Bearer ${authToken}`,
+              'Authorization-Type': 'auth',
+            },
+          });
+          return userData;
+        } catch (fetchError: any) {
+          // Handle unauthorized (token expired or invalid)
+          if (fetchError.statusCode === 401 || fetchError.statusCode === 404) {
+            // Just return null - don't redirect here
+            // Let the authorization middleware handle redirects
+            console.warn('User authentication failed, token may be invalid');
+            return null;
+          }
+          // Other errors
+          console.error('Error fetching current user:', fetchError);
           return null;
         }
-
-        // Handle other errors
-        if (!response.ok) {
-          console.error('Error fetching current user:', response.statusText);
-          return null;
-        }
-
-        // Parse and return user data
-        const userData = await response.json();
-        return userData as IUsersPlatform;
 
       } catch (err: any) {
         console.error('Error fetching current user:', err);

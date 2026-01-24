@@ -61,19 +61,11 @@ export const useGAMDashboard = () => {
             isLoading.value = true;
             error.value = null;
 
-            const response = await fetch(`/api/google-ad-manager/dashboard/stats`, {
-                method: 'GET',
+            const result = await $fetch(`/api/google-ad-manager/dashboard/stats`, {
                 headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
+                    'Authorization': `Bearer ${token}`
                 }
-            });
-
-            if (!response.ok) {
-                throw new Error(`Failed to fetch stats: ${response.statusText}`);
-            }
-
-            const result = await response.json();
+            }) as any;
 
             if (!result.success) {
                 throw new Error(result.message || 'Failed to fetch stats');
@@ -99,19 +91,11 @@ export const useGAMDashboard = () => {
         }
 
         try {
-            const response = await fetch(`/api/google-ad-manager/dashboard/recent-syncs?limit=${limit}`, {
-                method: 'GET',
+            const result = await $fetch(`/api/google-ad-manager/dashboard/recent-syncs?limit=${limit}`, {
                 headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
+                    'Authorization': `Bearer ${token}`
                 }
-            });
-
-            if (!response.ok) {
-                throw new Error(`Page not found: ${response.url}`);
-            }
-
-            const result = await response.json();
+            }) as any;
 
             if (!result.success) {
                 throw new Error(result.message || 'Failed to fetch recent syncs');
@@ -135,19 +119,11 @@ export const useGAMDashboard = () => {
         }
 
         try {
-            const response = await fetch(`/api/google-ad-manager/dashboard/health`, {
-                method: 'GET',
+            const result = await $fetch(`/api/google-ad-manager/dashboard/health`, {
                 headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
+                    'Authorization': `Bearer ${token}`
                 }
-            });
-
-            if (!response.ok) {
-                throw new Error(`Failed to fetch data source health: ${response.statusText}`);
-            }
-
-            const result = await response.json();
+            }) as any;
 
             if (!result.success) {
                 throw new Error(result.message || 'Failed to fetch data source health');
@@ -171,19 +147,11 @@ export const useGAMDashboard = () => {
         }
 
         try {
-            const response = await fetch(`/api/google-ad-manager/dashboard/activity?limit=${limit}`, {
-                method: 'GET',
+            const result = await $fetch(`/api/google-ad-manager/dashboard/activity?limit=${limit}`, {
                 headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
+                    'Authorization': `Bearer ${token}`
                 }
-            });
-
-            if (!response.ok) {
-                throw new Error(`Failed to fetch recent activity: ${response.statusText}`);
-            }
-
-            const result = await response.json();
+            }) as any;
 
             if (!result.success) {
                 throw new Error(result.message || 'Failed to fetch recent activity');

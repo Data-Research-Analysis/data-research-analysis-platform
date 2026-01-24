@@ -82,26 +82,25 @@ async function postData(publishStatus) {
     const title = state.title;
     const content = state.content;
     const categories = state.menuFilteredData.map((item) => item.id);
-    const response = await fetch(url, {
+    const response = await $fetch(url, {
         method: "POST",
         headers: {
-            "Content-Type": "application/json",
             "Authorization": `Bearer ${token}`,
             "Authorization-Type": "auth",
         },
-        body: JSON.stringify({
+        body: {
             title: title,
             content: content,
             content_markdown: state.contentMarkdown,  // NEW: Send markdown
             categories: categories,
             publish_status: publishStatus,
-        })
+        }
     });
     return response;
 }
 async function publishArticle() {
-    const response = await postData("published");
-    if (response.status === 200) {
+    try {
+        await postData("published");
         hasUnsavedChanges.value = false // Clear unsaved changes flag
         $swal.fire({
             icon: 'success',
@@ -109,7 +108,7 @@ async function publishArticle() {
             text: 'The article has been successfully published.',
         });
         router.push(`/admin/articles`);
-    } else {
+    } catch (error) {
         $swal.fire({
             icon: 'error',
             title: `Error! `,

@@ -37,21 +37,12 @@ export const useSubscriptionStore = defineStore('subscription', () => {
                 throw new Error('No authentication token found');
             }
 
-            const url = `${baseUrl()}/subscription/current`;
-            const response = await fetch(url, {
-                method: 'GET',
+            const data = await $fetch(`${baseUrl()}/subscription/current`, {
                 headers: {
-                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth',
                 },
-            });
-
-            if (!response.ok) {
-                throw new Error(`Failed to fetch subscription: ${response.statusText}`);
-            }
-
-            const data = await response.json();
+            }) as any;
             setSubscriptionStats(data.data || data);
             return data.data || data;
         } catch (err: any) {
@@ -104,21 +95,12 @@ export const useSubscriptionStore = defineStore('subscription', () => {
                 throw new Error('No authentication token found');
             }
 
-            const url = `${baseUrl()}/subscription/usage`;
-            const response = await fetch(url, {
-                method: 'GET',
+            const data = await $fetch(`${baseUrl()}/subscription/usage`, {
                 headers: {
-                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth',
                 },
-            });
-
-            if (!response.ok) {
-                throw new Error(`Failed to fetch usage stats: ${response.statusText}`);
-            }
-
-            const data = await response.json();
+            }) as any;
             usageStats.value = data.data || data;
             lastFetched.value = Date.now();
             

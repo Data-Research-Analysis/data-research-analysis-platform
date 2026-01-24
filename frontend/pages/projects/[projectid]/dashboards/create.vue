@@ -318,19 +318,17 @@ async function executeQueryOnDataModels(chartId) {
         const sqlQuery = chart.sql_query;
         const token = getAuthToken();
         const url = `${baseUrl()}/data-model/execute-query-on-data-model`;
-        const response = await fetch(url, {
+        const data = await $fetch(url, {
             method: "POST",
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
-            body: JSON.stringify({
+            body: {
                 query: sqlQuery,
                 project_id: parseInt(route.params.projectid)
-            })
+            }
         });
-        const data = await response.json();
         // Ensure data is an array before assigning
         state.response_from_data_models_rows = Array.isArray(data) ? data : [];
         state.response_from_data_models_columns = chart.columns.map((column) => column.column_name);
@@ -677,26 +675,25 @@ async function saveDashboard() {
     }
     
     console.log('project', project.value)
-    const response = await fetch(url, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`,
-            "Authorization-Type": "auth",
-        },
-        body: JSON.stringify({
-            project_id: project.value.id,
-            data: state.dashboard,
-        })
-    });
-    if (response.status === 200) {
+    try {
+        await $fetch(url, {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Authorization-Type": "auth",
+            },
+            body: {
+                project_id: project.value.id,
+                data: state.dashboard,
+            }
+        });
         $swal.fire({
             icon: 'success',
             title: `Success! `,
             text: 'The dashboard has been sucessfully saved.',
         });
         router.push(`/projects/${route.params.projectid}/dashboards`);
-    } else {
+    } catch (error) {
         $swal.fire({
             icon: 'error',
             title: `Error! `,
@@ -1012,19 +1009,17 @@ async function openTableDialog(chartId) {
     state.response_from_data_models_columns = state.selected_chart.columns.map((column) => column.column_name);
     const token = getAuthToken();
     const url = `${baseUrl()}/data-model/execute-query-on-data-model`;
-    const response = await fetch(url, {
+    const data = await $fetch(url, {
         method: "POST",
         headers: {
-            "Content-Type": "application/json",
             "Authorization": `Bearer ${token}`,
             "Authorization-Type": "auth",
         },
-        body: JSON.stringify({
+        body: {
             query: sqlQuery,
             project_id: parseInt(route.params.projectid)
-        })
+        }
     });
-    const data = await response.json();
     state.response_from_data_models_rows = Array.isArray(data) ? data : [];
 }
 function closeTableDialog() {

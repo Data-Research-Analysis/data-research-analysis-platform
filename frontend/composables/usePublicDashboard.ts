@@ -13,32 +13,18 @@ export const usePublicDashboard = (dashboardKey: string) => {
       try {
         // Fetch token directly without using baseUrl() to avoid composable context issues
         const tokenUrl = `${apiUrl}/generate-token`;
-        const tokenResponse = await fetch(tokenUrl, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-        const responseToken = await tokenResponse.json();
+        const responseToken = await $fetch(tokenUrl);
         const token = responseToken.token;
         
         // Fetch public dashboard
         const url = `${apiUrl}/dashboard/public-dashboard-link/${encodeURIComponent(dashboardKey)}`;
         
-        const response = await fetch(url, {
-          method: "GET",
+        const data = await $fetch(url, {
           headers: {
-            "Content-Type": "application/json",
             "Authorization": `Bearer ${token}`,
             "Authorization-Type": "non-auth",
           },
         });
-        
-        if (!response.ok) {
-          throw new Error(`Failed to fetch public dashboard: ${response.statusText}`);
-        }
-        
-        const data = await response.json();
         
         // Sync with store for client-side navigation
         if (import.meta.client && data) {

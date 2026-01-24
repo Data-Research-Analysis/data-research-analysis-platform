@@ -95,18 +95,18 @@ async function deleteDataModel(dataModelId) {
     }
     const token = getAuthToken();
     const requestOptions = {
-        method: "DELETE",
         headers: {
-            "Content-Type": "application/json",
             "Authorization": `Bearer ${token}`,
             "Authorization-Type": "auth",
         },
     };
-    const response = await fetch(`${baseUrl()}/data-model/delete/${dataModelId}`, requestOptions);
-    if (response && response.status === 200) {
-        const data = await response.json();
+    try {
+        await $fetch(`${baseUrl()}/data-model/delete/${dataModelId}`, {
+            method: "DELETE",
+            ...requestOptions
+        });
         $swal.fire(`The data model has been deleted successfully.`);
-    } else {
+    } catch (error) {
         $swal.fire(`There was an error deleting the data model.`);
     }
     await dataModelsStore.retrieveDataModels(project.value.id);
@@ -132,31 +132,26 @@ async function refreshDataModel(dataModelId, dataModelName) {
     
     try {
         const token = getAuthToken();
-        const response = await fetch(
+        await $fetch(
             `${baseUrl()}/data-model/refresh/${dataModelId}`, 
             {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
                 },
             }
         );
         
-        if (response.status === 200) {
-            await $swal.fire({
-                icon: 'success',
-                title: 'Refreshed!',
-                text: 'The data model has been updated with the latest data.',
-            });
-            
-            // Reload data models to reflect any changes
-            await dataModelsStore.retrieveDataModels(project.value.id);
-            getDataModels();
-        } else {
-            throw new Error('Refresh failed');
-        }
+        await $swal.fire({
+            icon: 'success',
+            title: 'Refreshed!',
+            text: 'The data model has been updated with the latest data.',
+        });
+        
+        // Reload data models to reflect any changes
+        await dataModelsStore.retrieveDataModels(project.value.id);
+        getDataModels();
     } catch (error) {
         await $swal.fire({
             icon: 'error',

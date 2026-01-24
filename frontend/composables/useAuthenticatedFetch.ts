@@ -53,10 +53,9 @@ export const useAuthenticatedFetch = <T = any>(
         }
 
         // Build request options
-        const requestOptions: RequestInit = {
+        const requestOptions: any = {
           method,
           headers: {
-            'Content-Type': 'application/json',
             'Authorization': `Bearer ${authToken}`,
             'Authorization-Type': 'auth',
           },
@@ -64,29 +63,24 @@ export const useAuthenticatedFetch = <T = any>(
 
         // Add body for POST/PUT/PATCH requests
         if (body && ['POST', 'PUT', 'PATCH'].includes(method)) {
-          requestOptions.body = JSON.stringify(body);
+          requestOptions.body = body;
         }
 
-        // Make API request
-        const url = `${apiUrl}${endpoint}`;
-        const response = await fetch(url, requestOptions);
-
-        // Handle non-OK responses
-        if (!response.ok) {
-          if (response.status === 401) {
-            // Unauthorized - redirect to login
+        // Make API request with $fetch
+        try {
+          const data = await $fetch(`${apiUrl}${endpoint}`, requestOptions);
+          return transform(data);
+        } catch (fetchError: any) {
+          // Handle unauthorized
+          if (fetchError.statusCode === 401) {
             if (import.meta.client) {
               deleteAuthToken();
               await router.push('/login');
             }
             throw new Error('Session expired. Please login again.');
           }
-          throw new Error(`API error: ${response.status} ${response.statusText}`);
+          throw new Error(`API error: ${fetchError.statusCode || 'Unknown error'}`);
         }
-
-        // Parse and transform response
-        const data = await response.json();
-        return transform(data);
 
       } catch (err: any) {
         console.error(`Error fetching ${endpoint}:`, err);
@@ -146,38 +140,34 @@ export const useAuthenticatedMutation = () => {
         throw new Error('Not authenticated');
       }
 
-      // Build request
-      const requestOptions: RequestInit = {
+      // Build request options
+      const requestOptions: any = {
         method,
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${authToken}`,
           'Authorization-Type': 'auth',
         },
       };
 
       if (body) {
-        requestOptions.body = JSON.stringify(body);
+        requestOptions.body = body;
       }
 
-      // Execute request
-      const url = `${apiUrl}${endpoint}`;
-      const response = await fetch(url, requestOptions);
-
-      // Handle errors
-      if (!response.ok) {
-        if (response.status === 401) {
+      // Execute request with $fetch
+      try {
+        const data = await $fetch(`${apiUrl}${endpoint}`, requestOptions);
+        return data;
+      } catch (fetchError: any) {
+        // Handle errors
+        if (fetchError.statusCode === 401) {
           if (import.meta.client) {
             deleteAuthToken();
             await router.push('/login');
           }
           throw new Error('Session expired');
         }
-        throw new Error(`API error: ${response.status}`);
+        throw new Error(`API error: ${fetchError.statusCode || 'Unknown error'}`);
       }
-
-      // Return data
-      const data = await response.json();
       return data as T;
 
     } catch (err: any) {

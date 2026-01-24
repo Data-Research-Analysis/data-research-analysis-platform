@@ -38,20 +38,13 @@ export const useScheduledBackupsStore = defineStore('scheduled-backups', () => {
             }
 
             const url = `${baseUrl()}/admin/scheduled-backups/status`;
-            const response = await fetch(url, {
-                method: 'GET',
+            const data = await $fetch(url, {
                 headers: {
-                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth'
                 }
             });
 
-            if (!response.ok) {
-                throw new Error(`Failed to fetch scheduler status: ${response.statusText}`);
-            }
-
-            const data = await response.json();
             schedulerStatus.value = data;
 
             if (import.meta.client) {
@@ -76,18 +69,13 @@ export const useScheduledBackupsStore = defineStore('scheduled-backups', () => {
             }
 
             const url = `${baseUrl()}/admin/scheduled-backups/start`;
-            const response = await fetch(url, {
+            await $fetch(url, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth'
                 }
             });
-
-            if (!response.ok) {
-                throw new Error(`Failed to start scheduler: ${response.statusText}`);
-            }
 
             await fetchSchedulerStatus();
         } catch (err: any) {
@@ -110,18 +98,13 @@ export const useScheduledBackupsStore = defineStore('scheduled-backups', () => {
             }
 
             const url = `${baseUrl()}/admin/scheduled-backups/stop`;
-            const response = await fetch(url, {
+            await $fetch(url, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth'
                 }
             });
-
-            if (!response.ok) {
-                throw new Error(`Failed to stop scheduler: ${response.statusText}`);
-            }
 
             await fetchSchedulerStatus();
         } catch (err: any) {
@@ -144,19 +127,14 @@ export const useScheduledBackupsStore = defineStore('scheduled-backups', () => {
             }
 
             const url = `${baseUrl()}/admin/scheduled-backups/schedule`;
-            const response = await fetch(url, {
+            await $fetch(url, {
                 method: 'PUT',
                 headers: {
-                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth'
                 },
-                body: JSON.stringify({ schedule })
+                body: { schedule }
             });
-
-            if (!response.ok) {
-                throw new Error(`Failed to update schedule: ${response.statusText}`);
-            }
 
             await fetchSchedulerStatus();
         } catch (err: any) {
@@ -179,20 +157,13 @@ export const useScheduledBackupsStore = defineStore('scheduled-backups', () => {
             }
 
             const url = `${baseUrl()}/admin/scheduled-backups/trigger-now`;
-            const response = await fetch(url, {
+            const result = await $fetch(url, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth'
                 }
             });
-
-            if (!response.ok) {
-                throw new Error(`Failed to trigger manual backup: ${response.statusText}`);
-            }
-
-            const result = await response.json();
 
             // Refresh runs list after triggering
             await fetchBackupRuns(pagination.value.page);
@@ -225,20 +196,12 @@ export const useScheduledBackupsStore = defineStore('scheduled-backups', () => {
             });
 
             const url = `${baseUrl()}/admin/scheduled-backups/runs?${params}`;
-            const response = await fetch(url, {
-                method: 'GET',
+            const data = await $fetch(url, {
                 headers: {
-                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth'
                 }
             });
-
-            if (!response.ok) {
-                throw new Error(`Failed to fetch backup runs: ${response.statusText}`);
-            }
-
-            const data = await response.json();
 
             backupRuns.value = data.runs;
             pagination.value = data.pagination;
@@ -264,20 +227,13 @@ export const useScheduledBackupsStore = defineStore('scheduled-backups', () => {
             }
 
             const url = `${baseUrl()}/admin/scheduled-backups/stats`;
-            const response = await fetch(url, {
-                method: 'GET',
+            const data = await $fetch(url, {
                 headers: {
-                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth'
                 }
             });
 
-            if (!response.ok) {
-                throw new Error(`Failed to fetch backup stats: ${response.statusText}`);
-            }
-
-            const data = await response.json();
             backupStats.value = data;
         } catch (err: any) {
             error.value = err.message || 'Failed to fetch backup stats';
@@ -295,20 +251,13 @@ export const useScheduledBackupsStore = defineStore('scheduled-backups', () => {
             }
 
             const url = `${baseUrl()}/admin/scheduled-backups/config`;
-            const response = await fetch(url, {
-                method: 'GET',
+            const data = await $fetch(url, {
                 headers: {
-                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth'
                 }
             });
 
-            if (!response.ok) {
-                throw new Error(`Failed to fetch scheduler config: ${response.statusText}`);
-            }
-
-            const data = await response.json();
             schedulerConfig.value = data;
         } catch (err: any) {
             error.value = err.message || 'Failed to fetch scheduler config';
@@ -327,19 +276,14 @@ export const useScheduledBackupsStore = defineStore('scheduled-backups', () => {
             }
 
             const url = `${baseUrl()}/admin/scheduled-backups/config`;
-            const response = await fetch(url, {
+            await $fetch(url, {
                 method: 'PUT',
                 headers: {
-                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth'
                 },
-                body: JSON.stringify(config)
+                body: config
             });
-
-            if (!response.ok) {
-                throw new Error(`Failed to update config: ${response.statusText}`);
-            }
 
             await fetchSchedulerConfig();
             await fetchSchedulerStatus();

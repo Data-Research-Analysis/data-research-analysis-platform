@@ -73,7 +73,7 @@ const realtimeSyncStatus = computed(() => {
 
 // Get data source icon
 function getDataSourceIcon(dataType: string) {
-    const icons = {
+    const icons: Record<string, string> = {
         'google_analytics': googleAnalyticsImage,
         'google_ad_manager': googleAdManagerImage,
         'google_ads': googleAdsImage,
@@ -212,7 +212,7 @@ async function loadSyncHistory() {
             ? await ads.getSyncStatus(dataSourceId) 
             : (isGAM ? await gam.getSyncStatus(dataSourceId) : await analytics.getSyncStatus(dataSourceId));
 
-        if (status && status.sync_history) {
+        if (status && 'sync_history' in status && status.sync_history) {
             state.sync_history = status.sync_history;
         } else {
             state.sync_history = [];
@@ -336,31 +336,29 @@ async function testConnection() {
     const token = getAuthToken();
     
     if (recaptchaToken) {
-        const response = await fetch(`${baseUrl()}/data-source/test-connection`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`,
-                "Authorization-Type": "auth",
-            },
-            body: JSON.stringify({
-                data_source_type: state.dataSource.data_type,
-                host: state.host,
-                port: state.port,
-                schema: state.schema,
-                database_name: state.database_name,
-                username: state.username,
-                password: state.password,
-            }),
-        });
-        
-        if (response.status === 200) {
+        try {
+            await $fetch(`${baseUrl()}/data-source/test-connection`, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+                body: {
+                    data_source_type: state.dataSource.data_type,
+                    host: state.host,
+                    port: state.port,
+                    schema: state.schema,
+                    database_name: state.database_name,
+                    username: state.username,
+                    password: state.password,
+                },
+            });
+            
             state.connectionSuccess = true;
             state.errorMessages.push("Connection successful!");
-        } else {
+        } catch (error: any) {
             state.connectionSuccess = false;
-            const data = await response.json();
-            state.errorMessages.push(data.message);
+            state.errorMessages.push(error.data?.message || 'Connection test failed.');
         }
         state.showAlert = true;
     }
@@ -386,27 +384,25 @@ async function updateDataSource() {
     const token = getAuthToken();
     
     if (recaptchaToken) {
-        const response = await fetch(`${baseUrl()}/data-source/update-data-source/${dataSourceId}`, {
-            method: "PUT",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`,
-                "Authorization-Type": "auth",
-            },
-            body: JSON.stringify({
-                data_source_type: state.dataSource.data_type,
-                host: state.host,
-                port: state.port,
-                schema: state.schema,
-                database_name: state.database_name,
-                username: state.username,
-                password: state.password,
-            }),
-        });
-        
-        if (response.status === 200) {
+        try {
+            const data = await $fetch<{ message: string }>(`${baseUrl()}/data-source/update-data-source/${dataSourceId}`, {
+                method: "PUT",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+                body: {
+                    data_source_type: state.dataSource.data_type,
+                    host: state.host,
+                    port: state.port,
+                    schema: state.schema,
+                    database_name: state.database_name,
+                    username: state.username,
+                    password: state.password,
+                }
+            });
+            
             state.connectionSuccess = true;
-            const data = await response.json();
             state.errorMessages.push(data.message);
             await dataSourceStore.retrieveDataSources();
             await loadDataSource();
@@ -418,10 +414,9 @@ async function updateDataSource() {
                 state.showEditForm = false;
                 state.showAlert = false;
             }, 2000);
-        } else {
+        } catch (error: any) {
             state.connectionSuccess = false;
-            const data = await response.json();
-            state.errorMessages.push(data.message);
+            state.errorMessages.push(error.data?.message || 'Failed to update data source');
             state.showAlert = true;
             state.formLoading = false;
         }
@@ -455,41 +450,31 @@ async function saveScheduleConfiguration() {
 
     try {
         const token = getAuthToken();
-        const response = await fetch(`${baseUrl()}/data-source/${dataSourceId}/schedule`, {
+        await $fetch(`${baseUrl()}/data-source/${dataSourceId}/schedule`, {
             method: 'PUT',
             headers: {
-                'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`,
                 'Authorization-Type': 'auth',
             },
-            body: JSON.stringify({
+            body: {
                 sync_enabled: state.sync_enabled,
                 sync_schedule: state.sync_schedule,
                 sync_schedule_time: state.sync_schedule === 'manual' ? null : state.sync_schedule_time
-            })
+            }
         });
 
-        if (response.ok) {
-            await $swal.fire({
-                title: 'Success',
-                text: 'Schedule configuration updated successfully',
-                icon: 'success',
-                timer: 2000,
-                showConfirmButton: false
-            });
-            
-            // Reload data source to get updated values
-            await dataSourceStore.retrieveDataSources();
-            await loadDataSource();
-            closeScheduleModal();
-        } else {
-            const data = await response.json();
-            await $swal.fire({
-                title: 'Error',
-                text: data.message || 'Failed to update schedule configuration',
-                icon: 'error'
-            });
-        }
+        await $swal.fire({
+            title: 'Success',
+            text: 'Schedule configuration updated successfully',
+            icon: 'success',
+            timer: 2000,
+            showConfirmButton: false
+        });
+        
+        // Reload data source to get updated values
+        await dataSourceStore.retrieveDataSources();
+        await loadDataSource();
+        closeScheduleModal();
     } catch (error) {
         console.error('Failed to update schedule:', error);
         await $swal.fire({
@@ -601,7 +586,7 @@ onMounted(async () => {
                     <h3 class="text-sm font-medium text-gray-700 mb-3">Current Status</h3>
                     <div class="space-y-3">
                         <div class="flex items-center justify-between">
-                            <SyncStatusBadge :status="getSyncStatus().status" />
+                            <SyncStatusBadge :status="getSyncStatus().status as any" />
                         </div>
                         
                         <!-- Progress bar when syncing -->

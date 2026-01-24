@@ -34,7 +34,6 @@
           v-for="notification in notifications"
           :key="notification.id"
           :notification="notification"
-          @click="handleNotificationClick(notification)"
           @delete="handleDelete(notification.id)"
         />
       </div>
@@ -42,7 +41,7 @@
 
     <!-- Footer -->
     <div class="py-3 px-5 border-t border-gray-200 text-center bg-gray-50">
-      <NuxtLink to="/notifications" class="text-blue-500 no-underline text-sm font-medium hover:text-blue-600 hover:underline transition-colors" @click="$emit('close')">
+      <NuxtLink to="/notifications" class="text-blue-500 no-underline text-sm font-medium hover:text-blue-600 hover:underline transition-colors" @click="emit('close')">
         View all notifications
       </NuxtLink>
     </div>
@@ -71,23 +70,6 @@ async function handleMarkAllRead() {
     await notificationStore.markAllAsRead();
   } catch (error) {
     console.error('Failed to mark all as read:', error);
-  }
-}
-
-async function handleNotificationClick(notification: INotificationData) {
-  // Mark as read if unread
-  if (!notification.isRead) {
-    try {
-      await notificationStore.markAsRead(notification.id);
-    } catch (error) {
-      console.error('Failed to mark as read:', error);
-    }
-  }
-
-  // Navigate to link if exists
-  if (notification.link) {
-    emit('close');
-    navigateTo(notification.link);
   }
 }
 

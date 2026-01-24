@@ -56,15 +56,13 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
             return;
         }
         const url = `${baseUrl()}/admin/users/list`;
-        const response = await fetch(url, {
+        const data = await $fetch(url, {
             method: "GET",
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
         });
-        const data = await response.json();
         setUsers(data);
     }
 
@@ -74,20 +72,19 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
             return null;
         }
         const url = `${baseUrl()}/admin/users/${userId}`;
-        const response = await fetch(url, {
-            method: "GET",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`,
-                "Authorization-Type": "auth",
-            },
-        });
-        if (response.status === 200) {
-            const data = await response.json();
+        try {
+            const data = await $fetch(url, {
+                method: "GET",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+            });
             setSelectedUser(data);
             return data;
+        } catch (error) {
+            return null;
         }
-        return null;
     }
 
     async function updateUser(userId: number, userData: any) {
@@ -96,16 +93,19 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
             return false;
         }
         const url = `${baseUrl()}/admin/users/${userId}`;
-        const response = await fetch(url, {
-            method: "PUT",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`,
-                "Authorization-Type": "auth",
-            },
-            body: JSON.stringify(userData),
-        });
-        return response.status === 200;
+        try {
+            await $fetch(url, {
+                method: "PUT",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+                body: userData,
+            });
+            return true;
+        } catch (error) {
+            return false;
+        }
     }
 
     async function changeUserType(userId: number, userType: string) {
@@ -114,16 +114,19 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
             return false;
         }
         const url = `${baseUrl()}/admin/users/${userId}/change-type`;
-        const response = await fetch(url, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`,
-                "Authorization-Type": "auth",
-            },
-            body: JSON.stringify({ user_type: userType }),
-        });
-        return response.status === 200;
+        try {
+            await $fetch(url, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+                body: { user_type: userType },
+            });
+            return true;
+        } catch (error) {
+            return false;
+        }
     }
 
     async function toggleEmailVerification(userId: number) {
@@ -132,15 +135,18 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
             return false;
         }
         const url = `${baseUrl()}/admin/users/${userId}/toggle-email-verification`;
-        const response = await fetch(url, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`,
-                "Authorization-Type": "auth",
-            },
-        });
-        return response.status === 200;
+        try {
+            await $fetch(url, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+            });
+            return true;
+        } catch (error) {
+            return false;
+        }
     }
 
     async function createUser(userData: any) {
@@ -149,22 +155,18 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
             return { success: false, message: 'No authentication token' };
         }
         const url = `${baseUrl()}/admin/users`;
-        const response = await fetch(url, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`,
-                "Authorization-Type": "auth",
-            },
-            body: JSON.stringify(userData),
-        });
-        
-        if (response.status === 201) {
-            const data = await response.json();
+        try {
+            const data = await $fetch(url, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+                body: userData,
+            });
             return { success: true, user: data.user, message: data.message };
-        } else {
-            const errorData = await response.json();
-            return { success: false, message: errorData.message || 'Failed to create user' };
+        } catch (error: any) {
+            return { success: false, message: error.data?.message || 'Failed to create user' };
         }
     }
 
@@ -174,15 +176,18 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
             return false;
         }
         const url = `${baseUrl()}/admin/users/${userId}`;
-        const response = await fetch(url, {
-            method: "DELETE",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`,
-                "Authorization-Type": "auth",
-            },
-        });
-        return response.status === 200;
+        try {
+            await $fetch(url, {
+                method: "DELETE",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+            });
+            return true;
+        } catch (error) {
+            return false;
+        }
     }
 
     async function getPrivateBetaUserForConversion(betaUserId: number) {
@@ -192,21 +197,17 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
         }
         
         const url = `${baseUrl()}/admin/users/convert/${betaUserId}`;
-        const response = await fetch(url, {
-            method: "GET",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`,
-                "Authorization-Type": "auth",
-            },
-        });
-        
-        if (response.status === 200) {
-            const betaUser = await response.json();
+        try {
+            const betaUser = await $fetch(url, {
+                method: "GET",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+            });
             return { success: true, betaUser };
-        } else {
-            const errorData = await response.json();
-            return { success: false, message: errorData.message || 'Failed to fetch beta user data' };
+        } catch (error: any) {
+            return { success: false, message: error.data?.message || 'Failed to fetch beta user data' };
         }
     }
 
@@ -217,19 +218,14 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
         }
         const url = `${baseUrl()}/admin/users/${userId}/subscription`;
         try {
-            const response = await fetch(url, {
+            const result = await $fetch(url, {
                 method: "GET",
                 headers: {
-                    "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
                 },
             });
-            if (response.ok) {
-                const result = await response.json();
-                return result.data;
-            }
-            return null;
+            return result.data;
         } catch (error) {
             console.error('Error fetching user subscription:', error);
             return null;
@@ -247,23 +243,18 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
             if (endsAt) {
                 body.ends_at = endsAt;
             }
-            const response = await fetch(url, {
+            const result = await $fetch(url, {
                 method: "PUT",
                 headers: {
-                    "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
                 },
-                body: JSON.stringify(body),
+                body,
             });
-            const result = await response.json();
-            if (response.ok) {
-                return { success: true, data: result.data };
-            }
-            return { success: false, message: result.message || 'Failed to update subscription' };
+            return { success: true, data: result.data };
         } catch (error: any) {
             console.error('Error updating user subscription:', error);
-            return { success: false, message: error.message || 'Error updating subscription' };
+            return { success: false, message: error.data?.message || error.message || 'Error updating subscription' };
         }
     }
 
@@ -274,19 +265,14 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
         }
         const url = `${baseUrl()}/admin/users/${userId}/available-tiers`;
         try {
-            const response = await fetch(url, {
+            const result = await $fetch(url, {
                 method: "GET",
                 headers: {
-                    "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
                 },
             });
-            if (response.ok) {
-                const result = await response.json();
-                return result.data || [];
-            }
-            return [];
+            return result.data || [];
         } catch (error) {
             console.error('Error fetching available tiers:', error);
             return [];

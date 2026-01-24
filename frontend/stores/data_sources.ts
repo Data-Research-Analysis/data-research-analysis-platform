@@ -44,16 +44,12 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
             dataSources.value = [];
             return;
         }
-        const url = `${baseUrl()}/data-source/list`;
-        const response = await fetch(url, {
-            method: "GET",
+        const data = await $fetch(`${baseUrl()}/data-source/list`, {
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
-        });
-        const data = await response.json();
+        }) as any;
         setDataSources(data)
     }
 
@@ -82,16 +78,12 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
             dataSources.value = [];
             return;
         }
-        const url = `${baseUrl()}/data-source/tables/`;
-        const response = await fetch(url, {
-            method: "GET",
+        const data = await $fetch(`${baseUrl()}/data-source/tables/`, {
             headers: {
-                "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
             },
-        });
-        const data = await response.json();
+        }) as any;
         setDataSources(data)
     }
 
@@ -112,21 +104,14 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                 ? `${baseUrl()}/oauth/google/auth-url?service=${serviceType}&project_id=${projectId}`
                 : `${baseUrl()}/oauth/google/auth-url?service=${serviceType}`;
                 
-            const response = await fetch(url, {
-                method: "GET",
+            const data = await $fetch(url, {
                 headers: {
-                    "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
                 },
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                console.log('Received Google OAuth URL:', data);
-                return data.auth_url;
-            }
-            return null;
+            }) as any;
+            console.log('Received Google OAuth URL:', data);
+            return data.auth_url;
         } catch (error) {
             console.error('Error initiating Google OAuth:', error);
             return null;
@@ -142,25 +127,19 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         if (!token) return null;
 
         try {
-            const response = await fetch(`${baseUrl()}/oauth/google/callback`, {
+            const data = await $fetch(`${baseUrl()}/oauth/google/callback`, {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
                 },
-                body: JSON.stringify({ code, state })
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                return {
-                    session_id: data.session_id,
-                    expires_in: data.expires_in,
-                    token_type: data.token_type
-                };
-            }
-            return null;
+                body: { code, state }
+            }) as any;
+            return {
+                session_id: data.session_id,
+                expires_in: data.expires_in,
+                token_type: data.token_type
+            };
         } catch (error) {
             console.error('Error handling OAuth callback:', error);
             return null;
@@ -175,26 +154,19 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         if (!token) return null;
 
         try {
-            const response = await fetch(`${baseUrl()}/oauth/session/${sessionId}`, {
-                method: "GET",
+            const data = await $fetch(`${baseUrl()}/oauth/session/${sessionId}`, {
                 headers: {
-                    "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
                 },
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                return {
-                    access_token: data.access_token,
-                    refresh_token: data.refresh_token,
-                    token_type: data.token_type,
-                    expires_in: data.expires_in,
-                    expiry_date: data.expiry_date
-                };
-            }
-            return null;
+            }) as any;
+            return {
+                access_token: data.access_token,
+                refresh_token: data.refresh_token,
+                token_type: data.token_type,
+                expires_in: data.expires_in,
+                expiry_date: data.expiry_date
+            };
         } catch (error) {
             console.error('Error getting OAuth tokens:', error);
             return null;
@@ -209,16 +181,14 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         if (!token) return false;
 
         try {
-            const response = await fetch(`${baseUrl()}/oauth/session/${sessionId}`, {
+            await $fetch(`${baseUrl()}/oauth/session/${sessionId}`, {
                 method: "DELETE",
                 headers: {
-                    "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
                 },
             });
-
-            return response.ok;
+            return true;
         } catch (error) {
             console.error('Error deleting OAuth session:', error);
             return false;
@@ -233,21 +203,15 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         if (!token) return [];
 
         try {
-            const response = await fetch(`${baseUrl()}/google-analytics/properties`, {
+            const data = await $fetch(`${baseUrl()}/google-analytics/properties`, {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
                 },
-                body: JSON.stringify({ access_token: accessToken })
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                return data.properties || [];
-            }
-            return [];
+                body: { access_token: accessToken }
+            }) as any;
+            return data.properties || [];
         } catch (error) {
             console.error('Error listing GA properties:', error);
             return [];
@@ -262,22 +226,17 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         if (!token) return null;
 
         try {
-            const response = await fetch(`${baseUrl()}/google-analytics/add-data-source`, {
+            const data = await $fetch(`${baseUrl()}/google-analytics/add-data-source`, {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
                 },
-                body: JSON.stringify(config)
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                // Refresh data sources list
-                await retrieveDataSources();
-                return data.data_source_id || null;
-            }
+                body: config
+            }) as any;
+            // Refresh data sources list
+            await retrieveDataSources();
+            return data.data_source_id || null;
             return null;
         } catch (error) {
             console.error('Error adding GA data source:', error);
@@ -296,17 +255,15 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
 
         try {
             console.log('Sending sync request to backend for dataSourceId:', dataSourceId);
-            const response = await fetch(`${baseUrl()}/google-analytics/sync/${dataSourceId}`, {
+            await $fetch(`${baseUrl()}/google-analytics/sync/${dataSourceId}`, {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
                 },
-                body: JSON.stringify({}), // Send empty body so validateJWT can add tokenDetails
+                body: {}
             });
-
-            return response.ok;
+            return true;
         } catch (error) {
             console.error('Error syncing GA data:', error);
             return false;
@@ -321,23 +278,16 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         if (!token) return null;
 
         try {
-            const response = await fetch(`${baseUrl()}/google-analytics/sync-status/${dataSourceId}`, {
-                method: "GET",
+            const data = await $fetch(`${baseUrl()}/google-analytics/sync-status/${dataSourceId}`, {
                 headers: {
-                    "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
                 },
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                return {
-                    last_sync: data.last_sync,
-                    sync_history: data.sync_history || []
-                };
-            }
-            return null;
+            }) as any;
+            return {
+                last_sync: data.last_sync,
+                sync_history: data.sync_history || []
+            };
         } catch (error) {
             console.error('Error getting sync status:', error);
             return null;
@@ -352,21 +302,15 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         if (!token) return [];
 
         try {
-            const response = await fetch(`${baseUrl()}/google-ad-manager/networks`, {
+            const data = await $fetch(`${baseUrl()}/google-ad-manager/networks`, {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
                 },
-                body: JSON.stringify({ access_token: accessToken })
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                return data.networks || [];
-            }
-            return [];
+                body: { access_token: accessToken }
+            }) as any;
+            return data.networks || [];
         } catch (error) {
             console.error('Error listing GAM networks:', error);
             return [];
@@ -381,23 +325,17 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         if (!token) return null;
 
         try {
-            const response = await fetch(`${baseUrl()}/google-ad-manager/add-data-source`, {
+            const data = await $fetch(`${baseUrl()}/google-ad-manager/add-data-source`, {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
                 },
-                body: JSON.stringify(config)
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                // Refresh data sources list
-                await retrieveDataSources();
-                return data.data_source_id || null;
-            }
-            return null;
+                body: config
+            }) as any;
+            // Refresh data sources list
+            await retrieveDataSources();
+            return data.data_source_id || null;
         } catch (error) {
             console.error('Error adding GAM data source:', error);
             return null;
@@ -413,17 +351,15 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         if (!token) return false;
 
         try {
-            const response = await fetch(`${baseUrl()}/google-ad-manager/sync/${dataSourceId}`, {
+            await $fetch(`${baseUrl()}/google-ad-manager/sync/${dataSourceId}`, {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
                 },
-                body: JSON.stringify({}), // Send empty body so validateJWT can add tokenDetails
+                body: {}
             });
-
-            return response.ok;
+            return true;
         } catch (error) {
             console.error('Error syncing GAM data:', error);
             return false;
@@ -438,23 +374,16 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         if (!token) return null;
 
         try {
-            const response = await fetch(`${baseUrl()}/google-ad-manager/sync-status/${dataSourceId}`, {
-                method: "GET",
+            const data = await $fetch(`${baseUrl()}/google-ad-manager/sync-status/${dataSourceId}`, {
                 headers: {
-                    "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
                 },
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                return {
-                    last_sync: data.last_sync,
-                    sync_history: data.sync_history || []
-                };
-            }
-            return null;
+            }) as any;
+            return {
+                last_sync: data.last_sync,
+                sync_history: data.sync_history || []
+            };
         } catch (error) {
             console.error('Error getting GAM sync status:', error);
             return null;
@@ -469,21 +398,15 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         if (!token) return [];
 
         try {
-            const response = await fetch(`${baseUrl()}/google-ads/accounts`, {
+            const data = await $fetch(`${baseUrl()}/google-ads/accounts`, {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
                 },
-                body: JSON.stringify({ accessToken })
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                return data.accounts || [];
-            }
-            return [];
+                body: { accessToken }
+            }) as any;
+            return data.accounts || [];
         } catch (error) {
             console.error('Error listing Google Ads accounts:', error);
             return [];
@@ -500,31 +423,19 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         try {
             console.log('[Store] Calling /google-ads/add with config:', config);
             
-            const response = await fetch(`${baseUrl()}/google-ads/add`, {
+            const data = await $fetch(`${baseUrl()}/google-ads/add`, {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
                 },
-                body: JSON.stringify(config)
-            });
+                body: config
+            }) as any;
 
-            console.log('[Store] Response status:', response.status);
-
-            if (response.ok) {
-                const data = await response.json();
-                console.log('[Store] Success! Data source ID:', data.dataSourceId);
-                // Refresh data sources list
-                await retrieveDataSources();
-                return data.dataSourceId || null;
-            }
-            
-            // Read and throw error response
-            const errorData = await response.json();
-            const errorMessage = errorData.error || `HTTP ${response.status}: Failed to create data source`;
-            console.error('[Store] API Error:', errorMessage);
-            throw new Error(errorMessage);
+            console.log('[Store] Success! Data source ID:', data.dataSourceId);
+            // Refresh data sources list
+            await retrieveDataSources();
+            return data.dataSourceId || null;
             
         } catch (error) {
             console.error('Error adding Google Ads data source:', error);
@@ -541,17 +452,15 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         if (!token) return false;
 
         try {
-            const response = await fetch(`${baseUrl()}/google-ads/sync/${dataSourceId}`, {
+            await $fetch(`${baseUrl()}/google-ads/sync/${dataSourceId}`, {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
                 },
-                body: JSON.stringify({}),
+                body: {}
             });
-
-            return response.ok;
+            return true;
         } catch (error) {
             console.error('Error syncing Google Ads data:', error);
             return false;
@@ -566,20 +475,13 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         if (!token) return null;
 
         try {
-            const response = await fetch(`${baseUrl()}/google-ads/status/${dataSourceId}`, {
-                method: "GET",
+            const data = await $fetch(`${baseUrl()}/google-ads/status/${dataSourceId}`, {
                 headers: {
-                    "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
                 },
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                return data.status || null;
-            }
-            return null;
+            }) as any;
+            return data.status || null;
         } catch (error) {
             console.error('Error getting Google Ads sync status:', error);
             return null;
