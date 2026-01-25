@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Cancellation Requested</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4;">
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #f4f4f4; padding: 40px 0;">
+        <tr>
+            <td align="center">
+                <table cellpadding="0" cellspacing="0" border="0" width="600" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <!-- Header -->
+                    <tr>
+                        <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; text-align: center; border-radius: 8px 8px 0 0;">
+                            <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600;">Account Cancellation Requested</h1>
+                        </td>
+                    </tr>
+                    
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 40px;">
+                            <p style="color: #333333; font-size: 16px; line-height: 24px; margin: 0 0 20px 0;">
+                                Hello <strong>{{user_name}}</strong>,
+                            </p>
+                            
+                            <p style="color: #333333; font-size: 16px; line-height: 24px; margin: 0 0 20px 0;">
+                                We've received your request to cancel your Data Research Analysis account. We're sorry to see you go!
+                            </p>
+                            
+                            <!-- Timeline Box -->
+                            <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #f8f9fa; border-left: 4px solid #667eea; padding: 20px; margin: 20px 0; border-radius: 4px;">
+                                <tr>
+                                    <td>
+                                        <p style="color: #333333; font-size: 16px; line-height: 24px; margin: 0 0 15px 0; font-weight: 600;">
+                                            Important Dates:
+                                        </p>
+                                        <ul style="color: #666666; font-size: 15px; line-height: 22px; margin: 0; padding-left: 20px;">
+                                            <li style="margin-bottom: 10px;"><strong>Effective Date:</strong> {{effective_date}}</li>
+                                            <li style="margin-bottom: 10px;"><strong>Data Retention Until:</strong> {{deletion_date}}</li>
+                                            <li><strong>Days Until Deletion:</strong> {{retention_days}} days</li>
+                                        </ul>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <p style="color: #333333; font-size: 16px; line-height: 24px; margin: 20px 0;">
+                                <strong>What happens next:</strong>
+                            </p>
+                            
+                            <ul style="color: #666666; font-size: 15px; line-height: 22px; margin: 0 0 20px 0; padding-left: 20px;">
+                                <li style="margin-bottom: 10px;">Your account will remain active until <strong>{{effective_date}}</strong></li>
+                                <li style="margin-bottom: 10px;">After that, we'll retain your data for <strong>{{retention_days}} days</strong> in case you change your mind</li>
+                                <li style="margin-bottom: 10px;">You can reactivate your account anytime before <strong>{{deletion_date}}</strong></li>
+                                <li style="margin-bottom: 10px;">We'll send you reminders at 7 days and 1 day before permanent deletion</li>
+                                <li>On <strong>{{deletion_date}}</strong>, all your data will be permanently deleted</li>
+                            </ul>
+                            
+                            <!-- Export Data CTA -->
+                            <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #fff3cd; border: 1px solid #ffc107; padding: 20px; margin: 20px 0; border-radius: 4px;">
+                                <tr>
+                                    <td>
+                                        <p style="color: #856404; font-size: 15px; line-height: 22px; margin: 0 0 15px 0; font-weight: 600;">
+                                            📦 Don't forget to export your data!
+                                        </p>
+                                        <p style="color: #856404; font-size: 14px; line-height: 20px; margin: 0 0 15px 0;">
+                                            Download all your projects, data models, and dashboards before the deletion date.
+                                        </p>
+                                        <a href="{{dashboard_url}}" style="display: inline-block; background-color: #ffc107; color: #000; text-decoration: none; padding: 12px 30px; border-radius: 4px; font-size: 15px; font-weight: 600;">
+                                            Export My Data
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <!-- Reactivation CTA -->
+                            <div style="text-align: center; margin: 30px 0;">
+                                <p style="color: #333333; font-size: 16px; line-height: 24px; margin: 0 0 20px 0;">
+                                    Changed your mind?
+                                </p>
+                                <a href="{{reactivate_url}}" style="display: inline-block; background-color: #667eea; color: #ffffff; text-decoration: none; padding: 14px 40px; border-radius: 4px; font-size: 16px; font-weight: 600;">
+                                    Reactivate My Account
+                                </a>
+                            </div>
+                            
+                            <p style="color: #666666; font-size: 14px; line-height: 21px; margin: 20px 0 0 0; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+                                If you have any questions or concerns, please don't hesitate to contact our support team.
+                            </p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color: #f8f9fa; padding: 30px; text-align: center; border-radius: 0 0 8px 8px;">
+                            <p style="color: #999999; font-size: 13px; line-height: 20px; margin: 0;">
+                                &copy; 2026 Data Research Analysis Platform. All rights reserved.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

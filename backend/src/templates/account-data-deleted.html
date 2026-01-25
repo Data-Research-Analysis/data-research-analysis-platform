@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Data Deleted</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4;">
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #f4f4f4; padding: 40px 0;">
+        <tr>
+            <td align="center">
+                <table cellpadding="0" cellspacing="0" border="0" width="600" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <!-- Header -->
+                    <tr>
+                        <td style="background: linear-gradient(135deg, #6c757d 0%, #495057 100%); padding: 40px; text-align: center; border-radius: 8px 8px 0 0;">
+                            <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600;">Account Data Deleted</h1>
+                        </td>
+                    </tr>
+                    
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 40px;">
+                            <p style="color: #333333; font-size: 16px; line-height: 24px; margin: 0 0 20px 0;">
+                                Hello <strong>{{user_name}}</strong>,
+                            </p>
+                            
+                            <p style="color: #333333; font-size: 16px; line-height: 24px; margin: 0 0 20px 0;">
+                                As requested, all data associated with your Data Research Analysis account has been permanently deleted from our servers.
+                            </p>
+                            
+                            <!-- Confirmation Box -->
+                            <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #e2e3e5; border-left: 4px solid #6c757d; padding: 20px; margin: 20px 0; border-radius: 4px;">
+                                <tr>
+                                    <td>
+                                        <p style="color: #383d41; font-size: 16px; line-height: 24px; margin: 0; font-weight: 600;">
+                                            Deletion completed on: {{deletion_date}}
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <p style="color: #333333; font-size: 16px; line-height: 24px; margin: 20px 0;">
+                                <strong>What was deleted:</strong>
+                            </p>
+                            
+                            <ul style="color: #666666; font-size: 15px; line-height: 22px; margin: 0 0 20px 0; padding-left: 20px;">
+                                <li style="margin-bottom: 10px;">All projects and associated data sources</li>
+                                <li style="margin-bottom: 10px;">All data models and queries</li>
+                                <li style="margin-bottom: 10px;">All dashboards and visualizations</li>
+                                <li style="margin-bottom: 10px;">All uploaded files (CSV, Excel, PDF)</li>
+                                <li style="margin-bottom: 10px;">All dashboard exports</li>
+                                <li>All OAuth connections to external services</li>
+                            </ul>
+                            
+                            <!-- Information Box -->
+                            <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #d1ecf1; border: 1px solid #17a2b8; padding: 20px; margin: 20px 0; border-radius: 4px;">
+                                <tr>
+                                    <td>
+                                        <p style="color: #0c5460; font-size: 15px; line-height: 22px; margin: 0 0 10px 0; font-weight: 600;">
+                                            💡 Want to start fresh?
+                                        </p>
+                                        <p style="color: #0c5460; font-size: 14px; line-height: 20px; margin: 0;">
+                                            You're always welcome to create a new account and experience our platform again. All new users start with a FREE tier with no credit card required.
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <div style="text-align: center; margin: 30px 0;">
+                                <a href="{{signup_url}}" style="display: inline-block; background-color: #667eea; color: #ffffff; text-decoration: none; padding: 14px 40px; border-radius: 4px; font-size: 16px; font-weight: 600;">
+                                    Create New Account
+                                </a>
+                            </div>
+                            
+                            <p style="color: #666666; font-size: 14px; line-height: 21px; margin: 20px 0 0 0; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+                                Thank you for being part of Data Research Analysis. We appreciate your past business and wish you all the best in your future endeavors.
+                            </p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color: #f8f9fa; padding: 30px; text-align: center; border-radius: 0 0 8px 8px;">
+                            <p style="color: #999999; font-size: 13px; line-height: 20px; margin: 0 0 10px 0;">
+                                If you believe this was done in error, please contact our support team immediately.
+                            </p>
+                            <p style="color: #999999; font-size: 13px; line-height: 20px; margin: 0;">
+                                &copy; 2026 Data Research Analysis Platform. All rights reserved.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

@@ -149,6 +149,47 @@ if (import.meta.client) {
 
 ## Project-Specific Conventions
 
+### API Call Structure (Frontend to Backend)
+**CRITICAL**: Proper API calling patterns to avoid common mistakes.
+
+#### Backend Route Structure
+- **NO `/api/` prefix**: Backend routes are mounted directly (e.g., `/admin/platform-settings`, `/projects`, `/data-sources`)
+- Routes are defined in `backend/src/routes/` and mounted in `backend/src/server.ts`
+- Admin routes use `/admin/` prefix (e.g., `/admin/database/backup`, `/admin/platform-settings`)
+
+#### Frontend API Calls - Correct Pattern
+```typescript
+// ✅ CORRECT - Use runtimeConfig with backend base URL
+const config = useRuntimeConfig();
+const response = await $fetch(`${config.public.apiBase}/admin/platform-settings`, {
+    method: 'GET',
+    credentials: 'include'
+});
+```
+
+#### Common Mistakes to AVOID
+```typescript
+// ❌ WRONG - Missing apiBase (calls frontend URL)
+await $fetch('/admin/platform-settings')
+
+// ❌ WRONG - Incorrect /api/ prefix (backend doesn't use this)
+await $fetch(`${config.public.apiBase}/api/admin/platform-settings`)
+
+// ❌ WRONG - Hardcoded frontend URL
+await $fetch('http://frontend.dataresearchanalysis.test:3000/admin/platform-settings')
+```
+
+#### Configuration
+- **Runtime Config**: `nuxt.config.ts` defines `apiBase` as `process.env.NUXT_API_URL || 'http://localhost:3002'`
+- **No `/api/` suffix**: The `apiBase` does NOT include `/api/` - routes are direct
+- **Example URLs**: 
+  - Dev: `http://localhost:3002/projects`
+  - Docker: `http://backend.dataresearchanalysis.test:3002/admin/platform-settings`
+
+#### Pattern Examples from Codebase
+- See [invitations/index.vue](frontend/pages/invitations/index.vue#L119) for reference implementation
+- All API calls MUST use `${useRuntimeConfig().public.apiBase}/route-path`
+
 ### File Organization
 - **Backend**: Models in `/models` (TypeORM entities), entities in `/entities` (simpler), types in `/types`, interfaces in `/interfaces`
 - **Routes**: All routes in `/routes`, admin routes in `/routes/admin`
@@ -265,3 +306,5 @@ See [ai-data-modeler-implementation.md](documentation/ai-data-modeler-implementa
 5. **Skipping `npm run validate:ssr`** - SSR bugs slip through
 6. **Not syncing localStorage in Pinia actions** - state inconsistency
 7. **Forgetting to run migrations after model changes** - schema mismatch
+8. **Missing `useRuntimeConfig().public.apiBase` in API calls** - calls frontend instead of backend
+9. **Adding `/api/` prefix to API routes** - backend routes don't use this prefix

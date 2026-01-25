@@ -21,6 +21,8 @@ import { DRAAIDataModelMessage } from "../models/DRAAIDataModelMessage.js";
 import { DRADataModelRefreshHistory } from "../models/DRADataModelRefreshHistory.js";
 import { DRASubscriptionTier } from "../models/DRASubscriptionTier.js";
 import { DRAUserSubscription } from "../models/DRAUserSubscription.js";
+import { DRAPlatformSettings } from "../models/DRAPlatformSettings.js";
+import { DRAAccountCancellation } from "../models/DRAAccountCancellation.js";
 import { SyncHistory } from "../entities/SyncHistory.js";
 import dotenv from 'dotenv';
 dotenv.config();
@@ -41,7 +43,7 @@ export default new DataSource({
     database: database,
     synchronize: false,
     logging: true,
-    entities: [DRAUsersPlatform, DRAProject, DRAProjectMember, DRAProjectInvitation, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAPrivateBetaUsers, DRADashboard, DRAArticle, DRAArticleCategory, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRADataModelRefreshHistory, DRASubscriptionTier, DRAUserSubscription, SyncHistory],
+    entities: [DRAUsersPlatform, DRAProject, DRAProjectMember, DRAProjectInvitation, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAPrivateBetaUsers, DRADashboard, DRAArticle, DRAArticleCategory, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRADataModelRefreshHistory, DRASubscriptionTier, DRAUserSubscription, DRAPlatformSettings, DRAAccountCancellation, SyncHistory],
     subscribers: [],
     migrations: ['./src/migrations/*.ts'],
 });

@@ -6,6 +6,26 @@ import { Request, Response } from 'express';
  * Protects API endpoints from abuse, DDoS attacks, and excessive usage
  */
 
+/**
+ * Extract real client IP address from request
+ * Handles proxies by checking X-Forwarded-For header first
+ * @param req Express request object
+ * @returns Client IP address
+ */
+function getClientIp(req: Request): string {
+    // Check X-Forwarded-For header (when behind proxy/load balancer)
+    const forwardedFor = req.headers['x-forwarded-for'];
+    if (forwardedFor) {
+        // X-Forwarded-For can be a comma-separated list: "client, proxy1, proxy2"
+        // The first IP is the original client
+        const ips = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor;
+        return ips.split(',')[0].trim();
+    }
+    
+    // Fallback to req.ip (works when trust proxy is enabled)
+    return req.ip || 'unknown';
+}
+
 // Extend Express Request type to include rateLimit property
 declare module 'express-serve-static-core' {
     interface Request {
@@ -31,8 +51,13 @@ export const authLimiter = rateLimit({
     standardHeaders: true, // Return rate limit info in `RateLimit-*` headers
     legacyHeaders: false, // Disable `X-RateLimit-*` headers
     skipSuccessfulRequests: false, // Count all requests
+    keyGenerator: (req: Request) => {
+        // Use real client IP (handles proxy via X-Forwarded-For)
+        return getClientIp(req);
+    },
     handler: (req: Request, res: Response) => {
-        console.warn(`[Rate Limit] Auth attempt from IP: ${req.ip}, Path: ${req.path}`);
+        const clientIp = getClientIp(req);
+        console.warn(`[Rate Limit] Auth attempt from IP: ${clientIp}, Path: ${req.path}`);
         res.status(429).json({
             error: 'Too many requests',
             message: 'Too many authentication attempts from this IP, please try again after 15 minutes',
@@ -63,12 +88,13 @@ export const expensiveOperationsLimiter = rateLimit({
         if (userId) {
             return userId.toString();
         }
-        // Use ipKeyGenerator helper for proper IPv6 handling
-        return ipKeyGenerator(req.ip || 'unknown');
+        // Use real client IP (handles proxy via X-Forwarded-For)
+        return getClientIp(req);
     },
     handler: (req: Request, res: Response) => {
         const userId = req.body?.tokenDetails?.user_id;
-        console.warn(`[Rate Limit] Expensive operation from ${userId ? `User ${userId}` : `IP ${req.ip}`}, Path: ${req.path}`);
+        const clientIp = getClientIp(req);
+        console.warn(`[Rate Limit] Expensive operation from ${userId ? `User ${userId}` : `IP ${clientIp}`}, Path: ${req.path}`);
         res.status(429).json({
             error: 'Too many requests',
             message: 'You are making requests too quickly. Please wait a moment and try again.',
@@ -98,12 +124,13 @@ export const generalApiLimiter = rateLimit({
         if (userId) {
             return userId.toString();
         }
-        // Use ipKeyGenerator helper for proper IPv6 handling
-        return ipKeyGenerator(req.ip || 'unknown');
+        // Use real client IP (handles proxy via X-Forwarded-For)
+        return getClientIp(req);
     },
     handler: (req: Request, res: Response) => {
         const userId = req.body?.tokenDetails?.user_id;
-        console.warn(`[Rate Limit] General API limit exceeded from ${userId ? `User ${userId}` : `IP ${req.ip}`}`);
+        const clientIp = getClientIp(req);
+        console.warn(`[Rate Limit] General API limit exceeded from ${userId ? `User ${userId}` : `IP ${clientIp}`}`);
         res.status(429).json({
             error: 'Too many requests',
             message: 'Rate limit exceeded. Please try again in a minute.',
@@ -128,8 +155,13 @@ export const oauthCallbackLimiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
     skipSuccessfulRequests: true, // Only count failed requests
+    keyGenerator: (req: Request) => {
+        // Use real client IP (handles proxy via X-Forwarded-For)
+        return getClientIp(req);
+    },
     handler: (req: Request, res: Response) => {
-        console.warn(`[Rate Limit] OAuth callback abuse from IP: ${req.ip}`);
+        const clientIp = getClientIp(req);
+        console.warn(`[Rate Limit] OAuth callback abuse from IP: ${clientIp}`);
         res.status(429).json({
             error: 'Too many requests',
             message: 'Too many OAuth attempts. Please try again in a few minutes.',
@@ -158,12 +190,13 @@ export const aiOperationsLimiter = rateLimit({
         if (userId) {
             return userId.toString();
         }
-        // Use ipKeyGenerator helper for proper IPv6 handling
-        return ipKeyGenerator(req.ip || 'unknown');
+        // Use real client IP (handles proxy via X-Forwarded-For)
+        return getClientIp(req);
     },
     handler: (req: Request, res: Response) => {
         const userId = req.body?.tokenDetails?.user_id;
-        console.warn(`[Rate Limit] AI operations limit exceeded from ${userId ? `User ${userId}` : `IP ${req.ip}`}, Path: ${req.path}`);
+        const clientIp = getClientIp(req);
+        console.warn(`[Rate Limit] AI operations limit exceeded from ${userId ? `User ${userId}` : `IP ${clientIp}`}, Path: ${req.path}`);
         res.status(429).json({
             error: 'Too many requests',
             message: 'You are making too many AI requests. Please wait a moment before trying again.',
@@ -191,11 +224,13 @@ export const invitationLimiter = rateLimit({
         if (userId) {
             return userId.toString();
         }
-        return ipKeyGenerator(req.ip || 'unknown');
+        // Use real client IP (handles proxy via X-Forwarded-For)
+        return getClientIp(req);
     },
     handler: (req: Request, res: Response) => {
         const userId = req.body?.tokenDetails?.user_id;
-        console.warn(`[Rate Limit] Invitation limit exceeded from ${userId ? `User ${userId}` : `IP ${req.ip}`}`);
+        const clientIp = getClientIp(req);
+        console.warn(`[Rate Limit] Invitation limit exceeded from ${userId ? `User ${userId}` : `IP ${clientIp}`}`);
         res.status(429).json({
             error: 'Too many requests',
             message: 'Too many invitation requests. Please try again in 15 minutes.',

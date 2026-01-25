@@ -63,6 +63,7 @@
     "@google-analytics/data": "^5.2.1",
     "@google/genai": "^1.30.0",
     "@jorgebodega/typeorm-seeding": "^7.1.0",
+    "@json2csv/plainjs": "^7.0.6",
     "@types/json2csv": "^5.0.7",
     "@types/node-cron": "^3.0.11",
     "@types/node-fetch": "^2.6.13",
@@ -75,11 +76,13 @@
     "cors": "^2.8.5",
     "croner": "^9.1.0",
     "dotenv": "^16.6.1",
+    "exceljs": "^4.4.0",
     "express": "^4.21.2",
     "express-rate-limit": "^8.2.1",
     "express-validator": "^7.2.1",
     "googleapis": "^168.0.0",
     "handlebars": "^4.7.8",
+    "html-to-text": "^9.0.5",
     "install": "^0.13.0",
     "ioredis": "^5.8.2",
     "json2csv": "^6.0.0-alpha.2",
@@ -102,7 +105,6 @@
     "typeorm": "^0.3.27",
     "uuid": "^11.1.0",
     "winston": "^3.17.0",
-    "ws": "^8.18.3",
-    "html-to-text": "^9.0.5"
+    "ws": "^8.18.3"
   }
 }

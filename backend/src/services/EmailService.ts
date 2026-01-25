@@ -515,6 +515,316 @@ We're excited to have you on board!`;
     }
 
     /**
+     * Send account cancellation requested email
+     * 
+     * Sent when user initiates account cancellation.
+     * Includes retention period, deletion date, and reactivation instructions.
+     * 
+     * @param email - User email address
+     * @param userName - User full name
+     * @param effectiveDate - Date when cancellation becomes effective
+     * @param deletionDate - Date when data will be permanently deleted
+     * @param retentionDays - Number of days data is retained
+     * @returns Send result with message ID
+     */
+    public async sendAccountCancellationRequested(
+        email: string,
+        userName: string,
+        effectiveDate: Date,
+        deletionDate: Date,
+        retentionDays: number
+    ): Promise<SendMailResult> {
+        const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
+        const dashboardUrl = `${frontendUrl}/dashboard`;
+        const reactivateUrl = `${frontendUrl}/account/cancel-account?action=reactivate`;
+        
+        const html = await TemplateEngineService.getInstance().render('account-cancellation-requested.html', [
+            { key: 'user_name', value: userName },
+            { key: 'effective_date', value: new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric' }).format(effectiveDate) },
+            { key: 'deletion_date', value: new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric' }).format(deletionDate) },
+            { key: 'retention_days', value: retentionDays.toString() },
+            { key: 'dashboard_url', value: dashboardUrl },
+            { key: 'reactivate_url', value: reactivateUrl }
+        ]);
+
+        const text = `Account Cancellation Requested
+
+Hello ${userName},
+
+We've received your request to cancel your Data Research Analysis account.
+
+Important Dates:
+- Effective Date: ${effectiveDate.toLocaleDateString()}
+- Data Retention Until: ${deletionDate.toLocaleDateString()}
+- Days Until Deletion: ${retentionDays} days
+
+What happens next:
+• Your account will remain active until ${effectiveDate.toLocaleDateString()}
+• After that, we'll retain your data for ${retentionDays} days
+• You can reactivate your account anytime before ${deletionDate.toLocaleDateString()}
+• We'll send you reminders at 7 days and 1 day before permanent deletion
+• On ${deletionDate.toLocaleDateString()}, all your data will be permanently deleted
+
+Don't forget to export your data: ${dashboardUrl}
+Reactivate your account: ${reactivateUrl}
+
+If you have any questions, please contact our support team.`;
+
+        return this.mailDriver.sendMail({
+            to: email,
+            subject: 'Account Cancellation Requested - Data Research Analysis',
+            text,
+            html
+        });
+    }
+
+    /**
+     * Send 7-day deletion reminder email
+     * 
+     * Sent 7 days before permanent deletion.
+     * Urgent reminder to export data or reactivate account.
+     * 
+     * @param email - User email address
+     * @param userName - User full name
+     * @param deletionDate - Date when data will be permanently deleted
+     * @returns Send result with message ID
+     */
+    public async sendAccountCancellationReminder7Days(
+        email: string,
+        userName: string,
+        deletionDate: Date
+    ): Promise<SendMailResult> {
+        const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
+        const dashboardUrl = `${frontendUrl}/dashboard`;
+        const reactivateUrl = `${frontendUrl}/account/cancel-account?action=reactivate`;
+        
+        const html = await TemplateEngineService.getInstance().render('account-cancellation-reminder-7days.html', [
+            { key: 'user_name', value: userName },
+            { key: 'deletion_date', value: new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric' }).format(deletionDate) },
+            { key: 'dashboard_url', value: dashboardUrl },
+            { key: 'reactivate_url', value: reactivateUrl }
+        ]);
+
+        const text = `⚠️ 7 DAYS UNTIL ACCOUNT DELETION
+
+Hello ${userName},
+
+This is a reminder that your Data Research Analysis account and all associated data will be permanently deleted in 7 days.
+
+Deletion Date: ${deletionDate.toLocaleDateString()}
+
+What will be deleted:
+• All projects and data sources
+• All data models and queries
+• All dashboards and visualizations
+• All uploaded files (CSV, Excel, PDF)
+• All dashboard exports
+• OAuth connections to Google services
+
+TAKE ACTION NOW:
+• Reactivate your account: ${reactivateUrl}
+• Export your data: ${dashboardUrl}
+
+⚠️ This action is irreversible. Once your data is deleted, it cannot be recovered.
+
+If you did not request this cancellation, please contact support immediately.`;
+
+        return this.mailDriver.sendMail({
+            to: email,
+            subject: '⚠️ 7 Days Until Account Deletion - Data Research Analysis',
+            text,
+            html
+        });
+    }
+
+    /**
+     * Send 1-day final deletion warning email
+     * 
+     * Sent 1 day before permanent deletion.
+     * Final urgent warning with data counts.
+     * 
+     * @param email - User email address
+     * @param userName - User full name
+     * @param deletionDate - Date when data will be permanently deleted
+     * @param dataCounts - Object with counts of projects, data sources, etc.
+     * @returns Send result with message ID
+     */
+    public async sendAccountCancellationReminder1Day(
+        email: string,
+        userName: string,
+        deletionDate: Date,
+        dataCounts: {
+            projectCount: number;
+            dataSourceCount: number;
+            dataModelCount: number;
+            dashboardCount: number;
+        }
+    ): Promise<SendMailResult> {
+        const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
+        const dashboardUrl = `${frontendUrl}/dashboard`;
+        const reactivateUrl = `${frontendUrl}/account/cancel-account?action=reactivate`;
+        const supportUrl = `${frontendUrl}/support`;
+        
+        const html = await TemplateEngineService.getInstance().render('account-cancellation-reminder-1day.html', [
+            { key: 'user_name', value: userName },
+            { key: 'deletion_date', value: new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' }).format(deletionDate) },
+            { key: 'dashboard_url', value: dashboardUrl },
+            { key: 'reactivate_url', value: reactivateUrl },
+            { key: 'support_url', value: supportUrl },
+            { key: 'project_count', value: dataCounts.projectCount.toString() },
+            { key: 'data_source_count', value: dataCounts.dataSourceCount.toString() },
+            { key: 'data_model_count', value: dataCounts.dataModelCount.toString() },
+            { key: 'dashboard_count', value: dataCounts.dashboardCount.toString() }
+        ]);
+
+        const text = `🚨 FINAL WARNING: ACCOUNT DELETION TOMORROW
+
+Hello ${userName},
+
+This is your FINAL WARNING. Your Data Research Analysis account will be permanently deleted TOMORROW.
+
+DELETION DATE: ${deletionDate.toLocaleDateString()} at ${deletionDate.toLocaleTimeString()}
+
+Less than 24 hours remaining!
+
+After deletion, the following cannot be recovered:
+❌ All ${dataCounts.projectCount} projects
+❌ All ${dataCounts.dataSourceCount} data sources
+❌ All ${dataCounts.dataModelCount} data models
+❌ All ${dataCounts.dashboardCount} dashboards
+❌ All uploaded files
+❌ All OAuth connections
+
+LAST CHANCE - TAKE ACTION NOW:
+✓ REACTIVATE YOUR ACCOUNT: ${reactivateUrl}
+📦 Export Data: ${dashboardUrl}
+💬 Contact Support: ${supportUrl}
+
+🛑 LAST CHANCE TO SAVE YOUR DATA
+This is your last opportunity to reactivate your account or export your data. No recovery will be possible after deletion.
+
+Need help? Contact our support team immediately.`;
+
+        return this.mailDriver.sendMail({
+            to: email,
+            subject: '🚨 URGENT: Account Deletion Tomorrow - Data Research Analysis',
+            text,
+            html
+        });
+    }
+
+    /**
+     * Send account reactivated confirmation email
+     * 
+     * Sent when user successfully reactivates their account.
+     * Confirms all data has been preserved.
+     * 
+     * @param email - User email address
+     * @param userName - User full name
+     * @returns Send result with message ID
+     */
+    public async sendAccountReactivated(
+        email: string,
+        userName: string
+    ): Promise<SendMailResult> {
+        const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
+        const dashboardUrl = `${frontendUrl}/dashboard`;
+        
+        const html = await TemplateEngineService.getInstance().render('account-reactivated.html', [
+            { key: 'user_name', value: userName },
+            { key: 'dashboard_url', value: dashboardUrl }
+        ]);
+
+        const text = `🎉 Welcome Back!
+
+Hello ${userName},
+
+Great news! Your Data Research Analysis account has been successfully reactivated. We're thrilled to have you back!
+
+✓ Your account is now active
+
+All your projects, data sources, data models, and dashboards have been preserved and are ready to use.
+
+What's been restored:
+✓ All your projects and data sources
+✓ All data models and queries
+✓ All dashboards and visualizations
+✓ All uploaded files
+✓ Your subscription and settings
+
+Go to Dashboard: ${dashboardUrl}
+
+We'd love your feedback - What made you come back?
+
+Thank you for choosing Data Research Analysis. We're committed to providing you with the best analytics experience.`;
+
+        return this.mailDriver.sendMail({
+            to: email,
+            subject: '🎉 Welcome Back - Account Reactivated Successfully',
+            text,
+            html
+        });
+    }
+
+    /**
+     * Send account data deleted confirmation email
+     * 
+     * Sent after all user data has been permanently deleted.
+     * Final confirmation of deletion.
+     * 
+     * @param email - User email address
+     * @param userName - User full name
+     * @param deletionDate - Date when deletion was completed
+     * @returns Send result with message ID
+     */
+    public async sendAccountDataDeleted(
+        email: string,
+        userName: string,
+        deletionDate: Date
+    ): Promise<SendMailResult> {
+        const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
+        const signupUrl = `${frontendUrl}/register`;
+        
+        const html = await TemplateEngineService.getInstance().render('account-data-deleted.html', [
+            { key: 'user_name', value: userName },
+            { key: 'deletion_date', value: new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric' }).format(deletionDate) },
+            { key: 'signup_url', value: signupUrl }
+        ]);
+
+        const text = `Account Data Deleted
+
+Hello ${userName},
+
+As requested, all data associated with your Data Research Analysis account has been permanently deleted from our servers.
+
+Deletion completed on: ${deletionDate.toLocaleDateString()}
+
+What was deleted:
+• All projects and associated data sources
+• All data models and queries
+• All dashboards and visualizations
+• All uploaded files (CSV, Excel, PDF)
+• All dashboard exports
+• All OAuth connections to external services
+
+Want to start fresh?
+You're always welcome to create a new account and experience our platform again. All new users start with a FREE tier with no credit card required.
+
+Create New Account: ${signupUrl}
+
+Thank you for being part of Data Research Analysis. We appreciate your past business and wish you all the best in your future endeavors.
+
+If you believe this was done in error, please contact our support team immediately.`;
+
+        return this.mailDriver.sendMail({
+            to: email,
+            subject: 'Account Data Deleted - Data Research Analysis',
+            text,
+            html
+        });
+    }
+
+    /**
      * Close email service and cleanup resources
      */
     async close(): Promise<void> {

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URGENT: Account Deletion Tomorrow</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4;">
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #f4f4f4; padding: 40px 0;">
+        <tr>
+            <td align="center">
+                <table cellpadding="0" cellspacing="0" border="0" width="600" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.15); border: 3px solid #dc3545;">
+                    <!-- Header -->
+                    <tr>
+                        <td style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); padding: 40px; text-align: center; border-radius: 6px 6px 0 0;">
+                            <h1 style="color: #ffffff; margin: 0; font-size: 30px; font-weight: 700;">🚨 FINAL WARNING: Deletion Tomorrow!</h1>
+                        </td>
+                    </tr>
+                    
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 40px;">
+                            <p style="color: #333333; font-size: 16px; line-height: 24px; margin: 0 0 20px 0;">
+                                Hello <strong>{{user_name}}</strong>,
+                            </p>
+                            
+                            <p style="color: #dc3545; font-size: 18px; line-height: 26px; margin: 0 0 20px 0; font-weight: 600;">
+                                This is your FINAL WARNING. Your Data Research Analysis account will be permanently deleted TOMORROW.
+                            </p>
+                            
+                            <!-- Urgent Countdown Box -->
+                            <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #f8d7da; border: 3px solid #dc3545; padding: 25px; margin: 20px 0; border-radius: 4px;">
+                                <tr>
+                                    <td style="text-align: center;">
+                                        <p style="color: #721c24; font-size: 24px; line-height: 32px; margin: 0 0 15px 0; font-weight: 700;">
+                                            ⏰ DELETION DATE
+                                        </p>
+                                        <p style="color: #721c24; font-size: 32px; line-height: 40px; margin: 0; font-weight: 700;">
+                                            {{deletion_date}}
+                                        </p>
+                                        <p style="color: #721c24; font-size: 18px; line-height: 26px; margin: 15px 0 0 0; font-weight: 600;">
+                                            Less than 24 hours remaining!
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <p style="color: #333333; font-size: 16px; line-height: 24px; margin: 20px 0; font-weight: 600;">
+                                After deletion, the following cannot be recovered:
+                            </p>
+                            
+                            <ul style="color: #dc3545; font-size: 15px; line-height: 22px; margin: 0 0 20px 0; padding-left: 20px; font-weight: 600;">
+                                <li style="margin-bottom: 10px;">❌ All {{project_count}} projects</li>
+                                <li style="margin-bottom: 10px;">❌ All {{data_source_count}} data sources</li>
+                                <li style="margin-bottom: 10px;">❌ All {{data_model_count}} data models</li>
+                                <li style="margin-bottom: 10px;">❌ All {{dashboard_count}} dashboards</li>
+                                <li style="margin-bottom: 10px;">❌ All uploaded files</li>
+                                <li>❌ All OAuth connections</li>
+                            </ul>
+                            
+                            <!-- Critical Action Buttons -->
+                            <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin: 30px 0;">
+                                <tr>
+                                    <td colspan="2" style="padding-bottom: 15px;">
+                                        <a href="{{reactivate_url}}" style="display: block; background-color: #28a745; color: #ffffff; text-decoration: none; padding: 20px; border-radius: 4px; font-size: 18px; font-weight: 700; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                                            ✓ REACTIVATE MY ACCOUNT NOW
+                                        </a>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding-right: 7px; width: 50%;">
+                                        <a href="{{dashboard_url}}" style="display: block; background-color: #667eea; color: #ffffff; text-decoration: none; padding: 16px 20px; border-radius: 4px; font-size: 15px; font-weight: 600; text-align: center;">
+                                            📦 Export Data
+                                        </a>
+                                    </td>
+                                    <td style="padding-left: 7px; width: 50%;">
+                                        <a href="{{support_url}}" style="display: block; background-color: #6c757d; color: #ffffff; text-decoration: none; padding: 16px 20px; border-radius: 4px; font-size: 15px; font-weight: 600; text-align: center;">
+                                            💬 Contact Support
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <!-- Critical Warning Box -->
+                            <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #343a40; color: #ffffff; padding: 25px; margin: 20px 0; border-radius: 4px;">
+                                <tr>
+                                    <td>
+                                        <p style="color: #ffffff; font-size: 16px; line-height: 24px; margin: 0 0 15px 0; font-weight: 700;">
+                                            🛑 LAST CHANCE TO SAVE YOUR DATA
+                                        </p>
+                                        <p style="color: #ffffff; font-size: 15px; line-height: 22px; margin: 0;">
+                                            This is your last opportunity to reactivate your account or export your data. After {{deletion_date}}, all your data will be permanently and irreversibly deleted from our servers. No recovery will be possible.
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <p style="color: #666666; font-size: 14px; line-height: 21px; margin: 20px 0 0 0; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+                                <strong>Need help?</strong> Contact our support team immediately if you have questions or believe this is an error.
+                            </p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color: #f8f9fa; padding: 30px; text-align: center; border-radius: 0 0 6px 6px;">
+                            <p style="color: #999999; font-size: 13px; line-height: 20px; margin: 0;">
+                                &copy; 2026 Data Research Analysis Platform. All rights reserved.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

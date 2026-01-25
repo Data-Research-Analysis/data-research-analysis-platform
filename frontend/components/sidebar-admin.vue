@@ -58,6 +58,22 @@ const state = reactive({
                 { id: 4, name: 'Scheduled Backups', path: '/admin/database/scheduled-backups' },
             ],
         },
+        {
+            id: 7,
+            menu_name: 'Platform Settings',
+            show_menu: true,
+            sub_menus: [
+                { id: 1, name: 'Manage Settings', path: '/admin/platform-settings' },
+            ],
+        },
+        {
+            id: 8,
+            menu_name: 'Account Cancellations',
+            show_menu: true,
+            sub_menus: [
+                { id: 1, name: 'View Cancellations', path: '/admin/account-cancellations' },
+            ],
+        },
     ],
 })
 const props = defineProps({
