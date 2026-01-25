@@ -34,11 +34,14 @@ import scheduled_backups from './routes/admin/scheduled_backups.js';
 import admin_sitemap from './routes/admin/sitemap.js';
 import admin_subscription_tiers from './routes/admin/subscription_tiers.js';
 import user_subscriptions from './routes/admin/user_subscriptions.js';
+import platform_settings from './routes/admin/platform-settings.js';
+import account_cancellations from './routes/admin/account-cancellations.js';
 import public_article from './routes/article.js';
 import sitemap from './routes/sitemap.js';
 import subscription from './routes/subscription.js';
 import email_preferences from './routes/email_preferences.js';
 import notifications from './routes/notifications.js';
+import account from './routes/account.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -87,11 +90,22 @@ import { startInvitationExpirationJob } from './jobs/expireInvitations.js';
 startInvitationExpirationJob();
 console.log('✅ Invitation expiration job started');
 
+// Start account deletion scheduled job
+import { ScheduledDeletionJob } from './services/ScheduledDeletionJob.js';
+if (process.env.SCHEDULED_DELETION_ENABLED !== 'false') {
+    ScheduledDeletionJob.getInstance().start();
+    console.log('✅ Scheduled deletion job started');
+}
 
 
 const port = parseInt(UtilityService.getInstance().getConstants('PORT'));
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Trust proxy to get real client IP from X-Forwarded-For header
+// This is essential when behind Nuxt SSR, reverse proxies, or load balancers
+app.set('trust proxy', true);
+
 app.use(express.json());
 app.use(cors());
 app.use(bodyParser.urlencoded({ limit: '1000mb', extended: true }));
@@ -133,11 +147,14 @@ app.use('/admin/database', database);
 app.use('/admin/scheduled-backups', scheduled_backups);
 app.use('/admin/sitemap', admin_sitemap);
 app.use('/admin/subscription-tiers', admin_subscription_tiers);
+app.use('/admin/platform-settings', platform_settings);
+app.use('/admin/account-cancellations', account_cancellations);
 app.use('/article', public_article);
 app.use('/sitemap.txt', sitemap);
 app.use('/subscription', subscription);
 app.use('/email-preferences', email_preferences);
 app.use('/notifications', notifications);
+app.use('/account', account);
 
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 app.use('/', express.static(path.join(__dirname, '../public')));

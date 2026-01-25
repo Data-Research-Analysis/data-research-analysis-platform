@@ -62,13 +62,18 @@ export enum NotificationType {
     DASHBOARD_EXPORT_FAILED = 'dashboard_export_failed',
     DASHBOARD_EXPORT_READY = 'dashboard_export_ready',
 
-    // User Account Operations (7 types)
+    // User Account Operations (12 types)
     ACCOUNT_CREATED = 'account_created',
     ACCOUNT_UPDATE = 'account_update',
     EMAIL_VERIFIED = 'email_verified',
     PASSWORD_CHANGED = 'password_changed',
     PASSWORD_RESET_REQUESTED = 'password_reset_requested',
     SECURITY_ALERT = 'security_alert',
+    ACCOUNT_CANCELLATION_REQUESTED = 'account_cancellation_requested',
+    ACCOUNT_CANCELLATION_REMINDER_7_DAYS = 'account_cancellation_reminder_7_days',
+    ACCOUNT_CANCELLATION_REMINDER_1_DAY = 'account_cancellation_reminder_1_day',
+    ACCOUNT_REACTIVATED = 'account_reactivated',
+    ACCOUNT_DATA_DELETED = 'account_data_deleted',
 
     // Subscription Management Notifications (6 types)
     SUBSCRIPTION_ASSIGNED = 'subscription_assigned',
@@ -137,3 +142,8 @@ export interface INotificationData {
     createdAt: Date;
     expiresAt: Date | null;
 }
+
+/**
+ * Export ENotificationType as alias for backward compatibility
+ */
+export { NotificationType as ENotificationType };

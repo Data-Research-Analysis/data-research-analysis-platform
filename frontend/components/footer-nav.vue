@@ -79,6 +79,16 @@ onMounted(() => {
                             Privacy Policy
                         </NuxtLink>
 
+                        <NuxtLink to="/return-refund-policy" 
+                                  class="text-base hover:text-gray-300 hover:underline opacity-90 hover:opacity-100 transition duration-200">
+                            Return &amp; Refund Policy
+                        </NuxtLink>
+
+                        <NuxtLink to="/cancellation-policy" 
+                                  class="text-base hover:text-gray-300 hover:underline opacity-90 hover:opacity-100 transition duration-200">
+                            Cancellation Policy
+                        </NuxtLink>
+
                         <NuxtLink to="/terms-conditions" 
                                   class="text-base hover:text-gray-300 hover:underline opacity-90 hover:opacity-100 transition duration-200">
                             Terms & Conditions
