@@ -675,12 +675,42 @@ export class DataSourceProcessor {
             } else if (dataSource.data_type === EDataSourceType.POSTGRESQL || dataSource.data_type === EDataSourceType.MYSQL || dataSource.data_type === EDataSourceType.MARIADB || dataSource.data_type === EDataSourceType.EXCEL || dataSource.data_type === EDataSourceType.PDF || dataSource.data_type === EDataSourceType.GOOGLE_ANALYTICS || dataSource.data_type === EDataSourceType.GOOGLE_AD_MANAGER || dataSource.data_type === EDataSourceType.GOOGLE_ADS) {
                 const connection = dataSource.connection_details;
                 console.log('[DEBUG - DataSourceProcessor] Connecting to data source ID:', dataSource.id);
-                console.log('[DEBUG - DataSourceProcessor] Connection details:', connection);
-                // Skip API-based data sources
-                if ('oauth_access_token' in connection) {
-                    return resolve(null);
+                console.log('[DEBUG - DataSourceProcessor] Data source type:', dataSource.data_type);
+                
+                // Determine schema name based on data source type
+                // For API-based sources (Google Analytics, Ads, Ad Manager), connection_details doesn't have 'schema'
+                // We need to derive it from the data_type instead
+                let schemaName: string;
+                if (dataSource.data_type === EDataSourceType.GOOGLE_ANALYTICS) {
+                    schemaName = 'dra_google_analytics';
+                } else if (dataSource.data_type === EDataSourceType.GOOGLE_AD_MANAGER) {
+                    schemaName = 'dra_google_ad_manager';
+                } else if (dataSource.data_type === EDataSourceType.GOOGLE_ADS) {
+                    schemaName = 'dra_google_ads';
+                } else if (dataSource.data_type === EDataSourceType.EXCEL) {
+                    schemaName = 'dra_excel';
+                } else if (dataSource.data_type === EDataSourceType.PDF) {
+                    schemaName = 'dra_pdf';
+                } else {
+                    // For PostgreSQL, MySQL, MariaDB - use schema from connection_details
+                    schemaName = connection.schema;
                 }
-                const dataSourceType = UtilityService.getInstance().getDataSourceType(connection.data_source_type);
+                
+                console.log('[DEBUG - DataSourceProcessor] Using schema name:', schemaName);
+                
+                // Skip API-based data sources that haven't been synced yet
+                if ('oauth_access_token' in connection) {
+                    // For OAuth sources, we only return tables if they've been synced to PostgreSQL
+                    // We'll fetch metadata to see if tables exist
+                    console.log('[DEBUG - DataSourceProcessor] OAuth source detected, checking for synced tables');
+                }
+                
+                const dataSourceType = dataSource.data_type === EDataSourceType.GOOGLE_ANALYTICS || 
+                                      dataSource.data_type === EDataSourceType.GOOGLE_AD_MANAGER || 
+                                      dataSource.data_type === EDataSourceType.GOOGLE_ADS 
+                                      ? EDataSourceType.POSTGRESQL  // API sources are synced to PostgreSQL
+                                      : UtilityService.getInstance().getDataSourceType(connection.data_source_type);
+                
                 if (!dataSourceType) {
                     return resolve(null);
                 }
@@ -690,7 +720,12 @@ export class DataSourceProcessor {
                 }
                 let dbConnector: DataSource;
                 try {
-                    dbConnector =  await externalDriver.connectExternalDB(connection);
+                    // For OAuth sources, connect to our internal PostgreSQL where data is synced
+                    if ('oauth_access_token' in connection) {
+                        dbConnector = await driver.getConcreteDriver();
+                    } else {
+                        dbConnector = await externalDriver.connectExternalDB(connection);
+                    }
                     if (!dbConnector) {
                         return resolve(false);
                     }
@@ -712,14 +747,14 @@ export class DataSourceProcessor {
                         FROM dra_table_metadata
                         WHERE data_source_id = $1 AND schema_name = $2
                     `;
-                    tableMetadata = await manager.query(metadataQuery, [dataSource.id, connection.schema]);
-                    console.log(`[DEBUG] Found ${tableMetadata.length} metadata records`);
+                    tableMetadata = await manager.query(metadataQuery, [dataSource.id, schemaName]);
+                    console.log(`[DEBUG] Found ${tableMetadata.length} metadata records for schema ${schemaName}`);
                 } catch (error) {
                     console.error('[DEBUG] Error fetching table metadata:', error);
                 }
                 
                 // Build the base query
-                let query = await externalDriver.getTablesColumnDetails(connection.schema);
+                let query = await externalDriver.getTablesColumnDetails(schemaName);
                 
                 // If we have metadata, use physical_table_names; otherwise fall back to old pattern
                 if (tableMetadata.length > 0) {
@@ -730,21 +765,21 @@ export class DataSourceProcessor {
                 } else {
                     // Fallback to old naming pattern for tables without metadata
                     console.log(`[DEBUG] No metadata found, using legacy naming pattern`);
-                    if (connection.schema === 'dra_excel') {
+                    if (schemaName === 'dra_excel') {
                         query += ` AND tb.table_name LIKE '%_data_source_${dataSource.id}_%'`;
-                    } else if (connection.schema === 'dra_pdf') {
+                    } else if (schemaName === 'dra_pdf') {
                         query += ` AND tb.table_name LIKE '%_data_source_${dataSource.id}_%'`;
-                    } else if (connection.schema === 'dra_google_analytics') {
+                    } else if (schemaName === 'dra_google_analytics') {
                         query += ` AND tb.table_name LIKE '%_${dataSource.id}'`;
-                    } else if (connection.schema === 'dra_google_ad_manager') {
+                    } else if (schemaName === 'dra_google_ad_manager') {
                         query += ` AND tb.table_name LIKE '%_${dataSource.id}'`;
-                    } else if (connection.schema === 'dra_google_ads') {
+                    } else if (schemaName === 'dra_google_ads') {
                         query += ` AND tb.table_name LIKE '%_${dataSource.id}'`;
                     } else {
                         // For PostgreSQL, MySQL, MariaDB - no additional filter needed
                         // The schema filter in getTablesColumnDetails() is sufficient
                         // These connect to external databases where all tables in the schema belong to this connection
-                        console.log(`[DEBUG] External database source (${connection.data_source_type}): using schema filter only`);
+                        console.log(`[DEBUG] External database source: using schema filter only`);
                     }
                 }
                 
@@ -821,10 +856,10 @@ export class DataSourceProcessor {
                         console.error(`[DEBUG - DataSourceProcessor] DUPLICATES FOUND in ${table.table_name}:`, [...new Set(duplicates)]);
                     }
                 });
-                query = await externalDriver.getTablesRelationships(connection.schema);
-                if (connection.schema === 'dra_excel') {
+                query = await externalDriver.getTablesRelationships(schemaName);
+                if (schemaName === 'dra_excel') {
                     query += ` AND tc.table_name LIKE '%_data_source_${dataSource.id}_%'`;
-                } else if (connection.schema === 'dra_pdf') {
+                } else if (schemaName === 'dra_pdf') {
                     query += ` AND tc.table_name LIKE '%_data_source_${dataSource.id}_%'`;
                 }
                 tablesSchema = await dbConnector.query(query);
