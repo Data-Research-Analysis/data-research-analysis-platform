@@ -182,6 +182,14 @@ export class AIDataModelerController {
                 totalColumns: schemaSummary.totalColumns,
                 tablesWithDisplayNamesCount: tablesWithDisplayNames.length
             });
+            
+            // DEBUG: Log schema markdown for comparison
+            console.log('[DEBUG] ========== SCHEMA MARKDOWN START ==========');
+            console.log('[DEBUG] Data Source ID:', dataSourceId);
+            console.log('[DEBUG] Data Source Type:', dataSourceDetails.type);
+            console.log('[DEBUG] Schema Name:', dataSourceDetails.schema);
+            console.log('[DEBUG] Markdown Content:\n', schemaMarkdown.substring(0, 2000), '...'); // First 2000 chars
+            console.log('[DEBUG] ========== SCHEMA MARKDOWN END ==========');
 
             // Close the data source connection
             if (dataSource.isInitialized) {
@@ -529,6 +537,13 @@ Keep it concise - aim for 200-300 words total.`;
             // Send to Gemini
             const response = await geminiService.sendMessage(session.conversationId, message);
 
+            // DEBUG: Log raw AI response
+            console.log('[DEBUG] ========== RAW AI RESPONSE START ==========');
+            console.log('[DEBUG] User Message:', message);
+            console.log('[DEBUG] Response Length:', response.length);
+            console.log('[DEBUG] Raw Response:', response);
+            console.log('[DEBUG] ========== RAW AI RESPONSE END ==========');
+
             // Parse response to extract clean display message
             const parsed = AIDataModelerController.parseAIResponse(response);
 
@@ -831,6 +846,14 @@ Keep it concise - aim for 200-300 words total.`;
                 if (parsed.action === 'BUILD_DATA_MODEL' && parsed.model) {
                     console.log('[AIDataModelerController] Parsed BUILD_DATA_MODEL response');
                     
+                    // DEBUG: Log parsed model structure
+                    console.log('[DEBUG] ========== PARSED MODEL START ==========');
+                    console.log('[DEBUG] Model Table Name:', parsed.model.table_name);
+                    console.log('[DEBUG] Column Count:', parsed.model.columns?.length || 0);
+                    console.log('[DEBUG] Columns:', JSON.stringify(parsed.model.columns, null, 2));
+                    console.log('[DEBUG] Query Options:', JSON.stringify(parsed.model.query_options, null, 2));
+                    console.log('[DEBUG] ========== PARSED MODEL END ==========');
+                    
                     // VALIDATION & AUTO-FIX: Check GROUP BY columns when aggregates exist
                     const groupBy = parsed.model.query_options?.group_by;
                     const hasAggregates = groupBy?.aggregate_functions?.length > 0 || 
@@ -839,6 +862,18 @@ Keep it concise - aim for 200-300 words total.`;
                     if (hasAggregates) {
                         const groupByColumns = groupBy.group_by_columns || [];
                         const selectedColumns = parsed.model.columns?.filter((c: any) => c.is_selected_column === true) || [];
+                        
+                        // DEBUG: Log validation details
+                        console.log('[DEBUG] ========== VALIDATION START ==========');
+                        console.log('[DEBUG] Has Aggregates:', hasAggregates);
+                        console.log('[DEBUG] Group By Columns Count:', groupByColumns.length);
+                        console.log('[DEBUG] Selected Columns Count:', selectedColumns.length);
+                        console.log('[DEBUG] Selected Columns:', selectedColumns.map(c => `${c.schema}.${c.table_name}.${c.column_name} (is_selected: ${c.is_selected_column})`));
+                        console.log('[DEBUG] All Columns is_selected_column values:');
+                        parsed.model.columns?.forEach((c: any) => {
+                            console.log(`[DEBUG]   - ${c.schema}.${c.table_name}.${c.column_name}: is_selected_column = ${c.is_selected_column}`);
+                        });
+                        console.log('[DEBUG] ========== VALIDATION END ==========');
                         
                         if (groupByColumns.length === 0 && selectedColumns.length > 0) {
                             console.warn('[AI Validation] AUTO-FIXING: Model has aggregates but empty group_by_columns');
