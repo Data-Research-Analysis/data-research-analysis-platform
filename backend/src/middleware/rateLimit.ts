@@ -8,22 +8,62 @@ import { Request, Response } from 'express';
 
 /**
  * Extract real client IP address from request
- * Handles proxies by checking X-Forwarded-For header first
+ * Handles proxies by checking multiple proxy headers in priority order
  * @param req Express request object
  * @returns Client IP address
  */
 function getClientIp(req: Request): string {
-    // Check X-Forwarded-For header (when behind proxy/load balancer)
-    const forwardedFor = req.headers['x-forwarded-for'];
-    if (forwardedFor) {
-        // X-Forwarded-For can be a comma-separated list: "client, proxy1, proxy2"
-        // The first IP is the original client
-        const ips = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor;
-        return ips.split(',')[0].trim();
+    // Priority 1: X-Real-IP header (set by nginx and other reverse proxies)
+    // This is the most reliable single-IP header
+    const realIp = req.headers['x-real-ip'];
+    if (realIp && typeof realIp === 'string') {
+        return realIp.trim();
     }
     
-    // Fallback to req.ip (works when trust proxy is enabled)
-    return req.ip || 'unknown';
+    // Priority 2: CF-Connecting-IP (Cloudflare)
+    const cfIp = req.headers['cf-connecting-ip'];
+    if (cfIp && typeof cfIp === 'string') {
+        return cfIp.trim();
+    }
+    
+    // Priority 3: X-Forwarded-For header (standard for proxy chains)
+    // Format: "client, proxy1, proxy2" - the first IP is the original client
+    const forwardedFor = req.headers['x-forwarded-for'];
+    if (forwardedFor) {
+        const ips = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor;
+        const firstIp = ips.split(',')[0].trim();
+        if (firstIp) {
+            return firstIp;
+        }
+    }
+    
+    // Priority 4: Fastly-Client-IP (Fastly CDN)
+    const fastlyIp = req.headers['fastly-client-ip'];
+    if (fastlyIp && typeof fastlyIp === 'string') {
+        return fastlyIp.trim();
+    }
+    
+    // Priority 5: True-Client-IP (Akamai and Cloudflare)
+    const trueClientIp = req.headers['true-client-ip'];
+    if (trueClientIp && typeof trueClientIp === 'string') {
+        return trueClientIp.trim();
+    }
+    
+    // Priority 6: X-Client-IP (rare but used by some proxies)
+    const clientIp = req.headers['x-client-ip'];
+    if (clientIp && typeof clientIp === 'string') {
+        return clientIp.trim();
+    }
+    
+    // Fallback: req.ip (works when trust proxy is enabled in Express)
+    // This should now work correctly since we have 'trust proxy' enabled
+    if (req.ip) {
+        // Remove IPv6 prefix if present (::ffff:192.168.1.1 -> 192.168.1.1)
+        return req.ip.replace(/^::ffff:/, '');
+    }
+    
+    // Last resort fallback
+    return 'unknown';
 }
 
 // Extend Express Request type to include rateLimit property

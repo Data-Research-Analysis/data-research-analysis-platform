@@ -3740,9 +3740,24 @@ function validateAndTransformAIModel(aiModel) {
 
             // Check if this column exists in the available tables
             const availableTables = state.tables || [];
-            const sourceTable = availableTables.find(t =>
-                t.table_name === col.table_name && t.schema === col.schema
-            );
+            
+            // CRITICAL FIX: Support both physical and logical table names
+            // AI models use logical names (e.g., "user_acquisition")
+            // while state.tables uses physical names (e.g., "ds52_2b702ce5")
+            const sourceTable = availableTables.find(t => {
+                // Match by physical name (backwards compatible)
+                if (t.table_name === col.table_name && t.schema === col.schema) {
+                    return true;
+                }
+                // Match by logical name (supports AI-generated models)
+                if (t.logical_name === col.table_name && t.schema === col.schema) {
+                    console.log(`[DEBUG - AI Model Validation] ✓ Matched by logical name: ${col.table_name} -> ${t.table_name}`);
+                    // IMPORTANT: Update col.table_name to physical name for subsequent processing
+                    col.table_name = t.table_name;
+                    return true;
+                }
+                return false;
+            });
 
             if (!sourceTable) {
                 console.warn(`[DEBUG - AI Model Validation] ⚠️ Table not found: ${col.schema}.${col.table_name}`);
@@ -3802,6 +3817,24 @@ function validateAndTransformAIModel(aiModel) {
 
         aiModel.columns = validColumns;
 
+        // CRITICAL FIX: Translate logical table names to physical names in query_options
+        // After column validation, we've already translated col.table_name from logical to physical
+        // Now we need to update references in GROUP BY, aggregates, WHERE, ORDER BY, etc.
+        const createTableNameMapping = () => {
+            const mapping = new Map();
+            aiModel.columns.forEach(col => {
+                // Each column now has the physical table_name after validation
+                // We need to create a mapping for translating full paths in query_options
+                const physicalPath = `${col.schema}.${col.table_name}.${col.column_name}`;
+                // Store for later use
+                mapping.set(physicalPath, col);
+            });
+            return mapping;
+        };
+
+        const columnMapping = createTableNameMapping();
+        console.log('[Data Model Builder] Created column mapping with', columnMapping.size, 'entries');
+
         // Initialize query_options with validation
         if (!aiModel.query_options) {
             aiModel.query_options = {
@@ -3844,6 +3877,54 @@ function validateAndTransformAIModel(aiModel) {
                     aiModel.query_options.group_by.aggregate_expressions?.length > 0)) {
                 aiModel.query_options.group_by.name = 'GROUP BY';
                 console.log('[Data Model Builder] Set group_by.name flag for UI visibility');
+
+                // CRITICAL: Translate logical table names to physical in aggregate functions
+                // Aggregate functions reference columns like "schema.table.column"
+                // where table might still be a logical name that needs translation
+                aiModel.query_options.group_by.aggregate_functions?.forEach(aggFunc => {
+                    if (aggFunc.column) {
+                        const parts = aggFunc.column.split('.');
+                        if (parts.length === 3) {
+                            const [schema, tableName, columnName] = parts;
+                            // Find the matching column that was already translated
+                            const translatedCol = aiModel.columns.find(c =>
+                                c.schema === schema && c.column_name === columnName
+                            );
+                            if (translatedCol) {
+                                const newPath = `${translatedCol.schema}.${translatedCol.table_name}.${translatedCol.column_name}`;
+                                if (aggFunc.column !== newPath) {
+                                    console.log(`[Data Model Builder] Translated aggregate function column: ${aggFunc.column} -> ${newPath}`);
+                                    aggFunc.column = newPath;
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // Translate logical table names in GROUP BY columns array
+                if (aiModel.query_options.group_by.group_by_columns) {
+                    aiModel.query_options.group_by.group_by_columns = aiModel.query_options.group_by.group_by_columns.map(colRef => {
+                        // Handle transform functions like DATE(schema.table.column)
+                        const match = colRef.match(/^(.+?\()?([\w]+)\.([\w]+)\.([\w]+)(\).*)?$/);
+                        if (match) {
+                            const [, prefix, schema, tableName, columnName, suffix] = match;
+                            // Find the translated column
+                            const translatedCol = aiModel.columns.find(c =>
+                                c.schema === schema && c.column_name === columnName
+                            );
+                            if (translatedCol) {
+                                const newPath = `${translatedCol.schema}.${translatedCol.table_name}.${translatedCol.column_name}`;
+                                const oldPath = `${schema}.${tableName}.${columnName}`;
+                                if (oldPath !== newPath) {
+                                    const newRef = `${prefix || ''}${newPath}${suffix || ''}`;
+                                    console.log(`[Data Model Builder] Translated GROUP BY column: ${colRef} -> ${newRef}`);
+                                    return newRef;
+                                }
+                            }
+                        }
+                        return colRef;
+                    });
+                }
 
                 // SOLUTION B: Mark columns that are ONLY used in aggregates (not in regular SELECT)
                 // Build a Set of columns used in aggregate functions
