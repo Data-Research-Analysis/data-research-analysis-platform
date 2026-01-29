@@ -228,10 +228,13 @@ export const aiOperationsLimiter = rateLimit({
     keyGenerator: (req: Request) => {
         const userId = req.body?.tokenDetails?.user_id;
         if (userId) {
-            return userId.toString();
+            console.log(`[Rate Limit] AI operations key: user_${userId}`);
+            return `user_${userId}`;
         }
         // Use real client IP (handles proxy via X-Forwarded-For)
-        return getClientIp(req);
+        const clientIp = getClientIp(req);
+        console.log(`[Rate Limit] AI operations key: ip_${clientIp} (no user_id found)`);
+        return `ip_${clientIp}`;
     },
     handler: (req: Request, res: Response) => {
         const userId = req.body?.tokenDetails?.user_id;

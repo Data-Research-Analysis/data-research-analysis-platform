@@ -16,8 +16,8 @@ const router = express.Router();
  */
 router.post(
     '/session/initialize',
-    aiOperationsLimiter,
     validateJWT,
+    aiOperationsLimiter,
     validate([
         body('dataSourceId').notEmpty().isInt().withMessage('dataSourceId must be a valid integer')
     ]),
@@ -32,8 +32,8 @@ router.post(
  */
 router.post(
     '/session/initialize-cross-source',
-    aiOperationsLimiter,
     validateJWT,
+    aiOperationsLimiter,
     validate([
         body('projectId').notEmpty().isInt().withMessage('projectId must be a valid integer'),
         body('dataSources').isArray({min: 1}).withMessage('dataSources must be a non-empty array')
@@ -49,8 +49,8 @@ router.post(
  */
 router.post(
     '/session/chat',
-    aiOperationsLimiter,
     validateJWT,
+    aiOperationsLimiter,
     enforceAIGenerationLimit,
     validate([
         body('dataSourceId').optional().isInt().withMessage('dataSourceId must be a valid integer'),
