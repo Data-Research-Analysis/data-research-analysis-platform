@@ -48,6 +48,11 @@ export class EmailService {
     private mailDriver: MailDriver;
     private emailQueue: Queue;
     private worker: Worker;
+    private failedEmailQueue: Array<{emailOptions: IEmailOptions, retryAt: Date}> = [];
+    private queueProcessor: NodeJS.Timeout | null = null;
+    private lastEmailTime = 0;
+    private emailCount = 0;
+    private readonly MAX_EMAILS_PER_SECOND = 1; // Conservative for Mailtrap
 
     private constructor() {
         this.mailDriver = MailDriver.getInstance();
@@ -97,6 +102,133 @@ export class EmailService {
     }
 
     /**
+     * Reset the singleton instance (for testing purposes only)
+     * WARNING: This should only be called in test environments
+     */
+    public static resetInstance(): void {
+        if (process.env.NODE_ENV !== 'test') {
+            console.warn('[EmailService] resetInstance should only be called in test environment');
+        }
+        EmailService.instance = null as any;
+    }
+
+    /**
+     * Check if error is a rate limit error
+     * @private
+     */
+    private isRateLimitError(error: any): boolean {
+        return (
+            error.code === 'EENVELOPE' && 
+            error.responseCode === 550 && 
+            error.response?.includes('Too many emails per second')
+        ) || (
+            error.response?.includes('rate limit') ||
+            error.response?.includes('Rate limit')
+        );
+    }
+
+    /**
+     * Check if error is temporary/retriable
+     * @private
+     */
+    private isTemporaryError(error: any): boolean {
+        const tempCodes = ['ECONNECTION', 'ETIMEDOUT', 'ENOTFOUND', 'ECONNRESET'];
+        const tempResponseCodes = [421, 450, 451, 452];
+        
+        return (
+            tempCodes.includes(error.code) || 
+            tempResponseCodes.includes(error.responseCode)
+        );
+    }
+
+    /**
+     * Sleep helper for retry delays
+     * @private
+     */
+    private sleep(ms: number): Promise<void> {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    /**
+     * Enforce rate limiting before sending emails
+     * @private
+     */
+    private async enforceRateLimit(): Promise<void> {
+        const now = Date.now();
+        const timeSinceLastEmail = now - this.lastEmailTime;
+        
+        if (timeSinceLastEmail < 1000) {
+            this.emailCount++;
+            if (this.emailCount >= this.MAX_EMAILS_PER_SECOND) {
+                const sleepTime = 1000 - timeSinceLastEmail;
+                console.log(`[EmailService] Rate limiting: sleeping ${sleepTime}ms`);
+                await this.sleep(sleepTime);
+                this.emailCount = 0;
+            }
+        } else {
+            this.emailCount = 1;
+        }
+        
+        this.lastEmailTime = Date.now();
+    }
+
+    /**
+     * Queue failed email for later retry
+     * @private
+     */
+    private async queueEmailForLater(emailOptions: IEmailOptions): Promise<void> {
+        const retryAt = new Date(Date.now() + 60000); // Retry in 1 minute
+        this.failedEmailQueue.push({ emailOptions, retryAt });
+        
+        console.log(`[EmailService] Email queued for retry at ${retryAt.toISOString()}`);
+        
+        if (!this.queueProcessor) {
+            this.startQueueProcessor();
+        }
+    }
+
+    /**
+     * Start processing failed email queue
+     * @private
+     */
+    private startQueueProcessor(): void {
+        this.queueProcessor = setInterval(async () => {
+            if (this.failedEmailQueue.length === 0) {
+                return;
+            }
+            
+            const now = new Date();
+            const readyEmails = this.failedEmailQueue.filter(item => item.retryAt <= now);
+            
+            if (readyEmails.length === 0) {
+                return;
+            }
+            
+            console.log(`[EmailService] Processing ${readyEmails.length} queued emails`);
+            
+            for (const item of readyEmails) {
+                try {
+                    await this.sendWithRetry(item.emailOptions, 1);
+                    this.failedEmailQueue = this.failedEmailQueue.filter(q => q !== item);
+                    console.log(`[EmailService] Successfully sent queued email`);
+                } catch (error: any) {
+                    console.error('[EmailService] Failed to send queued email:', error.message);
+                    // Remove from queue if permanent failure
+                    this.failedEmailQueue = this.failedEmailQueue.filter(q => q !== item);
+                }
+            }
+            
+            if (this.failedEmailQueue.length === 0 && this.queueProcessor) {
+                clearInterval(this.queueProcessor);
+                this.queueProcessor = null;
+                console.log('[EmailService] Queue processor stopped');
+            }
+        }, 30000); // Check every 30 seconds
+        
+        console.log('[EmailService] Queue processor started');
+    }
+
+    /**
      * Queue email for sending (recommended for bulk operations)
      */
     async sendEmail(options: IEmailOptions): Promise<void> {
@@ -112,79 +244,132 @@ export class EmailService {
     }
 
     /**
-     * Send email immediately (use for critical notifications)
+     * Send email immediately with retry logic (use for critical notifications)
      */
     async sendEmailImmediately(options: IEmailOptions): Promise<void> {
-        try {
-            let htmlContent = options.html;
-            let textContent = options.text;
-            
-            // If template is specified, render it
-            if (options.template && options.templateData) {
-                const templateData = options.templateData;
+        return this.sendWithRetry(options, 3);
+    }
+
+    /**
+     * Send email with retry logic and error handling
+     * @private
+     */
+    private async sendWithRetry(options: IEmailOptions, maxRetries: number): Promise<void> {
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                // Enforce rate limiting before sending
+                await this.enforceRateLimit();
                 
-                // Build replacement array for TemplateEngineService
-                const replacements: Array<{ key: string; value: string }> = [];
+                let htmlContent = options.html;
+                let textContent = options.text;
                 
-                for (const [key, value] of Object.entries(templateData)) {
-                    let stringValue = '';
+                // If template is specified, render it
+                if (options.template && options.templateData) {
+                    const templateData = options.templateData;
                     
-                    if (value === null || value === undefined) {
-                        stringValue = '';
-                    } else if (value instanceof Date) {
-                        stringValue = new Intl.DateTimeFormat('en-US', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric'
-                        }).format(value);
-                    } else if (typeof value === 'number') {
-                        stringValue = value.toString();
-                    } else {
-                        stringValue = String(value);
+                    // Build replacement array for TemplateEngineService
+                    const replacements: Array<{ key: string; value: string }> = [];
+                    
+                    for (const [key, value] of Object.entries(templateData)) {
+                        let stringValue = '';
+                        
+                        if (value === null || value === undefined) {
+                            stringValue = '';
+                        } else if (value instanceof Date) {
+                            stringValue = new Intl.DateTimeFormat('en-US', {
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric'
+                            }).format(value);
+                        } else if (typeof value === 'number') {
+                            stringValue = value.toString();
+                        } else {
+                            stringValue = String(value);
+                        }
+                        
+                        replacements.push({ key, value: stringValue });
                     }
                     
-                    replacements.push({ key, value: stringValue });
+                    // Add default template variables
+                    const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
+                    const supportEmail = process.env.SUPPORT_EMAIL || 'support@dataresearchanalysis.com';
+                    
+                    replacements.push(
+                        { key: 'year', value: new Date().getFullYear().toString() },
+                        { key: 'projectsUrl', value: `${frontendUrl}/projects` },
+                        { key: 'supportEmail', value: supportEmail },
+                        { key: 'unsubscribeUrl', value: `${frontendUrl}/settings/notifications` }
+                    );
+                    
+                    // Render template
+                    htmlContent = await TemplateEngineService.getInstance().render(
+                        `${options.template}.html`,
+                        replacements
+                    );
+                    
+                    // Generate plain text version from HTML using a robust converter
+                    textContent = convert(htmlContent || '', {
+                        wordwrap: false,
+                        selectors: [
+                            { selector: 'script', format: 'skip' },
+                            { selector: 'style', format: 'skip' }
+                        ]
+                    }).trim();
                 }
                 
-                // Add default template variables
-                const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
-                const supportEmail = process.env.SUPPORT_EMAIL || 'support@dataresearchanalysis.com';
+                // Send via MailDriver
+                await this.mailDriver.sendMail({
+                    to: Array.isArray(options.to) ? options.to[0] : options.to,
+                    subject: options.subject,
+                    text: textContent || '',
+                    html: htmlContent || ''
+                });
                 
-                replacements.push(
-                    { key: 'year', value: new Date().getFullYear().toString() },
-                    { key: 'dashboardUrl', value: `${frontendUrl}/dashboard` },
-                    { key: 'supportEmail', value: supportEmail },
-                    { key: 'unsubscribeUrl', value: `${frontendUrl}/settings/notifications` }
-                );
+                console.log(`[EmailService] Email sent successfully to ${options.to}`);
+                return; // Success - exit retry loop
                 
-                // Render template
-                htmlContent = await TemplateEngineService.getInstance().render(
-                    `emails/${options.template}.html`,
-                    replacements
-                );
+            } catch (error: any) {
+                const isLastAttempt = attempt === maxRetries;
                 
-                // Generate plain text version from HTML using a robust converter
-                textContent = convert(htmlContent || '', {
-                    wordwrap: false,
-                    selectors: [
-                        { selector: 'script', format: 'skip' },
-                        { selector: 'style', format: 'skip' }
-                    ]
-                }).trim();
+                if (this.isRateLimitError(error)) {
+                    const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
+                    console.warn(`[EmailService] Rate limited (attempt ${attempt}/${maxRetries}): ${error.message}`);
+                    
+                    if (!isLastAttempt) {
+                        console.log(`[EmailService] Retrying in ${delay}ms...`);
+                        await this.sleep(delay);
+                        continue;
+                    } else {
+                        // Queue for later if all retries exhausted
+                        console.warn('[EmailService] Max retries exhausted, queuing email for later');
+                        await this.queueEmailForLater(options);
+                        return; // Don't throw, email is queued
+                    }
+                } else if (this.isTemporaryError(error)) {
+                    const delay = 1000 * attempt; // 1s, 2s, 3s
+                    console.warn(`[EmailService] Temporary error (attempt ${attempt}/${maxRetries}): ${error.message}`);
+                    
+                    if (!isLastAttempt) {
+                        console.log(`[EmailService] Retrying in ${delay}ms...`);
+                        await this.sleep(delay);
+                        continue;
+                    }
+                }
+                
+                // Permanent error or max retries reached
+                console.error(`[EmailService] Failed to send email (attempt ${attempt}/${maxRetries}):`, {
+                    error: error.message,
+                    code: error.code,
+                    responseCode: error.responseCode,
+                    to: options.to
+                });
+                
+                if (isLastAttempt) {
+                    // Don't throw - log error but don't crash the server
+                    console.error('[EmailService] Max retries reached, email send failed permanently');
+                    return;
+                }
             }
-            
-            // Send via MailDriver
-            await this.mailDriver.sendMail({
-                to: Array.isArray(options.to) ? options.to[0] : options.to,
-                subject: options.subject,
-                text: textContent || '',
-                html: htmlContent || ''
-            });
-            
-            console.log(`[EmailService] Email sent to ${options.to}`);
-        } catch (error: any) {
-            console.error('[EmailService] Failed to send email:', error);
-            throw error;
         }
     }
 
@@ -202,7 +387,8 @@ export class EmailService {
         const verificationUrl = `${UtilityService.getInstance().getConstants('FRONTEND_URL')}/verify-email?token=${token}`;
         
         const html = await TemplateEngineService.getInstance().render('email-verification-simple.html', [
-            { key: 'verification_url', value: verificationUrl }
+            { key: 'verification_url', value: verificationUrl },
+            { key: 'unsubscribe_code', value: '' } // Will be populated by sendEmail wrapper if needed
         ]);
 
         const text = `Thank you for registering with Data Research Analysis Platform.
@@ -236,7 +422,8 @@ If you did not create an account, please ignore this email.`;
         const resetUrl = `${UtilityService.getInstance().getConstants('FRONTEND_URL')}/reset-password?token=${token}`;
         
         const html = await TemplateEngineService.getInstance().render('password-reset-simple.html', [
-            { key: 'reset_url', value: resetUrl }
+            { key: 'reset_url', value: resetUrl },
+            { key: 'unsubscribe_code', value: '' } // Will be populated by sendEmail wrapper if needed
         ]);
 
         const text = `We received a request to reset your password for your Data Research Analysis Platform account.
@@ -271,7 +458,8 @@ If you did not request a password reset, please ignore this email.`;
         
         const html = await TemplateEngineService.getInstance().render('beta-invitation.html', [
             { key: 'invitation_code', value: invitationCode },
-            { key: 'signup_url', value: signupUrl }
+            { key: 'signup_url', value: signupUrl },
+            { key: 'unsubscribe_code', value: '' } // Will be populated by sendEmail wrapper if needed
         ]);
 
         const text = `Welcome to Data Research Analysis Beta!
@@ -321,7 +509,8 @@ This is your chance to be among the first to experience our platform.`;
             { key: 'project_name', value: data.projectName },
             { key: 'role', value: data.role },
             { key: 'role_description', value: roleDescriptions[data.role.toLowerCase()] || 'Collaborate on this project' },
-            { key: 'accept_url', value: acceptUrl }
+            { key: 'accept_url', value: acceptUrl },
+            { key: 'unsubscribe_code', value: '' } // Will be populated by sendEmail wrapper if needed
         ]);
 
         const text = `${data.inviterName} has invited you to collaborate on "${data.projectName}"
@@ -371,7 +560,8 @@ If you did not expect this invitation, please ignore this email.`;
             { key: 'project_name', value: data.projectName },
             { key: 'role', value: data.role },
             { key: 'role_description', value: roleDescriptions[data.role.toLowerCase()] || 'Collaborate on this project' },
-            { key: 'project_url', value: projectUrl }
+            { key: 'project_url', value: projectUrl },
+            { key: 'unsubscribe_code', value: '' } // Will be populated by sendEmail wrapper if needed
         ]);
 
         const text = `${data.inviterName} has added you to "${data.projectName}"
@@ -535,7 +725,7 @@ We're excited to have you on board!`;
         retentionDays: number
     ): Promise<SendMailResult> {
         const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
-        const dashboardUrl = `${frontendUrl}/dashboard`;
+        const projectsUrl = `${frontendUrl}/projects`;
         const reactivateUrl = `${frontendUrl}/account/cancel-account?action=reactivate`;
         
         const html = await TemplateEngineService.getInstance().render('account-cancellation-requested.html', [
@@ -543,8 +733,9 @@ We're excited to have you on board!`;
             { key: 'effective_date', value: new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric' }).format(effectiveDate) },
             { key: 'deletion_date', value: new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric' }).format(deletionDate) },
             { key: 'retention_days', value: retentionDays.toString() },
-            { key: 'dashboard_url', value: dashboardUrl },
-            { key: 'reactivate_url', value: reactivateUrl }
+            { key: 'dashboard_url', value: projectsUrl },
+            { key: 'reactivate_url', value: reactivateUrl },
+            { key: 'unsubscribe_code', value: '' } // Will be populated by sendEmail wrapper if needed
         ]);
 
         const text = `Account Cancellation Requested
@@ -565,7 +756,7 @@ What happens next:
 • We'll send you reminders at 7 days and 1 day before permanent deletion
 • On ${deletionDate.toLocaleDateString()}, all your data will be permanently deleted
 
-Don't forget to export your data: ${dashboardUrl}
+Don't forget to export your data: ${projectsUrl}
 Reactivate your account: ${reactivateUrl}
 
 If you have any questions, please contact our support team.`;
@@ -595,14 +786,15 @@ If you have any questions, please contact our support team.`;
         deletionDate: Date
     ): Promise<SendMailResult> {
         const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
-        const dashboardUrl = `${frontendUrl}/dashboard`;
+        const projectsUrl = `${frontendUrl}/projects`;
         const reactivateUrl = `${frontendUrl}/account/cancel-account?action=reactivate`;
         
         const html = await TemplateEngineService.getInstance().render('account-cancellation-reminder-7days.html', [
             { key: 'user_name', value: userName },
             { key: 'deletion_date', value: new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric' }).format(deletionDate) },
-            { key: 'dashboard_url', value: dashboardUrl },
-            { key: 'reactivate_url', value: reactivateUrl }
+            { key: 'dashboard_url', value: projectsUrl },
+            { key: 'reactivate_url', value: reactivateUrl },
+            { key: 'unsubscribe_code', value: '' } // Will be populated by sendEmail wrapper if needed
         ]);
 
         const text = `⚠️ 7 DAYS UNTIL ACCOUNT DELETION
@@ -623,7 +815,7 @@ What will be deleted:
 
 TAKE ACTION NOW:
 • Reactivate your account: ${reactivateUrl}
-• Export your data: ${dashboardUrl}
+• Export your data: ${projectsUrl}
 
 ⚠️ This action is irreversible. Once your data is deleted, it cannot be recovered.
 
@@ -661,20 +853,21 @@ If you did not request this cancellation, please contact support immediately.`;
         }
     ): Promise<SendMailResult> {
         const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
-        const dashboardUrl = `${frontendUrl}/dashboard`;
+        const projectsUrl = `${frontendUrl}/dashboard`;
         const reactivateUrl = `${frontendUrl}/account/cancel-account?action=reactivate`;
         const supportUrl = `${frontendUrl}/support`;
         
         const html = await TemplateEngineService.getInstance().render('account-cancellation-reminder-1day.html', [
             { key: 'user_name', value: userName },
             { key: 'deletion_date', value: new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' }).format(deletionDate) },
-            { key: 'dashboard_url', value: dashboardUrl },
+            { key: 'dashboard_url', value: projectsUrl },
             { key: 'reactivate_url', value: reactivateUrl },
             { key: 'support_url', value: supportUrl },
             { key: 'project_count', value: dataCounts.projectCount.toString() },
             { key: 'data_source_count', value: dataCounts.dataSourceCount.toString() },
             { key: 'data_model_count', value: dataCounts.dataModelCount.toString() },
-            { key: 'dashboard_count', value: dataCounts.dashboardCount.toString() }
+            { key: 'dashboard_count', value: dataCounts.dashboardCount.toString() },
+            { key: 'unsubscribe_code', value: '' } // Will be populated by sendEmail wrapper if needed
         ]);
 
         const text = `🚨 FINAL WARNING: ACCOUNT DELETION TOMORROW
@@ -697,7 +890,7 @@ After deletion, the following cannot be recovered:
 
 LAST CHANCE - TAKE ACTION NOW:
 ✓ REACTIVATE YOUR ACCOUNT: ${reactivateUrl}
-📦 Export Data: ${dashboardUrl}
+📦 Export Data: ${projectsUrl}
 💬 Contact Support: ${supportUrl}
 
 🛑 LAST CHANCE TO SAVE YOUR DATA
@@ -728,11 +921,12 @@ Need help? Contact our support team immediately.`;
         userName: string
     ): Promise<SendMailResult> {
         const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
-        const dashboardUrl = `${frontendUrl}/dashboard`;
+        const projectsUrl = `${frontendUrl}/dashboard`;
         
         const html = await TemplateEngineService.getInstance().render('account-reactivated.html', [
             { key: 'user_name', value: userName },
-            { key: 'dashboard_url', value: dashboardUrl }
+            { key: 'dashboard_url', value: projectsUrl },
+            { key: 'unsubscribe_code', value: '' } // Will be populated by sendEmail wrapper if needed
         ]);
 
         const text = `🎉 Welcome Back!
@@ -752,7 +946,7 @@ What's been restored:
 ✓ All uploaded files
 ✓ Your subscription and settings
 
-Go to Dashboard: ${dashboardUrl}
+Go to Dashboard: ${projectsUrl}
 
 We'd love your feedback - What made you come back?
 
@@ -788,7 +982,8 @@ Thank you for choosing Data Research Analysis. We're committed to providing you 
         const html = await TemplateEngineService.getInstance().render('account-data-deleted.html', [
             { key: 'user_name', value: userName },
             { key: 'deletion_date', value: new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric' }).format(deletionDate) },
-            { key: 'signup_url', value: signupUrl }
+            { key: 'signup_url', value: signupUrl },
+            { key: 'unsubscribe_code', value: '' } // Will be populated by sendEmail wrapper if needed
         ]);
 
         const text = `Account Data Deleted
@@ -825,11 +1020,556 @@ If you believe this was done in error, please contact our support team immediate
     }
 
     /**
+     * Send subscription upgraded email
+     * 
+     * Sent when user's subscription is upgraded to a higher tier.
+     * Includes new features and benefits.
+     * 
+     * @param email - User email address
+     * @param userName - User full name
+     * @param oldTier - Previous subscription tier name
+     * @param newTier - New subscription tier name
+     * @param newFeatures - Array of new features unlocked
+     * @returns Send result with message ID
+     */
+    public async sendSubscriptionUpgraded(
+        email: string,
+        userName: string,
+        oldTier: string,
+        newTier: string,
+        newFeatures: string[]
+    ): Promise<SendMailResult> {
+        const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
+        const dashboardUrl = `${frontendUrl}/dashboard`;
+        const featuresHtml = newFeatures.map(f => `<li>${f}</li>`).join('');
+        const featuresText = newFeatures.map(f => `• ${f}`).join('\n');
+        
+        const html = await TemplateEngineService.getInstance().render('subscription-upgraded.html', [
+            { key: 'user_name', value: userName },
+            { key: 'old_tier', value: oldTier },
+            { key: 'new_tier', value: newTier },
+            { key: 'new_features', value: featuresHtml },
+            { key: 'dashboard_url', value: dashboardUrl },
+            { key: 'unsubscribe_code', value: '' }
+        ]);
+
+        const text = `🎉 Subscription Upgraded!
+
+Hello ${userName},
+
+Great news! Your subscription has been upgraded from ${oldTier} to ${newTier}.
+
+New Features Unlocked:
+${featuresText}
+
+Start exploring your new features: ${dashboardUrl}
+
+Thank you for your continued support!`;
+
+        return this.mailDriver.sendMail({
+            to: email,
+            subject: `🎉 Subscription Upgraded to ${newTier}`,
+            text,
+            html
+        });
+    }
+
+    /**
+     * Send subscription downgraded email
+     * 
+     * Sent when user's subscription is downgraded to a lower tier.
+     * Includes information about changed features.
+     * 
+     * @param email - User email address
+     * @param userName - User full name
+     * @param oldTier - Previous subscription tier name
+     * @param newTier - New subscription tier name
+     * @param effectiveDate - Date when downgrade takes effect
+     * @returns Send result with message ID
+     */
+    public async sendSubscriptionDowngraded(
+        email: string,
+        userName: string,
+        oldTier: string,
+        newTier: string,
+        effectiveDate: Date
+    ): Promise<SendMailResult> {
+        const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
+        const dashboardUrl = `${frontendUrl}/dashboard`;
+        const upgradeUrl = `${frontendUrl}/subscription/upgrade`;
+        
+        const html = await TemplateEngineService.getInstance().render('subscription-downgraded.html', [
+            { key: 'user_name', value: userName },
+            { key: 'old_tier', value: oldTier },
+            { key: 'new_tier', value: newTier },
+            { key: 'effective_date', value: new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric' }).format(effectiveDate) },
+            { key: 'dashboard_url', value: dashboardUrl },
+            { key: 'upgrade_url', value: upgradeUrl },
+            { key: 'unsubscribe_code', value: '' }
+        ]);
+
+        const text = `Subscription Downgraded
+
+Hello ${userName},
+
+Your subscription has been changed from ${oldTier} to ${newTier}.
+
+Effective Date: ${effectiveDate.toLocaleDateString()}
+
+View your subscription details: ${dashboardUrl}
+Want to upgrade? ${upgradeUrl}
+
+If you have any questions, please contact our support team.`;
+
+        return this.mailDriver.sendMail({
+            to: email,
+            subject: `Subscription Changed to ${newTier}`,
+            text,
+            html
+        });
+    }
+
+    /**
+     * Send subscription cancelled email
+     * 
+     * Sent when user cancels their subscription.
+     * Account will revert to free tier.
+     * 
+     * @param email - User email address
+     * @param userName - User full name
+     * @param tierName - Cancelled subscription tier name
+     * @param effectiveDate - Date when cancellation takes effect
+     * @returns Send result with message ID
+     */
+    public async sendSubscriptionCancelled(
+        email: string,
+        userName: string,
+        tierName: string,
+        effectiveDate: Date
+    ): Promise<SendMailResult> {
+        const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
+        const dashboardUrl = `${frontendUrl}/dashboard`;
+        const renewUrl = `${frontendUrl}/subscription/renew`;
+        
+        const html = await TemplateEngineService.getInstance().render('subscription-cancelled.html', [
+            { key: 'user_name', value: userName },
+            { key: 'tier_name', value: tierName },
+            { key: 'effective_date', value: new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric' }).format(effectiveDate) },
+            { key: 'dashboard_url', value: dashboardUrl },
+            { key: 'renew_url', value: renewUrl },
+            { key: 'unsubscribe_code', value: '' }
+        ]);
+
+        const text = `Subscription Cancelled
+
+Hello ${userName},
+
+Your ${tierName} subscription has been cancelled.
+
+Cancellation effective: ${effectiveDate.toLocaleDateString()}
+
+After this date, your account will revert to the FREE tier with limited features.
+
+Changed your mind? Renew your subscription: ${renewUrl}
+View your account: ${dashboardUrl}
+
+We're sorry to see you go. If you have feedback on how we can improve, we'd love to hear it.`;
+
+        return this.mailDriver.sendMail({
+            to: email,
+            subject: 'Subscription Cancelled - Data Research Analysis',
+            text,
+            html
+        });
+    }
+
+    /**
+     * Send subscription expired email
+     * 
+     * Sent when user's subscription has expired.
+     * Account has been downgraded to free tier.
+     * 
+     * @param email - User email address
+     * @param userName - User full name
+     * @param tierName - Expired subscription tier name
+     * @param expirationDate - Date when subscription expired
+     * @returns Send result with message ID
+     */
+    public async sendSubscriptionExpired(
+        email: string,
+        userName: string,
+        tierName: string,
+        expirationDate: Date
+    ): Promise<SendMailResult> {
+        const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
+        const dashboardUrl = `${frontendUrl}/dashboard`;
+        const renewUrl = `${frontendUrl}/subscription/renew`;
+        
+        const html = await TemplateEngineService.getInstance().render('subscription-expired.html', [
+            { key: 'user_name', value: userName },
+            { key: 'tier_name', value: tierName },
+            { key: 'expiration_date', value: new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric' }).format(expirationDate) },
+            { key: 'dashboard_url', value: dashboardUrl },
+            { key: 'renew_url', value: renewUrl },
+            { key: 'unsubscribe_code', value: '' }
+        ]);
+
+        const text = `⚠️ Subscription Expired
+
+Hello ${userName},
+
+Your ${tierName} subscription expired on ${expirationDate.toLocaleDateString()}.
+
+Your account has been downgraded to the FREE tier. You still have access to basic features, but premium features are now limited.
+
+Want to continue enjoying premium features?
+Renew your subscription: ${renewUrl}
+
+View your account: ${dashboardUrl}
+
+Thank you for being part of Data Research Analysis!`;
+
+        return this.mailDriver.sendMail({
+            to: email,
+            subject: '⚠️ Subscription Expired - Data Research Analysis',
+            text,
+            html
+        });
+    }
+
+    /**
+     * Send subscription expiring warning email
+     * 
+     * Sent before subscription expires (usually 7 days before).
+     * Prompts user to renew or update payment method.
+     * 
+     * @param email - User email address
+     * @param userName - User full name
+     * @param tierName - Current subscription tier name
+     * @param expirationDate - Date when subscription will expire
+     * @param daysUntilExpiration - Number of days until expiration
+     * @returns Send result with message ID
+     */
+    public async sendSubscriptionExpiringWarning(
+        email: string,
+        userName: string,
+        tierName: string,
+        expirationDate: Date,
+        daysUntilExpiration: number
+    ): Promise<SendMailResult> {
+        const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
+        const dashboardUrl = `${frontendUrl}/dashboard`;
+        const renewUrl = `${frontendUrl}/subscription/renew`;
+        const paymentUrl = `${frontendUrl}/settings/billing`;
+        
+        const html = await TemplateEngineService.getInstance().render('subscription-expiring-warning.html', [
+            { key: 'user_name', value: userName },
+            { key: 'tier_name', value: tierName },
+            { key: 'expiration_date', value: new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric' }).format(expirationDate) },
+            { key: 'days_until_expiration', value: daysUntilExpiration.toString() },
+            { key: 'dashboard_url', value: dashboardUrl },
+            { key: 'renew_url', value: renewUrl },
+            { key: 'payment_url', value: paymentUrl },
+            { key: 'unsubscribe_code', value: '' }
+        ]);
+
+        const text = `⚠️ Subscription Expiring Soon
+
+Hello ${userName},
+
+Your ${tierName} subscription will expire in ${daysUntilExpiration} days.
+
+Expiration Date: ${expirationDate.toLocaleDateString()}
+
+Don't lose access to your premium features!
+
+Action Required:
+• Renew your subscription: ${renewUrl}
+• Update payment method: ${paymentUrl}
+
+View your subscription: ${dashboardUrl}
+
+Questions? Contact our support team.`;
+
+        return this.mailDriver.sendMail({
+            to: email,
+            subject: `⚠️ Your ${tierName} Subscription Expires in ${daysUntilExpiration} Days`,
+            text,
+            html
+        });
+    }
+
+    /**
+     * Send subscription assigned email
+     * 
+     * Sent when an admin assigns a subscription to a user.
+     * Includes tier details and welcome message.
+     * 
+     * @param email - User email address
+     * @param userName - User full name
+     * @param tierName - Assigned subscription tier name
+     * @param assignedBy - Name of admin who assigned the subscription
+     * @param features - Array of features included in the tier
+     * @returns Send result with message ID
+     */
+    public async sendSubscriptionAssigned(
+        email: string,
+        userName: string,
+        tierName: string,
+        assignedBy: string,
+        features: string[]
+    ): Promise<SendMailResult> {
+        const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
+        const dashboardUrl = `${frontendUrl}/dashboard`;
+        const featuresHtml = features.map(f => `<li>${f}</li>`).join('');
+        const featuresText = features.map(f => `• ${f}`).join('\n');
+        
+        const html = await TemplateEngineService.getInstance().render('subscription-assigned.html', [
+            { key: 'user_name', value: userName },
+            { key: 'tier_name', value: tierName },
+            { key: 'assigned_by', value: assignedBy },
+            { key: 'features', value: featuresHtml },
+            { key: 'dashboard_url', value: dashboardUrl },
+            { key: 'unsubscribe_code', value: '' }
+        ]);
+
+        const text = `🎉 Subscription Assigned!
+
+Hello ${userName},
+
+Great news! ${assignedBy} has assigned you a ${tierName} subscription.
+
+Included Features:
+${featuresText}
+
+Start using your new features: ${dashboardUrl}
+
+Enjoy your premium access!`;
+
+        return this.mailDriver.sendMail({
+            to: email,
+            subject: `🎉 You've Been Assigned a ${tierName} Subscription`,
+            text,
+            html
+        });
+    }
+
+    /**
+     * Send data source sync complete email
+     * 
+     * Sent when a data source sync successfully completes.
+     * Includes sync statistics and timestamp.
+     * 
+     * @param email - User email address
+     * @param userName - User full name
+     * @param dataSourceName - Name of the synced data source
+     * @param syncTime - Time when sync completed
+     * @param recordCount - Number of records synced
+     * @returns Send result with message ID
+     */
+    public async sendSyncComplete(
+        email: string,
+        userName: string,
+        dataSourceName: string,
+        syncTime: Date,
+        recordCount: number
+    ): Promise<SendMailResult> {
+        const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
+        const dashboardUrl = `${frontendUrl}/dashboard`;
+        const dataSourcesUrl = `${frontendUrl}/data-sources`;
+        
+        const html = await TemplateEngineService.getInstance().render('sync-complete.html', [
+            { key: 'user_name', value: userName },
+            { key: 'data_source_name', value: dataSourceName },
+            { key: 'sync_time', value: new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' }).format(syncTime) },
+            { key: 'record_count', value: recordCount.toLocaleString() },
+            { key: 'dashboard_url', value: dashboardUrl },
+            { key: 'data_sources_url', value: dataSourcesUrl },
+            { key: 'unsubscribe_code', value: '' }
+        ]);
+
+        const text = `✅ Data Sync Complete
+
+Hello ${userName},
+
+Your data source "${dataSourceName}" has been successfully synced.
+
+Sync Details:
+• Completed: ${syncTime.toLocaleString()}
+• Records Synced: ${recordCount.toLocaleString()}
+
+View your data: ${dashboardUrl}
+Manage data sources: ${dataSourcesUrl}
+
+Your data is now up to date!`;
+
+        return this.mailDriver.sendMail({
+            to: email,
+            subject: `✅ Sync Complete: ${dataSourceName}`,
+            text,
+            html
+        });
+    }
+
+    /**
+     * Send data source sync failure email
+     * 
+     * Sent when a data source sync fails.
+     * Includes error details and troubleshooting steps.
+     * 
+     * @param email - User email address
+     * @param userName - User full name
+     * @param dataSourceName - Name of the data source that failed
+     * @param errorMessage - Error message from the sync failure
+     * @param failureTime - Time when sync failed
+     * @returns Send result with message ID
+     */
+    public async sendSyncFailure(
+        email: string,
+        userName: string,
+        dataSourceName: string,
+        errorMessage: string,
+        failureTime: Date
+    ): Promise<SendMailResult> {
+        const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
+        const dataSourcesUrl = `${frontendUrl}/data-sources`;
+        const supportUrl = `${frontendUrl}/support`;
+        
+        const html = await TemplateEngineService.getInstance().render('sync-failure.html', [
+            { key: 'user_name', value: userName },
+            { key: 'data_source_name', value: dataSourceName },
+            { key: 'error_message', value: errorMessage },
+            { key: 'failure_time', value: new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' }).format(failureTime) },
+            { key: 'data_sources_url', value: dataSourcesUrl },
+            { key: 'support_url', value: supportUrl },
+            { key: 'unsubscribe_code', value: '' }
+        ]);
+
+        const text = `❌ Data Sync Failed
+
+Hello ${userName},
+
+Your data source "${dataSourceName}" sync failed.
+
+Failure Details:
+• Time: ${failureTime.toLocaleString()}
+• Error: ${errorMessage}
+
+Troubleshooting Steps:
+1. Check your data source connection settings
+2. Verify credentials are still valid
+3. Ensure the data source is accessible
+4. Try syncing again manually
+
+Manage data sources: ${dataSourcesUrl}
+Need help? Contact support: ${supportUrl}
+
+We'll automatically retry the sync. You can also retry manually from your dashboard.`;
+
+        return this.mailDriver.sendMail({
+            to: email,
+            subject: `❌ Sync Failed: ${dataSourceName}`,
+            text,
+            html
+        });
+    }
+
+    /**
+     * Send dashboard export complete email
+     * 
+     * Sent when a dashboard export is ready for download.
+     * Includes download link and expiration info.
+     * 
+     * @param email - User email address
+     * @param userName - User full name
+     * @param dashboardName - Name of the exported dashboard
+     * @param exportFormat - Format of export (PDF, CSV, Excel, etc.)
+     * @param downloadUrl - URL to download the export
+     * @param expirationHours - Hours until download link expires
+     * @returns Send result with message ID
+     */
+    public async sendExportComplete(
+        email: string,
+        userName: string,
+        dashboardName: string,
+        exportFormat: string,
+        downloadUrl: string,
+        expirationHours: number
+    ): Promise<SendMailResult> {
+        const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
+        const dashboardUrl = `${frontendUrl}/dashboard`;
+        
+        const html = await TemplateEngineService.getInstance().render('export-complete.html', [
+            { key: 'user_name', value: userName },
+            { key: 'dashboard_name', value: dashboardName },
+            { key: 'export_format', value: exportFormat.toUpperCase() },
+            { key: 'download_url', value: downloadUrl },
+            { key: 'expiration_hours', value: expirationHours.toString() },
+            { key: 'dashboard_url', value: dashboardUrl },
+            { key: 'unsubscribe_code', value: '' }
+        ]);
+
+        const text = `📊 Export Ready for Download
+
+Hello ${userName},
+
+Your "${dashboardName}" export is ready!
+
+Export Details:
+• Format: ${exportFormat.toUpperCase()}
+• Expires in: ${expirationHours} hours
+
+Download now: ${downloadUrl}
+
+⚠️ This link will expire in ${expirationHours} hours. Please download your export before then.
+
+Back to dashboard: ${dashboardUrl}
+
+Need another export? You can create a new one from your dashboard.`;
+
+        return this.mailDriver.sendMail({
+            to: email,
+            subject: `📊 Export Ready: ${dashboardName}`,
+            text,
+            html
+        });
+    }
+
+    /**
      * Close email service and cleanup resources
      */
     async close(): Promise<void> {
-        await this.worker.close();
-        await this.emailQueue.close();
+        // Stop queue processor if running
+        if (this.queueProcessor) {
+            clearInterval(this.queueProcessor);
+            this.queueProcessor = null;
+        }
+
+        // Clear failed email queue
+        this.failedEmailQueue = [];
+
+        // Close worker and queue
+        if (this.worker) {
+            await this.worker.close();
+        }
+        if (this.emailQueue) {
+            await this.emailQueue.close();
+        }
+
         console.log('[EmailService] Service closed');
+    }
+
+    /**
+     * Reset internal state (for testing purposes)
+     * Clears rate limiting state and failed email queue
+     */
+    public resetState(): void {
+        this.failedEmailQueue = [];
+        this.lastEmailTime = 0;
+        this.emailCount = 0;
+        if (this.queueProcessor) {
+            clearInterval(this.queueProcessor);
+            this.queueProcessor = null;
+        }
     }
 }

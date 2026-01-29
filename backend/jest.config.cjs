@@ -20,6 +20,7 @@ module.exports = {
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1'
   },
+  injectGlobals: true,
   collectCoverageFrom: [
     'src/services/EncryptionService.ts',
     'src/models/DRADataSource.ts',

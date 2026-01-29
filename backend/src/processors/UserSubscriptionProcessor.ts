@@ -135,6 +135,15 @@ export class UserSubscriptionProcessor {
             throw new Error(`Cannot assign inactive subscription tier: ${tier.tier_name}`);
         }
         
+        // Capture previous subscription before deactivating
+        const previousSubscription = await manager.findOne(DRAUserSubscription, {
+            where: { 
+                users_platform: { id: userId },
+                is_active: true
+            },
+            relations: ['subscription_tier']
+        });
+        
         // Start transaction to ensure atomicity
         return await manager.transaction(async (transactionalEntityManager) => {
             // Deactivate any existing active subscriptions for this user using QueryBuilder
@@ -163,9 +172,25 @@ export class UserSubscriptionProcessor {
             
             console.log(`[UserSubscriptionProcessor] Subscription saved, ID: ${savedSubscription.id}, User: ${userId}, Tier: ${tier.tier_name}`);
             
+            // Determine email type based on tier comparison
+            const emailType = this.determineEmailType(
+                previousSubscription?.subscription_tier || null, 
+                tier
+            );
+            
+            console.log(`[UserSubscriptionProcessor] Email type determined: ${emailType} (previous: ${previousSubscription?.subscription_tier?.tier_name || 'none'}, new: ${tier.tier_name})`);
+            
             // Send email notification (async, don't wait)
-            this.sendSubscriptionEmail(user, tier, savedSubscription, 'assigned').catch(err => {
-                console.error('[UserSubscriptionProcessor] Failed to send subscription email:', err);
+            this.sendSubscriptionEmail(user, tier, savedSubscription, emailType).catch(err => {
+                // Classify error severity for better logging
+                if (err?.code === 'EENVELOPE' || err?.response?.includes('rate limit')) {
+                    console.warn(`[UserSubscriptionProcessor] Email rate limited for user ${user.email}, will be retried automatically`);
+                } else if (['ECONNECTION', 'ETIMEDOUT', 'ENOTFOUND'].includes(err?.code)) {
+                    console.warn(`[UserSubscriptionProcessor] Temporary email failure for user ${user.email}: ${err.message}`);
+                } else {
+                    console.error(`[UserSubscriptionProcessor] Email failure for user ${user.email}:`, err);
+                }
+                // Never let email failures bubble up and crash business logic
             });
             
             // Send notification
@@ -303,6 +328,68 @@ export class UserSubscriptionProcessor {
     }
     
     /**
+     * Determine email type based on tier comparison
+     * @private
+     */
+    private determineEmailType(
+        previousTier: DRASubscriptionTier | null, 
+        newTier: DRASubscriptionTier
+    ): 'assigned' | 'upgraded' | 'downgraded' {
+        if (!previousTier) {
+            return 'assigned'; // First subscription
+        }
+        
+        // Compare tiers using price as primary indicator
+        const previousPrice = parseFloat(previousTier.price_per_month_usd.toString());
+        const newPrice = parseFloat(newTier.price_per_month_usd.toString());
+        
+        if (newPrice > previousPrice) {
+            return 'upgraded';
+        } else if (newPrice < previousPrice) {
+            return 'downgraded';
+        }
+        
+        // If same price, compare features as tiebreaker
+        const featureComparison = this.compareTierFeatures(newTier, previousTier);
+        if (featureComparison > 0) {
+            return 'upgraded';
+        } else if (featureComparison < 0) {
+            return 'downgraded';
+        }
+        
+        return 'assigned'; // Same tier reassignment
+    }
+
+    /**
+     * Compare tier features to determine which is better
+     * @private
+     */
+    private compareTierFeatures(
+        tierA: DRASubscriptionTier, 
+        tierB: DRASubscriptionTier
+    ): number {
+        const features = [
+            'max_projects',
+            'max_data_sources_per_project', 
+            'max_dashboards',
+            'ai_generations_per_month'
+        ] as const;
+        
+        let scoreA = 0;
+        let scoreB = 0;
+        
+        features.forEach(feature => {
+            const valueA = tierA[feature] === null || tierA[feature] === -1 ? Infinity : (tierA[feature] || 0);
+            const valueB = tierB[feature] === null || tierB[feature] === -1 ? Infinity : (tierB[feature] || 0);
+            
+            if (valueA > valueB) scoreA++;
+            else if (valueB > valueA) scoreB++;
+        });
+        
+        return scoreA - scoreB; // Positive = A better, Negative = B better, 0 = same
+    }
+
+    /**
      * Send subscription-related email notification
      * @private
      */
@@ -331,19 +418,19 @@ export class UserSubscriptionProcessor {
             
             switch (emailType) {
                 case 'assigned':
-                    subject = `Welcome to ${tier.tier_name}!`;
+                    subject = `Data Research Analysis: You have been assigned Plan ${tier.tier_name}!`;
                     template = 'subscription-assigned';
                     break;
                 case 'upgraded':
-                    subject = `You've been upgraded to ${tier.tier_name}!`;
+                    subject = `Data Research Analysis: You've been upgraded to Plan ${tier.tier_name}!`;
                     template = 'subscription-upgraded';
                     break;
                 case 'downgraded':
-                    subject = `Your subscription changed to ${tier.tier_name}`;
+                    subject = `Data Research Analysis: Your subscription changed to Plan ${tier.tier_name}`;
                     template = 'subscription-downgraded';
                     break;
                 case 'cancelled':
-                    subject = 'Your subscription has been cancelled';
+                    subject = 'Data Research Analysis: Your subscription has been cancelled';
                     template = 'subscription-cancelled';
                     break;
                 default:

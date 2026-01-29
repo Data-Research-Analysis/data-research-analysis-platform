@@ -49,6 +49,30 @@ import { dirname } from 'path';
 console.log('Starting up Data Research Analysis API Server');
 const app = express();
 
+// Global error handlers to prevent server crashes
+process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
+    console.error('❌ Unhandled Rejection at:', promise);
+    console.error('Reason:', reason);
+    // Don't crash the server, just log the error
+});
+
+process.on('uncaughtException', (error: Error) => {
+    console.error('❌ Uncaught Exception:', error);
+    // For uncaught exceptions, we should do a graceful shutdown
+    // as the application state may be corrupted
+    console.log('Performing graceful shutdown...');
+    httpServer.close(() => {
+        console.log('Server closed. Exiting process.');
+        process.exit(1);
+    });
+    
+    // Force exit after 10 seconds if graceful shutdown fails
+    setTimeout(() => {
+        console.error('Forcefully shutting down after timeout');
+        process.exit(1);
+    }, 10000);
+});
+
 // Create HTTP server that will be shared between Express and Socket.IO
 const httpServer = createServer(app);
 
