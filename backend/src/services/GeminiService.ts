@@ -88,7 +88,7 @@ export class GeminiService {
 
             // Generate response using the full conversation history
             const response = await this.genAI.models.generateContent({
-                model: 'gemini-1.5-flash-latest',
+                model: 'gemini-2.5-flash',
                 contents: session.chat
             });
 
@@ -130,7 +130,7 @@ export class GeminiService {
 
             // Generate streaming response
             const response = await this.genAI.models.generateContentStream({
-                model: 'gemini-1.5-flash-latest',
+                model: 'gemini-2.5-flash',
                 contents: session.chat
             });
 
