@@ -83,10 +83,24 @@ await UtilityService.getInstance().initialize();
 import { NotificationProcessor } from './processors/NotificationProcessor.js';
 import { PostgresDriver } from './drivers/PostgresDriver.js';
 import { EDataSourceType } from './types/EDataSourceType.js';
-const dbDriver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-const dataSource = await dbDriver.getConcreteDriver();
-NotificationProcessor.getInstance().initialize(dataSource);
-console.log('✅ Notification processor initialized');
+
+// Wait for database to be ready and initialize NotificationProcessor
+try {
+    const dbDriver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+    if (dbDriver) {
+        const dataSource = await dbDriver.getConcreteDriver();
+        if (dataSource && dataSource.isInitialized) {
+            NotificationProcessor.getInstance().initialize(dataSource);
+            console.log('✅ Notification processor initialized');
+        } else {
+            console.warn('⚠️ Database not fully initialized, NotificationProcessor will initialize on first use');
+        }
+    } else {
+        console.warn('⚠️ Database driver not available, NotificationProcessor will initialize on first use');
+    }
+} catch (error) {
+    console.error('❌ Error initializing NotificationProcessor:', error.message);
+}
 
 // Initialize OAuth session service (starts cleanup scheduler)
 import { OAuthSessionService } from './services/OAuthSessionService.js';

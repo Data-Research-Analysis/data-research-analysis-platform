@@ -1,0 +1,160 @@
+import { MigrationInterface, QueryRunner } from "typeorm";
+
+export class UpdateDatabase1769663523886 implements MigrationInterface {
+    name = 'UpdateDatabase1769663523886'
+
+    public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" DROP CONSTRAINT "fk_refresh_history_model"`);
+        await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" DROP CONSTRAINT "fk_refresh_history_source"`);
+        await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" DROP CONSTRAINT "fk_refresh_history_user"`);
+        await queryRunner.query(`ALTER TABLE "dra_project_invitations" DROP CONSTRAINT "FK_project_invitations_verification_code"`);
+        await queryRunner.query(`ALTER TABLE "dra_account_cancellations" DROP CONSTRAINT "fk_account_cancellations_admin"`);
+        await queryRunner.query(`ALTER TABLE "dra_account_cancellations" DROP CONSTRAINT "fk_account_cancellations_user"`);
+        await queryRunner.query(`DROP INDEX "public"."idx_data_sources_next_sync"`);
+        await queryRunner.query(`DROP INDEX "public"."idx_data_sources_schedule"`);
+        await queryRunner.query(`DROP INDEX "public"."idx_refresh_history_model"`);
+        await queryRunner.query(`DROP INDEX "public"."idx_refresh_history_started"`);
+        await queryRunner.query(`DROP INDEX "public"."idx_refresh_history_status"`);
+        await queryRunner.query(`DROP INDEX "public"."idx_data_models_last_refreshed"`);
+        await queryRunner.query(`DROP INDEX "public"."idx_data_models_refresh_status"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_invitations_email"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_invitations_status_expires"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_project_email_status"`);
+        await queryRunner.query(`DROP INDEX "public"."idx_platform_settings_category"`);
+        await queryRunner.query(`DROP INDEX "public"."idx_platform_settings_key"`);
+        await queryRunner.query(`DROP INDEX "public"."idx_account_cancellations_deletion_scheduled"`);
+        await queryRunner.query(`DROP INDEX "public"."idx_account_cancellations_status"`);
+        await queryRunner.query(`DROP INDEX "public"."idx_account_cancellations_user_id"`);
+        await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" DROP CONSTRAINT "dra_data_model_refresh_history_status_check"`);
+        await queryRunner.query(`ALTER TABLE "dra_data_models" DROP CONSTRAINT "dra_data_models_refresh_status_check"`);
+        await queryRunner.query(`ALTER TABLE "dra_data_model_sources" DROP CONSTRAINT "UQ_data_model_source_tenant"`);
+        await queryRunner.query(`ALTER TABLE "dra_data_sources" ALTER COLUMN "sync_schedule" SET NOT NULL`);
+        await queryRunner.query(`ALTER TABLE "dra_data_sources" ALTER COLUMN "sync_enabled" SET NOT NULL`);
+        await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" ALTER COLUMN "created_at" SET NOT NULL`);
+        await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" ALTER COLUMN "data_model_id" DROP NOT NULL`);
+        await queryRunner.query(`ALTER TABLE "dra_data_models" ALTER COLUMN "refresh_status" SET NOT NULL`);
+        await queryRunner.query(`ALTER TABLE "dra_data_models" ALTER COLUMN "auto_refresh_enabled" SET NOT NULL`);
+        await queryRunner.query(`ALTER TABLE "dra_project_invitations" ALTER COLUMN "verification_code_id" DROP NOT NULL`);
+        await queryRunner.query(`ALTER TABLE "dra_subscription_tiers" DROP CONSTRAINT "UQ_6d6d064db91782920969e7c6803"`);
+        await queryRunner.query(`ALTER TABLE "dra_subscription_tiers" DROP COLUMN "tier_name"`);
+        await queryRunner.query(`DROP TYPE "public"."dra_subscription_tiers_tier_name_enum"`);
+        // Add tier_name as nullable first
+        await queryRunner.query(`ALTER TABLE "dra_subscription_tiers" ADD "tier_name" character varying(50)`);
+        // Set default values for existing rows based on their IDs or other fields
+        await queryRunner.query(`UPDATE "dra_subscription_tiers" SET "tier_name" = 'free' WHERE "tier_name" IS NULL AND "id" = 1`);
+        await queryRunner.query(`UPDATE "dra_subscription_tiers" SET "tier_name" = 'basic' WHERE "tier_name" IS NULL AND "id" = 2`);
+        await queryRunner.query(`UPDATE "dra_subscription_tiers" SET "tier_name" = 'pro' WHERE "tier_name" IS NULL AND "id" = 3`);
+        await queryRunner.query(`UPDATE "dra_subscription_tiers" SET "tier_name" = 'enterprise' WHERE "tier_name" IS NULL AND "id" = 4`);
+        // For any remaining rows, set a default value
+        await queryRunner.query(`UPDATE "dra_subscription_tiers" SET "tier_name" = 'unknown' WHERE "tier_name" IS NULL`);
+        // Now make it NOT NULL
+        await queryRunner.query(`ALTER TABLE "dra_subscription_tiers" ALTER COLUMN "tier_name" SET NOT NULL`);
+        await queryRunner.query(`ALTER TABLE "dra_subscription_tiers" ADD CONSTRAINT "UQ_6d6d064db91782920969e7c6803" UNIQUE ("tier_name")`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_platform_settings"."setting_key" IS NULL`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_platform_settings"."setting_value" IS NULL`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_platform_settings"."setting_type" IS NULL`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_platform_settings"."description" IS NULL`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_platform_settings"."category" IS NULL`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_platform_settings"."is_editable" IS NULL`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."users_platform_id" IS NULL`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."cancellation_reason" IS NULL`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."cancellation_reason_category" IS NULL`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."requested_at" IS NULL`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."effective_at" IS NULL`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."deletion_scheduled_at" IS NULL`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."status" IS NULL`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."data_exported" IS NULL`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."data_export_timestamp" IS NULL`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."data_deleted_at" IS NULL`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."reactivated_at" IS NULL`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."notification_7_days_sent" IS NULL`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."notification_1_day_sent" IS NULL`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."notification_deletion_sent" IS NULL`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."notes" IS NULL`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."deleted_by_admin_id" IS NULL`);
+        await queryRunner.query(`CREATE INDEX "IDX_935a7221e8c07fbc3699b096cb" ON "dra_platform_settings" ("category") `);
+        await queryRunner.query(`CREATE UNIQUE INDEX "IDX_a28a61bd9ba35e46f8bf5937e2" ON "dra_platform_settings" ("setting_key") `);
+        await queryRunner.query(`CREATE INDEX "IDX_06be746d7970b3a744b397fc51" ON "dra_account_cancellations" ("users_platform_id") `);
+        await queryRunner.query(`CREATE INDEX "IDX_edb74e16c8b1ed09e743a6f7e5" ON "dra_account_cancellations" ("deletion_scheduled_at") `);
+        await queryRunner.query(`CREATE INDEX "IDX_dd4c3e64f11a9794db8f946df1" ON "dra_account_cancellations" ("status") `);
+        await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" ADD CONSTRAINT "FK_7d6894c0f4e1fa71352b1d238a3" FOREIGN KEY ("data_model_id") REFERENCES "dra_data_models"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" ADD CONSTRAINT "FK_0f4304ba1066de00212731ec213" FOREIGN KEY ("trigger_user_id") REFERENCES "dra_users_platform"("id") ON DELETE SET NULL ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" ADD CONSTRAINT "FK_890c517cca5b4bf58d80d808b00" FOREIGN KEY ("trigger_source_id") REFERENCES "dra_data_sources"("id") ON DELETE SET NULL ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "dra_project_invitations" ADD CONSTRAINT "FK_0243a9f49f184582f42e4f5d0db" FOREIGN KEY ("verification_code_id") REFERENCES "dra_verification_codes"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "dra_account_cancellations" ADD CONSTRAINT "FK_06be746d7970b3a744b397fc51d" FOREIGN KEY ("users_platform_id") REFERENCES "dra_users_platform"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "dra_account_cancellations" ADD CONSTRAINT "FK_b095833525a0a7f09c37b626e18" FOREIGN KEY ("deleted_by_admin_id") REFERENCES "dra_users_platform"("id") ON DELETE SET NULL ON UPDATE NO ACTION`);
+    }
+
+    public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`ALTER TABLE "dra_account_cancellations" DROP CONSTRAINT "FK_b095833525a0a7f09c37b626e18"`);
+        await queryRunner.query(`ALTER TABLE "dra_account_cancellations" DROP CONSTRAINT "FK_06be746d7970b3a744b397fc51d"`);
+        await queryRunner.query(`ALTER TABLE "dra_project_invitations" DROP CONSTRAINT "FK_0243a9f49f184582f42e4f5d0db"`);
+        await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" DROP CONSTRAINT "FK_890c517cca5b4bf58d80d808b00"`);
+        await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" DROP CONSTRAINT "FK_0f4304ba1066de00212731ec213"`);
+        await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" DROP CONSTRAINT "FK_7d6894c0f4e1fa71352b1d238a3"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_dd4c3e64f11a9794db8f946df1"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_edb74e16c8b1ed09e743a6f7e5"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_06be746d7970b3a744b397fc51"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_a28a61bd9ba35e46f8bf5937e2"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_935a7221e8c07fbc3699b096cb"`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."deleted_by_admin_id" IS 'If manually deleted by admin, reference to admin user'`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."notes" IS 'Admin notes or additional context'`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."notification_deletion_sent" IS 'Whether deletion confirmation notification was sent'`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."notification_1_day_sent" IS 'Whether 1-day reminder notification was sent'`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."notification_7_days_sent" IS 'Whether 7-day reminder notification was sent'`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."reactivated_at" IS 'If user reactivated, timestamp of reactivation'`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."data_deleted_at" IS 'When the data was actually deleted'`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."data_export_timestamp" IS 'When the user last exported their data'`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."data_exported" IS 'Whether user has exported their data'`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."status" IS 'Status: pending, active, data_deleted, reactivated'`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."deletion_scheduled_at" IS 'Calculated date when data should be deleted (effective_at + retention_period)'`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."effective_at" IS 'When the cancellation becomes effective (end of billing period)'`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."requested_at" IS 'When the user requested cancellation'`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."cancellation_reason_category" IS 'Predefined category: too_expensive, missing_features, switching_service, etc.'`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."cancellation_reason" IS 'User-provided reason for cancellation'`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_account_cancellations"."users_platform_id" IS 'Foreign key to dra_users_platform'`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_platform_settings"."is_editable" IS 'Whether admins can edit this setting through the UI'`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_platform_settings"."category" IS 'Setting category: general, security, retention, notifications, etc.'`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_platform_settings"."description" IS 'Human-readable description of what this setting controls'`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_platform_settings"."setting_type" IS 'Data type: string, number, boolean, json'`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_platform_settings"."setting_value" IS 'Setting value stored as text (supports JSON for complex values)'`);
+        await queryRunner.query(`COMMENT ON COLUMN "dra_platform_settings"."setting_key" IS 'Unique identifier for the setting (e.g., ''data_retention_days'')'`);
+        await queryRunner.query(`ALTER TABLE "dra_subscription_tiers" DROP CONSTRAINT "UQ_6d6d064db91782920969e7c6803"`);
+        await queryRunner.query(`ALTER TABLE "dra_subscription_tiers" DROP COLUMN "tier_name"`);
+        await queryRunner.query(`CREATE TYPE "public"."dra_subscription_tiers_tier_name_enum" AS ENUM('free', 'pro', 'team', 'business', 'enterprise')`);
+        await queryRunner.query(`ALTER TABLE "dra_subscription_tiers" ADD "tier_name" "public"."dra_subscription_tiers_tier_name_enum" NOT NULL`);
+        await queryRunner.query(`ALTER TABLE "dra_subscription_tiers" ADD CONSTRAINT "UQ_6d6d064db91782920969e7c6803" UNIQUE ("tier_name")`);
+        await queryRunner.query(`ALTER TABLE "dra_project_invitations" ALTER COLUMN "verification_code_id" SET NOT NULL`);
+        await queryRunner.query(`ALTER TABLE "dra_data_models" ALTER COLUMN "auto_refresh_enabled" DROP NOT NULL`);
+        await queryRunner.query(`ALTER TABLE "dra_data_models" ALTER COLUMN "refresh_status" DROP NOT NULL`);
+        await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" ALTER COLUMN "data_model_id" SET NOT NULL`);
+        await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" ALTER COLUMN "created_at" DROP NOT NULL`);
+        await queryRunner.query(`ALTER TABLE "dra_data_sources" ALTER COLUMN "sync_enabled" DROP NOT NULL`);
+        await queryRunner.query(`ALTER TABLE "dra_data_sources" ALTER COLUMN "sync_schedule" DROP NOT NULL`);
+        await queryRunner.query(`ALTER TABLE "dra_data_model_sources" ADD CONSTRAINT "UQ_data_model_source_tenant" UNIQUE ("data_model_id", "data_source_id", "users_platform_id")`);
+        await queryRunner.query(`ALTER TABLE "dra_data_models" ADD CONSTRAINT "dra_data_models_refresh_status_check" CHECK (((refresh_status)::text = ANY (ARRAY[('IDLE'::character varying)::text, ('QUEUED'::character varying)::text, ('REFRESHING'::character varying)::text, ('COMPLETED'::character varying)::text, ('FAILED'::character varying)::text])))`);
+        await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" ADD CONSTRAINT "dra_data_model_refresh_history_status_check" CHECK (((status)::text = ANY (ARRAY[('QUEUED'::character varying)::text, ('RUNNING'::character varying)::text, ('COMPLETED'::character varying)::text, ('FAILED'::character varying)::text])))`);
+        await queryRunner.query(`CREATE INDEX "idx_account_cancellations_user_id" ON "dra_account_cancellations" ("users_platform_id") `);
+        await queryRunner.query(`CREATE INDEX "idx_account_cancellations_status" ON "dra_account_cancellations" ("status") `);
+        await queryRunner.query(`CREATE INDEX "idx_account_cancellations_deletion_scheduled" ON "dra_account_cancellations" ("deletion_scheduled_at") `);
+        await queryRunner.query(`CREATE INDEX "idx_platform_settings_key" ON "dra_platform_settings" ("setting_key") `);
+        await queryRunner.query(`CREATE INDEX "idx_platform_settings_category" ON "dra_platform_settings" ("category") `);
+        await queryRunner.query(`CREATE UNIQUE INDEX "IDX_project_email_status" ON "dra_project_invitations" ("invited_email", "project_id", "status") WHERE ((status)::text = 'pending'::text)`);
+        await queryRunner.query(`CREATE INDEX "IDX_invitations_status_expires" ON "dra_project_invitations" ("expires_at", "status") `);
+        await queryRunner.query(`CREATE INDEX "IDX_invitations_email" ON "dra_project_invitations" ("invited_email") `);
+        await queryRunner.query(`CREATE INDEX "idx_data_models_refresh_status" ON "dra_data_models" ("refresh_status") `);
+        await queryRunner.query(`CREATE INDEX "idx_data_models_last_refreshed" ON "dra_data_models" ("last_refreshed_at") `);
+        await queryRunner.query(`CREATE INDEX "idx_refresh_history_status" ON "dra_data_model_refresh_history" ("status") `);
+        await queryRunner.query(`CREATE INDEX "idx_refresh_history_started" ON "dra_data_model_refresh_history" ("started_at") `);
+        await queryRunner.query(`CREATE INDEX "idx_refresh_history_model" ON "dra_data_model_refresh_history" ("data_model_id") `);
+        await queryRunner.query(`CREATE INDEX "idx_data_sources_schedule" ON "dra_data_sources" ("sync_enabled", "sync_schedule") `);
+        await queryRunner.query(`CREATE INDEX "idx_data_sources_next_sync" ON "dra_data_sources" ("next_scheduled_sync") `);
+        await queryRunner.query(`ALTER TABLE "dra_account_cancellations" ADD CONSTRAINT "fk_account_cancellations_user" FOREIGN KEY ("users_platform_id") REFERENCES "dra_users_platform"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "dra_account_cancellations" ADD CONSTRAINT "fk_account_cancellations_admin" FOREIGN KEY ("deleted_by_admin_id") REFERENCES "dra_users_platform"("id") ON DELETE SET NULL ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "dra_project_invitations" ADD CONSTRAINT "FK_project_invitations_verification_code" FOREIGN KEY ("verification_code_id") REFERENCES "dra_verification_codes"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" ADD CONSTRAINT "fk_refresh_history_user" FOREIGN KEY ("trigger_user_id") REFERENCES "dra_users_platform"("id") ON DELETE SET NULL ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" ADD CONSTRAINT "fk_refresh_history_source" FOREIGN KEY ("trigger_source_id") REFERENCES "dra_data_sources"("id") ON DELETE SET NULL ON UPDATE NO ACTION`);
+        await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" ADD CONSTRAINT "fk_refresh_history_model" FOREIGN KEY ("data_model_id") REFERENCES "dra_data_models"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
+    }
+
+}

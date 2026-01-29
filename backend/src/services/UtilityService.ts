@@ -32,7 +32,34 @@ export class UtilityService {
         const username = process?.env?.POSTGRESQL_USERNAME || 'dra_user';
         const password = process?.env?.POSTGRESQL_PASSWORD || 'dra_password';
         const postgresDataSource = PostgresDataSource.getInstance().getDataSource(host, port, database, username, password);
-        await driver.initialize(postgresDataSource);
+        
+        // Retry database connection up to 5 times with exponential backoff
+        let connected = false;
+        let retries = 0;
+        const maxRetries = 5;
+        
+        while (!connected && retries < maxRetries) {
+            try {
+                connected = await driver.initialize(postgresDataSource);
+                if (connected) {
+                    console.log('✅ Database connection established successfully');
+                    break;
+                }
+            } catch (error) {
+                console.error(`❌ Database connection attempt ${retries + 1}/${maxRetries} failed:`, error.message);
+            }
+            
+            if (!connected && retries < maxRetries - 1) {
+                const waitTime = Math.pow(2, retries) * 1000; // Exponential backoff: 1s, 2s, 4s, 8s, 16s
+                console.log(`⏳ Retrying database connection in ${waitTime / 1000}s...`);
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+                retries++;
+            } else if (!connected) {
+                console.error('❌ Failed to connect to database after maximum retries');
+                throw new Error('Database connection failed after maximum retries');
+            }
+        }
+        
         await QueueService.getInstance().run();
         // Initialize encryption service with validation
         try {
