@@ -4,30 +4,30 @@ export class UpdateDatabase1769663523886 implements MigrationInterface {
     name = 'UpdateDatabase1769663523886'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" DROP CONSTRAINT "fk_refresh_history_model"`);
-        await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" DROP CONSTRAINT "fk_refresh_history_source"`);
-        await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" DROP CONSTRAINT "fk_refresh_history_user"`);
-        await queryRunner.query(`ALTER TABLE "dra_project_invitations" DROP CONSTRAINT "FK_project_invitations_verification_code"`);
-        await queryRunner.query(`ALTER TABLE "dra_account_cancellations" DROP CONSTRAINT "fk_account_cancellations_admin"`);
-        await queryRunner.query(`ALTER TABLE "dra_account_cancellations" DROP CONSTRAINT "fk_account_cancellations_user"`);
-        await queryRunner.query(`DROP INDEX "public"."idx_data_sources_next_sync"`);
-        await queryRunner.query(`DROP INDEX "public"."idx_data_sources_schedule"`);
-        await queryRunner.query(`DROP INDEX "public"."idx_refresh_history_model"`);
-        await queryRunner.query(`DROP INDEX "public"."idx_refresh_history_started"`);
-        await queryRunner.query(`DROP INDEX "public"."idx_refresh_history_status"`);
-        await queryRunner.query(`DROP INDEX "public"."idx_data_models_last_refreshed"`);
-        await queryRunner.query(`DROP INDEX "public"."idx_data_models_refresh_status"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_invitations_email"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_invitations_status_expires"`);
-        await queryRunner.query(`DROP INDEX "public"."IDX_project_email_status"`);
-        await queryRunner.query(`DROP INDEX "public"."idx_platform_settings_category"`);
-        await queryRunner.query(`DROP INDEX "public"."idx_platform_settings_key"`);
-        await queryRunner.query(`DROP INDEX "public"."idx_account_cancellations_deletion_scheduled"`);
-        await queryRunner.query(`DROP INDEX "public"."idx_account_cancellations_status"`);
-        await queryRunner.query(`DROP INDEX "public"."idx_account_cancellations_user_id"`);
-        await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" DROP CONSTRAINT "dra_data_model_refresh_history_status_check"`);
-        await queryRunner.query(`ALTER TABLE "dra_data_models" DROP CONSTRAINT "dra_data_models_refresh_status_check"`);
-        await queryRunner.query(`ALTER TABLE "dra_data_model_sources" DROP CONSTRAINT "UQ_data_model_source_tenant"`);
+        await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" DROP CONSTRAINT IF EXISTS "fk_refresh_history_model"`);
+        await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" DROP CONSTRAINT IF EXISTS "fk_refresh_history_source"`);
+        await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" DROP CONSTRAINT IF EXISTS "fk_refresh_history_user"`);
+        await queryRunner.query(`ALTER TABLE "dra_project_invitations" DROP CONSTRAINT IF EXISTS "FK_project_invitations_verification_code"`);
+        await queryRunner.query(`ALTER TABLE "dra_account_cancellations" DROP CONSTRAINT IF EXISTS "fk_account_cancellations_admin"`);
+        await queryRunner.query(`ALTER TABLE "dra_account_cancellations" DROP CONSTRAINT IF EXISTS "fk_account_cancellations_user"`);
+        await queryRunner.query(`DROP INDEX IF EXISTS "public"."idx_data_sources_next_sync"`);
+        await queryRunner.query(`DROP INDEX IF EXISTS "public"."idx_data_sources_schedule"`);
+        await queryRunner.query(`DROP INDEX IF EXISTS "public"."idx_refresh_history_model"`);
+        await queryRunner.query(`DROP INDEX IF EXISTS "public"."idx_refresh_history_started"`);
+        await queryRunner.query(`DROP INDEX IF EXISTS "public"."idx_refresh_history_status"`);
+        await queryRunner.query(`DROP INDEX IF EXISTS "public"."idx_data_models_last_refreshed"`);
+        await queryRunner.query(`DROP INDEX IF EXISTS "public"."idx_data_models_refresh_status"`);
+        await queryRunner.query(`DROP INDEX IF EXISTS "public"."IDX_invitations_email"`);
+        await queryRunner.query(`DROP INDEX IF EXISTS "public"."IDX_invitations_status_expires"`);
+        await queryRunner.query(`DROP INDEX IF EXISTS "public"."IDX_project_email_status"`);
+        await queryRunner.query(`DROP INDEX IF EXISTS "public"."idx_platform_settings_category"`);
+        await queryRunner.query(`DROP INDEX IF EXISTS "public"."idx_platform_settings_key"`);
+        await queryRunner.query(`DROP INDEX IF EXISTS "public"."idx_account_cancellations_deletion_scheduled"`);
+        await queryRunner.query(`DROP INDEX IF EXISTS "public"."idx_account_cancellations_status"`);
+        await queryRunner.query(`DROP INDEX IF EXISTS "public"."idx_account_cancellations_user_id"`);
+        await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" DROP CONSTRAINT IF EXISTS "dra_data_model_refresh_history_status_check"`);
+        await queryRunner.query(`ALTER TABLE "dra_data_models" DROP CONSTRAINT IF EXISTS "dra_data_models_refresh_status_check"`);
+        await queryRunner.query(`ALTER TABLE "dra_data_model_sources" DROP CONSTRAINT IF EXISTS "UQ_data_model_source_tenant"`);
         await queryRunner.query(`ALTER TABLE "dra_data_sources" ALTER COLUMN "sync_schedule" SET NOT NULL`);
         await queryRunner.query(`ALTER TABLE "dra_data_sources" ALTER COLUMN "sync_enabled" SET NOT NULL`);
         await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" ALTER COLUMN "created_at" SET NOT NULL`);
@@ -35,9 +35,9 @@ export class UpdateDatabase1769663523886 implements MigrationInterface {
         await queryRunner.query(`ALTER TABLE "dra_data_models" ALTER COLUMN "refresh_status" SET NOT NULL`);
         await queryRunner.query(`ALTER TABLE "dra_data_models" ALTER COLUMN "auto_refresh_enabled" SET NOT NULL`);
         await queryRunner.query(`ALTER TABLE "dra_project_invitations" ALTER COLUMN "verification_code_id" DROP NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "dra_subscription_tiers" DROP CONSTRAINT "UQ_6d6d064db91782920969e7c6803"`);
-        await queryRunner.query(`ALTER TABLE "dra_subscription_tiers" DROP COLUMN "tier_name"`);
-        await queryRunner.query(`DROP TYPE "public"."dra_subscription_tiers_tier_name_enum"`);
+        await queryRunner.query(`ALTER TABLE "dra_subscription_tiers" DROP CONSTRAINT IF EXISTS "UQ_6d6d064db91782920969e7c6803"`);
+        await queryRunner.query(`ALTER TABLE "dra_subscription_tiers" DROP COLUMN IF EXISTS "tier_name"`);
+        await queryRunner.query(`DROP TYPE IF EXISTS "public"."dra_subscription_tiers_tier_name_enum"`);
         // Add tier_name as nullable first
         await queryRunner.query(`ALTER TABLE "dra_subscription_tiers" ADD "tier_name" character varying(50)`);
         // Set default values for existing rows based on their IDs or other fields

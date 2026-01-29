@@ -8,6 +8,29 @@ import { MigrationInterface, QueryRunner } from "typeorm";
 export class AddMissingProjectMembers1737070000000 implements MigrationInterface {
 
     public async up(queryRunner: QueryRunner): Promise<void> {
+        // Check if required tables exist
+        const projectsTableExists = await queryRunner.query(`
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_schema = 'public'
+                AND table_name = 'dra_projects'
+            );
+        `);
+
+        const projectMembersTableExists = await queryRunner.query(`
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_schema = 'public'
+                AND table_name = 'dra_project_members'
+            );
+        `);
+
+        if (!projectsTableExists[0].exists || !projectMembersTableExists[0].exists) {
+            console.log('⚠️  Required tables do not exist yet, skipping this migration');
+            console.log('   This migration will be applied after CreateTables migration runs');
+            return;
+        }
+
         // Add missing project member entries for projects without any members
         // The project creator (users_platform_id) becomes the owner
         await queryRunner.query(`

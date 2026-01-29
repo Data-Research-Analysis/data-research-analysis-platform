@@ -12,6 +12,21 @@ export class CreateAccountCancellationSystem1737849600000 implements MigrationIn
     name = 'CreateAccountCancellationSystem1737849600000'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
+        // Check if dra_users_platform table exists
+        const usersPlatformExists = await queryRunner.query(`
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_schema = 'public'
+                AND table_name = 'dra_users_platform'
+            );
+        `);
+
+        if (!usersPlatformExists[0].exists) {
+            console.log('⚠️  Table dra_users_platform does not exist yet, skipping this migration');
+            console.log('   This migration will be applied after CreateTables migration runs');
+            return;
+        }
+
         // Create dra_platform_settings table
         await queryRunner.createTable(
             new Table({
