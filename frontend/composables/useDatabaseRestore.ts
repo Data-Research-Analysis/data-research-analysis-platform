@@ -1,8 +1,7 @@
-import { getAuthToken } from './AuthToken';
+import { getAuthToken, deleteAuthToken } from './AuthToken';
 
 export const useDatabaseRestore = () => {
     const { $swal, $socketio } = useNuxtApp() as any;
-    const authToken = useCookie('dra_auth_token');
     const router = useRouter();
 
     // State
@@ -124,6 +123,17 @@ export const useDatabaseRestore = () => {
 
         // Upload and restore
         try {
+            const authToken = getAuthToken();
+            
+            if (!authToken) {
+                await $swal.fire({
+                    icon: 'error',
+                    title: 'Authentication Required',
+                    text: 'Please log in to restore database'
+                });
+                return false;
+            }
+
             const formData = new FormData();
             formData.append('backup', selectedFile.value);
 
@@ -202,9 +212,8 @@ export const useDatabaseRestore = () => {
                     confirmButtonText: 'OK',
                     allowOutsideClick: false
                 }).then(() => {
-                    // Clear auth token cookie
-                    const authCookie = useCookie('dra_auth_token');
-                    authCookie.value = null;
+                    // Clear auth token using proper function
+                    deleteAuthToken();
                     
                     // Force full page reload to login to clear all state
                     window.location.href = '/login';

@@ -4,6 +4,21 @@ export class AddNewNotificationTypes1737742000000 implements MigrationInterface 
     name = 'AddNewNotificationTypes1737742000000'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
+        // Check if the enum exists
+        const enumExists = await queryRunner.query(`
+            SELECT EXISTS (
+                SELECT 1 
+                FROM pg_type 
+                WHERE typname = 'dra_notifications_type_enum'
+            );
+        `);
+
+        if (!enumExists[0].exists) {
+            console.log('⚠️  Enum type dra_notifications_type_enum does not exist yet, skipping this migration');
+            console.log('   This migration will be applied after CreateNotificationsTable migration runs');
+            return;
+        }
+
         // Add new enum values to dra_notifications_type_enum
         await queryRunner.query(`
             ALTER TYPE "public"."dra_notifications_type_enum" ADD VALUE IF NOT EXISTS 'project_created';

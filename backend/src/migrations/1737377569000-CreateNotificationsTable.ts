@@ -4,6 +4,21 @@ export class CreateNotificationsTable1737377569000 implements MigrationInterface
     name = 'CreateNotificationsTable1737377569000'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
+        // Check if dra_users_platform table exists
+        const usersPlatformExists = await queryRunner.query(`
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_schema = 'public'
+                AND table_name = 'dra_users_platform'
+            );
+        `);
+
+        if (!usersPlatformExists[0].exists) {
+            console.log('⚠️  Table dra_users_platform does not exist yet, skipping this migration');
+            console.log('   This migration will be applied after CreateTables migration runs');
+            return;
+        }
+
         // Create notification type enum
         await queryRunner.query(`
             CREATE TYPE "public"."dra_notifications_type_enum" AS ENUM(

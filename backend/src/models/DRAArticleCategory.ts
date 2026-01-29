@@ -11,11 +11,11 @@ export class DRAArticleCategory {
   @PrimaryColumn({ type: 'bigint' })
   category_id!: number;
   
-  @ManyToOne(() => DRAArticle, (article) => article.dra_articles_categories, { cascade: ["remove", "update"] })
+  @ManyToOne(() => DRAArticle, (article) => article.dra_articles_categories)
   @JoinColumn({ name: 'article_id'})
   article!: Relation<DRAArticle>
   
-  @ManyToOne(() => DRACategory, (category) => category.dra_articles_categories, { cascade: ["remove", "update"] })
+  @ManyToOne(() => DRACategory, (category) => category.dra_articles_categories)
   @JoinColumn({ name: 'category_id'})
   category!: Relation<DRACategory>
   

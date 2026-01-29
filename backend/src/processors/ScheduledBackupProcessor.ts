@@ -241,8 +241,8 @@ export class ScheduledBackupProcessor {
             try {
                 const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
                 const concreteDriver = await driver.getConcreteDriver();
-                if (!concreteDriver) {
-                    throw new Error('Database driver not available');
+                if (!concreteDriver || !concreteDriver.isInitialized) {
+                    throw new Error('Database driver not available or not initialized');
                 }
 
                 const manager = concreteDriver.manager;
