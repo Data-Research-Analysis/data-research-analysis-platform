@@ -28,8 +28,24 @@ export class UpdateDatabase1769663523886 implements MigrationInterface {
         await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" DROP CONSTRAINT IF EXISTS "dra_data_model_refresh_history_status_check"`);
         await queryRunner.query(`ALTER TABLE "dra_data_models" DROP CONSTRAINT IF EXISTS "dra_data_models_refresh_status_check"`);
         await queryRunner.query(`ALTER TABLE "dra_data_model_sources" DROP CONSTRAINT IF EXISTS "UQ_data_model_source_tenant"`);
-        await queryRunner.query(`ALTER TABLE "dra_data_sources" ALTER COLUMN "sync_schedule" SET NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "dra_data_sources" ALTER COLUMN "sync_enabled" SET NOT NULL`);
+        
+        // Check if sync_schedule column exists before modifying it
+        const syncScheduleExists = await queryRunner.query(`
+            SELECT EXISTS (
+                SELECT FROM information_schema.columns 
+                WHERE table_schema = 'public' 
+                AND table_name = 'dra_data_sources'
+                AND column_name = 'sync_schedule'
+            );
+        `);
+        
+        if (syncScheduleExists[0].exists) {
+            await queryRunner.query(`ALTER TABLE "dra_data_sources" ALTER COLUMN "sync_schedule" SET NOT NULL`);
+            await queryRunner.query(`ALTER TABLE "dra_data_sources" ALTER COLUMN "sync_enabled" SET NOT NULL`);
+        } else {
+            console.log('  ⚠️  sync_schedule columns do not exist yet, skipping NOT NULL constraint');
+        }
+        
         await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" ALTER COLUMN "created_at" SET NOT NULL`);
         await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" ALTER COLUMN "data_model_id" DROP NOT NULL`);
         await queryRunner.query(`ALTER TABLE "dra_data_models" ALTER COLUMN "refresh_status" SET NOT NULL`);
@@ -129,8 +145,22 @@ export class UpdateDatabase1769663523886 implements MigrationInterface {
         await queryRunner.query(`ALTER TABLE "dra_data_models" ALTER COLUMN "refresh_status" DROP NOT NULL`);
         await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" ALTER COLUMN "data_model_id" SET NOT NULL`);
         await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" ALTER COLUMN "created_at" DROP NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "dra_data_sources" ALTER COLUMN "sync_enabled" DROP NOT NULL`);
-        await queryRunner.query(`ALTER TABLE "dra_data_sources" ALTER COLUMN "sync_schedule" DROP NOT NULL`);
+        
+        // Check if sync_schedule column exists before modifying it
+        const syncScheduleExists = await queryRunner.query(`
+            SELECT EXISTS (
+                SELECT FROM information_schema.columns 
+                WHERE table_schema = 'public' 
+                AND table_name = 'dra_data_sources'
+                AND column_name = 'sync_schedule'
+            );
+        `);
+        
+        if (syncScheduleExists[0].exists) {
+            await queryRunner.query(`ALTER TABLE "dra_data_sources" ALTER COLUMN "sync_enabled" DROP NOT NULL`);
+            await queryRunner.query(`ALTER TABLE "dra_data_sources" ALTER COLUMN "sync_schedule" DROP NOT NULL`);
+        }
+        
         await queryRunner.query(`ALTER TABLE "dra_data_model_sources" ADD CONSTRAINT "UQ_data_model_source_tenant" UNIQUE ("data_model_id", "data_source_id", "users_platform_id")`);
         await queryRunner.query(`ALTER TABLE "dra_data_models" ADD CONSTRAINT "dra_data_models_refresh_status_check" CHECK (((refresh_status)::text = ANY (ARRAY[('IDLE'::character varying)::text, ('QUEUED'::character varying)::text, ('REFRESHING'::character varying)::text, ('COMPLETED'::character varying)::text, ('FAILED'::character varying)::text])))`);
         await queryRunner.query(`ALTER TABLE "dra_data_model_refresh_history" ADD CONSTRAINT "dra_data_model_refresh_history_status_check" CHECK (((status)::text = ANY (ARRAY[('QUEUED'::character varying)::text, ('RUNNING'::character varying)::text, ('COMPLETED'::character varying)::text, ('FAILED'::character varying)::text])))`);
