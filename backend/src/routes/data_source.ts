@@ -170,6 +170,22 @@ async (req: Request, res: Response) => {
     const { data_source_id, project_id, is_cross_source, query } = matchedData(req);
     const query_json = req.body.query_json; // Optional JSON query for reconstruction
     
+    console.log('[ROUTE /execute-query-on-external-data-source] ========== REQUEST RECEIVED ==========');
+    console.log('[ROUTE] data_source_id:', data_source_id);
+    console.log('[ROUTE] project_id:', project_id);
+    console.log('[ROUTE] is_cross_source:', is_cross_source);
+    console.log('[ROUTE] SQL Query received from frontend:', query);
+    if (query_json) {
+        try {
+            const parsedJSON = JSON.parse(query_json);
+            console.log('[ROUTE] Query JSON - WHERE clauses:', JSON.stringify(parsedJSON.query_options?.where, null, 2));
+            console.log('[ROUTE] Query JSON - Column count:', parsedJSON.columns?.length);
+        } catch (e) {
+            console.error('[ROUTE] Failed to parse query_json:', e);
+        }
+    }
+    console.log('[ROUTE] ================================================================');
+    
     // Validate that we have either data_source_id OR (project_id + is_cross_source)
     if (!data_source_id && (!project_id || !is_cross_source)) {
         return res.status(400).send({

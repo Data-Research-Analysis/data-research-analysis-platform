@@ -140,6 +140,7 @@ When joining tables, ALWAYS include the foreign key columns:
    - Aggregated columns: Those in aggregate_functions array (COUNT, SUM, etc.)
    - Non-aggregated columns: All other selected columns
    - Rule: ALL non-aggregated columns → GROUP BY clause via group_by_columns
+   - Note: Aggregated columns are automatically hidden from result set (SQL optimization)
 4. **CRITICAL SCHEMA RULE**: Use the ACTUAL schema name from the provided database schema, NOT "public" or generic names
 
 ## OUTPUT REQUIREMENTS & FORMAT
@@ -153,6 +154,7 @@ When joining tables, ALWAYS include the foreign key columns:
    - FALSE: Column used ONLY in aggregate_functions (e.g., SUM(sales) - the sales column itself should NOT be selected)
    - ALGORITHM: If column appears in aggregate_functions array → set is_selected_column = false
    - RESULT: Only non-aggregated GROUP BY columns have is_selected_column = true
+   - DISCLAIMER: Aggregated raw columns won't appear in results - only their calculated values (SUM, COUNT, etc.)
 5. VALIDATE SQL CORRECTNESS: If aggregate_functions array is not empty, group_by_columns MUST contain all non-aggregated columns
 6. ALGORITHM FOR GROUP BY GENERATION (FOLLOW THESE STEPS):
    Step 1: Identify all columns needed for analysis
@@ -236,9 +238,10 @@ RESULTING SQL: SELECT region, SUM(amount) AS total_sales FROM sales GROUP BY reg
 
 KEY POINTS:
 ✓ region has is_selected_column = true (appears in SELECT)
-✓ amount has is_selected_column = false (used in SUM, not selected)
+✓ amount has is_selected_column = false (used in SUM, not selected - raw values hidden)
 ✓ group_by_columns contains ["public.sales.region"] - CRITICAL!
 ✓ SQL is valid and executable
+✓ Note: Individual amount values won't appear in results - only total_sales aggregate
 
 #### Example 2: Multi-Column Grouping
 USER REQUEST: "Show sales by region and product category"
