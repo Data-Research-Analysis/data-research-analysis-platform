@@ -165,12 +165,17 @@ When joining tables, ALWAYS include the foreign key columns:
    Step 6: Format as ["schema.table.column1", "schema.table.column2"]
    Step 7: VALIDATE: If aggregate_functions.length > 0, group_by_columns.length MUST be > 0
    Step 8: DOUBLE-CHECK: group_by_columns count should equal is_selected_column=true count
-7. Leave aggregate_expressions EMPTY unless dealing with complex mathematical expressions (rare)
+7. AGGREGATE EXPRESSIONS vs AGGREGATE FUNCTIONS:
+   - Use **aggregate_functions** for simple single-column aggregations: SUM(column), AVG(column), COUNT(DISTINCT column)
+   - Use **aggregate_expressions** for complex custom SQL expressions: SUM(col1 * col2), AVG(CASE WHEN...), COUNT(DISTINCT CASE...)
+   - aggregate_expressions format: {"expression": "complete SQL with function", "column_alias_name": "alias"}
+   - Example: {"expression": "SUM(quantity * price)", "column_alias_name": "total_revenue"}
+   - DO NOT separate function from expression - write complete SQL in expression field
 8. TABLE ALIASING FOR SELF-JOINS:
    - If same table appears multiple times, MUST use table_alias field with descriptive names
    - Each instance of the table must have a unique, role-based alias (e.g., "emp" and "mgr", NOT "users1" and "users2")
    - All columns from same aliased instance must use the same alias consistently
-8. SEMANTIC VALIDATION MANDATORY:
+9. SEMANTIC VALIDATION MANDATORY:
    - Verify JOIN conditions are logically possible
    - Ensure aggregations create meaningful segments
    - Check that grouping level matches analysis purpose
@@ -349,6 +354,17 @@ Respond with ONLY this JSON wrapped in code block with json tag:
   - \`column_alias_name\`: result column name
   - \`aggregate_function\`: 0='SUM', 1='AVG', 2='COUNT', 3='MIN', 4='MAX'
   - \`use_distinct\`: boolean
+
+- \`group_by.aggregate_expressions\`: Array of custom SQL aggregate expressions (for complex calculations)
+  - \`expression\`: Complete SQL expression INCLUDING aggregate function (e.g., "SUM(quantity * price)", "AVG(DISTINCT amount)")
+  - \`column_alias_name\`: result column name (REQUIRED)
+  - **IMPORTANT**: Write complete SQL in expression field - do NOT separate function from expression
+  - **Examples**:
+    - {"expression": "SUM(quantity * price)", "column_alias_name": "total_revenue"}
+    - {"expression": "AVG(CASE WHEN status='active' THEN amount ELSE 0 END)", "column_alias_name": "avg_active_amount"}
+    - {"expression": "COUNT(DISTINCT user_id)", "column_alias_name": "unique_users"}
+  - **When to use**: Complex formulas, CASE statements, mathematical operations between columns
+  - **When NOT to use**: Simple single-column aggregates (use aggregate_functions instead)
 
 - \`group_by.group_by_columns\`: Array of column references for GROUP BY clause (REQUIRED when using aggregates)
   - **Data Type**: Array of strings

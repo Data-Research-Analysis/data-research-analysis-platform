@@ -255,8 +255,7 @@ const allAvailableColumns = computed(() => {
     // 3. Add aggregate expressions
     if (state.data_table.query_options?.group_by?.aggregate_expressions) {
         state.data_table.query_options.group_by.aggregate_expressions.forEach((aggExpr, index) => {
-            if (aggExpr.expression && aggExpr.aggregate_function !== '') {
-                const funcName = state.aggregate_functions[aggExpr.aggregate_function];
+            if (aggExpr.expression && aggExpr.expression.trim() !== '') {
                 const aliasName = aggExpr.column_alias_name || `expr_${index}`;
                 
                 // Format expressions with logical table names
@@ -347,8 +346,7 @@ const numericColumnsWithAggregates = computed(() => {
     // 3. Add aggregate expressions
     if (state.data_table.query_options?.group_by?.aggregate_expressions) {
         state.data_table.query_options.group_by.aggregate_expressions.forEach((aggExpr, index) => {
-            if (aggExpr.expression && aggExpr.aggregate_function !== '') {
-                const funcName = state.aggregate_functions[aggExpr.aggregate_function];
+            if (aggExpr.expression && aggExpr.expression.trim() !== '') {
                 const aliasName = aggExpr.column_alias_name || `expr_${index}`;
 
                 columns.push({
@@ -2185,9 +2183,7 @@ function addAggregateExpression() {
 
     state.data_table.query_options.group_by.aggregate_expressions.push({
         expression: '',
-        aggregate_function: '',
         column_alias_name: '',
-        use_distinct: false,
     });
     
     // Sync GROUP BY columns after adding expression
@@ -2816,10 +2812,9 @@ function buildSQLQuery(silent = false) {
     });
 
     state?.data_table?.query_options?.group_by?.aggregate_expressions?.forEach((agg_expr) => {
-        if (agg_expr.aggregate_function !== '' && agg_expr.expression !== '') {
-            const distinctKeyword = agg_expr.use_distinct ? 'DISTINCT ' : '';
-            const aliasName = agg_expr?.column_alias_name !== '' ? ` AS ${agg_expr.column_alias_name}` : '';
-            sqlQuery += `, ${state.aggregate_functions[agg_expr.aggregate_function]}(${distinctKeyword}${agg_expr.expression})${aliasName}`;
+        if (agg_expr.expression && agg_expr.expression.trim() !== '') {
+            const aliasName = agg_expr?.column_alias_name && agg_expr.column_alias_name !== '' ? ` AS ${agg_expr.column_alias_name}` : '';
+            sqlQuery += `, ${agg_expr.expression}${aliasName}`;
         }
     });
 
@@ -2846,12 +2841,11 @@ function buildSQLQuery(silent = false) {
 
             // Replace aggregate expression aliases
             state?.data_table?.query_options?.group_by?.aggregate_expressions?.forEach((aggExpr) => {
-                if (aggExpr.aggregate_function !== '' && aggExpr.expression !== '') {
-                    const funcName = state.aggregate_functions[aggExpr.aggregate_function];
+                if (aggExpr.expression && aggExpr.expression.trim() !== '') {
                     const aliasName = aggExpr.column_alias_name;
                     if (aliasName) {
-                        const distinctKeyword = aggExpr.use_distinct ? 'DISTINCT ' : '';
-                        const fullExpression = `${funcName}(${distinctKeyword}${aggExpr.expression})`;
+                        // Use the full expression as-is
+                        const fullExpression = aggExpr.expression;
 
                         // Replace all occurrences of the alias with the full expression
                         const aliasRegex = new RegExp(`\\b${aliasName}\\b`, 'g');
@@ -2944,10 +2938,8 @@ function buildSQLQuery(silent = false) {
                     value = clause.value; // No quotes for numeric aggregate values
                 }
             } else if (aggregateExpr) {
-                // Replace alias with full aggregate expression
-                const funcName = state.aggregate_functions[aggregateExpr.aggregate_function];
-                const distinctKeyword = aggregateExpr.use_distinct ? 'DISTINCT ' : '';
-                havingColumn = `${funcName}(${distinctKeyword}${aggregateExpr.expression})`;
+                // Replace alias with full aggregate expression (use as-is)
+                havingColumn = aggregateExpr.expression;
                 
                 // Aggregate results are always numeric - don't quote
                 const operator = state.equality[clause.equality];
@@ -5271,22 +5263,8 @@ onMounted(async () => {
                                                     <div v-for="(expr, index) in state.data_table.query_options.group_by.aggregate_expressions"
                                                         :key="index"
                                                         class="bg-gray-50 p-3 mb-2 rounded-lg border border-gray-300">
-                                                        <div class="flex flex-row justify-between">
-                                                            <div class="flex flex-col w-1/5 mr-2">
-                                                                <h5 class="font-bold mb-2">Function</h5>
-                                                                <select :disabled="readOnly"
-                                                                    :class="[
-                                                                        'w-full border border-primary-blue-100 border-solid p-2 rounded-lg',
-                                                                        readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
-                                                                    ]"
-                                                                    v-model="expr.aggregate_function">
-                                                                    <option
-                                                                        v-for="(func, i) in state.aggregate_functions"
-                                                                        :key="i" :value="i">{{ func }}</option>
-                                                                </select>
-                                                            </div>
-
-                                                            <div class="flex flex-col w-2/5 mr-2">
+                                                        <div class="flex flex-row justify-between items-start">
+                                                            <div class="flex flex-col w-3/5 mr-2">
                                                                 <h5 class="font-bold mb-2">Expression</h5>
                                                                 <input type="text" :disabled="readOnly"
                                                                     :class="[
@@ -5294,14 +5272,13 @@ onMounted(async () => {
                                                                         readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
                                                                     ]"
                                                                     v-model="expr.expression"
-                                                                    placeholder="e.g., public.order_items.quantity * public.products.price" />
+                                                                    placeholder="e.g., SUM(quantity * price) or AVG(DISTINCT column)" />
                                                                 <span class="text-xs text-gray-600 mt-1">
-                                                                    Use fully qualified column names:
-                                                                    schema.table.column
+                                                                    Complete SQL expression including aggregate function (SUM, AVG, COUNT, etc.)
                                                                 </span>
                                                             </div>
 
-                                                            <div class="flex flex-col w-1/5 mr-2">
+                                                            <div class="flex flex-col w-2/5 mr-2">
                                                                 <h5 class="font-bold mb-2">Alias</h5>
                                                                 <input type="text" :disabled="readOnly"
                                                                     :class="[
@@ -5312,18 +5289,9 @@ onMounted(async () => {
                                                                     placeholder="e.g., total_revenue" />
                                                             </div>
 
-                                                            <div class="flex flex-col w-1/12 mr-2">
-                                                                <h5 class="font-bold mb-2">DISTINCT</h5>
-                                                                <div class="flex items-center justify-center h-full">
-                                                                    <input type="checkbox" :disabled="readOnly"
-                                                                        :class="readOnly ? 'cursor-not-allowed scale-150' : 'cursor-pointer scale-150'"
-                                                                        v-model="expr.use_distinct" />
-                                                                </div>
-                                                            </div>
-
-                                                            <div class="flex items-center">
+                                                            <div class="flex items-center pt-8">
                                                                 <div :class="[
-                                                                        'h-10 flex items-center p-5 font-bold rounded-lg',
+                                                                        'h-10 flex items-center px-5 py-2 font-bold rounded-lg whitespace-nowrap',
                                                                         readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-red-500 hover:bg-red-300 cursor-pointer text-white'
                                                                     ]"
                                                                     @click="!readOnly && removeAggregateExpression(index)">

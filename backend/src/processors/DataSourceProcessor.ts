@@ -2589,13 +2589,11 @@ export class DataSourceProcessor {
             }
         });
         
-        // Add aggregate expressions to SELECT
+        // Add aggregate expressions to SELECT (use expression as-is, already contains complete SQL)
         query?.query_options?.group_by?.aggregate_expressions?.forEach((aggExpr: any) => {
-            if (aggExpr.aggregate_function !== '' && aggExpr.expression !== '') {
-                const distinctKeyword = aggExpr.use_distinct ? 'DISTINCT ' : '';
-                const aggregateFunc = aggregateFunctions[aggExpr.aggregate_function];
-                const aliasName = aggExpr?.column_alias_name !== '' ? aggExpr.column_alias_name : `agg_expr`;
-                selectColumns.push(`${aggregateFunc}(${distinctKeyword}${aggExpr.expression}) AS ${aliasName}`);
+            if (aggExpr.expression && aggExpr.expression.trim() !== '') {
+                const aliasName = aggExpr?.column_alias_name && aggExpr.column_alias_name !== '' ? aggExpr.column_alias_name : `agg_expr`;
+                selectColumns.push(`${aggExpr.expression} AS ${aliasName}`);
             }
         });
         
@@ -2830,10 +2828,8 @@ export class DataSourceProcessor {
                         const distinctKeyword = aggregateFunc.use_distinct ? 'DISTINCT ' : '';
                         havingColumn = `${funcName}(${distinctKeyword}${aggregateFunc.column})`;
                     } else if (aggregateExpr) {
-                        // Replace alias with full aggregate expression
-                        const funcName = aggregateFunctions[aggregateExpr.aggregate_function];
-                        const distinctKeyword = aggregateExpr.use_distinct ? 'DISTINCT ' : '';
-                        havingColumn = `${funcName}(${distinctKeyword}${aggregateExpr.expression})`;
+                        // Replace alias with full aggregate expression (use as-is)
+                        havingColumn = aggregateExpr.expression;
                     }
                     
                     // Handle value formatting - aggregates return numeric values
