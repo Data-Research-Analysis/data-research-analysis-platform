@@ -1097,8 +1097,7 @@ export class DataSourceProcessor {
                 // If JSON query is provided, reconstruct SQL from it (ensures JOINs are included)
                 // The reconstructed SQL already includes LIMIT/OFFSET from query_options
                 let finalQuery = query;
-                if (queryJSON) {
-                    console.log('[DataSourceProcessor] Reconstructing query from JSON to ensure JOINs are included');
+                if (queryJSON) {                    
                     finalQuery = this.reconstructSQLFromJSON(queryJSON);
                     
                     // Extract LIMIT/OFFSET from original query if not in JSON
@@ -1109,13 +1108,9 @@ export class DataSourceProcessor {
                         const limit = limitMatch[1];
                         const offset = offsetMatch ? offsetMatch[1] : '0';
                         finalQuery += ` LIMIT ${limit} OFFSET ${offset}`;
-                        console.log('[DataSourceProcessor] Added LIMIT from original query:', limit);
                     }
-                }
-                
-                console.log('[DataSourceProcessor] Executing query on external datasource:', finalQuery);
-                const results = await dbConnector.query(finalQuery);
-                console.log('[DataSourceProcessor] Query results count:', results?.length || 0);
+                }                
+                const results = await dbConnector.query(finalQuery);                
                 return resolve(results);
             } catch (error) {
                 console.error('[DataSourceProcessor] Error executing query:', error);
@@ -2733,15 +2728,48 @@ export class DataSourceProcessor {
         }
         
         // Build WHERE clause
-        if (query.query_options?.where && Array.isArray(query.query_options.where) && query.query_options.where.length > 0) {
+        if (query.query_options?.where && Array.isArray(query.query_options.where) && query.query_options.where.length > 0) {            
             const whereClauses: string[] = [];
-            query.query_options.where.forEach((whereClause: any) => {
-                if (whereClause.column && whereClause.operator && whereClause.value) {
-                    whereClauses.push(`${whereClause.column} ${whereClause.operator} '${whereClause.value}'`);
+            // CRITICAL: This array MUST match the frontend's state.equality array order exactly
+            // Frontend: ['=', '>', '<', '>=', '<=', '!=', 'IN', 'NOT IN']
+            const equalityOperators = ['=', '>', '<', '>=', '<=', '!=', 'IN', 'NOT IN'];
+            
+            query.query_options.where.forEach((whereClause: any, index: number) => {
+                if (whereClause.column && whereClause.equality !== undefined && whereClause.equality !== '' && whereClause.value !== undefined && whereClause.value !== '') {
+                    // Get operator from equality index
+                    const operator = equalityOperators[whereClause.equality] || '=';
+                    
+                    // Determine if value should be quoted based on column_data_type
+                    let formattedValue = whereClause.value;
+                    const dataType = whereClause.column_data_type?.toLowerCase() || '';                    
+                    // Handle numeric types - do NOT quote
+                    if (dataType === 'numeric' || dataType === 'integer' || dataType === 'bigint' || 
+                        dataType === 'smallint' || dataType === 'real' || dataType === 'double precision' ||
+                        dataType === 'decimal' || dataType === 'float' || dataType === 'money') {
+                        formattedValue = whereClause.value; // No quotes for numbers
+                    } 
+                    // Handle IN/NOT IN operators - value already contains parentheses
+                    else if (operator === 'IN' || operator === 'NOT IN') {
+                        formattedValue = `(${whereClause.value})`; // User enters: 'val1','val2','val3'
+                    }
+                    // Handle NULL checks
+                    else if (operator === 'IS NULL' || operator === 'IS NOT NULL') {
+                        formattedValue = ''; // No value needed for NULL checks
+                    }
+                    // Default: quote the value for text types
+                    else {
+                        formattedValue = `'${whereClause.value}'`;
+                    }
+                    
+                    const sqlClause = operator === 'IS NULL' || operator === 'IS NOT NULL'
+                        ? `${whereClause.column} ${operator}`
+                        : `${whereClause.column} ${operator} ${formattedValue}`;
+                    whereClauses.push(sqlClause);
                 }
             });
             if (whereClauses.length > 0) {
-                sqlParts.push(`WHERE ${whereClauses.join(' AND ')}`);
+                const whereSQL = `WHERE ${whereClauses.join(' AND ')}`;
+                sqlParts.push(whereSQL);
             }
         }
         
@@ -2766,10 +2794,57 @@ export class DataSourceProcessor {
         // Build HAVING clause
         if (query.query_options?.group_by?.having_conditions && query.query_options.group_by.having_conditions.length > 0) {
             const havingClauses: string[] = [];
+            // CRITICAL: This array MUST match the frontend's state.equality array order exactly
+            // Frontend: ['=', '>', '<', '>=', '<=', '!=', 'IN', 'NOT IN']
+            const equalityOperators = ['=', '>', '<', '>=', '<=', '!=', 'IN', 'NOT IN'];
+            
             query.query_options.group_by.having_conditions.forEach((havingClause: any) => {
-                if (havingClause.aggregate_function && havingClause.column && havingClause.operator && havingClause.value) {
-                    const aggregateFunc = aggregateFunctions[havingClause.aggregate_function];
-                    havingClauses.push(`${aggregateFunc}(${havingClause.column}) ${havingClause.operator} ${havingClause.value}`);
+                if (havingClause.column && havingClause.equality !== undefined && havingClause.value !== undefined && havingClause.value !== '') {
+                    // Get operator from equality index
+                    const operator = equalityOperators[havingClause.equality] || '=';
+                    
+                    // Check if column is an aggregate alias - need to reconstruct full expression
+                    let havingColumn = havingClause.column;
+                    let formattedValue = havingClause.value;
+                    
+                    // Check if this matches an aggregate function alias
+                    const aggregateFunc = query.query_options?.group_by?.aggregate_functions?.find((aggFunc: any) => {
+                        if (aggFunc.aggregate_function !== '' && aggFunc.column !== '') {
+                            const funcName = aggregateFunctions[aggFunc.aggregate_function];
+                            const columnParts = aggFunc.column.split('.');
+                            const columnName = columnParts[columnParts.length - 1];
+                            const aliasName = aggFunc.column_alias_name || `${funcName.toLowerCase()}_${columnName}`;
+                            return aliasName === havingClause.column;
+                        }
+                        return false;
+                    });
+                    
+                    // Check if this matches an aggregate expression alias
+                    const aggregateExpr = query.query_options?.group_by?.aggregate_expressions?.find((aggExpr: any) => {
+                        return aggExpr.column_alias_name === havingClause.column;
+                    });
+                    
+                    if (aggregateFunc) {
+                        // Replace alias with full aggregate function expression
+                        const funcName = aggregateFunctions[aggregateFunc.aggregate_function];
+                        const distinctKeyword = aggregateFunc.use_distinct ? 'DISTINCT ' : '';
+                        havingColumn = `${funcName}(${distinctKeyword}${aggregateFunc.column})`;
+                    } else if (aggregateExpr) {
+                        // Replace alias with full aggregate expression
+                        const funcName = aggregateFunctions[aggregateExpr.aggregate_function];
+                        const distinctKeyword = aggregateExpr.use_distinct ? 'DISTINCT ' : '';
+                        havingColumn = `${funcName}(${distinctKeyword}${aggregateExpr.expression})`;
+                    }
+                    
+                    // Handle value formatting - aggregates return numeric values
+                    if (operator === 'IN' || operator === 'NOT IN') {
+                        formattedValue = `(${havingClause.value})`;
+                    } else {
+                        // Aggregate results are numeric - don't quote
+                        formattedValue = havingClause.value;
+                    }
+                    
+                    havingClauses.push(`${havingColumn} ${operator} ${formattedValue}`);
                 }
             });
             if (havingClauses.length > 0) {
