@@ -5153,6 +5153,22 @@ onMounted(async () => {
                                     </div>
                                     <div v-if="showGroupByClause" class="w-full flex flex-col mt-5">
                                         <h3 class="font-bold mb-2">Group By</h3>
+                                        <!-- Aggregate Function Disclaimer -->
+                                        <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-4 rounded-r-lg">
+                                            <div class="flex items-start">
+                                                <svg class="h-5 w-5 text-blue-400 mt-0.5 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                <div>
+                                                    <p class="text-sm text-blue-700 font-medium">
+                                                        <strong>Note:</strong> Columns used in aggregate functions (SUM, AVG, COUNT, etc.) will not appear as individual values in your results.
+                                                    </p>
+                                                    <p class="text-xs text-blue-600 mt-1">
+                                                        Only the calculated aggregate values (e.g., total_sales, count_status) will be shown alongside your GROUP BY columns.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
                                         <div class="flex flex-col bg-gray-100 p-5 rounded-lg">
                                             <div
                                                 v-for="(clause, index) in state.data_table.query_options.group_by.aggregate_functions">
