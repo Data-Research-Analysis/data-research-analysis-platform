@@ -169,8 +169,9 @@ When joining tables, ALWAYS include the foreign key columns:
    - Use **aggregate_functions** for simple single-column aggregations: SUM(column), AVG(column), COUNT(DISTINCT column)
    - Use **aggregate_expressions** for complex custom SQL expressions: SUM(col1 * col2), AVG(CASE WHEN...), COUNT(DISTINCT CASE...)
    - aggregate_expressions format: {"expression": "complete SQL with function", "column_alias_name": "alias"}
-   - Example: {"expression": "SUM(quantity * price)", "column_alias_name": "total_revenue"}
+   - Example: {"expression": "SUM(public.orders.quantity * public.products.price)", "column_alias_name": "total_revenue"}
    - DO NOT separate function from expression - write complete SQL in expression field
+   - CRITICAL: Use standard PostgreSQL syntax - schema.table.column (NO square brackets [[...]])
 8. TABLE ALIASING FOR SELF-JOINS:
    - If same table appears multiple times, MUST use table_alias field with descriptive names
    - Each instance of the table must have a unique, role-based alias (e.g., "emp" and "mgr", NOT "users1" and "users2")
@@ -359,10 +360,16 @@ Respond with ONLY this JSON wrapped in code block with json tag:
   - \`expression\`: Complete SQL expression INCLUDING aggregate function (e.g., "SUM(quantity * price)", "AVG(DISTINCT amount)")
   - \`column_alias_name\`: result column name (REQUIRED)
   - **IMPORTANT**: Write complete SQL in expression field - do NOT separate function from expression
+  - **CRITICAL SYNTAX RULES**:
+    - Use standard PostgreSQL column references: schema.table.column
+    - DO NOT use square brackets: [[column]] or [column] - these cause SQL errors
+    - DO NOT use any placeholder syntax - write actual column names
+    - Valid: "SUM(dra_excel.orders.quantity * dra_excel.products.price)"
+    - Invalid: "SUM([[dra_excel.orders.quantity]] * [[dra_excel.products.price]])"
   - **Examples**:
-    - {"expression": "SUM(quantity * price)", "column_alias_name": "total_revenue"}
-    - {"expression": "AVG(CASE WHEN status='active' THEN amount ELSE 0 END)", "column_alias_name": "avg_active_amount"}
-    - {"expression": "COUNT(DISTINCT user_id)", "column_alias_name": "unique_users"}
+    - {"expression": "SUM(public.orders.quantity * public.products.price)", "column_alias_name": "total_revenue"}
+    - {"expression": "AVG(CASE WHEN public.orders.status='active' THEN public.orders.amount ELSE 0 END)", "column_alias_name": "avg_active_amount"}
+    - {"expression": "COUNT(DISTINCT public.users.user_id)", "column_alias_name": "unique_users"}
   - **When to use**: Complex formulas, CASE statements, mathematical operations between columns
   - **When NOT to use**: Simple single-column aggregates (use aggregate_functions instead)
 

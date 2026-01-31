@@ -2593,7 +2593,9 @@ export class DataSourceProcessor {
         query?.query_options?.group_by?.aggregate_expressions?.forEach((aggExpr: any) => {
             if (aggExpr.expression && aggExpr.expression.trim() !== '') {
                 const aliasName = aggExpr?.column_alias_name && aggExpr.column_alias_name !== '' ? aggExpr.column_alias_name : `agg_expr`;
-                selectColumns.push(`${aggExpr.expression} AS ${aliasName}`);
+                // Clean up expression: remove square brackets (invalid PostgreSQL syntax)
+                const cleanExpression = aggExpr.expression.replace(/\[\[/g, '').replace(/\]\]/g, '').replace(/\[/g, '').replace(/\]/g, '');
+                selectColumns.push(`${cleanExpression} AS ${aliasName}`);
             }
         });
         
@@ -2829,7 +2831,8 @@ export class DataSourceProcessor {
                         havingColumn = `${funcName}(${distinctKeyword}${aggregateFunc.column})`;
                     } else if (aggregateExpr) {
                         // Replace alias with full aggregate expression (use as-is)
-                        havingColumn = aggregateExpr.expression;
+                        // Clean up expression: remove square brackets (invalid PostgreSQL syntax)
+                        havingColumn = aggregateExpr.expression.replace(/\[\[/g, '').replace(/\]\]/g, '').replace(/\[/g, '').replace(/\]/g, '');
                     }
                     
                     // Handle value formatting - aggregates return numeric values

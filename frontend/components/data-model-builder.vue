@@ -2813,8 +2813,10 @@ function buildSQLQuery(silent = false) {
 
     state?.data_table?.query_options?.group_by?.aggregate_expressions?.forEach((agg_expr) => {
         if (agg_expr.expression && agg_expr.expression.trim() !== '') {
+            // Clean up expression: remove square brackets (invalid PostgreSQL syntax from AI)
+            const cleanExpression = agg_expr.expression.replace(/\[\[/g, '').replace(/\]\]/g, '').replace(/\[/g, '').replace(/\]/g, '');
             const aliasName = agg_expr?.column_alias_name && agg_expr.column_alias_name !== '' ? ` AS ${agg_expr.column_alias_name}` : '';
-            sqlQuery += `, ${agg_expr.expression}${aliasName}`;
+            sqlQuery += `, ${cleanExpression}${aliasName}`;
         }
     });
 
@@ -2844,8 +2846,8 @@ function buildSQLQuery(silent = false) {
                 if (aggExpr.expression && aggExpr.expression.trim() !== '') {
                     const aliasName = aggExpr.column_alias_name;
                     if (aliasName) {
-                        // Use the full expression as-is
-                        const fullExpression = aggExpr.expression;
+                        // Clean up expression: remove square brackets (invalid PostgreSQL syntax)
+                        const fullExpression = aggExpr.expression.replace(/\[\[/g, '').replace(/\]\]/g, '').replace(/\[/g, '').replace(/\]/g, '');
 
                         // Replace all occurrences of the alias with the full expression
                         const aliasRegex = new RegExp(`\\b${aliasName}\\b`, 'g');
@@ -2939,7 +2941,8 @@ function buildSQLQuery(silent = false) {
                 }
             } else if (aggregateExpr) {
                 // Replace alias with full aggregate expression (use as-is)
-                havingColumn = aggregateExpr.expression;
+                // Clean up expression: remove square brackets (invalid PostgreSQL syntax)
+                havingColumn = aggregateExpr.expression.replace(/\[\[/g, '').replace(/\]\]/g, '').replace(/\[/g, '').replace(/\]/g, '');
                 
                 // Aggregate results are always numeric - don't quote
                 const operator = state.equality[clause.equality];
