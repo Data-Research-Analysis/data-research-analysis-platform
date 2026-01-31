@@ -6,6 +6,504 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## 2026-01-31
+
+### Fixed - Aggregate Expression SQL Generation ✅
+
+**Commits:** 
+- fix: prevent SQL syntax errors from square bracket notation in AI-generated expressions (c292b81)
+- refactor: simplify aggregate expressions to accept free-form SQL (e5abd85)
+
+**Aggregate Expression Refactor:**
+- Removed function dropdown from aggregate expression UI (simplified from 4 fields to 2)
+- Removed USE_DISTINCT checkbox - expressions now accept complete SQL
+- Updated backend reconstructSQLFromJSON() to use expressions directly without function wrapping
+- Fixed undefined() wrapper bug when function dropdown not selected but expression contains full SQL
+- Changed aggregate_expression interface from {aggregate_function, expression, use_distinct, alias} to {expression, alias}
+
+**SQL Syntax Fix:**
+- Added defensive square bracket cleanup in 5 code locations (2 backend, 3 frontend)
+- Strips [[column]], [column], [[...]], and [...] notation that causes PostgreSQL syntax errors
+- Implemented in SELECT clause, calculated columns, HAVING clause generation
+- Defense in depth approach: AI system prompt updates + automatic cleanup
+
+**AI System Prompts:**
+- Added CRITICAL warnings about PostgreSQL syntax (no square brackets)
+- Updated examples to show fully-qualified column names (schema.table.column)
+- Added valid/invalid syntax examples for aggregate expressions
+
+**Files Modified:**
+- backend/src/processors/DataSourceProcessor.ts
+- frontend/components/data-model-builder.vue
+- backend/src/constants/system-prompts.ts
+
+**Impact:**
+- Eliminates SQL errors: "ERROR: syntax error at or near [" 
+- Eliminates undefined() wrapper: "undefined(SUM([[column]] * [[column]]))"
+- Free-form aggregate expressions work correctly: "SUM(quantity * price) AS total_sales"
+
+---
+
+## 2026-01-30
+
+### Fixed - WHERE Clause and GROUP BY HAVING Clause Updates ✅
+
+**Commits:**
+- Merge pull request #304 from Data-Research-Analysis/DRA-243-Where-Clause-Not-Working-In-Data-Model-Builder (9ef037e)
+- Added disclaimer and also added to the system prompt (51854d1)
+- Fixed where clause and group by having clause update the data preview correctly (9c8db7d)
+
+**Data Model Builder Improvements:**
+- Fixed WHERE clause updates not triggering data preview refresh
+- Fixed GROUP BY HAVING clause updates not reflecting in preview
+- Added disclaimer to AI Data Modeler about clause updates
+- Updated system prompts with clause update guidance
+
+---
+
+## 2026-01-29
+
+### Fixed - Critical Backend and Database Issues ✅
+
+**Commits:**
+- fix: resolve Gemini API error and AI rate limiting for SSR requests (bcb4139)
+- fix: resolve critical database and auth issues (17f69db)
+- Standardized the email templates and implemented new tests (269e082)
+
+**Gemini API & Rate Limiting:**
+- Fixed Gemini API errors in AI Data Modeler
+- Resolved AI rate limiting issues for SSR requests
+- Improved error handling for AI operations
+
+**Email System:**
+- Standardized email template formatting across all notification types
+- Implemented comprehensive email template tests
+- Fixed email rendering issues
+
+**Database & Migrations:**
+- Merge pull request #302 for email image header/footer Gmail compatibility (b7ef141)
+- Added defensive checks to migrations (5873273)
+- Reordered migrations for proper dependency resolution (8c29fdc)
+
+---
+
+## 2026-01-28
+
+### Fixed - AI Data Modeler Schema Detection ✅
+
+**Commits:**
+- Merge pull request #301 from Data-Research-Analysis/DRA-242-AI-Data-Modeler-Is-Missing-Columns-When-Building-Model (a49646c)
+- Working on fixing the issue with the AI Data Modeler not getting the schema from connection details (376560c)
+- fix: resolve AI Data Modeler column selection and rate limiting issues (b3248de)
+
+**Schema Detection:**
+- Fixed AI Data Modeler not retrieving schema from connection details
+- Resolved missing columns when building data models
+- Improved column selection logic and validation
+- Fixed rate limiting issues affecting AI operations
+
+---
+
+## 2026-01-25
+
+### Added - Account Cancellation System ✅
+
+**Commit:** feat: implement account cancellation system with admin controls and email notifications (ed74659)
+
+**Account Cancellation Features:**
+- Complete account cancellation workflow with email notifications
+- Admin controls for managing user account status
+- Automated email notifications for cancellation requests
+- Graceful data cleanup and user session management
+
+### Fixed - Notification System Improvements ✅
+
+**Commits:**
+- Merge pull request #299 from Data-Research-Analysis/DRA-241-Generate-Notifications-Events-From-The-Backend (cf286c6)
+- Added back button on the notifications page, and other small fixes (cbb4029)
+- Merge pull request #298 (d54d6be)
+- fix(backend): resolve TypeScript compilation errors for notification system (cbe22f3)
+- Merge pull request #297 (2e22f86)
+- feat(notifications): implement display-only mode and comprehensive type system (c01570c)
+
+**Notification System:**
+- Implemented display-only mode for read-only notification views
+- Added comprehensive TypeScript type system for notifications
+- Resolved compilation errors in notification backend
+- Added back navigation button to notifications page
+- Various UI/UX improvements
+
+---
+
+## 2026-01-24
+
+### Added - Real-Time Notification System ✅
+
+**Commits:**
+- Fixed the bugs found in the notifications implementation and also added the missing notifications page (d343730)
+- Add backend notification files (migration, model, processor, routes, types) (706876c)
+- Add real-time notification system (35e1d26)
+
+**Notification Features:**
+- Complete real-time notification system with Socket.IO
+- Database migration for notifications table
+- NotificationProcessor for business logic
+- Notification routes and comprehensive type definitions
+- Frontend notifications page with real-time updates
+
+### Fixed - Cross-Source Data Model Improvements ✅
+
+**Commits:**
+- Merge pull request #296 from Data-Research-Analysis/292-feature-google-data-sources-complete-management-ui-data-refresh-system (72af2bf)
+- fix: improve cross-source data model retrieval and UI cursor indicators (ec5cff1)
+
+**Cross-Source Features:**
+- Improved data model retrieval for cross-source models
+- Enhanced UI cursor indicators during loading states
+- Fixed visibility issues with cross-source data models
+
+---
+
+## 2026-01-23
+
+### Fixed - Cross-Source Data Models and Calculated Columns ✅
+
+**Commit:** fix: resolve cross-source data models visibility and calculated columns functionality (e2771a5)
+
+**Fixes:**
+- Resolved visibility issues with cross-source data models
+- Fixed calculated columns not working in cross-source scenarios
+- Improved data model rendering and selection logic
+
+---
+
+## 2026-01-22
+
+### Added - Empty State Handling for Data Sources ✅
+
+**Commit:** Add warning banner when no table data available, display empty state UI, disable save button, fix parent pages rendering, add loading states (5781ba5)
+
+**Features:**
+- Warning banner when no table data is available
+- Empty state UI in table cards with inbox icon
+- Disabled save button with message when tables are empty
+- Fixed parent pages to always render builder component
+- Loading states with spinner during data fetch
+- Initialize tables state as null to distinguish loading from empty
+
+### Fixed - Google Data Source Improvements ✅
+
+**Commits:**
+- Added documentation (17e58c6)
+- Fixed google ad manager sync code (7205631)
+- Standardized the names of the route files (475f6fe)
+
+---
+
+## 2026-01-21
+
+### Added - Google Ads Manager Account Support ✅
+
+**Commits:**
+- fix(google-ads): add manager customer ID support for client account access (5464e3c)
+- feat: add Google Ads manager account support with client selection (9e6f7e8)
+- feat: unify Google data source sync history architecture (f182d05)
+
+**Google Ads Manager:**
+- Manager account support with client account selection
+- Manager customer ID for accessing client accounts
+- Unified sync history architecture across all Google data sources
+
+**Sync Improvements:**
+- Row counter in Google Analytics data source sync table (e225355)
+- Fixed user ID bug in Google Ad Manager data source code
+- Fixed frontend frequency value bug (b5e9a8a)
+- Fixed time format validator strictness (7e39798)
+- Added missing scheduling columns to DRADataSource model (1de2d1d)
+- Fixed token assignment bug (3350sb3)
+- Added missing authorization-type header (e83c241)
+- Fixed API call paths (9275900)
+
+---
+
+## 2026-01-20
+
+### Added - Google Data Sources Dynamic Queries and Auto-Sync ✅
+
+**Commits:**
+- feat(google-data-sources): implement dynamic queries and auto-sync scheduler (Phases 8-9) (aa04a35, c137371)
+- feat: modernize UI with card grids and implement real-time sync management (8df5dbd)
+- Fixed the configure sync schedule modal (02509ef)
+- Fixed the calling of the data source schedule api (71d160c)
+
+**Features:**
+- Dynamic query system for Google data sources
+- Automated sync scheduler with configurable schedules
+- Modernized UI with card grid layouts
+- Real-time sync management interface
+- Configure sync schedule modal
+- Improved API integration for scheduling
+
+---
+
+## 2026-01-18
+
+### Refactored - Backend Data Source Configuration ✅
+
+**Commits:**
+- Merge pull request #294 (e0d90c7)
+- refactor(backend): replace AppDataSource with PostgresDSMigrations and use default export (c0acc6b)
+- Merge pull request #293 (7fa9813)
+- Fixed errors in the tests caused due to moving of the files to a new folder (591a06c)
+
+**Backend Improvements:**
+- Replaced AppDataSource with PostgresDSMigrations
+- Used default export for cleaner imports
+- Fixed test errors after file reorganization
+
+---
+
+## 2026-01-17
+
+### Added - Role-Based Access Control (RBAC) System ✅
+
+**Commits:**
+- Merge pull request #289 from Data-Research-Analysis/281-feature-request-implement-role-based-access-control-rbac (177c96c)
+- Merge pull request #288 (2ee74bc)
+- Merge pull request #286 (f578c46)
+- feat: implement comprehensive RBAC system with project invitations and permissions (991c751)
+- Implemented RABC for dashboard functionality (8ddab2b)
+- Fixed confusions in permissions and cleaned up the permissions (9caa5ac)
+- Fixed bugs in the role based access control code and also the tests (81a97fa)
+- Consolidated the tests into together into a single _tests_ folder (152d024)
+
+**RBAC Features:**
+- Complete role-based access control system
+- Project-level permissions (Owner, Editor, Viewer)
+- Project invitation system with email notifications
+- Dashboard functionality with RBAC enforcement
+- Permission management and cleanup
+- Comprehensive test coverage
+
+**Additional Fixes:**
+- Replaced confirm dialogs with SweetAlert (ddab8ac)
+- Added documentation and updated DBML file (425d2ee)
+- Fixed subscription email format showing -1 for unlimited (e2bf7c1)
+- Potential fix for code scanning alert #66: Incomplete multi-character sanitization (1af35b2)
+- Added missing authorization type header flag (f8009a5)
+
+---
+
+## 2026-01-16
+
+### Fixed - OAuth, Data Isolation, and Schema Filtering ✅
+
+**Commits:**
+- Merge pull request #285 from Data-Research-Analysis/DRA-239-Fix-TypeError-in-Google-OAuth-Sync-Cross-Project-Data-Model-Leakage-and-AI-Data-Modeler-Schema-Filtering (860f077)
+- fix: AI data modeler showing incorrect table counts and orphaned table cleanup (43de242)
+- Fixing issues in the data model builder and data source processor (55fe04b)
+- Bug Fixes: OAuth Sync TypeError, Project Data Isolation, and Schema Filtering (e74924e)
+- fix: resolve TypeScript ES module and type errors (66eeb0e)
+
+**Critical Fixes:**
+- Fixed TypeError in Google OAuth sync operations
+- Resolved cross-project data model leakage (security issue)
+- Fixed AI Data Modeler schema filtering
+- Corrected table count display in AI Data Modeler
+- Implemented orphaned table cleanup
+- Fixed data model builder and data source processor issues
+- Resolved TypeScript ES module and type errors
+
+**Google Analytics Sync:**
+- Fixed storeTableMetadata to use upsert logic (6bda558)
+- Fixed table registration - all 6 tables now properly registered (db1f063)
+- Fixed load models API to include project ID (b699d03)
+- Fixed validation bugs (87aeee1)
+
+---
+
+## 2026-01-15
+
+### Added - Comprehensive RBAC System ✅
+
+**Commits:**
+- feat: implement comprehensive RBAC system with project invitations and permissions (991c751)
+- Implemented RABC for dashboard functionality (8ddab2b)
+- Fixed confusions in permissions and cleaned up the permissions (9caa5ac)
+- Replaced the confirm with swal (ddab8ac)
+
+**RBAC Implementation:**
+- Project-level role system (Owner, Editor, Viewer)
+- Project invitation workflow with email notifications
+- Dashboard access control based on user roles
+- Permission cleanup and standardization
+- Replaced confirm() dialogs with SweetAlert for better UX
+
+---
+
+## 2026-01-12
+
+### Added - Subscription Email Notifications ✅
+
+**Commits:**
+- Merge pull request #284 from preettrank53/feature/subscription-email-notifications-278 (6f95c8f)
+- feat: Add subscription email notifications with user preferences (#278) (02e2819)
+- refactor(email): centralize email logic in EmailService and clean up MailDriver (9a73197)
+- refactor: Use existing NodeMailerDriver instead of creating new transporter (e3bc98b)
+
+**Email Features:**
+- Subscription change email notifications
+- User email preference management
+- Centralized email service architecture
+- Cleaned up email driver code
+- Reused NodeMailerDriver for consistency
+
+### Added - Initial RBAC Implementation ✅
+
+**Commit:** feat: implement Role-Based Access Control (RBAC) for project collaboration (ab2f9ec)
+
+**Features:**
+- Initial RBAC framework for project collaboration
+- Foundation for role-based permissions
+- Project member management
+
+---
+
+## 2026-01-11
+
+### Added - Subscription Tier Limits and Data Model Enforcement ✅
+
+**Commits:**
+- Merge pull request #273 from Data-Research-Analysis/271-feature-request-subscription-tier-enforcement---projects-data-sources-dashboards-and-ai-generations (1de7819)
+- feat(tier-enforcement): implement subscription tier limits for data models and comprehensive UI enhancements (51703ee)
+
+**Tier Enforcement:**
+- Subscription tier limits for data models
+- Project, data source, and dashboard limits per tier
+- AI generation limits per tier
+- Comprehensive UI enhancements for tier display
+- Upgrade prompts when limits reached
+
+---
+
+## 2026-01-10
+
+### Added - Subscription Tier System with Row Limits ✅
+
+**Commits:**
+- Merge pull request #272 from Data-Research-Analysis/262-feature-request-implement-row-limit-enforcement-per-subscription-tier (8f6b28f)
+- feat(subscriptions): implement subscription tier system with row limits (6acf170)
+
+**Features:**
+- Complete subscription tier system (Free, Basic, Professional, Enterprise)
+- Row limit enforcement per tier
+- Query result truncation based on subscription
+- Tier-based feature access control
+- UI indicators for row limits
+
+---
+
+## 2026-01-04
+
+### Added - Comprehensive Backend Test Suite ✅
+
+**Commits:**
+- Merge pull request #261 from Data-Research-Analysis/260-backend-test-coverage-completion---missing-critical-security-e2e-tests (94761cd)
+- test: add comprehensive model tests for DRADataSource, DRADataModel, and DRAUsersPlatform (b92f638)
+- feat: implement comprehensive backend test suite with 500+ tests (1d44500)
+- feat: add Sprint 2 Core API integration tests (110 tests) (803d214)
+
+**Test Coverage:**
+- 500+ comprehensive backend tests
+- Model tests for DRADataSource, DRADataModel, DRAUsersPlatform
+- Sprint 2 Core API integration tests (110 tests)
+- Critical security and E2E tests
+- 80%+ code coverage across backend
+
+---
+
+## 2026-01-03
+
+### Added - Sitemap Management System ✅
+
+**Commits:**
+- Merge pull request #259 from Data-Research-Analysis/DRA-103-Build-A-SiteMap-Generator (29ea8dd)
+- Merge pull request #258 (df4cfee)
+- Merge pull request #257 (577654e)
+- feat(admin): implement sitemap management system with database-backed dynamic generation (9d5a98d)
+- Fixed the issue with seeder using string literal 'admin' instead of enum (4c3070d)
+- Fixed migration error (6b5f3ed)
+
+**Sitemap Features:**
+- Database-backed sitemap management
+- Dynamic sitemap generation
+- Admin interface for sitemap control
+- Fixed seeder enum usage
+- Migration fixes
+
+### Added - Automated Scheduled Database Backup System ✅
+
+**Commits:**
+- Merge pull request #255 from Data-Research-Analysis/DRA-235-Develop-Daily-Backup-Service-That-Runs-Automatically (3426a97)
+- Merge pull request #254 (ca5470f)
+- Merge pull request #253 (3f6da3d)
+- feat: Add automated scheduled database backup system (2490639)
+- refactor: replace cron-parser with croner for ESM compatibility (2647181)
+- Fixed public articles card height (9429a06)
+
+**Backup Features:**
+- Automated daily database backups
+- Configurable backup schedules
+- Backup retention management
+- Real-time progress tracking via Socket.IO
+- Background job queue processing
+- ESM-compatible cron scheduler (croner)
+
+---
+
+## 2026-01-02
+
+### Fixed - TipTap Editor Enter Key Malfunction ✅
+
+**Commits:**
+- Merge pull request #252 from Data-Research-Analysis/248-bug-report-tiptap-editor-enter-key-stops-working-after-pasting-markdown (2d05a68)
+- Merge pull request #251 (baf402a)
+- Merge pull request #250 (a0c69e2)
+- Merge pull request #249 (c4efb3b)
+- fix(editor): resolve Enter key malfunction after pasting markdown content (3d13964)
+- Fixed migration bug (682775f)
+- Migration timestamp ordering fix (36f0f14)
+- Added www.dataresearchanalysis.com to nuxt allowed hosts config (52d5ed7)
+
+**Editor Fixes:**
+- Fixed Enter key not working after pasting markdown in TipTap editor
+- Resolved migration timestamp ordering issues
+- Fixed migration dependencies with existence checks
+- Added production domain to allowed hosts
+
+---
+
+## 2025-12-31
+
+### Fixed - User List Cache and Landing Page Improvements ✅
+
+**Commits:**
+- Merge pull request #247 from Data-Research-Analysis/DRA-234-Invalidate-user-list-cache-after-user-creation-conversion (8d30de9)
+- Fixed the bug where the users list was not being updated upon user creation (2fcd12a)
+- Merge pull request #246 from Data-Research-Analysis/DRA-227-Add-PSEB-Logo-In-The-Footer (878bb5f)
+- Merge pull request #245 (1ff7362)
+- feat: modernize landing page with new layout, copy, and components (b1c5bd1)
+- Fixed the hero and footer mobile layouts and also modernized the footer layout (14e7a38)
+
+**Improvements:**
+- Fixed user list cache not invalidating after user creation
+- Modernized landing page with new layout and copy
+- Improved hero and footer mobile layouts
+- Added PSEB logo to footer
+- Enhanced responsive design
+
+---
+
 ## 2025-12-30
 
 ### Fixed - Data Model Builder Column Persistence & AI Drawer UX ✅
