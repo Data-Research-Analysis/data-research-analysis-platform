@@ -556,7 +556,10 @@ export class DataModelProcessor {
                 let insertQueryColumns = '';
                 sourceTable.columns.forEach((column: any, index: number) => {
                     const columnSize = column?.character_maximum_length ? `(${column?.character_maximum_length})` : '';
-                    const columnType = `${column.data_type}${columnSize}`;
+                    // Check if column.data_type already contains size information (e.g., "varchar(1024)")
+                    // If it does, don't append columnSize again to avoid "VARCHAR(1024)(1024)"
+                    const dataTypeAlreadyHasSize = column.data_type && /\(\s*\d+(?:,\d+)?\s*\)/.test(column.data_type);
+                    const columnType = dataTypeAlreadyHasSize ? column.data_type : `${column.data_type}${columnSize}`;
 
                     const dataType = UtilityService.getInstance().convertDataTypeToPostgresDataType(dataSourceType, columnType);
                     let dataTypeString = '';
@@ -691,7 +694,10 @@ export class DataModelProcessor {
                         columnName = `${column.schema}_${column.table_name}_${column.column_name}`;
                     }
                     const columnSize = column?.character_maximum_length ? `(${column?.character_maximum_length})` : '';
-                    const columnType = `${column.data_type}${columnSize}`;
+                    // Check if column.data_type already contains size information (e.g., "varchar(1024)")
+                    // If it does, don't append columnSize again to avoid "VARCHAR(1024)(1024)"
+                    const dataTypeAlreadyHasSize = column.data_type && /\(\s*\d+(?:,\d+)?\s*\)/.test(column.data_type);
+                    const columnType = dataTypeAlreadyHasSize ? column.data_type : `${column.data_type}${columnSize}`;
                     const dataType = UtilityService.getInstance().convertDataTypeToPostgresDataType(dataSourceType, columnType);
                     let dataTypeString = '';
                     if (dataType.size) {

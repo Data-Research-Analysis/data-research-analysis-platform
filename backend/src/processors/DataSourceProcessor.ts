@@ -1538,7 +1538,10 @@ export class DataSourceProcessor {
                         // For other types, don't apply size
                     }
                     
-                    const columnType = `${column.data_type}${columnSize}`;
+                    // Check if column.data_type already contains size information (e.g., "varchar(1024)")
+                    // If it does, don't append columnSize again to avoid "VARCHAR(1024)(1024)"
+                    const dataTypeAlreadyHasSize = column.data_type && /\(\s*\d+(?:,\d+)?\s*\)/.test(column.data_type);
+                    const columnType = dataTypeAlreadyHasSize ? column.data_type : `${column.data_type}${columnSize}`;
 
                     // For cross-source models, use the column's data_source_type; for single-source, use the global dataSourceType
                     const columnDataSourceType = isCrossSource && column.data_source_type 
