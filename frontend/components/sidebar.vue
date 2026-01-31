@@ -221,6 +221,31 @@ function getColumnIcon(column) {
     return { icon: 'fa-database', color: 'text-gray-500' };
 }
 
+/**
+ * Clean column name by removing table prefix
+ * @param {string} columnName - Physical column name (e.g., "ds64_51d5769b_id")
+ * @param {string} tableName - Physical table name (e.g., "ds64_51d5769b")
+ * @returns {string} Clean column name (e.g., "id")
+ */
+function getCleanColumnName(columnName, tableName) {
+    if (!columnName) return columnName;
+    
+    // Remove table prefix pattern (e.g., "ds64_51d5769b_" from "ds64_51d5769b_id")
+    const tablePrefix = tableName + '_';
+    if (columnName.startsWith(tablePrefix)) {
+        return columnName.substring(tablePrefix.length);
+    }
+    
+    // If no exact match, try to find and remove any datasource prefix pattern
+    const prefixPattern = /^ds\d+_[a-f0-9]+_/;
+    if (prefixPattern.test(columnName)) {
+        return columnName.replace(prefixPattern, '');
+    }
+    
+    // Return as-is if no prefix found
+    return columnName;
+}
+
 function toggleSelectedColumn(event, modelName, columnName) {
 
     if (event.target.checked) {
@@ -334,11 +359,11 @@ function toggleSidebar() {
                                     <div class="h-10 flex flex-col justify-center">
                                         <h6 
                                             v-tippy="{
-                                                content: `Column Name: ${element.column_name}<br />Column Data Type: ${element.data_type}`
+                                                content: `Column Name: ${getCleanColumnName(element.column_name, dataModel.model_name)}<br />Column Data Type: ${element.data_type}`
                                             }" 
                                             class="text-sm font-bold hover:text-gray-500 p-1 m-1"
                                         >
-                                            {{ element.column_name.length > 20 ? `${element.column_name.substring(0, 20)}...`: element.column_name }}
+                                            {{ getCleanColumnName(element.column_name, dataModel.model_name).length > 20 ? `${getCleanColumnName(element.column_name, dataModel.model_name).substring(0, 20)}...`: getCleanColumnName(element.column_name, dataModel.model_name) }}
                                         </h6>
                                     </div>
                                 </div>

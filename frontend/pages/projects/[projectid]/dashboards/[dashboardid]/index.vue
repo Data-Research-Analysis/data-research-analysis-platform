@@ -291,6 +291,46 @@ function buildSQLQuery(chart) {
     return sqlQuery;
 }
 
+/**
+ * Get logical table name for a physical table
+ * @param {string} tableName - Physical table name
+ * @returns {string} Logical name or cleaned physical name
+ */
+function getLogicalTableName(tableName) {
+    const dataModel = state.data_model_tables.find(dm => dm.model_name === tableName);
+    if (dataModel?.logical_name) {
+        return dataModel.logical_name;
+    }
+    // Fallback: return cleaned physical name
+    return dataModel?.cleaned_model_name || tableName.replace(/_dra.[\w\d]+/g, '');
+}
+
+/**
+ * Clean column name by removing table prefix
+ * @param {string} columnName - Physical column name (e.g., "ds64_51d5769b_id")
+ * @param {string} tableName - Physical table name (e.g., "ds64_51d5769b")
+ * @returns {string} Clean column name (e.g., "id")
+ */
+function getCleanColumnName(columnName, tableName) {
+    if (!columnName) return columnName;
+    
+    // Remove table prefix pattern (e.g., "ds64_51d5769b_" from "ds64_51d5769b_id")
+    // The pattern is: ds<digits>_<hash>_
+    const tablePrefix = tableName + '_';
+    if (columnName.startsWith(tablePrefix)) {
+        return columnName.substring(tablePrefix.length);
+    }
+    
+    // If no exact match, try to find and remove any datasource prefix pattern
+    const prefixPattern = /^ds\d+_[a-f0-9]+_/;
+    if (prefixPattern.test(columnName)) {
+        return columnName.replace(prefixPattern, '');
+    }
+    
+    // Return as-is if no prefix found
+    return columnName;
+}
+
 async function executeQueryOnDataModels(chartId) {
     state.response_from_data_models_columns = [];
     state.response_from_data_models_rows = [];
@@ -584,13 +624,39 @@ async function executeQueryOnDataModels(chartId) {
                 series: series
             }];
         } else if (chart.chart_type === 'table') {
-            // Process table data
+            // Process table data with logical table names and clean column names
+            const uniqueTables = _.uniq(chart.columns.map(c => c.table_name));
+            
+            // Create column display names and mapping
+            const columnMapping = {}; // Maps display name to original column name
             const columns = chart.columns
-                .map((column) => column.column_name)
+                .map((column) => {
+                    const cleanColumnName = getCleanColumnName(column.column_name, column.table_name);
+                    let displayName;
+                    if (uniqueTables.length > 1) {
+                        // Multiple tables - show logical table prefix
+                        const logicalTableName = getLogicalTableName(column.table_name);
+                        displayName = `${logicalTableName}.${cleanColumnName}`;
+                    } else {
+                        // Single table - no prefix needed, just clean column name
+                        displayName = cleanColumnName;
+                    }
+                    columnMapping[displayName] = column.column_name; // Map display name to original DB column name
+                    return displayName;
+                })
                 .filter(col => col && col.trim() !== ''); // Filter out empty columns
             
+            // Remap row data keys to use display names
             const rows = state.response_from_data_models_rows
-                .filter(row => row && typeof row === 'object' && Object.keys(row).length > 0); // Filter out invalid rows
+                .filter(row => row && typeof row === 'object' && Object.keys(row).length > 0)
+                .map(row => {
+                    const remappedRow = {};
+                    columns.forEach(displayName => {
+                        const originalName = columnMapping[displayName];
+                        remappedRow[displayName] = row[originalName];
+                    });
+                    return remappedRow;
+                });
             
             chart.data = [{
                 columns: columns,
@@ -1044,7 +1110,26 @@ async function openTableDialog(chartId) {
     state.selected_chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId)
     const sqlQuery = buildSQLQuery(chart);
-    state.response_from_data_models_columns = state.selected_chart.columns.map((column) => column.column_name);
+    // Use logical table names and clean column names for table dialog
+    const uniqueTables = _.uniq(state.selected_chart.columns.map(c => c.table_name));
+    
+    // Create column display names and mapping
+    const columnMapping = {}; // Maps display name to original column name
+    state.response_from_data_models_columns = state.selected_chart.columns.map((column) => {
+        const cleanColumnName = getCleanColumnName(column.column_name, column.table_name);
+        let displayName;
+        if (uniqueTables.length > 1) {
+            // Multiple tables - show logical table prefix
+            const logicalTableName = getLogicalTableName(column.table_name);
+            displayName = `${logicalTableName}.${cleanColumnName}`;
+        } else {
+            // Single table - no prefix needed, just clean column name
+            displayName = cleanColumnName;
+        }
+        columnMapping[displayName] = column.column_name; // Map display name to original DB column name
+        return displayName;
+    });
+    
     const token = getAuthToken();
     const url = `${baseUrl()}/data-model/execute-query-on-data-model`;
     const data = await $fetch(url, {
@@ -1058,7 +1143,17 @@ async function openTableDialog(chartId) {
             project_id: parseInt(route.params.projectid)
         }
     });
-    state.response_from_data_models_rows = Array.isArray(data) ? data : [];
+    
+    // Remap row data keys to use display names
+    const rawRows = Array.isArray(data) ? data : [];
+    state.response_from_data_models_rows = rawRows.map(row => {
+        const remappedRow = {};
+        state.response_from_data_models_columns.forEach(displayName => {
+            const originalName = columnMapping[displayName];
+            remappedRow[displayName] = row[originalName];
+        });
+        return remappedRow;
+    });
 }
 function closeTableDialog() {
     state.show_table_dialog = false
@@ -1285,7 +1380,8 @@ onMounted(async () => {
         state.data_model_tables.push({
             schema: dataModelTable.schema,
             model_name: dataModelTable.table_name,
-            cleaned_model_name: dataModelTable.table_name.replace(/_dra.[\w\d]+/g, ''),
+            cleaned_model_name: dataModelTable.logical_name || dataModelTable.table_name.replace(/_dra.[\w\d]+/g, ''),
+            logical_name: dataModelTable.logical_name,
             show_model: false,
             columns: dataModelTable.columns,
         })
@@ -1871,35 +1967,35 @@ onUnmounted(() => {
         </div>
         
         <overlay-dialog v-if="state.show_table_dialog" :enable-scrolling="false" @close="closeTableDialog">
-        <template #overlay>
-            <div class="flex flex-col w-full max-w-7xl h-full max-h-[85vh] p-5 overflow-hidden">
-                <h2 class="mb-4 text-xl font-bold text-gray-800">Data Model Table Data</h2>
-                <div class="overflow-x-auto overflow-y-auto max-h-[65vh] border border-primary-blue-100 border-solid rounded-lg shadow-inner bg-white">
-                    <div class="inline-block min-w-full">
-                        <table class="w-auto min-w-full border-collapse bg-white text-sm divide-y divide-gray-200">
-                            <thead class="bg-blue-100 sticky top-0 z-10 shadow-sm">
-                                <tr>
-                                    <th v-for="column in state.response_from_data_models_columns" 
-                                        class="border border-primary-blue-100 p-3 text-center font-bold whitespace-nowrap min-w-[150px] max-w-[250px] bg-blue-100">
-                                        {{ column }}
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody class="bg-white divide-y divide-gray-200">
-                                <tr v-for="row in state.response_from_data_models_rows" 
-                                    class="hover:bg-gray-50 even:bg-gray-25 transition-colors duration-150">
-                                    <td v-for="column in state.response_from_data_models_columns" 
-                                        class="border border-primary-blue-100 p-3 text-center whitespace-nowrap min-w-[150px] max-w-[250px] overflow-hidden text-ellipsis"
-                                        :title="row[column]">
-                                        {{ row[column] }}
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+            <template #overlay>
+                <div class="flex flex-col w-full max-w-7xl h-full max-h-[85vh] p-5 overflow-hidden">
+                    <h2 class="mb-4 text-xl font-bold text-gray-800">Data Model Table Data</h2>
+                    <div class="overflow-x-auto overflow-y-auto max-h-[65vh] border border-primary-blue-100 border-solid rounded-lg shadow-inner bg-white">
+                        <div class="inline-block min-w-full">
+                            <table class="w-auto min-w-full border-collapse bg-white text-sm divide-y divide-gray-200">
+                                <thead class="bg-blue-100 sticky top-0 z-10 shadow-sm">
+                                    <tr>
+                                        <th v-for="column in state.response_from_data_models_columns" 
+                                            class="border border-primary-blue-100 p-3 text-center font-bold whitespace-nowrap min-w-[150px] max-w-[250px] bg-blue-100">
+                                            {{ column }}
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    <tr v-for="row in state.response_from_data_models_rows" 
+                                        class="hover:bg-gray-50 even:bg-gray-25 transition-colors duration-150">
+                                        <td v-for="column in state.response_from_data_models_columns" 
+                                            class="border border-primary-blue-100 p-3 text-center whitespace-nowrap min-w-[150px] max-w-[250px] overflow-hidden text-ellipsis"
+                                            :title="row[column]">
+                                            {{ row[column] }}
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </template>
-    </overlay-dialog>
+            </template>
+        </overlay-dialog>
     </div>
 </template>
