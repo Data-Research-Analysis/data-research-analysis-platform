@@ -357,14 +357,14 @@ onUnmounted(() => {
         <thead 
           :class="[
             'bg-gray-100 border-b border-gray-200',
-            stickyHeader ? 'sticky top-0 z-10' : ''
+            stickyHeader ? 'sticky top-0' : ''
           ]"
         >
           <tr>
             <!-- Row Number Column -->
             <th 
               v-if="showRowNumbers"
-              class="w-16 px-3 py-2 text-left font-medium text-gray-700 border-r border-gray-200"
+              class="w-16 px-3 py-2 text-left font-medium text-gray-700 border-r border-gray-200 bg-gray-100"
             >
               #
             </th>
@@ -373,7 +373,7 @@ onUnmounted(() => {
             <th
               v-for="column in tableColumns"
               :key="column"
-              class="px-3 py-2 text-left font-medium text-gray-700 border-r border-gray-200 last:border-r-0"
+              class="px-3 py-2 text-left font-medium text-gray-700 border-r border-gray-200 last:border-r-0 bg-gray-100"
               :class="useContainerSizing ? '' : columnWidthClass"
               :style="useContainerSizing ? { 
                 width: dynamicColumnWidth,
