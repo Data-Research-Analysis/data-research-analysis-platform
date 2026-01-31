@@ -13,6 +13,7 @@ const state = reactive({
     show_calculated_column_dialog: false,
     show_alias_dialog: false,
     show_join_dialog: false,
+    show_advanced_features_dialog: false,
     viewMode: 'simple', // 'simple' or 'advanced'
     tables: [],
     table_aliases: [],
@@ -405,6 +406,10 @@ function openAIDataModeler() {
         state.is_applying_ai_config = false;
         console.log('[openAIDataModeler] Guard flag cleared after drawer open');
     }, 100);
+}
+
+function toggleAdvancedFeaturesDialog() {
+    state.show_advanced_features_dialog = !state.show_advanced_features_dialog;
 }
 
 function hasAdvancedFields() {
@@ -4525,24 +4530,33 @@ onMounted(async () => {
 
         <!-- View Mode Toggle -->
         <div class="flex justify-end mb-4">
-            <div class="inline-flex shadow-sm" role="group">
-                <button type="button" @click="state.viewMode = 'simple'" :disabled="readOnly" :class="[
-                    'px-4 py-2 text-sm font-medium transition-all duration-200 border border-2 border-solid border-gray-200 rounded-tl-lg',
-                    readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
-                    state.viewMode === 'simple'
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                ]">
-                    Simple View
-                </button>
-                <button type="button" @click="state.viewMode = 'advanced'" :disabled="readOnly" :class="[
-                    'px-4 py-2 text-sm font-medium transition-all duration-200 border border-2 border-solid border-gray-200 rounded-tr-lg',
-                    readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
-                    state.viewMode === 'advanced'
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                ]">
-                    Advanced View
+            <div class="inline-flex items-center gap-2">
+                <div class="inline-flex shadow-sm" role="group">
+                    <button type="button" @click="state.viewMode = 'simple'" :disabled="readOnly" :class="[
+                        'px-4 py-2 text-sm font-medium transition-all duration-200 border border-2 border-solid border-gray-200 rounded-tl-lg',
+                        readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
+                        state.viewMode === 'simple'
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                    ]">
+                        Simple View
+                    </button>
+                    <button type="button" @click="state.viewMode = 'advanced'" :disabled="readOnly" :class="[
+                        'px-4 py-2 text-sm font-medium transition-all duration-200 border border-2 border-solid border-gray-200 rounded-tr-lg',
+                        readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
+                        state.viewMode === 'advanced'
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                    ]">
+                        Advanced View
+                    </button>
+                </div>
+                <button 
+                    type="button" 
+                    @click="toggleAdvancedFeaturesDialog"
+                    class="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all duration-200 cursor-pointer"
+                    v-tippy="{ content: 'Learn about Advanced View features', placement: 'top' }">
+                    <font-awesome icon="fas fa-lightbulb" class="text-xl" />
                 </button>
             </div>
         </div>
@@ -5914,5 +5928,76 @@ onMounted(async () => {
                 </div>
             </div>
         </div>
+
+        <!-- Advanced Features Info Dialog -->
+        <overlay-dialog v-if="state.show_advanced_features_dialog" @close="toggleAdvancedFeaturesDialog">
+            <template #overlay>
+                <div class="max-w-2xl mx-auto">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-3">
+                            <font-awesome icon="fas fa-lightbulb" class="text-blue-600 text-3xl" />
+                            <h2 class="text-2xl font-bold text-blue-800">Advanced View Features</h2>
+                        </div>
+                    </div>
+
+                    <div class="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p class="text-sm text-blue-800">
+                            <strong>Advanced View</strong> includes everything in Simple View, plus these powerful features:
+                        </p>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="border-l-4 border-blue-500 pl-4 py-2">
+                            <h3 class="font-bold text-lg text-gray-800 mb-1">Table Aliases</h3>
+                            <p class="text-sm text-gray-600">
+                                Create self-referencing relationships (e.g., employees → managers). Essential for queries where a table needs to join to itself.
+                            </p>
+                        </div>
+
+                        <div class="border-l-4 border-green-500 pl-4 py-2">
+                            <h3 class="font-bold text-lg text-gray-800 mb-1">JOIN Conditions Manager</h3>
+                            <p class="text-sm text-gray-600">
+                                Define custom table relationships with AND/OR logic. Build complex multi-table queries with precise control over how tables connect.
+                            </p>
+                        </div>
+
+                        <div class="border-l-4 border-purple-500 pl-4 py-2">
+                            <h3 class="font-bold text-lg text-gray-800 mb-1">Transform Functions</h3>
+                            <p class="text-sm text-gray-600">
+                                Apply functions to GROUP BY columns (UPPER, LOWER, DATE_TRUNC, EXTRACT, etc.). Transform data during aggregation for flexible reporting.
+                            </p>
+                        </div>
+
+                        <div class="border-l-4 border-orange-500 pl-4 py-2">
+                            <h3 class="font-bold text-lg text-gray-800 mb-1">DISTINCT Option</h3>
+                            <p class="text-sm text-gray-600">
+                                Remove duplicate values in aggregate functions. Useful for counting unique items within grouped data.
+                            </p>
+                        </div>
+
+                        <div class="border-l-4 border-red-500 pl-4 py-2">
+                            <h3 class="font-bold text-lg text-gray-800 mb-1">Aggregate Expressions</h3>
+                            <p class="text-sm text-gray-600">
+                                Build complex calculations (e.g., SUM(quantity × price)). Combine multiple columns and operations within a single aggregate.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 p-4 bg-gray-50 border border-gray-300 rounded-lg">
+                        <p class="text-xs text-gray-700">
+                            <font-awesome icon="fas fa-info-circle" class="text-blue-600 mr-1" />
+                            <strong>Note:</strong> Simple View already includes WHERE clauses, GROUP BY, ORDER BY, calculated columns, column aliases, and OFFSET/LIMIT controls.
+                        </p>
+                    </div>
+
+                    <div class="flex justify-end mt-6">
+                        <button @click="toggleAdvancedFeaturesDialog"
+                            class="px-6 py-2 bg-blue-600 text-white hover:bg-blue-700 transition-colors cursor-pointer rounded-lg">
+                            Got it!
+                        </button>
+                    </div>
+                </div>
+            </template>
+        </overlay-dialog>
     </tab-content-panel>
 </template>
