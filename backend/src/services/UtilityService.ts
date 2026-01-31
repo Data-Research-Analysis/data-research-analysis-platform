@@ -175,7 +175,7 @@ export class UtilityService {
             // Map to PostgreSQL equivalent
             return this.mapMySQLToPostgreSQL(parsedType);
         } else {
-            // For PostgreSQL and other databases, preserve types
+            // For PostgreSQL and other databases, parse and preserve types
             const upperType = dataType.toUpperCase();
             if (upperType === 'USER-DEFINED') {
                 return { type: 'TEXT' }; // Handle USER-DEFINED as TEXT
@@ -184,7 +184,19 @@ export class UtilityService {
             if (upperType === 'JSON' || upperType === 'JSONB') {
                 return { type: upperType };
             }
-            return { type: dataType }; // Pass through unchanged
+            
+            // Parse PostgreSQL data types to extract type and size separately
+            // Handle types like "character varying(255)" or "varchar(1024)"
+            const sizeMatch = dataType.match(/^(.+?)\s*\(\s*(\d+(?:,\d+)?)\s*\)$/i);
+            if (sizeMatch) {
+                return { 
+                    type: sizeMatch[1].trim().toUpperCase(), 
+                    size: sizeMatch[2] 
+                };
+            }
+            
+            // Pass through unchanged if no size parameter
+            return { type: dataType.toUpperCase() };
         }
     }
 
