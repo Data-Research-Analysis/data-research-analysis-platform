@@ -4,9 +4,9 @@
     <div>
         <div class="bg-primary-blue-100 w-full h-full fancy-top-bottom py-15 px-6">
             <div class="max-w-7xl mx-auto flex flex-col items-center">
-                <h1 class="font-bold text-white text-center text-4xl mb-16 pt-5">
+                <h2 class="font-bold text-white text-center text-4xl mb-16 pt-5">
                     Turn Your Data into Your Competitive Advantage
-                </h1>
+                </h2>
 
                 <!-- Feature Grid -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 w-full mb-16">

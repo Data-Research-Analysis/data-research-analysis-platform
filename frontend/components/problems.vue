@@ -4,9 +4,9 @@
     <div>
         <div class="bg-white w-full h-full">
             <div class="flex flex-col h-full pt-16 pb-20 max-w-7xl mx-auto px-6">
-                <h1 class="font-bold text-primary-blue-100 text-center text-4xl mb-16 px-4">
+                <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-16 px-4">
                     The 3 Bottlenecks Killing Your Campaign Performance
-                </h1>
+                </h2>
 
                 <!-- Problems Grid -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-8 w-full mb-16">

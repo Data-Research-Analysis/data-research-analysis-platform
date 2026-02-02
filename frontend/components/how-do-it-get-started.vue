@@ -3,9 +3,9 @@
 <template>
     <div>
         <div class="flex flex-col w-3/4 bg-white m-auto flex-col h-full py-15">
-            <h1 class="font-bold text-primary-blue-100 text-center">
+            <h2 class="font-bold text-primary-blue-100 text-center">
                 How do I get started?
-            </h1>
+            </h2>
             <div class="flex flex-col lg:flex-row lg:mr-15">
                 <div class="flex flex-col w-3/4 lg:w-1/4 m-auto">
                     <div class="text-center text-7xl">
