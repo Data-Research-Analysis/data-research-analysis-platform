@@ -1,12 +1,24 @@
 <script setup>
 const router = useRouter();
+const config = useRuntimeConfig();
+const siteUrl = config.public.siteUrl || 'https://www.dataresearchanalysis.com';
+
+// Structured data
+const { getItemListSchema, getBreadcrumbSchema, injectMultipleSchemas } = useStructuredData();
+
 // Fetch articles with SSR support
 const { articles: allArticles, pending, error } = await usePublicArticles();
 
-// Filter to only show published articles
+// Filter to only show published articles and sort by date (newest first)
 const articles = computed(() => {
     if (!allArticles.value) return [];
-    return allArticles.value.filter(article => article.article.publish_status === 'published');
+    return allArticles.value
+        .filter(article => article.article.publish_status === 'published')
+        .sort((a, b) => {
+            const dateA = new Date(a.article.created_at);
+            const dateB = new Date(b.article.created_at);
+            return dateB - dateA; // Descending order (newest first)
+        });
 });
 
 function formatDate(dateString) {
@@ -14,46 +26,98 @@ function formatDate(dateString) {
     return new Date(dateString).toLocaleDateString(undefined, options);
 }
 
+// Extract plain text for descriptions
+const getTextContent = (html, maxLength = 160) => {
+    if (!html) return '';
+    return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, maxLength);
+};
+
+// Inject structured data when articles are loaded
+watchEffect(() => {
+    if (articles.value && articles.value.length > 0 && !pending.value) {
+        const itemListData = articles.value.map(article => ({
+            title: article.article.title,
+            slug: article.article.slug,
+            description: getTextContent(article.article.content, 160),
+            date: new Date(article.article.created_at).toISOString()
+        }));
+        
+        const itemListSchema = getItemListSchema(itemListData);
+        const breadcrumbSchema = getBreadcrumbSchema([
+            { name: 'Home', url: siteUrl },
+            { name: 'Articles', url: `${siteUrl}/articles` }
+        ]);
+        
+        injectMultipleSchemas([itemListSchema, breadcrumbSchema]);
+    }
+});
+
 // SEO Meta Tags
 useHead({
-    title: 'Articles | Data Research Analysis',
+    title: 'Marketing Analytics Articles & Insights 2026 | Data Research Analysis',
     meta: [
         {
             name: 'description',
-            content: 'Read the latest articles and insights from Data Research Analysis on data science, analytics, and research methodologies.'
+            content: 'Expert insights on marketing analytics, data-driven decision making, CMO dashboards, ROI tracking, and strategic leadership. Stay updated with the latest trends in marketing technology and data analysis.'
+        },
+        {
+            name: 'keywords',
+            content: 'marketing analytics articles, CMO insights, data analytics blog, marketing ROI, strategic leadership, marketing technology, data visualization, business intelligence'
+        },
+        {
+            name: 'author',
+            content: 'Data Research Analysis'
+        },
+        {
+            name: 'robots',
+            content: 'index, follow'
         },
         {
             property: 'og:title',
-            content: 'Articles | Data Research Analysis'
+            content: 'Marketing Analytics Articles & Insights 2026 | Data Research Analysis'
         },
         {
             property: 'og:description',
-            content: 'Read the latest articles and insights from Data Research Analysis on data science, analytics, and research methodologies.'
+            content: 'Expert insights on marketing analytics, data-driven decision making, and strategic leadership for CMOs and marketing executives.'
         },
         {
             property: 'og:type',
             content: 'website'
         },
         {
+            property: 'og:url',
+            content: `${siteUrl}/articles`
+        },
+        {
             name: 'twitter:card',
-            content: 'summary'
+            content: 'summary_large_image'
         },
         {
             name: 'twitter:title',
-            content: 'Articles | Data Research Analysis'
+            content: 'Marketing Analytics Articles | Data Research Analysis'
+        },
+        {
+            name: 'twitter:description',
+            content: 'Expert insights on marketing analytics, data-driven decision making, and strategic leadership for CMOs.'
         }
     ],
     link: [
         {
             rel: 'canonical',
-            href: 'https://dataresearchanalysis.test/articles'
+            href: `${siteUrl}/articles`
         }
     ]
 });
 </script>
 <template>
     <tab-content-panel :corners="['top-left', 'top-right', 'bottom-left', 'bottom-right']" class="mt-15">
-        <h1 class="mb-5 ml-2">Articles</h1>
+        <!-- Breadcrumbs -->
+        <breadcrumbs-schema :items="[
+            { name: 'Home', path: '/' },
+            { name: 'Articles' }
+        ]" class="mb-4 ml-2" />
+        
+        <h1 class="mb-5 ml-2">Marketing Analytics Articles & Insights</h1>
         
         <!-- Loading State -->
         <div v-if="pending" class="flex flex-col h-full mt-20">

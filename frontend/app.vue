@@ -2,9 +2,17 @@
 // SSR Performance Monitoring
 const { trackPageLoad, logMetrics, checkPerformanceBudgets } = useSSRPerformance()
 
+// Global structured data
+const { getOrganizationSchema, injectSchema } = useStructuredData()
+
 onMounted(() => {
   // Track page load performance metrics
   trackPageLoad()
+
+  // Inject global organization schema
+  if (import.meta.client) {
+    injectSchema(getOrganizationSchema())
+  }
 
   // Log metrics in development mode
   if (import.meta.dev) {

@@ -1,35 +1,70 @@
 <script setup>
 import { onMounted } from "vue";
 
+// Get site URL from config
+const config = useRuntimeConfig();
+const siteUrl = config.public.siteUrl || 'https://www.dataresearchanalysis.com';
+
+// Structured data
+const { getWebPageSchema, getBreadcrumbSchema, injectMultipleSchemas } = useStructuredData();
+
+// Inject structured data
+onMounted(() => {
+    if (import.meta.client) {
+        const webPageSchema = getWebPageSchema(
+            'Terms and Conditions',
+            'Terms and conditions for using Data Research Analysis platform. Understand your rights, responsibilities, and service agreements.',
+            `${siteUrl}/terms-conditions`,
+            '2025-12-24'
+        );
+        
+        const breadcrumbSchema = getBreadcrumbSchema([
+            { name: 'Home', url: siteUrl },
+            { name: 'Terms and Conditions', url: `${siteUrl}/terms-conditions` }
+        ]);
+        
+        injectMultipleSchemas([webPageSchema, breadcrumbSchema]);
+    }
+});
+
 // SEO Meta Tags for Terms & Conditions
 useHead({
-    title: 'Terms and Conditions - Data Research Analysis',
+    title: 'Terms and Conditions - Service Agreement | Data Research Analysis',
     meta: [
-        { name: 'description', content: 'Read the Terms and Conditions for using Data Research Analysis platform. Understand your rights and responsibilities when using our services.' },
+        { name: 'description', content: 'Terms and conditions for Data Research Analysis platform. Review service agreements, user responsibilities, data ownership, intellectual property rights, and limitation of liability.' },
+        { name: 'keywords', content: 'terms and conditions, service agreement, user agreement, terms of service, legal terms' },
+        { name: 'author', content: 'Data Research Analysis' },
         { name: 'robots', content: 'index, follow' },
         
         // Open Graph / Facebook
         { property: 'og:type', content: 'article' },
         { property: 'og:title', content: 'Terms and Conditions - Data Research Analysis' },
-        { property: 'og:description', content: 'Terms and conditions for using our data analysis platform.' },
-        { property: 'og:url', content: 'https://dataresearchanalysis.com/terms-conditions' },
+        { property: 'og:description', content: 'Terms and conditions for using our marketing analytics platform.' },
+        { property: 'og:url', content: `${siteUrl}/terms-conditions` },
     ],
     link: [
-        { rel: 'canonical', href: 'https://dataresearchanalysis.com/terms-conditions' }
+        { rel: 'canonical', href: `${siteUrl}/terms-conditions` }
     ]
 });
-
-onMounted(() => {
-
-})
 </script>
 <template>
-    <div class="w-3/4 h-full m-auto mt-10 p-5">
-        <h1>Terms and Conditions</h1>
+    <article class="w-3/4 h-full m-auto mt-10 p-5" itemscope itemtype="https://schema.org/Article">
+        <!-- Breadcrumbs -->
+        <breadcrumbs-schema :items="[
+            { name: 'Home', path: '/' },
+            { name: 'Terms and Conditions' }
+        ]" />
         
-        <p>
-            Last updated: December 24, 2025
-        </p>
+        <header>
+            <h1 itemprop="headline">Terms and Conditions</h1>
+        
+            <meta itemprop="dateModified" content="2025-12-24" />
+            <p class="text-sm text-gray-600 mt-2">
+                <strong>Last updated:</strong> <time datetime="2025-12-24">December 24, 2025</time>
+            </p>
+        </header>
+        
+        <div itemprop="articleBody">
         
         <p>
             Please read these terms and conditions carefully before using Our Service.
@@ -365,5 +400,6 @@ onMounted(() => {
         <ul>
             <li>By email: <a href="mailto:hello@dataresearchanalysis.com" class="hover:text-gray-500">hello@dataresearchanalysis.com</a>  </li>
         </ul>
-    </div>
+        </div>
+    </article>
 </template>

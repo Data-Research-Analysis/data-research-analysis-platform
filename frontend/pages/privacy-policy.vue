@@ -1,35 +1,70 @@
 <script setup>
 import { onMounted } from "vue";
 
+// Get site URL from config
+const config = useRuntimeConfig();
+const siteUrl = config.public.siteUrl || 'https://www.dataresearchanalysis.com';
+
+// Structured data
+const { getWebPageSchema, getBreadcrumbSchema, injectMultipleSchemas } = useStructuredData();
+
+// Inject structured data
+onMounted(() => {
+    if (import.meta.client) {
+        const webPageSchema = getWebPageSchema(
+            'Privacy Policy',
+            'Comprehensive privacy policy for Data Research Analysis platform. Learn how we collect, use, protect, and manage your personal data and information.',
+            `${siteUrl}/privacy-policy`,
+            '2025-12-24'
+        );
+        
+        const breadcrumbSchema = getBreadcrumbSchema([
+            { name: 'Home', url: siteUrl },
+            { name: 'Privacy Policy', url: `${siteUrl}/privacy-policy` }
+        ]);
+        
+        injectMultipleSchemas([webPageSchema, breadcrumbSchema]);
+    }
+});
+
 // SEO Meta Tags for Privacy Policy
 useHead({
-    title: 'Privacy Policy - Data Research Analysis',
+    title: 'Privacy Policy - How We Protect Your Data | Data Research Analysis',
     meta: [
-        { name: 'description', content: 'Read the Privacy Policy for Data Research Analysis platform. Learn how we collect, use, and protect your personal data and information.' },
+        { name: 'description', content: 'Comprehensive privacy policy for Data Research Analysis. Learn how we collect, use, protect your data with AES-256 encryption, GDPR compliance, and secure OAuth authentication.' },
+        { name: 'keywords', content: 'privacy policy, data protection, GDPR compliance, data security, encryption, OAuth security' },
+        { name: 'author', content: 'Data Research Analysis' },
         { name: 'robots', content: 'index, follow' },
         
         // Open Graph / Facebook
         { property: 'og:type', content: 'article' },
         { property: 'og:title', content: 'Privacy Policy - Data Research Analysis' },
-        { property: 'og:description', content: 'Our commitment to protecting your privacy and personal data.' },
-        { property: 'og:url', content: 'https://dataresearchanalysis.com/privacy-policy' },
+        { property: 'og:description', content: 'Our commitment to protecting your privacy and personal data with enterprise-grade security.' },
+        { property: 'og:url', content: `${siteUrl}/privacy-policy` },
     ],
     link: [
-        { rel: 'canonical', href: 'https://dataresearchanalysis.com/privacy-policy' }
+        { rel: 'canonical', href: `${siteUrl}/privacy-policy` }
     ]
 });
-
-onMounted(() => {
-
-})
 </script>
 <template>
-    <div class="w-3/4 h-full m-auto mt-10 p-5">
-        <h1>Privacy Policy</h1>
+    <article class="w-3/4 h-full m-auto mt-10 p-5" itemscope itemtype="https://schema.org/Article">
+        <!-- Breadcrumbs -->
+        <breadcrumbs-schema :items="[
+            { name: 'Home', path: '/' },
+            { name: 'Privacy Policy' }
+        ]" />
         
-        <p>
-            Last updated: December 24, 2025
-        </p>
+        <header>
+            <h1 itemprop="headline">Privacy Policy</h1>
+        
+            <meta itemprop="dateModified" content="2025-12-24" />
+            <p class="text-sm text-gray-600 mt-2">
+                <strong>Last updated:</strong> <time datetime="2025-12-24">December 24, 2025</time>
+            </p>
+        </header>
+        
+        <div itemprop="articleBody">
         <p>
             This Privacy Policy describes Our policies and procedures on the collection, use and disclosure of Your information when You use the Service and tells You about Your privacy rights and how the law protects You.
         </p>
@@ -796,5 +831,6 @@ onMounted(() => {
         <ul>
             <li>By email: <a href="mailto:hello@dataresearchanalysis.com" class="hover:text-gray-500">hello@dataresearchanalysis.com</a></li>
         </ul>
-    </div>
+        </div>
+    </article>
 </template>
