@@ -84,11 +84,13 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       apiBase: process.env.NUXT_API_URL || 'http://localhost:3002',
+      siteUrl: process.env.NUXT_PUBLIC_SITE_URL || 'https://www.dataresearchanalysis.com',
       recaptcha: {
         v3SiteKey: process.env.NUXT_RECAPTCHA_SITE_KEY,
       },
       NUXT_ENV: process.env.NUXT_ENV,
       NUXT_API_URL: process.env.NUXT_API_URL,
+      NUXT_PUBLIC_SITE_URL: process.env.NUXT_PUBLIC_SITE_URL,
       NUXT_RECAPTCHA_SITE_KEY: process.env.NUXT_RECAPTCHA_SITE_KEY,
       NUXT_PORT: process.env.NUXT_PORT,
       NUXT_GA_ID: process.env.NUXT_GA_ID,

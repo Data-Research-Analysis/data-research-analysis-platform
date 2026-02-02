@@ -141,7 +141,7 @@ onMounted(async () => {
 </script>
 <template>
     <div>
-        <div class="bg-primary-blue-100 w-full h-full fancy-top pt-15">
+        <div class="bg-primary-blue-100 w-full h-full fancy-top-bottom pt-15">
             <div class="flex flex-col h-full p-5 lg:hidden">
                 <div class="text-3xl font-bold text-white text-center">
                     Join Our Private Beta

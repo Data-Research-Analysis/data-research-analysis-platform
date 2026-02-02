@@ -3,6 +3,8 @@ import { NuxtLink } from '#components';
 import { useArticlesStore } from '@/stores/articles';
 const { $swal } = useNuxtApp();
 const articlesStore = useArticlesStore();
+const config = useRuntimeConfig();
+const siteUrl = config.public.siteUrl || 'https://www.dataresearchanalysis.com';
 
 // Fetch articles with client-side SSR
 const { data: articlesList, pending, error, refresh } = useAdminArticles();
@@ -13,6 +15,11 @@ const articles = computed(() => {
     if (!articlesList.value) return [];
     return [...articlesList.value].sort((a, b) => a.id - b.id);
 });
+
+function formatDate(dateString) {
+    const options = { year: 'numeric', month: 'long', day: 'numeric' };
+    return new Date(dateString).toLocaleDateString(undefined, options);
+}
 
 async function deleteArticle(articleId) {
     const { value: confirmDelete } = await $swal.fire({
@@ -144,7 +151,8 @@ async function unpublishArticle(articleId) {
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categories</th>
-                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
@@ -171,8 +179,11 @@ async function unpublishArticle(articleId) {
                                         </div>
                                         <div v-else class="text-gray-400 text-xs">No categories</div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <div class="flex justify-end gap-2">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {{ formatDate(article.article.created_at) }}
+                                    </td>
+                                    <td class="px-6 py-4 text-right text-sm font-medium">
+                                        <div class="flex flex-col items-end gap-2">
                                             <button v-if="article.article.publish_status === 'draft'" @click="publishArticle(article.article.id)" class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-green-100 hover:bg-green-200 text-green-700 hover:text-green-900 cursor-pointer">
                                                 <font-awesome icon="fas fa-paper-plane" class="text-base" />
                                                 <span>Publish</span>
@@ -181,6 +192,17 @@ async function unpublishArticle(articleId) {
                                                 <font-awesome icon="fas fa-file-archive" class="text-base" />
                                                 <span>Unpublish</span>
                                             </button>
+                                            <a 
+                                                v-if="article.article.publish_status === 'published'"
+                                                :href="`${siteUrl}/articles/${article.article.slug}`"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                aria-label="View published article"
+                                                class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-purple-100 hover:bg-purple-200 text-purple-700 hover:text-purple-900 cursor-pointer"
+                                            >
+                                                <font-awesome icon="fas fa-external-link-alt" class="text-base" />
+                                                <span>View Public</span>
+                                            </a>
                                             <NuxtLink :to="`/admin/articles/${article.article.id}`" class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors bg-blue-100 hover:bg-blue-200 text-blue-700 hover:text-blue-900 cursor-pointer">
                                                 <font-awesome icon="fas fa-edit" class="text-base" />
                                                 <span>Edit</span>

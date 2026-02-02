@@ -46,7 +46,7 @@ onMounted(() => {
 </script>
 <template>
     <div>
-        <div class="bg-primary-blue-100 text-white font-sans w-full">
+        <div class="bg-primary-blue-100 text-white font-sans w-full fancy-top">
             <div class="max-w-7xl mx-auto px-6 py-12">
                 <!-- Main Footer Content -->
                 <div class="flex flex-col lg:flex-row lg:justify-between gap-10">
