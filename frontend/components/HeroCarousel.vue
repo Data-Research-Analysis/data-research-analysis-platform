@@ -48,7 +48,13 @@ onUnmounted(() => {
         <div class="absolute inset-0 top-8 bg-gray-800">
             <transition-group name="fade">
                 <div v-for="(img, index) in images" :key="img" v-show="index === currentImageIndex" class="absolute inset-0 w-full h-full">
-                     <img :src="img" class="w-full h-full object-cover object-top" alt="Dashboard Preview" />
+                     <img 
+                        :src="img" 
+                        class="w-full h-full object-cover object-top" 
+                        alt="Dashboard Preview"
+                        :fetchpriority="index === 0 ? 'high' : 'low'"
+                        :loading="index === 0 ? 'eager' : 'lazy'"
+                     />
                 </div>
             </transition-group>
         </div>

@@ -4,9 +4,9 @@
     <div class="bg-primary-blue-100 w-full h-full fancy-top-bottom pt-10 pb-10">
         <div class="flex flex-col">
             <div class="w-full h-full mt-10">
-                <h1 class="text-white text-center font-bold">
+                <h2 class="text-white text-center font-bold">
                     Unify Your Entire Marketing Ecosystem In Seconds
-                </h1>
+                </h2>
             </div>
             <div class="flex flex-col mb-10 lg:hidden">
                 <div class="flex flex-row justify-center">

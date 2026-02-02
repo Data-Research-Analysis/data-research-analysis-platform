@@ -3,9 +3,9 @@
 <template>
     <div class="bg-white w-full h-full py-10">
         <div class="flex flex-col w-3/4 m-auto">
-            <h1 class="font-bold text-primary-blue-100 text-center text-4xl mb-5">
+            <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-5">
                 Talk To Your Own Private Data Analyst
-            </h1>
+            </h2>
             <div class="text-xl text-primary-blue-100 text-center mb-16 max-w-2xl m-auto">
                 Your Personal Data Analyst, Available 24/7. No more waiting queries. Just ask.
             </div>
