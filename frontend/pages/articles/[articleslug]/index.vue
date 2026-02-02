@@ -39,6 +39,77 @@ function formatDate(dateString) {
     return new Date(dateString).toLocaleDateString(undefined, options);
 }
 
+// Dynamic card height management
+const cardRefs = ref([]);
+const maxCardHeight = ref(0);
+
+function setCardRef(el, index) {
+    if (el) {
+        cardRefs.value[index] = el;
+    }
+}
+
+function calculateMaxHeight() {
+    if (!import.meta.client) return;
+    
+    // Reset heights first to get natural height
+    cardRefs.value.forEach(card => {
+        if (card) {
+            card.style.height = 'auto';
+        }
+    });
+    
+    // Calculate max height after a brief delay to ensure rendering
+    setTimeout(() => {
+        let max = 0;
+        cardRefs.value.forEach(card => {
+            if (card) {
+                const height = card.offsetHeight;
+                if (height > max) {
+                    max = height;
+                }
+            }
+        });
+        maxCardHeight.value = max;
+        
+        // Apply max height to all cards
+        cardRefs.value.forEach(card => {
+            if (card) {
+                card.style.height = `${max}px`;
+            }
+        });
+    }, 100);
+}
+
+// Watch for changes in related articles and recalculate heights
+watch(relatedArticles, () => {
+    if (import.meta.client) {
+        nextTick(() => {
+            calculateMaxHeight();
+        });
+    }
+});
+
+// Calculate on mount
+onMounted(() => {
+    if (import.meta.client) {
+        // Initial calculation
+        nextTick(() => {
+            calculateMaxHeight();
+        });
+        
+        // Recalculate on window resize
+        window.addEventListener('resize', calculateMaxHeight);
+    }
+});
+
+// Cleanup on unmount
+onUnmounted(() => {
+    if (import.meta.client) {
+        window.removeEventListener('resize', calculateMaxHeight);
+    }
+});
+
 // Extract plain text for meta description
 const getTextContent = (html, maxLength = 160) => {
     if (!html) return '';
@@ -283,8 +354,8 @@ useHead({
             <div class="min-h-100 max-w-200 flex flex-col mb-10 ml-4 mr-4 md:ml-10 md:mr-10 border border-primary-blue-100 border-solid p-5 shadow-md rounded-lg">
                 <h1 class="mb-5 ml-2">Other Articles By Data Research Analysis</h1>
                 <div v-if="relatedArticles && relatedArticles.length" class="flex flex-wrap">
-                    <div v-for="relatedArticle in relatedArticles" :key="relatedArticle.article.id" class="w-full md:w-1/2 xl:w-1/3">
-                        <div class="flex flex-col justify-between bg-white border border-primary-blue-100 border-solid p-4 rounded shadow hover:shadow-lg transition-shadow duration-200 h-80 m-2">
+                    <div v-for="(relatedArticle, index) in relatedArticles" :key="relatedArticle.article.id" class="w-full md:w-1/2 xl:w-1/3">
+                        <div :ref="el => setCardRef(el, index)" class="flex flex-col justify-between bg-white border border-primary-blue-100 border-solid p-4 rounded shadow hover:shadow-lg transition-shadow duration-200 m-2">
                             <div class="flex flex-col">
                                 <h2 class="text-xl font-bold mb-2 ellipse">{{ relatedArticle.article.title}}</h2>
                                 <h5>Published On: {{ formatDate(relatedArticle.article.created_at) }}</h5>
