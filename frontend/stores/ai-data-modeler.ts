@@ -32,11 +32,22 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
         isDrawerOpen.value = true;
         error.value = null;
         
+        console.log('[AI Store] Opening drawer for data source:', dataSourceId);
+        console.log('[AI Store] Data model ID for loading conversation:', dataModelId);
+        // Set currentDataSourceId immediately for retry context
+        // This ensures retry mechanism always has context even if initialization fails
+        currentDataSourceId.value = dataSourceId;
+        isCrossSource.value = false; // Clear cross-source flag for single-source mode
+        console.log('[AI Store] isCrossSource set to false for single-source mode');
+        console.log('[AI Store] currentDataSourceId set to:', currentDataSourceId.value);
         // If dataModelId is provided, try to load conversation from database first
         if (dataModelId) {
             const loaded = await loadSavedConversation(dataModelId);
             if (loaded) {
                 console.log('[AI Store] Loaded conversation from database for data model:', dataModelId);
+                // Initialize a new Redis/Gemini session for continued conversation
+                console.log('[AI Store] Initializing new session after loading from database');
+                await initializeConversation(dataSourceId);
                 return;
             }
             // If loading failed, fall through to initialize new session
@@ -85,8 +96,7 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
      * Close the AI drawer and optionally cleanup conversation
      */
     async function closeDrawer(cleanup: boolean = false) {
-        isDrawerOpen.value = false;
-        
+        // Perform cleanup first if needed
         if (cleanup && currentDataSourceId.value) {
             try {
                 await cancelSession();
@@ -97,6 +107,10 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
                 console.error('Error cancelling session:', err);
             }
         }
+        
+        // Use nextTick to ensure all pending reactive updates complete before unmounting
+        await nextTick();
+        isDrawerOpen.value = false;
     }
 
     /**
@@ -239,6 +253,7 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
      */
     async function sendMessage(message: string, options?: { isTemplate?: boolean }) {
         // Check if we have an active session (either single-source or cross-source)
+        console.log('[AI Store - sendMessage] Current session context:', currentDataSourceId.value, isCrossSource.value);
         if (!currentDataSourceId.value && !isCrossSource.value) {
             error.value = 'No active session';
             return false;
@@ -460,6 +475,7 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
      * Load saved conversation from database
      */
     async function loadSavedConversation(dataModelId: number) {
+        console.log('[AI Store] loadSavedConversation called for data model ID:', dataModelId);
         isInitializing.value = true;
         error.value = null;
 
@@ -483,16 +499,40 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
 
             console.log('[AI Store] Load conversation response successful');
             const conversation = data.conversation;
+            console.log('[AI Store] Conversation data:', conversation);
 
             console.log('[AI Store] Loaded conversation from database:', {
                 conversationId: conversation.id,
                 messageCount: conversation.messages?.length || 0,
-                dataSourceId: conversation.data_source_id
+                dataSourceId: conversation.data_source?.id,
+                dataModelId: conversation.data_model?.id,
+                isCrossSource: conversation.data_model?.is_cross_source
             });
 
             conversationId.value = conversation.id.toString();
-            currentDataSourceId.value = conversation.data_source_id;
             sessionSource.value = 'database';
+
+            // Check if this is a cross-source data model
+            const modelIsCrossSource = conversation.data_model?.is_cross_source || false;
+            
+            if (modelIsCrossSource) {
+                // For cross-source models, set cross-source context
+                // The project_id and data sources should be available from the data model
+                isCrossSource.value = true;
+                projectId.value = conversation.data_model?.project_id || null;
+                
+                // Note: Data sources list should be loaded by the calling component
+                // and passed when opening the drawer in cross-source mode
+                console.log('[AI Store] Loaded cross-source conversation:', {
+                    projectId: projectId.value,
+                    note: 'Data sources should be provided by calling component'
+                });
+            } else {
+                // Single-source model
+                currentDataSourceId.value = conversation.data_source?.id;
+                isCrossSource.value = false;
+            }
+            console.log('[AI Store] currentDataSourceId set to:', currentDataSourceId.value);
 
             messages.value = conversation.messages.map((msg: any) => ({
                 id: generateMessageId(),

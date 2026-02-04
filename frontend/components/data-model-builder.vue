@@ -88,6 +88,12 @@ const state = reactive({
         { name: 'TRIM', value: 'TRIM', close_parens: 1 },
         { name: 'ROUND', value: 'ROUND', close_parens: 1 },
     ],
+    // Guard flags for component lifecycle and async operations
+    is_unmounting: false,
+    is_executing_query: false,
+    is_applying_ai_config: false,
+    is_saving_model: false,
+    query_execution_count: 0,
 });
 
 // Computed properties for tier-based row limits
@@ -513,6 +519,12 @@ watch(() => state.data_table.table_aliases, (newValue) => {
 
 // Watch for manual apply trigger from AI drawer
 watch(() => aiDataModelerStore.applyTrigger, (newValue, oldValue) => {
+    // Guard: Don't apply during unmount
+    if (state.is_unmounting) {
+        console.log('[Data Model Builder - applyTrigger watcher] Component unmounting, skipping apply');
+        return;
+    }
+
     console.log('[Data Model Builder - applyTrigger watcher] Triggered', {
         newValue,
         oldValue,
@@ -524,7 +536,7 @@ watch(() => aiDataModelerStore.applyTrigger, (newValue, oldValue) => {
 
     if (newValue !== oldValue && aiDataModelerStore.modelDraft?.tables) {
         console.log('[Data Model Builder] Manual apply trigger detected, applying AI model');
-        applyAIGeneratedModel(aiDataModelerStore.modelDraft.tables);
+        //applyAIGeneratedModel(aiDataModelerStore.modelDraft.tables);
     } else {
         console.warn('[Data Model Builder] Trigger changed but conditions not met for applying model');
     }
@@ -3249,6 +3261,12 @@ async function saveDataModel() {
     }
 }
 async function executeQueryOnExternalDataSource() {
+    // Guard: Component is unmounting, abort all operations
+    if (state.is_unmounting) {
+        console.log('[executeQuery] Component unmounting, aborting...');
+        return;
+    }
+
     // Guard: Prevent concurrent executions
     if (state.is_executing_query) {
         console.log('[executeQuery] Already executing, skipping...');
@@ -3453,6 +3471,23 @@ async function toggleColumnInDataModel(column, tableName, tableAlias = null) {
  * Apply AI-generated data model to the builder
  */
 async function applyAIGeneratedModel(model) {
+    // Guard: Don't apply during unmount
+    if (state.is_unmounting) {
+        console.log('[applyAIGeneratedModel] Component unmounting, aborting apply');
+        return;
+    }
+
+    // Guard: Check if model exists (race condition prevention)
+    if (!model || (Array.isArray(model) && model.length === 0)) {
+        console.error('[applyAIGeneratedModel] No model provided or model array is empty');
+        $swal.fire({
+            title: 'No Model Found',
+            text: 'The AI model is no longer available. Please generate a new model.',
+            icon: 'warning'
+        });
+        return;
+    }
+
     // SET FLAG: Prevent watchers from triggering during config application
     state.is_applying_ai_config = true;
     state.loading = true;
@@ -3627,15 +3662,21 @@ async function applyAIGeneratedModel(model) {
             await nextTick();
             console.log('[applyAIGeneratedModel] All reactive updates completed');
 
-        } catch (queryError) {
-            console.error('[Data Model Builder] Error executing query after model application:', queryError);
+        } catch (error) {
+            console.error('[Data Model Builder] Error applying AI model:', error);
+            console.error('[Data Model Builder] Error details:', {
+                message: error.message,
+                stack: error.stack,
+                name: error.name
+            });
+            console.error('[Data Model Builder] Model state at failure:', JSON.stringify(state.data_table, null, 2));
 
             // Revert to previous state
             state.data_table = previousModel;
 
             $swal.fire({
-                title: 'Query Execution Failed',
-                text: 'The model was applied but the query could not be executed. Model has been reverted.',
+                title: 'Failed to Apply Model',
+                text: `Could not apply the AI-generated model: ${error.message || 'Unknown error'}. The model has been reverted.`,
                 icon: 'error',
                 confirmButtonText: 'Understood'
             });
@@ -3659,16 +3700,26 @@ async function applyAIGeneratedModel(model) {
 
     // Execute query ONCE after all changes applied
     console.log('[applyAIGeneratedModel] Executing query after model applied');
-    await executeQueryOnExternalDataSource();
+    try {
+        await executeQueryOnExternalDataSource();
 
-    // Success notification
-    $swal.fire({
-        title: 'Applied!',
-        text: 'AI data model has been applied successfully',
-        icon: 'success',
-        timer: 2000,
-        showConfirmButton: false
-    });
+        // Success notification
+        $swal.fire({
+            title: 'Applied!',
+            text: 'AI data model has been applied successfully',
+            icon: 'success',
+            timer: 2000,
+            showConfirmButton: false
+        });
+    } catch (queryError) {
+        console.error('[Data Model Builder] Query execution failed after successful model application:', queryError);
+        $swal.fire({
+            title: 'Model Applied',
+            text: 'Model was applied successfully, but could not preview data. You can still save this model.',
+            icon: 'warning',
+            confirmButtonText: 'OK'
+        });
+    }
 }
 
 /**
@@ -3997,6 +4048,58 @@ function validateAndTransformAIModel(aiModel) {
             aiModel.query_options.offset = typeof aiModel.query_options.offset === 'number' ? aiModel.query_options.offset : -1;
             aiModel.query_options.limit = typeof aiModel.query_options.limit === 'number' ? aiModel.query_options.limit : -1;
 
+            // VALIDATION: Filter out invalid ORDER BY clauses
+            if (aiModel.query_options.order_by && aiModel.query_options.order_by.length > 0) {
+                const validOrderByClauses = [];
+                aiModel.query_options.order_by.forEach((orderByClause, index) => {
+                    if (!orderByClause) {
+                        console.warn(`[Data Model Builder] Skipping null ORDER BY clause at index ${index}`);
+                        return;
+                    }
+                    if (!orderByClause.column || orderByClause.column === '') {
+                        console.warn(`[Data Model Builder] Skipping ORDER BY clause ${index}: missing column`);
+                        return;
+                    }
+                    if (!orderByClause.order || (orderByClause.order !== 'ASC' && orderByClause.order !== 'DESC')) {
+                        console.warn(`[Data Model Builder] ORDER BY clause ${index}: invalid or missing order, defaulting to ASC`);
+                        orderByClause.order = 'ASC';
+                    }
+                    
+                    validOrderByClauses.push(orderByClause);
+                });
+                
+                if (validOrderByClauses.length !== aiModel.query_options.order_by.length) {
+                    console.warn(`[Data Model Builder] Filtered ORDER BY clauses: ${aiModel.query_options.order_by.length} → ${validOrderByClauses.length}`);
+                }
+                aiModel.query_options.order_by = validOrderByClauses;
+            }
+
+            // VALIDATION: Filter out invalid WHERE clauses
+            if (aiModel.query_options.where && aiModel.query_options.where.length > 0) {
+                const validWhereClauses = [];
+                aiModel.query_options.where.forEach((whereClause, index) => {
+                    if (!whereClause) {
+                        console.warn(`[Data Model Builder] Skipping null WHERE clause at index ${index}`);
+                        return;
+                    }
+                    if (!whereClause.column || whereClause.column === '') {
+                        console.warn(`[Data Model Builder] Skipping WHERE clause ${index}: missing column`);
+                        return;
+                    }
+                    if (!whereClause.operator || whereClause.operator === '') {
+                        console.warn(`[Data Model Builder] Skipping WHERE clause ${index}: missing operator`);
+                        return;
+                    }
+                    
+                    validWhereClauses.push(whereClause);
+                });
+                
+                if (validWhereClauses.length !== aiModel.query_options.where.length) {
+                    console.warn(`[Data Model Builder] Filtered WHERE clauses: ${aiModel.query_options.where.length} → ${validWhereClauses.length}`);
+                }
+                aiModel.query_options.where = validWhereClauses;
+            }
+
             // Populate column_data_type for WHERE conditions from columns array
             if (aiModel.query_options.where.length > 0) {
                 aiModel.query_options.where.forEach(whereClause => {
@@ -4026,6 +4129,42 @@ function validateAndTransformAIModel(aiModel) {
                 // CRITICAL: Translate logical table names to physical in aggregate functions
                 // Aggregate functions reference columns like "schema.table.column"
                 // where table might still be a logical name that needs translation
+                
+                // VALIDATION: Filter out invalid aggregate functions before processing
+                if (aiModel.query_options.group_by.aggregate_functions) {
+                    const validAggregateFunctions = [];
+                    aiModel.query_options.group_by.aggregate_functions.forEach((aggFunc, index) => {
+                        // Validate required fields
+                        if (!aggFunc) {
+                            console.warn(`[Data Model Builder] Skipping null aggregate function at index ${index}`);
+                            return;
+                        }
+                        if (!aggFunc.aggregate_function || aggFunc.aggregate_function === '') {
+                            console.warn(`[Data Model Builder] Skipping aggregate function ${index}: missing or empty aggregate_function field`);
+                            return;
+                        }
+                        if (!aggFunc.column || aggFunc.column === '') {
+                            console.warn(`[Data Model Builder] Skipping aggregate function ${index}: missing or empty column field`);
+                            return;
+                        }
+                        
+                        // Ensure column_alias_name exists
+                        if (!aggFunc.column_alias_name) {
+                            const funcName = aggFunc.aggregate_function.toLowerCase();
+                            const columnName = aggFunc.column.split('.').pop();
+                            aggFunc.column_alias_name = `${funcName}_${columnName}`;
+                            console.log(`[Data Model Builder] Generated alias for aggregate function: ${aggFunc.column_alias_name}`);
+                        }
+                        
+                        validAggregateFunctions.push(aggFunc);
+                    });
+                    
+                    if (validAggregateFunctions.length !== aiModel.query_options.group_by.aggregate_functions.length) {
+                        console.warn(`[Data Model Builder] Filtered aggregate functions: ${aiModel.query_options.group_by.aggregate_functions.length} → ${validAggregateFunctions.length}`);
+                    }
+                    aiModel.query_options.group_by.aggregate_functions = validAggregateFunctions;
+                }
+                
                 aiModel.query_options.group_by.aggregate_functions?.forEach(aggFunc => {
                     if (aggFunc.column) {
                         const parts = aggFunc.column.split('.');
@@ -4079,6 +4218,34 @@ function validateAndTransformAIModel(aiModel) {
                         aggregateColumns.add(aggFunc.column);
                     }
                 });
+
+                // VALIDATION: Filter out invalid aggregate expressions before processing
+                if (aiModel.query_options.group_by.aggregate_expressions) {
+                    const validAggregateExpressions = [];
+                    aiModel.query_options.group_by.aggregate_expressions.forEach((aggExpr, index) => {
+                        if (!aggExpr) {
+                            console.warn(`[Data Model Builder] Skipping null aggregate expression at index ${index}`);
+                            return;
+                        }
+                        if (!aggExpr.expression || aggExpr.expression.trim() === '') {
+                            console.warn(`[Data Model Builder] Skipping aggregate expression ${index}: missing or empty expression field`);
+                            return;
+                        }
+                        
+                        // Ensure column_alias_name exists
+                        if (!aggExpr.column_alias_name) {
+                            aggExpr.column_alias_name = `expr_${index}`;
+                            console.log(`[Data Model Builder] Generated alias for aggregate expression: ${aggExpr.column_alias_name}`);
+                        }
+                        
+                        validAggregateExpressions.push(aggExpr);
+                    });
+                    
+                    if (validAggregateExpressions.length !== aiModel.query_options.group_by.aggregate_expressions.length) {
+                        console.warn(`[Data Model Builder] Filtered aggregate expressions: ${aiModel.query_options.group_by.aggregate_expressions.length} → ${validAggregateExpressions.length}`);
+                    }
+                    aiModel.query_options.group_by.aggregate_expressions = validAggregateExpressions;
+                }
 
                 // Process aggregate expressions that reference columns
                 aiModel.query_options.group_by.aggregate_expressions?.forEach(aggExpr => {
@@ -4148,6 +4315,32 @@ function validateAndTransformAIModel(aiModel) {
                 
                 if (addedCount > 0) {
                     console.log(`[Data Model Builder] Added ${addedCount} missing GROUP BY columns (total now: ${aiModel.query_options.group_by.group_by_columns.length})`);
+                }
+                
+                // VALIDATION: Filter out invalid HAVING clauses
+                if (aiModel.query_options.group_by.having_conditions && aiModel.query_options.group_by.having_conditions.length > 0) {
+                    const validHavingClauses = [];
+                    aiModel.query_options.group_by.having_conditions.forEach((havingClause, index) => {
+                        if (!havingClause) {
+                            console.warn(`[Data Model Builder] Skipping null HAVING clause at index ${index}`);
+                            return;
+                        }
+                        if (!havingClause.column || havingClause.column === '') {
+                            console.warn(`[Data Model Builder] Skipping HAVING clause ${index}: missing column`);
+                            return;
+                        }
+                        if (!havingClause.operator || havingClause.operator === '') {
+                            console.warn(`[Data Model Builder] Skipping HAVING clause ${index}: missing operator`);
+                            return;
+                        }
+                        
+                        validHavingClauses.push(havingClause);
+                    });
+                    
+                    if (validHavingClauses.length !== aiModel.query_options.group_by.having_conditions.length) {
+                        console.warn(`[Data Model Builder] Filtered HAVING clauses: ${aiModel.query_options.group_by.having_conditions.length} → ${validHavingClauses.length}`);
+                    }
+                    aiModel.query_options.group_by.having_conditions = validHavingClauses;
                 }
                 
                 // Populate column_data_type for HAVING conditions
@@ -4420,6 +4613,15 @@ onMounted(async () => {
         }
     }
 })
+
+onBeforeUnmount(() => {
+    console.log('[DataModelBuilder] Component unmounting - cleanup started');
+    state.is_unmounting = true;
+    state.is_executing_query = false;
+    state.is_applying_ai_config = false;
+    state.is_saving_model = false;
+    console.log('[DataModelBuilder] Component unmounting - cleanup completed');
+});
 
 </script>
 <template>
