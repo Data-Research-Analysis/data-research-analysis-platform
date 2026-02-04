@@ -117,6 +117,12 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
      * Initialize or restore session from Redis
      */
     async function initializeConversation(dataSourceId: number) {
+        // Guard: Don't initialize if drawer is already closed
+        if (!isDrawerOpen.value) {
+            console.log('[AI Store] Drawer closed, aborting initialization');
+            return false;
+        }
+        
         isInitializing.value = true;
         error.value = null;
         currentDataSourceId.value = dataSourceId;
@@ -128,14 +134,24 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
             }
 
             const url = `${baseUrl()}/ai-data-modeler/session/initialize`;
-            const data = await $fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Authorization-Type': 'auth'
-                },
-                body: { dataSourceId: parseInt(String(dataSourceId)) }
+            
+            // Use retry logic for API call
+            const data = await retryWithBackoff(async () => {
+                return await $fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Authorization-Type': 'auth'
+                    },
+                    body: { dataSourceId: parseInt(String(dataSourceId)) }
+                });
             });
+            
+            // Guard: Check if drawer is still open after async operation
+            if (!isDrawerOpen.value) {
+                console.log('[AI Store] Drawer closed during initialization, discarding results');
+                return false;
+            }
             
             console.log('[AI Store] Initialize response:', {
                 source: data.source,
@@ -182,10 +198,15 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
 
             return true;
         } catch (err) {
-            error.value = err instanceof Error ? err.message : 'Failed to initialize session';
+            // Only set error if drawer is still open
+            if (isDrawerOpen.value) {
+                error.value = err instanceof Error ? err.message : 'Failed to initialize session';
+            }
             console.error('Error initializing session:', err);
             return false;
         } finally {
+            // ALWAYS clear isInitializing flag to prevent stuck state
+            // Even if drawer was closed, we need to reset loading state
             isInitializing.value = false;
         }
     }
@@ -197,6 +218,12 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
         projectIdValue: number,
         dataSourcesArray: Array<{ id: number; name: string; type: string }>
     ) {
+        // Guard: Don't initialize if drawer is already closed
+        if (!isDrawerOpen.value) {
+            console.log('[AI Store] Drawer closed, aborting cross-source initialization');
+            return false;
+        }
+        
         isInitializing.value = true;
         error.value = null;
         
@@ -207,17 +234,27 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
             }
 
             const url = `${baseUrl()}/ai-data-modeler/session/initialize-cross-source`;
-            const data = await $fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Authorization-Type': 'auth'
-                },
-                body: { 
-                    projectId: projectIdValue,
-                    dataSources: dataSourcesArray 
-                }
+            
+            // Use retry logic for API call
+            const data = await retryWithBackoff(async () => {
+                return await $fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Authorization-Type': 'auth'
+                    },
+                    body: { 
+                        projectId: projectIdValue,
+                        dataSources: dataSourcesArray 
+                    }
+                });
             });
+            
+            // Guard: Check if drawer is still open after async operation
+            if (!isDrawerOpen.value) {
+                console.log('[AI Store] Drawer closed during cross-source initialization, discarding results');
+                return false;
+            }
             
             console.log('[AI Store] Initialize cross-source response:', {
                 conversationId: data.conversationId,
@@ -238,10 +275,15 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
             isRestored.value = false;
             return true;
         } catch (err) {
-            error.value = err instanceof Error ? err.message : 'Failed to initialize cross-source session';
+            // Only set error if drawer is still open
+            if (isDrawerOpen.value) {
+                error.value = err instanceof Error ? err.message : 'Failed to initialize cross-source session';
+            }
             console.error('Error initializing cross-source session:', err);
             return false;
         } finally {
+            // ALWAYS clear isInitializing flag to prevent stuck state
+            // Even if drawer was closed, we need to reset loading state
             isInitializing.value = false;
         }
     }
@@ -674,6 +716,49 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
      */
     function generateMessageId(): string {
         return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+
+    /**
+     * Retry helper with exponential backoff for rate limit errors
+     * @param fn Async function to retry
+     * @param maxRetries Maximum number of retries (default: 3)
+     * @param initialDelay Initial delay in ms (default: 2000)
+     */
+    async function retryWithBackoff<T>(
+        fn: () => Promise<T>,
+        maxRetries: number = 3,
+        initialDelay: number = 2000
+    ): Promise<T> {
+        let lastError: any;
+        
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                return await fn();
+            } catch (err: any) {
+                lastError = err;
+                
+                // Check if it's a rate limit error (429)
+                const isRateLimitError = 
+                    err.statusCode === 429 || 
+                    err.status === 429 || 
+                    (err.message && err.message.includes('429')) ||
+                    (err.message && err.message.toLowerCase().includes('too many requests'));
+                
+                // Don't retry if it's not a rate limit error or we're out of retries
+                if (!isRateLimitError || attempt === maxRetries) {
+                    throw err;
+                }
+                
+                // Calculate exponential backoff delay
+                const delay = initialDelay * Math.pow(2, attempt);
+                console.log(`[AI Store] Rate limit hit, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+                
+                // Wait before retrying
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+        
+        throw lastError;
     }
 
     return {

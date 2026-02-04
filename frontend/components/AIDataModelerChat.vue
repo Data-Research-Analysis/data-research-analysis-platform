@@ -115,11 +115,32 @@ const buttonState = ref<'normal' | 'loading' | 'success'>('normal');
 const showModelPreview = ref(false);
 
 async function handleApplyModel() {
-    if (!aiDataModelerStore.modelDraft) return;
+    if (!aiDataModelerStore.modelDraft) {
+        console.error('[AI Chat] No model draft to apply');
+        alert('No AI-generated model to apply. Please continue the conversation.');
+        return;
+    }
+    
+    // Validate model structure - ensure .tables property exists
+    if (!aiDataModelerStore.modelDraft?.tables) {
+        console.error('[AI Chat] Model has invalid structure - missing tables property', aiDataModelerStore.modelDraft);
+        alert('The model structure is invalid. Please generate a new model.');
+        return;
+    }
+    
+    // Validate tables array is not empty
+    if (!Array.isArray(aiDataModelerStore.modelDraft.tables) || aiDataModelerStore.modelDraft.tables.length === 0) {
+        console.error('[AI Chat] Model has no tables to apply', aiDataModelerStore.modelDraft);
+        alert('The model has no tables defined. Please generate a new model.');
+        return;
+    }
     
     try {
         buttonState.value = 'loading';
         isApplyingModel.value = true;
+        
+        console.log('[AI Chat] Applying model to builder');
+        console.log('[AI Chat] Model to apply:', JSON.stringify(aiDataModelerStore.modelDraft, null, 2));
         
         // Trigger the model application
         aiDataModelerStore.applyModelToBuilder();

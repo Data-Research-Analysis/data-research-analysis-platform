@@ -212,11 +212,17 @@ function handleGenerateAnotherRecommendation() {
 }
 
 function handleClose() {
-    if (!aiDataModelerStore.isLoading && !aiDataModelerStore.isInitializing) {
-        // Reset flag when closing drawer
-        userRequestedGeneration.value = false;
-        // aiDataModelerStore.closeDrawer(false);
-    }
+    console.log('[AI Drawer] handleClose called', {
+        isLoading: aiDataModelerStore.isLoading,
+        isInitializing: aiDataModelerStore.isInitializing
+    });
+    
+    // Allow closing even during loading/initialization (user may want to cancel)
+    // Reset flag when closing drawer
+    userRequestedGeneration.value = false;
+    
+    // Close the drawer (don't cleanup session so it can be resumed)
+    aiDataModelerStore.closeDrawer(false);
 }
 
 async function handleRetry() {
@@ -273,6 +279,20 @@ async function handleApplyModel() {
         if (!hasValidModel.value) {
             console.error('[AI Drawer] No valid model to apply');
             alert('No valid AI-generated model to apply. Please continue the conversation.');
+            return;
+        }
+        
+        // Validate model structure - ensure .tables property exists
+        if (!aiDataModelerStore.modelDraft?.tables) {
+            console.error('[AI Drawer] Model has invalid structure - missing tables property', aiDataModelerStore.modelDraft);
+            alert('The model structure is invalid. Please generate a new model.');
+            return;
+        }
+        
+        // Validate tables array is not empty
+        if (!Array.isArray(aiDataModelerStore.modelDraft.tables) || aiDataModelerStore.modelDraft.tables.length === 0) {
+            console.error('[AI Drawer] Model has no tables to apply', aiDataModelerStore.modelDraft);
+            alert('The model has no tables defined. Please generate a new model.');
             return;
         }
         
@@ -411,9 +431,9 @@ function getOrderByColumns(): string[] {
                             <div class="flex items-center gap-2">
                                 <!-- Close button -->
                                 <button 
-                                    class="flex-shrink-0 w-8 h-8 border-0 bg-transparent cursor-pointer text-gray-500 rounded-md flex items-center justify-center transition-all duration-200 hover:bg-gray-200 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                    class="flex-shrink-0 w-8 h-8 border-0 bg-transparent cursor-pointer text-gray-500 rounded-md flex items-center justify-center transition-all duration-200 hover:bg-gray-200 hover:text-gray-800"
                                     @click="handleClose"
-                                    :disabled="aiDataModelerStore.isLoading"
+                                    title="Close AI Data Modeler"
                                 >
                                     <svg 
                                         xmlns="http://www.w3.org/2000/svg" 

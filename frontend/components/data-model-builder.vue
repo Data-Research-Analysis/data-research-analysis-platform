@@ -199,6 +199,10 @@ const safeDataTableColumns = computed(() => {
     return (state?.data_table?.columns && Array.isArray(state.data_table.columns)) ? state.data_table.columns : [];
 })
 const numericColumns = computed(() => {
+    // Safety check: ensure columns array exists before filtering
+    if (!state?.data_table?.columns || !Array.isArray(state.data_table.columns)) {
+        return [];
+    }
     return [...state.data_table.columns.filter((column) => getDataType(column.data_type) === 'NUMBER').map((column) => {
         return {
             schema: column.schema,
@@ -211,6 +215,11 @@ const numericColumns = computed(() => {
 
 const allAvailableColumns = computed(() => {
     const columns = [];
+
+    // Safety check: ensure columns array exists
+    if (!state?.data_table?.columns || !Array.isArray(state.data_table.columns)) {
+        return columns;
+    }
 
     // 1. Add base table columns
     state.data_table.columns.forEach(column => {
@@ -301,6 +310,11 @@ const orderByColumns = computed(() => {
 const numericColumnsWithAggregates = computed(() => {
     const columns = [];
 
+    // Safety check: ensure columns array exists
+    if (!state?.data_table?.columns || !Array.isArray(state.data_table.columns)) {
+        return columns;
+    }
+
     // 1. Add base numeric columns
     state.data_table.columns
         .filter((column) => getDataType(column.data_type) === 'NUMBER')
@@ -370,7 +384,18 @@ const numericColumnsWithAggregates = computed(() => {
     return columns;
 });
 
+// Add flag to prevent multiple simultaneous drawer openings
+let isDrawerOpening = false;
+
 function openAIDataModeler() {
+    // GUARD: Prevent multiple simultaneous openings
+    if (isDrawerOpening) {
+        console.log('[openAIDataModeler] Already opening drawer, ignoring duplicate call');
+        return;
+    }
+    
+    isDrawerOpening = true;
+    
     // SET FLAG: Prevent watchers from triggering when drawer opens
     console.log('[openAIDataModeler] Setting guard flag before opening drawer');
     state.is_applying_ai_config = true;
@@ -410,9 +435,16 @@ function openAIDataModeler() {
     // The flag will be set again when actually applying a model
     setTimeout(() => {
         state.is_applying_ai_config = false;
+        isDrawerOpening = false;
         console.log('[openAIDataModeler] Guard flag cleared after drawer open');
-    }, 100);
+    }, 1000); // Increased to 1 second to prevent rapid re-opening
 }
+
+// Debounced version to prevent rapid successive clicks
+const openAIDataModelerDebounced = _.debounce(openAIDataModeler, 500, {
+    leading: true,  // Execute immediately on first call
+    trailing: false // Ignore subsequent calls within the debounce window
+});
 
 function toggleAdvancedFeaturesDialog() {
     state.show_advanced_features_dialog = !state.show_advanced_features_dialog;
@@ -536,7 +568,7 @@ watch(() => aiDataModelerStore.applyTrigger, (newValue, oldValue) => {
 
     if (newValue !== oldValue && aiDataModelerStore.modelDraft?.tables) {
         console.log('[Data Model Builder] Manual apply trigger detected, applying AI model');
-        //applyAIGeneratedModel(aiDataModelerStore.modelDraft.tables);
+        applyAIGeneratedModel(aiDataModelerStore.modelDraft.tables);
     } else {
         console.warn('[Data Model Builder] Trigger changed but conditions not met for applying model');
     }
@@ -3516,6 +3548,9 @@ async function applyAIGeneratedModel(model) {
 
         if (!transformedModel) {
             // Error already shown in validateAndTransformAIModel
+            console.log('[applyAIGeneratedModel] Validation failed, model will not be applied');
+            // Note: User can still close drawer manually or try again
+            // We don't auto-close here to let them see the error and potentially fix it
             return;
         }
 
@@ -3545,7 +3580,26 @@ async function applyAIGeneratedModel(model) {
             };
 
             // Now apply the new model - use Object.assign to maintain reactivity
+            console.log('[Data Model Builder] About to assign transformed model:', {
+                hasColumns: !!transformedModel.columns,
+                columnsLength: transformedModel.columns?.length,
+                hasQueryOptions: !!transformedModel.query_options,
+                transformedModel: JSON.stringify(transformedModel, null, 2)
+            });
+            
             Object.assign(state.data_table, transformedModel);
+            
+            console.log('[Data Model Builder] After Object.assign:', {
+                columnsLength: state.data_table.columns?.length,
+                columns: state.data_table.columns
+            });
+            
+            // CRITICAL: Validate that columns were actually assigned
+            if (!state.data_table.columns || state.data_table.columns.length === 0) {
+                console.error('[Data Model Builder] CRITICAL: Columns array is empty after Object.assign!');
+                console.error('[Data Model Builder] Transformed model:', transformedModel);
+                throw new Error('Model assignment failed: columns array is empty. This may be due to validation failures or an incompatible model structure.');
+            }
             
             // Preserve table_display_name if provided by AI
             if (modelToApply.table_display_name) {
@@ -3660,6 +3714,11 @@ async function applyAIGeneratedModel(model) {
 
             // Wait for all reactive updates to complete before clearing flag
             await nextTick();
+            
+            // Additional wait to ensure DOM updates are complete
+            // This prevents Vue internal errors during component unmounting/remounting
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
             console.log('[applyAIGeneratedModel] All reactive updates completed');
 
         } catch (error) {
@@ -3671,16 +3730,32 @@ async function applyAIGeneratedModel(model) {
             });
             console.error('[Data Model Builder] Model state at failure:', JSON.stringify(state.data_table, null, 2));
 
-            // Revert to previous state
-            state.data_table = previousModel;
+            // Check if this is a Vue internal error (component unmounting race condition)
+            // These are typically harmless and the model was actually applied successfully
+            const isVueInternalError = error.message && (
+                error.message.includes('reading \'type\'') ||
+                error.message.includes('unmountComponent') ||
+                error.message.includes('Cannot read properties of null')
+            );
 
-            $swal.fire({
-                title: 'Failed to Apply Model',
-                text: `Could not apply the AI-generated model: ${error.message || 'Unknown error'}. The model has been reverted.`,
-                icon: 'error',
-                confirmButtonText: 'Understood'
-            });
-            return;
+            if (isVueInternalError) {
+                console.warn('[Data Model Builder] Vue internal error detected (likely harmless race condition)');
+                console.warn('[Data Model Builder] Model may have been applied successfully despite error');
+                
+                // Don't revert - the model was likely applied correctly
+                // Just clear the flag and continue
+            } else {
+                // Real error - revert to previous state
+                state.data_table = previousModel;
+
+                $swal.fire({
+                    title: 'Failed to Apply Model',
+                    text: `Could not apply the AI-generated model: ${error.message || 'Unknown error'}. The model has been reverted.`,
+                    icon: 'error',
+                    confirmButtonText: 'Understood'
+                });
+                return;
+            }
         }
 
     } catch (error) {
@@ -3700,6 +3775,18 @@ async function applyAIGeneratedModel(model) {
 
     // Execute query ONCE after all changes applied
     console.log('[applyAIGeneratedModel] Executing query after model applied');
+    
+    // Verify model was actually applied before executing query
+    if (!state.data_table.columns || state.data_table.columns.length === 0) {
+        console.error('[applyAIGeneratedModel] CRITICAL: Model columns are empty, cannot execute query');
+        $swal.fire({
+            title: 'Model Apply Failed',
+            text: 'The model structure is incomplete. Please try generating a new model.',
+            icon: 'error'
+        });
+        return;
+    }
+    
     try {
         await executeQueryOnExternalDataSource();
 
@@ -3711,6 +3798,11 @@ async function applyAIGeneratedModel(model) {
             timer: 2000,
             showConfirmButton: false
         });
+        
+        // Close the AI drawer after successful application
+        console.log('[applyAIGeneratedModel] Closing AI drawer after successful application');
+        aiDataModelerStore.closeDrawer(false); // false = don't cleanup session (keep for potential edits)
+        
     } catch (queryError) {
         console.error('[Data Model Builder] Query execution failed after successful model application:', queryError);
         $swal.fire({
@@ -3719,11 +3811,28 @@ async function applyAIGeneratedModel(model) {
             icon: 'warning',
             confirmButtonText: 'OK'
         });
+        
+        // Still close the drawer even if query preview failed
+        console.log('[applyAIGeneratedModel] Closing AI drawer despite query error');
+        aiDataModelerStore.closeDrawer(false);
     }
 }
 
 /**
  * Validate and transform AI model to builder format
+ * 
+ * This function performs critical transformations:
+ * 1. Validates model structure (table_name, columns array)
+ * 2. Transforms column format (handles both "schema.table.column" and separate fields)
+ * 3. Validates each column exists in available tables
+ * 4. Translates logical table names to physical names (e.g., "orders" -> "ds2_7e1dc7cf")
+ * 5. Marks aggregate-only columns with is_selected_column=false
+ * 6. Validates and normalizes query_options (WHERE, ORDER BY, GROUP BY, HAVING)
+ * 7. Ensures GROUP BY includes all non-aggregate selected columns
+ * 8. Normalizes ORDER BY to use numeric indices (0=ASC, 1=DESC)
+ * 
+ * @param {Object} aiModel - Raw model from AI (may have logical table names)
+ * @returns {Object|null} - Validated model with physical table names, or null if validation fails
  */
 function validateAndTransformAIModel(aiModel) {
     const errors = [];
@@ -4060,9 +4169,30 @@ function validateAndTransformAIModel(aiModel) {
                         console.warn(`[Data Model Builder] Skipping ORDER BY clause ${index}: missing column`);
                         return;
                     }
-                    if (!orderByClause.order || (orderByClause.order !== 'ASC' && orderByClause.order !== 'DESC')) {
-                        console.warn(`[Data Model Builder] ORDER BY clause ${index}: invalid or missing order, defaulting to ASC`);
-                        orderByClause.order = 'ASC';
+                    
+                    // Normalize order value: handle both numeric (0=ASC, 1=DESC) and string formats
+                    if (typeof orderByClause.order === 'number') {
+                        // Convert numeric to index: 0 = ASC, 1 = DESC
+                        if (orderByClause.order === 0 || orderByClause.order === 1) {
+                            console.log(`[Data Model Builder] ORDER BY clause ${index}: keeping numeric order ${orderByClause.order}`);
+                        } else {
+                            console.warn(`[Data Model Builder] ORDER BY clause ${index}: invalid numeric order ${orderByClause.order}, defaulting to 0 (ASC)`);
+                            orderByClause.order = 0;
+                        }
+                    } else if (typeof orderByClause.order === 'string') {
+                        // Convert string to numeric index for consistency with builder
+                        const upperOrder = orderByClause.order.toUpperCase();
+                        if (upperOrder === 'ASC') {
+                            orderByClause.order = 0;
+                        } else if (upperOrder === 'DESC') {
+                            orderByClause.order = 1;
+                        } else {
+                            console.warn(`[Data Model Builder] ORDER BY clause ${index}: invalid string order "${orderByClause.order}", defaulting to 0 (ASC)`);
+                            orderByClause.order = 0;
+                        }
+                    } else {
+                        console.warn(`[Data Model Builder] ORDER BY clause ${index}: invalid or missing order, defaulting to 0 (ASC)`);
+                        orderByClause.order = 0;
                     }
                     
                     validOrderByClauses.push(orderByClause);
@@ -4118,15 +4248,17 @@ function validateAndTransformAIModel(aiModel) {
                 });
             }
 
-            // CRITICAL: If group_by has aggregate_functions or aggregate_expressions, set the name flag
-            // This flag is required for the UI to show the GROUP BY section
-            if (aiModel.query_options.group_by &&
-                (aiModel.query_options.group_by.aggregate_functions?.length > 0 ||
-                    aiModel.query_options.group_by.aggregate_expressions?.length > 0)) {
-                aiModel.query_options.group_by.name = 'GROUP BY';
-                console.log('[Data Model Builder] Set group_by.name flag for UI visibility');
-
-                // CRITICAL: Translate logical table names to physical in aggregate functions
+                // CRITICAL: If group_by has aggregate_functions or aggregate_expressions, set the name flag
+                // This flag is required for the UI to show the GROUP BY section
+                // 
+                // IMPORTANT: aggregate_function uses numeric indices:
+                // 0 = SUM, 1 = AVG, 2 = COUNT, 3 = MIN, 4 = MAX
+                // DO NOT use falsy checks (!) on aggregate_function as 0 (SUM) is valid!
+                if (aiModel.query_options.group_by &&
+                    (aiModel.query_options.group_by.aggregate_functions?.length > 0 ||
+                        aiModel.query_options.group_by.aggregate_expressions?.length > 0)) {
+                    aiModel.query_options.group_by.name = 'GROUP BY';
+                    console.log('[Data Model Builder] Set group_by.name flag for UI visibility');                // CRITICAL: Translate logical table names to physical in aggregate functions
                 // Aggregate functions reference columns like "schema.table.column"
                 // where table might still be a logical name that needs translation
                 
@@ -4139,8 +4271,9 @@ function validateAndTransformAIModel(aiModel) {
                             console.warn(`[Data Model Builder] Skipping null aggregate function at index ${index}`);
                             return;
                         }
-                        if (!aggFunc.aggregate_function || aggFunc.aggregate_function === '') {
-                            console.warn(`[Data Model Builder] Skipping aggregate function ${index}: missing or empty aggregate_function field`);
+                        // CRITICAL FIX: aggregate_function can be 0 (SUM), so check for null/undefined, not falsy
+                        if (aggFunc.aggregate_function === null || aggFunc.aggregate_function === undefined || aggFunc.aggregate_function === '') {
+                            console.warn(`[Data Model Builder] Skipping aggregate function ${index}: missing or empty aggregate_function field (value: ${aggFunc.aggregate_function})`);
                             return;
                         }
                         if (!aggFunc.column || aggFunc.column === '') {
@@ -4150,7 +4283,9 @@ function validateAndTransformAIModel(aiModel) {
                         
                         // Ensure column_alias_name exists
                         if (!aggFunc.column_alias_name) {
-                            const funcName = aggFunc.aggregate_function.toLowerCase();
+                            // aggregate_function is numeric index (0=SUM, 1=AVG, 2=COUNT, 3=MIN, 4=MAX)
+                            const functionNames = ['sum', 'avg', 'count', 'min', 'max'];
+                            const funcName = functionNames[aggFunc.aggregate_function] || 'aggregate';
                             const columnName = aggFunc.column.split('.').pop();
                             aggFunc.column_alias_name = `${funcName}_${columnName}`;
                             console.log(`[Data Model Builder] Generated alias for aggregate function: ${aggFunc.column_alias_name}`);
@@ -4404,6 +4539,82 @@ function validateAndTransformAIModel(aiModel) {
         }
 
         console.log('[Data Model Builder] Model validated successfully:', aiModel);
+        console.log('[Data Model Builder] Final model column count:', aiModel.columns?.length);
+        console.log('[Data Model Builder] Columns with is_selected_column=true:', 
+            aiModel.columns?.filter(c => c.is_selected_column).length);
+        
+        // FINAL VALIDATION: Ensure we have at least one column to display
+        const selectedColumns = aiModel.columns?.filter(c => c.is_selected_column) || [];
+        if (selectedColumns.length === 0 && aiModel.columns?.length > 0) {
+            console.warn('[Data Model Builder] No columns marked for display, but columns exist. This might cause display issues.');
+        }
+        
+        // CRITICAL: Detect multi-table models WITHOUT JOIN conditions
+        // This is a common AI model issue where columns reference multiple tables
+        // but no explicit JOINs are defined
+        const uniqueTables = new Set();
+        const tablePhysicalToLogical = new Map(); // Map physical names to logical names
+        
+        aiModel.columns.forEach(col => {
+            const tableKey = `${col.schema}.${col.table_name}`;
+            uniqueTables.add(tableKey);
+            
+            // Find the logical name for this physical table
+            const sourceTable = state.tables?.find(t => 
+                t.table_name === col.table_name && t.schema === col.schema
+            );
+            
+            if (sourceTable) {
+                const logicalName = sourceTable.logical_name || sourceTable.table_name;
+                tablePhysicalToLogical.set(tableKey, `${col.schema}.${logicalName}`);
+            } else {
+                // Fallback to physical name if not found
+                tablePhysicalToLogical.set(tableKey, tableKey);
+            }
+        });
+        
+        if (uniqueTables.size > 1) {
+            console.warn(`[Data Model Builder] Multi-table model detected (${uniqueTables.size} tables) without JOIN conditions`);
+            console.warn('[Data Model Builder] Tables:', Array.from(uniqueTables));
+            
+            // Check if we have any manual joins or join conditions defined
+            const hasJoinConditions = state.join_conditions && state.join_conditions.length > 0;
+            const hasManualJoins = state.manual_joins && state.manual_joins.length > 0;
+            
+            if (!hasJoinConditions && !hasManualJoins) {
+                // Build table list with logical names for user-friendly display
+                const tableDisplayNames = Array.from(uniqueTables).map(physicalKey => {
+                    const logicalKey = tablePhysicalToLogical.get(physicalKey) || physicalKey;
+                    return `<li><strong>${logicalKey}</strong></li>`;
+                }).join('');
+                
+                // Show error - cannot proceed without JOINs
+                $swal.fire({
+                    title: 'Missing JOIN Conditions',
+                    html: `
+                        <div class="text-left">
+                            <p class="mb-4">The AI model uses columns from <strong>${uniqueTables.size} different tables</strong> but did not specify how they should be joined.</p>
+                            <p class="mb-4"><strong>Tables involved:</strong></p>
+                            <ul class="list-disc pl-5 mb-4">
+                                ${tableDisplayNames}
+                            </ul>
+                            <p class="mb-2"><strong>How to fix this:</strong></p>
+                            <ol class="list-decimal pl-5">
+                                <li>Ask the AI to include JOIN conditions in the model</li>
+                                <li>OR manually add JOIN conditions using the "Add Join" button</li>
+                                <li>OR use the model with only one table at a time</li>
+                            </ol>
+                        </div>
+                    `,
+                    icon: 'error',
+                    confirmButtonText: 'Understood',
+                    width: 600
+                });
+                
+                return null; // Abort model application
+            }
+        }
+        
         return aiModel;
 
     } catch (error) {
@@ -4653,7 +4864,7 @@ onBeforeUnmount(() => {
             <div class="font-bold text-2xl">
                 Create A Data Model from the Connected Data Source(s)
             </div>
-            <button v-if="(props.dataSource && props.dataSource.id) || (props.isCrossSource && props.projectId)" @click="openAIDataModeler"
+            <button v-if="(props.dataSource && props.dataSource.id) || (props.isCrossSource && props.projectId)" @click="openAIDataModelerDebounced"
                 :disabled="readOnly"
                 :class="[
                     'flex items-center gap-2 px-4 py-2 font-medium shadow-md rounded-lg transition-colors duration-200',

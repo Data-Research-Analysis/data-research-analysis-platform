@@ -316,6 +316,20 @@ Respond with ONLY this JSON wrapped in code block with json tag:
         "character_maximum_length": null
       }
     ],
+    "join_conditions": [
+      {
+        "left_table": "users",
+        "left_table_alias": null,
+        "left_column": "id",
+        "right_table": "orders",
+        "right_table_alias": null,
+        "right_column": "user_id",
+        "join_type": "INNER",
+        "primary_operator": "=",
+        "join_logic": "AND",
+        "additional_conditions": []
+      }
+    ],
     "query_options": {
       "where": [],
       "group_by": {
@@ -342,6 +356,25 @@ Respond with ONLY this JSON wrapped in code block with json tag:
 - \`table_alias\`: string or null - NULL for regular columns, descriptive for self-joins
 - \`transform_function\`: string - Empty string "" if no transformation
 - \`character_maximum_length\`: number or null - From schema
+
+### JOIN Conditions (REQUIRED when using multiple tables)
+- \`join_conditions\`: Array of join specifications (REQUIRED if columns come from 2+ tables)
+  - \`left_table\`: string - First table name
+  - \`left_table_alias\`: string or null - Alias for left table (null if no alias)
+  - \`left_column\`: string - Column name from left table
+  - \`right_table\`: string - Second table name  
+  - \`right_table_alias\`: string or null - Alias for right table (null if no alias)
+  - \`right_column\`: string - Column name from right table
+  - \`join_type\`: string - "INNER", "LEFT", "RIGHT", or "FULL"
+  - \`primary_operator\`: string - "=" (equality join, most common)
+  - \`join_logic\`: string - "AND" (for additional conditions)
+  - \`additional_conditions\`: Array - Usually empty [] for simple joins
+
+**CRITICAL**: If your model uses columns from multiple tables (e.g., orders + products), you MUST include join_conditions that specify HOW those tables connect. Look at the foreign key relationships in the schema to determine the correct join columns.
+
+**Example**: If selecting from orders (id, customer_id, total) and products (id, name, price), you need:
+- A join_conditions entry connecting orders.product_id to products.id
+- This tells the system how to link the tables together
 
 ### Query Options (ALL OPTIONAL)
 - \`where\`: Array of filter conditions
