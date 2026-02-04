@@ -188,4 +188,19 @@ router.delete(
     }
 );
 
+/**
+ * Get suggested JOIN relationships for a data source (Issue #270)
+ * GET /api/ai-data-modeler/suggested-joins/:dataSourceId
+ */
+router.get(
+    '/suggested-joins/:dataSourceId',
+    validateJWT,
+    validate([
+        param('dataSourceId').notEmpty().isInt().withMessage('dataSourceId must be a valid integer')
+    ]),
+    async (req: Request, res: Response) => {
+        await AIDataModelerController.getSuggestedJoins(req, res);
+    }
+);
+
 export default router;

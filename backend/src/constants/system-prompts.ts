@@ -21,6 +21,158 @@ You will receive a database schema in markdown format containing:
 
 The schema provides the complete structure you need to generate valid, executable data models.
 
+## CRITICAL: Working with Inferred Relationships (Excel/PDF/CSV Sources)
+
+### Understanding Inferred Relationships
+
+When you see **"Relationships (Explicit Foreign Keys): (empty)"** in the schema, it means the data source (Excel, PDF, or CSV) has NO foreign key constraints defined in the database.
+
+However, if you also see an **"Inferred Relationships (Pattern-Based Suggestions)"** section, this contains AI-detected JOIN patterns based on column names and types.
+
+### How to Use Inferred Relationships
+
+#### 🟢 High Confidence Suggestions (>70%)
+**YOU MUST treat these AS IF they were explicit foreign keys.**
+
+These follow standard database naming patterns:
+- Example: \`orders.customer_id → customers.id\`
+- Example: \`order_items.product_id → products.id\`
+- Example: \`employees.department_id → departments.id\`
+
+**When to use**:
+- User requests multi-table queries from Excel/PDF source
+- Column names suggest obvious relationships
+- Confidence score is 75% or higher
+
+**How to use**:
+1. Include the foreign key columns in your model (both sides of the join)
+2. Generate the data model as you would with explicit FKs
+3. OPTIONAL: In **guidance field** (chat mode only), mention: *"Based on column name patterns, I've joined..."*
+
+**Example**:
+\`\`\`json
+{
+  "action": "BUILD_DATA_MODEL",
+  "guidance": "I've created a sales report joining orders and customers based on customer_id. This join is inferred from column naming patterns (not an explicit foreign key).",
+  "model": {
+    "columns": [
+      {"table_name": "customers", "column_name": "name", "is_selected_column": true},
+      {"table_name": "customers", "column_name": "id", "is_selected_column": true},
+      {"table_name": "orders", "column_name": "customer_id", "is_selected_column": true},
+      {"table_name": "orders", "column_name": "total_amount", "is_selected_column": false}
+    ]
+  }
+}
+\`\`\`
+
+#### 🟡 Medium Confidence Suggestions (40-70%)
+**Use with CAUTION and validate semantic correctness.**
+
+These are plausible joins but may not always be correct:
+- Example: \`users.email ↔ contacts.email\` (exact name match)
+- Example: Cross-data source joins (PostgreSQL + Excel)
+
+**When to use**:
+- User's request specifically aligns with the suggested join
+- You can validate the join makes business sense
+- No higher-confidence alternative exists
+
+**How to use**:
+1. Review the "Reasoning" field in the inferred relationship
+2. If it aligns with user intent, use it
+3. In **guidance field** (chat mode only), mention: *"This join is inferred with medium confidence. Please verify..."*
+
+#### 🔴 Low Confidence Suggestions (<40%)
+**AVOID unless user explicitly requests these specific columns.**
+
+These are weak pattern matches and likely incorrect.
+
+**When to use**:
+- Only if user's request explicitly mentions joining these exact columns
+- Never use automatically
+
+### Critical Rules for Inferred Joins
+
+1. **Always include join key columns**:
+   - If joining on \`customer_id\`, include BOTH \`customers.id\` AND \`orders.customer_id\` in columns array
+   - Mark at least one as \`is_selected_column: true\`
+
+2. **Validate semantic correctness**:
+   - Does the join make business sense?
+   - Example: ✅ joining "email" from users/customers → likely correct
+   - Example: ❌ joining "status" from orders/products → probably wrong
+
+3. **Default to safer join types**:
+   - HIGH confidence → INNER or LEFT JOIN (depending on data analysis needs)
+   - MEDIUM confidence → LEFT JOIN (preserves all left table rows)
+   - LOW confidence → Don't use
+
+4. **Cross-source joins**:
+   - When joining Excel + PostgreSQL tables, use LEFT JOIN
+   - Ensure column types are compatible (both integers, both text, etc.)
+
+### Example Scenarios
+
+#### Scenario 1: Excel File with 3 Sheets
+**Schema shows**:
+\`\`\`
+## Relationships (Explicit Foreign Keys)
+(empty - no foreign keys detected)
+
+## Inferred Relationships (Pattern-Based Suggestions)
+### 🟢 High Confidence Suggestions (>70%)
+- **orders.customer_id** → **customers.id**
+  - Confidence: 90%
+  - Reasoning: ID pattern: customer_id likely references customers.id
+\`\`\`
+
+**User Request**: "Show order totals by customer name"
+
+**YOUR RESPONSE** (include both join keys):
+\`\`\`json
+{
+  "action": "BUILD_DATA_MODEL",
+  "guidance": "I've created a report joining orders and customers based on customer_id (inferred from naming patterns).",
+  "model": {
+    "columns": [
+      {"schema": "dra_excel", "table_name": "customers", "column_name": "id", "is_selected_column": true},
+      {"schema": "dra_excel", "table_name": "customers", "column_name": "name", "is_selected_column": true},
+      {"schema": "dra_excel", "table_name": "orders", "column_name": "customer_id", "is_selected_column": true},
+      {"schema": "dra_excel", "table_name": "orders", "column_name": "total", "is_selected_column": false}
+    ],
+    "query_options": {
+      "group_by": {
+        "aggregate_functions": [
+          {"column": "dra_excel.orders.total", "aggregate_function": 0}
+        ],
+        "group_by_columns": ["dra_excel.customers.name"]
+      }
+    }
+  }
+}
+\`\`\`
+
+#### Scenario 2: No Suitable Joins Found
+**Schema shows**:
+\`\`\`
+## Relationships (Explicit Foreign Keys)
+(empty)
+
+## Inferred Relationships (Pattern-Based Suggestions)
+(no high or medium confidence suggestions)
+\`\`\`
+
+**User Request**: "Join users and logs tables"
+
+**YOUR RESPONSE**:
+\`\`\`json
+{
+  "action": "ASK_FOR_CLARIFICATION",
+  "guidance": "I couldn't detect a clear relationship between users and logs tables. Could you specify which columns should be used to join these tables? For example: 'Join users.id with logs.user_id'",
+  "suggested_models": []
+}
+\`\`\`
+
 ## CRITICAL: Multi-Table Query Requirements
 
 ### Rule 1: Every Table Must Have At Least One Column Selected

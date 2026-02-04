@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia';
+import { ref, computed } from 'vue';
 import type { IMessage, ISchemaSummary, ISchemaDetails } from '~/types/IAIDataModeler';
 import type { IModelDraft } from '~/types/IModelDraft';
+import { getAuthToken } from '~/composables/AuthToken';
 
 export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
     const isDrawerOpen = ref(false);
@@ -761,6 +763,260 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
         throw lastError;
     }
 
+    // ============================================
+    // SUGGESTED JOINS STATE & ACTIONS (Issue #270)
+    // ============================================
+
+    // State for AI-suggested JOIN relationships
+    const suggestedJoins = ref<any[]>([]);
+    const appliedSuggestions = ref<Set<string>>(new Set());
+    const dismissedSuggestions = ref<Set<string>>(new Set());
+    const loadingSuggestions = ref(false);
+    
+    // Preloading state
+    const preloadedSuggestions = ref<any[]>([]);
+    const suggestionsLoadedForDataSource = ref<string | null>(null);
+    const isPreloading = ref(false);
+    const preloadError = ref<string | null>(null);
+
+    /**
+     * Fetch suggested joins from backend API
+     * @param dataSourceId Data source ID to analyze
+     * @param tableNames Optional array of table names to filter suggestions (only analyze selected tables)
+     * @param useAI Whether to use AI-powered suggestions (Pro/Enterprise tier)
+     */
+    async function fetchSuggestedJoins(dataSourceId: number, tableNames?: string[], useAI: boolean = false) {
+        loadingSuggestions.value = true;
+        
+        try {
+            const token = getAuthToken();
+            if (!token) {
+                console.warn('[AI Store] No auth token available, skipping suggested joins fetch');
+                return;
+            }
+
+            // Build URL with optional table filter and AI flag
+            let url = `${baseUrl()}/ai-data-modeler/suggested-joins/${dataSourceId}`;
+            const queryParams: string[] = [];
+            
+            if (tableNames && tableNames.length > 0) {
+                const tableQuery = tableNames.join(',');
+                queryParams.push(`tables=${encodeURIComponent(tableQuery)}`);
+                console.log(`[AI Store] Fetching suggestions for selected tables: ${tableQuery}`);
+            }
+            
+            if (useAI) {
+                queryParams.push('useAI=true');
+                console.log('[AI Store] AI-powered suggestions ENABLED');
+            }
+            
+            if (queryParams.length > 0) {
+                url += `?${queryParams.join('&')}`;
+            }
+
+            const response = await $fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Authorization-Type': 'auth'
+                },
+                credentials: 'include'
+            });
+
+            if (response && response.success) {
+                suggestedJoins.value = response.data || [];
+                console.log(`[AI Store] Fetched ${suggestedJoins.value.length} suggested joins (AI: ${useAI ? 'YES' : 'NO'})`);
+                console.log('[AI Store] Suggested joins data:', JSON.stringify(response.data, null, 2));
+
+                // Sync to localStorage
+                if (import.meta.client) {
+                    localStorage.setItem(
+                        `suggested-joins-${dataSourceId}`,
+                        JSON.stringify(response.data)
+                    );
+                }
+            } else {
+                console.warn('[AI Store] No success in response:', response);
+            }
+        } catch (error) {
+            console.error('[AI Store] Error fetching suggested joins:', error);
+        } finally {
+            loadingSuggestions.value = false;
+        }
+    }
+
+    /**
+     * Preload all join suggestions for a data source (on page load)
+     * Uses loadAll=true to fetch all possible joins without column selection
+     * @param dataSourceId Data source ID to analyze
+     * @param useAI Whether to use AI-powered suggestions
+     */
+    async function preloadSuggestionsForDataSource(dataSourceId: number, useAI: boolean = false) {
+        const cacheKey = `${dataSourceId}:${useAI}`;
+        
+        // Check if already loaded
+        if (suggestionsLoadedForDataSource.value === cacheKey) {
+            console.log('[AI Store] Suggestions already loaded for', cacheKey);
+            return preloadedSuggestions.value;
+        }
+
+        // Try loading from localStorage first (instant feedback)
+        if (import.meta.client) {
+            const localCacheKey = `join-suggestions:${dataSourceId}`;
+            const cached = localStorage.getItem(localCacheKey);
+            
+            if (cached) {
+                try {
+                    const suggestions = JSON.parse(cached);
+                    preloadedSuggestions.value = suggestions;
+                    suggestionsLoadedForDataSource.value = cacheKey;
+                    console.log('[AI Store] Loaded', suggestions.length, 'suggestions from localStorage (instant)');
+                    
+                    // Still fetch from server in background to update cache
+                    fetchPreloadedSuggestions(dataSourceId, useAI, localCacheKey);
+                    return suggestions;
+                } catch (e) {
+                    console.warn('[AI Store] Failed to parse cached suggestions');
+                }
+            }
+        }
+
+        // No cache, fetch from server
+        return await fetchPreloadedSuggestions(dataSourceId, useAI, `join-suggestions:${dataSourceId}`);
+    }
+
+    /**
+     * Helper function to fetch preloaded suggestions from backend
+     */
+    async function fetchPreloadedSuggestions(dataSourceId: number, useAI: boolean, cacheKey: string) {
+        isPreloading.value = true;
+        preloadError.value = null;
+
+        try {
+            const token = getAuthToken();
+            if (!token) {
+                console.warn('[AI Store] No auth token available');
+                return [];
+            }
+
+            const config = useRuntimeConfig();
+            const url = `${config.public.apiBase}/ai-data-modeler/suggested-joins/${dataSourceId}?loadAll=true${useAI ? '&useAI=true' : ''}`;
+            
+            console.log('[AI Store] Preloading suggestions from:', url);
+
+            const response = await $fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Authorization-Type': 'auth'
+                },
+                credentials: 'include'
+            });
+
+            if (response && response.success) {
+                preloadedSuggestions.value = response.data || [];
+                suggestionsLoadedForDataSource.value = `${dataSourceId}:${useAI}`;
+                
+                // Sync to localStorage
+                if (import.meta.client) {
+                    localStorage.setItem(cacheKey, JSON.stringify(preloadedSuggestions.value));
+                }
+
+                console.log('[AI Store] Preloaded', preloadedSuggestions.value.length, 'suggestions');
+                return preloadedSuggestions.value;
+            } else {
+                console.warn('[AI Store] Preload failed:', response);
+                return [];
+            }
+        } catch (error) {
+            console.error('[AI Store] Failed to preload suggestions:', error);
+            preloadError.value = error instanceof Error ? error.message : 'Unknown error';
+            return [];
+        } finally {
+            isPreloading.value = false;
+        }
+    }
+
+    /**
+     * Mark a suggestion as applied
+     * @param suggestionId Unique ID of the suggestion
+     */
+    function applySuggestion(suggestionId: string) {
+        appliedSuggestions.value.add(suggestionId);
+
+        if (import.meta.client) {
+            localStorage.setItem(
+                'applied-suggestions',
+                JSON.stringify(Array.from(appliedSuggestions.value))
+            );
+        }
+    }
+
+    /**
+     * Mark a suggestion as dismissed
+     * @param suggestionId Unique ID of the suggestion
+     */
+    function dismissSuggestion(suggestionId: string) {
+        dismissedSuggestions.value.add(suggestionId);
+
+        if (import.meta.client) {
+            localStorage.setItem(
+                'dismissed-suggestions',
+                JSON.stringify(Array.from(dismissedSuggestions.value))
+            );
+        }
+    }
+
+    /**
+     * Clear all suggestions and reset state
+     */
+    function clearSuggestions() {
+        suggestedJoins.value = [];
+        appliedSuggestions.value.clear();
+        dismissedSuggestions.value.clear();
+    }
+
+    // Computed properties for filtering suggestions
+    const visibleSuggestions = computed(() => {
+        return suggestedJoins.value.filter(s => !dismissedSuggestions.value.has(s.id));
+    });
+
+    const highConfidenceSuggestions = computed(() => {
+        return visibleSuggestions.value.filter(s => s.confidence === 'high');
+    });
+
+    const mediumConfidenceSuggestions = computed(() => {
+        return visibleSuggestions.value.filter(s => s.confidence === 'medium');
+    });
+
+    const lowConfidenceSuggestions = computed(() => {
+        return visibleSuggestions.value.filter(s => s.confidence === 'low');
+    });
+
+    /**
+     * Filter preloaded suggestions to show only those relevant to currently selected tables
+     * This provides dynamic filtering as user selects columns
+     */
+    const relevantSuggestions = computed(() => {
+        // If no model draft or columns, return all preloaded suggestions
+        if (!modelDraft.value?.columns || modelDraft.value.columns.length === 0) {
+            return preloadedSuggestions.value;
+        }
+
+        // Get unique table keys from selected columns
+        const selectedTables = new Set<string>();
+        modelDraft.value.columns.forEach((col: any) => {
+            selectedTables.add(`${col.schema}.${col.table_name}`);
+        });
+
+        // Filter to suggestions where both tables are in the selection
+        return preloadedSuggestions.value.filter(suggestion => {
+            const leftKey = `${suggestion.left_schema}.${suggestion.left_table}`;
+            const rightKey = `${suggestion.right_schema}.${suggestion.right_table}`;
+            return selectedTables.has(leftKey) && selectedTables.has(rightKey);
+        });
+    });
+
     return {
         // State
         isDrawerOpen,
@@ -783,6 +1039,23 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
         projectId,
         dataSources,
 
+        // Suggested Joins State (Issue #270)
+        suggestedJoins,
+        appliedSuggestions,
+        dismissedSuggestions,
+        loadingSuggestions,
+        visibleSuggestions,
+        highConfidenceSuggestions,
+        mediumConfidenceSuggestions,
+        lowConfidenceSuggestions,
+        
+        // Preloading State
+        preloadedSuggestions,
+        suggestionsLoadedForDataSource,
+        isPreloading,
+        preloadError,
+        relevantSuggestions,
+
         // Actions
         openDrawer,
         openDrawerCrossSource,
@@ -803,6 +1076,13 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
         goToNextModel,
         canGoBack,
         canGoForward,
-        generateMessageId
+        generateMessageId,
+
+        // Suggested Joins Actions (Issue #270)
+        fetchSuggestedJoins,
+        preloadSuggestionsForDataSource,
+        applySuggestion,
+        dismissSuggestion,
+        clearSuggestions
     };
 });

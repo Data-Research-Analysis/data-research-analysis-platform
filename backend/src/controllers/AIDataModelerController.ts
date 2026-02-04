@@ -1070,14 +1070,20 @@ Keep it concise - aim for 200-300 words total.`;
                 tableNames
             );
 
-            // Format schema to markdown
-            const schemaMarkdown = SchemaFormatterUtility.formatSchemaToMarkdown(tables);
+            // NEW: Run join inference for pattern-based suggestions
+            console.log('[AIDataModelerController] Running join inference...');
+            const joinInferenceService = (await import('../services/JoinInferenceService.js')).JoinInferenceService.getInstance();
+            const inferredJoins = await joinInferenceService.inferJoins(tables);
+            console.log(`[AIDataModelerController] Found ${inferredJoins.length} inferred join suggestions`);
+
+            // Format schema to markdown WITH inferred joins
+            const schemaMarkdown = SchemaFormatterUtility.formatSchemaToMarkdown(tables, inferredJoins);
             const schemaSummary = SchemaFormatterUtility.getSchemaSummary(tables);
 
             // Generate unique conversation ID
             const conversationId = uuidv4();
 
-            // Initialize Gemini conversation
+            // Initialize Gemini conversation with enhanced schema
             const geminiService = getGeminiService();
             await geminiService.initializeConversation(conversationId, schemaMarkdown);
 
@@ -1089,6 +1095,8 @@ Keep it concise - aim for 200-300 words total.`;
             res.status(200).json({
                 conversationId,
                 schemaSummary,
+                inferredJoinCount: inferredJoins.length,
+                inferredJoins: inferredJoins.slice(0, 10), // Return top 10 for immediate UI display
                 message: 'AI conversation initialized successfully'
             });
 
@@ -1349,5 +1357,199 @@ Keep it concise - aim for 200-300 words total.`;
                 foreignKeyReferences: table.foreignKeys?.map((fk: any) => fk.foreign_table_name) || []
             }))
         };
+    }
+
+    /**
+     * Get AI-suggested JOIN relationships for a data source (Issue #270)
+     * GET /api/ai-data-modeler/suggested-joins/:dataSourceId
+     * 
+     * Query Parameters:
+     * - tables: Comma-separated list of table names (optional, filter to specific tables)
+     * - useAI: Enable AI-powered suggestions (optional, default: false)
+     * - schema: Schema name (optional)
+     * - loadAll: Load all possible joins for entire data source (optional, default: false)
+     */
+    static async getSuggestedJoins(req: Request, res: Response): Promise<void> {
+        try {
+            const dataSourceId = parseInt(req.params.dataSourceId);
+            const tokenDetails = req.body.tokenDetails;
+            const userId = tokenDetails?.user_id;
+
+            // Parse query parameters
+            const tablesParam = req.query.tables as string | undefined;
+            const loadAll = req.query.loadAll === 'true';
+            const useAI = req.query.useAI === 'true';
+            const schemaParam = req.query.schema as string | undefined;
+
+            const requestedTables = tablesParam 
+                ? tablesParam.split(',').map(t => t.trim()).filter(t => t.length > 0)
+                : null;
+
+            if (loadAll) {
+                console.log(`[AI Controller] Preloading all join suggestions for data source ${dataSourceId} (AI: ${useAI ? 'ENABLED' : 'DISABLED'})`);
+            } else if (requestedTables && requestedTables.length > 0) {
+                console.log(`[AI Controller] Fetching suggested joins for data source ${dataSourceId}, filtered to tables: ${requestedTables.join(', ')}`);
+            } else {
+                console.log(`[AI Controller] Fetching suggested joins for data source: ${dataSourceId} (all tables)`);
+            }
+
+            // Get data source details with access check
+            const dataSourceDetails = await AIDataModelerController.getDataSourceDetails(
+                dataSourceId,
+                tokenDetails
+            );
+
+            if (!dataSourceDetails) {
+                res.status(404).json({ 
+                    success: false,
+                    error: 'Data source not found or access denied' 
+                });
+                return;
+            }
+
+            // Create data source connection
+            const dataSource = await AIDataModelerController.createDataSource(dataSourceDetails);
+            if (!dataSource.isInitialized) {
+                await dataSource.initialize();
+            }
+
+            // Prepare options for AI enhancement
+            const inferenceOptions = useAI ? {
+                useAI: true,
+                userId: userId,
+                conversationId: `join-inference-${dataSourceId}-${Date.now()}`
+            } : undefined;
+
+            let inferredJoins: any[];
+            let analyzedTableNames: string[];
+
+            // LOAD ALL MODE: Preload suggestions for entire data source
+            if (loadAll) {
+                const joinInferenceService = (await import('../services/JoinInferenceService.js'))
+                    .JoinInferenceService.getInstance();
+
+                inferredJoins = await joinInferenceService.inferJoinsFromDataSource(
+                    dataSource,
+                    schemaParam || dataSourceDetails.schema,
+                    inferenceOptions
+                );
+
+                // Get analyzed table names for response
+                const uniqueTables = new Set<string>();
+                inferredJoins.forEach(join => {
+                    uniqueTables.add(`${join.left_schema}.${join.left_table}`);
+                    uniqueTables.add(`${join.right_schema}.${join.right_table}`);
+                });
+                analyzedTableNames = Array.from(uniqueTables);
+
+                console.log(`[AI Controller] Preloaded ${inferredJoins.length} suggestions for ${analyzedTableNames.length} tables`);
+
+                // Clean up connection
+                if (dataSource.isInitialized) {
+                    await dataSource.destroy();
+                }
+
+                // Return suggestions
+                res.status(200).json({
+                    success: true,
+                    data: inferredJoins,
+                    count: inferredJoins.length,
+                    dataSourceId: dataSourceId,
+                    dataSourceName: dataSourceDetails.name,
+                    analyzedTables: analyzedTableNames,
+                    tableCount: analyzedTableNames.length,
+                    loadAll: true
+                });
+                return;
+            }
+
+            // FILTERED MODE: Original logic for specific tables
+            // Fetch table metadata to get only tables belonging to this data source
+            const tableMetadata = await AIDataModelerController.fetchTableMetadata(
+                dataSourceId,
+                dataSourceDetails.schema,
+                tokenDetails
+            );
+
+            // Collect schema - filter by requested tables if provided
+            const schemaCollector = new SchemaCollectorService();
+            let tableNames = tableMetadata.map((m: any) => m.physical_table_name);
+            
+            // Filter to only requested tables if specified
+            if (requestedTables && requestedTables.length > 0) {
+                tableNames = tableNames.filter(name => requestedTables.includes(name));
+                console.log(`[AI Controller] Filtered to ${tableNames.length} requested tables`);
+                
+                // If user requested tables but none match, return empty suggestions
+                if (tableNames.length === 0) {
+                    console.warn(`[AI Controller] No matching tables found for requested filter`);
+                    res.status(200).json({
+                        success: true,
+                        data: [],
+                        count: 0,
+                        dataSourceId: dataSourceId,
+                        dataSourceName: dataSourceDetails.name,
+                        requestedTables: requestedTables,
+                        message: 'No matching tables found'
+                    });
+                    await dataSource.destroy();
+                    return;
+                }
+            }
+
+            const tables = await schemaCollector.collectSchemaForTables(
+                dataSource,
+                dataSourceDetails.schema,
+                tableNames
+            );
+
+            // Clean up connection
+            if (dataSource.isInitialized) {
+                await dataSource.destroy();
+            }
+
+            // Merge logical table names (displayNames) into table schemas
+            const tablesWithDisplayNames = tables.map(table => {
+                const metadata = tableMetadata.find((m: any) => 
+                    m.physical_table_name === table.tableName
+                );
+                
+                return {
+                    ...table,
+                    displayName: metadata?.logical_table_name || table.tableName
+                };
+            });
+
+            console.log(`[AI Controller] Merged logical names for ${tablesWithDisplayNames.length} tables`);
+
+            // Run join inference with logical names
+            const joinInferenceService = (await import('../services/JoinInferenceService.js'))
+                .JoinInferenceService.getInstance();
+            
+            inferredJoins = await joinInferenceService.inferJoins(tablesWithDisplayNames, inferenceOptions);
+            analyzedTableNames = tableNames;
+
+            console.log(`[AI Controller] Found ${inferredJoins.length} suggested joins among ${tableNames.length} tables (AI: ${useAI ? 'ENABLED' : 'DISABLED'})`);
+            console.log(`[AI Controller] Logical names used:`, tablesWithDisplayNames.map(t => `${t.tableName} (${t.displayName})`).join(', '));
+
+            // Return suggestions
+            res.status(200).json({
+                success: true,
+                data: inferredJoins,
+                count: inferredJoins.length,
+                dataSourceId: dataSourceId,
+                dataSourceName: dataSourceDetails.name,
+                analyzedTables: analyzedTableNames,
+                tableCount: analyzedTableNames.length
+            });
+
+        } catch (error) {
+            console.error('[AI Controller] Error fetching suggested joins:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to fetch suggested joins',
+                details: error instanceof Error ? error.message : 'Unknown error'
+            });
+        }
     }
 }

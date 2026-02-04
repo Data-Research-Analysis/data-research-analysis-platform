@@ -1,3 +1,5 @@
+import type { IInferredJoin } from '../types/ai-data-modeler/IInferredJoin.js';
+
 interface TableColumn {
     column_name: string;
     data_type: string;
@@ -33,8 +35,10 @@ interface Relationship {
 export class SchemaFormatterUtility {
     /**
      * Format table schemas into markdown format for AI consumption
+     * @param tables Array of table schemas
+     * @param inferredJoins Optional array of AI-suggested JOIN relationships (for non-FK sources)
      */
-    static formatSchemaToMarkdown(tables: TableSchema[]): string {
+    static formatSchemaToMarkdown(tables: TableSchema[], inferredJoins?: IInferredJoin[]): string {
         let markdown = '# Database Schema Information\n\n';
         
         // Add tables section
@@ -64,10 +68,10 @@ export class SchemaFormatterUtility {
             markdown += '\n';
         }
         
-        // Add relationships section
+        // Add explicit foreign key relationships section
         const relationships = this.extractRelationships(tables);
         if (relationships.length > 0) {
-            markdown += '## Relationships\n\n';
+            markdown += '## Relationships (Explicit Foreign Keys)\n\n';
             
             let relationshipIndex = 1;
             for (const rel of relationships) {
@@ -76,6 +80,14 @@ export class SchemaFormatterUtility {
                 markdown += `   - Description: ${this.generateRelationshipDescription(rel)}\n\n`;
                 relationshipIndex++;
             }
+        } else {
+            markdown += '## Relationships (Explicit Foreign Keys)\n\n';
+            markdown += '*No explicit foreign key relationships detected (common for Excel, PDF, or CSV sources).*\n\n';
+        }
+        
+        // Add inferred relationships section if provided
+        if (inferredJoins && inferredJoins.length > 0) {
+            markdown += this.formatInferredRelationships(inferredJoins);
         }
         
         return markdown;
@@ -227,6 +239,65 @@ export class SchemaFormatterUtility {
             return word.slice(0, -1);
         }
         return word;
+    }
+
+    /**
+     * Format inferred JOIN relationships for AI consumption
+     * Shows pattern-based suggestions when explicit FKs are not available
+     */
+    private static formatInferredRelationships(inferredJoins: IInferredJoin[]): string {
+        let markdown = '## Inferred Relationships (Pattern-Based Suggestions)\n\n';
+        markdown += '*These joins are suggested based on column name and type analysis. Use them when the user requests multi-table queries.*\n\n';
+
+        // Group by confidence level
+        const highConfidence = inferredJoins.filter(j => j.confidence === 'high');
+        const mediumConfidence = inferredJoins.filter(j => j.confidence === 'medium');
+        const lowConfidence = inferredJoins.filter(j => j.confidence === 'low');
+
+        // High confidence suggestions (>70%)
+        if (highConfidence.length > 0) {
+            markdown += '### 🟢 High Confidence Suggestions (>70%)\n';
+            markdown += '*These follow standard database patterns (e.g., customer_id → customers.id). Treat these AS IF they were explicit foreign keys.*\n\n';
+            
+            for (const join of highConfidence) {
+                markdown += `- **${join.left_table}.${join.left_column}** → **${join.right_table}.${join.right_column}**\n`;
+                markdown += `  - Confidence: ${Math.round(join.confidence_score * 100)}%\n`;
+                markdown += `  - Reasoning: ${join.reasoning}\n`;
+                markdown += `  - Suggested JOIN: ${join.suggested_join_type} JOIN\n`;
+                markdown += `  - Patterns: ${join.matched_patterns.join(', ')}\n`;
+                markdown += `  - Column Types: ${join.left_column_type} ↔ ${join.right_column_type}\n\n`;
+            }
+        }
+
+        // Medium confidence suggestions (40-70%)
+        if (mediumConfidence.length > 0) {
+            markdown += '### 🟡 Medium Confidence Suggestions (40-70%)\n';
+            markdown += '*These are plausible joins based on naming patterns. Review the reasoning before using.*\n\n';
+            
+            for (const join of mediumConfidence) {
+                markdown += `- **${join.left_table}.${join.left_column}** → **${join.right_table}.${join.right_column}**\n`;
+                markdown += `  - Confidence: ${Math.round(join.confidence_score * 100)}%\n`;
+                markdown += `  - Reasoning: ${join.reasoning}\n`;
+                markdown += `  - Suggested JOIN: ${join.suggested_join_type} JOIN\n`;
+                markdown += `  - Patterns: ${join.matched_patterns.join(', ')}\n`;
+                markdown += `  - ⚠️ Note: Verify this join makes business sense before using\n\n`;
+            }
+        }
+
+        // Low confidence suggestions (<40%)
+        if (lowConfidence.length > 0) {
+            markdown += '### 🔴 Low Confidence Suggestions (<40%)\n';
+            markdown += '*These are weak matches. Only use if the user explicitly requests these specific columns.*\n\n';
+            
+            for (const join of lowConfidence) {
+                markdown += `- **${join.left_table}.${join.left_column}** → **${join.right_table}.${join.right_column}**\n`;
+                markdown += `  - Confidence: ${Math.round(join.confidence_score * 100)}%\n`;
+                markdown += `  - Reasoning: ${join.reasoning}\n`;
+                markdown += `  - ⚠️ Caution: High risk of incorrect join\n\n`;
+            }
+        }
+
+        return markdown;
     }
 
     /**
