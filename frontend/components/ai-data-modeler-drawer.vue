@@ -90,9 +90,19 @@ watch(hasValidModel, (newValue) => {
     }
 });
 
+// Watch for loading completion to reset recommendation generation flag
+watch(() => aiDataModelerStore.isLoading, (newValue) => {
+    if (!newValue && isGeneratingRecommendation.value) {
+        // Loading finished, reset the flag to show Apply button
+        console.log('[AI Drawer] Loading completed, resetting isGeneratingRecommendation');
+        isGeneratingRecommendation.value = false;
+    }
+});
+
 const isApplyingModel = ref(false);
 const showModelPreview = ref(false);
 const buttonState = ref<'normal' | 'loading' | 'success'>('normal');
+const isGeneratingRecommendation = ref(false);
 
 // Tab state for Templates vs Chat
 const activeTab = ref<'templates' | 'chat'>('templates');
@@ -197,15 +207,22 @@ function handleGenerateAnotherRecommendation() {
     
     console.log('[AI Drawer] Generating another AI recommendation');
     userRequestedGeneration.value = true;
+    isGeneratingRecommendation.value = true;
     aiDataModelerStore.sendMessage(prompt);
 }
 
 function handleClose() {
-    if (!aiDataModelerStore.isLoading && !aiDataModelerStore.isInitializing) {
-        // Reset flag when closing drawer
-        userRequestedGeneration.value = false;
-        aiDataModelerStore.closeDrawer(false);
-    }
+    console.log('[AI Drawer] handleClose called', {
+        isLoading: aiDataModelerStore.isLoading,
+        isInitializing: aiDataModelerStore.isInitializing
+    });
+    
+    // Allow closing even during loading/initialization (user may want to cancel)
+    // Reset flag when closing drawer
+    userRequestedGeneration.value = false;
+    
+    // Close the drawer (don't cleanup session so it can be resumed)
+    aiDataModelerStore.closeDrawer(false);
 }
 
 async function handleRetry() {
@@ -265,34 +282,41 @@ async function handleApplyModel() {
             return;
         }
         
+        // Validate model structure - ensure .tables property exists
+        if (!aiDataModelerStore.modelDraft?.tables) {
+            console.error('[AI Drawer] Model has invalid structure - missing tables property', aiDataModelerStore.modelDraft);
+            alert('The model structure is invalid. Please generate a new model.');
+            return;
+        }
+        
+        // Validate tables array is not empty
+        if (!Array.isArray(aiDataModelerStore.modelDraft.tables) || aiDataModelerStore.modelDraft.tables.length === 0) {
+            console.error('[AI Drawer] Model has no tables to apply', aiDataModelerStore.modelDraft);
+            alert('The model has no tables defined. Please generate a new model.');
+            return;
+        }
+        
         buttonState.value = 'loading';
         isApplyingModel.value = true;
         console.log('[AI Drawer] Applying model to builder');
-        console.log('[AI Drawer] Current applyTrigger value:', aiDataModelerStore.applyTrigger);
         console.log('[AI Drawer] Model to apply:', JSON.stringify(aiDataModelerStore.modelDraft, null, 2));
         
-        // Trigger the manual application - this should replace existing model
+        // Trigger the manual application - data-model-builder will handle the rest
         aiDataModelerStore.applyModelToBuilder();
-        console.log('[AI Drawer] After applyModelToBuilder, new trigger value:', aiDataModelerStore.applyTrigger);
+        console.log('[AI Drawer] Apply trigger sent, data-model-builder will handle completion');
         
-        // Give a brief moment for the watcher to trigger
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Brief delay to let the trigger fire
+        await nextTick();
+        await new Promise(resolve => setTimeout(resolve, 100));
         
-        // Show success state
-        buttonState.value = 'success';
-        await new Promise(resolve => setTimeout(resolve, 800));
-        
-        // Close the drawer after success animation
-        aiDataModelerStore.closeDrawer(false);
     } catch (error) {
         console.error('[AI Drawer] Error applying model:', error);
-        buttonState.value = 'normal';
+        alert('An error occurred while applying the model. Please try again.');
     } finally {
+        // Clean up button state
         isApplyingModel.value = false;
-        // Reset button state after a delay
-        setTimeout(() => {
-            buttonState.value = 'normal';
-        }, 1000);
+        buttonState.value = 'normal';
+        userRequestedGeneration.value = false;
     }
 }
 
@@ -407,9 +431,9 @@ function getOrderByColumns(): string[] {
                             <div class="flex items-center gap-2">
                                 <!-- Close button -->
                                 <button 
-                                    class="flex-shrink-0 w-8 h-8 border-0 bg-transparent cursor-pointer text-gray-500 rounded-md flex items-center justify-center transition-all duration-200 hover:bg-gray-200 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                    class="flex-shrink-0 w-8 h-8 border-0 bg-transparent cursor-pointer text-gray-500 rounded-md flex items-center justify-center transition-all duration-200 hover:bg-gray-200 hover:text-gray-800"
                                     @click="handleClose"
-                                    :disabled="aiDataModelerStore.isLoading"
+                                    title="Close AI Data Modeler"
                                 >
                                     <svg 
                                         xmlns="http://www.w3.org/2000/svg" 
@@ -514,7 +538,7 @@ function getOrderByColumns(): string[] {
                                     </div>
 
                                     <!-- Data Model Ready Indicator (Templates Tab) -->
-                                    <div v-if="showModelSuccess" 
+                                    <div v-if="showModelSuccess && !isGeneratingRecommendation" 
                                         class="mb-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
                                         <div class="flex items-center justify-between gap-2 text-blue-700 font-medium mb-2">
                                             <div class="flex items-center gap-2">
@@ -728,7 +752,7 @@ function getOrderByColumns(): string[] {
                                     </p>
                                 </div>
                                 <!-- Data Model Ready for Chat Tab (inside chat area) -->
-                                <div v-if="showModelSuccess" 
+                                <div v-if="showModelSuccess && !isGeneratingRecommendation" 
                                 class="mt-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
                                 <div class="flex items-center justify-between gap-2 text-blue-700 font-medium mb-2">
                                     <div class="flex items-center gap-2">

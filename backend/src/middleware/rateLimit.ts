@@ -217,11 +217,12 @@ export const oauthCallbackLimiter = rateLimit({
  * Strict rate limiter for AI operations
  * AI operations are computationally expensive and should be heavily rate limited
  * 
- * Limits: 5 requests per minute per user
+ * Limits: 30 requests per minute per user
+ * Note: Allows for drawer initialization, multiple chat messages, and schema operations
  */
 export const aiOperationsLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 minute
-    max: 5,
+    max: 30,
     message: 'Too many AI requests, please wait before trying again',
     standardHeaders: true,
     legacyHeaders: false,
