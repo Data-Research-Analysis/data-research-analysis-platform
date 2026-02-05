@@ -2,6 +2,7 @@
 import _ from 'lodash';
 import { useAIDataModelerStore } from '~/stores/ai-data-modeler';
 import { useSubscriptionStore } from '~/stores/subscription';
+import { useLoggedInUserStore } from '~/stores/logged_in_user';
 
 const { $swal } = useNuxtApp();
 const route = useRoute();
@@ -94,6 +95,7 @@ const state = reactive({
     is_applying_ai_config: false,
     is_saving_model: false,
     query_execution_count: 0,
+    is_initial_load: true, // Track if component is still initializing (prevents premature suggestion fetches)
 });
 
 // Computed properties for tier-based row limits
@@ -279,7 +281,7 @@ const allAvailableColumns = computed(() => {
 
                 columns.push({
                     value: aliasName,
-                    display: `${funcName}(${expressionDisplay})${aggExpr.use_distinct ? ' [DISTINCT]' : ''} AS ${aliasName}`,
+                    display: `${expressionDisplay} AS ${aliasName}`,
                     type: 'aggregate_expression',
                     data_type: 'NUMBER',
                     is_aggregate: true,
@@ -539,7 +541,71 @@ watch(() => state.data_table.join_conditions, (newValue) => {
     }
 }, { deep: true });
 
-// Watch for changes to table_aliases in data_table and sync to state-level array
+// Watch for column selection changes - fetch AI-suggested joins when user selects columns from 2+ tables (Issue #270)
+// This replaces the watch on state.tables since state.tables contains ALL available tables, not selected ones
+// DISABLED: Preloading suggestions on page load instead of reactive fetching
+// This watch previously fetched suggestions after user selected columns from 2+ tables
+// New approach: Preload all suggestions in onMounted for better UX
+/*
+watch(() => state.data_table.columns, async (columns) => {
+    // Skip if component is still initializing (prevents fetching on page load)
+    if (state.is_initial_load) {
+        console.log('[Data Model Builder] Skipping suggestion fetch during initial load');
+        return;
+    }
+    
+    // Extract unique tables from selected columns
+    const uniqueTables = new Set();
+    if (columns && Array.isArray(columns)) {
+        columns.forEach(col => {
+            if (col.table_name) {
+                uniqueTables.add(col.table_name);
+            }
+        });
+    }
+    
+    const tableNames = Array.from(uniqueTables);
+    
+    // Only fetch suggestions if:
+    // 1. Not cross-source (cross-source has different logic)
+    // 2. Data source exists
+    // 3. User has selected columns from 2+ different tables (need at least 2 to join)
+    if (!props.isCrossSource && props.dataSource?.id && tableNames.length >= 2) {
+        console.log(`[Data Model Builder] Detected columns from ${tableNames.length} tables (${tableNames.join(', ')}), fetching AI-suggested joins...`);
+        
+        try {
+            // Check user subscription/type to determine if AI should be enabled
+            const loggedInUserStore = useLoggedInUserStore();
+            const user = loggedInUserStore.getLoggedInUser();
+            
+            // Enable AI for:
+            // 1. ADMIN users (always have access)
+            // 2. Future: Pro/Enterprise subscription tiers (when implemented)
+            const enableAI = user?.user_type === 'admin';
+            
+            if (enableAI) {
+                console.log('[Data Model Builder] AI-powered suggestions ENABLED (user has access)');
+            } else {
+                console.log('[Data Model Builder] AI-powered suggestions DISABLED (basic tier - rule-based only)');
+            }
+            
+            // Fetch suggestions with AI enabled based on subscription
+            await aiDataModelerStore.fetchSuggestedJoins(props.dataSource.id, tableNames, enableAI);
+            console.log(`[Data Model Builder] AI-suggested joins loaded: ${aiDataModelerStore.suggestedJoins.length} suggestions`);
+        } catch (error) {
+            console.error('[Data Model Builder] Failed to fetch AI-suggested joins:', error);
+        }
+    } else if (tableNames.length < 2) {
+        // Clear suggestions when user deselects to less than 2 tables
+        if (aiDataModelerStore.suggestedJoins.length > 0) {
+            aiDataModelerStore.clearSuggestions();
+            console.log('[Data Model Builder] Cleared AI-suggested joins (columns from less than 2 tables)');
+        }
+    }
+}, { deep: true });
+*/
+
+// Watch for changes to join_conditions in data_table and sync to state-level array
 watch(() => state.data_table.table_aliases, (newValue) => {
     if (newValue && newValue.length > 0) {
         state.table_aliases = [...newValue];
@@ -1537,6 +1603,163 @@ function updateJoinRightTable(joinIndex) {
 }
 
 /**
+ * Apply AI-suggested JOIN relationship (Issue #270)
+ * Converts IInferredJoin to join_conditions format
+ */
+function handleApplySuggestedJoin(suggestion) {
+    console.log('[Data Model Builder] Applying suggested JOIN:', suggestion);
+
+    // Check if this JOIN already exists
+    const isDuplicate = state.join_conditions.some(join => 
+        join.left_table_schema === suggestion.left_schema &&
+        join.left_table_name === suggestion.left_table &&
+        join.left_column_name === suggestion.left_column &&
+        join.right_table_schema === suggestion.right_schema &&
+        join.right_table_name === suggestion.right_table &&
+        join.right_column_name === suggestion.right_column
+    );
+
+    if (isDuplicate) {
+        $swal.fire({
+            title: 'Duplicate JOIN',
+            text: 'This JOIN relationship already exists in your model.',
+            icon: 'info',
+            confirmButtonText: 'OK'
+        });
+        return;
+    }
+
+    // Auto-select the columns involved in the JOIN if they're not already selected
+    const columnsToSelect = [
+        {
+            schema: suggestion.left_schema,
+            table_name: suggestion.left_table,
+            column_name: suggestion.left_column,
+            column_type: suggestion.left_column_type
+        },
+        {
+            schema: suggestion.right_schema,
+            table_name: suggestion.right_table,
+            column_name: suggestion.right_column,
+            column_type: suggestion.right_column_type
+        }
+    ];
+
+    columnsToSelect.forEach(({ schema, table_name, column_name, column_type }) => {
+        // Check if column already exists in data model
+        const existingColumn = state.data_table.columns.find(col =>
+            col.schema === schema &&
+            col.table_name === table_name &&
+            col.column_name === column_name
+        );
+
+        if (existingColumn) {
+            // Column exists but might not be selected - select it now
+            if (!existingColumn.is_selected_column) {
+                existingColumn.is_selected_column = true;
+                console.log(`[Data Model Builder] Auto-selected existing column: ${schema}.${table_name}.${column_name}`);
+            }
+        } else {
+            // Column doesn't exist - find it in source tables and add it
+            const sourceTable = state.tables.find(t => 
+                t.schema === schema && t.table_name === table_name
+            );
+
+            if (sourceTable) {
+                const sourceColumn = sourceTable.columns.find(c => c.column_name === column_name);
+                
+                if (sourceColumn) {
+                    // Add column to data model with is_selected_column: true
+                    const newColumn = {
+                        schema: schema,
+                        table_name: table_name,
+                        column_name: column_name,
+                        data_type: sourceColumn.data_type || column_type || 'text',
+                        alias_name: '',
+                        transform: '',
+                        transform_close_parens: 0,
+                        is_selected_column: true,
+                        table_alias: null,
+                        table_logical_name: sourceTable.logical_name || null
+                    };
+                    
+                    state.data_table.columns.push(newColumn);
+                    console.log(`[Data Model Builder] Auto-added and selected column: ${schema}.${table_name}.${column_name}`);
+                } else {
+                    console.warn(`[Data Model Builder] Source column not found: ${schema}.${table_name}.${column_name}`);
+                }
+            } else {
+                console.warn(`[Data Model Builder] Source table not found: ${schema}.${table_name}`);
+            }
+        }
+    });
+
+    // Convert suggestion to join_conditions format
+    const newJoin = {
+        id: Date.now(),
+        left_table_schema: suggestion.left_schema,
+        left_table_name: suggestion.left_table,
+        left_table_alias: null,
+        left_column_name: suggestion.left_column,
+        right_table_schema: suggestion.right_schema,
+        right_table_name: suggestion.right_table,
+        right_table_alias: null,
+        right_column_name: suggestion.right_column,
+        join_type: suggestion.suggested_join_type || 'INNER',
+        primary_operator: '=',
+        join_logic: 'AND',
+        additional_conditions: [],
+        is_auto_detected: false, // Manually applied by user, not auto-detected
+        ai_suggested: true, // Mark as AI-suggested
+        confidence_score: suggestion.confidence_score,
+        reasoning: suggestion.reasoning
+    };
+
+    // Add to join conditions
+    state.join_conditions.push(newJoin);
+    state.data_table.join_conditions = [...state.join_conditions];
+
+    // Mark as applied in store
+    aiDataModelerStore.applySuggestion(suggestion.id);
+
+    // Switch to advanced view to show JOIN conditions section
+    if (state.viewMode !== 'advanced') {
+        state.viewMode = 'advanced';
+        console.log('[Data Model Builder] Switched to advanced view to display JOIN conditions');
+    }
+
+    console.log('[Data Model Builder] Applied JOIN:', newJoin);
+
+    $swal.fire({
+        title: 'JOIN Applied!',
+        html: `
+            <p class="text-sm text-gray-700 mb-2">
+                ${suggestion.left_schema}.${suggestion.left_table}.${suggestion.left_column} 
+                → 
+                ${suggestion.right_schema}.${suggestion.right_table}.${suggestion.right_column}
+            </p>
+            <p class="text-xs text-gray-600 mb-2">
+                <i class="fas fa-lightbulb text-yellow-500"></i> ${suggestion.reasoning}
+            </p>
+            <p class="text-xs text-green-600">
+                <i class="fas fa-check-circle"></i> JOIN columns have been automatically selected for your data model
+            </p>
+        `,
+        icon: 'success',
+        confirmButtonText: 'OK',
+        timer: 4000
+    });
+}
+
+/**
+ * Dismiss AI-suggested JOIN relationship (Issue #270)
+ */
+function handleDismissSuggestedJoin(suggestionId) {
+    aiDataModelerStore.dismissSuggestion(suggestionId);
+    console.log('[Data Model Builder] Dismissed suggestion:', suggestionId);
+}
+
+/**
  * Auto-detect JOIN conditions from foreign key relationships
  */
 function autoDetectJoinConditions() {
@@ -1581,8 +1804,9 @@ function autoDetectJoinConditions() {
             ));
     }
 
-    // Clear existing auto-detected JOINs (keep manual ones)
-    state.join_conditions = state.join_conditions.filter(join => !join.is_auto_detected);
+    // Clear existing auto-detected JOINs (keep manual ones and AI-suggested ones)
+    // AI-suggested joins that were manually applied by user should NOT be cleared
+    state.join_conditions = state.join_conditions.filter(join => !join.is_auto_detected || join.ai_suggested);
 
     // Build JOIN conditions from FK relationships
     const detectedJoins = [];
@@ -1705,6 +1929,11 @@ function autoDetectJoinConditions() {
                 }); // End forEach relationships
             } else {
                 console.log(`[autoDetectJoinConditions] No FK relationship found between ${table1.schema}.${table1.table_name} and ${table2.schema}.${table2.table_name}`);
+                
+                // NOTE (Issue #270): Smart column matching moved to backend service
+                // AI-suggested joins are now fetched via watch() on state.tables and displayed in SuggestedJoinsPanel
+                // Users can apply suggestions from the panel, which will add them to join_conditions
+                console.log(`[autoDetectJoinConditions] For non-FK joins, use AI-suggested joins panel above`);
             }
         }
     }
@@ -1715,6 +1944,10 @@ function autoDetectJoinConditions() {
     console.log(`[autoDetectJoinConditions] Auto-detected ${detectedJoins.length} JOIN conditions`);
     console.log('[autoDetectJoinConditions] Total JOINs now:', state.join_conditions.length);
 }
+
+// NOTE (Issue #270): Old frontend pattern-matching functions removed
+// Smart JOIN detection now handled by backend JoinInferenceService
+// Suggestions displayed in SuggestedJoinsPanel component
 
 async function deleteColumn(columnName) {
     // Find the column being deleted to get its full reference
@@ -4122,6 +4355,168 @@ function validateAndTransformAIModel(aiModel) {
 
         aiModel.columns = validColumns;
 
+        // STEP 3: Validate JOIN conditions against available inferred joins and foreign keys
+        if (aiModel.join_conditions && Array.isArray(aiModel.join_conditions) && aiModel.join_conditions.length > 0) {
+            console.log('[Data Model Builder] Validating', aiModel.join_conditions.length, 'AI-generated JOIN conditions...');
+            
+            // Get available inferred joins from store
+            const availableInferredJoins = aiDataModelerStore.preloadedSuggestions || [];
+            console.log('[Data Model Builder] Available inferred joins:', availableInferredJoins.length);
+            if (availableInferredJoins.length > 0) {
+                console.log('[Data Model Builder] Inferred join details:', availableInferredJoins.map(j => 
+                    `${j.left_schema}.${j.left_table}.${j.left_column} → ${j.right_schema}.${j.right_table}.${j.right_column} (confidence: ${j.confidence_score})`
+                ));
+            }
+            
+            const validJoins = [];
+            const joinErrors = [];
+            
+            aiModel.join_conditions.forEach((join, index) => {
+                // CRITICAL: AI returns left_table/right_table (no schema), but validation needs schema
+                // Extract schema from column metadata if not present in JOIN
+                if (!join.left_table_schema || !join.left_table_name) {
+                    const leftColumn = aiModel.columns.find(col =>
+                        col.table_name === join.left_table && col.column_name === join.left_column
+                    );
+                    if (leftColumn) {
+                        join.left_table_schema = leftColumn.schema;
+                        join.left_table_name = leftColumn.table_name;
+                        join.left_column_name = leftColumn.column_name;
+                    }
+                }
+                
+                if (!join.right_table_schema || !join.right_table_name) {
+                    const rightColumn = aiModel.columns.find(col =>
+                        col.table_name === join.right_table && col.column_name === join.right_column
+                    );
+                    if (rightColumn) {
+                        join.right_table_schema = rightColumn.schema;
+                        join.right_table_name = rightColumn.table_name;
+                        join.right_column_name = rightColumn.column_name;
+                    }
+                }
+                
+                console.log(`[Data Model Builder] Validating JOIN ${index + 1}:`, {
+                    left: `${join.left_table_schema}.${join.left_table_name}.${join.left_column_name}`,
+                    right: `${join.right_table_schema}.${join.right_table_name}.${join.right_column_name}`
+                });
+                
+                // Check if both tables exist in data source
+                const leftTableExists = state.tables?.some(t =>
+                    t.schema === join.left_table_schema &&
+                    (t.table_name === join.left_table_name || t.logical_name === join.left_table_name)
+                );
+                
+                const rightTableExists = state.tables?.some(t =>
+                    t.schema === join.right_table_schema &&
+                    (t.table_name === join.right_table_name || t.logical_name === join.right_table_name)
+                );
+                
+                if (!leftTableExists) {
+                    joinErrors.push(`JOIN ${index + 1}: Left table ${join.left_table_schema}.${join.left_table_name} does not exist`);
+                    return;
+                }
+                
+                if (!rightTableExists) {
+                    joinErrors.push(`JOIN ${index + 1}: Right table ${join.right_table_schema}.${join.right_table_name} does not exist`);
+                    return;
+                }
+                
+                // Translate logical table names to physical names
+                const leftTable = state.tables?.find(t =>
+                    t.schema === join.left_table_schema &&
+                    (t.table_name === join.left_table_name || t.logical_name === join.left_table_name)
+                );
+                const rightTable = state.tables?.find(t =>
+                    t.schema === join.right_table_schema &&
+                    (t.table_name === join.right_table_name || t.logical_name === join.right_table_name)
+                );
+                
+                if (leftTable && leftTable.table_name !== join.left_table_name) {
+                    console.log(`[Data Model Builder] Translated left table: ${join.left_table_name} -> ${leftTable.table_name}`);
+                    join.left_table_name = leftTable.table_name;
+                }
+                
+                if (rightTable && rightTable.table_name !== join.right_table_name) {
+                    console.log(`[Data Model Builder] Translated right table: ${join.right_table_name} -> ${rightTable.table_name}`);
+                    join.right_table_name = rightTable.table_name;
+                }
+                
+                // Check if JOIN matches an inferred join or foreign key relationship
+                const matchesInferredJoin = availableInferredJoins.some(inferred =>
+                    (inferred.left_schema === join.left_table_schema &&
+                     inferred.left_table === join.left_table_name &&
+                     inferred.left_column === join.left_column_name &&
+                     inferred.right_schema === join.right_table_schema &&
+                     inferred.right_table === join.right_table_name &&
+                     inferred.right_column === join.right_column_name) ||
+                    // Check reverse direction
+                    (inferred.right_schema === join.left_table_schema &&
+                     inferred.right_table === join.left_table_name &&
+                     inferred.right_column === join.left_column_name &&
+                     inferred.left_schema === join.right_table_schema &&
+                     inferred.left_table === join.right_table_name &&
+                     inferred.left_column === join.right_column_name)
+                );
+                
+                if (matchesInferredJoin) {
+                    console.log(`[Data Model Builder] ✓ JOIN ${index + 1} matches inferred relationship`);
+                    join.ai_suggested = true; // Mark as AI-suggested
+                    validJoins.push(join);
+                } else {
+                    // Check if it's a foreign key relationship
+                    const matchesForeignKey = leftTable?.foreignKeys?.some(fk =>
+                        fk.column_name === join.left_column_name &&
+                        fk.foreign_table_name === join.right_table_name &&
+                        fk.foreign_column_name === join.right_column_name
+                    ) || rightTable?.foreignKeys?.some(fk =>
+                        fk.column_name === join.right_column_name &&
+                        fk.foreign_table_name === join.left_table_name &&
+                        fk.foreign_column_name === join.left_column_name
+                    );
+                    
+                    if (matchesForeignKey) {
+                        console.log(`[Data Model Builder] ✓ JOIN ${index + 1} matches foreign key relationship`);
+                        join.is_auto_detected = true;
+                        validJoins.push(join);
+                    } else {
+                        // Hallucinated join - AI invented a relationship that doesn't exist
+                        console.warn(`[Data Model Builder] ⚠️ HALLUCINATED JOIN ${index + 1}: No matching relationship found`);
+                        joinErrors.push(
+                            `JOIN ${index + 1}: No relationship found between ` +
+                            `${join.left_table_schema}.${join.left_table_name}.${join.left_column_name} and ` +
+                            `${join.right_table_schema}.${join.right_table_name}.${join.right_column_name}. ` +
+                            `This JOIN is not supported by the data source.`
+                        );
+                    }
+                }
+            });
+            
+            if (joinErrors.length > 0) {
+                console.error('[Data Model Builder] JOIN validation errors:', joinErrors);
+                $swal.fire({
+                    title: 'Invalid JOINs in AI Model',
+                    html: `<div class="text-left">
+                        <p class="mb-2">The AI generated JOINs that don't exist in your data:</p>
+                        <ul class="list-disc pl-5 text-sm">${joinErrors.map(e => `<li>${e}</li>`).join('')}</ul>
+                        <p class="mt-3 text-xs text-gray-600">
+                            <strong>Note:</strong> The AI can only use relationships that exist in your schema 
+                            (foreign keys or pattern-detected joins). JOINs have been removed from the model.
+                        </p>
+                    </div>`,
+                    icon: 'warning',
+                    confirmButtonText: 'Continue Without JOINs'
+                });
+                
+                // Remove invalid joins but continue with the model
+                aiModel.join_conditions = validJoins;
+                console.log(`[Data Model Builder] Kept ${validJoins.length} valid JOINs, removed ${joinErrors.length} invalid`);
+            } else {
+                aiModel.join_conditions = validJoins;
+                console.log(`[Data Model Builder] All ${validJoins.length} JOINs validated successfully`);
+            }
+        }
+
         // CRITICAL FIX: Translate logical table names to physical names in query_options
         // After column validation, we've already translated col.table_name from logical to physical
         // Now we need to update references in GROUP BY, aggregates, WHERE, ORDER BY, etc.
@@ -4574,11 +4969,9 @@ function validateAndTransformAIModel(aiModel) {
         });
         
         if (uniqueTables.size > 1) {
-            console.warn(`[Data Model Builder] Multi-table model detected (${uniqueTables.size} tables) without JOIN conditions`);
-            console.warn('[Data Model Builder] Tables:', Array.from(uniqueTables));
-            
             // Check if we have any manual joins or join conditions defined
-            const hasJoinConditions = state.join_conditions && state.join_conditions.length > 0;
+            // CRITICAL: Check aiModel.join_conditions (the validated model) NOT state.join_conditions (not yet applied)
+            const hasJoinConditions = aiModel.join_conditions && aiModel.join_conditions.length > 0;
             const hasManualJoins = state.manual_joins && state.manual_joins.length > 0;
             
             if (!hasJoinConditions && !hasManualJoins) {
@@ -4671,6 +5064,29 @@ onMounted(async () => {
 
     state.tables = props.dataSourceTables;
     console.log('[DEBUG - Data Model Builder] Tables loaded into state');
+
+    // PRELOAD JOIN SUGGESTIONS: Fetch all possible joins immediately for better UX
+    // This provides proactive guidance before users select columns
+    if (!props.isCrossSource && props.dataSource?.id) {
+        console.log('[Data Model Builder] Preloading join suggestions for data source:', props.dataSource.id);
+        
+        try {
+            const loggedInUserStore = useLoggedInUserStore();
+            const user = loggedInUserStore.getLoggedInUser();
+            const enableAI = user?.user_type === 'admin';
+            
+            if (enableAI) {
+                console.log('[Data Model Builder] AI-powered suggestions ENABLED for preloading');
+            } else {
+                console.log('[Data Model Builder] Rule-based suggestions only for preloading');
+            }
+            
+            await aiDataModelerStore.preloadSuggestionsForDataSource(props.dataSource.id, enableAI);
+            console.log('[Data Model Builder] Preloaded', aiDataModelerStore.preloadedSuggestions.length, 'join suggestions');
+        } catch (error) {
+            console.error('[Data Model Builder] Failed to preload join suggestions:', error);
+        }
+    }
 
     if (props.dataModel && props.dataModel.query) {
         state.data_table = props.dataModel.query;
@@ -4823,6 +5239,16 @@ onMounted(async () => {
             state.viewMode = 'advanced';
         }
     }
+
+    // NOTE: AI-suggested joins are now fetched dynamically when user selects columns from multiple tables
+    // See watch() on state.data_table.columns below (Issue #270)
+    
+    // Mark initial load as complete - allows column selection watch to trigger suggestions
+    // This prevents fetching suggestions on page load/refresh when editing existing models
+    nextTick(() => {
+        state.is_initial_load = false;
+        console.log('[Data Model Builder] Initial load complete - suggestion watch now active');
+    });
 })
 
 onBeforeUnmount(() => {
@@ -4831,6 +5257,10 @@ onBeforeUnmount(() => {
     state.is_executing_query = false;
     state.is_applying_ai_config = false;
     state.is_saving_model = false;
+    
+    // Clear AI-suggested joins to prevent stale data
+    aiDataModelerStore.clearSuggestions();
+    
     console.log('[DataModelBuilder] Component unmounting - cleanup completed');
 });
 
@@ -5024,6 +5454,33 @@ onBeforeUnmount(() => {
                     </button>
                 </div>
 
+                <!-- Loading state while preloading suggestions -->
+                <div v-if="!props.isCrossSource && aiDataModelerStore.isPreloading" 
+                     class="mb-6 p-4 border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg shadow-sm">
+                    <div class="flex items-center gap-3">
+                        <font-awesome icon="fas fa-spinner" spin class="text-blue-600 text-xl" />
+                        <div>
+                            <p class="font-semibold text-blue-800">Analyzing table relationships...</p>
+                            <p class="text-sm text-blue-600">Discovering intelligent JOIN suggestions for your data</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AI-Suggested JOINs Panel (Issue #270) - PRELOADED MODE -->
+                <!-- Always show if suggestions exist, dynamically filter to selected tables -->
+                <SuggestedJoinsPanel
+                    v-if="!props.isCrossSource && aiDataModelerStore.preloadedSuggestions.length > 0"
+                    :suggestions="aiDataModelerStore.relevantSuggestions"
+                    :all-suggestions="aiDataModelerStore.preloadedSuggestions"
+                    :loading="aiDataModelerStore.isPreloading"
+                    :applied-suggestions="aiDataModelerStore.appliedSuggestions"
+                    :dismissed-suggestions="aiDataModelerStore.dismissedSuggestions"
+                    :tables="state.tables"
+                    @apply="handleApplySuggestedJoin"
+                    @dismiss="handleDismissSuggestedJoin"
+                    class="mb-6"
+                />
+
                 <!-- JOIN Conditions Manager -->
                 <div v-if="state.viewMode === 'advanced' && hasMultipleTables()"
                     class="mb-6 p-4 border-2 border-green-200 bg-green-50 rounded-lg">
@@ -5076,13 +5533,18 @@ onBeforeUnmount(() => {
                                                 {{ join.join_type }} JOIN
                                             </span>
                                             <span v-if="join.is_auto_detected"
-                                                class="px-2 py-1 text-xs bg-purple-100 text-purple-700">
+                                                class="px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded">
                                                 <font-awesome icon="fas fa-magic" class="mr-1" />
                                                 Auto-detected
                                             </span>
-                                        </div>
-
-                                        <div
+                            <span v-if="join.ai_suggested"
+                                class="px-2 py-1 text-xs bg-gradient-to-r from-blue-100 to-indigo-100 text-indigo-700 rounded flex items-center gap-1"
+                                :title="`AI Suggested (${Math.round((join.confidence_score || 0) * 100)}% confidence): ${join.reasoning}`">
+                                <span class="text-sm">🤖</span>
+                                <span>AI-Suggested</span>
+                                <span class="font-bold">({{ Math.round((join.confidence_score || 0) * 100) }}%)</span>
+                            </span>
+                        </div>                                        <div
                                             class="font-mono text-sm bg-gray-100 p-2 border border-gray-300 flex items-center wrap-anywhere rounded">
                                             <span class="font-semibold text-blue-700">
                                                 {{ join.left_table_schema }}.{{ join.left_table_alias ||

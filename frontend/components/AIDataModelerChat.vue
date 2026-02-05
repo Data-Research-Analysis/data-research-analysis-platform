@@ -210,6 +210,27 @@ onMounted(() => {
                 <font-awesome icon="fas fa-circle-info" class="w-5 h-5" />
             </button>
         </div>
+
+        <!-- AI has access to Inferred Joins Indicator -->
+        <div 
+            v-if="aiDataModelerStore.preloadedSuggestions.length > 0"
+            class="mx-4 mt-3 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg"
+        >
+            <div class="flex items-center gap-2 text-sm">
+                <span class="text-xl">🤖</span>
+                <div class="flex-1">
+                    <p class="font-semibold text-blue-900">
+                        AI has {{ aiDataModelerStore.preloadedSuggestions.length }} suggested JOIN relationships
+                    </p>
+                    <p class="text-xs text-blue-700 mt-0.5">
+                        Automatically uses smart joins for Excel/PDF tables without foreign keys
+                    </p>
+                </div>
+                <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-bold rounded-full">
+                    {{ aiDataModelerStore.preloadedSuggestions.length }}
+                </span>
+            </div>
+        </div>
         
         <!-- Messages Area (Scrollable) -->
         <div 
