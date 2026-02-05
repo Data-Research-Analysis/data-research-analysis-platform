@@ -4980,11 +4980,6 @@ function validateAndTransformAIModel(aiModel) {
                     const logicalKey = tablePhysicalToLogical.get(physicalKey) || physicalKey;
                     return `<li><strong>${logicalKey}</strong></li>`;
                 }).join('');
-                // Build table list with logical names for user-friendly display
-                const tableDisplayNames = Array.from(uniqueTables).map(physicalKey => {
-                    const logicalKey = tablePhysicalToLogical.get(physicalKey) || physicalKey;
-                    return `<li><strong>${logicalKey}</strong></li>`;
-                }).join('');
                 
                 // Show error - cannot proceed without JOINs
                 $swal.fire({
