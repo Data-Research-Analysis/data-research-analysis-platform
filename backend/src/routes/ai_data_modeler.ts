@@ -203,4 +203,19 @@ router.get(
     }
 );
 
+/**
+ * Get suggested JOIN relationships for cross-source data models
+ * GET /api/ai-data-modeler/suggested-joins/cross-source/:projectId
+ */
+router.get(
+    '/suggested-joins/cross-source/:projectId',
+    validateJWT,
+    validate([
+        param('projectId').notEmpty().isInt().withMessage('projectId must be a valid integer')
+    ]),
+    async (req: Request, res: Response) => {
+        await AIDataModelerController.getCrossSourceSuggestedJoins(req, res);
+    }
+);
+
 export default router;

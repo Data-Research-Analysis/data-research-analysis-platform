@@ -1476,6 +1476,21 @@ Keep it concise - aim for 200-300 words total.`;
 
             // LOAD ALL MODE: Preload suggestions for entire data source
             if (loadAll) {
+                // Fetch table metadata to scope tables for this data source (if available)
+                const tableMetadata = await AIDataModelerController.fetchTableMetadata(
+                    dataSourceId,
+                    dataSourceDetails.schema,
+                    tokenDetails
+                );
+                const scopedTableNames = tableMetadata.map((m: any) => m.physical_table_name).filter(Boolean);
+                const hasScopedTables = scopedTableNames.length > 0;
+
+                if (hasScopedTables) {
+                    console.log(`[AI Controller] Scoping preload to ${scopedTableNames.length} tables from metadata`);
+                } else {
+                    console.log('[AI Controller] No table metadata found for preload scoping; falling back to full schema scan');
+                }
+
                 const joinInferenceService = (await import('../services/JoinInferenceService.js'))
                     .JoinInferenceService.getInstance();
 
@@ -1483,7 +1498,9 @@ Keep it concise - aim for 200-300 words total.`;
                     dataSource,
                     dataSourceId,
                     schemaParam || dataSourceDetails.schema,
-                    inferenceOptions
+                    inferenceOptions,
+                    20,
+                    hasScopedTables ? scopedTableNames : undefined
                 );
 
                 // Get analyzed table names for response
@@ -1602,6 +1619,199 @@ Keep it concise - aim for 200-300 words total.`;
                 error: 'Failed to fetch suggested joins',
                 details: error instanceof Error ? error.message : 'Unknown error'
             });
+        }
+    }
+
+    /**
+     * Get suggested JOIN relationships for cross-source data models
+     * GET /api/ai-data-modeler/suggested-joins/cross-source/:projectId
+     * 
+     * Generates join suggestions across multiple data sources in a project.
+     * Table keys are prefixed with data_source_id for disambiguation.
+     * 
+     * Query parameters:
+     * - useAI: Enable AI-powered suggestions (optional, default: false)
+     */
+    static async getCrossSourceSuggestedJoins(req: Request, res: Response): Promise<void> {
+        try {
+            const projectId = parseInt(req.params.projectId);
+            const tokenDetails = req.body.tokenDetails;
+            const userId = tokenDetails?.user_id;
+            const useAI = req.query.useAI === 'true';
+
+            console.log(`[AI Controller] Fetching cross-source join suggestions for project ${projectId} (AI: ${useAI ? 'ENABLED' : 'DISABLED'})`);
+
+            // Get data sources for the project using DataSourceProcessor
+            const { DataSourceProcessor } = await import('../processors/DataSourceProcessor.js');
+            const dataSourceProcessor = DataSourceProcessor.getInstance();
+            
+            const dataSources = await dataSourceProcessor.getDataSourcesByProject(
+                projectId,
+                tokenDetails
+            );
+
+            if (!dataSources || dataSources.length === 0) {
+                res.status(404).json({
+                    success: false,
+                    error: 'Project not found, access denied, or no data sources available'
+                });
+                return;
+            }
+
+            console.log(`[AI Controller] Found ${dataSources.length} data sources for project ${projectId}`);
+
+            // Prepare inference options
+            const inferenceOptions = useAI ? {
+                useAI: true,
+                userId: userId,
+                conversationId: `cross-source-join-${projectId}-${Date.now()}`
+            } : undefined;
+
+            // Collect schemas from all data sources with data_source_id prefixing
+            const allTablesWithSourceId: any[] = [];
+            const dataSourceConnections: DataSource[] = [];
+
+            for (const dataSource of dataSources) {
+                try {
+                    // Get data source details (handles connection details extraction and schema determination)
+                    const dataSourceDetails = await AIDataModelerController.getDataSourceDetails(
+                        dataSource.id,
+                        tokenDetails
+                    );
+
+                    if (!dataSourceDetails) {
+                        console.warn(`[AI Controller] Could not retrieve details for data source ${dataSource.id}`);
+                        continue;
+                    }
+
+                    // Create data source connection
+                    const dsConnection = await AIDataModelerController.createDataSource(dataSourceDetails);
+
+                    if (!dsConnection.isInitialized) {
+                        await dsConnection.initialize();
+                    }
+                    dataSourceConnections.push(dsConnection);
+
+                    // Fetch table metadata using the schema from dataSourceDetails
+                    const schema = dataSourceDetails.schema;
+                    const tableMetadata = await AIDataModelerController.fetchTableMetadata(
+                        dataSource.id,
+                        schema,
+                        tokenDetails
+                    );
+
+                    // Collect table schemas
+                    const schemaCollector = new SchemaCollectorService();
+                    const tableNames = tableMetadata.map((m: any) => m.physical_table_name);
+                    const tables = await schemaCollector.collectSchemaForTables(
+                        dsConnection,
+                        schema,
+                        tableNames
+                    );
+
+                    // Add data_source_id to each table and column for disambiguation
+                    tables.forEach(table => {
+                        const metadata = tableMetadata.find((m: any) => 
+                            m.physical_table_name === table.tableName
+                        );
+
+                        // Prefix table with data_source_id in tableName for cross-source uniqueness
+                        allTablesWithSourceId.push({
+                            ...table,
+                            dataSourceId: dataSource.id,
+                            dataSourceName: dataSource.name,
+                            dataSourceType: dataSourceDetails.type,
+                            // Keep original tableName for display, add prefixed version for keys
+                            originalTableName: table.tableName,
+                            tableName: `${dataSource.id}.${table.schema}.${table.tableName}`,
+                            displayName: metadata?.logical_table_name || table.tableName,
+                            columns: table.columns.map((col: any) => ({
+                                ...col,
+                                dataSourceId: dataSource.id,
+                                sourceTable: table.tableName
+                            }))
+                        });
+                    });
+
+                    console.log(`[AI Controller] Collected ${tables.length} tables from data source ${dataSource.id} (${dataSource.name})`);
+
+                } catch (error) {
+                    console.error(`[AI Controller] Failed to process data source ${dataSource.id}:`, error);
+                    // Continue with other data sources
+                }
+            }
+
+            // Clean up all connections
+            for (const conn of dataSourceConnections) {
+                if (conn.isInitialized) {
+                    await conn.destroy();
+                }
+            }
+
+            if (allTablesWithSourceId.length === 0) {
+                res.status(200).json({
+                    success: true,
+                    data: [],
+                    count: 0,
+                    projectId: projectId,
+                    dataSourceCount: dataSources.length,
+                    message: 'No tables found in any data source'
+                });
+                return;
+            }
+
+            // Run cross-source join inference
+            const joinInferenceService = (await import('../services/JoinInferenceService.js'))
+                .JoinInferenceService.getInstance();
+            
+            const inferredJoins = await joinInferenceService.inferJoins(
+                allTablesWithSourceId,
+                inferenceOptions
+            );
+
+            console.log(`[AI Controller] Found ${inferredJoins.length} cross-source join suggestions among ${allTablesWithSourceId.length} tables`);
+
+            // Return suggestions with metadata
+            res.status(200).json({
+                success: true,
+                data: inferredJoins,
+                count: inferredJoins.length,
+                projectId: projectId,
+                dataSourceCount: dataSources.length,
+                totalTables: allTablesWithSourceId.length,
+                crossSource: true
+            });
+
+        } catch (error) {
+            console.error('[AI Controller] Error fetching cross-source suggested joins:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to fetch cross-source suggested joins',
+                details: error instanceof Error ? error.message : 'Unknown error'
+            });
+        }
+    }
+
+    /**
+     * Helper method to determine schema name based on data source type and ID
+     */
+    private static determineSchemaName(dataType: string, dataSourceId: number): string {
+        switch (dataType.toLowerCase()) {
+            case 'google_analytics':
+                return 'dra_google_analytics';
+            case 'google_ads':
+                return 'dra_google_ads';
+            case 'google_ad_manager':
+                return 'dra_google_ad_manager';
+            case 'excel':
+            case 'csv':
+            case 'pdf':
+                return 'dra_excel';
+            case 'postgresql':
+            case 'mysql':
+            case 'mariadb':
+            default:
+                return 'public';
         }
     }
 }

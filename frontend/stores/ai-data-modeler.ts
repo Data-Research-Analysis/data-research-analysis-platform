@@ -991,6 +991,97 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
     }
 
     /**
+     * Preload cross-source join suggestions for a project
+     * @param projectId Project ID containing multiple data sources
+     * @param useAI Whether to use AI-powered suggestions
+     */
+    async function preloadCrossSourceSuggestions(projectId: number, useAI: boolean = false) {
+        const cacheKey = `cross-source:${projectId}:${useAI}`;
+        
+        // Check if already loaded
+        if (suggestionsLoadedForDataSource.value === cacheKey) {
+            console.log('[AI Store] Cross-source suggestions already loaded for', cacheKey);
+            return preloadedSuggestions.value;
+        }
+
+        // Try loading from localStorage first (instant feedback)
+        if (import.meta.client) {
+            const localCacheKey = `join-suggestions:cross-source:${projectId}`;
+            const cached = localStorage.getItem(localCacheKey);
+            
+            if (cached) {
+                try {
+                    const suggestions = JSON.parse(cached);
+                    preloadedSuggestions.value = suggestions;
+                    suggestionsLoadedForDataSource.value = cacheKey;
+                    console.log('[AI Store] Loaded', suggestions.length, 'cross-source suggestions from localStorage (instant)');
+                    
+                    // Still fetch from server in background to update cache
+                    fetchCrossSourceSuggestions(projectId, useAI, localCacheKey);
+                    return suggestions;
+                } catch (e) {
+                    console.warn('[AI Store] Failed to parse cached cross-source suggestions');
+                }
+            }
+        }
+
+        // No cache, fetch from server
+        return await fetchCrossSourceSuggestions(projectId, useAI, `join-suggestions:cross-source:${projectId}`);
+    }
+
+    /**
+     * Helper function to fetch cross-source suggestions from backend
+     */
+    async function fetchCrossSourceSuggestions(projectId: number, useAI: boolean, cacheKey: string) {
+        isPreloading.value = true;
+        preloadError.value = null;
+
+        try {
+            const token = getAuthToken();
+            if (!token) {
+                console.warn('[AI Store] No auth token available');
+                return [];
+            }
+
+            const config = useRuntimeConfig();
+            const url = `${config.public.apiBase}/ai-data-modeler/suggested-joins/cross-source/${projectId}${useAI ? '?useAI=true' : ''}`;
+            
+            console.log('[AI Store] Preloading cross-source suggestions from:', url);
+
+            const response = await $fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Authorization-Type': 'auth'
+                },
+                credentials: 'include'
+            });
+
+            if (response && response.success) {
+                preloadedSuggestions.value = response.data || [];
+                suggestionsLoadedForDataSource.value = `cross-source:${projectId}:${useAI}`;
+                
+                // Sync to localStorage
+                if (import.meta.client) {
+                    localStorage.setItem(cacheKey, JSON.stringify(preloadedSuggestions.value));
+                }
+
+                console.log('[AI Store] Preloaded', preloadedSuggestions.value.length, 'cross-source suggestions');
+                return preloadedSuggestions.value;
+            } else {
+                console.warn('[AI Store] Cross-source preload failed:', response);
+                return [];
+            }
+        } catch (error) {
+            console.error('[AI Store] Failed to preload cross-source suggestions:', error);
+            preloadError.value = error instanceof Error ? error.message : 'Unknown error';
+            return [];
+        } finally {
+            isPreloading.value = false;
+        }
+    }
+
+    /**
      * Clear all suggestions and reset state
      */
     function clearSuggestions() {
@@ -1104,6 +1195,7 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
         // Suggested Joins Actions (Issue #270)
         fetchSuggestedJoins,
         preloadSuggestionsForDataSource,
+        preloadCrossSourceSuggestions,
         applySuggestion,
         dismissSuggestion,
         clearSuggestions

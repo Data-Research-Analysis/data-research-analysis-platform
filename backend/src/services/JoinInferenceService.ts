@@ -445,10 +445,12 @@ export class JoinInferenceService {
                         id: `inferred_join_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                         left_schema: table1.schema,
                         left_table: table1.tableName,
+                        left_table_display: table1.displayName || table1.tableName,
                         left_column: col1.column_name,
                         left_column_type: col1.data_type,
                         right_schema: table2.schema,
                         right_table: table2.tableName,
+                        right_table_display: table2.displayName || table2.tableName,
                         right_column: col2.column_name,
                         right_column_type: col2.data_type,
                         confidence: this.getConfidenceLevel(match.confidence),
@@ -949,10 +951,12 @@ Return ONLY a JSON array of suggestions. Example format:
                     id: `ai_join_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                     left_schema: leftTable.schema,
                     left_table: leftTable.tableName,
+                    left_table_display: leftTable.displayName || leftTable.tableName,
                     left_column: leftColumn.column_name,
                     left_column_type: leftColumn.data_type,
                     right_schema: rightTable.schema,
                     right_table: rightTable.tableName,
+                    right_table_display: rightTable.displayName || rightTable.tableName,
                     right_column: rightColumn.column_name,
                     right_column_type: rightColumn.data_type,
                     confidence: this.getConfidenceLevel(confidenceScore),
@@ -1041,11 +1045,17 @@ Return ONLY a JSON array of suggestions. Example format:
         dataSourceId: number,
         schemaName?: string,
         options?: IJoinInferenceOptions,
-        maxTables: number = 20
+        maxTables: number = 20,
+        tableNames?: string[]
     ): Promise<IInferredJoin[]> {
         const startTime = Date.now();
+        const normalizedTableNames = tableNames && tableNames.length > 0
+            ? [...tableNames].sort().join(',')
+            : '';
         // Use numeric dataSourceId for unique cache key per Excel file
-        const cacheKey = `join-suggestions:ds${dataSourceId}:${schemaName || 'default'}`;
+        const cacheKey = normalizedTableNames
+            ? `join-suggestions:ds${dataSourceId}:${schemaName || 'default'}:tables:${normalizedTableNames}`
+            : `join-suggestions:ds${dataSourceId}:${schemaName || 'default'}`;
 
         console.log(`[JoinInferenceService] Inferring joins for data source ID: ${dataSourceId}`);
 
@@ -1066,15 +1076,25 @@ Return ONLY a JSON array of suggestions. Example format:
             // Continue without cache
         }
 
-        // Collect schema for all tables
+        // Collect schema for all tables (or a filtered set if provided)
         const schemaCollector = new SchemaCollectorService();
         let tables: ITableSchema[];
+        const databaseType = dataSource.options.type;
+        const effectiveSchemaName = schemaName || (databaseType === 'postgres'
+            ? 'public'
+            : dataSource.options.database as string);
 
         try {
-            const collectedTables = await schemaCollector.collectSchema(
-                dataSource, 
-                schemaName
-            );
+            const collectedTables = tableNames && tableNames.length > 0
+                ? await schemaCollector.collectSchemaForTables(
+                    dataSource,
+                    effectiveSchemaName,
+                    tableNames
+                )
+                : await schemaCollector.collectSchema(
+                    dataSource,
+                    schemaName
+                );
 
             // Limit to maxTables to prevent performance issues
             if (collectedTables.length > maxTables) {
