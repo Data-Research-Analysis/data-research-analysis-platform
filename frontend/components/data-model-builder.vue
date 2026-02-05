@@ -1273,9 +1273,7 @@ function getTablesWithAliases() {
 function hasMultipleTables() {
     const tables = new Set();
     state.data_table.columns.forEach(col => {
-        const tableKey = col.table_alias
-            ? `${col.schema}.${col.table_name}::${col.table_alias}`
-            : `${col.schema}.${col.table_name}`;
+        const tableKey = getTableKeyForColumn(col, true);
         tables.add(tableKey);
     });
     return tables.size > 1;
@@ -1288,16 +1286,20 @@ function getAvailableTablesForJoin() {
     const tables = new Map();
 
     state.data_table.columns.forEach(col => {
-        const key = col.table_alias
-            ? `${col.schema}.${col.table_name}::${col.table_alias}`
-            : `${col.schema}.${col.table_name}`;
+        const key = getTableKeyForColumn(col, true);
 
         // Use logical name if available, fallback to physical name
         const logicalName = col.table_logical_name || getTableLogicalName(col.schema, col.table_name);
-        
-        const label = col.table_alias
+        const sourceTable = findSourceTableForColumn(col);
+        const sourceLabel = props.isCrossSource
+            ? (sourceTable?.data_source_name || `DS ${col.data_source_id || 'unknown'}`)
+            : '';
+        const baseLabel = col.table_alias
             ? `${col.schema}.${col.table_alias} (${logicalName})`
             : `${col.schema}.${logicalName}`;
+        const label = props.isCrossSource && sourceLabel
+            ? `${sourceLabel} · ${baseLabel}`
+            : baseLabel;
 
         if (!tables.has(key)) {
             tables.set(key, {
@@ -1306,7 +1308,8 @@ function getAvailableTablesForJoin() {
                 schema: col.schema,
                 table_name: col.table_name,
                 table_alias: col.table_alias || null,
-                logical_name: logicalName
+                logical_name: logicalName,
+                data_source_id: col.data_source_id
             });
         }
     });
@@ -1318,26 +1321,42 @@ function getAvailableTablesForJoin() {
  * Parse table key format "schema.table::alias" or "schema.table"
  */
 function parseTableKey(tableKey) {
-    if (!tableKey) return { schema: '', table: '', alias: null };
+    if (!tableKey) return { dataSourceId: null, schema: '', table: '', alias: null };
 
     const hasAlias = tableKey.includes('::');
     if (hasAlias) {
         const [schemaTable, alias] = tableKey.split('::');
-        const [schema, table] = schemaTable.split('.');
-        return { schema, table, alias };
+        const parts = schemaTable.split('.');
+        if (parts.length === 3) {
+            const [dataSourceId, schema, table] = parts;
+            return { dataSourceId: Number(dataSourceId) || null, schema, table, alias };
+        }
+        const [schema, table] = parts;
+        return { dataSourceId: null, schema, table, alias };
     } else {
-        const [schema, table] = tableKey.split('.');
-        return { schema, table, alias: null };
+        const parts = tableKey.split('.');
+        if (parts.length === 3) {
+            const [dataSourceId, schema, table] = parts;
+            return { dataSourceId: Number(dataSourceId) || null, schema, table, alias: null };
+        }
+        const [schema, table] = parts;
+        return { dataSourceId: null, schema, table, alias: null };
     }
 }
 
 /**
  * Get columns for a specific table (for JOIN condition dropdowns)
  */
-function getColumnsForTable(tableName, tableAlias = null) {
+function getColumnsForTable(tableName, tableAlias = null, dataSourceId = null) {
     const columns = state.data_table.columns.filter(col => {
         if (tableAlias) {
+            if (dataSourceId && props.isCrossSource) {
+                return col.table_alias === tableAlias && col.data_source_id === dataSourceId;
+            }
             return col.table_alias === tableAlias;
+        }
+        if (dataSourceId && props.isCrossSource) {
+            return col.table_name === tableName && !col.table_alias && col.data_source_id === dataSourceId;
         }
         return col.table_name === tableName && !col.table_alias;
     });
@@ -1402,7 +1421,7 @@ function getColumnsForJoinForm(side) {
     if (!tableKey) return [];
 
     const tableInfo = parseTableKey(tableKey);
-    return getColumnsForTable(tableInfo.table, tableInfo.alias);
+    return getColumnsForTable(tableInfo.table, tableInfo.alias, tableInfo.dataSourceId);
 }
 
 /**
@@ -1450,11 +1469,20 @@ async function createJoinCondition() {
 
     // Check for duplicate JOIN
     const isDuplicate = state.join_conditions.some(join => {
+        const leftSourceMatch = !props.isCrossSource ||
+            !leftInfo.dataSourceId ||
+            join.left_data_source_id === leftInfo.dataSourceId;
+        const rightSourceMatch = !props.isCrossSource ||
+            !rightInfo.dataSourceId ||
+            join.right_data_source_id === rightInfo.dataSourceId;
+
         return (
             join.left_table_name === leftInfo.table &&
             join.left_column_name === state.join_form.left_column &&
             join.right_table_name === rightInfo.table &&
-            join.right_column_name === state.join_form.right_column
+            join.right_column_name === state.join_form.right_column &&
+            leftSourceMatch &&
+            rightSourceMatch
         );
     });
 
@@ -1473,11 +1501,13 @@ async function createJoinCondition() {
         left_table_schema: leftInfo.schema,
         left_table_name: leftInfo.table,
         left_table_alias: leftInfo.alias,
+        left_data_source_id: leftInfo.dataSourceId,
         left_column_name: state.join_form.left_column,
 
         right_table_schema: rightInfo.schema,
         right_table_name: rightInfo.table,
         right_table_alias: rightInfo.alias,
+        right_data_source_id: rightInfo.dataSourceId,
         right_column_name: state.join_form.right_column,
 
         join_type: state.join_form.join_type,
@@ -1759,6 +1789,25 @@ function handleDismissSuggestedJoin(suggestionId) {
     console.log('[Data Model Builder] Dismissed suggestion:', suggestionId);
 }
 
+function getTableKeyForColumn(col, includeAlias = false) {
+    const dataSourcePrefix = props.isCrossSource && col.data_source_id
+        ? `${col.data_source_id}.`
+        : '';
+    const baseKey = `${dataSourcePrefix}${col.schema}.${col.table_name}`;
+    if (includeAlias && col.table_alias) {
+        return `${baseKey}::${col.table_alias}`;
+    }
+    return baseKey;
+}
+
+function findSourceTableForColumn(col) {
+    return state.tables?.find(t =>
+        t.table_name === col.table_name &&
+        t.schema === col.schema &&
+        (!props.isCrossSource || !col.data_source_id || t.data_source_id === col.data_source_id)
+    );
+}
+
 /**
  * Auto-detect JOIN conditions from foreign key relationships
  */
@@ -1769,22 +1818,26 @@ function autoDetectJoinConditions() {
     // Get unique tables from selected columns
     const uniqueTables = new Map();
     state.data_table.columns.forEach(col => {
-        const key = col.table_alias
-            ? `${col.schema}.${col.table_name}::${col.table_alias}`
-            : `${col.schema}.${col.table_name}`;
+        const key = getTableKeyForColumn(col, true);
 
         if (!uniqueTables.has(key)) {
             uniqueTables.set(key, {
                 schema: col.schema,
                 table_name: col.table_name,
-                table_alias: col.table_alias || null
+                table_alias: col.table_alias || null,
+                data_source_id: col.data_source_id
             });
         }
     });
 
     const dataTables = Array.from(uniqueTables.values());
     console.log('[autoDetectJoinConditions] Unique tables in model:', dataTables.length,
-        dataTables.map(t => t.table_alias ? `${t.schema}.${t.table_name} AS ${t.table_alias}` : `${t.schema}.${t.table_name}`));
+        dataTables.map(t => {
+            const base = props.isCrossSource && t.data_source_id
+                ? `${t.data_source_id}.${t.schema}.${t.table_name}`
+                : `${t.schema}.${t.table_name}`;
+            return t.table_alias ? `${base} AS ${t.table_alias}` : base;
+        }));
 
     if (dataTables.length < 2) {
         console.log('[autoDetectJoinConditions] Less than 2 tables, no JOINs needed');
@@ -1815,15 +1868,19 @@ function autoDetectJoinConditions() {
     const connectedPairs = new Set();
 
     // Helper to check if two tables are already connected
-    function areTablesConnected(schema1, table1, schema2, table2) {
-        const key1 = `${schema1}.${table1}::${schema2}.${table2}`;
-        const key2 = `${schema2}.${table2}::${schema1}.${table1}`;
+    function areTablesConnected(schema1, table1, schema2, table2, dataSourceId1, dataSourceId2) {
+        const prefix1 = props.isCrossSource && dataSourceId1 ? `${dataSourceId1}.` : '';
+        const prefix2 = props.isCrossSource && dataSourceId2 ? `${dataSourceId2}.` : '';
+        const key1 = `${prefix1}${schema1}.${table1}::${prefix2}${schema2}.${table2}`;
+        const key2 = `${prefix2}${schema2}.${table2}::${prefix1}${schema1}.${table1}`;
         return connectedPairs.has(key1) || connectedPairs.has(key2);
     }
 
     // Helper to mark tables as connected
-    function markTablesConnected(schema1, table1, schema2, table2) {
-        const key = `${schema1}.${table1}::${schema2}.${table2}`;
+    function markTablesConnected(schema1, table1, schema2, table2, dataSourceId1, dataSourceId2) {
+        const prefix1 = props.isCrossSource && dataSourceId1 ? `${dataSourceId1}.` : '';
+        const prefix2 = props.isCrossSource && dataSourceId2 ? `${dataSourceId2}.` : '';
+        const key = `${prefix1}${schema1}.${table1}::${prefix2}${schema2}.${table2}`;
         connectedPairs.add(key);
         console.log(`[autoDetectJoinConditions] Marked connected: ${key}`);
     }
@@ -1834,7 +1891,7 @@ function autoDetectJoinConditions() {
             const table2 = dataTables[j];
 
             // Skip if tables are already connected
-            if (areTablesConnected(table1.schema, table1.table_name, table2.schema, table2.table_name)) {
+            if (areTablesConnected(table1.schema, table1.table_name, table2.schema, table2.table_name, table1.data_source_id, table2.data_source_id)) {
                 console.log(`[autoDetectJoinConditions] Tables already connected, skipping: ${table1.schema}.${table1.table_name} ↔ ${table2.schema}.${table2.table_name}`);
                 continue;
             }
@@ -1919,7 +1976,9 @@ function autoDetectJoinConditions() {
                             relationship.local_table_schema,
                             relationship.local_table_name,
                             relationship.foreign_table_schema,
-                            relationship.foreign_table_name
+                            relationship.foreign_table_name,
+                            table1.data_source_id,
+                            table2.data_source_id
                         );
 
                         console.log(`[autoDetectJoinConditions] Created JOIN: ${relationship.local_table_schema}.${relationship.local_table_name}.${relationship.local_column_name} = ${relationship.foreign_table_schema}.${relationship.foreign_table_name}.${relationship.foreign_column_name}`);
@@ -2822,7 +2881,7 @@ function buildSQLQuery(silent = false) {
         // Determine primary table: the table with the most selected columns
         const tableColumnCounts = {};
         state.data_table.columns.filter(col => col.is_selected_column).forEach(col => {
-            const tableKey = `${col.schema}.${col.table_name}`;
+            const tableKey = getTableKeyForColumn(col);
             tableColumnCounts[tableKey] = (tableColumnCounts[tableKey] || 0) + 1;
         });
 
@@ -2840,7 +2899,9 @@ function buildSQLQuery(silent = false) {
 
         // Reorder fromJoinClauses to start with the primary table
         if (primaryTable && fromJoinClauses.length > 0) {
-            const [primarySchema, primaryTableName] = primaryTable.split('.');
+            const parsedPrimary = parseTableKey(primaryTable);
+            const primarySchema = parsedPrimary.schema;
+            const primaryTableName = parsedPrimary.table;
 
             // Find a JOIN that includes the primary table
             const primaryJoinIndex = fromJoinClauses.findIndex(clause =>
@@ -3855,7 +3916,7 @@ async function applyAIGeneratedModel(model) {
             const aliasMap = new Map();
             state.data_table.columns.forEach(col => {
                 if (col.table_alias) {
-                    const key = `${col.schema}.${col.table_name}`;
+                    const key = getTableKeyForColumn(col);
                     if (!aliasMap.has(key)) {
                         aliasMap.set(key, new Set());
                     }
@@ -3865,17 +3926,24 @@ async function applyAIGeneratedModel(model) {
 
             // Add aliases to state if not already present
             aliasMap.forEach((aliases, tableKey) => {
-                const [schema, table] = tableKey.split('.');
+                const parsed = parseTableKey(tableKey);
+                const schema = parsed.schema;
+                const table = parsed.table;
+                const dataSourceId = parsed.dataSourceId;
                 aliases.forEach(alias => {
                     const exists = state.data_table.table_aliases.some(a =>
-                        a.schema === schema && a.original_table === table && a.alias === alias
+                        a.schema === schema &&
+                        a.original_table === table &&
+                        a.alias === alias &&
+                        (!props.isCrossSource || !dataSourceId || a.data_source_id === dataSourceId)
                     );
                     if (!exists) {
                         console.log(`[applyAIGeneratedModel] Registering table alias: ${schema}.${table} AS ${alias}`);
                         state.data_table.table_aliases.push({
                             schema: schema,
                             original_table: table,
-                            alias: alias
+                            alias: alias,
+                            data_source_id: dataSourceId || null
                         });
                     }
                 });
@@ -4177,7 +4245,7 @@ function validateAndTransformAIModel(aiModel) {
         // STEP 1.5: Detect and validate reflexive relationships (self-joins)
         const tableUsageCounts = {};
         aiModel.columns.forEach(col => {
-            const key = `${col.schema}.${col.table_name}`;
+            const key = getTableKeyForColumn(col);
             tableUsageCounts[key] = (tableUsageCounts[key] || 0) + 1;
         });
 
@@ -4190,7 +4258,7 @@ function validateAndTransformAIModel(aiModel) {
             reflexiveTables.forEach(([tableKey, count]) => {
                 // Verify all instances have distinct aliases
                 const columnsForTable = aiModel.columns.filter(
-                    col => `${col.schema}.${col.table_name}` === tableKey
+                    col => getTableKeyForColumn(col) === tableKey
                 );
 
                 const aliases = columnsForTable.map(col => col.table_alias).filter(Boolean);
@@ -4211,11 +4279,17 @@ function validateAndTransformAIModel(aiModel) {
 
                     // Ensure aliases are registered in state
                     uniqueAliases.forEach(alias => {
-                        const [schema, tableName] = tableKey.split('.');
+                        const parsed = parseTableKey(tableKey);
+                        const schema = parsed.schema;
+                        const tableName = parsed.table;
+                        const dataSourceId = parsed.dataSourceId;
 
                         // Check if alias already exists
                         const aliasExists = state.table_aliases.some(a =>
-                            a.schema === schema && a.original_table === tableName && a.alias === alias
+                            a.schema === schema &&
+                            a.original_table === tableName &&
+                            a.alias === alias &&
+                            (!props.isCrossSource || !dataSourceId || a.data_source_id === dataSourceId)
                         );
 
                         if (!aliasExists) {
@@ -4223,7 +4297,8 @@ function validateAndTransformAIModel(aiModel) {
                             state.table_aliases.push({
                                 schema,
                                 original_table: tableName,
-                                alias
+                                alias,
+                                data_source_id: dataSourceId || null
                             });
                         }
                     });
@@ -4283,6 +4358,9 @@ function validateAndTransformAIModel(aiModel) {
             // AI models use logical names (e.g., "user_acquisition")
             // while state.tables uses physical names (e.g., "ds52_2b702ce5")
             const sourceTable = availableTables.find(t => {
+                if (props.isCrossSource && col.data_source_id && t.data_source_id !== col.data_source_id) {
+                    return false;
+                }
                 // Match by physical name (backwards compatible)
                 if (t.table_name === col.table_name && t.schema === col.schema) {
                     return true;
@@ -4292,6 +4370,9 @@ function validateAndTransformAIModel(aiModel) {
                     console.log(`[DEBUG - AI Model Validation] ✓ Matched by logical name: ${col.table_name} -> ${t.table_name}`);
                     // IMPORTANT: Update col.table_name to physical name for subsequent processing
                     col.table_name = t.table_name;
+                    if (props.isCrossSource && !col.data_source_id && t.data_source_id) {
+                        col.data_source_id = t.data_source_id;
+                    }
                     return true;
                 }
                 return false;
@@ -4951,17 +5032,18 @@ function validateAndTransformAIModel(aiModel) {
         const tablePhysicalToLogical = new Map(); // Map physical names to logical names
         
         aiModel.columns.forEach(col => {
-            const tableKey = `${col.schema}.${col.table_name}`;
+            const tableKey = getTableKeyForColumn(col);
             uniqueTables.add(tableKey);
             
             // Find the logical name for this physical table
-            const sourceTable = state.tables?.find(t => 
-                t.table_name === col.table_name && t.schema === col.schema
-            );
+            const sourceTable = findSourceTableForColumn(col);
             
             if (sourceTable) {
                 const logicalName = sourceTable.logical_name || sourceTable.table_name;
-                tablePhysicalToLogical.set(tableKey, `${col.schema}.${logicalName}`);
+                const displayPrefix = props.isCrossSource && col.data_source_id
+                    ? `${col.data_source_id}.`
+                    : '';
+                tablePhysicalToLogical.set(tableKey, `${displayPrefix}${col.schema}.${logicalName}`);
             } else {
                 // Fallback to physical name if not found
                 tablePhysicalToLogical.set(tableKey, tableKey);
@@ -5067,25 +5149,34 @@ onMounted(async () => {
 
     // PRELOAD JOIN SUGGESTIONS: Fetch all possible joins immediately for better UX
     // This provides proactive guidance before users select columns
-    if (!props.isCrossSource && props.dataSource?.id) {
-        console.log('[Data Model Builder] Preloading join suggestions for data source:', props.dataSource.id);
+    console.log('[Data Model Builder] Preloading join suggestions', props.isCrossSource ? '(CROSS-SOURCE mode)' : '(single-source mode)');
+    
+    try {
+        const loggedInUserStore = useLoggedInUserStore();
+        const user = loggedInUserStore.getLoggedInUser();
+        const enableAI = user?.user_type === 'admin';
         
-        try {
-            const loggedInUserStore = useLoggedInUserStore();
-            const user = loggedInUserStore.getLoggedInUser();
-            const enableAI = user?.user_type === 'admin';
-            
-            if (enableAI) {
-                console.log('[Data Model Builder] AI-powered suggestions ENABLED for preloading');
-            } else {
-                console.log('[Data Model Builder] Rule-based suggestions only for preloading');
-            }
-            
+        if (enableAI) {
+            console.log('[Data Model Builder] AI-powered suggestions ENABLED for preloading');
+        } else {
+            console.log('[Data Model Builder] Rule-based suggestions only for preloading');
+        }
+        
+        if (props.isCrossSource && props.projectId) {
+            // Cross-source mode: Use project-level endpoint
+            console.log('[Data Model Builder] Preloading cross-source join suggestions for project:', props.projectId);
+            await aiDataModelerStore.preloadCrossSourceSuggestions(props.projectId, enableAI);
+            console.log('[Data Model Builder] Preloaded', aiDataModelerStore.preloadedSuggestions.length, 'cross-source join suggestions');
+        } else if (!props.isCrossSource && props.dataSource?.id) {
+            // Single-source mode: Use data source endpoint
+            console.log('[Data Model Builder] Preloading join suggestions for data source:', props.dataSource.id);
             await aiDataModelerStore.preloadSuggestionsForDataSource(props.dataSource.id, enableAI);
             console.log('[Data Model Builder] Preloaded', aiDataModelerStore.preloadedSuggestions.length, 'join suggestions');
-        } catch (error) {
-            console.error('[Data Model Builder] Failed to preload join suggestions:', error);
+        } else {
+            console.warn('[Data Model Builder] Cannot preload suggestions: missing required props');
         }
+    } catch (error) {
+        console.error('[Data Model Builder] Failed to preload join suggestions:', error);
     }
 
     if (props.dataModel && props.dataModel.query) {
@@ -5469,7 +5560,7 @@ onBeforeUnmount(() => {
                 <!-- AI-Suggested JOINs Panel (Issue #270) - PRELOADED MODE -->
                 <!-- Always show if suggestions exist, dynamically filter to selected tables -->
                 <SuggestedJoinsPanel
-                    v-if="!props.isCrossSource && aiDataModelerStore.preloadedSuggestions.length > 0"
+                    v-if="aiDataModelerStore.preloadedSuggestions.length > 0"
                     :suggestions="aiDataModelerStore.relevantSuggestions"
                     :all-suggestions="aiDataModelerStore.preloadedSuggestions"
                     :loading="aiDataModelerStore.isPreloading"
@@ -5584,7 +5675,7 @@ onBeforeUnmount(() => {
                                                     :class="readOnly ? 'cursor-not-allowed opacity-50' : ''">
                                                     <option value="">Select column...</option>
                                                     <option
-                                                        v-for="col in getColumnsForTable(join.left_table_name, join.left_table_alias)"
+                                                        v-for="col in getColumnsForTable(join.left_table_name, join.left_table_alias, join.left_data_source_id)"
                                                         :key="col.value" :value="col.value">
                                                         {{ col.label }}
                                                     </option>
@@ -5606,7 +5697,7 @@ onBeforeUnmount(() => {
                                                     :class="readOnly ? 'cursor-not-allowed opacity-50' : ''">
                                                     <option value="">Select column...</option>
                                                     <option
-                                                        v-for="col in getColumnsForTable(join.right_table_name, join.right_table_alias)"
+                                                        v-for="col in getColumnsForTable(join.right_table_name, join.right_table_alias, join.right_data_source_id)"
                                                         :key="col.value" :value="col.value">
                                                         {{ col.label }}
                                                     </option>

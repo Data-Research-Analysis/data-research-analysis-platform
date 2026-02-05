@@ -287,7 +287,8 @@ export class DataSourceProcessor {
                 return resolve([]);
             }
             const dataSources = await manager.find(DRADataSource, {
-                where: {project: project, users_platform: user}
+                where: {project: project, users_platform: user},
+                relations: ['project']
             });
             return resolve(dataSources);
         });

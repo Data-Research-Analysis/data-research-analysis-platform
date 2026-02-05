@@ -100,21 +100,32 @@ function getConfidenceIcon(confidence: string): string {
     }
 }
 
-// Get logical table name for display (fallback to physical name)
-function getTableLogicalName(schema: string, tableName: string): string {
-    if (!props.tables) return tableName;
+// Get logical table name for display (use display name from suggestion or fallback)
+function getTableLogicalName(schema: string, tableName: string, displayName?: string): string {
+    // First priority: use the display name from the suggestion
+    if (displayName) {
+        return displayName;
+    }
     
-    const table = props.tables.find(t => 
-        t.schema === schema && 
-        (t.table_name === tableName || t.physical_table_name === tableName)
-    );
+    // Second priority: look up in tables prop
+    if (props.tables) {
+        const table = props.tables.find(t => 
+            t.schema === schema && 
+            (t.table_name === tableName || t.physical_table_name === tableName)
+        );
+        
+        if (table?.logical_name) {
+            return table.logical_name;
+        }
+    }
     
-    return table?.logical_name || tableName;
+    // Fallback: use physical name
+    return tableName;
 }
 
 // Format table.column display with logical names
-function formatColumnDisplay(schema: string, table: string, column: string): string {
-    const logicalTableName = getTableLogicalName(schema, table);
+function formatColumnDisplay(schema: string, table: string, column: string, tableDisplayName?: string): string {
+    const logicalTableName = getTableLogicalName(schema, table, tableDisplayName);
     return `${logicalTableName}.${column}`;
 }
 </script>
@@ -206,13 +217,13 @@ function formatColumnDisplay(schema: string, table: string, column: string): str
                         :class="{ 'bg-green-50 border-green-400': isApplied(suggestion.id) }"
                     >
                         <!-- Join Visualization -->
-                        <div class="join-visual flex items-center gap-2 mb-3">
-                            <span class="font-mono text-sm text-gray-700">
-                                {{ formatColumnDisplay(suggestion.left_schema, suggestion.left_table, suggestion.left_column) }}
+                        <div class="join-visual flex items-center gap-2 mb-3 flex-wrap">
+                            <span class="join-visual-text font-mono text-sm text-gray-700">
+                                {{ formatColumnDisplay(suggestion.left_schema, suggestion.left_table, suggestion.left_column, suggestion.left_table_display) }}
                             </span>
                             <i class="fas fa-arrow-right text-green-600"></i>
-                            <span class="font-mono text-sm text-gray-700">
-                                {{ formatColumnDisplay(suggestion.right_schema, suggestion.right_table, suggestion.right_column) }}
+                            <span class="join-visual-text font-mono text-sm text-gray-700">
+                                {{ formatColumnDisplay(suggestion.right_schema, suggestion.right_table, suggestion.right_column, suggestion.right_table_display) }}
                             </span>
                         </div>
 
@@ -316,13 +327,13 @@ function formatColumnDisplay(schema: string, table: string, column: string): str
                         :class="{ 'bg-yellow-50 border-yellow-400': isApplied(suggestion.id) }"
                     >
                         <!-- Join Visualization -->
-                        <div class="join-visual flex items-center gap-2 mb-3">
-                            <span class="font-mono text-sm text-gray-700">
-                                {{ formatColumnDisplay(suggestion.left_schema, suggestion.left_table, suggestion.left_column) }}
+                        <div class="join-visual flex items-center gap-2 mb-3 flex-wrap">
+                            <span class="join-visual-text font-mono text-sm text-gray-700">
+                                {{ formatColumnDisplay(suggestion.left_schema, suggestion.left_table, suggestion.left_column, suggestion.left_table_display) }}
                             </span>
                             <i class="fas fa-arrow-right text-yellow-600"></i>
-                            <span class="font-mono text-sm text-gray-700">
-                                {{ formatColumnDisplay(suggestion.right_schema, suggestion.right_table, suggestion.right_column) }}
+                            <span class="join-visual-text font-mono text-sm text-gray-700">
+                                {{ formatColumnDisplay(suggestion.right_schema, suggestion.right_table, suggestion.right_column, suggestion.right_table_display) }}
                             </span>
                         </div>
 
@@ -432,13 +443,13 @@ function formatColumnDisplay(schema: string, table: string, column: string): str
                         :class="{ 'bg-orange-50 border-orange-400': isApplied(suggestion.id) }"
                     >
                         <!-- Join Visualization -->
-                        <div class="join-visual flex items-center gap-2 mb-3">
-                            <span class="font-mono text-sm text-gray-700">
-                                {{ formatColumnDisplay(suggestion.left_schema, suggestion.left_table, suggestion.left_column) }}
+                        <div class="join-visual flex items-center gap-2 mb-3 flex-wrap">
+                            <span class="join-visual-text font-mono text-sm text-gray-700">
+                                {{ formatColumnDisplay(suggestion.left_schema, suggestion.left_table, suggestion.left_column, suggestion.left_table_display) }}
                             </span>
                             <i class="fas fa-arrow-right text-orange-600"></i>
-                            <span class="font-mono text-sm text-gray-700">
-                                {{ formatColumnDisplay(suggestion.right_schema, suggestion.right_table, suggestion.right_column) }}
+                            <span class="join-visual-text font-mono text-sm text-gray-700">
+                                {{ formatColumnDisplay(suggestion.right_schema, suggestion.right_table, suggestion.right_column, suggestion.right_table_display) }}
                             </span>
                         </div>
 
@@ -542,5 +553,12 @@ function formatColumnDisplay(schema: string, table: string, column: string): str
 
 .suggestion-card:hover {
     transform: translateY(-2px);
+}
+
+.join-visual-text {
+    min-width: 0;
+    flex: 1 1 0;
+    word-break: break-all;
+    overflow-wrap: anywhere;
 }
 </style>

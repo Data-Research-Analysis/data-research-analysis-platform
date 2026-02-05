@@ -19,10 +19,16 @@ export interface IInferredJoin {
     left_schema: string;
 
     /**
-     * Left table name
-     * Example: 'orders'
+     * Left table name (physical)
+     * Example: 'orders', 'ds2_42d115c3'
      */
     left_table: string;
+
+    /**
+     * Left table display name (logical/user-friendly)
+     * Example: 'Orders', 'Sales Data'
+     */
+    left_table_display?: string;
 
     /**
      * Left column name
@@ -43,10 +49,16 @@ export interface IInferredJoin {
     right_schema: string;
 
     /**
-     * Right table name
-     * Example: 'customers'
+     * Right table name (physical)
+     * Example: 'customers', 'ds3_89a234b1'
      */
     right_table: string;
+
+    /**
+     * Right table display name (logical/user-friendly)
+     * Example: 'Customers', 'User Profiles'
+     */
+    right_table_display?: string;
 
     /**
      * Right column name
