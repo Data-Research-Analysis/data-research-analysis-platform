@@ -112,6 +112,46 @@ export class AIDataModelerController {
                             existingSession.messages = [initialMessage];
                         }
 
+                        // Extract inferred joins from schema context
+                        let inferredJoins = existingSession.schemaContext?.inferredJoins || [];
+                        
+                        // CRITICAL: Regenerate inferred joins if missing or empty
+                        // This handles cases where old sessions didn't have joins or displayNames weren't set
+                        if (inferredJoins.length === 0 && existingSession.schemaContext?.tables) {
+                            console.log('[AIDataModelerController] No inferred joins found in Redis, regenerating...');
+                            
+                            // Re-fetch table metadata to get current logical names
+                            const tableMetadata = await AIDataModelerController.fetchTableMetadata(
+                                dataSourceId,
+                                dataSourceDetails.schema,
+                                tokenDetails
+                            );
+                            
+                            // Merge displayNames into cached tables
+                            const tablesWithDisplayNames = existingSession.schemaContext.tables.map((table: any) => {
+                                const metadata = tableMetadata.find(
+                                    m => m.physical_table_name === table.tableName && m.schema_name === table.schema
+                                );
+                                return {
+                                    ...table,
+                                    displayName: metadata?.logical_table_name || table.displayName || table.tableName
+                                };
+                            });
+                            
+                            // Run join inference with updated displayNames
+                            const joinInferenceService = (await import('../services/JoinInferenceService.js')).JoinInferenceService.getInstance();
+                            inferredJoins = await joinInferenceService.inferJoins(tablesWithDisplayNames);
+                            console.log(`[AIDataModelerController] Regenerated ${inferredJoins.length} inferred join suggestions`);
+                            
+                            // Update schemaContext in Redis for future restores
+                            existingSession.schemaContext.tables = tablesWithDisplayNames;
+                            existingSession.schemaContext.inferredJoins = inferredJoins;
+                            await redisService.saveSchemaContext(dataSourceId, userId, existingSession.schemaContext);
+                        }
+                        
+                        const inferredJoinCount = inferredJoins.length;
+                        const topInferredJoins = inferredJoins.slice(0, 10);
+
                         res.status(200).json({
                             conversationId: existingSession.metadata.conversationId,
                             messages: existingSession.messages,
@@ -119,6 +159,8 @@ export class AIDataModelerController {
                             schemaContext: existingSession.schemaContext,
                             schemaDetails,
                             schemaSummary,
+                            inferredJoinCount,
+                            inferredJoins: topInferredJoins,
                             source: 'redis',
                             message: 'Session restored from Redis'
                         });
@@ -172,8 +214,14 @@ export class AIDataModelerController {
                 };
             });
 
-            // Format schema to markdown with display names
-            const schemaMarkdown = SchemaFormatterUtility.formatSchemaToMarkdown(tablesWithDisplayNames);
+            // Run join inference for pattern-based suggestions
+            console.log('[AIDataModelerController] Running join inference for session initialization...');
+            const joinInferenceService = (await import('../services/JoinInferenceService.js')).JoinInferenceService.getInstance();
+            const inferredJoins = await joinInferenceService.inferJoins(tablesWithDisplayNames);
+            console.log(`[AIDataModelerController] Found ${inferredJoins.length} inferred join suggestions`);
+
+            // Format schema to markdown WITH inferred joins
+            const schemaMarkdown = SchemaFormatterUtility.formatSchemaToMarkdown(tablesWithDisplayNames, inferredJoins);
             const schemaSummary = SchemaFormatterUtility.getSchemaSummary(tablesWithDisplayNames);
             const schemaDetails = AIDataModelerController.extractSchemaDetails(tablesWithDisplayNames);
 
@@ -196,10 +244,11 @@ export class AIDataModelerController {
                 await dataSource.destroy();
             }
 
-            // Create schema context with display names
+            // Create schema context with display names AND inferred joins
             const schemaContext = {
                 tables: tablesWithDisplayNames,
-                relationships: []
+                relationships: [],
+                inferredJoins: inferredJoins // Store for tracking which joins AI uses
             };
 
             // Create session in Redis
@@ -287,6 +336,8 @@ Keep it concise - aim for 200-300 words total.`;
                 schemaContext,
                 schemaSummary,
                 schemaDetails,
+                inferredJoinCount: inferredJoins.length,
+                inferredJoins: inferredJoins.slice(0, 10), // Return top 10 for immediate UI display
                 source: 'new',
                 message: 'New session initialized successfully'
             });
@@ -1430,6 +1481,7 @@ Keep it concise - aim for 200-300 words total.`;
 
                 inferredJoins = await joinInferenceService.inferJoinsFromDataSource(
                     dataSource,
+                    dataSourceId,
                     schemaParam || dataSourceDetails.schema,
                     inferenceOptions
                 );

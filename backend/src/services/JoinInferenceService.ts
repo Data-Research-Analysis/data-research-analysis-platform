@@ -295,7 +295,8 @@ export class JoinInferenceService {
                 if (colLower.endsWith('_id') || colLower.endsWith('_key')) {
                     const refTableName = colLower.replace(/_(id|key)$/, '');
                     
-                    console.log(`[JoinInferenceService] Checking column ${col.column_name} → extracted name: ${refTableName}`);
+                    console.log(`[JoinInferenceService] ===== Analyzing column: ${table.tableName}.${col.column_name} =====`);
+                    console.log(`[JoinInferenceService]   Extracted reference name: "${refTableName}"`);
                     
                     // Check PHYSICAL table names first (existing logic)
                     let matchingTable = tables.find(t => {
@@ -305,15 +306,33 @@ export class JoinInferenceService {
                                tLower === this.getSingular(refTableName);
                     });
                     
-                    // If no physical match, check LOGICAL names
-                    if (!matchingTable) {
+                    if (matchingTable) {
+                        console.log(`[JoinInferenceService]   ✓ Matched via physical name: ${refTableName} → ${matchingTable.tableName}`);
+                    } else {
+                        console.log(`[JoinInferenceService]   ✗ No physical name match for: ${refTableName}`);
+                        console.log(`[JoinInferenceService]   Trying logical name lookup in map...`);
+                        
+                        // If no physical match, check LOGICAL names
                         matchingTable = logicalNameMap.get(refTableName);
                         
                         if (matchingTable) {
-                            console.log(`[JoinInferenceService] ✓ Matched via logical name: ${refTableName} → ${matchingTable.displayName} (${matchingTable.tableName})`);
+                            console.log(`[JoinInferenceService]   ✓ Matched via logical name: ${refTableName} → ${matchingTable.displayName} (${matchingTable.tableName})`);
+                        } else {
+                            console.log(`[JoinInferenceService]   ✗ No logical name match for: "${refTableName}"`);
+                            console.log(`[JoinInferenceService]   Available logical names: [${Array.from(logicalNameMap.keys()).join(', ')}]`);
+                            
+                            // Try with singular form explicitly
+                            const singularRef = this.getSingular(refTableName);
+                            if (singularRef !== refTableName) {
+                                console.log(`[JoinInferenceService]   Trying singular form: "${singularRef}"`);
+                                matchingTable = logicalNameMap.get(singularRef);
+                                if (matchingTable) {
+                                    console.log(`[JoinInferenceService]   ✓ Matched via singular: ${singularRef} → ${matchingTable.displayName} (${matchingTable.tableName})`);
+                                } else {
+                                    console.log(`[JoinInferenceService]   ✗ Singular form also not found: "${singularRef}"`);
+                                }
+                            }
                         }
-                    } else {
-                        console.log(`[JoinInferenceService] ✓ Matched via physical name: ${refTableName} → ${matchingTable.tableName}`);
                     }
                     
                     if (matchingTable) {
@@ -324,7 +343,12 @@ export class JoinInferenceService {
                                 tableName: matchingTable.tableName,
                                 column: col.column_name
                             });
+                            console.log(`[JoinInferenceService]   ✓ Added to referenced tables: ${matchingTable.tableName}`);
+                        } else {
+                            console.log(`[JoinInferenceService]   ⚠ Already in referenced tables: ${matchingTable.tableName}`);
                         }
+                    } else {
+                        console.log(`[JoinInferenceService]   ✗ FINAL: No match found for column ${col.column_name}`);
                     }
                 }
             }
@@ -1014,15 +1038,16 @@ Return ONLY a JSON array of suggestions. Example format:
      */
     public async inferJoinsFromDataSource(
         dataSource: DataSource,
+        dataSourceId: number,
         schemaName?: string,
         options?: IJoinInferenceOptions,
         maxTables: number = 20
     ): Promise<IInferredJoin[]> {
         const startTime = Date.now();
-        const dataSourceId = (dataSource.options as any).database || 'unknown';
-        const cacheKey = `join-suggestions:${dataSourceId}:${schemaName || 'default'}`;
+        // Use numeric dataSourceId for unique cache key per Excel file
+        const cacheKey = `join-suggestions:ds${dataSourceId}:${schemaName || 'default'}`;
 
-        console.log(`[JoinInferenceService] Inferring joins for entire data source: ${dataSourceId}`);
+        console.log(`[JoinInferenceService] Inferring joins for data source ID: ${dataSourceId}`);
 
         // Try Redis cache first
         try {
@@ -1065,11 +1090,32 @@ Return ONLY a JSON array of suggestions. Example format:
             return [];
         }
 
-        // Convert to ITableSchema format with displayName
+        // Fetch display names from dra_table_metadata (platform database)
+        // Use dataSource which is already connected (passed from controller)
+        let displayNameMap = new Map<string, string>();
+        
+        try {
+            const metadataQuery = `
+                SELECT physical_table_name, logical_table_name
+                FROM dra_table_metadata
+                WHERE data_source_id = $1 AND schema_name = $2
+            `;
+            const metadata = await dataSource.query(metadataQuery, [dataSourceId, schemaName || 'public']);
+            
+            // Build lookup map: physical_table_name → logical_table_name
+            metadata.forEach((row: any) => {
+                displayNameMap.set(row.physical_table_name, row.logical_table_name);
+            });
+        } catch (error) {
+            console.warn(`[JoinInferenceService] Failed to fetch metadata, using physical names:`, error);
+            // Continue with physical names as fallback
+        }
+
+        // Convert to ITableSchema format with displayName from metadata
         const formattedTables: ITableSchema[] = tables.map(t => ({
             schema: t.schema,
             tableName: t.tableName,
-            displayName: t.tableName, // TODO: Get logical name from dra_table_metadata
+            displayName: displayNameMap.get(t.tableName) || t.tableName,
             columns: t.columns,
             primaryKeys: t.primaryKeys,
             foreignKeys: t.foreignKeys
@@ -1078,11 +1124,11 @@ Return ONLY a JSON array of suggestions. Example format:
         // Run inference on all tables
         const suggestions = await this.inferJoins(formattedTables, options);
 
-        // Cache results for 24 hours
+        // Cache results for 24 hours (unique per data source ID)
         try {
             const redis = getRedisClient();
             await redis.setex(cacheKey, 86400, JSON.stringify(suggestions));
-            console.log(`[JoinInferenceService] Cached ${suggestions.length} suggestions for 24 hours`);
+            console.log(`[JoinInferenceService] Cached ${suggestions.length} suggestions at ${cacheKey} (24h TTL, unique per data source)`);
         } catch (error) {
             console.warn(`[JoinInferenceService] Failed to cache results:`, error);
             // Continue without caching

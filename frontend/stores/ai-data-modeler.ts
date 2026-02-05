@@ -159,12 +159,35 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
                 source: data.source,
                 conversationId: data.conversationId,
                 messageCount: data.messages?.length || 0,
+                inferredJoinCount: data.inferredJoinCount || 0,
                 messages: data.messages
             });
             
             conversationId.value = data.conversationId;
             sessionSource.value = data.source;
             modelDraft.value = data.modelDraft;
+            
+            // Store inferred joins if provided by backend
+            // CRITICAL: Only set if preloadedSuggestions is empty to avoid overwriting the full AI-powered preload
+            if (data.inferredJoins && Array.isArray(data.inferredJoins)) {
+                // If preloadedSuggestions already has data from the builder's preload (with AI), keep it
+                if (preloadedSuggestions.value.length === 0) {
+                    preloadedSuggestions.value = data.inferredJoins;
+                    suggestionsLoadedForDataSource.value = `${dataSourceId}:session`;
+                    console.log('[AI Store] Loaded', data.inferredJoins.length, 'inferred joins from session');
+                    console.log('[AI Store] Inferred joins detail:', data.inferredJoins.map(j => 
+                        `${j.left_schema}.${j.left_table}.${j.left_column} → ${j.right_schema}.${j.right_table}.${j.right_column}`
+                    ));
+                    
+                    // Sync to localStorage
+                    if (import.meta.client) {
+                        localStorage.setItem(
+                            `join-suggestions:${dataSourceId}`,
+                            JSON.stringify(data.inferredJoins)
+                        );
+                    }
+                }
+            }
             
             // Store schema details for pattern detection
             if (data.schemaDetails) {

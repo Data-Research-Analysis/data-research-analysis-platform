@@ -281,7 +281,7 @@ const allAvailableColumns = computed(() => {
 
                 columns.push({
                     value: aliasName,
-                    display: `${funcName}(${expressionDisplay})${aggExpr.use_distinct ? ' [DISTINCT]' : ''} AS ${aliasName}`,
+                    display: `${expressionDisplay} AS ${aliasName}`,
                     type: 'aggregate_expression',
                     data_type: 'NUMBER',
                     is_aggregate: true,
@@ -4355,6 +4355,168 @@ function validateAndTransformAIModel(aiModel) {
 
         aiModel.columns = validColumns;
 
+        // STEP 3: Validate JOIN conditions against available inferred joins and foreign keys
+        if (aiModel.join_conditions && Array.isArray(aiModel.join_conditions) && aiModel.join_conditions.length > 0) {
+            console.log('[Data Model Builder] Validating', aiModel.join_conditions.length, 'AI-generated JOIN conditions...');
+            
+            // Get available inferred joins from store
+            const availableInferredJoins = aiDataModelerStore.preloadedSuggestions || [];
+            console.log('[Data Model Builder] Available inferred joins:', availableInferredJoins.length);
+            if (availableInferredJoins.length > 0) {
+                console.log('[Data Model Builder] Inferred join details:', availableInferredJoins.map(j => 
+                    `${j.left_schema}.${j.left_table}.${j.left_column} → ${j.right_schema}.${j.right_table}.${j.right_column} (confidence: ${j.confidence_score})`
+                ));
+            }
+            
+            const validJoins = [];
+            const joinErrors = [];
+            
+            aiModel.join_conditions.forEach((join, index) => {
+                // CRITICAL: AI returns left_table/right_table (no schema), but validation needs schema
+                // Extract schema from column metadata if not present in JOIN
+                if (!join.left_table_schema || !join.left_table_name) {
+                    const leftColumn = aiModel.columns.find(col =>
+                        col.table_name === join.left_table && col.column_name === join.left_column
+                    );
+                    if (leftColumn) {
+                        join.left_table_schema = leftColumn.schema;
+                        join.left_table_name = leftColumn.table_name;
+                        join.left_column_name = leftColumn.column_name;
+                    }
+                }
+                
+                if (!join.right_table_schema || !join.right_table_name) {
+                    const rightColumn = aiModel.columns.find(col =>
+                        col.table_name === join.right_table && col.column_name === join.right_column
+                    );
+                    if (rightColumn) {
+                        join.right_table_schema = rightColumn.schema;
+                        join.right_table_name = rightColumn.table_name;
+                        join.right_column_name = rightColumn.column_name;
+                    }
+                }
+                
+                console.log(`[Data Model Builder] Validating JOIN ${index + 1}:`, {
+                    left: `${join.left_table_schema}.${join.left_table_name}.${join.left_column_name}`,
+                    right: `${join.right_table_schema}.${join.right_table_name}.${join.right_column_name}`
+                });
+                
+                // Check if both tables exist in data source
+                const leftTableExists = state.tables?.some(t =>
+                    t.schema === join.left_table_schema &&
+                    (t.table_name === join.left_table_name || t.logical_name === join.left_table_name)
+                );
+                
+                const rightTableExists = state.tables?.some(t =>
+                    t.schema === join.right_table_schema &&
+                    (t.table_name === join.right_table_name || t.logical_name === join.right_table_name)
+                );
+                
+                if (!leftTableExists) {
+                    joinErrors.push(`JOIN ${index + 1}: Left table ${join.left_table_schema}.${join.left_table_name} does not exist`);
+                    return;
+                }
+                
+                if (!rightTableExists) {
+                    joinErrors.push(`JOIN ${index + 1}: Right table ${join.right_table_schema}.${join.right_table_name} does not exist`);
+                    return;
+                }
+                
+                // Translate logical table names to physical names
+                const leftTable = state.tables?.find(t =>
+                    t.schema === join.left_table_schema &&
+                    (t.table_name === join.left_table_name || t.logical_name === join.left_table_name)
+                );
+                const rightTable = state.tables?.find(t =>
+                    t.schema === join.right_table_schema &&
+                    (t.table_name === join.right_table_name || t.logical_name === join.right_table_name)
+                );
+                
+                if (leftTable && leftTable.table_name !== join.left_table_name) {
+                    console.log(`[Data Model Builder] Translated left table: ${join.left_table_name} -> ${leftTable.table_name}`);
+                    join.left_table_name = leftTable.table_name;
+                }
+                
+                if (rightTable && rightTable.table_name !== join.right_table_name) {
+                    console.log(`[Data Model Builder] Translated right table: ${join.right_table_name} -> ${rightTable.table_name}`);
+                    join.right_table_name = rightTable.table_name;
+                }
+                
+                // Check if JOIN matches an inferred join or foreign key relationship
+                const matchesInferredJoin = availableInferredJoins.some(inferred =>
+                    (inferred.left_schema === join.left_table_schema &&
+                     inferred.left_table === join.left_table_name &&
+                     inferred.left_column === join.left_column_name &&
+                     inferred.right_schema === join.right_table_schema &&
+                     inferred.right_table === join.right_table_name &&
+                     inferred.right_column === join.right_column_name) ||
+                    // Check reverse direction
+                    (inferred.right_schema === join.left_table_schema &&
+                     inferred.right_table === join.left_table_name &&
+                     inferred.right_column === join.left_column_name &&
+                     inferred.left_schema === join.right_table_schema &&
+                     inferred.left_table === join.right_table_name &&
+                     inferred.left_column === join.right_column_name)
+                );
+                
+                if (matchesInferredJoin) {
+                    console.log(`[Data Model Builder] ✓ JOIN ${index + 1} matches inferred relationship`);
+                    join.ai_suggested = true; // Mark as AI-suggested
+                    validJoins.push(join);
+                } else {
+                    // Check if it's a foreign key relationship
+                    const matchesForeignKey = leftTable?.foreignKeys?.some(fk =>
+                        fk.column_name === join.left_column_name &&
+                        fk.foreign_table_name === join.right_table_name &&
+                        fk.foreign_column_name === join.right_column_name
+                    ) || rightTable?.foreignKeys?.some(fk =>
+                        fk.column_name === join.right_column_name &&
+                        fk.foreign_table_name === join.left_table_name &&
+                        fk.foreign_column_name === join.left_column_name
+                    );
+                    
+                    if (matchesForeignKey) {
+                        console.log(`[Data Model Builder] ✓ JOIN ${index + 1} matches foreign key relationship`);
+                        join.is_auto_detected = true;
+                        validJoins.push(join);
+                    } else {
+                        // Hallucinated join - AI invented a relationship that doesn't exist
+                        console.warn(`[Data Model Builder] ⚠️ HALLUCINATED JOIN ${index + 1}: No matching relationship found`);
+                        joinErrors.push(
+                            `JOIN ${index + 1}: No relationship found between ` +
+                            `${join.left_table_schema}.${join.left_table_name}.${join.left_column_name} and ` +
+                            `${join.right_table_schema}.${join.right_table_name}.${join.right_column_name}. ` +
+                            `This JOIN is not supported by the data source.`
+                        );
+                    }
+                }
+            });
+            
+            if (joinErrors.length > 0) {
+                console.error('[Data Model Builder] JOIN validation errors:', joinErrors);
+                $swal.fire({
+                    title: 'Invalid JOINs in AI Model',
+                    html: `<div class="text-left">
+                        <p class="mb-2">The AI generated JOINs that don't exist in your data:</p>
+                        <ul class="list-disc pl-5 text-sm">${joinErrors.map(e => `<li>${e}</li>`).join('')}</ul>
+                        <p class="mt-3 text-xs text-gray-600">
+                            <strong>Note:</strong> The AI can only use relationships that exist in your schema 
+                            (foreign keys or pattern-detected joins). JOINs have been removed from the model.
+                        </p>
+                    </div>`,
+                    icon: 'warning',
+                    confirmButtonText: 'Continue Without JOINs'
+                });
+                
+                // Remove invalid joins but continue with the model
+                aiModel.join_conditions = validJoins;
+                console.log(`[Data Model Builder] Kept ${validJoins.length} valid JOINs, removed ${joinErrors.length} invalid`);
+            } else {
+                aiModel.join_conditions = validJoins;
+                console.log(`[Data Model Builder] All ${validJoins.length} JOINs validated successfully`);
+            }
+        }
+
         // CRITICAL FIX: Translate logical table names to physical names in query_options
         // After column validation, we've already translated col.table_name from logical to physical
         // Now we need to update references in GROUP BY, aggregates, WHERE, ORDER BY, etc.
@@ -4807,14 +4969,17 @@ function validateAndTransformAIModel(aiModel) {
         });
         
         if (uniqueTables.size > 1) {
-            console.warn(`[Data Model Builder] Multi-table model detected (${uniqueTables.size} tables) without JOIN conditions`);
-            console.warn('[Data Model Builder] Tables:', Array.from(uniqueTables));
-            
             // Check if we have any manual joins or join conditions defined
-            const hasJoinConditions = state.join_conditions && state.join_conditions.length > 0;
+            // CRITICAL: Check aiModel.join_conditions (the validated model) NOT state.join_conditions (not yet applied)
+            const hasJoinConditions = aiModel.join_conditions && aiModel.join_conditions.length > 0;
             const hasManualJoins = state.manual_joins && state.manual_joins.length > 0;
             
             if (!hasJoinConditions && !hasManualJoins) {
+                // Build table list with logical names for user-friendly display
+                const tableDisplayNames = Array.from(uniqueTables).map(physicalKey => {
+                    const logicalKey = tablePhysicalToLogical.get(physicalKey) || physicalKey;
+                    return `<li><strong>${logicalKey}</strong></li>`;
+                }).join('');
                 // Build table list with logical names for user-friendly display
                 const tableDisplayNames = Array.from(uniqueTables).map(physicalKey => {
                     const logicalKey = tablePhysicalToLogical.get(physicalKey) || physicalKey;

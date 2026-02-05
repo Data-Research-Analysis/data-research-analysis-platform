@@ -27,6 +27,7 @@ export interface ModelDraft {
 export interface SchemaContext {
     tables: any[];
     relationships: any[];
+    inferredJoins?: any[]; // Optional: AI-suggested JOIN relationships from JoinInferenceService
 }
 
 export class RedisAISessionService {
