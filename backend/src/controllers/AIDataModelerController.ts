@@ -4,6 +4,10 @@ import { SchemaCollectorService } from '../services/SchemaCollectorService.js';
 import { SchemaFormatterUtility } from '../utilities/SchemaFormatter.js';
 import { getGeminiService } from '../services/GeminiService.js';
 import { RedisAISessionService } from '../services/RedisAISessionService.js';
+import { DataQualityService } from '../services/DataQualityService.js';
+import { DataQualityExecutionService } from '../services/DataQualityExecutionService.js';
+import { SQLValidationService } from '../services/SQLValidationService.js';
+import { AI_DATA_QUALITY_EXPERT_PROMPT } from '../constants/system-prompts.js';
 import { DataSource } from 'typeorm';
 import { PostgresDataSource } from '../datasources/PostgresDataSource.js';
 import { MySQLDataSource } from '../datasources/MySQLDataSource.js';
@@ -1813,5 +1817,211 @@ Keep it concise - aim for 200-300 words total.`;
             default:
                 return 'public';
         }
+    }
+
+    /**
+     * Initialize quality analysis session
+     * POST /api/ai-data-modeler/quality/initialize
+     */
+    static async initializeQualitySession(req: Request, res: Response): Promise<void> {
+        try {
+            const { dataModelId } = req.body;
+            const tokenDetails = req.body.tokenDetails;
+            const userId = tokenDetails?.user_id;
+
+            if (!dataModelId || !userId) {
+                res.status(400).json({ error: 'dataModelId and userId are required' });
+                return;
+            }
+
+            // Get data model details
+            const dataModel = await AIDataModelerController.getDataModelDetails(dataModelId, tokenDetails);
+            if (!dataModel) {
+                res.status(404).json({ error: 'Data model not found' });
+                return;
+            }
+
+            // Profile the data model
+            const dataQualityService = DataQualityService.getInstance();
+            const profile = await dataQualityService.profileDataModel(dataModel);
+
+            // Format profile as markdown context for AI
+            const qualityContext = AIDataModelerController.formatQualityContext(dataModel, profile);
+
+            const redisService = new RedisAISessionService();
+
+            // Check if quality session already exists
+            const existingSession = await redisService.sessionExists(dataModelId, userId, 'data_quality');
+
+            if (existingSession) {
+                const session = await redisService.getFullSession(dataModelId, userId, 'data_quality');
+                res.status(200).json({
+                    conversationId: session.metadata?.conversationId,
+                    messages: session.messages,
+                    schemaContext: session.schemaContext,
+                    sessionType: 'data_quality',
+                    restored: true
+                });
+                return;
+            }
+
+            // Create new quality session
+            const conversationId = `quality-${dataModelId}-${userId}-${Date.now()}`;
+            
+            await redisService.createSession(
+                dataModelId,
+                userId,
+                { tables: [], relationships: [], inferredJoins: [] },
+                'data_quality'
+            );
+
+            // Save quality context
+            await redisService.saveSchemaContext(
+                dataModelId,
+                userId,
+                { tables: [profile], relationships: [], inferredJoins: [] },
+                'data_quality'
+            );
+
+            // Initialize Gemini conversation with quality expert prompt
+            const geminiService = getGeminiService();
+            await geminiService.initializeConversation(
+                conversationId,
+                qualityContext,
+                AI_DATA_QUALITY_EXPERT_PROMPT
+            );
+
+            // Add initial system message
+            await redisService.addMessage(
+                dataModelId,
+                userId,
+                'system',
+                'Data quality analysis session initialized. I can help you identify and fix data quality issues.',
+                'data_quality'
+            );
+
+            res.status(200).json({
+                conversationId,
+                dataModelId,
+                sessionType: 'data_quality',
+                status: 'initialized'
+            });
+
+        } catch (error) {
+            console.error('[AIDataModelerController] Error initializing quality session:', error);
+            res.status(500).json({
+                error: 'Failed to initialize quality session',
+                message: error.message
+            });
+        }
+    }
+
+    /**
+     * Execute AI-generated cleaning SQL
+     * POST /api/ai-data-modeler/quality/execute-sql
+     */
+    static async executeCleaningSQL(req: Request, res: Response): Promise<void> {
+        try {
+            const { dataModelId, sql, dryRun = false } = req.body;
+            const tokenDetails = req.body.tokenDetails;
+
+            if (!dataModelId || !sql) {
+                res.status(400).json({ error: 'dataModelId and sql are required' });
+                return;
+            }
+
+            // Get data model details
+            const dataModel = await AIDataModelerController.getDataModelDetails(dataModelId, tokenDetails);
+            if (!dataModel) {
+                res.status(404).json({ error: 'Data model not found' });
+                return;
+            }
+
+            // Validate SQL
+            const sqlValidator = SQLValidationService.getInstance();
+            const validation = sqlValidator.validateCleaningSQL(sql);
+
+            if (!validation.safe) {
+                res.status(400).json({
+                    error: 'SQL validation failed',
+                    issues: validation.issues,
+                    warnings: validation.warnings
+                });
+                return;
+            }
+
+            // Execute SQL
+            const executionService = DataQualityExecutionService.getInstance();
+            const result = await executionService.executeCleaningSQL(dataModel, sql, dryRun);
+
+            res.status(200).json(result);
+
+        } catch (error) {
+            console.error('[AIDataModelerController] Error executing cleaning SQL:', error);
+            res.status(500).json({
+                error: 'Failed to execute cleaning SQL',
+                message: error.message
+            });
+        }
+    }
+
+    /**
+     * Helper: Get data model details
+     */
+    private static async getDataModelDetails(dataModelId: number, tokenDetails: any): Promise<any> {
+        try {
+            const { AppDataSource } = await import('../datasources/PostgresDS.js');
+            const queryRunner = AppDataSource.createQueryRunner();
+            await queryRunner.connect();
+
+            try {
+                const result = await queryRunner.query(
+                    `SELECT * FROM "dra_data_models" WHERE id = $1`,
+                    [dataModelId]
+                );
+
+                return result.length > 0 ? result[0] : null;
+            } finally {
+                await queryRunner.release();
+            }
+        } catch (error) {
+            console.error('Error fetching data model:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Helper: Format quality context for AI
+     */
+    private static formatQualityContext(dataModel: any, profile: any): string {
+        return `
+# Data Model: ${dataModel.name}
+**Schema**: ${dataModel.schema}
+**Total Rows**: ${profile.totalRows}
+**Columns**: ${profile.columnCount}
+
+## Column Profiles
+
+${profile.columns.map((col: any) => `
+### ${col.name} (${col.type})
+- **Null Rate**: ${col.nullRate}%
+- **Distinct Values**: ${col.distinctCount} (${col.distinctRate}% unique)
+- **Sample Values**: ${col.sampleValues.slice(0, 5).join(', ')}
+${col.min !== undefined ? `- **Min**: ${col.min}` : ''}
+${col.max !== undefined ? `- **Max**: ${col.max}` : ''}
+${col.mean !== undefined ? `- **Mean**: ${col.mean.toFixed(2)}` : ''}
+${col.stdDev !== undefined ? `- **Std Dev**: ${col.stdDev.toFixed(2)}` : ''}
+`).join('\n')}
+
+## Analysis Task
+Please analyze this data model for quality issues including:
+1. Duplicate records
+2. Missing values that could be imputed
+3. Inconsistent formats (dates, country names, phone numbers, emails)
+4. Outliers in numeric columns
+5. Data standardization opportunities
+
+Provide specific SQL fixes for any issues you identify.
+        `.trim();
     }
 }
