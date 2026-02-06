@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { DataQualityProcessor } from '../processors/DataQualityProcessor.js';
 import { validateJWT } from '../middleware/authenticate.js';
 import { authorize } from '../middleware/authorize.js';
-import { Permission } from '../types/index.js';
+import { Permission } from '../constants/permissions.js';
 
 const router = Router();
 

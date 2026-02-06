@@ -6,7 +6,6 @@ import {
     IAttributionEvent,
     IAttributionWeights
 } from '../interfaces/IAttribution.js';
-import Logger from '../utils/Logger.js';
 
 /**
  * Attribution Calculator Service
@@ -43,7 +42,7 @@ export class AttributionCalculatorService {
         const { conversionEventId, model, touchpoints } = request;
 
         if (touchpoints.length === 0) {
-            Logger.warn(`[AttributionCalculator] No touchpoints for conversion ${conversionEventId}`);
+            console.warn(`[AttributionCalculator] No touchpoints for conversion ${conversionEventId}`);
             return {
                 conversionEventId,
                 model,
@@ -154,13 +153,13 @@ export class AttributionCalculatorService {
             }
 
             await queryRunner.commitTransaction();
-            Logger.info(
+            console.log(
                 `[AttributionCalculator] Saved ${result.touchpoints.length} touchpoints for conversion ${result.conversionEventId}`
             );
 
         } catch (error) {
             await queryRunner.rollbackTransaction();
-            Logger.error('[AttributionCalculator] Error saving touchpoints:', error);
+            console.error('[AttributionCalculator] Error saving touchpoints:', error);
             throw error;
         } finally {
             await queryRunner.release();
@@ -194,7 +193,7 @@ export class AttributionCalculatorService {
                 return this.calculateUShapedWeights(count);
 
             default:
-                Logger.warn(`[AttributionCalculator] Unknown model: ${model}, using linear`);
+                console.warn(`[AttributionCalculator] Unknown model: ${model}, using linear`);
                 return this.calculateLinearWeights(count);
         }
     }
@@ -328,7 +327,7 @@ export class AttributionCalculatorService {
             }));
 
         } catch (error) {
-            Logger.error('[AttributionCalculator] Error getting channel attribution:', error);
+            console.error('[AttributionCalculator] Error getting channel attribution:', error);
             return [];
         } finally {
             await queryRunner.release();

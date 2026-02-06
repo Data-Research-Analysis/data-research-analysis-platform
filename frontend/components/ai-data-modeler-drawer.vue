@@ -4,6 +4,7 @@ import { useAIDataModelerStore } from '~/stores/ai-data-modeler';
 import { useSubscriptionStore } from '~/stores/subscription';
 import { usePresetGenerator } from '~/composables/usePresetGenerator';
 import AIDataModelerChat from './AIDataModelerChat.vue';
+import AttributionDashboard from './AttributionDashboard.vue';
 
 const aiDataModelerStore = useAIDataModelerStore();
 const subscriptionStore = useSubscriptionStore();
@@ -159,11 +160,40 @@ async function executeSQLWithDryRun(dryRun: boolean = false) {
 // Extract SQL from AI message
 function extractSQLFromMessage(message: string): string[] {
     const sqlBlocks: string[] = [];
+    
+    // First, try to extract SQL from code blocks
     const sqlRegex = /```sql\n([\s\S]*?)```/g;
     let match;
     
     while ((match = sqlRegex.exec(message)) !== null) {
         sqlBlocks.push(match[1].trim());
+    }
+    
+    // If no SQL blocks, try to extract from JSON responses (data quality mode)
+    if (sqlBlocks.length === 0) {
+        const jsonBlockRegex = /```json\s*\n([\s\S]*?)\n```/;
+        const jsonMatch = message.match(jsonBlockRegex);
+        
+        if (jsonMatch) {
+            try {
+                const jsonData = JSON.parse(jsonMatch[1]);
+                // Check for SQL in various fields
+                if (jsonData.sql) {
+                    sqlBlocks.push(jsonData.sql);
+                } else if (jsonData.sql_fix) {
+                    sqlBlocks.push(jsonData.sql_fix);
+                } else if (jsonData.issues && Array.isArray(jsonData.issues)) {
+                    // Extract SQL from all issues
+                    jsonData.issues.forEach((issue: any) => {
+                        if (issue.sql_fix) {
+                            sqlBlocks.push(issue.sql_fix);
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error('Error parsing JSON for SQL extraction:', e);
+            }
+        }
     }
     
     return sqlBlocks;
@@ -185,11 +215,13 @@ function showLastSQLPreview() {
 
 // Switch session mode
 function switchMode(mode: 'data_model' | 'data_quality' | 'attribution') {
+    // Update the store's session type
+    aiDataModelerStore.sessionType = mode;
+    
     if (import.meta.client) {
         localStorage.setItem('ai-session-type', mode);
     }
-    // Note: actual mode switching should be handled by parent component
-    // This is just for UI feedback
+    
     console.log('[AI Drawer] Switched to mode:', mode);
 }
 
@@ -1004,7 +1036,6 @@ function getOrderByColumns(): string[] {
                                 </button>
                             </div>
                             </div>
-                        </div>
                             </div>
                             
                             <!-- Data Quality Mode -->
@@ -1101,14 +1132,9 @@ function getOrderByColumns(): string[] {
                             
                             <!-- Attribution Mode -->
                             <div v-else-if="aiDataModelerStore.sessionType === 'attribution'" class="flex-1 flex flex-col overflow-hidden">
-                                <div class="flex-1 flex flex-col items-center justify-center p-12 text-center">
-                                    <div class="text-6xl mb-4">📊</div>
-                                    <h3 class="text-xl font-semibold text-gray-800 mb-2">Marketing Attribution</h3>
-                                    <p class="text-gray-600 max-w-md">
-                                        Attribution features are coming soon! Track conversions and revenue across your marketing channels.
-                                    </p>
-                                </div>
+                                <AttributionDashboard />
                             </div>
+                        </div>
                     </div>
                 </Transition>
             </div>

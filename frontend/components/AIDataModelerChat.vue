@@ -9,6 +9,7 @@ const aiDataModelerStore = useAIDataModelerStore();
 const userInput = ref('');
 const messagesContainer = ref<HTMLElement | null>(null);
 const showHelpModal = ref(false);
+const joinAlertDismissed = ref(false);
 
 // Clear chat function
 async function clearChat() {
@@ -213,10 +214,17 @@ onMounted(() => {
 
         <!-- AI has access to Inferred Joins Indicator -->
         <div 
-            v-if="aiDataModelerStore.preloadedSuggestions.length > 0"
-            class="mx-4 mt-3 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg"
+            v-if="aiDataModelerStore.preloadedSuggestions.length > 0 && !joinAlertDismissed"
+            class="mx-4 mt-3 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg relative"
         >
-            <div class="flex items-center gap-2 text-sm">
+            <button
+                @click="joinAlertDismissed = true"
+                class="absolute top-2 right-2 text-blue-600 hover:text-blue-800 transition-colors"
+                title="Dismiss"
+            >
+                <font-awesome icon="fas fa-times" class="w-4 h-4" />
+            </button>
+            <div class="flex items-center gap-2 text-sm pr-8">
                 <span class="text-xl">🤖</span>
                 <div class="flex-1">
                     <p class="font-semibold text-blue-900">

@@ -218,4 +218,55 @@ router.get(
     }
 );
 
+// ===== ATTRIBUTION AI SESSION ENDPOINTS =====
+
+/**
+ * Initialize attribution analysis session
+ * POST /api/ai-data-modeler/attribution/initialize
+ */
+router.post(
+    '/attribution/initialize',
+    validateJWT,
+    aiOperationsLimiter,
+    validate([
+        body('projectId').notEmpty().isInt().withMessage('projectId must be a valid integer')
+    ]),
+    async (req: Request, res: Response) => {
+        await AIDataModelerController.initializeAttributionSession(req, res);
+    }
+);
+
+/**
+ * Send message to attribution AI session
+ * POST /api/ai-data-modeler/attribution/message
+ */
+router.post(
+    '/attribution/message',
+    validateJWT,
+    aiOperationsLimiter,
+    enforceAIGenerationLimit,
+    validate([
+        body('projectId').notEmpty().isInt().withMessage('projectId must be a valid integer'),
+        body('message').notEmpty().trim().withMessage('message is required')
+    ]),
+    async (req: Request, res: Response) => {
+        await AIDataModelerController.sendAttributionMessage(req, res);
+    }
+);
+
+/**
+ * Get attribution session history
+ * GET /api/ai-data-modeler/attribution/session/:projectId
+ */
+router.get(
+    '/attribution/session/:projectId',
+    validateJWT,
+    validate([
+        param('projectId').notEmpty().isInt().withMessage('projectId must be a valid integer')
+    ]),
+    async (req: Request, res: Response) => {
+        await AIDataModelerController.getAttributionSession(req, res);
+    }
+);
+
 export default router;

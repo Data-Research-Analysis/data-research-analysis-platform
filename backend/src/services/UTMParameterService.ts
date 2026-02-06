@@ -5,7 +5,6 @@ import {
     IEventTrackingRequest,
     IAttributionChannel
 } from '../interfaces/IAttribution.js';
-import Logger from '../utils/Logger.js';
 
 /**
  * UTM Parameter and Event Tracking Service
@@ -43,7 +42,7 @@ export class UTMParameterService {
                 content: url.searchParams.get('utm_content') || undefined
             };
         } catch (error) {
-            Logger.warn('[UTMParameterService] Invalid URL for UTM parsing:', urlOrParams);
+            console.warn('[UTMParameterService] Invalid URL for UTM parsing:', urlOrParams);
             return {};
         }
     }
@@ -58,7 +57,7 @@ export class UTMParameterService {
             const url = new URL(referrerUrl);
             return url.hostname.replace('www.', '');
         } catch (error) {
-            Logger.warn('[UTMParameterService] Invalid referrer URL:', referrerUrl);
+            console.warn('[UTMParameterService] Invalid referrer URL:', referrerUrl);
             return null;
         }
     }
@@ -107,12 +106,12 @@ export class UTMParameterService {
             );
 
             channelId = result[0].id;
-            Logger.info(`[UTMParameterService] Created new channel: ${channelName} (ID: ${channelId})`);
+            console.log(`[UTMParameterService] Created new channel: ${channelName} (ID: ${channelId})`);
 
             return channelId;
 
         } catch (error) {
-            Logger.error('[UTMParameterService] Error identifying channel:', error);
+            console.error('[UTMParameterService] Error identifying channel:', error);
             return null;
         } finally {
             await queryRunner.release();
@@ -164,12 +163,12 @@ export class UTMParameterService {
             );
 
             const eventId = result[0].id;
-            Logger.info(`[UTMParameterService] Tracked event: ${eventRequest.eventType} (ID: ${eventId})`);
+            console.log(`[UTMParameterService] Tracked event: ${eventRequest.eventType} (ID: ${eventId})`);
 
             return eventId;
 
         } catch (error) {
-            Logger.error('[UTMParameterService] Error tracking event:', error);
+            console.error('[UTMParameterService] Error tracking event:', error);
             return null;
         } finally {
             await queryRunner.release();
@@ -200,7 +199,7 @@ export class UTMParameterService {
             return result.map((row: any) => this.mapEventFromDB(row));
 
         } catch (error) {
-            Logger.error('[UTMParameterService] Error fetching user events:', error);
+            console.error('[UTMParameterService] Error fetching user events:', error);
             return [];
         } finally {
             await queryRunner.release();
@@ -234,7 +233,7 @@ export class UTMParameterService {
 
             return result.length > 0 ? result[0].id : null;
         } catch (error) {
-            Logger.error('[UTMParameterService] Error finding existing channel:', error);
+            console.error('[UTMParameterService] Error finding existing channel:', error);
             return null;
         }
     }

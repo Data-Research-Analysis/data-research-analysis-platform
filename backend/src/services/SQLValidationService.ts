@@ -1,5 +1,4 @@
 import { IValidationResult } from '../interfaces/IDataQuality.js';
-import Logger from '../utils/Logger.js';
 
 /**
  * SQL Validation Service
@@ -54,7 +53,7 @@ export class SQLValidationService {
         const warnings: string[] = [];
         const normalizedSQL = this.normalizeSQL(sql);
 
-        Logger.info('Validating cleaning SQL...');
+        console.log('Validating cleaning SQL...');
 
         // Check for blocked operations
         const blockedOps = this.detectBlockedOperations(normalizedSQL);
@@ -258,7 +257,7 @@ export class SQLValidationService {
             
             return result[0].exists;
         } catch (error) {
-            Logger.error(`Error validating table reference ${schema}.${tableName}:`, error);
+            console.error(`Error validating table reference ${schema}.${tableName}:`, error);
             return false;
         }
     }
@@ -290,7 +289,7 @@ export class SQLValidationService {
                 missingColumns
             };
         } catch (error) {
-            Logger.error(`Error validating column references:`, error);
+            console.error(`Error validating column references:`, error);
             return {
                 valid: false,
                 missingColumns: columns

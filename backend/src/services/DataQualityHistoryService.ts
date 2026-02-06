@@ -1,6 +1,5 @@
 import { AppDataSource } from '../datasources/PostgresDS.js';
 import { IExecutionResult, ICleaningHistory } from '../interfaces/IDataQuality.js';
-import Logger from '../utils/Logger.js';
 
 /**
  * Data Quality History Service
@@ -31,7 +30,7 @@ export class DataQualityHistoryService {
         executionResult: IExecutionResult
     ): Promise<ICleaningHistory> {
         try {
-            Logger.info(
+            console.log(
                 `Logging cleaning execution for data model ${dataModelId}, type: ${cleaningType}`
             );
 
@@ -83,7 +82,7 @@ export class DataQualityHistoryService {
                     createdAt: result[0].created_at
                 };
 
-                Logger.info(
+                console.log(
                     `Successfully logged cleaning execution (ID: ${historyRecord.id}) ` +
                     `for data model ${dataModelId}`
                 );
@@ -94,7 +93,7 @@ export class DataQualityHistoryService {
                 await queryRunner.release();
             }
         } catch (error) {
-            Logger.error('Error logging cleaning execution:', error);
+            console.error('Error logging cleaning execution:', error);
             throw new Error(`Failed to log cleaning execution: ${error.message}`);
         }
     }
@@ -151,7 +150,7 @@ export class DataQualityHistoryService {
                 await queryRunner.release();
             }
         } catch (error) {
-            Logger.error(`Error fetching cleaning history for model ${dataModelId}:`, error);
+            console.error(`Error fetching cleaning history for model ${dataModelId}:`, error);
             throw new Error(`Failed to fetch cleaning history: ${error.message}`);
         }
     }
@@ -208,7 +207,7 @@ export class DataQualityHistoryService {
                 await queryRunner.release();
             }
         } catch (error) {
-            Logger.error(`Error fetching cleaning history for user ${userId}:`, error);
+            console.error(`Error fetching cleaning history for user ${userId}:`, error);
             throw new Error(`Failed to fetch cleaning history: ${error.message}`);
         }
     }
@@ -252,7 +251,7 @@ export class DataQualityHistoryService {
                 await queryRunner.release();
             }
         } catch (error) {
-            Logger.error('Error fetching recent cleaning operations:', error);
+            console.error('Error fetching recent cleaning operations:', error);
             throw new Error(`Failed to fetch recent operations: ${error.message}`);
         }
     }
@@ -299,7 +298,7 @@ export class DataQualityHistoryService {
                 await queryRunner.release();
             }
         } catch (error) {
-            Logger.error(`Error fetching statistics for model ${dataModelId}:`, error);
+            console.error(`Error fetching statistics for model ${dataModelId}:`, error);
             throw new Error(`Failed to fetch statistics: ${error.message}`);
         }
     }
@@ -320,13 +319,13 @@ export class DataQualityHistoryService {
                     [historyId]
                 );
 
-                Logger.info(`Marked cleaning history ${historyId} as rolled back`);
+                console.log(`Marked cleaning history ${historyId} as rolled back`);
 
             } finally {
                 await queryRunner.release();
             }
         } catch (error) {
-            Logger.error(`Error marking history ${historyId} as rolled back:`, error);
+            console.error(`Error marking history ${historyId} as rolled back:`, error);
             throw new Error(`Failed to update history: ${error.message}`);
         }
     }

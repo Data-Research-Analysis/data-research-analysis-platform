@@ -10,8 +10,7 @@ import {
     ICleaningConfig,
     IExecutionResult
 } from '../interfaces/IDataQuality.js';
-import { ITokenDetails } from '../types/index.js';
-import Logger from '../utils/Logger.js';
+import { ITokenDetails } from '../types/ITokenDetails.js';
 
 /**
  * Data Quality Processor
@@ -45,7 +44,7 @@ export class DataQualityProcessor {
         tokenDetails: ITokenDetails
     ): Promise<IQualityAnalysisResponse> {
         try {
-            Logger.info(`Starting quality analysis for data model ${dataModelId}`);
+            console.log(`Starting quality analysis for data model ${dataModelId}`);
 
             // Get data model
             const dataModel = await this.getDataModel(dataModelId);
@@ -84,7 +83,7 @@ export class DataQualityProcessor {
                         );
                         outlierCount += outlierInfo.outlierCount;
                     } catch (error) {
-                        Logger.warn(`Could not detect outliers for column ${col.name}:`, error);
+                        console.warn(`Could not detect outliers for column ${col.name}:`, error);
                     }
                 }
             }
@@ -116,7 +115,7 @@ export class DataQualityProcessor {
                 updatedAt: new Date()
             });
             
-            Logger.info(`Quality analysis completed for data model ${dataModelId}. Score: ${overallScore}`);
+            console.log(`Quality analysis completed for data model ${dataModelId}. Score: ${overallScore}`);
             
             return {
                 report,
@@ -125,7 +124,7 @@ export class DataQualityProcessor {
             };
             
         } catch (error) {
-            Logger.error(`Error analyzing data model ${dataModelId}:`, error);
+            console.error(`Error analyzing data model ${dataModelId}:`, error);
             throw new Error(`Failed to analyze data model: ${error.message}`);
         }
     }
@@ -139,7 +138,7 @@ export class DataQualityProcessor {
         tokenDetails: ITokenDetails
     ): Promise<IExecutionResult> {
         try {
-            Logger.info(
+            console.log(
                 `Applying cleaning rules to data model ${dataModelId}, type: ${cleaningConfig.cleaningType}`
             );
 
@@ -168,7 +167,7 @@ export class DataQualityProcessor {
                 );
             }
             
-            Logger.info(
+            console.log(
                 `Cleaning rules applied to data model ${dataModelId}. ` +
                 `Rows affected: ${result.rowsAffected}`
             );
@@ -176,7 +175,7 @@ export class DataQualityProcessor {
             return result;
             
         } catch (error) {
-            Logger.error(`Error applying cleaning rules to model ${dataModelId}:`, error);
+            console.error(`Error applying cleaning rules to model ${dataModelId}:`, error);
             throw new Error(`Failed to apply cleaning rules: ${error.message}`);
         }
     }
@@ -208,7 +207,7 @@ export class DataQualityProcessor {
                 await queryRunner.release();
             }
         } catch (error) {
-            Logger.error(`Error fetching latest report for model ${dataModelId}:`, error);
+            console.error(`Error fetching latest report for model ${dataModelId}:`, error);
             throw new Error(`Failed to fetch latest report: ${error.message}`);
         }
     }

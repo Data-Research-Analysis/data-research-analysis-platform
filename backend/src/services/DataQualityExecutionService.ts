@@ -2,7 +2,6 @@ import { AppDataSource } from '../datasources/PostgresDS.js';
 import { DRADataModel } from '../models/DRADataModel.js';
 import { IExecutionResult } from '../interfaces/IDataQuality.js';
 import { SQLValidationService } from './SQLValidationService.js';
-import Logger from '../utils/Logger.js';
 
 /**
  * Data Quality Execution Service
@@ -34,7 +33,7 @@ export class DataQualityExecutionService {
     ): Promise<IExecutionResult> {
         const startTime = Date.now();
         
-        Logger.info(
+        console.log(
             `${dryRun ? 'Dry-run' : 'Executing'} cleaning SQL for data model: ${dataModel.name} (ID: ${dataModel.id})`
         );
 
@@ -91,12 +90,12 @@ export class DataQualityExecutionService {
                     await queryRunner.query('ROLLBACK TO SAVEPOINT before_cleaning');
                     await queryRunner.rollbackTransaction();
                     
-                    Logger.info(`Dry-run completed for data model ${dataModel.id}. Changes rolled back.`);
+                    console.log(`Dry-run completed for data model ${dataModel.id}. Changes rolled back.`);
                 } else {
                     // Commit transaction
                     await queryRunner.commitTransaction();
                     
-                    Logger.info(
+                    console.log(
                         `Successfully executed cleaning SQL for data model ${dataModel.id}. ` +
                         `Rows affected: ${rowsAffected}`
                     );
@@ -116,7 +115,7 @@ export class DataQualityExecutionService {
                 await queryRunner.query('ROLLBACK TO SAVEPOINT before_cleaning');
                 await queryRunner.rollbackTransaction();
                 
-                Logger.error(`Error executing cleaning SQL for model ${dataModel.id}:`, executionError);
+                console.error(`Error executing cleaning SQL for model ${dataModel.id}:`, executionError);
                 
                 return {
                     success: false,
@@ -130,7 +129,7 @@ export class DataQualityExecutionService {
 
         } catch (error) {
             // Transaction start/setup error
-            Logger.error(`Transaction setup error for model ${dataModel.id}:`, error);
+            console.error(`Transaction setup error for model ${dataModel.id}:`, error);
             
             if (queryRunner.isTransactionActive) {
                 await queryRunner.rollbackTransaction();
@@ -174,7 +173,7 @@ export class DataQualityExecutionService {
 
             return result;
         } catch (error) {
-            Logger.warn('Could not capture before state:', error);
+            console.warn('Could not capture before state:', error);
             return [];
         }
     }
@@ -204,7 +203,7 @@ export class DataQualityExecutionService {
 
             return result;
         } catch (error) {
-            Logger.warn('Could not capture after state:', error);
+            console.warn('Could not capture after state:', error);
             return [];
         }
     }
@@ -276,7 +275,7 @@ export class DataQualityExecutionService {
                 await queryRunner.release();
             }
         } catch (error) {
-            Logger.error('Error estimating rows affected:', error);
+            console.error('Error estimating rows affected:', error);
             return 0;
         }
     }

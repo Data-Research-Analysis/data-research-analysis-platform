@@ -6,7 +6,6 @@ import {
     IQualityReport,
     IQualityIssue
 } from '../interfaces/IDataQuality.js';
-import Logger from '../utils/Logger.js';
 
 /**
  * Data Quality Service
@@ -30,7 +29,7 @@ export class DataQualityService {
      */
     public async profileDataModel(dataModel: DRADataModel): Promise<IDataProfile> {
         try {
-            Logger.info(`Profiling data model: ${dataModel.name} (ID: ${dataModel.id})`);
+            console.log(`Profiling data model: ${dataModel.name} (ID: ${dataModel.id})`);
 
             const queryRunner = AppDataSource.createQueryRunner();
             await queryRunner.connect();
@@ -84,7 +83,7 @@ export class DataQualityService {
                 await queryRunner.release();
             }
         } catch (error) {
-            Logger.error(`Error profiling data model ${dataModel.id}:`, error);
+            console.error(`Error profiling data model ${dataModel.id}:`, error);
             throw new Error(`Failed to profile data model: ${error.message}`);
         }
     }
@@ -272,7 +271,7 @@ export class DataQualityService {
                 await queryRunner.release();
             }
         } catch (error) {
-            Logger.error(`Error detecting duplicates for model ${dataModel.id}:`, error);
+            console.error(`Error detecting duplicates for model ${dataModel.id}:`, error);
             throw new Error(`Failed to detect duplicates: ${error.message}`);
         }
     }
@@ -325,7 +324,7 @@ export class DataQualityService {
                 await queryRunner.release();
             }
         } catch (error) {
-            Logger.error(`Error detecting outliers for model ${dataModel.id}, column ${columnName}:`, error);
+            console.error(`Error detecting outliers for model ${dataModel.id}, column ${columnName}:`, error);
             throw new Error(`Failed to detect outliers: ${error.message}`);
         }
     }
