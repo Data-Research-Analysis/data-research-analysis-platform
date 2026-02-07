@@ -505,6 +505,65 @@ router.get('/attribution/channels/:projectId', validateJWT, async (req: Request,
 });
 
 /**
+ * Initialize attribution tracking with default channels
+ * POST /attribution/initialize
+ */
+router.post('/attribution/initialize', validateJWT, async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { projectId } = req.body;
+
+        if (!projectId) {
+            res.status(400).json({
+                success: false,
+                error: 'Missing required field: projectId'
+            });
+            return;
+        }
+
+        // Check if channels already exist
+        const existingChannels = await attributionProcessor.getProjectChannels(projectId);
+        if (existingChannels.length > 0) {
+            res.status(200).json({
+                success: true,
+                message: 'Attribution already initialized',
+                data: { channelCount: existingChannels.length }
+            });
+            return;
+        }
+
+        // Create default channels
+        const defaultChannels = [
+            { name: 'Organic Search', category: 'organic', source: 'Google', medium: 'organic' },
+            { name: 'Paid Search', category: 'paid', source: 'Google Ads', medium: 'cpc' },
+            { name: 'Social Media', category: 'social', source: 'Facebook', medium: 'social' },
+            { name: 'Email Marketing', category: 'email', source: 'Email Campaign', medium: 'email' },
+            { name: 'Direct Traffic', category: 'direct', source: 'Direct', medium: 'none' },
+            { name: 'Referral', category: 'referral', source: 'Partner Sites', medium: 'referral' },
+            { name: 'Display Ads', category: 'paid', source: 'Google Display', medium: 'display' },
+            { name: 'Other', category: 'other', source: null, medium: null }
+        ];
+
+        const createdChannels = await attributionProcessor.createDefaultChannels(projectId, defaultChannels);
+
+        res.status(201).json({
+            success: true,
+            message: `Successfully initialized attribution tracking with ${createdChannels.length} default channels`,
+            data: {
+                channelCount: createdChannels.length,
+                channels: createdChannels
+            }
+        });
+
+    } catch (error) {
+        console.error('[AttributionRoutes] Error initializing attribution:', error);
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
+/**
  * Get top conversion paths
  * POST /attribution/conversion-paths
  */

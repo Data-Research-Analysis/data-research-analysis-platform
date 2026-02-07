@@ -322,6 +322,58 @@ export class AttributionProcessor {
     }
 
     /**
+     * Create default attribution channels for a project
+     */
+    public async createDefaultChannels(
+        projectId: number,
+        channels: Array<{ name: string; category: string; source: string | null; medium: string | null; campaign?: string | null }>
+    ): Promise<IAttributionChannel[]> {
+        const dataSource = await PostgresDSMigrations.initialize();
+        const createdChannels: IAttributionChannel[] = [];
+
+        try {
+            await dataSource.transaction(async (transactionManager) => {
+                for (const channelData of channels) {
+                    const result = await transactionManager.query(
+                        `INSERT INTO dra_attribution_channels 
+                        (name, category, source, medium, campaign, project_id, created_at, updated_at) 
+                        VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW()) 
+                        RETURNING id, name, category, source, medium, campaign, project_id, created_at, updated_at`,
+                        [
+                            channelData.name,
+                            channelData.category,
+                            channelData.source,
+                            channelData.medium,
+                            channelData.campaign || null,
+                            projectId
+                        ]
+                    );
+
+                    if (result && result.length > 0) {
+                        createdChannels.push({
+                            id: result[0].id,
+                            name: result[0].name,
+                            category: result[0].category,
+                            source: result[0].source,
+                            medium: result[0].medium,
+                            campaign: result[0].campaign,
+                            projectId: result[0].project_id,
+                            createdAt: result[0].created_at,
+                            updatedAt: result[0].updated_at
+                        });
+                    }
+                }
+            });
+
+            return createdChannels;
+        } finally {
+            if (dataSource.isInitialized) {
+                await dataSource.destroy();
+            }
+        }
+    }
+
+    /**
      * Get top conversion paths
      */
     public async getTopConversionPaths(

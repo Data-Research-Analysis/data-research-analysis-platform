@@ -286,30 +286,61 @@ async function enableAttribution() {
             html: `
                 <div class="text-left">
                     <p class="mb-3 text-gray-700">Attribution tracking will help you understand which marketing channels drive conversions.</p>
-                    <p class="mb-3 text-sm text-gray-600">You can start tracking events immediately using the "Track Event" button or integrate with your application using the Attribution API.</p>
+                    <p class="mb-3 text-sm text-gray-600">We'll create 8 default marketing channels to get you started. You can customize them later.</p>
                     <div class="bg-blue-50 border border-blue-200 rounded p-3 mt-4">
-                        <p class="text-sm font-medium text-blue-900">Getting Started:</p>
-                        <ol class="text-sm text-blue-800 list-decimal list-inside mt-2 space-y-1">
-                            <li>Use UTM parameters in your marketing campaigns</li>
-                            <li>Track page views and user interactions</li>
-                            <li>Mark conversion events</li>
-                            <li>Analyze channel performance</li>
-                        </ol>
+                        <p class="text-sm font-medium text-blue-900">Default Channels:</p>
+                        <ul class="text-sm text-blue-800 list-disc list-inside mt-2 space-y-1">
+                            <li>Organic Search & Paid Search</li>
+                            <li>Social Media & Email Marketing</li>
+                            <li>Direct Traffic & Referral</li>
+                            <li>Display Ads & Other</li>
+                        </ul>
                     </div>
                 </div>
             `,
             icon: 'question',
             showCancelButton: true,
             confirmButtonText: 'Enable Now',
-            cancelButtonText: 'Cancel'
+            cancelButtonText: 'Cancel',
+            showLoaderOnConfirm: true,
+            preConfirm: async () => {
+                try {
+                    const token = getAuthToken();
+                    const config = useRuntimeConfig();
+                    
+                    const response = await $fetch(`${config.public.apiBase}/attribution/initialize`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Authorization-Type': 'auth',
+                            'Content-Type': 'application/json'
+                        },
+                        credentials: 'include',
+                        body: JSON.stringify({
+                            projectId: projectId.value
+                        })
+                    });
+
+                    return response;
+                } catch (error) {
+                    $swal.showValidationMessage(`Failed to initialize: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                    return false;
+                }
+            },
+            allowOutsideClick: () => !$swal.isLoading()
         });
         
-        if (result.isConfirmed) {
+        if (result.isConfirmed && result.value && (result.value as any).success) {
+            const channelCount = (result.value as any).data?.channelCount || 0;
+            
             await $swal.fire({
                 title: 'Attribution Enabled!',
-                text: 'You can now start tracking events and analyzing channel performance.',
+                html: `
+                    <p class="mb-2">Successfully created <strong>${channelCount} marketing channels</strong>.</p>
+                    <p class="text-sm text-gray-600">You can now start tracking events and analyzing channel performance.</p>
+                `,
                 icon: 'success',
-                timer: 2000,
+                timer: 3000,
                 showConfirmButton: false
             });
             
@@ -318,6 +349,12 @@ async function enableAttribution() {
         }
     } catch (error) {
         console.error('Error enabling attribution:', error);
+        const { $swal } = useNuxtApp() as any;
+        await $swal.fire({
+            title: 'Error',
+            text: 'Failed to enable attribution tracking. Please try again.',
+            icon: 'error'
+        });
     } finally {
         isEnabling.value = false;
     }
