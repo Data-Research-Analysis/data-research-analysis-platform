@@ -230,7 +230,7 @@ onUnmounted(() => {
                                 <span class="opacity-50">Marketing Attribution</span>
                                 <span class="text-xs ml-1">🔒</span>
                                 <!-- Tooltip on hover -->
-                                <div class="absolute hidden group-hover:block bottom-full left-0 mb-2 w-80 bg-gray-900 text-white text-xs rounded py-2 px-3 z-10">
+                                <div class="absolute hidden group-hover:block bottom-full left-0 mb-2 max-w-md bg-gray-900 text-white text-xs rounded py-2 px-3 z-10 whitespace-normal">
                                     {{ attributionTooltipMessage }}
                                     <div class="absolute top-full left-4 -mt-1 border-4 border-transparent border-t-gray-900"></div>
                                 </div>
