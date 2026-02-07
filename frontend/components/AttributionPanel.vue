@@ -141,6 +141,9 @@
                 </div>
             </div>
 
+            <!-- Attribution Report Generator -->
+            <AttributionReportGenerator :project-id="projectId" :data-model-id="dataModelId" />
+
             <!-- AI Assistant -->
             <div class="bg-white rounded-lg shadow overflow-hidden">
                 <div class="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-pink-50">
