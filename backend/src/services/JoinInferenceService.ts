@@ -149,7 +149,8 @@ export class JoinInferenceService {
                 );
                 if (suggestion) {
                     // Mark as junction table join for better reasoning
-                    suggestion.reasoning = `Junction table join: ${junction.tableName} connects multiple tables via ${refTable.column}`;
+                    const junctionDisplayName = junctionTableObj.displayName || junction.tableName;
+                    suggestion.reasoning = `Junction table join: ${junctionDisplayName} connects multiple tables via ${refTable.column}`;
                     suggestion.matched_patterns.push('junction-table');
                     suggestions.push(suggestion);
                     console.log(`[JoinInferenceService] ✓ Junction join added: ${junction.tableName}.${suggestion.left_column} → ${refTable.tableName}.${suggestion.right_column} (${Math.round(suggestion.confidence_score * 100)}%)`);

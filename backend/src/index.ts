@@ -16,6 +16,8 @@ import project_invitations from './routes/project_invitations.js';
 import data_source from './routes/data_source.js';
 import data_model from './routes/data_model.js';
 import data_model_refresh from './routes/data_model_refresh.js';
+import data_quality from './routes/data_quality.js';
+import attribution from './routes/attribution.js';
 import dashboard from './routes/dashboard.js';
 import dashboard_query from './routes/dashboard_query.js';
 import ai_data_modeler from './routes/ai_data_modeler.js';
@@ -83,6 +85,7 @@ await UtilityService.getInstance().initialize();
 import { NotificationProcessor } from './processors/NotificationProcessor.js';
 import { PostgresDriver } from './drivers/PostgresDriver.js';
 import { EDataSourceType } from './types/EDataSourceType.js';
+import { getAppDataSource } from './datasources/PostgresDS.js';
 
 // Wait for database to be ready and initialize NotificationProcessor
 try {
@@ -90,6 +93,10 @@ try {
     if (dbDriver) {
         const dataSource = await dbDriver.getConcreteDriver();
         if (dataSource && dataSource.isInitialized) {
+            // Initialize AppDataSource cache for services
+            await getAppDataSource();
+            console.log('✅ AppDataSource cache initialized');
+            
             NotificationProcessor.getInstance().initialize(dataSource);
             console.log('✅ Notification processor initialized');
         } else {
@@ -187,6 +194,8 @@ app.use('/project-invitations', project_invitations);
 app.use('/data-source', data_source);
 app.use('/data-model', data_model);
 app.use('/refresh', data_model_refresh);
+app.use('/data-quality', data_quality);
+app.use('/', attribution);
 app.use('/dashboard', dashboard);
 app.use('/dashboard', dashboard_query);
 app.use('/ai-data-modeler', ai_data_modeler);

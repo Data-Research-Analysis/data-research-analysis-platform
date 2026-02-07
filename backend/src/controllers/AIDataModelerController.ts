@@ -4,6 +4,10 @@ import { SchemaCollectorService } from '../services/SchemaCollectorService.js';
 import { SchemaFormatterUtility } from '../utilities/SchemaFormatter.js';
 import { getGeminiService } from '../services/GeminiService.js';
 import { RedisAISessionService } from '../services/RedisAISessionService.js';
+import { DataQualityService } from '../services/DataQualityService.js';
+import { DataQualityExecutionService } from '../services/DataQualityExecutionService.js';
+import { SQLValidationService } from '../services/SQLValidationService.js';
+import { AI_DATA_QUALITY_EXPERT_PROMPT, AI_ATTRIBUTION_EXPERT_PROMPT } from '../constants/system-prompts.js';
 import { DataSource } from 'typeorm';
 import { PostgresDataSource } from '../datasources/PostgresDataSource.js';
 import { MySQLDataSource } from '../datasources/MySQLDataSource.js';
@@ -1812,6 +1816,497 @@ Keep it concise - aim for 200-300 words total.`;
             case 'mariadb':
             default:
                 return 'public';
+        }
+    }
+
+    /**
+     * Initialize quality analysis session
+     * POST /api/ai-data-modeler/quality/initialize
+     */
+    static async initializeQualitySession(req: Request, res: Response): Promise<void> {
+        try {
+            const { dataModelId } = req.body;
+            const tokenDetails = req.body.tokenDetails;
+            const userId = tokenDetails?.user_id;
+
+            if (!dataModelId || !userId) {
+                res.status(400).json({ error: 'dataModelId and userId are required' });
+                return;
+            }
+
+            // Get data model details
+            const dataModel = await AIDataModelerController.getDataModelDetails(dataModelId, tokenDetails);
+            if (!dataModel) {
+                res.status(404).json({ error: 'Data model not found' });
+                return;
+            }
+
+            // Profile the data model
+            const dataQualityService = DataQualityService.getInstance();
+            const profile = await dataQualityService.profileDataModel(dataModel);
+
+            // Format profile as markdown context for AI
+            const qualityContext = AIDataModelerController.formatQualityContext(dataModel, profile);
+
+            const redisService = new RedisAISessionService();
+
+            // Check if quality session already exists
+            const existingSession = await redisService.sessionExists(dataModelId, userId, 'data_quality');
+
+            if (existingSession) {
+                const session = await redisService.getFullSession(dataModelId, userId, 'data_quality');
+                res.status(200).json({
+                    conversationId: session.metadata?.conversationId,
+                    messages: session.messages,
+                    schemaContext: session.schemaContext,
+                    sessionType: 'data_quality',
+                    restored: true
+                });
+                return;
+            }
+
+            // Create new quality session
+            const conversationId = `quality-${dataModelId}-${userId}-${Date.now()}`;
+            
+            await redisService.createSession(
+                dataModelId,
+                userId,
+                { tables: [], relationships: [], inferredJoins: [] },
+                'data_quality'
+            );
+
+            // Save quality context
+            await redisService.saveSchemaContext(
+                dataModelId,
+                userId,
+                { tables: [profile], relationships: [], inferredJoins: [] },
+                'data_quality'
+            );
+
+            // Initialize Gemini conversation with quality expert prompt
+            const geminiService = getGeminiService();
+            await geminiService.initializeConversation(
+                conversationId,
+                qualityContext,
+                AI_DATA_QUALITY_EXPERT_PROMPT
+            );
+
+            // Add initial system message
+            await redisService.addMessage(
+                dataModelId,
+                userId,
+                'system',
+                'Data quality analysis session initialized. I can help you identify and fix data quality issues.',
+                'data_quality'
+            );
+
+            res.status(200).json({
+                conversationId,
+                dataModelId,
+                sessionType: 'data_quality',
+                status: 'initialized'
+            });
+
+        } catch (error) {
+            console.error('[AIDataModelerController] Error initializing quality session:', error);
+            res.status(500).json({
+                error: 'Failed to initialize quality session',
+                message: error.message
+            });
+        }
+    }
+
+    /**
+     * Execute AI-generated cleaning SQL
+     * POST /api/ai-data-modeler/quality/execute-sql
+     */
+    static async executeCleaningSQL(req: Request, res: Response): Promise<void> {
+        try {
+            const { dataModelId, sql, dryRun = false } = req.body;
+            const tokenDetails = req.body.tokenDetails;
+
+            if (!dataModelId || !sql) {
+                res.status(400).json({ error: 'dataModelId and sql are required' });
+                return;
+            }
+
+            // Get data model details
+            const dataModel = await AIDataModelerController.getDataModelDetails(dataModelId, tokenDetails);
+            if (!dataModel) {
+                res.status(404).json({ error: 'Data model not found' });
+                return;
+            }
+
+            // Validate SQL
+            const sqlValidator = SQLValidationService.getInstance();
+            const validation = sqlValidator.validateCleaningSQL(sql);
+
+            if (!validation.safe) {
+                res.status(400).json({
+                    error: 'SQL validation failed',
+                    issues: validation.issues,
+                    warnings: validation.warnings
+                });
+                return;
+            }
+
+            // Execute SQL
+            const executionService = DataQualityExecutionService.getInstance();
+            const result = await executionService.executeCleaningSQL(dataModel, sql, dryRun);
+
+            res.status(200).json(result);
+
+        } catch (error) {
+            console.error('[AIDataModelerController] Error executing cleaning SQL:', error);
+            res.status(500).json({
+                error: 'Failed to execute cleaning SQL',
+                message: error.message
+            });
+        }
+    }
+
+    /**
+     * Helper: Get data model details
+     */
+    private static async getDataModelDetails(dataModelId: number, tokenDetails: any): Promise<any> {
+        try {
+            const { AppDataSource } = await import('../datasources/PostgresDS.js');
+            const queryRunner = AppDataSource.createQueryRunner();
+            await queryRunner.connect();
+
+            try {
+                const result = await queryRunner.query(
+                    `SELECT * FROM "dra_data_models" WHERE id = $1`,
+                    [dataModelId]
+                );
+
+                return result.length > 0 ? result[0] : null;
+            } finally {
+                await queryRunner.release();
+            }
+        } catch (error) {
+            console.error('Error fetching data model:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Helper: Format quality context for AI
+     */
+    private static formatQualityContext(dataModel: any, profile: any): string {
+        return `
+# Data Model: ${dataModel.name}
+**Schema**: ${dataModel.schema}
+**Total Rows**: ${profile.totalRows}
+**Columns**: ${profile.columnCount}
+
+## Column Profiles
+
+${profile.columns.map((col: any) => `
+### ${col.name} (${col.type})
+- **Null Rate**: ${col.nullRate}%
+- **Distinct Values**: ${col.distinctCount} (${col.distinctRate}% unique)
+- **Sample Values**: ${col.sampleValues.slice(0, 5).join(', ')}
+${col.min !== undefined ? `- **Min**: ${col.min}` : ''}
+${col.max !== undefined ? `- **Max**: ${col.max}` : ''}
+${col.mean !== undefined ? `- **Mean**: ${col.mean.toFixed(2)}` : ''}
+${col.stdDev !== undefined ? `- **Std Dev**: ${col.stdDev.toFixed(2)}` : ''}
+`).join('\n')}
+
+## Analysis Task
+Please analyze this data model for quality issues including:
+1. Duplicate records
+2. Missing values that could be imputed
+3. Inconsistent formats (dates, country names, phone numbers, emails)
+4. Outliers in numeric columns
+5. Data standardization opportunities
+
+Provide specific SQL fixes for any issues you identify.
+        `.trim();
+    }
+
+    /**
+     * Initialize attribution analysis session
+     * POST /api/ai-data-modeler/attribution/initialize
+     */
+    static async initializeAttributionSession(req: Request, res: Response): Promise<void> {
+        try {
+            const { projectId } = req.body;
+            const tokenDetails = req.body.tokenDetails;
+            const userId = tokenDetails?.user_id;
+
+            if (!projectId || !userId) {
+                res.status(400).json({ error: 'projectId and userId are required' });
+                return;
+            }
+
+            // Get attribution data summary for context
+            const attributionContext = await AIDataModelerController.formatAttributionContext(projectId);
+
+            const redisService = new RedisAISessionService();
+
+            // Check if attribution session already exists
+            const existingSession = await redisService.sessionExists(projectId, userId, 'attribution');
+
+            if (existingSession) {
+                const session = await redisService.getFullSession(projectId, userId, 'attribution');
+                res.status(200).json({
+                    conversationId: session.metadata?.conversationId,
+                    messages: session.messages,
+                    schemaContext: session.schemaContext,
+                    sessionType: 'attribution',
+                    restored: true
+                });
+                return;
+            }
+
+            // Create new attribution session
+            const conversationId = `attribution-${projectId}-${userId}-${Date.now()}`;
+            
+            await redisService.createSession(
+                projectId,
+                userId,
+                { tables: [], relationships: [], inferredJoins: [] },
+                'attribution'
+            );
+
+            // Save attribution context
+            await redisService.saveSchemaContext(
+                projectId,
+                userId,
+                { tables: [], relationships: [], inferredJoins: [] },
+                'attribution'
+            );
+
+            // Initialize Gemini conversation with attribution expert prompt
+            const geminiService = getGeminiService();
+            await geminiService.initializeConversation(
+                conversationId,
+                attributionContext,
+                AI_ATTRIBUTION_EXPERT_PROMPT
+            );
+
+            // Add initial system message
+            await redisService.addMessage(
+                projectId,
+                userId,
+                'system',
+                'Marketing attribution analysis session initialized. I can help you understand channel performance, optimize budget allocation, and analyze customer journeys.',
+                'attribution'
+            );
+
+            res.status(200).json({
+                conversationId,
+                projectId,
+                sessionType: 'attribution',
+                status: 'initialized'
+            });
+
+        } catch (error) {
+            console.error('[AIDataModelerController] Error initializing attribution session:', error);
+            res.status(500).json({
+                error: 'Failed to initialize attribution session',
+                message: error.message
+            });
+        }
+    }
+
+    /**
+     * Send message to attribution AI session
+     * POST /api/ai-data-modeler/attribution/message
+     */
+    static async sendAttributionMessage(req: Request, res: Response): Promise<void> {
+        try {
+            const { projectId, message } = req.body;
+            const tokenDetails = req.body.tokenDetails;
+            const userId = tokenDetails?.user_id;
+
+            if (!projectId || !message || !userId) {
+                res.status(400).json({ error: 'projectId, message, and userId are required' });
+                return;
+            }
+
+            const redisService = new RedisAISessionService();
+
+            // Get session
+            const session = await redisService.getFullSession(projectId, userId, 'attribution');
+            if (!session.metadata) {
+                res.status(404).json({ error: 'Session not found. Please initialize a session first.' });
+                return;
+            }
+
+            const conversationId = session.metadata.conversationId;
+
+            // Save user message
+            await redisService.addMessage(
+                projectId,
+                userId,
+                'user',
+                message,
+                'attribution'
+            );
+
+            // Send to AI
+            const geminiService = getGeminiService();
+            const aiResponse = await geminiService.sendMessage(conversationId, message);
+
+            // Save AI response
+            await redisService.addMessage(
+                projectId,
+                userId,
+                'assistant',
+                aiResponse,
+                'attribution'
+            );
+
+            res.status(200).json({
+                response: aiResponse,
+                conversationId
+            });
+
+        } catch (error) {
+            console.error('[AIDataModelerController] Error sending attribution message:', error);
+            res.status(500).json({
+                error: 'Failed to send message',
+                message: error.message
+            });
+        }
+    }
+
+    /**
+     * Get attribution session history
+     * GET /api/ai-data-modeler/attribution/session/:projectId
+     */
+    static async getAttributionSession(req: Request, res: Response): Promise<void> {
+        try {
+            const projectId = parseInt(req.params.projectId);
+            const tokenDetails = req.body.tokenDetails;
+            const userId = tokenDetails?.user_id;
+
+            if (!projectId || !userId) {
+                res.status(400).json({ error: 'projectId and userId are required' });
+                return;
+            }
+
+            const redisService = new RedisAISessionService();
+            const session = await redisService.getFullSession(projectId, userId, 'attribution');
+
+            if (!session.metadata) {
+                res.status(404).json({ error: 'Session not found' });
+                return;
+            }
+
+            res.status(200).json({
+                conversationId: session.metadata.conversationId,
+                messages: session.messages,
+                sessionType: 'attribution'
+            });
+
+        } catch (error) {
+            console.error('[AIDataModelerController] Error getting attribution session:', error);
+            res.status(500).json({
+                error: 'Failed to get session',
+                message: error.message
+            });
+        }
+    }
+
+    /**
+     * Helper: Format attribution context for AI
+     */
+    private static async formatAttributionContext(projectId: number): Promise<string> {
+        try {
+            const { AppDataSource } = await import('../datasources/PostgresDS.js');
+            const queryRunner = AppDataSource.createQueryRunner();
+            await queryRunner.connect();
+
+            try {
+                // Get channel summary
+                const channels = await queryRunner.query(
+                    `SELECT COUNT(*) as channel_count, 
+                            ARRAY_AGG(DISTINCT name) as channel_names,
+                            ARRAY_AGG(DISTINCT category) as channel_categories
+                     FROM "dra_attribution_channels"
+                     WHERE project_id = $1`,
+                    [projectId]
+                );
+
+                // Get event summary
+                const events = await queryRunner.query(
+                    `SELECT 
+                        COUNT(*) as total_events,
+                        COUNT(DISTINCT user_identifier) as unique_users,
+                        COUNT(CASE WHEN event_type = 'conversion' THEN 1 END) as total_conversions,
+                        SUM(CASE WHEN event_type = 'conversion' THEN event_value ELSE 0 END) as total_revenue
+                     FROM "dra_attribution_events"
+                     WHERE project_id = $1`,
+                    [projectId]
+                );
+
+                // Get recent conversion paths
+                const paths = await queryRunner.query(
+                    `WITH recent_conversions AS (
+                        SELECT id, user_identifier 
+                        FROM "dra_attribution_events"
+                        WHERE project_id = $1 
+                          AND event_type = 'conversion'
+                        ORDER BY event_timestamp DESC
+                        LIMIT 5
+                    )
+                    SELECT 
+                        rc.user_identifier,
+                        ARRAY_AGG(c.name ORDER BY t.touchpoint_position) as channel_path
+                    FROM recent_conversions rc
+                    INNER JOIN "dra_attribution_touchpoints" t ON t.conversion_event_id = rc.id
+                    INNER JOIN "dra_attribution_channels" c ON c.id = t.channel_id
+                    GROUP BY rc.user_identifier`,
+                    [projectId]
+                );
+
+                const channelCount = parseInt(channels[0]?.channel_count || 0);
+                const channelNames = channels[0]?.channel_names || [];
+                const totalEvents = parseInt(events[0]?.total_events || 0);
+                const uniqueUsers = parseInt(events[0]?.unique_users || 0);
+                const totalConversions = parseInt(events[0]?.total_conversions || 0);
+                const totalRevenue = parseFloat(events[0]?.total_revenue || 0);
+
+                return `
+# Marketing Attribution Analysis Context
+**Project ID**: ${projectId}
+
+## Current Attribution Data
+
+### Channels (${channelCount} total)
+${channelNames.length > 0 ? channelNames.map((n: string) => `- ${n}`).join('\n') : '- No channels configured yet'}
+
+### Performance Summary
+- **Total Events Tracked**: ${totalEvents.toLocaleString()}
+- **Unique Users**: ${uniqueUsers.toLocaleString()}
+- **Total Conversions**: ${totalConversions.toLocaleString()}
+- **Total Revenue**: $${totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+${totalConversions > 0 ? `- **Avg Conversion Value**: $${(totalRevenue / totalConversions).toFixed(2)}` : ''}
+
+### Recent Conversion Paths
+${paths.length > 0 ? paths.map((p: any) => `- ${p.channel_path.join(' → ')}`).join('\n') : '- No conversion paths tracked yet'}
+
+## Your Role
+You are a marketing attribution expert. Help the user:
+1. Understand which channels drive the most conversions
+2. Optimize budget allocation across channels
+3. Identify underperforming channels or campaigns
+4. Analyze customer journey patterns
+5. Compare different attribution models (first-touch, last-touch, linear, time-decay, U-shaped)
+6. Provide actionable recommendations for marketing optimization
+
+Always structure your responses in JSON format as specified in your system prompt.
+                `.trim();
+
+            } finally {
+                await queryRunner.release();
+            }
+        } catch (error) {
+            console.error('Error formatting attribution context:', error);
+            return `# Marketing Attribution Analysis Context\n**Project ID**: ${projectId}\n\nNo attribution data available yet. Start tracking events to enable analysis.`;
         }
     }
 }

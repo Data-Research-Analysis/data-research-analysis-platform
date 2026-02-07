@@ -351,7 +351,7 @@ export class NotificationHelperService {
                 type: NotificationType.DATA_MODEL_CREATED,
                 title: 'Data Model Created',
                 message: `Data model "${dataModelName}" created from "${dataSourceName}".`,
-                link: `/data-models/${dataModelId}`,
+                link: `/data-models/${dataModelId}/edit`,
                 metadata: { dataModelId, dataModelName, dataSourceName }
             });
         } catch (error) {
@@ -381,7 +381,7 @@ export class NotificationHelperService {
                 type: NotificationType.DATA_MODEL_QUERY_FAILED,
                 title: 'Query Execution Failed',
                 message: `Query failed for data model "${dataModelName}". Error: ${error}`,
-                link: `/data-models/${dataModelId}`,
+                link: `/data-models/${dataModelId}/edit`,
                 metadata: { dataModelId, dataModelName, error }
             });
         } catch (error) {

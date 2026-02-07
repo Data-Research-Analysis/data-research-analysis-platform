@@ -31,6 +31,31 @@ const formattedTimestamp = computed(() => {
     return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
 });
 
+// Parse data quality JSON responses and extract display_message
+const parseDataQualityResponse = (content: string): { type: 'json' | 'markdown', displayMessage: string, rawJson?: any } => {
+    // Try to parse JSON from code blocks
+    const jsonBlockRegex = /```json\s*\n([\s\S]*?)\n```/;
+    const match = content.match(jsonBlockRegex);
+    
+    if (match) {
+        try {
+            const jsonData = JSON.parse(match[1]);
+            // Check if it's a data quality response
+            if (jsonData.display_message) {
+                return {
+                    type: 'json',
+                    displayMessage: jsonData.display_message,
+                    rawJson: jsonData
+                };
+            }
+        } catch (e) {
+            // Not valid JSON or not a data quality response
+        }
+    }
+    
+    return { type: 'markdown', displayMessage: content };
+};
+
 // Render markdown for assistant messages
 const renderedContent = computed(() => {
     if (isUser.value) {
@@ -38,6 +63,18 @@ const renderedContent = computed(() => {
     }
     
     try {
+        // Check if this is a data quality JSON response
+        const parsed = parseDataQualityResponse(props.message.content);
+        
+        if (parsed.type === 'json' && parsed.displayMessage) {
+            // Render the display_message as markdown
+            return marked.parse(parsed.displayMessage, {
+                breaks: true,
+                gfm: true
+            });
+        }
+        
+        // Regular markdown rendering
         return marked.parse(props.message.content, {
             breaks: true,
             gfm: true

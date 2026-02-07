@@ -26,6 +26,11 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
     const isCrossSource = ref(false);
     const projectId = ref<number | null>(null);
     const dataSources = ref<Array<{ id: number; name: string; type: string }>>([]);
+    
+    // Session type - simplified to only support data_model
+    // Data Quality and Attribution moved to data model detail page
+    const sessionType = ref<'data_model'>('data_model');
+    const currentDataModelId = ref<number | null>(null);
 
     /**
      * Open the AI drawer and initialize conversation
@@ -1090,6 +1095,10 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
         dismissedSuggestions.value.clear();
     }
 
+    // Quality analysis and attribution functions removed
+    // These features now live on the data model detail page where actual data exists
+    // See: DataQualityPanel.vue and AttributionPanel.vue (to be created)
+
     // Computed properties for filtering suggestions
     const visibleSuggestions = computed(() => {
         return suggestedJoins.value.filter(s => !dismissedSuggestions.value.has(s.id));
@@ -1152,6 +1161,10 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
         isCrossSource,
         projectId,
         dataSources,
+        
+        // Session type simplified - only data_model supported
+        sessionType,
+        currentDataModelId,
 
         // Suggested Joins State (Issue #270)
         suggestedJoins,
@@ -1199,5 +1212,8 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
         applySuggestion,
         dismissSuggestion,
         clearSuggestions
+        
+        // Quality analysis functions removed - moved to DataQualityPanel.vue
+        // Attribution functions removed - moved to AttributionPanel.vue
     };
 });

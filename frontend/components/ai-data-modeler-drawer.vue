@@ -119,6 +119,57 @@ function loadPreferences() {
     }
 }
 
+// Note: SQL execution and data quality features removed
+// These are now available in DataQualityPanel on the data model detail page
+
+// Extract SQL from AI message (kept for backward compatibility but not used)
+function extractSQLFromMessage(message: string): string[] {
+    const sqlBlocks: string[] = [];
+    
+    // First, try to extract SQL from code blocks
+    const sqlRegex = /```sql\n([\s\S]*?)```/g;
+    let match;
+    
+    while ((match = sqlRegex.exec(message)) !== null) {
+        sqlBlocks.push(match[1].trim());
+    }
+    
+    // If no SQL blocks, try to extract from JSON responses (data quality mode)
+    if (sqlBlocks.length === 0) {
+        const jsonBlockRegex = /```json\s*\n([\s\S]*?)\n```/;
+        const jsonMatch = message.match(jsonBlockRegex);
+        
+        if (jsonMatch) {
+            try {
+                const jsonData = JSON.parse(jsonMatch[1]);
+                // Check for SQL in various fields
+                if (jsonData.sql) {
+                    sqlBlocks.push(jsonData.sql);
+                } else if (jsonData.sql_fix) {
+                    sqlBlocks.push(jsonData.sql_fix);
+                } else if (jsonData.issues && Array.isArray(jsonData.issues)) {
+                    // Extract SQL from all issues
+                    jsonData.issues.forEach((issue: any) => {
+                        if (issue.sql_fix) {
+                            sqlBlocks.push(issue.sql_fix);
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error('Error parsing JSON for SQL extraction:', e);
+            }
+        }
+    }
+    
+    return sqlBlocks;
+}
+
+// Show SQL preview from last AI message (removed - not used in data model mode)
+// Data quality features now live in DataQualityPanel
+
+// Note: Mode switching removed - AI Data Modeler now focuses solely on data model design
+// Data Quality and Attribution features moved to data model detail page where actual data exists
+
 // Save preview preference to localStorage
 function savePreference(key: string, value: boolean) {
     try {
@@ -422,7 +473,9 @@ function getOrderByColumns(): string[] {
                         <!-- Header -->
                         <div class="flex-shrink-0 px-6 py-5 border-b border-gray-200 flex justify-between items-start bg-gray-50">
                             <div class="flex-1">
-                                <h2 class="text-xl font-semibold text-gray-800 mb-1">Choose a Data Model Template</h2>
+                                <h2 class="text-xl font-semibold text-gray-800 mb-1">
+                                    Choose a Data Model Template
+                                </h2>
                                 <div v-if="aiDataModelerStore.schemaSummary" class="text-[13px] text-gray-500">
                                     {{ aiDataModelerStore.schemaSummary.tableCount }} tables · 
                                     {{ aiDataModelerStore.schemaSummary.totalColumns }} columns available
@@ -448,6 +501,16 @@ function getOrderByColumns(): string[] {
                                 </button>
                             </div>
                         </div>
+                        
+                        <!-- Single focus: Data Model Design -->
+                        <div class="flex-shrink-0 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-3">
+                            <div class="flex items-center gap-2 text-sm text-gray-700">
+                                <span class="text-lg">🗂️</span>
+                                <span class="font-medium">Data Model Builder</span>
+                                <span class="text-gray-500">·</span>
+                                <span class="text-gray-600">Design your data structure with AI assistance</span>
+                            </div>
+                        </div>
                         <!-- Loading State during initialization -->
                         <div v-if="aiDataModelerStore.isInitializing" class="flex-1 flex flex-col items-center justify-center py-12 px-6">
                             <div class="w-12 h-12 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin"></div>
@@ -469,29 +532,31 @@ function getOrderByColumns(): string[] {
 
                         <!-- Main Content -->
                         <div v-else class="flex-1 flex flex-col overflow-hidden">
-                            <!-- Tab Navigation -->
-                            <div class="flex border-b border-gray-200 bg-white px-6">
-                                <button 
-                                    @click="activeTab = 'templates'"
-                                    :class="{ 
-                                        'border-b-2 border-blue-600 text-blue-600': activeTab === 'templates',
-                                        'text-gray-600 hover:text-gray-800': activeTab !== 'templates'
-                                    }"
-                                    class="px-6 py-3 font-medium transition-colors duration-200 flex items-center gap-2 cursor-pointer">
-                                    <span>📋</span>
-                                    <span>Templates</span>
-                                </button>
-                                <button 
-                                    @click="activeTab = 'chat'"
-                                    :class="{ 
-                                        'border-b-2 border-blue-600 text-blue-600': activeTab === 'chat',
-                                        'text-gray-600 hover:text-gray-800': activeTab !== 'chat'
-                                    }"
-                                    class="px-6 py-3 font-medium transition-colors duration-200 flex items-center gap-2 cursor-pointer">
-                                    <span>💬</span>
-                                    <span>Chat with AI</span>
-                                </button>
-                            </div>
+                            <!-- Data Model Mode -->
+                            <div v-if="aiDataModelerStore.sessionType === 'data_model'" class="flex-1 flex flex-col overflow-hidden">
+                                <!-- Tab Navigation -->
+                                <div class="flex border-b border-gray-200 bg-white px-6">
+                                    <button 
+                                        @click="activeTab = 'templates'"
+                                        :class="{ 
+                                            'border-b-2 border-blue-600 text-blue-600': activeTab === 'templates',
+                                            'text-gray-600 hover:text-gray-800': activeTab !== 'templates'
+                                        }"
+                                        class="px-6 py-3 font-medium transition-colors duration-200 flex items-center gap-2 cursor-pointer">
+                                        <span>📋</span>
+                                        <span>Templates</span>
+                                    </button>
+                                    <button 
+                                        @click="activeTab = 'chat'"
+                                        :class="{ 
+                                            'border-b-2 border-blue-600 text-blue-600': activeTab === 'chat',
+                                            'text-gray-600 hover:text-gray-800': activeTab !== 'chat'
+                                        }"
+                                        class="px-6 py-3 font-medium transition-colors duration-200 flex items-center gap-2 cursor-pointer">
+                                        <span>💬</span>
+                                        <span>Chat with AI</span>
+                                    </button>
+                                </div>
 
                             <!-- Templates Tab Content -->
                             <div v-if="activeTab === 'templates'" class="min-h-0 flex-1 overflow-y-auto p-6 bg-gradient-to-b from-gray-50 to-white">
@@ -887,6 +952,10 @@ function getOrderByColumns(): string[] {
                                 </button>
                             </div>
                             </div>
+                            </div>
+                            
+                            <!-- Data Quality and Attribution modes removed -->
+                            <!-- These features now live on the data model detail page where actual data exists -->
                         </div>
                     </div>
                 </Transition>
