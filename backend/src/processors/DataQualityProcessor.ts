@@ -52,6 +52,14 @@ export class DataQualityProcessor {
             // Profile the data model
             const profile = await this.dataQualityService.profileDataModel(dataModel);
             
+            // Log for debugging
+            console.log(`[DataQuality] Profiling results for model ${dataModelId}:`, {
+                schema: dataModel.schema,
+                tableName: dataModel.name,
+                totalRows: profile.totalRows,
+                columnCount: profile.columnCount
+            });
+            
             // Calculate quality scores
             const scores = this.dataQualityService.calculateQualityScores(profile);
             
@@ -89,16 +97,20 @@ export class DataQualityProcessor {
             }
             
             // Calculate overall quality score (weighted average)
+            // Weights optimized for marketing industry:
+            // - Completeness (40%): Critical for targeting and segmentation
+            // - Validity (35%): Accurate contact info prevents wasted ad spend
+            // - Uniqueness (25%): Deduplication avoids duplicate customer outreach
             const overallScore = Math.round(
-                scores.completenessScore * 0.4 +
-                scores.uniquenessScore * 0.3 +
-                scores.validityScore * 0.3
+                scores.completenessScore * 0.40 +
+                scores.validityScore * 0.35 +
+                scores.uniquenessScore * 0.25
             );
             
             // Save report to database
             const report = await this.saveQualityReport({
                 dataModelId,
-                userId: tokenDetails.users_platform_id,
+                userId: tokenDetails.user_id,
                 qualityScore: overallScore,
                 completenessScore: scores.completenessScore,
                 uniquenessScore: scores.uniquenessScore,
@@ -159,7 +171,7 @@ export class DataQualityProcessor {
             if (!cleaningConfig.dryRun && result.success) {
                 await this.historyService.logExecution(
                     dataModelId,
-                    tokenDetails.users_platform_id,
+                    tokenDetails.user_id,
                     cleaningConfig.cleaningType,
                     cleaningConfig.affectedColumns,
                     cleaningConfig.configuration,

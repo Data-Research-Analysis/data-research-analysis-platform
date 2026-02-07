@@ -3,13 +3,6 @@
     <div class="container mx-auto px-4 py-6">
       <!-- Header -->
       <div class="mb-6">
-        <div class="flex items-center gap-2 text-sm text-gray-600 mb-2">
-          <NuxtLink :to="`/projects/${projectId}`" class="hover:text-blue-600">Project</NuxtLink>
-          <span>/</span>
-          <NuxtLink :to="`/projects/${projectId}/data-models`" class="hover:text-blue-600">Data Models</NuxtLink>
-          <span>/</span>
-          <span class="text-gray-900">{{ dataModel?.name || 'Loading...' }}</span>
-        </div>
         <div class="flex items-center justify-between">
           <div>
             <h1 class="text-3xl font-bold text-gray-900 flex items-center gap-3">
@@ -33,8 +26,52 @@
         <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
       </div>
 
-      <!-- Content -->
-      <div v-else-if="dataModel" class="space-y-6">
+      <!-- Tab Navigation -->
+      <div v-if="dataModel" class="bg-white rounded-lg shadow mb-6">
+        <div class="border-b border-gray-200">
+          <nav class="flex space-x-8 px-6" aria-label="Tabs">
+            <button
+              @click="activeTab = 'overview'"
+              :class="[
+                activeTab === 'overview'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
+                'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 flex items-center gap-2 cursor-pointer'
+              ]"
+            >
+              <span>📋</span>
+              <span>Overview</span>
+            </button>
+            <button
+              @click="activeTab = 'data-quality'"
+              :class="[
+                activeTab === 'data-quality'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
+                'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 flex items-center gap-2 cursor-pointer'
+              ]"
+            >
+              <span>✅</span>
+              <span>Data Quality</span>
+            </button>
+            <button
+              @click="activeTab = 'attribution'"
+              :class="[
+                activeTab === 'attribution'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
+                'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 flex items-center gap-2 cursor-pointer'
+              ]"
+            >
+              <span>📊</span>
+              <span>Marketing Attribution</span>
+            </button>
+          </nav>
+        </div>
+      </div>
+
+      <!-- Tab Content -->
+      <div v-if="dataModel && activeTab === 'overview'" class="space-y-6">
         <!-- Refresh Status Card -->
         <RefreshStatusCard
           :data-model-id="dataModelId"
@@ -114,6 +151,16 @@
         </div>
       </div>
 
+      <!-- Data Quality Tab -->
+      <div v-else-if="dataModel && activeTab === 'data-quality'">
+        <DataQualityPanel :data-model-id="dataModelId" />
+      </div>
+
+      <!-- Attribution Tab -->
+      <div v-else-if="dataModel && activeTab === 'attribution'">
+        <AttributionPanel :data-model-id="dataModelId" />
+      </div>
+
       <!-- Error State -->
       <div v-else class="bg-white shadow-md overflow-hidden p-6 text-center">
         <font-awesome icon="fas fa-exclamation-triangle" class="text-red-500 text-4xl mb-3" />
@@ -133,6 +180,10 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useDataModelsStore } from '~/stores/data_models';
+import { getAuthToken } from '~/composables/AuthToken';
+import { baseUrl } from '~/composables/Utils';
+import DataQualityPanel from '~/components/DataQualityPanel.vue';
+import AttributionPanel from '~/components/AttributionPanel.vue';
 
 const route = useRoute();
 const dataModelsStore = useDataModelsStore();
@@ -144,7 +195,17 @@ const dataModel = ref<any>(null);
 const showQueryJson = ref(false);
 const refreshHistory = ref<any[]>([]);
 const historyLoading = ref(false);
+const activeTab = ref<'overview' | 'data-quality' | 'attribution'>('overview');
 let refreshInterval: NodeJS.Timeout | null = null;
+
+// Check for tab parameter in URL
+if (import.meta.client) {
+  const urlParams = new URLSearchParams(window.location.search);
+  const tabParam = urlParams.get('tab');
+  if (tabParam && ['overview', 'data-quality', 'attribution'].includes(tabParam)) {
+    activeTab.value = tabParam as 'overview' | 'data-quality' | 'attribution';
+  }
+}
 
 onMounted(async () => {
   loading.value = true;

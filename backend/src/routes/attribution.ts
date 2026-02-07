@@ -48,10 +48,11 @@ router.post('/attribution/track', validateJWT, async (req: Request, res: Respons
             eventTimestamp: eventTimestamp ? new Date(eventTimestamp) : new Date(),
             pageUrl,
             referrer,
-            userAgent,
-            ipAddress,
-            utmParams,
-            customData
+            metadata: {
+                userAgent,
+                ipAddress,
+                ...customData
+            }
         };
 
         const result = await attributionProcessor.trackEvent(
@@ -106,7 +107,7 @@ router.post('/attribution/reports', validateJWT, expensiveOperationsLimiter, asy
             return;
         }
 
-        const userId = req.user?.id;
+        const userId = (req as any).user_id;
 
         const result = await attributionProcessor.generateReport(
             projectId,
@@ -370,7 +371,7 @@ router.post('/attribution/analyze-funnel', validateJWT, expensiveOperationsLimit
             funnelSteps: req.body.funnelSteps,
             dateRangeStart: new Date(req.body.dateRangeStart),
             dateRangeEnd: new Date(req.body.dateRangeEnd),
-            userId: req.user?.id
+            userId: (req as any).user_id
         };
 
         if (!funnelRequest.projectId || !funnelRequest.funnelName || !funnelRequest.funnelSteps) {
@@ -430,6 +431,40 @@ router.post('/attribution/journey-map', validateJWT, expensiveOperationsLimiter,
 
     } catch (error) {
         console.error('[AttributionRoutes] Error getting journey map:', error);
+        res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
+/**
+ * Get attribution status for a project
+ * GET /attribution/status/:projectId
+ */
+router.get('/attribution/status/:projectId', validateJWT, async (req: Request, res: Response): Promise<void> => {
+    try {
+        const projectId = parseInt(req.params.projectId);
+
+        if (isNaN(projectId)) {
+            res.status(400).json({
+                success: false,
+                error: 'Invalid project ID'
+            });
+            return;
+        }
+
+        const channels = await attributionProcessor.getProjectChannels(projectId);
+        const enabled = channels.length > 0;
+
+        res.status(200).json({
+            success: true,
+            enabled: enabled,
+            channelCount: channels.length
+        });
+
+    } catch (error) {
+        console.error('[AttributionRoutes] Error getting attribution status:', error);
         res.status(500).json({
             success: false,
             error: error instanceof Error ? error.message : 'Unknown error'

@@ -13,6 +13,8 @@ export interface IColumnProfile {
     nullRate: number; // Percentage (0-100)
     distinctCount: number;
     distinctRate: number; // Percentage (0-100)
+    invalidCount: number; // Count of values that fail type/format validation
+    validityRate: number; // Percentage (0-100) of values that are valid
     sampleValues: any[];
     min?: number | Date;
     max?: number | Date;

@@ -19,7 +19,8 @@ function buildBreadcrumbs() {
     if (!routeName) {
         return;
     }
-    route.fullPath.split('/').forEach((path, index) => {
+    const pathSegments = route.fullPath.split('/');
+    pathSegments.forEach((path, index) => {
         if (path && path !== '') {
             let breadCrumbText = routeName.split('-')[index - 1];
             if (breadCrumbText === 'projectid') {
@@ -29,11 +30,27 @@ function buildBreadcrumbs() {
             } else {
                 breadCrumbText = path?.replaceAll('-', ' ') || '';
             }
-            url += `/${path}`;
+            
+            // Check if previous segment was a data model ID and current is 'edit'
+            const prevSegment = pathSegments[index - 1];
+            const nextSegment = pathSegments[index + 1];
+            const isDataModelId = prevSegment === 'data-models' && !isNaN(path);
+            const isEditAfterDataModel = path === 'edit' && prevSegment && !isNaN(prevSegment) && pathSegments[index - 2] === 'data-models';
+            
+            // Don't add 'edit' to URL if we already added it in the previous iteration for data model ID
+            if (!isEditAfterDataModel) {
+                url += `/${path}`;
+            }
+            
+            // For data model IDs followed by 'edit', append /edit to URL
+            if (isDataModelId && nextSegment === 'edit') {
+                url += '/edit';
+            }
+            
             state.paths.push({
               path: path.replaceAll('-', ' '),
               url: url,
-              isLast: index === route.fullPath.split('/').length - 1,
+              isLast: index === pathSegments.length - 1,
               breadCrumbText: breadCrumbText,
             });
         }

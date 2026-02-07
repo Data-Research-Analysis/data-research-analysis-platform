@@ -4,7 +4,6 @@ import { useAIDataModelerStore } from '~/stores/ai-data-modeler';
 import { useSubscriptionStore } from '~/stores/subscription';
 import { usePresetGenerator } from '~/composables/usePresetGenerator';
 import AIDataModelerChat from './AIDataModelerChat.vue';
-import AttributionDashboard from './AttributionDashboard.vue';
 
 const aiDataModelerStore = useAIDataModelerStore();
 const subscriptionStore = useSubscriptionStore();
@@ -108,12 +107,6 @@ const isGeneratingRecommendation = ref(false);
 // Tab state for Templates vs Chat
 const activeTab = ref<'templates' | 'chat'>('templates');
 
-// Quality mode state
-const showSQLPreview = ref(false);
-const sqlToExecute = ref('');
-const isExecutingSQL = ref(false);
-const sqlExecutionResult = ref<any>(null);
-
 // User preferences - Load preview preference from localStorage
 function loadPreferences() {
     try {
@@ -126,38 +119,10 @@ function loadPreferences() {
     }
 }
 
-// Execute SQL with dry-run option
-async function executeSQLWithDryRun(dryRun: boolean = false) {
-    if (!sqlToExecute.value || !aiDataModelerStore.currentDataModelId) {
-        console.error('[AI Drawer] Missing SQL or data model ID');
-        return;
-    }
+// Note: SQL execution and data quality features removed
+// These are now available in DataQualityPanel on the data model detail page
 
-    isExecutingSQL.value = true;
-    sqlExecutionResult.value = null;
-
-    try {
-        const result = await aiDataModelerStore.executeAIGeneratedSQL(
-            aiDataModelerStore.currentDataModelId,
-            sqlToExecute.value,
-            dryRun
-        );
-
-        sqlExecutionResult.value = result;
-        
-        console.log('[AI Drawer] SQL execution result:', result);
-    } catch (error) {
-        console.error('[AI Drawer] SQL execution failed:', error);
-        sqlExecutionResult.value = {
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error'
-        };
-    } finally {
-        isExecutingSQL.value = false;
-    }
-}
-
-// Extract SQL from AI message
+// Extract SQL from AI message (kept for backward compatibility but not used)
 function extractSQLFromMessage(message: string): string[] {
     const sqlBlocks: string[] = [];
     
@@ -199,31 +164,11 @@ function extractSQLFromMessage(message: string): string[] {
     return sqlBlocks;
 }
 
-// Show SQL preview from last AI message
-function showLastSQLPreview() {
-    if (aiDataModelerStore.messages.length === 0) return;
-    
-    const lastMessage = aiDataModelerStore.messages[aiDataModelerStore.messages.length - 1];
-    if (lastMessage.role !== 'assistant') return;
-    
-    const sqlBlocks = extractSQLFromMessage(lastMessage.content);
-    if (sqlBlocks.length > 0) {
-        sqlToExecute.value = sqlBlocks[0]; // Use first SQL block
-        showSQLPreview.value = true;
-    }
-}
+// Show SQL preview from last AI message (removed - not used in data model mode)
+// Data quality features now live in DataQualityPanel
 
-// Switch session mode
-function switchMode(mode: 'data_model' | 'data_quality' | 'attribution') {
-    // Update the store's session type
-    aiDataModelerStore.sessionType = mode;
-    
-    if (import.meta.client) {
-        localStorage.setItem('ai-session-type', mode);
-    }
-    
-    console.log('[AI Drawer] Switched to mode:', mode);
-}
+// Note: Mode switching removed - AI Data Modeler now focuses solely on data model design
+// Data Quality and Attribution features moved to data model detail page where actual data exists
 
 // Save preview preference to localStorage
 function savePreference(key: string, value: boolean) {
@@ -529,9 +474,7 @@ function getOrderByColumns(): string[] {
                         <div class="flex-shrink-0 px-6 py-5 border-b border-gray-200 flex justify-between items-start bg-gray-50">
                             <div class="flex-1">
                                 <h2 class="text-xl font-semibold text-gray-800 mb-1">
-                                    {{  aiDataModelerStore.sessionType === 'data_quality' ? 'Data Quality Assistant' :
-                                        aiDataModelerStore.sessionType === 'attribution' ? 'Marketing Attribution' :
-                                        'Choose a Data Model Template' }}
+                                    Choose a Data Model Template
                                 </h2>
                                 <div v-if="aiDataModelerStore.schemaSummary" class="text-[13px] text-gray-500">
                                     {{ aiDataModelerStore.schemaSummary.tableCount }} tables · 
@@ -559,41 +502,14 @@ function getOrderByColumns(): string[] {
                             </div>
                         </div>
                         
-                        <!-- Mode Selector Tabs -->
-                        <div class="flex-shrink-0 flex border-b border-gray-200 bg-gray-50 px-4">
-                            <button 
-                                @click="switchMode('data_model')"
-                                :class="{ 
-                                    'border-b-2 border-blue-600 text-blue-600 bg-white': aiDataModelerStore.sessionType === 'data_model',
-                                    'text-gray-600 hover:text-gray-800 hover:bg-gray-100': aiDataModelerStore.sessionType !== 'data_model'
-                                }"
-                                class="px-4 py-2.5 font-medium text-sm transition-all duration-200 flex items-center gap-2 cursor-pointer border-b-2 border-transparent"
-                            >
-                                <span>🗂️</span>
-                                <span>Data Model</span>
-                            </button>
-                            <button 
-                                @click="switchMode('data_quality')"
-                                :class="{ 
-                                    'border-b-2 border-blue-600 text-blue-600 bg-white': aiDataModelerStore.sessionType === 'data_quality',
-                                    'text-gray-600 hover:text-gray-800 hover:bg-gray-100': aiDataModelerStore.sessionType !== 'data_quality'
-                                }"
-                                class="px-4 py-2.5 font-medium text-sm transition-all duration-200 flex items-center gap-2 cursor-pointer border-b-2 border-transparent"
-                            >
-                                <span>✅</span>
-                                <span>Data Quality</span>
-                            </button>
-                            <button 
-                                @click="switchMode('attribution')"
-                                :class="{ 
-                                    'border-b-2 border-blue-600 text-blue-600 bg-white': aiDataModelerStore.sessionType === 'attribution',
-                                    'text-gray-600 hover:text-gray-800 hover:bg-gray-100': aiDataModelerStore.sessionType !== 'attribution'
-                                }"
-                                class="px-4 py-2.5 font-medium text-sm transition-all duration-200 flex items-center gap-2 cursor-pointer border-b-2 border-transparent"
-                            >
-                                <span>📊</span>
-                                <span>Attribution</span>
-                            </button>
+                        <!-- Single focus: Data Model Design -->
+                        <div class="flex-shrink-0 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-3">
+                            <div class="flex items-center gap-2 text-sm text-gray-700">
+                                <span class="text-lg">🗂️</span>
+                                <span class="font-medium">Data Model Builder</span>
+                                <span class="text-gray-500">·</span>
+                                <span class="text-gray-600">Design your data structure with AI assistance</span>
+                            </div>
                         </div>
                         <!-- Loading State during initialization -->
                         <div v-if="aiDataModelerStore.isInitializing" class="flex-1 flex flex-col items-center justify-center py-12 px-6">
@@ -1038,102 +954,8 @@ function getOrderByColumns(): string[] {
                             </div>
                             </div>
                             
-                            <!-- Data Quality Mode -->
-                            <div v-else-if="aiDataModelerStore.sessionType === 'data_quality'" class="flex-1 flex flex-col overflow-hidden">
-                                <!-- Quality Chat Interface -->
-                                <div class="flex-1 overflow-y-auto p-6 bg-gradient-to-b from-gray-50 to-white">
-                                    <AIDataModelerChat 
-                                        @send-message="handleSendMessage"
-                                        @preset-model="handlePresetModel"
-                                    />
-                                    
-                                    <!-- SQL Preview Section -->
-                                    <div v-if="showSQLPreview && sqlToExecute" class="mt-6 bg-white border-2 border-blue-200 rounded-lg overflow-hidden">
-                                        <div class="px-4 py-3 bg-blue-50 border-b border-blue-200 flex items-center justify-between">
-                                            <div class="flex items-center gap-2 text-blue-700 font-medium">
-                                                <span>💻</span>
-                                                <span>SQL Cleaning Operation</span>
-                                            </div>
-                                            <button
-                                                @click="showSQLPreview = false"
-                                                class="text-blue-600 hover:text-blue-800 text-sm"
-                                            >
-                                                Hide
-                                            </button>
-                                        </div>
-                                        
-                                        <!-- SQL Code -->
-                                        <div class="p-4 bg-gray-900">
-                                            <pre class="text-xs text-green-400 font-mono overflow-x-auto">{{ sqlToExecute }}</pre>
-                                        </div>
-                                        
-                                        <!-- Execution Controls -->
-                                        <div class="px-4 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between gap-4">
-                                            <div class="text-xs text-gray-600">
-                                                <span class="font-medium">⚠️ Preview first:</span> Dry run shows affected rows without making changes
-                                            </div>
-                                            <div class="flex gap-2">
-                                                <button
-                                                    @click="executeSQLWithDryRun(true)"
-                                                    :disabled="isExecutingSQL"
-                                                    class="px-4 py-2 bg-yellow-600 text-white text-sm font-medium rounded-lg hover:bg-yellow-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors duration-200 flex items-center gap-2"
-                                                >
-                                                    <span>🔍</span>
-                                                    <span>Dry Run</span>
-                                                </button>
-                                                <button
-                                                    @click="executeSQLWithDryRun(false)"
-                                                    :disabled="isExecutingSQL"
-                                                    class="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors duration-200 flex items-center gap-2"
-                                                >
-                                                    <span v-if="isExecutingSQL" class="animate-spin">⚙️</span>
-                                                    <span v-else>▶️</span>
-                                                    <span>{{ isExecutingSQL ? 'Executing...' : 'Execute' }}</span>
-                                                </button>
-                                            </div>
-                                        </div>
-                                        
-                                        <!-- Execution Result -->
-                                        <div v-if="sqlExecutionResult" class="px-4 py-3 border-t" :class="sqlExecutionResult.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'">
-                                            <div class="flex items-start gap-2">
-                                                <span v-if="sqlExecutionResult.success" class="text-lg">✅</span>
-                                                <span v-else class="text-lg">❌</span>
-                                                <div class="flex-1">
-                                                    <div class="font-medium text-sm" :class="sqlExecutionResult.success ? 'text-green-800' : 'text-red-800'">
-                                                        {{ sqlExecutionResult.success ? 'Success' : 'Failed' }}
-                                                    </div>
-                                                    <div class="text-xs mt-1" :class="sqlExecutionResult.success ? 'text-green-700' : 'text-red-700'">
-                                                        <div v-if="sqlExecutionResult.success">
-                                                            <span class="font-medium">Rows Affected:</span> {{ sqlExecutionResult.rowsAffected || 0 }}
-                                                            <span v-if="sqlExecutionResult.executionTime" class="ml-3">
-                                                                <span class="font-medium">Time:</span> {{ sqlExecutionResult.executionTime }}ms
-                                                            </span>
-                                                        </div>
-                                                        <div v-else>
-                                                            {{ sqlExecutionResult.error || 'Unknown error occurred' }}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Show SQL Button -->
-                                    <div v-if="!showSQLPreview && aiDataModelerStore.messages.length > 0" class="mt-4 text-center">
-                                        <button
-                                            @click="showLastSQLPreview()"
-                                            class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors duration-200"
-                                        >
-                                            Show SQL Preview
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Attribution Mode -->
-                            <div v-else-if="aiDataModelerStore.sessionType === 'attribution'" class="flex-1 flex flex-col overflow-hidden">
-                                <AttributionDashboard />
-                            </div>
+                            <!-- Data Quality and Attribution modes removed -->
+                            <!-- These features now live on the data model detail page where actual data exists -->
                         </div>
                     </div>
                 </Transition>

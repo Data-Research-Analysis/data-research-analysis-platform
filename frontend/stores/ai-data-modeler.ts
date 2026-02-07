@@ -27,10 +27,10 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
     const projectId = ref<number | null>(null);
     const dataSources = ref<Array<{ id: number; name: string; type: string }>>([]);
     
-    // Quality mode properties
-    const sessionType = ref<'data_model' | 'data_quality' | 'attribution'>('data_model');
+    // Session type - simplified to only support data_model
+    // Data Quality and Attribution moved to data model detail page
+    const sessionType = ref<'data_model'>('data_model');
     const currentDataModelId = ref<number | null>(null);
-    const qualityProfile = ref<any>(null);
 
     /**
      * Open the AI drawer and initialize conversation
@@ -1095,130 +1095,9 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
         dismissedSuggestions.value.clear();
     }
 
-    /**
-     * Start quality analysis session for a data model
-     */
-    async function startQualityAnalysis(dataModelId: number) {
-        isInitializing.value = true;
-        error.value = null;
-        sessionType.value = 'data_quality';
-        currentDataModelId.value = dataModelId;
-
-        try {
-            const token = getAuthToken();
-            if (!token) {
-                throw new Error('Authentication required');
-            }
-
-            const config = useRuntimeConfig();
-            const url = `${config.public.apiBase}/ai-data-modeler/quality/initialize`;
-
-            const data = await $fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Authorization-Type': 'auth'
-                },
-                body: { dataModelId },
-                credentials: 'include'
-            }) as any;
-
-            conversationId.value = data.conversationId;
-            sessionSource.value = data.restored ? 'redis' : 'new';
-            
-            if (data.messages) {
-                messages.value = data.messages.map((msg: any) => ({
-                    id: generateMessageId(),
-                    role: msg.role,
-                    content: msg.content,
-                    timestamp: new Date(msg.timestamp || Date.now())
-                }));
-            }
-
-            console.log('[AI Store] Quality session initialized:', {
-                conversationId: data.conversationId,
-                dataModelId,
-                messageCount: messages.value.length
-            });
-
-            // Sync to localStorage
-            if (import.meta.client) {
-                localStorage.setItem('ai-session-type', 'data_quality');
-                localStorage.setItem('ai-data-model-id', String(dataModelId));
-            }
-
-            return true;
-        } catch (err) {
-            error.value = err instanceof Error ? err.message : 'Failed to start quality analysis';
-            console.error('Error starting quality analysis:', err);
-            return false;
-        } finally {
-            isInitializing.value = false;
-        }
-    }
-
-    /**
-     * Execute AI-generated SQL cleaning operations
-     */
-    async function executeAIGeneratedSQL(dataModelId: number, sql: string, dryRun: boolean = false) {
-        isLoading.value = true;
-        error.value = null;
-
-        try {
-            const token = getAuthToken();
-            if (!token) {
-                throw new Error('Authentication required');
-            }
-
-            const config = useRuntimeConfig();
-            const url = `${config.public.apiBase}/ai-data-modeler/quality/execute-sql`;
-
-            const result = await $fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Authorization-Type': 'auth'
-                },
-                body: { dataModelId, sql, dryRun },
-                credentials: 'include'
-            }) as any;
-
-            console.log('[AI Store] SQL execution result:', {
-                success: result.success,
-                dryRun,
-                rowsAffected: result.rowsAffected,
-                executionTime: result.executionTime
-            });
-
-            // Add execution result as system message
-            const resultMessage = {
-                id: generateMessageId(),
-                role: 'system' as const,
-                content: dryRun 
-                    ? `Dry run completed. ${result.rowsAffected} rows would be affected.`
-                    : `SQL executed successfully. ${result.rowsAffected} rows affected in ${result.executionTime}ms.`,
-                timestamp: new Date()
-            };
-
-            messages.value.push(resultMessage);
-
-            // Sync to localStorage
-            if (import.meta.client) {
-                const cached = localStorage.getItem('ai-messages');
-                const cachedMessages = cached ? JSON.parse(cached) : [];
-                cachedMessages.push(resultMessage);
-                localStorage.setItem('ai-messages', JSON.stringify(cachedMessages));
-            }
-
-            return result;
-        } catch (err) {
-            error.value = err instanceof Error ? err.message : 'Failed to execute SQL';
-            console.error('Error executing SQL:', err);
-            throw err;
-        } finally {
-            isLoading.value = false;
-        }
-    }
+    // Quality analysis and attribution functions removed
+    // These features now live on the data model detail page where actual data exists
+    // See: DataQualityPanel.vue and AttributionPanel.vue (to be created)
 
     // Computed properties for filtering suggestions
     const visibleSuggestions = computed(() => {
@@ -1283,10 +1162,9 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
         projectId,
         dataSources,
         
-        // Quality mode state
+        // Session type simplified - only data_model supported
         sessionType,
         currentDataModelId,
-        qualityProfile,
 
         // Suggested Joins State (Issue #270)
         suggestedJoins,
@@ -1333,10 +1211,9 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
         preloadCrossSourceSuggestions,
         applySuggestion,
         dismissSuggestion,
-        clearSuggestions,
+        clearSuggestions
         
-        // Quality mode actions
-        startQualityAnalysis,
-        executeAIGeneratedSQL
+        // Quality analysis functions removed - moved to DataQualityPanel.vue
+        // Attribution functions removed - moved to AttributionPanel.vue
     };
 });

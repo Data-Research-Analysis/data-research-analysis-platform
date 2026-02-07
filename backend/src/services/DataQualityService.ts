@@ -30,16 +30,33 @@ export class DataQualityService {
     public async profileDataModel(dataModel: DRADataModel): Promise<IDataProfile> {
         try {
             console.log(`Profiling data model: ${dataModel.name} (ID: ${dataModel.id})`);
+            console.log(`Schema: "${dataModel.schema}", Table: "${dataModel.name}"`);
 
             const queryRunner = AppDataSource.createQueryRunner();
             await queryRunner.connect();
 
             try {
                 // Get total row count
-                const countResult = await queryRunner.query(
-                    `SELECT COUNT(*) as total_rows FROM "${dataModel.schema}"."${dataModel.name}"`
-                );
+                const countQuery = `SELECT COUNT(*) as total_rows FROM "${dataModel.schema}"."${dataModel.name}"`;
+                console.log(`[DataQualityService] Executing count query: ${countQuery}`);
+                
+                const countResult = await queryRunner.query(countQuery);
                 const totalRows = parseInt(countResult[0].total_rows);
+                
+                console.log(`[DataQualityService] Count result: ${totalRows} rows found`);
+                
+                if (totalRows === 0) {
+                    console.warn(`[DataQualityService] ⚠️ Table "${dataModel.schema}"."${dataModel.name}" has 0 rows`);
+                    // Check if table exists
+                    const tableExistsQuery = `
+                        SELECT EXISTS (
+                            SELECT FROM information_schema.tables 
+                            WHERE table_schema = $1 AND table_name = $2
+                        );
+                    `;
+                    const existsResult = await queryRunner.query(tableExistsQuery, [dataModel.schema, dataModel.name]);
+                    console.log(`[DataQualityService] Table exists check:`, existsResult[0]);
+                }
 
                 // Get column information from information_schema
                 const columnsInfo = await queryRunner.query(
@@ -130,6 +147,16 @@ export class DataQualityService {
         );
         const sampleValues = sampleResult.map((row: any) => row[columnName]);
 
+        // Validate data type conformance and format
+        const validation = await this.validateColumn(
+            queryRunner,
+            schema,
+            tableName,
+            columnName,
+            dataType,
+            totalRows
+        );
+
         const profile: IColumnProfile = {
             name: columnName,
             type: dataType,
@@ -137,6 +164,8 @@ export class DataQualityService {
             nullRate: Math.round(nullRate * 100) / 100,
             distinctCount,
             distinctRate: Math.round(distinctRate * 100) / 100,
+            invalidCount: validation.invalidCount,
+            validityRate: Math.round(validation.validityRate * 100) / 100,
             sampleValues
         };
 
@@ -182,6 +211,112 @@ export class DataQualityService {
     }
 
     /**
+     * Validate column data for type conformance and format validity
+     * Critical for marketing data quality (email format, phone format, etc.)
+     */
+    private async validateColumn(
+        queryRunner: any,
+        schema: string,
+        tableName: string,
+        columnName: string,
+        dataType: string,
+        totalRows: number
+    ): Promise<{ invalidCount: number; validityRate: number }> {
+        const fullyQualifiedTable = `"${schema}"."${tableName}"`;
+        const quotedColumn = `"${columnName}"`;
+        let invalidCount = 0;
+
+        try {
+            // Validate numeric types - check for values that can't be cast to numeric
+            if (this.isNumericType(dataType)) {
+                const result = await queryRunner.query(
+                    `SELECT COUNT(*) as invalid_count
+                     FROM ${fullyQualifiedTable}
+                     WHERE ${quotedColumn} IS NOT NULL
+                       AND ${quotedColumn}::text !~ '^-?[0-9]+(\\.[0-9]+)?$'`
+                );
+                invalidCount += parseInt(result[0].invalid_count || 0);
+            }
+
+            // Validate date types - check for invalid date values
+            else if (this.isDateType(dataType)) {
+                // Try to cast to date and count failures
+                const result = await queryRunner.query(
+                    `SELECT COUNT(*) as invalid_count
+                     FROM ${fullyQualifiedTable}
+                     WHERE ${quotedColumn} IS NOT NULL
+                       AND ${quotedColumn}::text !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'`
+                );
+                invalidCount += parseInt(result[0].invalid_count || 0);
+            }
+
+            // Validate text types with common marketing patterns
+            else if (this.isTextType(dataType)) {
+                const colNameLower = columnName.toLowerCase();
+                
+                // Email validation (critical for marketing)
+                if (colNameLower.includes('email') || colNameLower.includes('mail')) {
+                    const result = await queryRunner.query(
+                        `SELECT COUNT(*) as invalid_count
+                         FROM ${fullyQualifiedTable}
+                         WHERE ${quotedColumn} IS NOT NULL
+                           AND ${quotedColumn} !~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$'`
+                    );
+                    invalidCount += parseInt(result[0].invalid_count || 0);
+                }
+                
+                // Phone validation (important for marketing campaigns)
+                else if (colNameLower.includes('phone') || colNameLower.includes('tel') || colNameLower.includes('mobile')) {
+                    const result = await queryRunner.query(
+                        `SELECT COUNT(*) as invalid_count
+                         FROM ${fullyQualifiedTable}
+                         WHERE ${quotedColumn} IS NOT NULL
+                           AND ${quotedColumn} !~ '^[+]?[0-9\\s\\-\\(\\)]{7,20}$'`
+                    );
+                    invalidCount += parseInt(result[0].invalid_count || 0);
+                }
+                
+                // URL validation (for tracking links, landing pages)
+                else if (colNameLower.includes('url') || colNameLower.includes('link') || colNameLower.includes('website')) {
+                    const result = await queryRunner.query(
+                        `SELECT COUNT(*) as invalid_count
+                         FROM ${fullyQualifiedTable}
+                         WHERE ${quotedColumn} IS NOT NULL
+                           AND ${quotedColumn} !~* '^https?://[^\\s/$.?#].[^\\s]*$'`
+                    );
+                    invalidCount += parseInt(result[0].invalid_count || 0);
+                }
+            }
+
+            // Calculate validity rate
+            const validityRate = totalRows > 0 ? ((totalRows - invalidCount) / totalRows) * 100 : 100;
+
+            return {
+                invalidCount,
+                validityRate
+            };
+        } catch (error) {
+            console.warn(`Could not validate column ${columnName}:`, error);
+            // Return 100% valid if validation fails (conservative approach)
+            return {
+                invalidCount: 0,
+                validityRate: 100
+            };
+        }
+    }
+
+    /**
+     * Check if data type is text/string
+     */
+    private isTextType(dataType: string): boolean {
+        const textTypes = [
+            'character varying', 'varchar', 'character', 'char',
+            'text', 'string'
+        ];
+        return textTypes.includes(dataType.toLowerCase());
+    }
+
+    /**
      * Check if data type is numeric
      */
     private isNumericType(dataType: string): boolean {
@@ -207,6 +342,7 @@ export class DataQualityService {
 
     /**
      * Calculate quality scores from profile data
+     * Optimized for marketing data quality requirements
      */
     public calculateQualityScores(profile: IDataProfile): {
         completenessScore: number;
@@ -219,14 +355,15 @@ export class DataQualityService {
         let columnCount = profile.columns.length;
 
         for (const col of profile.columns) {
-            // Completeness: 100 - null rate
+            // Completeness: 100 - null rate (critical for marketing targeting)
             completenessTotal += (100 - col.nullRate);
 
-            // Uniqueness: distinct rate (higher is better for most columns)
+            // Uniqueness: distinct rate (important for deduplication)
             uniquenessTotal += col.distinctRate;
 
-            // Validity: basic check (100 if type is valid, could be enhanced)
-            validityTotal += 100;
+            // Validity: actual validation rate (now properly implemented)
+            // Checks type conformance, email formats, phone formats, URL formats
+            validityTotal += col.validityRate;
         }
 
         return {

@@ -20,46 +20,159 @@
         </div>
 
         <!-- Quality Score Card -->
-        <div v-if="latestReport" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div class="bg-white rounded-lg shadow p-6 border-l-4" :class="getScoreColorClass(latestReport.overall_score)">
+        <div v-if="latestReport" class="space-y-6 mb-8">
+            <!-- Overall Quality Score - Hero Section -->
+            <div class="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl shadow-lg p-8 border border-blue-100">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-gray-600 text-sm font-medium">Overall Quality Score</p>
-                        <p class="text-4xl font-bold mt-2" :class="getScoreTextColor(latestReport.overall_score)">
-                            {{ latestReport.overall_score }}
+                        <h2 class="text-gray-600 text-lg font-semibold mb-2">Overall Data Quality Score</h2>
+                        <div class="flex items-baseline gap-3">
+                            <p class="text-6xl font-bold" :class="getScoreTextColor(latestReport.qualityScore)">
+                                {{ latestReport.qualityScore }}
+                            </p>
+                            <span class="text-3xl text-gray-400">/100</span>
+                        </div>
+                        <p class="text-sm text-gray-600 mt-2">
+                            Weighted for marketing: completeness (40%), validity (35%), uniqueness (25%)
+                        </p>
+                        <p class="text-xs text-gray-500 mt-1">
+                            Priorities: complete customer data for targeting, accurate contact info to prevent wasted spend, deduplicated records
                         </p>
                     </div>
-                    <div class="text-5xl">
-                        {{ getScoreEmoji(latestReport.overall_score) }}
+                    <div class="text-8xl">
+                        {{ getScoreEmoji(latestReport.qualityScore) }}
                     </div>
                 </div>
             </div>
 
-            <div class="bg-white rounded-lg shadow p-6">
-                <p class="text-gray-600 text-sm font-medium">Completeness</p>
-                <div class="flex items-baseline gap-2 mt-2">
-                    <p class="text-3xl font-bold text-gray-800">{{ latestReport.completeness_score }}</p>
-                    <p class="text-sm text-gray-500">/100</p>
-                </div>
-                <div class="w-full bg-gray-200 rounded-full h-2 mt-3">
-                    <div 
-                        class="bg-blue-600 h-2 rounded-full transition-all duration-500"
-                        :style="{ width: `${latestReport.completeness_score}%` }"
-                    ></div>
+            <!-- Quality Dimension Scores -->
+            <div>
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">Quality Dimensions</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <!-- Completeness -->
+                    <div class="bg-white rounded-lg shadow p-5 hover:shadow-md transition-shadow">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="text-2xl">✅</span>
+                            <p class="text-gray-600 text-sm font-semibold">Completeness</p>
+                        </div>
+                        <div class="flex items-baseline gap-2 mb-3">
+                            <p class="text-3xl font-bold text-blue-600">{{ latestReport.completenessScore }}</p>
+                            <p class="text-sm text-gray-500">/100</p>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2 mb-2">
+                            <div 
+                                class="bg-blue-600 h-2 rounded-full transition-all duration-500"
+                                :style="{ width: `${latestReport.completenessScore}%` }"
+                            ></div>
+                        </div>
+                        <p class="text-xs text-gray-500">Percentage of non-null values</p>
+                    </div>
+
+                    <!-- Uniqueness -->
+                    <div class="bg-white rounded-lg shadow p-5 hover:shadow-md transition-shadow">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="text-2xl">🔑</span>
+                            <p class="text-gray-600 text-sm font-semibold">Uniqueness</p>
+                        </div>
+                        <div class="flex items-baseline gap-2 mb-3">
+                            <p class="text-3xl font-bold text-purple-600">{{ latestReport.uniquenessScore }}</p>
+                            <p class="text-sm text-gray-500">/100</p>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2 mb-2">
+                            <div 
+                                class="bg-purple-600 h-2 rounded-full transition-all duration-500"
+                                :style="{ width: `${latestReport.uniquenessScore}%` }"
+                            ></div>
+                        </div>
+                        <p class="text-xs text-gray-500">Records without duplicates</p>
+                    </div>
+
+                    <!-- Validity -->
+                    <div class="bg-white rounded-lg shadow p-5 hover:shadow-md transition-shadow">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="text-2xl">🎯</span>
+                            <p class="text-gray-600 text-sm font-semibold">Validity</p>
+                        </div>
+                        <div class="flex items-baseline gap-2 mb-3">
+                            <p class="text-3xl font-bold text-green-600">{{ latestReport.validityScore }}</p>
+                            <p class="text-sm text-gray-500">/100</p>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2 mb-2">
+                            <div 
+                                class="bg-green-600 h-2 rounded-full transition-all duration-500"
+                                :style="{ width: `${latestReport.validityScore}%` }"
+                            ></div>
+                        </div>
+                        <p class="text-xs text-gray-500">Valid formats (emails, phones, dates, types)</p>
+                    </div>
+
+                    <!-- Consistency -->
+                    <div class="bg-white rounded-lg shadow p-5 hover:shadow-md transition-shadow">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="text-2xl">🔄</span>
+                            <p class="text-gray-600 text-sm font-semibold">Consistency</p>
+                        </div>
+                        <div class="flex items-baseline gap-2 mb-3">
+                            <p class="text-3xl font-bold text-orange-600">{{ latestReport.consistencyScore || 0 }}</p>
+                            <p class="text-sm text-gray-500">/100</p>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2 mb-2">
+                            <div 
+                                class="bg-orange-600 h-2 rounded-full transition-all duration-500"
+                                :style="{ width: `${latestReport.consistencyScore || 0}%` }"
+                            ></div>
+                        </div>
+                        <p class="text-xs text-gray-500">Uniform formatting & patterns</p>
+                    </div>
                 </div>
             </div>
 
-            <div class="bg-white rounded-lg shadow p-6">
-                <p class="text-gray-600 text-sm font-medium">Consistency</p>
-                <div class="flex items-baseline gap-2 mt-2">
-                    <p class="text-3xl font-bold text-gray-800">{{ latestReport.consistency_score }}</p>
-                    <p class="text-sm text-gray-500">/100</p>
-                </div>
-                <div class="w-full bg-gray-200 rounded-full h-2 mt-3">
-                    <div 
-                        class="bg-green-600 h-2 rounded-full transition-all duration-500"
-                        :style="{ width: `${latestReport.consistency_score}%` }"
-                    ></div>
+            <!-- Data Statistics -->
+            <div>
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">Data Statistics</h3>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <!-- Total Rows -->
+                    <div class="bg-white rounded-lg shadow p-5 hover:shadow-md transition-shadow border-l-4 border-blue-500">
+                        <p class="text-gray-600 text-xs font-medium mb-2">TOTAL ROWS</p>
+                        <p class="text-3xl font-bold text-gray-800">{{ formatNumber(latestReport.totalRows) }}</p>
+                        <p class="text-xs text-gray-500 mt-2">Records analyzed</p>
+                    </div>
+
+                    <!-- Duplicate Records -->
+                    <div class="bg-white rounded-lg shadow p-5 hover:shadow-md transition-shadow border-l-4" 
+                         :class="latestReport.duplicateCount > 0 ? 'border-red-500' : 'border-green-500'">
+                        <p class="text-gray-600 text-xs font-medium mb-2">DUPLICATES</p>
+                        <p class="text-3xl font-bold" :class="latestReport.duplicateCount > 0 ? 'text-red-600' : 'text-green-600'">
+                            {{ formatNumber(latestReport.duplicateCount) }}
+                        </p>
+                        <p class="text-xs text-gray-500 mt-2">
+                            {{ latestReport.duplicateCount > 0 ? 'Need cleaning' : 'No duplicates found' }}
+                        </p>
+                    </div>
+
+                    <!-- Null Values -->
+                    <div class="bg-white rounded-lg shadow p-5 hover:shadow-md transition-shadow border-l-4"
+                         :class="latestReport.nullCount > 0 ? 'border-yellow-500' : 'border-green-500'">
+                        <p class="text-gray-600 text-xs font-medium mb-2">NULL VALUES</p>
+                        <p class="text-3xl font-bold" :class="latestReport.nullCount > 0 ? 'text-yellow-600' : 'text-green-600'">
+                            {{ formatNumber(latestReport.nullCount) }}
+                        </p>
+                        <p class="text-xs text-gray-500 mt-2">
+                            {{ latestReport.nullCount > 0 ? 'Missing data points' : 'All fields populated' }}
+                        </p>
+                    </div>
+
+                    <!-- Outliers -->
+                    <div class="bg-white rounded-lg shadow p-5 hover:shadow-md transition-shadow border-l-4"
+                         :class="latestReport.outlierCount > 0 ? 'border-orange-500' : 'border-green-500'">
+                        <p class="text-gray-600 text-xs font-medium mb-2">OUTLIERS</p>
+                        <p class="text-3xl font-bold" :class="latestReport.outlierCount > 0 ? 'text-orange-600' : 'text-green-600'">
+                            {{ formatNumber(latestReport.outlierCount) }}
+                        </p>
+                        <p class="text-xs text-gray-500 mt-2">
+                            {{ latestReport.outlierCount > 0 ? 'Unusual values detected' : 'No anomalies' }}
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -432,6 +545,11 @@ function getSeverityClass(severity: string) {
 function formatDate(dateString: string) {
     if (!import.meta.client) return dateString;
     return new Date(dateString).toLocaleString();
+}
+
+function formatNumber(num: number): string {
+    if (num === null || num === undefined) return '0';
+    return num.toLocaleString();
 }
 
 // Initialize on mount (client-side only)

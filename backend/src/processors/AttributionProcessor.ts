@@ -81,11 +81,8 @@ export class AttributionProcessor {
                 eventTimestamp: eventData.eventTimestamp || new Date(),
                 pageUrl: eventData.pageUrl,
                 referrer: eventData.referrer,
-                userAgent: eventData.userAgent,
-                ipAddress: eventData.ipAddress,
-                channelId,
                 utmParams,
-                customData: eventData.customData
+                metadata: eventData.metadata
             });
 
             // If this is a conversion event, calculate attribution
