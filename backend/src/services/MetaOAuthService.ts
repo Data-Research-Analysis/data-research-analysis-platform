@@ -59,7 +59,7 @@ export class MetaOAuthService {
      */
     public static getMetaAdsScopes(): string[] {
         return [
-            'ads_read',              // Read ad account data
+            'ads_management',        // Read and manage ad account data
             'business_management',   // Access Business Manager accounts
         ];
     }
