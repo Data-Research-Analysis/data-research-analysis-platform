@@ -19,6 +19,18 @@ export class AttributionSeeder extends Seeder {
 
         console.log(`✅ Found project: ${project.name} (ID: ${project.id})`);
 
+        // Check if attribution data already exists for this project
+        const existingChannelsCount = await manager.query(
+            `SELECT COUNT(*) as count FROM dra_attribution_channels WHERE project_id = $1`,
+            [project.id]
+        );
+        
+        if (existingChannelsCount[0]?.count > 0) {
+            console.log('⏭️  Attribution data already exists for this project. Skipping seeding.');
+            console.log(`   Found ${existingChannelsCount[0].count} existing channels.`);
+            return;
+        }
+
         await manager.transaction(async (transactionManager) => {
             // 1. Create 10 Attribution Channels
             console.log('Creating attribution channels...');

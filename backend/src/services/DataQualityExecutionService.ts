@@ -66,7 +66,10 @@ export class DataQualityExecutionService {
             try {
                 // For UPDATE/DELETE, capture before state if dry-run
                 if (dryRun) {
-                    changes = await this.captureBeforeState(queryRunner, sql, dataModel);
+                    changes = {
+                        before: await this.captureBeforeState(queryRunner, sql, dataModel),
+                        after: []
+                    };
                 }
 
                 // Execute the SQL

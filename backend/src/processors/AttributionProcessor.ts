@@ -8,13 +8,15 @@ import {
     IFunnelAnalysisResponse,
     IJourneyMapRequest,
     IJourneyMapResponse,
-    IROIMetrics
+    IROIMetrics,
+    IUTMParameters
 } from '../interfaces/IAttribution.js';
 import { UTMParameterService } from '../services/UTMParameterService.js';
 import { AttributionCalculatorService } from '../services/AttributionCalculatorService.js';
 import { ChannelTrackingService } from '../services/ChannelTrackingService.js';
 import { FunnelAnalysisService } from '../services/FunnelAnalysisService.js';
 import { AppDataSource } from '../datasources/PostgresDS.js';
+import PostgresDSMigrations from '../datasources/PostgresDSMigrations.js';
 
 /**
  * Attribution Processor
@@ -50,17 +52,16 @@ export class AttributionProcessor {
     public async trackEvent(
         projectId: number,
         userIdentifier: string,
-        eventData: Partial<IAttributionEvent>
+        eventData: Partial<IAttributionEvent> & { utmParams?: IUTMParameters }
     ): Promise<{ success: boolean; eventId?: number; error?: string }> {
         try {
             console.log(`[AttributionProcessor] Tracking event: ${eventData.eventType} for user: ${userIdentifier}`);
 
             // Parse UTM parameters if URL provided
-            let utmParams = eventData.utmParams;
+            let utmParams = eventData.utmParams || {};
             if (eventData.referrer || eventData.pageUrl) {
                 utmParams = this.utmService.parseUTMParameters(
-                    eventData.pageUrl || eventData.referrer,
-                    eventData.referrer
+                    eventData.pageUrl || eventData.referrer || ''
                 );
             }
 
@@ -78,7 +79,6 @@ export class AttributionProcessor {
                 eventType: eventData.eventType!,
                 eventName: eventData.eventName,
                 eventValue: eventData.eventValue,
-                eventTimestamp: eventData.eventTimestamp || new Date(),
                 pageUrl: eventData.pageUrl,
                 referrer: eventData.referrer,
                 utmParams,
@@ -124,15 +124,19 @@ export class AttributionProcessor {
             }
 
             // Calculate attribution across all models
-            const attributionResults = this.calculatorService.calculateAttribution(
-                journeyEvents,
-                conversionEventId
-            );
+            const attributionResults = await this.calculatorService.calculateAttribution({
+                projectId,
+                userIdentifier,
+                conversionEventId,
+                model: 'linear',
+                touchpoints: journeyEvents
+            });
 
             // Save touchpoints with attribution weights
             await this.calculatorService.saveAttributionTouchpoints(
+                attributionResults,
                 projectId,
-                attributionResults
+                userIdentifier
             );
 
             console.log(`[AttributionProcessor] Attribution calculated: ${attributionResults.touchpoints.length} touchpoints`);
@@ -186,11 +190,14 @@ export class AttributionProcessor {
 
             // Build channel breakdown
             const channelBreakdown = channelPerformance.map(ch => ({
+                channelId: ch.channelId,
                 channelName: ch.channelName,
-                touchpoints: ch.totalTouchpoints,
+                channelCategory: ch.channelCategory,
                 conversions: ch.totalConversions,
                 revenue: ch.totalRevenue,
-                conversionRate: ch.conversionRate
+                revenuePercentage: totalRevenue > 0 ? (ch.totalRevenue / totalRevenue) * 100 : 0,
+                avgTimeToConversion: ch.avgTimeToConversion,
+                avgTouchpoints: ch.totalTouchpoints / (ch.totalConversions || 1)
             }));
 
             // Save report
@@ -219,15 +226,14 @@ export class AttributionProcessor {
             const report: IAttributionReport = {
                 id: result[0].id,
                 projectId,
-                reportName,
+                reportType: 'channel_performance',
                 attributionModel,
                 dateRangeStart: startDate,
                 dateRangeEnd: endDate,
                 totalConversions,
                 totalRevenue,
-                avgConversionRate,
                 channelBreakdown,
-                conversionPaths: topPaths,
+                topPaths,
                 generatedByUserId: userId,
                 createdAt: new Date(result[0].created_at),
                 updatedAt: new Date(result[0].updated_at)
@@ -430,15 +436,14 @@ export class AttributionProcessor {
             return {
                 id: row.id,
                 projectId: row.project_id,
-                reportName: row.report_name,
+                reportType: row.report_type || 'channel_performance',
                 attributionModel: row.attribution_model,
                 dateRangeStart: new Date(row.date_range_start),
                 dateRangeEnd: new Date(row.date_range_end),
                 totalConversions: row.total_conversions,
                 totalRevenue: parseFloat(row.total_revenue),
-                avgConversionRate: row.avg_conversion_rate ? parseFloat(row.avg_conversion_rate) : undefined,
                 channelBreakdown: row.channel_breakdown,
-                conversionPaths: row.conversion_paths,
+                topPaths: row.conversion_paths,
                 generatedByUserId: row.generated_by_user_id,
                 createdAt: new Date(row.created_at),
                 updatedAt: new Date(row.updated_at)
@@ -470,15 +475,14 @@ export class AttributionProcessor {
             return result.map((row: any) => ({
                 id: row.id,
                 projectId: row.project_id,
-                reportName: row.report_name,
+                reportType: row.report_type || 'channel_performance',
                 attributionModel: row.attribution_model,
                 dateRangeStart: new Date(row.date_range_start),
                 dateRangeEnd: new Date(row.date_range_end),
                 totalConversions: row.total_conversions,
                 totalRevenue: parseFloat(row.total_revenue),
-                avgConversionRate: row.avg_conversion_rate ? parseFloat(row.avg_conversion_rate) : undefined,
                 channelBreakdown: row.channel_breakdown,
-                conversionPaths: row.conversion_paths,
+                topPaths: row.conversion_paths,
                 generatedByUserId: row.generated_by_user_id,
                 createdAt: new Date(row.created_at),
                 updatedAt: new Date(row.updated_at)

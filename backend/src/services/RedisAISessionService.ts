@@ -119,7 +119,7 @@ export class RedisAISessionService {
         role: 'user' | 'assistant' | 'system',
         content: string,
         sessionType: string = 'data_model'
-    ): Promise<void> {
+    ): Promise<AIMessage> {
         const messagesKey = this.getMessagesKey(dataSourceId, userId, sessionType);
 
         const message: AIMessage = {

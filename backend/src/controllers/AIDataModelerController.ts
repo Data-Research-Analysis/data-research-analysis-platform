@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { SchemaCollectorService } from '../services/SchemaCollectorService.js';
 import { SchemaFormatterUtility } from '../utilities/SchemaFormatter.js';
 import { getGeminiService } from '../services/GeminiService.js';
-import { RedisAISessionService } from '../services/RedisAISessionService.js';
+import { RedisAISessionService, AIMessage } from '../services/RedisAISessionService.js';
 import { DataQualityService } from '../services/DataQualityService.js';
 import { DataQualityExecutionService } from '../services/DataQualityExecutionService.js';
 import { SQLValidationService } from '../services/SQLValidationService.js';
@@ -106,7 +106,7 @@ export class AIDataModelerController {
 
                             const welcomeMessage = `Welcome! I've analyzed your database schema with **${schemaSummary.tableCount} tables** and **${schemaSummary.totalColumns} columns**.\n\nI can help you:\n• Identify analytical bottlenecks in your current schema\n• Propose optimized data models (Star Schema, OBT, etc.)\n• Suggest SQL implementation strategies\n• Recommend indexing for better query performance\n\nWhat would you like to analyze?`;
                             
-                            const initialMessage = await redisService.addMessage(
+                            const initialMessage: AIMessage = await redisService.addMessage(
                                 dataSourceId,
                                 userId,
                                 'assistant',
