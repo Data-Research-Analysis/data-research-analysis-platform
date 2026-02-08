@@ -23,6 +23,7 @@
                             <img src="/assets/images/postgresql.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-5 mt-5 m-auto rounded-lg" alt="PostgreSQL" />
                             <img src="/assets/images/mysql.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-5 mt-5 m-auto rounded-lg" alt="MySQL" />
                             <img src="/assets/images/mariadb.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-5 mt-5 m-auto rounded-lg" alt="MariaDB" />
+                            <img src="/assets/images/mongodb.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-5 mt-5 m-auto rounded-lg" alt="MongoDB" />
                         </div>
                     </div>
                 </div>
@@ -41,6 +42,7 @@
                         <img src="/assets/images/postgresql.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="PostgreSQL" title="PostgreSQL" />
                         <img src="/assets/images/mysql.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg"  alt="MySQL" title="MySQL" />
                         <img src="/assets/images/mariadb.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="MariaDB" title="MariaDB" />
+                        <img src="/assets/images/mongodb.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="MongoDB" title="MongoDB" />
                     </div>
                 </div>
             </div>

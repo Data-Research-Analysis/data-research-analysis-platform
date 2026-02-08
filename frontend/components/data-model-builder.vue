@@ -3,6 +3,7 @@ import _ from 'lodash';
 import { useAIDataModelerStore } from '~/stores/ai-data-modeler';
 import { useSubscriptionStore } from '~/stores/subscription';
 import { useLoggedInUserStore } from '~/stores/logged_in_user';
+import MongoDBQueryEditor from '~/components/data-sources/MongoDBQueryEditor.vue';
 
 const { $swal } = useNuxtApp();
 const route = useRoute();
@@ -96,6 +97,10 @@ const state = reactive({
     is_saving_model: false,
     query_execution_count: 0,
     is_initial_load: true, // Track if component is still initializing (prevents premature suggestion fetches)
+    mongo_query: {
+        collection: '',
+        pipeline: '[]'
+    }
 });
 
 // Computed properties for tier-based row limits
@@ -214,6 +219,26 @@ const numericColumns = computed(() => {
         }
     })];
 })
+const isMongoDB = computed(() => {
+    return props.dataSource?.type === 'MONGODB';
+});
+
+const collectionNames = computed(() => {
+    return state.tables.map(table => table.table_name);
+});
+
+function onMongoQueryUpdate(payload) {
+    state.mongo_query.collection = payload.collection;
+    state.mongo_query.pipeline = payload.pipeline;
+}
+
+async function onRunMongoQuery(payload) {
+    if (payload) {
+        state.mongo_query.collection = payload.collection;
+        state.mongo_query.pipeline = payload.pipeline;
+    }
+    await executeQueryOnExternalDataSource();
+}
 
 const allAvailableColumns = computed(() => {
     const columns = [];
@@ -3362,218 +3387,253 @@ async function saveDataModel() {
     state.is_saving_model = true;
     
     try {
-        // VALIDATION: Check if this is truly cross-source or same-source with multiple tables
-        if (props.isCrossSource) {
-            const uniqueDataSourceIds = new Set(
-                state.data_table.columns
-                    .filter(col => col.data_source_id)
-                    .map(col => col.data_source_id)
-            );
+        if (isMongoDB.value) {
+            // MongoDB specific save logic
+            state.sql_query = state.mongo_query.pipeline; // Use pipeline as headers/query representation
             
-            console.log('[saveDataModel] Cross-source validation - Unique data sources:', Array.from(uniqueDataSourceIds));
+            // Build the data model
+            const token = getAuthToken();
+            let url = `${baseUrl()}/data-source/build-data-model-on-query`;
+            if (props.isEditDataModel) {
+                url = `${baseUrl()}/data-model/update-data-model-on-query`;
+            }
+
+            const responseData = await $fetch(url, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+                body: {
+                    data_source_id: props.isCrossSource ? null : route.params.datasourceid,
+                    project_id: props.isCrossSource ? props.projectId : null,
+                    query: state.mongo_query.pipeline, // Send pipeline string as query
+                    query_json: JSON.stringify({
+                        collection: state.mongo_query.collection,
+                        pipeline: JSON.parse(state.mongo_query.pipeline)
+                    }),
+                    data_model_name: state.data_table.table_name,
+                    data_model_id: props.isEditDataModel ? props.dataModel.id : null,
+                    is_cross_source: false, // MongoDB doesn't support cross-source yet
+                }
+            });
             
-            if (uniqueDataSourceIds.size === 1) {
-                const result = await $swal.fire({
-                    icon: 'warning',
-                    title: 'Same Data Source Detected',
-                    html: `All columns are from the same data source (ID: ${Array.from(uniqueDataSourceIds)[0]}). Cross-source mode is designed for combining data from <strong>different</strong> data sources.<br /><br />This may cause resolution issues. Continue anyway?`,
-                    showCancelButton: true,
-                    confirmButtonColor: '#3C8DBC',
-                    cancelButtonColor: '#DD4B39',
-                    confirmButtonText: 'Continue Anyway',
-                    cancelButtonText: 'Cancel'
+             $swal.fire({
+                icon: 'success',
+                title: `Data Model Saved!`,
+                text: 'Your MongoDB data model has been successfully saved.',
+                timer: 1500,
+                showConfirmButton: false
+            });
+
+             router.push(`/projects/${route.params.projectid}/data-sources/${route.params.datasourceid}/data-models`);
+        } else {
+            // Existing SQL Save Logic
+            // VALIDATION: Check if this is truly cross-source or same-source with multiple tables
+            if (props.isCrossSource) {
+                const uniqueDataSourceIds = new Set(
+                    state.data_table.columns
+                        .filter(col => col.data_source_id)
+                        .map(col => col.data_source_id)
+                );
+                
+                console.log('[saveDataModel] Cross-source validation - Unique data sources:', Array.from(uniqueDataSourceIds));
+                
+                if (uniqueDataSourceIds.size === 1) {
+                    const result = await $swal.fire({
+                        icon: 'warning',
+                        title: 'Same Data Source Detected',
+                        html: `All columns are from the same data source (ID: ${Array.from(uniqueDataSourceIds)[0]}). Cross-source mode is designed for combining data from <strong>different</strong> data sources.<br /><br />This may cause resolution issues. Continue anyway?`,
+                        showCancelButton: true,
+                        confirmButtonColor: '#3C8DBC',
+                        cancelButtonColor: '#DD4B39',
+                        confirmButtonText: 'Continue Anyway',
+                        cancelButtonText: 'Cancel'
+                    });
+                    
+                    if (!result.isConfirmed) {
+                        state.is_saving_model = false;
+                        return;
+                    }
+                }
+            }
+            
+            // Ensure JOIN conditions and table aliases are synced to data_table before save
+            state.data_table.join_conditions = [...state.join_conditions];
+            state.data_table.table_aliases = [...state.table_aliases];
+            
+            // CRITICAL FIX: Auto-sync group_by_columns when aggregate functions exist
+            // This ensures manually selected columns are included in GROUP BY clause
+            const hasAggregates = state.data_table.query_options?.group_by?.aggregate_functions?.length > 0 ||
+                                 state.data_table.query_options?.group_by?.aggregate_expressions?.length > 0;
+        
+            if (hasAggregates && state.data_table.query_options?.group_by) {
+                // Build set of columns used ONLY in aggregates (not in regular SELECT)
+                const aggregatedColumns = new Set();
+                
+                state.data_table.query_options.group_by.aggregate_functions?.forEach(aggFunc => {
+                    if (aggFunc.column) {
+                        aggregatedColumns.add(aggFunc.column);
+                    }
                 });
                 
-                if (!result.isConfirmed) {
-                    state.is_saving_model = false;
-                    return;
-                }
+                // Rebuild group_by_columns from currently selected non-aggregate columns
+                state.data_table.query_options.group_by.group_by_columns = state.data_table.columns
+                    .filter(col => col.is_selected_column === true)
+                    .map(col => {
+                        const fullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
+                        // Only include if NOT used exclusively in aggregate functions
+                        if (!aggregatedColumns.has(fullPath)) {
+                            return fullPath;
+                        }
+                        return null;
+                    })
+                    .filter(path => path !== null);
+                
+                console.log('[saveDataModel] Auto-synced group_by_columns:', state.data_table.query_options.group_by.group_by_columns);
             }
-        }
         
-        // Ensure JOIN conditions and table aliases are synced to data_table before save
-        state.data_table.join_conditions = [...state.join_conditions];
-        state.data_table.table_aliases = [...state.table_aliases];
-        
-        // CRITICAL FIX: Auto-sync group_by_columns when aggregate functions exist
-        // This ensures manually selected columns are included in GROUP BY clause
-        const hasAggregates = state.data_table.query_options?.group_by?.aggregate_functions?.length > 0 ||
-                             state.data_table.query_options?.group_by?.aggregate_expressions?.length > 0;
-    
-    if (hasAggregates && state.data_table.query_options?.group_by) {
-        // Build set of columns used ONLY in aggregates (not in regular SELECT)
-        const aggregatedColumns = new Set();
-        
-        state.data_table.query_options.group_by.aggregate_functions?.forEach(aggFunc => {
-            if (aggFunc.column) {
-                aggregatedColumns.add(aggFunc.column);
+            console.log('[saveDataModel] Synced to data_table before save:', {
+                join_conditions: state.data_table.join_conditions.length,
+                table_aliases: state.data_table.table_aliases.length,
+                group_by_columns: state.data_table.query_options?.group_by?.group_by_columns?.length || 0
+            });
+
+            let offsetStr = 'OFFSET 0';
+            let limitStr = 'LIMIT 5';
+            let sqlQuery = buildSQLQuery();
+
+            if (state.data_table.query_options.offset > -1) {
+                offsetStr = `OFFSET ${state.data_table.query_options.offset}`;
+            } else {
+                offsetStr = 'OFFSET 0';
             }
-        });
-        
-        // Rebuild group_by_columns from currently selected non-aggregate columns
-        state.data_table.query_options.group_by.group_by_columns = state.data_table.columns
-            .filter(col => col.is_selected_column === true)
-            .map(col => {
-                const fullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
-                // Only include if NOT used exclusively in aggregate functions
-                if (!aggregatedColumns.has(fullPath)) {
-                    return fullPath;
+            if (state.data_table.query_options.limit > -1) {
+                // CRITICAL: Enforce tier limit - never allow exceeding user's allowed limit
+                const tierLimit = subscriptionStore.subscription?.subscription_tier?.max_rows_per_data_model || 100000;
+                const effectiveLimit = tierLimit === -1 ? state.data_table.query_options.limit : Math.min(state.data_table.query_options.limit, tierLimit);
+                
+                if (state.data_table.query_options.limit > tierLimit && tierLimit !== -1) {
+                    console.warn(`[saveDataModel] User attempted to set limit ${state.data_table.query_options.limit} exceeding tier limit ${tierLimit}. Capping to tier limit.`);
+                    state.data_table.query_options.limit = tierLimit;
                 }
-                return null;
-            })
-            .filter(path => path !== null);
-        
-        console.log('[saveDataModel] Auto-synced group_by_columns:', state.data_table.query_options.group_by.group_by_columns);
-    }
-    
-    console.log('[saveDataModel] Synced to data_table before save:', {
-        join_conditions: state.data_table.join_conditions.length,
-        table_aliases: state.data_table.table_aliases.length,
-        group_by_columns: state.data_table.query_options?.group_by?.group_by_columns?.length || 0
-    });
+                
+                limitStr = `LIMIT ${effectiveLimit}`;
+            } else {
+                // Use user's tier limit as default
+                const userRowLimit = subscriptionStore.subscription?.subscription_tier?.max_rows_per_data_model || 100000;
+                limitStr = `LIMIT ${userRowLimit}`;
+            }
+            sqlQuery += ` ${limitStr} ${offsetStr}`;
+            state.sql_query = sqlQuery;
+            const { value: confirmDelete } = await $swal.fire({
+                icon: "success",
+                title: "SQL Query Generated!",
+                html: `Your SQL query has been generated and is a follows:<br /><br /> <span style='font-weight: bold;'>${sqlQuery}</span><br /><br /> Do you want to proceed with this SQL query to build your data model?`,
+                showCancelButton: true,
+                confirmButtonColor: "#3C8DBC",
+                cancelButtonColor: "#DD4B39",
+                confirmButtonText: "Yes, build my model now!",
+            });
+            if (!confirmDelete) {
+                // User cancelled, clear the flag and return
+                state.is_saving_model = false;
+                return;
+            }
+            //build the data model
+            const token = getAuthToken();
+            let url = `${baseUrl()}/data-source/build-data-model-on-query`;
+            if (props.isEditDataModel) {
+                url = `${baseUrl()}/data-model/update-data-model-on-query`;
+            }
 
-    let offsetStr = 'OFFSET 0';
-    let limitStr = 'LIMIT 5';
-    let sqlQuery = buildSQLQuery();
+            // Filter to include selected columns AND hidden referenced columns (aggregates, GROUP BY, WHERE, etc.)
+            const dataTableForSave = {
+                ...state.data_table,
+                columns: state.data_table.columns.filter(col => {
+                    // Include if selected for display
+                    if (col.is_selected_column) return true;
+                    
+                    // Include if tracked as hidden reference (aggregate, GROUP BY, WHERE, HAVING, ORDER BY, etc.)
+                    const isTracked = state.data_table.hidden_referenced_columns?.some(
+                        tracked => tracked.schema === col.schema &&
+                                   tracked.table_name === col.table_name &&
+                                   tracked.column_name === col.column_name
+                    );
+                    return isTracked;
+                })
+            };
 
-    if (state.data_table.query_options.offset > -1) {
-        offsetStr = `OFFSET ${state.data_table.query_options.offset}`;
-    } else {
-        offsetStr = 'OFFSET 0';
-    }
-    if (state.data_table.query_options.limit > -1) {
-        // CRITICAL: Enforce tier limit - never allow exceeding user's allowed limit
-        const tierLimit = subscriptionStore.subscription?.subscription_tier?.max_rows_per_data_model || 100000;
-        const effectiveLimit = tierLimit === -1 ? state.data_table.query_options.limit : Math.min(state.data_table.query_options.limit, tierLimit);
-        
-        if (state.data_table.query_options.limit > tierLimit && tierLimit !== -1) {
-            console.warn(`[saveDataModel] User attempted to set limit ${state.data_table.query_options.limit} exceeding tier limit ${tierLimit}. Capping to tier limit.`);
-            state.data_table.query_options.limit = tierLimit;
-        }
-        
-        limitStr = `LIMIT ${effectiveLimit}`;
-    } else {
-        // Use user's tier limit as default
-        const userRowLimit = subscriptionStore.subscription?.subscription_tier?.max_rows_per_data_model || 100000;
-        limitStr = `LIMIT ${userRowLimit}`;
-    }
-    sqlQuery += ` ${limitStr} ${offsetStr}`;
-    state.sql_query = sqlQuery;
-    
-    // Show confirmation dialog before saving
-    $swal.fire({
-        icon: 'success',
-        title: `Generated SQL Query!`,
-        text: sqlQuery,
-    });
-    const { value: confirmDelete } = await $swal.fire({
-        icon: "success",
-        title: "SQL Query Generated!",
-        html: `Your SQL query has been generated and is a follows:<br /><br /> <span style='font-weight: bold;'>${sqlQuery}</span><br /><br /> Do you want to proceed with this SQL query to build your data model?`,
-        showCancelButton: true,
-        confirmButtonColor: "#3C8DBC",
-        cancelButtonColor: "#DD4B39",
-        confirmButtonText: "Yes, build my model now!",
-    });
-    if (!confirmDelete) {
-        // User cancelled, clear the flag and return
-        state.is_saving_model = false;
-        return;
-    }
-    
-    //build the data model
-    const token = getAuthToken();
-    let url = `${baseUrl()}/data-source/build-data-model-on-query`;
-    if (props.isEditDataModel) {
-        url = `${baseUrl()}/data-model/update-data-model-on-query`;
-    }
+            console.log('[saveDataModel] Filtered columns for save:', {
+                total: state.data_table.columns.length,
+                selected: state.data_table.columns.filter(c => c.is_selected_column).length,
+                hiddenTracked: state.data_table.hidden_referenced_columns?.length || 0,
+                saved: dataTableForSave.columns.length
+            });
 
-    // Filter to include selected columns AND hidden referenced columns (aggregates, GROUP BY, WHERE, etc.)
-    const dataTableForSave = {
-        ...state.data_table,
-        columns: state.data_table.columns.filter(col => {
-            // Include if selected for display
-            if (col.is_selected_column) return true;
+            const responseData = await $fetch(url, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+                body: {
+                    data_source_id: props.isCrossSource ? null : route.params.datasourceid,
+                    project_id: props.isCrossSource ? props.projectId : null,
+                    query: state.sql_query,
+                    query_json: JSON.stringify(dataTableForSave),
+                    data_model_name: state.data_table.table_name,
+                    data_model_id: props.isEditDataModel ? props.dataModel.id : null,
+                    is_cross_source: props.isCrossSource || false,
+                }
+            });
             
-            // Include if tracked as hidden reference (aggregate, GROUP BY, WHERE, HAVING, ORDER BY, etc.)
-            const isTracked = state.data_table.hidden_referenced_columns?.some(
-                tracked => tracked.schema === col.schema &&
-                           tracked.table_name === col.table_name &&
-                           tracked.column_name === col.column_name
-            );
-            return isTracked;
-        })
-    };
+            // Save AI conversation if one exists
+            if (aiDataModelerStore.conversationId && aiDataModelerStore.messages.length > 0) {
+                try {
+                    const dataModelId = props.isEditDataModel
+                        ? props.dataModel.id
+                        : responseData.data_model_id;
 
-    console.log('[saveDataModel] Filtered columns for save:', {
-        total: state.data_table.columns.length,
-        selected: state.data_table.columns.filter(c => c.is_selected_column).length,
-        hiddenTracked: state.data_table.hidden_referenced_columns?.length || 0,
-        saved: dataTableForSave.columns.length
-    });
+                    if (dataModelId) {
+                        // Ensure currentDataSourceId is set before saving (it should be from initializeConversation)
+                        // But set it as fallback in case the drawer was closed
+                        if (!aiDataModelerStore.currentDataSourceId) {
+                            aiDataModelerStore.currentDataSourceId = Number(route.params.datasourceid);
+                        }
 
-    const responseData = await $fetch(url, {
-        method: "POST",
-        headers: {
-            "Authorization": `Bearer ${token}`,
-            "Authorization-Type": "auth",
-        },
-        body: {
-            data_source_id: props.isCrossSource ? null : route.params.datasourceid,
-            project_id: props.isCrossSource ? props.projectId : null,
-            query: state.sql_query,
-            query_json: JSON.stringify(dataTableForSave),
-            data_model_name: state.data_table.table_name,
-            data_model_id: props.isEditDataModel ? props.dataModel.id : null,
-            is_cross_source: props.isCrossSource || false,
-        }
-    });
-    
-    // Save AI conversation if one exists
-    if (aiDataModelerStore.conversationId && aiDataModelerStore.messages.length > 0) {
-        try {
-            const dataModelId = props.isEditDataModel
-                ? props.dataModel.id
-                : responseData.data_model_id;
+                        console.log('Saving AI conversation with:', {
+                            dataSourceId: aiDataModelerStore.currentDataSourceId,
+                            dataModelId,
+                            title: state.data_table.table_name || 'AI Generated Model',
+                            messagesCount: aiDataModelerStore.messages.length
+                        });
 
-            if (dataModelId) {
-                // Ensure currentDataSourceId is set before saving (it should be from initializeConversation)
-                // But set it as fallback in case the drawer was closed
-                if (!aiDataModelerStore.currentDataSourceId) {
-                    aiDataModelerStore.currentDataSourceId = Number(route.params.datasourceid);
+                        const saved = await aiDataModelerStore.saveConversation(
+                            dataModelId,
+                            state.data_table.table_name || 'AI Generated Model'
+                        );
+
+                        if (saved) {
+                            console.log('AI conversation saved successfully');
+                        } else {
+                            console.warn('AI conversation save returned false');
+                        }
+                    }
+                } catch (error) {
+                    // Log error but don't block the data model save success
+                    console.error('Failed to save AI conversation:', error);
                 }
-
-                console.log('Saving AI conversation with:', {
-                    dataSourceId: aiDataModelerStore.currentDataSourceId,
-                    dataModelId,
-                    title: state.data_table.table_name || 'AI Generated Model',
+            } else {
+                console.log('No AI conversation to save:', {
+                    hasConversationId: !!aiDataModelerStore.conversationId,
                     messagesCount: aiDataModelerStore.messages.length
                 });
-
-                const saved = await aiDataModelerStore.saveConversation(
-                    dataModelId,
-                    state.data_table.table_name || 'AI Generated Model'
-                );
-
-                if (saved) {
-                    console.log('AI conversation saved successfully');
-                } else {
-                    console.warn('AI conversation save returned false');
-                }
             }
-        } catch (error) {
-            // Log error but don't block the data model save success
-            console.error('Failed to save AI conversation:', error);
-        }
-    } else {
-        console.log('No AI conversation to save:', {
-            hasConversationId: !!aiDataModelerStore.conversationId,
-            messagesCount: aiDataModelerStore.messages.length
-        });
-    }
 
-    // enableRefreshDataFlag('clearDataModels');
-    router.push(`/projects/${route.params.projectid}/data-sources/${route.params.datasourceid}/data-models`);
+            // enableRefreshDataFlag('clearDataModels');
+            router.push(`/projects/${route.params.projectid}/data-sources/${route.params.datasourceid}/data-models`);
+        }
     } catch (error) {
         console.error('[saveDataModel] Error:', error);
         $swal.fire({
@@ -3639,58 +3699,79 @@ async function executeQueryOnExternalDataSource() {
         state.response_from_external_data_source_columns = [];
         state.response_from_external_data_source_rows = [];
         
-        // CRITICAL: For cross-source models, ensure all columns have data_source_id
-        // This is needed for backend's resolveTableNamesForCrossSource() to work
-        if (props.isCrossSource) {
-            console.log('[executeQuery] Cross-source model detected, validating data_source_id for all columns');
-            let missingCount = 0;
-            state.data_table.columns.forEach(col => {
-                if (!col.data_source_id) {
-                    // Backfill from state.tables metadata
-                    const sourceTable = state.tables.find(t => 
-                        t.table_name === col.table_name && t.schema === col.schema
-                    );
-                    if (sourceTable?.data_source_id) {
-                        col.data_source_id = sourceTable.data_source_id;
-                        missingCount++;
-                        console.log(`[executeQuery] Backfilled data_source_id for ${col.schema}.${col.table_name}.${col.column_name}`);
-                    } else {
-                        console.error(`[executeQuery] CRITICAL: Cannot find data_source_id for ${col.schema}.${col.table_name}.${col.column_name}`);
+        let url = `${baseUrl()}/data-source/execute-query-on-external-data-source`;
+        let requestBody = {};
+        
+        if (isMongoDB.value) {
+            // MongoDB Execution Path
+            state.sql_query = state.mongo_query.pipeline; // For display/debug
+            
+            requestBody = {
+                 data_source_id: route.params.datasourceid,
+                 query: state.mongo_query.pipeline, // Send pipeline string for compatibility/logging
+                 query_json: JSON.stringify({
+                     collection: state.mongo_query.collection,
+                     pipeline: JSON.parse(state.mongo_query.pipeline)
+                 })
+            };
+
+            // Basic client-side validation for MongoDB
+            if (!state.mongo_query.collection) {
+                 console.log('[executeQuery] MongoDB: No collection selected, skipping.');
+                 state.is_executing_query = false;
+                 return;
+            }
+        } else {
+            // SQL Execution Path
+            
+            // CRITICAL: For cross-source models, ensure all columns have data_source_id
+            if (props.isCrossSource) {
+                console.log('[executeQuery] Cross-source model detected, validating data_source_id for all columns');
+                let missingCount = 0;
+                state.data_table.columns.forEach(col => {
+                    if (!col.data_source_id) {
+                        // Backfill from state.tables metadata
+                        const sourceTable = state.tables.find(t => 
+                            t.table_name === col.table_name && t.schema === col.schema
+                        );
+                        if (sourceTable?.data_source_id) {
+                            col.data_source_id = sourceTable.data_source_id;
+                            missingCount++;
+                            console.log(`[executeQuery] Backfilled data_source_id for ${col.schema}.${col.table_name}.${col.column_name}`);
+                        } else {
+                            console.error(`[executeQuery] CRITICAL: Cannot find data_source_id for ${col.schema}.${col.table_name}.${col.column_name}`);
+                        }
                     }
+                });
+                if (missingCount > 0) {
+                    console.log(`[executeQuery] Backfilled ${missingCount} columns with missing data_source_id`);
                 }
-            });
-            if (missingCount > 0) {
-                console.log(`[executeQuery] Backfilled ${missingCount} columns with missing data_source_id`);
+            }
+            
+            // CRITICAL: Sync JOIN conditions to data_table before building query
+            state.data_table.join_conditions = [...state.join_conditions];
+            state.data_table.table_aliases = [...state.table_aliases];
+            
+            console.log('[executeQuery] Building SQL with calculated_columns:', state.data_table.calculated_columns);
+            state.sql_query = buildSQLQuery();
+            state.sql_query += ` LIMIT 5 OFFSET 0`;
+            console.log('[Data Model Builder - executeQueryOnExternalDataSource] SQL Query being sent:', state.sql_query);
+            console.log('[Data Model Builder - executeQueryOnExternalDataSource] JSON Query being sent:', JSON.stringify(state.data_table));
+            
+            requestBody = {
+                query: state.sql_query,
+                query_json: JSON.stringify(state.data_table),
+            };
+
+            if (props.isCrossSource) {
+                requestBody.project_id = props.projectId;
+                requestBody.is_cross_source = true;
+            } else {
+                requestBody.data_source_id = route.params.datasourceid;
             }
         }
-        
-        // CRITICAL: Sync JOIN conditions to data_table before building query
-        // This ensures the JSON sent to backend includes all JOINs
-        state.data_table.join_conditions = [...state.join_conditions];
-        state.data_table.table_aliases = [...state.table_aliases];
-        
-        console.log('[executeQuery] Building SQL with calculated_columns:', state.data_table.calculated_columns);
-        state.sql_query = buildSQLQuery(true); // true = silent mode, no modals
-        state.sql_query += ` LIMIT 5 OFFSET 0`;
-        console.log('[Data Model Builder - executeQueryOnExternalDataSource] SQL Query being sent:', state.sql_query);
-        console.log('[Data Model Builder - executeQueryOnExternalDataSource] JSON Query being sent:', JSON.stringify(state.data_table));
+
         const token = getAuthToken();
-        const url = `${baseUrl()}/data-source/execute-query-on-external-data-source`;
-        // For cross-source, we need to use the federated query endpoint
-        const requestBody = {
-            query: state.sql_query,
-            query_json: JSON.stringify(state.data_table),
-        };
-
-        if (props.isCrossSource) {
-            // In cross-source mode, send project_id instead of data_source_id
-            requestBody.project_id = props.projectId;
-            requestBody.is_cross_source = true;
-        } else {
-            // In single-source mode, use data_source_id from route
-            requestBody.data_source_id = route.params.datasourceid;
-        }
-
         const response = await $fetch(url, {
             method: "POST",
             headers: {
@@ -3708,33 +3789,35 @@ async function executeQueryOnExternalDataSource() {
         const data = response.results || response;
         
         if (data && data.length) {
-            // Check for array values in result (indicates potential cartesian product)
-            const hasArrayValues = data.some(row =>
-                Object.values(row).some(value => Array.isArray(value))
-            );
+            if (!isMongoDB.value) {
+                // Check for array values (only applicable to SQL cartesian products usually)
+                const hasArrayValues = data.some(row =>
+                    Object.values(row).some(value => Array.isArray(value))
+                );
 
-            if (hasArrayValues) {
-                const errorAlert = {
-                    type: 'error',
-                    message: 'The query result contains array values, which may indicate a cartesian product or improper join. Please review your table and column selections.'
-                };
-                if (!state.alerts.find(a => a.type === 'error' && a.message.includes('array values'))) {
-                    state.alerts.push(errorAlert);
+                if (hasArrayValues) {
+                    const errorAlert = {
+                        type: 'error',
+                        message: 'The query result contains array values, which may indicate a cartesian product or improper join. Please review your table and column selections.'
+                    };
+                    if (!state.alerts.find(a => a.type === 'error' && a.message.includes('array values'))) {
+                        state.alerts.push(errorAlert);
+                    }
+                } else {
+                    state.alerts = state.alerts.filter(a => !(a.type === 'error' && a.message.includes('array values')));
                 }
-            } else {
-                // Remove array error if it exists and no longer applies
-                state.alerts = state.alerts.filter(a => !(a.type === 'error' && a.message.includes('array values')));
             }
 
             const columns = Object.keys(data[0]);
             console.log('[executeQuery] Columns from query result:', columns);
             console.log('[executeQuery] Number of rows returned:', data.length);
-            console.log('[executeQuery] Calculated columns in state:', state.data_table.calculated_columns);
+            
             state.response_from_external_data_source_columns = columns;
             state.response_from_external_data_source_rows = data;
         }
     } catch (error) {
         console.error('[executeQuery] Error:', error);
+        // Show error to user via alert only if it's a specific query error, otherwise console
     } finally {
         state.is_executing_query = false;
     }
@@ -5462,8 +5545,24 @@ onBeforeUnmount(() => {
             <div class="w-full h-1 bg-blue-300 mt-5 mb-5"></div>
         </div>
 
-        <!-- View Mode Toggle -->
-        <div class="flex justify-end mb-4">
+        <!-- MongoDB Query Editor (Replaces SQL Builder for MongoDB) -->
+        <div v-if="isMongoDB" class="m-10">
+            <div class="flex flex-row justify-center bg-gray-300 text-center font-bold p-1 mb-2 rounded-lg">
+                 <h4 class="w-full font-bold">
+                     <input type="text" class="border border-primary-blue-100 border-solid p-2 rounded w-1/2"
+                         placeholder="Enter Data Model Name" v-model="state.data_table.table_name" />
+                 </h4>
+            </div>
+            <MongoDBQueryEditor
+                :modelValue="{ collection: state.mongo_query.collection, pipeline: state.mongo_query.pipeline }"
+                :collections="collectionNames"
+                @update:modelValue="onMongoQueryUpdate"
+                @run-query="onRunMongoQuery"
+            />
+        </div>
+
+        <!-- View Mode Toggle (Only for SQL) -->
+        <div v-if="!isMongoDB" class="flex justify-end mb-4">
             <div class="inline-flex items-center gap-2">
                 <div class="inline-flex shadow-sm" role="group">
                     <button type="button" @click="state.viewMode = 'simple'" :disabled="readOnly" :class="[
@@ -5495,7 +5594,7 @@ onBeforeUnmount(() => {
             </div>
         </div>
 
-        <div class="flex flex-row m-10">
+        <div v-if="!isMongoDB" class="flex flex-row m-10">
             <div class="w-1/2 flex flex-col pr-5 mr-5 border-r-2 border-primary-blue-100">
                 <!-- Table Alias Manager -->
                 <div v-if="state.viewMode === 'advanced'" class="mb-6 p-4 border-2 border-blue-200 bg-blue-50 rounded-lg">

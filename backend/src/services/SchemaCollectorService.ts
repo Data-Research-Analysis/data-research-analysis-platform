@@ -32,14 +32,106 @@ export class SchemaCollectorService {
      */
     async collectSchema(dataSource: DataSource, schemaName?: string): Promise<TableSchema[]> {
         const databaseType = dataSource.options.type;
-        
+
         if (databaseType === 'postgres') {
             return this.collectPostgresSchema(dataSource, schemaName || 'public');
         } else if (databaseType === 'mysql' || databaseType === 'mariadb') {
             return this.collectMySQLSchema(dataSource, schemaName || dataSource.options.database as string);
+        } else if (databaseType === 'mongodb') {
+            return this.collectMongoDBSchema(dataSource, dataSource.options.database as string);
         }
-        
+
         throw new Error(`Unsupported database type: ${databaseType}`);
+    }
+
+    /**
+     * Collect schema information from MongoDB database
+     */
+    private async collectMongoDBSchema(dataSource: DataSource, databaseName: string): Promise<TableSchema[]> {
+        const tables: TableSchema[] = [];
+
+        // We need to access the driver directly to get collections and infer schema
+        // Since we know this is a MongoDBDataSource, we can cast the driver or use the MongoDBDriver instance
+        // However, the cleanest way in this architecture might be to import the driver class
+        // but we are passing the DataSource. 
+        // Let's use the driver instance logic if possible, or direct access.
+        // Actually, MongoDBDriver has specific methods we added: inferCollectionSchema
+        // The dataSource object passed here is the TypeORM source.
+
+        // We need to get our custom driver instance to use the unique methods
+        // But the DBDriver factory returns an IDBDriver which hides them.
+        // We will assume we can get the driver instance via the factory for now,
+        // or we can reproduce the logic here. 
+        // Better: cast the dataSource.driver to access the native process or use the MongoDBDriver singleton if initialized.
+
+        // Let's use the MongoDBDriver singleton which holds the external connection reference if strictly followed,
+        // but here we are passed a specific dataSource.
+        // For now, let's assume we can list collections via TypeORM or native driver.
+
+        const mongoDriver = (dataSource.driver as any);
+        const client = mongoDriver.queryRunner.databaseConnection;
+        const db = client.db(databaseName);
+
+        const collections = await db.listCollections().toArray();
+
+        for (const col of collections) {
+            const collectionName = col.name;
+            const collection = db.collection(collectionName);
+
+            // Sample documents
+            const docs = await collection.find({}).limit(100).toArray();
+
+            // Infer columns from docs
+            const columnsMap = new Map<string, TableColumn>();
+
+            docs.forEach((doc: any) => {
+                Object.keys(doc).forEach(key => {
+                    if (!columnsMap.has(key)) {
+                        const value = doc[key];
+                        let type = 'string'; // Default
+                        if (value === null) type = 'null';
+                        else if (typeof value === 'number') type = 'numeric';
+                        else if (typeof value === 'boolean') type = 'boolean';
+                        else if (value instanceof Date) type = 'timestamp';
+                        else if (Array.isArray(value)) type = 'jsonb'; // Treat arrays as JSON
+                        else if (typeof value === 'object') {
+                            // Check for ObjectId
+                            if (value._bsontype === 'ObjectId') type = 'varchar(24)';
+                            else type = 'jsonb';
+                        }
+
+                        columnsMap.set(key, {
+                            column_name: key,
+                            data_type: type,
+                            is_nullable: 'YES', // No strict schema, assume nullable
+                            column_default: null,
+                            character_maximum_length: null
+                        });
+                    }
+                });
+            });
+
+            // Ensure _id is present
+            if (!columnsMap.has('_id')) {
+                columnsMap.set('_id', {
+                    column_name: '_id',
+                    data_type: 'varchar(24)',
+                    is_nullable: 'NO',
+                    column_default: null,
+                    character_maximum_length: 24
+                });
+            }
+
+            tables.push({
+                schema: databaseName,
+                tableName: collectionName,
+                columns: Array.from(columnsMap.values()),
+                primaryKeys: ['_id'],
+                foreignKeys: [] // No FKs in MongoDB
+            });
+        }
+
+        return tables;
     }
 
     /**
@@ -50,13 +142,13 @@ export class SchemaCollectorService {
      */
     async collectSchemaForTables(dataSource: DataSource, schemaName: string, tableNames: string[]): Promise<TableSchema[]> {
         const databaseType = dataSource.options.type;
-        
+
         if (databaseType === 'postgres') {
             return this.collectPostgresSchemaForTables(dataSource, schemaName, tableNames);
         } else if (databaseType === 'mysql' || databaseType === 'mariadb') {
             return this.collectMySQLSchemaForTables(dataSource, schemaName, tableNames);
         }
-        
+
         throw new Error(`Unsupported database type: ${databaseType}`);
     }
 
@@ -65,7 +157,7 @@ export class SchemaCollectorService {
      */
     private async collectPostgresSchema(dataSource: DataSource, schemaName: string): Promise<TableSchema[]> {
         const tables: TableSchema[] = [];
-        
+
         // Get all tables in the schema
         const tableQuery = `
             SELECT table_name 
@@ -74,12 +166,12 @@ export class SchemaCollectorService {
             AND table_type = 'BASE TABLE'
             ORDER BY table_name
         `;
-        
+
         const tableResults = await dataSource.query(tableQuery, [schemaName]);
-        
+
         for (const tableRow of tableResults) {
             const tableName = tableRow.table_name;
-            
+
             // Get columns
             const columnQuery = `
                 SELECT 
@@ -92,9 +184,9 @@ export class SchemaCollectorService {
                 WHERE table_schema = $1 AND table_name = $2
                 ORDER BY ordinal_position
             `;
-            
+
             const columns = await dataSource.query(columnQuery, [schemaName, tableName]);
-            
+
             // Get primary keys
             const pkQuery = `
                 SELECT kcu.column_name
@@ -106,10 +198,10 @@ export class SchemaCollectorService {
                     AND tc.table_schema = $1
                     AND tc.table_name = $2
             `;
-            
+
             const pkResults = await dataSource.query(pkQuery, [schemaName, tableName]);
             const primaryKeys = pkResults.map((row: any) => row.column_name);
-            
+
             // Get foreign keys
             const fkQuery = `
                 SELECT
@@ -129,9 +221,9 @@ export class SchemaCollectorService {
                     AND tc.table_schema = $1
                     AND tc.table_name = $2
             `;
-            
+
             const foreignKeys = await dataSource.query(fkQuery, [schemaName, tableName]);
-            
+
             tables.push({
                 schema: schemaName,
                 tableName,
@@ -140,7 +232,7 @@ export class SchemaCollectorService {
                 foreignKeys
             });
         }
-        
+
         return tables;
     }
 
@@ -149,7 +241,7 @@ export class SchemaCollectorService {
      */
     private async collectMySQLSchema(dataSource: DataSource, databaseName: string): Promise<TableSchema[]> {
         const tables: TableSchema[] = [];
-        
+
         // Get all tables in the database
         const tableQuery = `
             SELECT table_name 
@@ -158,12 +250,12 @@ export class SchemaCollectorService {
             AND table_type = 'BASE TABLE'
             ORDER BY table_name
         `;
-        
+
         const tableResults = await dataSource.query(tableQuery, [databaseName]);
-        
+
         for (const tableRow of tableResults) {
             const tableName = tableRow.table_name || tableRow.TABLE_NAME;
-            
+
             // Get columns
             const columnQuery = `
                 SELECT 
@@ -176,9 +268,9 @@ export class SchemaCollectorService {
                 WHERE table_schema = ? AND table_name = ?
                 ORDER BY ordinal_position
             `;
-            
+
             const columnResults = await dataSource.query(columnQuery, [databaseName, tableName]);
-            
+
             // Normalize column metadata for MySQL/MariaDB (returns UPPERCASE keys)
             const columns = columnResults.map((col: any) => ({
                 column_name: col.column_name || col.COLUMN_NAME,
@@ -187,7 +279,7 @@ export class SchemaCollectorService {
                 column_default: col.column_default || col.COLUMN_DEFAULT,
                 character_maximum_length: col.character_maximum_length || col.CHARACTER_MAXIMUM_LENGTH
             }));
-            
+
             // Get primary keys
             const pkQuery = `
                 SELECT column_name
@@ -196,10 +288,10 @@ export class SchemaCollectorService {
                     AND table_name = ?
                     AND constraint_name = 'PRIMARY'
             `;
-            
+
             const pkResults = await dataSource.query(pkQuery, [databaseName, tableName]);
             const primaryKeys = pkResults.map((row: any) => row.column_name || row.COLUMN_NAME);
-            
+
             // Get foreign keys
             const fkQuery = `
                 SELECT
@@ -213,9 +305,9 @@ export class SchemaCollectorService {
                     AND kcu.table_name = ?
                     AND kcu.referenced_table_name IS NOT NULL
             `;
-            
+
             const fkResults = await dataSource.query(fkQuery, [databaseName, tableName]);
-            
+
             // Normalize foreign key metadata
             const foreignKeys = fkResults.map((fk: any) => ({
                 constraint_name: fk.constraint_name || fk.CONSTRAINT_NAME,
@@ -224,7 +316,7 @@ export class SchemaCollectorService {
                 foreign_table_name: fk.foreign_table_name || fk.FOREIGN_TABLE_NAME,
                 foreign_column_name: fk.foreign_column_name || fk.FOREIGN_COLUMN_NAME
             }));
-            
+
             tables.push({
                 schema: databaseName,
                 tableName,
@@ -233,7 +325,7 @@ export class SchemaCollectorService {
                 foreignKeys
             });
         }
-        
+
         return tables;
     }
 
@@ -253,7 +345,7 @@ export class SchemaCollectorService {
         }
 
         const tables: TableSchema[] = [];
-        
+
         for (const tableName of tableNames) {
             // Get columns
             const columnQuery = `
@@ -267,9 +359,9 @@ export class SchemaCollectorService {
                 WHERE table_schema = $1 AND table_name = $2
                 ORDER BY ordinal_position
             `;
-            
+
             const columns = await dataSource.query(columnQuery, [schemaName, tableName]);
-            
+
             // Get primary keys
             const pkQuery = `
                 SELECT kcu.column_name
@@ -281,10 +373,10 @@ export class SchemaCollectorService {
                     AND tc.table_schema = $1
                     AND tc.table_name = $2
             `;
-            
+
             const pkResults = await dataSource.query(pkQuery, [schemaName, tableName]);
             const primaryKeys = pkResults.map((row: any) => row.column_name);
-            
+
             // Get foreign keys
             const fkQuery = `
                 SELECT
@@ -304,9 +396,9 @@ export class SchemaCollectorService {
                     AND tc.table_schema = $1
                     AND tc.table_name = $2
             `;
-            
+
             const foreignKeys = await dataSource.query(fkQuery, [schemaName, tableName]);
-            
+
             tables.push({
                 schema: schemaName,
                 tableName,
@@ -315,7 +407,7 @@ export class SchemaCollectorService {
                 foreignKeys
             });
         }
-        
+
         return tables;
     }
 
@@ -328,7 +420,7 @@ export class SchemaCollectorService {
         }
 
         const tables: TableSchema[] = [];
-        
+
         for (const tableName of tableNames) {
             // Get columns
             const columnQuery = `
@@ -342,9 +434,9 @@ export class SchemaCollectorService {
                 WHERE table_schema = ? AND table_name = ?
                 ORDER BY ORDINAL_POSITION
             `;
-            
+
             const columns = await dataSource.query(columnQuery, [databaseName, tableName]);
-            
+
             // Get primary keys
             const pkQuery = `
                 SELECT kcu.COLUMN_NAME as column_name
@@ -356,10 +448,10 @@ export class SchemaCollectorService {
                     AND tc.table_schema = ?
                     AND tc.table_name = ?
             `;
-            
+
             const pkResults = await dataSource.query(pkQuery, [databaseName, tableName]);
             const primaryKeys = pkResults.map((row: any) => row.column_name);
-            
+
             // Get foreign keys
             const fkQuery = `
                 SELECT
@@ -373,9 +465,9 @@ export class SchemaCollectorService {
                     AND kcu.table_name = ?
                     AND kcu.referenced_table_name IS NOT NULL
             `;
-            
+
             const fkResults = await dataSource.query(fkQuery, [databaseName, tableName]);
-            
+
             const foreignKeys = fkResults.map((fk: any) => ({
                 constraint_name: fk.constraint_name || fk.CONSTRAINT_NAME,
                 table_name: fk.table_name || fk.TABLE_NAME,
@@ -383,7 +475,7 @@ export class SchemaCollectorService {
                 foreign_table_name: fk.foreign_table_name || fk.FOREIGN_TABLE_NAME,
                 foreign_column_name: fk.foreign_column_name || fk.FOREIGN_COLUMN_NAME
             }));
-            
+
             tables.push({
                 schema: databaseName,
                 tableName,
@@ -392,7 +484,7 @@ export class SchemaCollectorService {
                 foreignKeys
             });
         }
-        
+
         return tables;
     }
 }
