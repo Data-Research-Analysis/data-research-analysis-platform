@@ -17,6 +17,7 @@ const state = reactive({
     show_join_dialog: false,
     show_advanced_features_dialog: false,
     viewMode: 'simple', // 'simple' or 'advanced'
+    isInitialized: false, // Track if component has finished loading tables
     tables: [],
     table_aliases: [],
     alias_form: {
@@ -120,9 +121,17 @@ const isUnlimitedTier = computed(() => {
 
 // Check if tables have any data
 const hasTableData = computed(() => {
+    // Don't show warning until component is initialized (prevents brief flash during load)
+    if (!state.isInitialized) {
+        return true; // Hide warning during initial load
+    }
+    
+    // If we have no tables at all (empty array), show the warning
     if (!state.tables || state.tables.length === 0) {
         return false;
     }
+    
+    // Check if any table has columns with data
     return state.tables.some(table => table.columns && table.columns.length > 0);
 });
 
@@ -5228,6 +5237,7 @@ onMounted(async () => {
     });
 
     state.tables = props.dataSourceTables;
+    state.isInitialized = true; // Mark as initialized after tables are loaded
     console.log('[DEBUG - Data Model Builder] Tables loaded into state');
 
     // PRELOAD JOIN SUGGESTIONS: Fetch all possible joins immediately for better UX
@@ -5440,7 +5450,7 @@ onBeforeUnmount(() => {
 
 </script>
 <template>
-    <tab-content-panel :corners="['top-right', 'bottom-left', 'bottom-right']">
+    <div>
         <!-- Read-Only Mode Banner -->
         <div v-if="readOnly" class="mb-4 p-4 bg-yellow-50 border-2 border-yellow-400 rounded-lg flex items-center gap-3">
             <font-awesome icon="fas fa-eye" class="text-yellow-600 text-2xl" />
@@ -7064,5 +7074,5 @@ onBeforeUnmount(() => {
                 </div>
             </template>
         </overlay-dialog>
-    </tab-content-panel>
+    </div>
 </template>

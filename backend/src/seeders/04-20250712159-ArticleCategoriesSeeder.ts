@@ -23,14 +23,32 @@ export class ArticleCategoriesSeeder extends Seeder {
             where: { email: 'testuser@dataresearchanalysis.com' },
         });
         if (!user) {
-            console.error('User not found');
+            console.error('❌ User not found');
             return;
         }
+        
+        let createdCount = 0;
+        let skippedCount = 0;
+        
         for (const categoryTitle of categories) {
-            const category = new DRACategory();
-            category.title = categoryTitle;
-            category.users_platform = user;
-            await manager.save(category);
+            // Check if category already exists
+            const existingCategory = await manager.findOne(DRACategory, {
+                where: { title: categoryTitle }
+            });
+            
+            if (!existingCategory) {
+                const category = new DRACategory();
+                category.title = categoryTitle;
+                category.users_platform = user;
+                await manager.save(category);
+                console.log(`✅ Created category: ${categoryTitle}`);
+                createdCount++;
+            } else {
+                console.log(`⏭️  Category already exists: ${categoryTitle}`);
+                skippedCount++;
+            }
         }
+        
+        console.log(`✅ Article categories seeding completed: ${createdCount} created, ${skippedCount} skipped`);
     }
 }

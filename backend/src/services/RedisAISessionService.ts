@@ -11,6 +11,7 @@ export interface AISessionMetadata {
     conversationId: string;
     dataSourceId: number;
     userId: number;
+    sessionType?: 'data_model' | 'data_quality' | 'attribution'; // Session type for multi-mode support
     startedAt: string;
     lastActivityAt: string;
     status: 'draft' | 'saved' | 'archived';
@@ -34,35 +35,37 @@ export class RedisAISessionService {
     private redis = getRedisClient();
 
     // Key generators
-    public getConversationKey(dataSourceId: number, userId: number): string {
-        return `conversation:${dataSourceId}:${userId}`;
+    public getConversationKey(dataSourceId: number, userId: number, sessionType: string = 'data_model'): string {
+        return `conversation:${sessionType}:${dataSourceId}:${userId}`;
     }
 
-    private getMessagesKey(dataSourceId: number, userId: number): string {
-        return `messages:${dataSourceId}:${userId}`;
+    private getMessagesKey(dataSourceId: number, userId: number, sessionType: string = 'data_model'): string {
+        return `messages:${sessionType}:${dataSourceId}:${userId}`;
     }
 
-    private getModelDraftKey(dataSourceId: number, userId: number): string {
-        return `model-draft:${dataSourceId}:${userId}`;
+    private getModelDraftKey(dataSourceId: number, userId: number, sessionType: string = 'data_model'): string {
+        return `model-draft:${sessionType}:${dataSourceId}:${userId}`;
     }
 
-    private getSchemaContextKey(dataSourceId: number, userId: number): string {
-        return `schema-context:${dataSourceId}:${userId}`;
+    private getSchemaContextKey(dataSourceId: number, userId: number, sessionType: string = 'data_model'): string {
+        return `schema-context:${sessionType}:${dataSourceId}:${userId}`;
     }
 
     // Session Management
     async createSession(
         dataSourceId: number,
         userId: number,
-        schemaContext: SchemaContext
+        schemaContext: SchemaContext,
+        sessionType: 'data_model' | 'data_quality' | 'attribution' = 'data_model'
     ): Promise<AISessionMetadata> {
-        const conversationKey = this.getConversationKey(dataSourceId, userId);
-        const schemaKey = this.getSchemaContextKey(dataSourceId, userId);
+        const conversationKey = this.getConversationKey(dataSourceId, userId, sessionType);
+        const schemaKey = this.getSchemaContextKey(dataSourceId, userId, sessionType);
 
         const metadata: AISessionMetadata = {
-            conversationId: `temp-${uuidv4()}`,
+            conversationId: `${sessionType}-${uuidv4()}`,
             dataSourceId,
             userId,
+            sessionType,
             startedAt: new Date().toISOString(),
             lastActivityAt: new Date().toISOString(),
             status: 'draft',
@@ -79,8 +82,8 @@ export class RedisAISessionService {
         return metadata;
     }
 
-    async getSession(dataSourceId: number, userId: number): Promise<AISessionMetadata | null> {
-        const conversationKey = this.getConversationKey(dataSourceId, userId);
+    async getSession(dataSourceId: number, userId: number, sessionType: string = 'data_model'): Promise<AISessionMetadata | null> {
+        const conversationKey = this.getConversationKey(dataSourceId, userId, sessionType);
         const data = await this.redis.hgetall(conversationKey);
 
         if (!data || Object.keys(data).length === 0) {
@@ -91,20 +94,21 @@ export class RedisAISessionService {
             conversationId: data.conversationId,
             dataSourceId: parseInt(data.dataSourceId, 10),
             userId: parseInt(data.userId, 10),
+            sessionType: data.sessionType as 'data_model' | 'data_quality' | 'attribution',
             startedAt: data.startedAt,
             lastActivityAt: data.lastActivityAt,
             status: data.status as 'draft' | 'saved' | 'archived',
         };
     }
 
-    async updateSessionActivity(dataSourceId: number, userId: number): Promise<void> {
-        const conversationKey = this.getConversationKey(dataSourceId, userId);
+    async updateSessionActivity(dataSourceId: number, userId: number, sessionType: string = 'data_model'): Promise<void> {
+        const conversationKey = this.getConversationKey(dataSourceId, userId, sessionType);
         await this.redis.hset(conversationKey, 'lastActivityAt', new Date().toISOString());
         await this.redis.expire(conversationKey, RedisTTL.AI_SESSION);
     }
 
-    async clearSession(dataSourceId: number, userId: number): Promise<void> {
-        const conversationKey = this.getConversationKey(dataSourceId, userId);
+    async clearSession(dataSourceId: number, userId: number, sessionType: string = 'data_model'): Promise<void> {
+        const conversationKey = this.getConversationKey(dataSourceId, userId, sessionType);
         await this.redis.del(conversationKey);
     }
 
@@ -113,9 +117,10 @@ export class RedisAISessionService {
         dataSourceId: number,
         userId: number,
         role: 'user' | 'assistant' | 'system',
-        content: string
+        content: string,
+        sessionType: string = 'data_model'
     ): Promise<AIMessage> {
-        const messagesKey = this.getMessagesKey(dataSourceId, userId);
+        const messagesKey = this.getMessagesKey(dataSourceId, userId, sessionType);
 
         const message: AIMessage = {
             role,
@@ -127,20 +132,20 @@ export class RedisAISessionService {
         await this.redis.expire(messagesKey, RedisTTL.AI_MESSAGES);
 
         // Update session activity
-        await this.updateSessionActivity(dataSourceId, userId);
+        await this.updateSessionActivity(dataSourceId, userId, sessionType);
 
         return message;
     }
 
-    async getMessages(dataSourceId: number, userId: number): Promise<AIMessage[]> {
-        const messagesKey = this.getMessagesKey(dataSourceId, userId);
+    async getMessages(dataSourceId: number, userId: number, sessionType: string = 'data_model'): Promise<AIMessage[]> {
+        const messagesKey = this.getMessagesKey(dataSourceId, userId, sessionType);
         const messages = await this.redis.lrange(messagesKey, 0, -1);
 
         return messages.map((msg) => JSON.parse(msg));
     }
 
-    async clearMessages(dataSourceId: number, userId: number): Promise<void> {
-        const messagesKey = this.getMessagesKey(dataSourceId, userId);
+    async clearMessages(dataSourceId: number, userId: number, sessionType: string = 'data_model'): Promise<void> {
+        const messagesKey = this.getMessagesKey(dataSourceId, userId, sessionType);
         await this.redis.del(messagesKey);
     }
 
@@ -148,12 +153,13 @@ export class RedisAISessionService {
     async saveModelDraft(
         dataSourceId: number,
         userId: number,
-        modelState: Partial<ModelDraft>
+        modelState: Partial<ModelDraft>,
+        sessionType: string = 'data_model'
     ): Promise<ModelDraft> {
-        const draftKey = this.getModelDraftKey(dataSourceId, userId);
+        const draftKey = this.getModelDraftKey(dataSourceId, userId, sessionType);
 
         // Get existing draft to increment version
-        const existingDraft = await this.getModelDraft(dataSourceId, userId);
+        const existingDraft = await this.getModelDraft(dataSourceId, userId, sessionType);
         const version = existingDraft ? existingDraft.version + 1 : 1;
 
         const draft: ModelDraft = {
@@ -179,8 +185,8 @@ export class RedisAISessionService {
         return draft;
     }
 
-    async getModelDraft(dataSourceId: number, userId: number): Promise<ModelDraft | null> {
-        const draftKey = this.getModelDraftKey(dataSourceId, userId);
+    async getModelDraft(dataSourceId: number, userId: number, sessionType: string = 'data_model'): Promise<ModelDraft | null> {
+        const draftKey = this.getModelDraftKey(dataSourceId, userId, sessionType);
         const data = await this.redis.hgetall(draftKey);
 
         if (!data || Object.keys(data).length === 0) {
@@ -196,8 +202,8 @@ export class RedisAISessionService {
         };
     }
 
-    async clearModelDraft(dataSourceId: number, userId: number): Promise<void> {
-        const draftKey = this.getModelDraftKey(dataSourceId, userId);
+    async clearModelDraft(dataSourceId: number, userId: number, sessionType: string = 'data_model'): Promise<void> {
+        const draftKey = this.getModelDraftKey(dataSourceId, userId, sessionType);
         await this.redis.del(draftKey);
     }
 
@@ -205,15 +211,16 @@ export class RedisAISessionService {
     async saveSchemaContext(
         dataSourceId: number,
         userId: number,
-        schema: SchemaContext
+        schema: SchemaContext,
+        sessionType: string = 'data_model'
     ): Promise<void> {
-        const schemaKey = this.getSchemaContextKey(dataSourceId, userId);
+        const schemaKey = this.getSchemaContextKey(dataSourceId, userId, sessionType);
         await this.redis.set(schemaKey, JSON.stringify(schema));
         await this.redis.expire(schemaKey, RedisTTL.AI_SCHEMA_CONTEXT);
     }
 
-    async getSchemaContext(dataSourceId: number, userId: number): Promise<SchemaContext | null> {
-        const schemaKey = this.getSchemaContextKey(dataSourceId, userId);
+    async getSchemaContext(dataSourceId: number, userId: number, sessionType: string = 'data_model'): Promise<SchemaContext | null> {
+        const schemaKey = this.getSchemaContextKey(dataSourceId, userId, sessionType);
         const data = await this.redis.get(schemaKey);
 
         if (!data) {
@@ -224,12 +231,12 @@ export class RedisAISessionService {
     }
 
     // Bulk Operations
-    async getFullSession(dataSourceId: number, userId: number) {
+    async getFullSession(dataSourceId: number, userId: number, sessionType: string = 'data_model') {
         const [metadata, messages, modelDraft, schemaContext] = await Promise.all([
-            this.getSession(dataSourceId, userId),
-            this.getMessages(dataSourceId, userId),
-            this.getModelDraft(dataSourceId, userId),
-            this.getSchemaContext(dataSourceId, userId),
+            this.getSession(dataSourceId, userId, sessionType),
+            this.getMessages(dataSourceId, userId, sessionType),
+            this.getModelDraft(dataSourceId, userId, sessionType),
+            this.getSchemaContext(dataSourceId, userId, sessionType),
         ]);
 
         return {
@@ -240,37 +247,37 @@ export class RedisAISessionService {
         };
     }
 
-    async clearAllSessionData(dataSourceId: number, userId: number): Promise<void> {
+    async clearAllSessionData(dataSourceId: number, userId: number, sessionType: string = 'data_model'): Promise<void> {
         const keys = [
-            this.getConversationKey(dataSourceId, userId),
-            this.getMessagesKey(dataSourceId, userId),
-            this.getModelDraftKey(dataSourceId, userId),
-            this.getSchemaContextKey(dataSourceId, userId),
+            this.getConversationKey(dataSourceId, userId, sessionType),
+            this.getMessagesKey(dataSourceId, userId, sessionType),
+            this.getModelDraftKey(dataSourceId, userId, sessionType),
+            this.getSchemaContextKey(dataSourceId, userId, sessionType),
         ];
 
         await Promise.all(keys.map((key) => this.redis.del(key)));
     }
 
     // Check if session exists
-    async sessionExists(dataSourceId: number, userId: number): Promise<boolean> {
-        const conversationKey = this.getConversationKey(dataSourceId, userId);
+    async sessionExists(dataSourceId: number, userId: number, sessionType: string = 'data_model'): Promise<boolean> {
+        const conversationKey = this.getConversationKey(dataSourceId, userId, sessionType);
         const exists = await this.redis.exists(conversationKey);
         return exists === 1;
     }
 
     // Get session TTL (time remaining)
-    async getSessionTTL(dataSourceId: number, userId: number): Promise<number> {
-        const conversationKey = this.getConversationKey(dataSourceId, userId);
+    async getSessionTTL(dataSourceId: number, userId: number, sessionType: string = 'data_model'): Promise<number> {
+        const conversationKey = this.getConversationKey(dataSourceId, userId, sessionType);
         return await this.redis.ttl(conversationKey);
     }
 
     // Extend session TTL
-    async extendSession(dataSourceId: number, userId: number): Promise<void> {
+    async extendSession(dataSourceId: number, userId: number, sessionType: string = 'data_model'): Promise<void> {
         const keys = [
-            this.getConversationKey(dataSourceId, userId),
-            this.getMessagesKey(dataSourceId, userId),
-            this.getModelDraftKey(dataSourceId, userId),
-            this.getSchemaContextKey(dataSourceId, userId),
+            this.getConversationKey(dataSourceId, userId, sessionType),
+            this.getMessagesKey(dataSourceId, userId, sessionType),
+            this.getModelDraftKey(dataSourceId, userId, sessionType),
+            this.getSchemaContextKey(dataSourceId, userId, sessionType),
         ];
 
         await Promise.all([

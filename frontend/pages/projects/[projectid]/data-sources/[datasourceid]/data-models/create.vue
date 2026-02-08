@@ -64,19 +64,21 @@ onBeforeUnmount(() => {
 <template>
     <div class="flex flex-col">
         <tabs :project-id="project.id"/>
-        <div class="flex flex-col min-h-100 mb-10">
-            <!-- Always show data-model-builder if we have the data_source_tables array (even if empty) -->
-            <data-model-builder 
-                v-if="state.data_source_tables !== null" 
-                :data-source-tables="state.data_source_tables" 
-                :data-source="dataSource" 
-                :read-only="!permissions.canCreate.value" />
-            
-            <!-- Loading state -->
-            <div v-else class="flex flex-col items-center justify-center h-96 ml-10 mr-10">
-                <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600"></div>
-                <p class="text-lg font-semibold text-gray-700 mt-4">Loading tables...</p>
+        <tab-content-panel :corners="['top-right', 'bottom-left', 'bottom-right']">
+            <div class="flex flex-col min-h-100 mb-10">
+                <!-- Always show data-model-builder if we have the data_source_tables array (even if empty) -->
+                <data-model-builder 
+                    v-if="state.data_source_tables !== null" 
+                    :data-source-tables="state.data_source_tables" 
+                    :data-source="dataSource" 
+                    :read-only="!permissions.canCreate.value" />
+                
+                <!-- Loading state -->
+                <div v-else class="flex flex-col items-center justify-center h-96 ml-10 mr-10">
+                    <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600"></div>
+                    <p class="text-lg font-semibold text-gray-700 mt-4">Loading tables...</p>
+                </div>
             </div>
-        </div>
+        </tab-content-panel>
     </div>
 </template>

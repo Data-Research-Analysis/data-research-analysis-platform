@@ -9,16 +9,69 @@ const siteUrl = config.public.siteUrl || 'https://www.dataresearchanalysis.com';
 // Fetch articles with client-side SSR
 const { data: articlesList, pending, error, refresh } = useAdminArticles();
 
-const state = reactive({});
+const state = reactive({
+    sortField: 'created_at',
+    sortDirection: 'desc'
+});
 
 const articles = computed(() => {
     if (!articlesList.value) return [];
-    return [...articlesList.value].sort((a, b) => a.id - b.id);
+    
+    const sorted = [...articlesList.value].sort((a, b) => {
+        let aVal, bVal;
+        
+        // Extract values based on sort field
+        switch (state.sortField) {
+            case 'id':
+                aVal = a.article.id;
+                bVal = b.article.id;
+                break;
+            case 'title':
+                aVal = a.article.title.toLowerCase();
+                bVal = b.article.title.toLowerCase();
+                break;
+            case 'status':
+                aVal = a.article.publish_status;
+                bVal = b.article.publish_status;
+                break;
+            case 'created_at':
+                aVal = new Date(a.article.created_at);
+                bVal = new Date(b.article.created_at);
+                break;
+            default:
+                return 0;
+        }
+        
+        // Compare values
+        if (aVal < bVal) return state.sortDirection === 'asc' ? -1 : 1;
+        if (aVal > bVal) return state.sortDirection === 'asc' ? 1 : -1;
+        return 0;
+    });
+    
+    return sorted;
 });
 
 function formatDate(dateString) {
     const options = { year: 'numeric', month: 'long', day: 'numeric' };
     return new Date(dateString).toLocaleDateString(undefined, options);
+}
+
+function toggleSort(field) {
+    if (state.sortField === field) {
+        // Toggle direction if same field
+        state.sortDirection = state.sortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+        // New field, default to ascending (except created_at defaults to desc)
+        state.sortField = field;
+        state.sortDirection = field === 'created_at' ? 'desc' : 'asc';
+    }
+}
+
+function getSortIcon(field) {
+    if (state.sortField !== field) {
+        return 'fa-sort'; // Neutral/unsorted icon
+    }
+    return state.sortDirection === 'asc' ? 'fa-sort-up' : 'fa-sort-down';
 }
 
 async function deleteArticle(articleId) {
@@ -147,11 +200,31 @@ async function unpublishArticle(articleId) {
                         <table v-if="articles && articles.length" class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none" @click="toggleSort('id')">
+                                        <div class="flex items-center gap-2">
+                                            <span>ID</span>
+                                            <font-awesome :icon="`fas ${getSortIcon('id')}`" class="text-xs" />
+                                        </div>
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none" @click="toggleSort('title')">
+                                        <div class="flex items-center gap-2">
+                                            <span>Title</span>
+                                            <font-awesome :icon="`fas ${getSortIcon('title')}`" class="text-xs" />
+                                        </div>
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none" @click="toggleSort('status')">
+                                        <div class="flex items-center gap-2">
+                                            <span>Status</span>
+                                            <font-awesome :icon="`fas ${getSortIcon('status')}`" class="text-xs" />
+                                        </div>
+                                    </th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categories</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none" @click="toggleSort('created_at')">
+                                        <div class="flex items-center gap-2">
+                                            <span>Created At</span>
+                                            <font-awesome :icon="`fas ${getSortIcon('created_at')}`" class="text-xs" />
+                                        </div>
+                                    </th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>

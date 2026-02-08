@@ -13,28 +13,59 @@ export class DemoProjectsSeeder extends Seeder {
             where: { email: 'testuser@dataresearchanalysis.com' },
         });
         if (!user) {
-            console.error('User not found');
+            console.error('❌ User not found');
             return;
         }
         
-        // Use transaction to ensure both project and member entry are created
-        await manager.transaction(async (transactionManager) => {
-            const project = new DRAProject();
-            project.name = 'DRA Demo Project';
-            project.description = 'This is a demo project created for testing purposes.';
-            project.users_platform = user;
-            project.created_at = new Date();
-            const savedProject = await transactionManager.save(project);
-            
-            // Create project member entry with owner role
-            const projectMember = new DRAProjectMember();
-            projectMember.project = savedProject;
-            projectMember.user = user;
-            projectMember.role = EProjectRole.OWNER;
-            projectMember.added_at = new Date();
-            await transactionManager.save(projectMember);
-            
-            console.log('✅ Created demo project with owner member entry');
+        // Check if project already exists
+        const existingProject = await manager.findOne(DRAProject, {
+            where: { name: 'DRA Demo Project' },
+            relations: ['users_platform']
         });
+        
+        if (!existingProject) {
+            // Use transaction to ensure both project and member entry are created
+            await manager.transaction(async (transactionManager) => {
+                const project = new DRAProject();
+                project.name = 'DRA Demo Project';
+                project.description = 'This is a demo project created for testing purposes.';
+                project.users_platform = user;
+                project.created_at = new Date();
+                const savedProject = await transactionManager.save(project);
+                
+                // Create project member entry with owner role
+                const projectMember = new DRAProjectMember();
+                projectMember.project = savedProject;
+                projectMember.user = user;
+                projectMember.role = EProjectRole.OWNER;
+                projectMember.added_at = new Date();
+                await transactionManager.save(projectMember);
+                
+                console.log('✅ Created demo project with owner member entry');
+            });
+        } else {
+            console.log('⏭️  Demo project already exists: DRA Demo Project');
+            
+            // Check if member entry exists
+            const existingMember = await manager.findOne(DRAProjectMember, {
+                where: { 
+                    project: { id: existingProject.id },
+                    user: { id: user.id }
+                }
+            });
+            
+            if (!existingMember) {
+                // Add member entry only
+                const projectMember = new DRAProjectMember();
+                projectMember.project = existingProject;
+                projectMember.user = user;
+                projectMember.role = EProjectRole.OWNER;
+                projectMember.added_at = new Date();
+                await manager.save(projectMember);
+                console.log('✅ Added missing member entry for demo project');
+            } else {
+                console.log('⏭️  Project member entry already exists');
+            }
+        }
     }
 }
