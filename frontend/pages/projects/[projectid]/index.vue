@@ -6,6 +6,7 @@ import { useSubscriptionStore } from '@/stores/subscription';
 import { useGoogleAnalytics } from '@/composables/useGoogleAnalytics';
 import { useGoogleAdManager } from '@/composables/useGoogleAdManager';
 import { useGoogleAds } from '@/composables/useGoogleAds';
+import { useMetaAds } from '@/composables/useMetaAds';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import { useTruncation } from '@/composables/useTruncation';
 import pdfImage from '/assets/images/pdf.png';
@@ -16,6 +17,7 @@ import mariadbImage from '/assets/images/mariadb.png';
 import googleAnalyticsImage from '/assets/images/google-analytics.png';
 import googleAdManagerImage from '/assets/images/google-ad-manager.png';
 import googleAdsImage from '/assets/images/google-ads.png';
+import metaAdsImage from '/assets/images/meta.png';
 
 const dataSourceStore = useDataSourceStore();
 const projectsStore = useProjectsStore();
@@ -24,6 +26,7 @@ const subscriptionStore = useSubscriptionStore();
 const analytics = useGoogleAnalytics();
 const gam = useGoogleAdManager();
 const ads = useGoogleAds();
+const metaAds = useMetaAds();
 const { $swal } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
@@ -111,7 +114,12 @@ const state = reactive({
         {
             name: 'Google Ads',
             url: `${route.fullPath}/data-sources/connect/google-ads`,
-            image_url: googleAdsImage, // Reusing GAM image for now
+            image_url: googleAdsImage,
+        },
+        {
+            name: 'Meta Ads',
+            url: `${route.fullPath}/data-sources/connect/meta-ads`,
+            image_url: metaAdsImage,
         },
         {
             name: 'PDF',
@@ -220,7 +228,8 @@ async function syncDataSource(dataSourceId) {
         const dataSource = state.data_sources.find(ds => ds.id === dataSourceId);
         const isGAM = dataSource?.data_type === 'google_ad_manager';
         const isAds = dataSource?.data_type === 'google_ads';
-        const serviceName = isAds ? 'Google Ads' : (isGAM ? 'Google Ad Manager' : 'Google Analytics');
+        const isMetaAds = dataSource?.data_type === 'meta_ads';
+        const serviceName = isMetaAds ? 'Meta Ads' : (isAds ? 'Google Ads' : (isGAM ? 'Google Ad Manager' : 'Google Analytics'));
 
         $swal.fire({
             title: 'Syncing...',
@@ -234,7 +243,7 @@ async function syncDataSource(dataSourceId) {
         });
 
         console.log('Starting sync for data source ID:', dataSourceId);
-        const success = isAds ? await ads.syncNow(dataSourceId) : (isGAM ? await gam.syncNow(dataSourceId) : await analytics.syncNow(dataSourceId));
+        const success = isMetaAds ? await metaAds.syncNow(dataSourceId) : (isAds ? await ads.syncNow(dataSourceId) : (isGAM ? await gam.syncNow(dataSourceId) : await analytics.syncNow(dataSourceId)));
 
         if (success) {
             await $swal.fire({
@@ -269,13 +278,13 @@ async function syncDataSource(dataSourceId) {
  */
 async function bulkSyncAllGoogleDataSources() {
     const googleDataSources = state.data_sources.filter(ds =>
-        ds.data_type === 'google_analytics' || ds.data_type === 'google_ad_manager' || ds.data_type === 'google_ads'
+        ds.data_type === 'google_analytics' || ds.data_type === 'google_ad_manager' || ds.data_type === 'google_ads' || ds.data_type === 'meta_ads'
     );
 
     if (googleDataSources.length === 0) {
         await $swal.fire({
             title: 'No Google Data Sources',
-            text: 'There are no Google Analytics or Ad Manager data sources to sync.',
+            text: 'There are no Google Analytics, Ad Manager, Ads, or Meta Ads data sources to sync.',
             icon: 'info'
         });
         return;
@@ -283,7 +292,7 @@ async function bulkSyncAllGoogleDataSources() {
 
     const { value: confirm } = await $swal.fire({
         title: `Sync ${googleDataSources.length} Data Source${googleDataSources.length > 1 ? 's' : ''}?`,
-        text: 'This will sync all Google Analytics, Ad Manager, and Ads data sources in this project.',
+        text: 'This will sync all Google Analytics, Ad Manager, Google Ads, and Meta Ads data sources in this project.',
         icon: 'question',
         showCancelButton: true,
         confirmButtonText: 'Yes, Sync All',
@@ -314,7 +323,8 @@ async function bulkSyncAllGoogleDataSources() {
 
         const isGAM = ds.data_type === 'google_ad_manager';
         const isAds = ds.data_type === 'google_ads';
-        const success = isAds ? await ads.syncNow(ds.id) : (isGAM ? await gam.syncNow(ds.id) : await analytics.syncNow(ds.id));
+        const isMetaAds = ds.data_type === 'meta_ads';
+        const success = isMetaAds ? await metaAds.syncNow(ds.id) : (isAds ? await ads.syncNow(ds.id) : (isGAM ? await gam.syncNow(ds.id) : await analytics.syncNow(ds.id)));
         if (success) {
             successCount++;
         } else {
@@ -340,6 +350,7 @@ async function viewSyncHistory(dataSourceId) {
     const dataSource = state.data_sources.find(ds => ds.id === dataSourceId);
     const isGAM = dataSource?.data_type === 'google_ad_manager';
     const isAds = dataSource?.data_type === 'google_ads';
+    const isMetaAds = dataSource?.data_type === 'meta_ads';
 
     try {
         // Show loading
@@ -354,7 +365,7 @@ async function viewSyncHistory(dataSourceId) {
             }
         });
 
-        const status = isAds ? await ads.getSyncStatus(dataSourceId) : (isGAM ? await gam.getSyncStatus(dataSourceId) : await analytics.getSyncStatus(dataSourceId));
+        const status = isMetaAds ? await metaAds.getSyncStatus(dataSourceId) : (isAds ? await ads.getSyncStatus(dataSourceId) : (isGAM ? await gam.getSyncStatus(dataSourceId) : await analytics.getSyncStatus(dataSourceId)));
 
         $swal.close();
 
@@ -685,17 +696,20 @@ onMounted(async () => {
             <!-- Connect Data Source Dialog -->
             <overlay-dialog v-if="state.show_dialog" @close="closeDialog" :yOffset="90" :enable-scrolling="false">
                 <template #overlay>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                        <template v-for="dataSource in state.available_data_sources" :key="dataSource.name">
-                            <NuxtLink :to="dataSource.url"
-                                class="w-full border border-primary-blue-100 border-solid p-10 font-bold text-center hover:bg-gray-200 shadow-md cursor-pointer select-none">
-                                <div class="flex flex-col">
-                                    <img :src="dataSource.image_url" :alt="dataSource.name"
-                                        class="mx-auto mb-3 h-[100px]" />
-                                    {{ dataSource.name }}
-                                </div>
-                            </NuxtLink>
-                        </template>
+                    <div class="max-h-[calc(80vh-120px)] overflow-y-auto">
+                        <h2 class="text-2xl font-bold mb-6 text-gray-900">Connect Data Source</h2>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                            <template v-for="dataSource in state.available_data_sources" :key="dataSource.name">
+                                <NuxtLink :to="dataSource.url"
+                                    class="w-full border border-primary-blue-100 border-solid p-10 font-bold text-center hover:bg-gray-200 shadow-md cursor-pointer select-none">
+                                    <div class="flex flex-col">
+                                        <img :src="dataSource.image_url" :alt="dataSource.name"
+                                            class="mx-auto mb-3 h-[100px]" />
+                                        {{ dataSource.name }}
+                                    </div>
+                                </NuxtLink>
+                            </template>
+                        </div>
                     </div>
                 </template>
             </overlay-dialog>

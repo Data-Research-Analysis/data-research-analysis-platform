@@ -279,6 +279,7 @@ watchEffect(() => {
                         :options="filteredCategoriesKeys"
                         :default-options="state.selectedMenuItems"
                         :searchable="true"
+                        :close-on-select="false"
                         placeholder="Select Categories"
                         @multi-select-filtered-data="
                             (filteredData) => menuFilteredData(filteredData)

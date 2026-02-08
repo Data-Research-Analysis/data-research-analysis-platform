@@ -14,6 +14,7 @@ import mysqlImage from '/assets/images/mysql.png';
 import mariadbImage from '/assets/images/mariadb.png';
 import pdfImage from '/assets/images/pdf.png';
 import excelImage from '/assets/images/excel.png';
+import metaImage from '/assets/images/meta.png';
 
 const dataSourceStore = useDataSourceStore();
 const projectsStore = useProjectsStore();
@@ -81,7 +82,8 @@ function getDataSourceIcon(dataType: string) {
         'mysql': mysqlImage,
         'mariadb': mariadbImage,
         'excel': excelImage,
-        'pdf': pdfImage
+        'pdf': pdfImage,
+        'meta': metaImage,
     };
     return icons[dataType] || postgresqlImage;
 }

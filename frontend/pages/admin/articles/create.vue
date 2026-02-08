@@ -181,6 +181,7 @@ async function saveAsDraft() {
                         :options="filteredCategoriesKeys"
                         :default-options="[filteredCategoriesKeys[0]]"
                         :searchable="true"
+                        :close-on-select="false"
                         placeholder="Select Categories"
                         @multi-select-filtered-data="
                             (filteredData) => menuFilteredData(filteredData)

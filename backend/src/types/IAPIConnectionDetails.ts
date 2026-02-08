@@ -28,6 +28,9 @@ export interface IAPIConnectionDetails {
         manager_customer_id?: string;  // For client accounts under a manager
         developer_token?: string;
         
+        // Meta Ads specific
+        ad_account_id?: string;
+        
         // Additional metadata
         account_name?: string;
         last_sync?: Date;

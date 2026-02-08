@@ -34,6 +34,10 @@ const props = defineProps({
     type: String,
     default: "",
   },
+  closeOnSelect: {
+    type: Boolean,
+    default: true,
+  },
 });
 watch(
   () => state.value,
@@ -56,7 +60,9 @@ function selectOption(option) {
     state.selectedFilterItemsObjects.push(option);
   }
   emit("multi-select-filtered-data", state.selectedFilterItemsObjects);
-  closeFilter();
+  if (props.closeOnSelect) {
+    closeFilter();
+  }
 }
 function removeSelectedOption(option) {
   state.selectedFilterItems = state.selectedFilterItems.filter(
