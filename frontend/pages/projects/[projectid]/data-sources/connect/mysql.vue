@@ -143,7 +143,7 @@ async function connectDataSource() {
             },
         };
         try {
-            const data = await $fetch(`${baseUrl()}/data-source/create-data-source`, {
+            const data = await $fetch(`${baseUrl()}/data-source/add-data-source`, {
                 method: "POST",
                 ...requestOptions
             });

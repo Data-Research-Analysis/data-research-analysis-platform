@@ -346,6 +346,12 @@ export class DataSourceProcessor {
                 dataSource.data_type = UtilityService.getInstance().getDataSourceType(connection.data_source_type);
                 dataSource.project = project;
                 dataSource.users_platform = user;
+                
+                // Store connection_string separately if provided (for MongoDB)
+                if (connection.connection_string) {
+                    dataSource.connection_string = connection.connection_string;
+                }
+                
                 const savedDataSource = await manager.save(dataSource);
 
                 // Send notification
@@ -404,6 +410,14 @@ export class DataSourceProcessor {
             dataSource.connection_details = connection;
             dataSource.name = connection.database;
             dataSource.data_type = UtilityService.getInstance().getDataSourceType(connection.data_source_type);
+            
+            // Update connection_string if provided (for MongoDB)
+            if (connection.connection_string) {
+                dataSource.connection_string = connection.connection_string;
+            } else {
+                // Clear connection_string if not provided (switching from connection string to individual fields)
+                dataSource.connection_string = null;
+            }
 
             await manager.save(dataSource);
             return resolve(true);
@@ -659,8 +673,29 @@ export class DataSourceProcessor {
                 }
             }
 
+            // Validate query JSON structure
+            const { MongoDBValidator } = await import('../utilities/MongoDBValidator.js');
+            const validation = MongoDBValidator.validateQueryJSON(queryJSON);
+            
+            if (!validation.valid) {
+                return resolve({ 
+                    success: false, 
+                    error: validation.error || 'Invalid query',
+                    data: [],
+                    rowCount: 0
+                });
+            }
+
+            const { collection: collectionName, pipeline } = validation;
+
             // Connect to MongoDB
             const connection = dataSource.connection_details;
+            
+            // If connection_string exists in the database column, add it to connection object
+            if (dataSource.connection_string) {
+                connection.connection_string = dataSource.connection_string;
+            }
+            
             const mongoDriver = await DBDriver.getInstance().getDriver(EDataSourceType.MONGODB);
             let dbConnector: DataSource;
             try {
@@ -670,42 +705,12 @@ export class DataSourceProcessor {
             }
 
             try {
-                // Parse pipeline
-                let pipeline: any[];
-                let collectionName: string = '';
-
-                try {
-                    const parsedQuery = JSON.parse(queryJSON);
-                    if (Array.isArray(parsedQuery)) {
-                        pipeline = parsedQuery;
-                        // Attempt to extract collection name from first stage if possible or require it separate
-                        // For now, let's assume the queryJSON might contain "collection" and "pipeline" if it's an object,
-                        // or just array if we are forced to pass collection name elsewhere.
-                        // But standard executeQueryOnExternalDataSource takes "query" string. 
-                        // We will expect the frontend to send a JSON object: { collection: "name", pipeline: [] }
-                        // But if it just sent the array, we can't know the collection.
-                        // Let's assume the "query" parameter passed to executeQueryOnExternalDataSource contained the collection name if needed,
-                        // or we stick to the JSON format { collection, pipeline }.
-
-                        // Checking how frontend sends it.
-                        // The frontend requirements said: "Pass collection name and pipeline to backend"
-                        // So queryJSON likely has structure { collection: "name", pipeline: [...] }
-                    } else {
-                        collectionName = parsedQuery.collection;
-                        pipeline = parsedQuery.pipeline;
-                    }
-                } catch (e) {
-                    return resolve({ success: false, error: 'Invalid query JSON' });
+                // Execute aggregation - type-safe check for optional method
+                if (!mongoDriver.executeAggregation || typeof mongoDriver.executeAggregation !== 'function') {
+                    return resolve({ success: false, error: 'MongoDB driver does not support aggregation' });
                 }
-
-                if (!collectionName || !pipeline) {
-                    return resolve({ success: false, error: 'Missing collection name or pipeline' });
-                }
-
-                // Execute
-                // We need to access executeAggregation on MongoDBDriver
-                // But mongoDriver variable is IDBDriver. Cast it.
-                const results = await (mongoDriver as any).executeAggregation(collectionName, pipeline);
+                
+                const results = await mongoDriver.executeAggregation(collectionName!, pipeline!);
 
                 return resolve({
                     success: true,
@@ -713,9 +718,14 @@ export class DataSourceProcessor {
                     rowCount: results.length
                 });
 
-            } catch (error) {
+            } catch (error: any) {
                 console.error('MongoDB query execution error:', error);
-                return resolve({ success: false, error: error.message });
+                return resolve({ 
+                    success: false, 
+                    error: error.message || 'Query execution failed',
+                    data: [],
+                    rowCount: 0
+                });
             } finally {
                 await mongoDriver.close();
             }
@@ -777,21 +787,86 @@ export class DataSourceProcessor {
 
                 // We need to connect first to get the datasource
                 const connection = dataSource.connection_details;
+                
+                // If connection_string exists in the database column, add it to connection object
+                if (dataSource.connection_string) {
+                    connection.connection_string = dataSource.connection_string;
+                }
+                
                 const mongoDriver = await DBDriver.getInstance().getDriver(EDataSourceType.MONGODB);
                 let dbConnector: DataSource;
                 try {
                     dbConnector = await mongoDriver.connectExternalDB(connection);
-                    // Use schema collector
-                    const tables = await schemaCollector.collectSchema(dbConnector, dataSource.name);
-                    return resolve(tables);
+                    
+                    // For native driver, dbConnector is a mock object, so we need to handle differently
+                    // Check if this is a native connection by looking for connection_string
+                    const isNativeConnection = connection.connection_string ? true : false;
+                    
+                    if (isNativeConnection) {
+                        // Native driver: manually collect schema using MongoDBDriver methods
+                        const { MongoDBDriver } = await import('../drivers/MongoDBDriver.js');
+                        const driver = MongoDBDriver.getInstance();
+                        
+                        const collections = await driver.getMongoDBCollections();
+                        const tables = [];
+                        
+                        // Build table schema for each collection
+                        for (const collectionName of collections) {
+                            const schemaResult = await driver.inferCollectionSchema(collectionName, 100);
+                            
+                            // Convert to TableSchema format
+                            const columns = schemaResult.fields ? schemaResult.fields.map((field: any) => ({
+                                column_name: field.field_name,
+                                data_type: field.data_type || 'string',
+                                is_nullable: field.is_nullable ? 'YES' : 'NO',
+                                column_default: null,
+                                character_maximum_length: null
+                            })) : [];
+                            
+                            // Ensure _id exists
+                            if (!columns.find((c: any) => c.column_name === '_id')) {
+                                columns.unshift({
+                                    column_name: '_id',
+                                    data_type: 'varchar(24)',
+                                    is_nullable: 'NO',
+                                    column_default: null,
+                                    character_maximum_length: 24
+                                });
+                            }
+                            
+                            tables.push({
+                                schema: 'dra_mongodb',
+                                tableName: collectionName,
+                                columns: columns,
+                                primaryKeys: ['_id'],
+                                foreignKeys: []
+                            });
+                        }
+                        
+                        return resolve(tables);
+                    } else {
+                        // TypeORM connection: use schema collector normally
+                        const tables = await schemaCollector.collectSchema(dbConnector, dataSource.name);
+                        return resolve(tables);
+                    }
                 } catch (error) {
+                    console.error('[DataSourceProcessor] Error getting MongoDB tables:', error);
                     return resolve(null);
                 } finally {
-                    if (dbConnector && dbConnector.isInitialized) {
+                    // Only try to destroy if it's a real TypeORM DataSource
+                    if (dbConnector && typeof dbConnector.isInitialized !== 'undefined' && dbConnector.isInitialized) {
                         try {
-                            // Use driver to close? Or access connector directly
                             await dbConnector.destroy();
-                        } catch (e) { }
+                        } catch (e) {
+                            console.error('[DataSourceProcessor] Error destroying connection:', e);
+                        }
+                    } else {
+                        // Native driver cleanup via MongoDBDriver
+                        try {
+                            await mongoDriver.close();
+                        } catch (e) {
+                            console.error('[DataSourceProcessor] Error closing mongo driver:', e);
+                        }
                     }
                 }
             } else if (dataSource.data_type === EDataSourceType.POSTGRESQL || dataSource.data_type === EDataSourceType.MYSQL || dataSource.data_type === EDataSourceType.MARIADB || dataSource.data_type === EDataSourceType.EXCEL || dataSource.data_type === EDataSourceType.PDF || dataSource.data_type === EDataSourceType.GOOGLE_ANALYTICS || dataSource.data_type === EDataSourceType.GOOGLE_AD_MANAGER || dataSource.data_type === EDataSourceType.GOOGLE_ADS) {

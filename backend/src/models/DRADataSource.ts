@@ -84,6 +84,40 @@ export class DRADataSource {
     data_type!: EDataSourceType;
     @Column({ type: 'jsonb', transformer: connectionDetailsTransformer })
     connection_details!: IConnectionDetails
+    
+    /**
+     * MongoDB connection string (e.g., mongodb+srv://...)
+     * Used as alternative to individual connection fields in connection_details
+     * Automatically encrypted via string-specific transformer
+     */
+    @Column({ type: 'text', nullable: true, transformer: {
+        to(value: string | null | undefined): any {
+            if (!value) return null;
+            const encryptionService = EncryptionService.getInstance();
+            if (process.env.ENCRYPTION_ENABLED !== 'false') {
+                try {
+                    return encryptionService.encryptString(value);
+                } catch (error) {
+                    throw error;
+                }
+            }
+            return value;
+        },
+        from(value: any): string | null {
+            if (!value) return null;
+            const encryptionService = EncryptionService.getInstance();
+            if (encryptionService.isEncrypted(value)) {
+                try {
+                    return encryptionService.decryptString(value);
+                } catch (error) {
+                    throw error;
+                }
+            }
+            return value;
+        }
+    }})
+    connection_string?: string | null;
+    
     @Column({ type: 'timestamp', nullable: true })
     created_at!: Date
     

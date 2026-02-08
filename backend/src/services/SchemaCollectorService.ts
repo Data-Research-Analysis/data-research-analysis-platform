@@ -46,74 +46,117 @@ export class SchemaCollectorService {
 
     /**
      * Collect schema information from MongoDB database
+     * Supports both TypeORM and native MongoDB driver connections
      */
     private async collectMongoDBSchema(dataSource: DataSource, databaseName: string): Promise<TableSchema[]> {
         const tables: TableSchema[] = [];
 
-        // We need to access the driver directly to get collections and infer schema
-        // Since we know this is a MongoDBDataSource, we can cast the driver or use the MongoDBDriver instance
-        // However, the cleanest way in this architecture might be to import the driver class
-        // but we are passing the DataSource. 
-        // Let's use the driver instance logic if possible, or direct access.
-        // Actually, MongoDBDriver has specific methods we added: inferCollectionSchema
-        // The dataSource object passed here is the TypeORM source.
+        // Check if this is a native MongoDB connection (mock DataSource)
+        // In that case, use MongoDBDriver's methods which handle both connection types
+        const { MongoDBDriver } = await import('../drivers/MongoDBDriver.js');
+        const mongoDriver = MongoDBDriver.getInstance();
+        
+        // Check if dataSource is initialized (TypeORM) or mock (native)
+        const isTypeORM = dataSource.isInitialized !== undefined;
+        
+        let collections: string[];
+        let collectionSchemas: Map<string, any[]> = new Map();
+        
+        if (!isTypeORM) {
+            // Native connection - use MongoDBDriver methods
+            collections = await mongoDriver.getMongoDBCollections();
+            
+            for (const collectionName of collections) {
+                const schemaResult = await mongoDriver.inferCollectionSchema(collectionName, 100);
+                
+                if (schemaResult.fields) {
+                    collectionSchemas.set(collectionName, schemaResult.fields);
+                }
+            }
+        } else {
+            // TypeORM connection - access native client through TypeORM
+            const typeormDriver = dataSource.driver as any;
+            const client = typeormDriver.queryRunner.databaseConnection as import('mongodb').MongoClient;
+            const db = client.db(databaseName);
 
-        // We need to get our custom driver instance to use the unique methods
-        // But the DBDriver factory returns an IDBDriver which hides them.
-        // We will assume we can get the driver instance via the factory for now,
-        // or we can reproduce the logic here. 
-        // Better: cast the dataSource.driver to access the native process or use the MongoDBDriver singleton if initialized.
+            const collectionList = await db.listCollections().toArray();
+            collections = collectionList.map(c => c.name);
 
-        // Let's use the MongoDBDriver singleton which holds the external connection reference if strictly followed,
-        // but here we are passed a specific dataSource.
-        // For now, let's assume we can list collections via TypeORM or native driver.
+            // Sample documents to infer schema
+            for (const collectionName of collections) {
+                const collection = db.collection(collectionName);
+                const docs = await collection.find({}).limit(100).toArray();
+                
+                // Infer columns from docs
+                const columnsMap = new Map<string, TableColumn>();
 
-        const mongoDriver = (dataSource.driver as any);
-        const client = mongoDriver.queryRunner.databaseConnection;
-        const db = client.db(databaseName);
+                docs.forEach((doc: any) => {
+                    Object.keys(doc).forEach(key => {
+                        if (!columnsMap.has(key)) {
+                            const value = doc[key];
+                            let type = 'string'; // Default
+                            if (value === null) type = 'null';
+                            else if (typeof value === 'number') type = 'numeric';
+                            else if (typeof value === 'boolean') type = 'boolean';
+                            else if (value instanceof Date) type = 'timestamp';
+                            else if (Array.isArray(value)) type = 'jsonb'; // Treat arrays as JSON
+                            else if (typeof value === 'object') {
+                                // Check for ObjectId
+                                if (value._bsontype === 'ObjectId') type = 'varchar(24)';
+                                else type = 'jsonb';
+                            }
 
-        const collections = await db.listCollections().toArray();
-
-        for (const col of collections) {
-            const collectionName = col.name;
-            const collection = db.collection(collectionName);
-
-            // Sample documents
-            const docs = await collection.find({}).limit(100).toArray();
-
-            // Infer columns from docs
-            const columnsMap = new Map<string, TableColumn>();
-
-            docs.forEach((doc: any) => {
-                Object.keys(doc).forEach(key => {
-                    if (!columnsMap.has(key)) {
-                        const value = doc[key];
-                        let type = 'string'; // Default
-                        if (value === null) type = 'null';
-                        else if (typeof value === 'number') type = 'numeric';
-                        else if (typeof value === 'boolean') type = 'boolean';
-                        else if (value instanceof Date) type = 'timestamp';
-                        else if (Array.isArray(value)) type = 'jsonb'; // Treat arrays as JSON
-                        else if (typeof value === 'object') {
-                            // Check for ObjectId
-                            if (value._bsontype === 'ObjectId') type = 'varchar(24)';
-                            else type = 'jsonb';
+                            columnsMap.set(key, {
+                                column_name: key,
+                                data_type: type,
+                                is_nullable: 'YES', // No strict schema, assume nullable
+                                column_default: null,
+                                character_maximum_length: null
+                            });
                         }
-
-                        columnsMap.set(key, {
-                            column_name: key,
-                            data_type: type,
-                            is_nullable: 'YES', // No strict schema, assume nullable
-                            column_default: null,
-                            character_maximum_length: null
-                        });
-                    }
+                    });
                 });
-            });
 
+                // Ensure _id is present
+                if (!columnsMap.has('_id')) {
+                    columnsMap.set('_id', {
+                        column_name: '_id',
+                        data_type: 'varchar(24)',
+                        is_nullable: 'NO',
+                        column_default: null,
+                        character_maximum_length: 24
+                    });
+                }
+
+                collectionSchemas.set(collectionName, Array.from(columnsMap.values()));
+            }
+        }
+
+        // Build table schemas from collected data
+        for (const collectionName of collections) {
+            const columns = collectionSchemas.get(collectionName) || [];
+            
+            // Convert field schema format to TableColumn format if needed
+            const tableColumns: TableColumn[] = columns.map((col: any) => {
+                if (col.column_name) {
+                    // Already in TableColumn format
+                    return col;
+                } else if (col.field_name) {
+                    // Convert from field schema format (native driver)
+                    return {
+                        column_name: col.field_name,
+                        data_type: col.data_type || 'string',
+                        is_nullable: col.is_nullable ? 'YES' : 'NO',
+                        column_default: null,
+                        character_maximum_length: null
+                    };
+                }
+                return col;
+            });
+            
             // Ensure _id is present
-            if (!columnsMap.has('_id')) {
-                columnsMap.set('_id', {
+            if (!tableColumns.find(c => c.column_name === '_id')) {
+                tableColumns.unshift({
                     column_name: '_id',
                     data_type: 'varchar(24)',
                     is_nullable: 'NO',
@@ -123,9 +166,9 @@ export class SchemaCollectorService {
             }
 
             tables.push({
-                schema: databaseName,
+                schema: 'dra_mongodb',  // Synthetic schema like Excel/PDF/Google sources
                 tableName: collectionName,
-                columns: Array.from(columnsMap.values()),
+                columns: tableColumns,
                 primaryKeys: ['_id'],
                 foreignKeys: [] // No FKs in MongoDB
             });

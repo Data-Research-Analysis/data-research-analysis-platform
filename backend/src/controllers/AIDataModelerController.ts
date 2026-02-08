@@ -1286,7 +1286,8 @@ Keep it concise - aim for 200-300 words total.`;
                 'google_ad_manager': 'dra_google_ad_manager',
                 'google_ads': 'dra_google_ads',
                 'excel': 'dra_excel',
-                'pdf': 'dra_pdf'
+                'pdf': 'dra_pdf',
+                'mongodb': 'dra_mongodb'
             };
             
             // Check if this is an API-integrated source

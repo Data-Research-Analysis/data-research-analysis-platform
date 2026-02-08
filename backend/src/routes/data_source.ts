@@ -33,20 +33,40 @@ router.get('/list', async (req: Request, res: Response, next: any) => {
 
 router.post('/test-connection', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([body('data_source_type').notEmpty().trim().escape(), body('host').notEmpty().trim().escape(), body('port').notEmpty().trim().escape(),
-    body('schema').notEmpty().trim().escape(), body('database_name').notEmpty().trim().escape(), body('username').notEmpty().trim().escape(),
-    body('password').notEmpty().trim().escape(),
+}, validateJWT, validate([
+    body('data_source_type').notEmpty().trim().escape(),
+    body('connection_string').optional().trim(),
+    body('host').optional().trim().escape(), 
+    body('port').optional().trim().escape(),
+    body('schema').optional().trim().escape(), 
+    body('database_name').optional().trim().escape(), 
+    body('username').optional().trim().escape(),
+    body('password').optional().trim().escape(),
 ]),
 async (req: Request, res: Response) => {
-    const { data_source_type, host, port, schema, database_name, username, password, } = matchedData(req);
+    let { data_source_type, connection_string, host, port, schema, database_name, username, password } = matchedData(req);
+    
+    // Validate: either connection_string OR individual fields must be provided
+    if (!connection_string && (!host || !port || !database_name || !username || !password)) {
+        return res.status(400).send({
+            message: 'Either provide a connection_string or all individual connection fields (host, port, database_name, username, password).'
+        });
+    }
+    
+    // Set synthetic schema for MongoDB (users don't need to specify this)
+    if (data_source_type === 'mongodb' && !schema) {
+        schema = 'dra_mongodb';
+    }
+    
     const connection: IDBConnectionDetails = {
         data_source_type: data_source_type,
-        host: host,
-        port: port,
+        connection_string: connection_string,
+        host: host || '',
+        port: port || 27017,
         schema: schema,
-        database: database_name,
-        username: username,
-        password: password,
+        database: database_name || '',
+        username: username || '',
+        password: password || '',
     };
     try {
         const response = await DataSourceProcessor.getInstance().connectToDataSource(connection);
@@ -62,20 +82,41 @@ async (req: Request, res: Response) => {
 
 router.post('/add-data-source', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, enforceDataSourceLimit, validate([body('data_source_type').notEmpty().trim().escape(), body('host').notEmpty().trim().escape(), body('port').notEmpty().trim().escape(),
-    body('schema').notEmpty().trim().escape(), body('database_name').notEmpty().trim().escape(), body('username').notEmpty().trim().escape(),
-    body('password').notEmpty().trim().escape(), body('project_id').notEmpty().trim().escape(),
+}, validateJWT, enforceDataSourceLimit, validate([
+    body('data_source_type').notEmpty().trim().escape(),
+    body('connection_string').optional().trim(),
+    body('host').optional().trim().escape(), 
+    body('port').optional().trim().escape(),
+    body('schema').optional().trim().escape(), 
+    body('database_name').optional().trim().escape(), 
+    body('username').optional().trim().escape(),
+    body('password').optional().trim().escape(), 
+    body('project_id').notEmpty().trim().escape(),
 ]), requireProjectPermission(EAction.CREATE, 'project_id'),
 async (req: Request, res: Response) => {
-    const { data_source_type, host, port, schema, database_name, username, password, project_id } = matchedData(req);
+    let { data_source_type, connection_string, host, port, schema, database_name, username, password, project_id } = matchedData(req);
+    
+    // Validate: either connection_string OR individual fields must be provided
+    if (!connection_string && (!host || !port || !database_name || !username || !password)) {
+        return res.status(400).send({
+            message: 'Either provide a connection_string or all individual connection fields (host, port, database_name, username, password).'
+        });
+    }
+    
+    // Set synthetic schema for MongoDB (users don't need to specify this)
+    if (data_source_type === 'mongodb' && !schema) {
+        schema = 'dra_mongodb';
+    }
+    
     const connection: IDBConnectionDetails = {
         data_source_type: data_source_type,
-        host: host,
-        port: port,
+        connection_string: connection_string,
+        host: host || '',
+        port: port || 27017,
         schema: schema,
-        database: database_name,
-        username: username,
-        password: password,
+        database: database_name || '',
+        username: username || '',
+        password: password || '',
     };
     try {
         const response = await DataSourceProcessor.getInstance().connectToDataSource(connection);
