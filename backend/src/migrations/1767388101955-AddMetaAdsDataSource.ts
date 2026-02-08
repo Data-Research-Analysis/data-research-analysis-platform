@@ -80,7 +80,7 @@ export class AddMetaAdsDataSource1767388101955 implements MigrationInterface {
            - Copy App ID and App Secret
         
         3. Required Permissions:
-           - ads_management (Read and manage ads and campaigns)
+           - ads_read (Read ads and campaigns)
            - business_management (Access ad accounts)
         
         Tables will be created dynamically when data sources are added.
