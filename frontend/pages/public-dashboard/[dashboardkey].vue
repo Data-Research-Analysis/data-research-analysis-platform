@@ -929,14 +929,6 @@ onMounted(async () => {
 
             <!-- Dashboard Canvas -->
             <div v-else class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden data-research-analysis">
-                <!-- Canvas Info Bar -->
-                <div class="bg-gray-50 border-b border-gray-200 px-4 py-2 text-xs text-gray-600">
-                    <div class="flex items-center justify-between">
-                        <span>Dashboard Canvas</span>
-                        <span class="text-gray-400">{{ charts.length }} charts positioned</span>
-                    </div>
-                </div>
-                
                 <!-- Positioning Container -->
                 <div class="w-full relative bg-gradient-to-br from-gray-50 to-white overflow-x-auto"
                      :style="`min-height: ${calculateRequiredHeight()}px; padding: 20px;`">
