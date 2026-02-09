@@ -1522,13 +1522,14 @@ onUnmounted(() => {
                     </div>
                 </div>
 
-                <div class="flex flex-col min-h-200 max-h-200 h-200 overflow-hidden overflow-x-auto mr-2 mb-10 border border-primary-blue-100 border-solid bg-gray-300 rounded-br-lg rounded-bl-lg"
+                <div class="flex flex-col min-h-200 max-h-200 h-200 overflow-hidden overflow-x-auto mr-2 mb-10 border border-primary-blue-100 border-solid bg-white rounded-br-lg rounded-bl-lg"
                     :class="{'ml-10': state.sidebar_status}"
+                    style="background-image: repeating-linear-gradient(0deg, #e5e7eb 0px, #e5e7eb 1px, transparent 1px, transparent 20px), repeating-linear-gradient(90deg, #e5e7eb 0px, #e5e7eb 1px, transparent 1px, transparent 20px); background-size: 20px 20px;"
                 >
                     <!-- Tooltip container for all charts - positioned above dashboard content -->
                     <div class="dashboard-tooltip-container fixed inset-0 pointer-events-none" style="z-index: 9999;"></div>
                     
-                    <div class="w-full h-full bg-gray-300 draggable-div-container relative">
+                    <div class="w-full h-full draggable-div-container relative rounded-lg">
                         <div v-for="(chart, index) in charts"
                             class="w-50 flex flex-col justify-between cursor-pointer draggable-div absolute top-0 left-0"
                             :id="`draggable-div-${chart.chart_id}`"
@@ -1556,11 +1557,11 @@ onUnmounted(() => {
                                     @mouseup="mouseUp"
                                 />
                             </div>
-                            <div class="flex flex-col">
+                            <div class="flex flex-col bg-white rounded-lg shadow-md">
                                 <div
                                     :id="`draggable-div-inner-container-${chart.chart_id}`"
-                                    class="flex flex-row border border-2 border-gray-400 border-b-0 p-2 rounded-tl-lg rounded-tr-lg"
-                                    :class="{ 'bg-gray-300 cursor-move': chart.config.drag_enabled, 'bg-gray-200': !chart.config.drag_enabled }"
+                                    class="flex flex-row bg-gradient-to-b from-gray-50 to-white border border-gray-200 border-b-0 p-2 rounded-t-lg"
+                                    :class="{ 'cursor-move': chart.config.drag_enabled }"
                                     @mousedown="draggableDivMouseDown($event, chart.chart_id)"
                                     @mouseup="stopDragAndResize"
                                 >
@@ -1611,8 +1612,8 @@ onUnmounted(() => {
                                 
                                 <!-- Empty chart placeholder - shows when no columns configured -->
                                 <div v-if="isChartEmpty(chart) && chart.chart_type !== 'text_block'" 
-                                     class="flex flex-col items-center justify-center bg-gray-50 border border-2 border-gray-400 border-t-0 rounded-b-lg"
-                                     style="min-height: 300px;">
+                                     class="min-h-[300px] flex flex-col items-center justify-center bg-gray-50 border border-gray-200 border-t-0 rounded-b-lg"
+                                >
                                     <img 
                                         :src="chartPlaceholders[chart.chart_type]" 
                                         :alt="`${chart.chart_type} preview`"
@@ -1633,10 +1634,9 @@ onUnmounted(() => {
                                     v-model="chart.columns"
                                     group="data_model_columns"
                                     itemKey="column_name"
-                                    class="flex flex-row w-full h-50 bg-gray-200 border border-2 border-gray-400 border-t-0 draggable-model-columns rounded-b-lg"
+                                    class="min-h-[300px] flex flex-row w-full h-50 bg-white border border-gray-200 border-t-0 rounded-b-lg draggable-model-columns"
                                     tag="div"
                                     :disabled="!chart.config.add_columns_enabled"
-                                    :style="`width: ${chart.dimensions.widthDraggable}; height: ${chart.dimensions.heightDraggable};`"
                                     @change="changeDataModel($event, chart.chart_id)"
                                 >
                                     <template #item="{ element, index }">
