@@ -392,6 +392,23 @@ const numericColumnsWithAggregates = computed(() => {
         });
     }
 
+    // 4. Add existing calculated columns (enable computed calculations)
+    if (state.data_table.calculated_columns && Array.isArray(state.data_table.calculated_columns)) {
+        state.data_table.calculated_columns.forEach((calcCol, index) => {
+            if (calcCol.column_name && calcCol.expression) {
+                columns.push({
+                    value: calcCol.column_name,
+                    display: `${calcCol.column_name} (Calculated)`,
+                    display_short: calcCol.column_name,
+                    type: 'calculated_column',
+                    data_type: calcCol.column_data_type || 'NUMBER',
+                    expression: calcCol.expression,
+                    calculated_index: index
+                });
+            }
+        });
+    }
+
     return columns;
 });
 
@@ -2594,6 +2611,87 @@ function deleteCalculatedColumnOperation(index) {
         });
     }
 }
+
+/**
+ * Recursively expand calculated column references in an expression
+ * Replaces calculated column aliases with their full expressions
+ * @param {string} expression - The expression to expand
+ * @returns {string} - Fully expanded expression with all calculated columns inlined
+ */
+function expandCalculatedColumnReferences(expression) {
+    if (!expression || typeof expression !== 'string') {
+        return expression;
+    }
+    
+    let expandedExpression = expression;
+    let changed = true;
+    let iterations = 0;
+    const maxIterations = 10; // Prevent infinite loops
+    
+    // Keep expanding until no more calculated column references found
+    while (changed && iterations < maxIterations) {
+        changed = false;
+        iterations++;
+        
+        // Check each calculated column to see if it's referenced in the expression
+        state.data_table.calculated_columns?.forEach(calcCol => {
+            if (!calcCol.column_name || !calcCol.expression) return;
+            
+            // Create regex to match the column name as a whole word
+            const columnNameRegex = new RegExp(`\\b${calcCol.column_name}\\b`, 'g');
+            
+            if (columnNameRegex.test(expandedExpression)) {
+                // Replace all occurrences with the expression (wrapped in parentheses)
+                expandedExpression = expandedExpression.replace(columnNameRegex, `(${calcCol.expression})`);
+                changed = true;
+                console.log(`[expandCalculatedColumnReferences] Replaced ${calcCol.column_name} with (${calcCol.expression})`);
+            }
+        });
+    }
+    
+    if (iterations >= maxIterations) {
+        console.warn('[expandCalculatedColumnReferences] Max iterations reached, possible circular reference');
+    }
+    
+    return expandedExpression;
+}
+
+/**
+ * Check for circular references in calculated columns
+ * @param {string} newColumnName - Name of the calculated column being created
+ * @param {Array} selectedColumns - Array of column references in the expression
+ * @param {Set} visited - Set of visited column names (for recursion)
+ * @returns {boolean} - True if circular reference detected
+ */
+function hasCircularReference(newColumnName, selectedColumns, visited = new Set()) {
+    if (visited.has(newColumnName)) {
+        console.log('[hasCircularReference] Circular reference detected:', newColumnName);
+        return true;
+    }
+    visited.add(newColumnName);
+
+    // Check each column reference in the expression
+    for (const colRef of selectedColumns) {
+        if (colRef.type === 'column') {
+            // Find if this is a calculated column
+            const referencedCalcCol = state.data_table.calculated_columns?.find(c => c.column_name === colRef.column_name);
+            
+            if (referencedCalcCol) {
+                // Parse the referenced calculated column's expression to find its dependencies
+                const referencedColDeps = state.calculated_column.columns
+                    .filter(c => c.type === 'column' && referencedCalcCol.expression.includes(c.column_name));
+                
+                // Recursively check for circular references
+                if (hasCircularReference(colRef.column_name, referencedColDeps, new Set(visited))) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
 async function addCalculatedColumn() {
     console.log('[DEBUG addCalculatedColumn] Function called');
     console.log('[DEBUG addCalculatedColumn] state.calculated_column:', JSON.stringify(state.calculated_column, null, 2));
@@ -2657,6 +2755,19 @@ async function addCalculatedColumn() {
     }
     console.log('[DEBUG addCalculatedColumn] Validation 4 passed: aggregate usage valid');
     
+    // Validation 5: Check for circular references
+    console.log('[DEBUG addCalculatedColumn] Checking for circular references...');
+    if (hasCircularReference(state.calculated_column.column_name, state.calculated_column.columns)) {
+        console.log('[DEBUG addCalculatedColumn] VALIDATION FAILED: Circular reference detected');
+        $swal.fire({
+            icon: 'error',
+            title: `Circular Reference Detected!`,
+            text: `This calculated column creates a circular reference. Calculated columns cannot reference themselves directly or indirectly.`,
+        });
+        return;
+    }
+    console.log('[DEBUG addCalculatedColumn] Validation 5 passed: no circular references');
+    
     let expression = "";
     console.log('[DEBUG addCalculatedColumn] Building expression...');
     for (let i = 0; i < state.calculated_column.columns.length; i++) {
@@ -2666,7 +2777,7 @@ async function addCalculatedColumn() {
         
         console.log(`[DEBUG addCalculatedColumn] Processing column ${i}:`, { column_name: column.column_name, operator, type });
 
-        // Get the proper column reference (fully qualified for base columns, alias for aggregates)
+        // Get the proper column reference (fully qualified for base columns, alias for others)
         let columnRef = column.column_name;
         if (type === 'column') {
             const colInfo = numericColumnsWithAggregates.value.find(c => c.value === column.column_name);
@@ -2680,7 +2791,8 @@ async function addCalculatedColumn() {
                 columnRef = `${colInfo.schema}.${colInfo.table_name}.${colInfo.column_name}`;
                 console.log(`[DEBUG addCalculatedColumn] Using qualified name:`, columnRef);
             }
-            // For aggregates, use the alias (column.column_name is already the alias)
+            // For aggregates and calculated columns, use the alias name
+            // Calculated column references will be expanded later via expandCalculatedColumnReferences()
         }
 
         if (i === 0) {
@@ -2705,12 +2817,17 @@ async function addCalculatedColumn() {
         }
     }
     
+    // Expand any calculated column references in the expression
+    console.log('[DEBUG addCalculatedColumn] Expression before expansion:', expression);
+    const expandedExpression = expandCalculatedColumnReferences(expression);
+    console.log('[DEBUG addCalculatedColumn] Expression after expansion:', expandedExpression);
+    
     const finalColumn = {
         column_name: state.calculated_column.column_name,
-        expression: `ROUND(${expression}, 2)`,
+        expression: `ROUND(${expandedExpression}, 2)`,
         column_data_type: state.calculated_column.column_data_type,
     };
-    console.log('[DEBUG addCalculatedColumn] Final expression:', expression);
+    console.log('[DEBUG addCalculatedColumn] Final expression:', expandedExpression);
     console.log('[DEBUG addCalculatedColumn] Final column object to push:', finalColumn);
     console.log('[DEBUG addCalculatedColumn] Pushing to state.data_table.calculated_columns...');
     
@@ -6623,13 +6740,13 @@ onBeforeUnmount(() => {
                     <!-- Helper text -->
                     <div class="text-sm text-gray-600 bg-blue-50 border border-blue-200 p-3 rounded-lg mt-2 mb-2">
                         <font-awesome icon="fas fa-info-circle" class="mr-2 text-blue-600" />
-                        <strong>Tip:</strong> You can use both base columns and aggregate columns in calculations.
-                        Example: Calculate tax as <code class="bg-gray-200 px-1 rounded">total_revenue * 0.15</code>
+                        <strong>Tip:</strong> You can use base columns, aggregate columns, and other calculated columns in calculations.
+                        Example: Calculate margin as <code class="bg-gray-200 px-1 rounded">profit / revenue * 100</code> where profit is another calculated column.
                     </div>
 
                     <h5 class="font-bold mb-2 mt-2">Operations<font-awesome icon="fas fa-circle-info"
                             class="text-lg text-black cursor-pointer ml-1"
-                            :v-tippy-content="'You can select base columns and aggregate columns. Aggregates must be defined first in GROUP BY section.'" />
+                            :v-tippy-content="'You can select base columns, aggregate columns, and other calculated columns. Aggregates must be defined first in GROUP BY section.'" />
                     </h5>
                     <div v-for="(column, index) in state.calculated_column.columns">
                         <div v-if="index > 0" class="flex flex-col w-full mr-2">
@@ -6661,11 +6778,21 @@ onBeforeUnmount(() => {
                                     </option>
                                 </optgroup>
                                 <optgroup
-                                    v-if="numericColumnsWithAggregates.filter(c => c.type !== 'base_column').length > 0"
+                                    v-if="numericColumnsWithAggregates.filter(c => ['aggregate_function', 'aggregate_expression'].includes(c.type)).length > 0"
                                     label="Aggregate Columns">
                                     <option
-                                        v-for="(col, index) in numericColumnsWithAggregates.filter(c => c.type !== 'base_column')"
+                                        v-for="(col, index) in numericColumnsWithAggregates.filter(c => ['aggregate_function', 'aggregate_expression'].includes(c.type))"
                                         :key="'agg_' + index" :value="col.value">
+                                        {{ col.display }}
+                                    </option>
+                                </optgroup>
+                                <optgroup
+                                    v-if="numericColumnsWithAggregates.filter(c => c.type === 'calculated_column').length > 0"
+                                    label="Calculated Columns">
+                                    <option
+                                        v-for="(col, index) in numericColumnsWithAggregates.filter(c => c.type === 'calculated_column')"
+                                        :key="'calc_' + index" :value="col.value"
+                                        :title="`Expression: ${col.expression}`">
                                         {{ col.display }}
                                     </option>
                                 </optgroup>

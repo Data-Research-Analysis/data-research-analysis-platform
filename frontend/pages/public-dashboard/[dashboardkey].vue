@@ -4,6 +4,11 @@ import { useProjectsStore } from '@/stores/projects';
 import { useDataModelsStore } from '@/stores/data_models';
 import { useDashboardsStore } from '@/stores/dashboards';
 import _ from 'lodash';
+
+definePageMeta({
+  layout: false, // Disable default layout for public dashboard
+});
+
 const projectsStore = useProjectsStore();
 const dataModelsStore = useDataModelsStore();
 const dashboardsStore = useDashboardsStore();
@@ -698,34 +703,31 @@ function prepareForExport() {
     // Only access DOM on client side for SSR compatibility
     if (!import.meta.client) return null;
     
-    const dashboardContainer = document.querySelector('.flex.flex-col.min-h-200.max-h-200.h-200.bg-white.overflow-x-auto');
+    const dashboardContainer = document.querySelector('.data-research-analysis');
+    const exportBranding = document.querySelector('.export-branding');
     
     if (!dashboardContainer) return null;
     
     // Save original styles for dashboard container
     const originalStyles = {
-        height: dashboardContainer.style.height || '',
-        maxHeight: dashboardContainer.style.maxHeight || '',
-        minHeight: dashboardContainer.style.minHeight || '',
         overflow: dashboardContainer.style.overflow || '',
         overflowX: dashboardContainer.style.overflowX || '',
         overflowY: dashboardContainer.style.overflowY || ''
     };
     
-    // Calculate full content dimensions
-    const scrollHeight = dashboardContainer.scrollHeight;
-    
-    // Expand dashboard container height to show all content
-    // Do NOT modify width - let it remain responsive
-    dashboardContainer.style.height = 'auto';
-    dashboardContainer.style.maxHeight = 'none';
-    dashboardContainer.style.minHeight = `${Math.max(scrollHeight, 400)}px`;
+    // Make overflow visible for export
     dashboardContainer.style.overflow = 'visible';
     dashboardContainer.style.overflowX = 'visible';
     dashboardContainer.style.overflowY = 'visible';
     
+    // Show export branding
+    if (exportBranding) {
+        exportBranding.classList.remove('hidden');
+    }
+    
     return { 
         dashboardContainer, 
+        exportBranding,
         originalStyles
     };
 }
@@ -734,15 +736,17 @@ function prepareForExport() {
 function restoreOriginalStyles(preparation) {
     if (!preparation || !preparation.dashboardContainer || !preparation.originalStyles) return;
     
-    const { dashboardContainer, originalStyles } = preparation;
+    const { dashboardContainer, exportBranding, originalStyles } = preparation;
     
     // Restore dashboard container styles
-    dashboardContainer.style.height = originalStyles.height;
-    dashboardContainer.style.maxHeight = originalStyles.maxHeight;
-    dashboardContainer.style.minHeight = originalStyles.minHeight;
     dashboardContainer.style.overflow = originalStyles.overflow;
     dashboardContainer.style.overflowX = originalStyles.overflowX;
     dashboardContainer.style.overflowY = originalStyles.overflowY;
+    
+    // Hide export branding again
+    if (exportBranding) {
+        exportBranding.classList.add('hidden');
+    }
 }
 
 function exportDashboardAsImage() {
@@ -771,10 +775,19 @@ function exportDashboardAsImage() {
                 width: captureWidth,
                 height: captureHeight,
                 backgroundColor: '#ffffff',
-                useCORS: true,
-                allowTaint: true,
+                skipFonts: true, // Skip font embedding to avoid CORS issues with Google Fonts
                 scrollX: 0,
-                scrollY: 0
+                scrollY: 0,
+                filter: (node) => {
+                    // Filter out any problematic external resources
+                    if (node.tagName === 'LINK' && node.rel === 'stylesheet') {
+                        const href = node.href || '';
+                        if (href.includes('fonts.googleapis.com')) {
+                            return false;
+                        }
+                    }
+                    return true;
+                }
             }).then((dataUrl) => {
                 // Download the image
                 const link = document.createElement('a');
@@ -804,6 +817,20 @@ function exportDashboardAsImage() {
     }, 100); // Reduced timeout since we're no longer changing widths
 }
 
+function calculateRequiredHeight() {
+    if (!charts.value || charts.value.length === 0) return 600;
+    
+    // Find the lowest chart bottom edge
+    const maxBottom = Math.max(...charts.value.map(chart => {
+        const top = parseInt(chart.location.top || '0');
+        const height = parseInt(chart.dimensions.height || '0');
+        return top + height;
+    }));
+    
+    // Add padding and ensure minimum
+    return Math.max(maxBottom + 50, 600);
+}
+
 onMounted(async () => {
     //clear the selected dashboard
     state.data_model_tables = []
@@ -829,24 +856,105 @@ onMounted(async () => {
 });
 </script>
 <template>
-    <div class="flex flex-row bg-white">
-        <div class="flex flex-col w-full mt-10">
-            <div class="flex flex-row justify-end mr-10 mb-5">
-                <font-awesome
-                    icon="fas fa-download"
-                    class="text-3xl ml-2 hover:text-gray-400 cursor-pointer"
-                    :v-tippy-content="'Export Dashboard as Image'"
-                    @click="exportDashboardAsImage()"
-                />
+    <!-- Loading State -->
+    <div v-if="pending" class="min-h-screen flex items-center justify-center bg-gray-50">
+        <div class="text-center">
+            <div class="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
+                <div class="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
             </div>
-            <div class="flex flex-col w-full p-10">
-                <div class="flex flex-col min-h-200 max-h-200 h-200 bg-white overflow-x-auto ml-10 mr-2 mb-10">
-                    <!-- Tooltip container for all charts - positioned above dashboard content -->
+            <h3 class="text-lg font-semibold text-gray-800 mb-1">Loading Dashboard</h3>
+            <p class="text-sm text-gray-600">Please wait...</p>
+        </div>
+    </div>
+
+    <!-- Main Dashboard -->
+    <div v-else class="flex flex-col min-h-screen bg-gray-50">
+        <!-- Professional Header -->
+        <header class="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
+            <div class="max-w-[1800px] mx-auto px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <!-- Left: Dashboard Info -->
+                    <div class="flex-1">
+                        <div class="flex items-center gap-3 mb-1">
+                            <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
+                                <font-awesome icon="fas fa-chart-line" class="text-white text-lg" />
+                            </div>
+                            <div>
+                                <h1 class="text-2xl font-bold text-gray-900">
+                                    {{ dashboard?.name || 'Public Dashboard' }}
+                                </h1>
+                                <p v-if="dashboard?.description" class="text-sm text-gray-600 mt-0.5">
+                                    {{ dashboard.description }}
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <!-- Metadata badges -->
+                        <div class="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                            <span v-if="project?.name" class="flex items-center gap-1">
+                                <font-awesome icon="fas fa-folder" />
+                                {{ project.name }}
+                            </span>
+                            <span class="flex items-center gap-1">
+                                <font-awesome icon="fas fa-chart-bar" />
+                                {{ charts.length }} {{ charts.length === 1 ? 'Chart' : 'Charts' }}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <!-- Right: Export Button -->
+                    <button 
+                        @click="exportDashboardAsImage()"
+                        class="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all shadow-md hover:shadow-lg font-medium cursor-pointer">
+                        <font-awesome icon="fas fa-download" />
+                        <span>Export Dashboard</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Dashboard Content -->
+        <main class="flex-1 max-w-[1800px] mx-auto w-full px-6 py-6">
+            <!-- Empty State -->
+            <div v-if="!charts || charts.length === 0" 
+                 class="min-h-[400px] flex items-center justify-center bg-white rounded-lg shadow-sm border border-gray-200">
+                <div class="text-center">
+                    <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <font-awesome icon="fas fa-chart-bar" class="text-4xl text-gray-300" />
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-700 mb-2">No Visualizations Yet</h3>
+                    <p class="text-sm text-gray-500">This dashboard doesn't contain any charts.</p>
+                </div>
+            </div>
+
+            <!-- Dashboard Canvas -->
+            <div v-else class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden data-research-analysis">
+                <!-- Canvas Info Bar -->
+                <div class="bg-gray-50 border-b border-gray-200 px-4 py-2 text-xs text-gray-600">
+                    <div class="flex items-center justify-between">
+                        <span>Dashboard Canvas</span>
+                        <span class="text-gray-400">{{ charts.length }} charts positioned</span>
+                    </div>
+                </div>
+                
+                <!-- Positioning Container -->
+                <div class="w-full relative bg-gradient-to-br from-gray-50 to-white overflow-x-auto"
+                     :style="`min-height: ${calculateRequiredHeight()}px; padding: 20px;`">
+                    
+                    <!-- Optional grid background for reference -->
+                    <div class="absolute inset-0 pointer-events-none opacity-5"
+                         style="background-image: repeating-linear-gradient(0deg, #000 0px, #000 1px, transparent 1px, transparent 20px),
+                                                 repeating-linear-gradient(90deg, #000 0px, #000 1px, transparent 1px, transparent 20px);
+                                background-size: 20px 20px;">
+                    </div>
+                    
+                    <!-- Tooltip container for all charts -->
                     <div class="dashboard-tooltip-container fixed inset-0 pointer-events-none" style="z-index: 9999;"></div>
                     
+                    <!-- Charts Container -->
                     <div class="w-full h-full draggable-div-container relative">
                         <div v-for="(chart, index) in charts"
-                            class="w-50 flex flex-col justify-between cursor-pointer draggable-div absolute top-0 left-0"
+                            class="absolute top-0 left-0 bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden hover:shadow-xl transition-shadow duration-200"
                             :id="`draggable-div-${chart.chart_id}`"
                             :style="`width: ${chart.dimensions.width}; height: ${chart.dimensions.height}; top: ${chart.location.top}; left: ${chart.location.left};`"
                         >
@@ -1047,8 +1155,31 @@ onMounted(async () => {
                             </div>
                         </div>
                     </div>
+                    
+                    <!-- Export Branding (appears in exported image only) -->
+                    <div class="export-branding hidden absolute bottom-4 left-1/2 transform -translate-x-1/2 text-center">
+                        <div class="text-xs text-gray-500">
+                            <div class="font-medium">Powered by Data Research Analysis</div>
+                            <div class="text-blue-600 font-semibold mt-0.5">www.dataresearchanalysis.com</div>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
+        </main>
+
+        <!-- Professional Footer -->
+        <footer class="bg-white border-t border-gray-200 mt-auto">
+            <div class="max-w-[1800px] mx-auto px-6 py-4">
+                <div class="flex items-center justify-center text-sm">
+                    <!-- Branding -->
+                    <NuxtLink 
+                        to="/" 
+                        class="flex items-center gap-2 text-gray-600 hover:text-blue-600 transition-colors">
+                        <span class="font-medium">Powered by</span>
+                        <span class="font-bold text-blue-600">Data Research Analysis</span>
+                    </NuxtLink>
+                </div>
+            </div>
+        </footer>
     </div>
 </template>
