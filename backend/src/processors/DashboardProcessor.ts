@@ -309,7 +309,10 @@ export class DashboardProcessor {
             if (!manager) {
                 return resolve(null);
             }
-            const exportMetaDataExisting = await manager.findOne(DRADashboardExportMetaData, {where: {key: dashboardKey}, relations: ['dashboard']});
+            const exportMetaDataExisting = await manager.findOne(DRADashboardExportMetaData, {
+                where: {key: dashboardKey}, 
+                relations: ['dashboard', 'dashboard.project']
+            });
             if (exportMetaDataExisting && exportMetaDataExisting.expiry_at > new Date()) {
                 return resolve(exportMetaDataExisting);
             }

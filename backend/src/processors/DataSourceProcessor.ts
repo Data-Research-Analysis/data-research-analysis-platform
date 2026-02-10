@@ -37,6 +37,26 @@ export class DataSourceProcessor {
     }
 
     /**
+     * Get data source by ID
+     * @param dataSourceId - Data source ID
+     * @returns Data source or null if not found
+     */
+    public async getDataSourceById(dataSourceId: number): Promise<DRADataSource | null> {
+        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+        if (!driver) {
+            return null;
+        }
+        const manager = (await driver.getConcreteDriver()).manager;
+        if (!manager) {
+            return null;
+        }
+        
+        return await manager.findOne(DRADataSource, { 
+            where: { id: dataSourceId }
+        });
+    }
+
+    /**
      * Escape SQL string values to prevent SQL injection
      * @param value - The value to escape
      * @returns Escaped string or 'null' for null/undefined values
@@ -361,6 +381,21 @@ export class DataSourceProcessor {
                     savedDataSource.name,
                     connection.data_source_type
                 );
+
+                // For MongoDB, trigger initial import (async, non-blocking)
+                if (connection.data_source_type === 'mongodb' && connection.connection_string) {
+                    try {
+                        const QueueService = (await import('../services/QueueService.js')).QueueService;
+                        QueueService.getInstance().addJob('mongodb-import', {
+                            dataSourceId: savedDataSource.id,
+                            syncType: 'full'
+                        });
+                        console.log(`[DataSourceProcessor] Queued MongoDB import for data source ${savedDataSource.id}`);
+                    } catch (error) {
+                        console.error('[DataSourceProcessor] Failed to queue MongoDB import:', error);
+                        // Don't fail data source creation if import queueing fails
+                    }
+                }
 
                 return resolve(true);
             }
@@ -688,6 +723,29 @@ export class DataSourceProcessor {
 
             const { collection: collectionName, pipeline } = validation;
 
+            // Check if data is imported to PostgreSQL (new approach)
+            if (dataSource.sync_status === 'completed' && dataSource.last_sync_at) {
+                console.log(`[DataSourceProcessor] Querying MongoDB data from PostgreSQL for collection: ${collectionName}`);
+                try {
+                    const results = await this.executeMongoDBQueryFromPostgreSQL(
+                        collectionName!,
+                        pipeline!
+                    );
+                    
+                    return resolve({
+                        success: true,
+                        data: results,
+                        rowCount: results.length
+                    });
+                } catch (error: any) {
+                    console.error('[DataSourceProcessor] PostgreSQL query failed, falling back to MongoDB:', error);
+                    // Fall through to direct MongoDB query
+                }
+            }
+
+            // Fall back to direct MongoDB query (legacy approach or if PostgreSQL query fails)
+            console.log(`[DataSourceProcessor] Querying MongoDB directly for collection: ${collectionName}`);
+
             // Connect to MongoDB
             const connection = dataSource.connection_details;
             
@@ -730,6 +788,41 @@ export class DataSourceProcessor {
                 await mongoDriver.close();
             }
         });
+    }
+
+    /**
+     * Execute MongoDB query against PostgreSQL (for imported data)
+     * @private
+     */
+    private async executeMongoDBQueryFromPostgreSQL(
+        collectionName: string,
+        pipeline: any[]
+    ): Promise<any[]> {
+        const { MongoDBQueryTranslator } = await import('../services/MongoDBQueryTranslator.js');
+        
+        // Sanitize collection name to table name
+        const tableName = collectionName
+            .toLowerCase()
+            .replace(/[^a-z0-9_]/g, '_')
+            .replace(/^[0-9]/, '_$&')
+            .substring(0, 63);
+        
+        // Translate MongoDB aggregation pipeline to SQL
+        const translator = new MongoDBQueryTranslator();
+        const sql = translator.translatePipeline(tableName, pipeline);
+        
+        console.log(`[DataSourceProcessor] Translated SQL: ${sql}`);
+
+        // Execute SQL query against PostgreSQL
+        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+        if (!driver) {
+            throw new Error('PostgreSQL driver not available');
+        }
+        
+        const pgDataSource = await driver.getConcreteDriver();
+        const results = await pgDataSource.query(sql);
+
+        return results;
     }
 
     public async getTablesFromDataSource(dataSourceId: number, tokenDetails: ITokenDetails): Promise<any> {

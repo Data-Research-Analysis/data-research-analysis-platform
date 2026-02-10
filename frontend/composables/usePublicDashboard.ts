@@ -5,7 +5,7 @@ export const usePublicDashboard = (dashboardKey: string) => {
   
   // Get runtime config BEFORE the async function to avoid context issues
   const config = useRuntimeConfig();
-  const apiUrl = config.public.NUXT_API_URL;
+  const apiUrl = config.public.apiBase; // Use standard apiBase instead of NUXT_API_URL
   
   const { data: dashboardData, pending, error, refresh } = useAsyncData(
     `public-dashboard-${dashboardKey}`,

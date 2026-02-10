@@ -126,29 +126,66 @@ const state = reactive({
     show_table_dialog: false,
  });
 
+// Initialize charts from SSR data immediately for proper hydration
+if (dashboardData.value?.dashboard?.data?.charts) {
+    state.dashboard.charts = dashboardData.value.dashboard.data.charts.map((chart) => ({
+        ...chart,
+        config: {
+            drag_enabled: false,
+            resize_enabled: false,
+            add_columns_enabled: false,
+        },
+    }));
+}
+
 // project and dashboard computeds are defined above for SEO
 const dataModelTables = computed(() => {
     return dataModelsStore.getDataModelTables();
 });
+
+// Return charts from SSR data or state, ensuring SSR/client consistency
 const charts = computed(() => {
+    // Prefer SSR data to ensure hydration matches
+    if (dashboard.value?.data?.charts) {
+        const processedCharts = dashboard.value.data.charts.map((chart) => ({
+            ...chart,
+            config: {
+                drag_enabled: false,
+                resize_enabled: false,
+                add_columns_enabled: false,
+            },
+        }));
+        
+        // Debug logging on client only
+        if (import.meta.client && import.meta.dev) {
+            console.log('[Public Dashboard] Charts loaded:', processedCharts.length);
+            console.log('[Public Dashboard] Chart positions:', processedCharts.map(c => ({ 
+                id: c.chart_id, 
+                top: c.location?.top, 
+                left: c.location?.left,
+                width: c.dimensions?.width,
+                height: c.dimensions?.height
+            })));
+        }
+        
+        return processedCharts;
+    }
     return state.dashboard.charts;
 });
+// Watch for dashboard changes and update state
 watch(
-    dashboardsStore.selectedDashboard,
-    (value, oldValue) => {
-        const dashboard = dashboardsStore.getSelectedDashboard();
-        const charts = dashboard?.data?.charts || [];
-        
-        state.dashboard.charts = charts.map((chart) => {
-            return {
+    () => dashboard.value,
+    (newDashboard) => {
+        if (newDashboard?.data?.charts) {
+            state.dashboard.charts = newDashboard.data.charts.map((chart) => ({
                 ...chart,
                 config: {
                     drag_enabled: false,
                     resize_enabled: false,
                     add_columns_enabled: false,
                 },
-            };
-        }) || [];
+            }));
+        }
     },
     { immediate: true }
 )
@@ -820,15 +857,23 @@ function exportDashboardAsImage() {
 function calculateRequiredHeight() {
     if (!charts.value || charts.value.length === 0) return 600;
     
-    // Find the lowest chart bottom edge
-    const maxBottom = Math.max(...charts.value.map(chart => {
-        const top = parseInt(chart.location.top || '0');
-        const height = parseInt(chart.dimensions.height || '0');
-        return top + height;
-    }));
-    
-    // Add padding and ensure minimum
-    return Math.max(maxBottom + 50, 600);
+    try {
+        // Find the lowest chart bottom edge
+        const maxBottom = Math.max(...charts.value.map(chart => {
+            const top = parseInt(String(chart.location?.top || '0').replace('px', ''));
+            const height = parseInt(String(chart.dimensions?.height || '0').replace('px', ''));
+            return top + height;
+        }));
+        
+        // Add padding and ensure minimum
+        return Math.max(maxBottom + 50, 600);
+    } catch (error) {
+        // Fallback on error
+        if (import.meta.client) {
+            console.warn('[Public Dashboard] Error calculating height:', error);
+        }
+        return 600;
+    }
 }
 
 onMounted(async () => {
@@ -843,16 +888,19 @@ onMounted(async () => {
             columns: dataModelTable.columns,
         })
     })
-        state.dashboard.charts = dashboard.value?.data?.charts.map((chart) => {
-        return {
-            ...chart,
-            config: {
-                drag_enabled: false,
-                resize_enabled: false,
-                add_columns_enabled: false,
-            },
-        };
-    });
+    // Charts are already initialized from SSR data, no need to set again
+    if (!state.dashboard.charts || state.dashboard.charts.length === 0) {
+        state.dashboard.charts = dashboard.value?.data?.charts?.map((chart) => {
+            return {
+                ...chart,
+                config: {
+                    drag_enabled: false,
+                    resize_enabled: false,
+                    add_columns_enabled: false,
+                },
+            };
+        });
+    }
 });
 </script>
 <template>
@@ -946,9 +994,10 @@ onMounted(async () => {
                     <!-- Charts Container -->
                     <div class="w-full h-full draggable-div-container relative">
                         <div v-for="(chart, index) in charts"
+                            :key="chart.chart_id"
                             class="absolute top-0 left-0 bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden hover:shadow-xl transition-shadow duration-200"
                             :id="`draggable-div-${chart.chart_id}`"
-                            :style="`width: ${chart.dimensions.width}; height: ${chart.dimensions.height}; top: ${chart.location.top}; left: ${chart.location.left};`"
+                            :style="`width: ${chart.dimensions?.width || '400px'}; height: ${chart.dimensions?.height || '300px'}; top: ${chart.location?.top || '0px'}; left: ${chart.location?.left || '0px'};`"
                         >
                             <div class="flex flex-col">
                                 <draggable
@@ -960,7 +1009,7 @@ onMounted(async () => {
                                     class="flex flex-row w-full h-50 draggable-model-columns"
                                     tag="tr"
                                     :disabled="!chart.config.add_columns_enabled"
-                                    :style="`width: ${chart.dimensions.widthDraggable}; height: ${chart.dimensions.heightDraggable};`"
+                                    :style="`width: ${chart.dimensions?.widthDraggable || chart.dimensions?.width || '400px'}; height: ${chart.dimensions?.heightDraggable || chart.dimensions?.height || '300px'};`"
                                     @change="changeDataModel($event, chart.chart_id)"
                                 >
                                     <template #item="{ element, index }">
@@ -971,8 +1020,8 @@ onMounted(async () => {
                                                     :id="`chart-${chart.chart_id}`"   
                                                     :chart-id="`${chart.chart_id}`"
                                                     :data="chart.data[0]"
-                                                    :width="parseInt(chart.dimensions.widthDraggable.replace('px', '')) - 40"
-                                                    :height="parseInt(chart.dimensions.heightDraggable.replace('px', '')) - 80"
+                                                    :width="parseInt((chart.dimensions?.widthDraggable || chart.dimensions?.width || '400px').replace('px', '')) - 40"
+                                                    :height="parseInt((chart.dimensions?.heightDraggable || chart.dimensions?.height || '300px').replace('px', '')) - 80"
                                                     :enable-scroll-bars="true"
                                                     :show-row-numbers="true"
                                                     :sticky-header="true"

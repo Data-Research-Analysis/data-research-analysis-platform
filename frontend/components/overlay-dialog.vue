@@ -32,12 +32,12 @@ onMounted(() => {
     // Only access window/document on client side for SSR compatibility
     if (import.meta.client) {
         if (props.enableScrolling) {
-            // Fixed positioning: just use the offset
-            state.top = `${props.yOffset}px`;
+            // Fixed positioning: center in viewport
+            state.top = '50%';
         } else {
-            // Absolute positioning: set initial top to current scroll + offset
-            // The dialog will "stick" to this document position and scroll with the page
-            state.top = `${window.scrollY + props.yOffset}px`;
+            // Absolute positioning: center in current viewport position
+            // Account for -translate-y-1/2 by using viewport center
+            state.top = `${window.scrollY + window.innerHeight / 2}px`;
         }
     }
 });
@@ -48,7 +48,8 @@ onMounted(() => {
     
     <!-- Dialog Container -->
     <div 
-        :class="[positioningClass, 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-xs sm:max-w-md md:max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-4 bg-white opacity-100 z-15 p-10 shadow-lg max-h-[80vh] overflow-y-auto rounded-lg']"
+        :class="[positioningClass, 'left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-xs sm:max-w-md md:max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-4 bg-white opacity-100 z-15 p-10 shadow-lg max-h-[80vh] overflow-y-auto rounded-lg']"
+        :style="{ top: state.top }"
     >
         <!-- Close button -->
         <div class="flex flex-row justify-end items-center -mt-5 mb-5">

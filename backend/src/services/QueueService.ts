@@ -11,6 +11,7 @@ export class QueueService {
     private fileDeletionQueue: Queue;
     private databaseBackupQueue: Queue;
     private databaseRestoreQueue: Queue;
+    private mongodbSyncQueue: Queue;
     
     private constructor() {}
 
@@ -27,6 +28,7 @@ export class QueueService {
             this.fileDeletionQueue = new Queue('DRAFileDeletionQueue');
             this.databaseBackupQueue = new Queue('DRADatabaseBackupQueue');
             this.databaseRestoreQueue = new Queue('DRADatabaseRestoreQueue');
+            this.mongodbSyncQueue = new Queue('DRAMongoDBSyncQueue');
             await this.purgeQueues();
             return resolve();
         });
@@ -76,6 +78,28 @@ export class QueueService {
             resolve();
         });
     }
+    
+    public async addJob(jobType: string, jobData: any): Promise<void> {
+        if (jobType === 'mongodb-import' || jobType === 'mongodb-sync') {
+            return this.addMongoDBSyncJob(jobData.dataSourceId, jobData.syncType || 'full', jobData.userId);
+        }
+        throw new Error(`Unknown job type: ${jobType}`);
+    }
+    
+    public async addMongoDBSyncJob(dataSourceId: number, syncType: string, userId?: number): Promise<void> {
+        return new Promise<void>(async (resolve, reject) => {
+            const index = await this.mongodbSyncQueue.getNextIndex();
+            let response:Document = new Document({
+                id: index, 
+                key: 'mongodbSync', 
+                content: JSON.stringify({ dataSourceId, syncType, userId })
+            });
+            await this.mongodbSyncQueue.enqueue(response);
+            await this.mongodbSyncQueue.commit();
+            resolve();
+        });
+    }
+    
     public async getNextPDFConversionJob(): Promise<Document | null> {
         return new Promise<Document | null>(async (resolve, reject) => {
             const job = await this.pdfConversionQueue.dequeue();
@@ -111,6 +135,15 @@ export class QueueService {
             resolve(job);
         });
     }
+    
+    public async getNextMongoDBSyncJob(): Promise<Document | null> {
+        return new Promise<Document | null>(async (resolve, reject) => {
+            const job = await this.mongodbSyncQueue.dequeue();
+            await this.mongodbSyncQueue.commit();
+            resolve(job);
+        });
+    }
+    
     public async purgePDFConversionQueue(): Promise<void> {
         return new Promise<void>(async (resolve, reject) => {
             await this.pdfConversionQueue.purge();
@@ -141,6 +174,14 @@ export class QueueService {
             resolve();
         });
     }
+    
+    public async purgeMongoDBSyncQueue(): Promise<void> {
+        return new Promise<void>(async (resolve, reject) => {
+            await this.mongodbSyncQueue.purge();
+            resolve();
+        });
+    }
+    
     public async purgeQueues(): Promise<void> {
         return new Promise<void>(async (resolve, reject) => {
             await this.purgePDFConversionQueue();
@@ -148,6 +189,7 @@ export class QueueService {
             await this.purgeFileDeletionQueue();
             await this.purgeDatabaseBackupQueue();
             await this.purgeDatabaseRestoreQueue();
+            await this.purgeMongoDBSyncQueue();
             resolve();
         });
     }
@@ -197,8 +239,56 @@ export class QueueService {
                         await WorkerService.getInstance().runWorker(EOperation.DATABASE_RESTORE, jobContent.zipFilePath, jobContent.userId as number);
                     }
                 }
+                const numMongoDBSync = await this.mongodbSyncQueue.length();
+                if (numMongoDBSync > 0) {
+                    const job: Document | null = await this.mongodbSyncQueue.dequeue();
+                    if (job) {
+                        console.log('Processing MongoDB Sync Job:', job);
+                        const jobContent = JSON.parse(job.getContent());
+                        await this.processMongoDBSyncJob(jobContent);
+                    }
+                }
             }, UtilityService.getInstance().getConstants('QUEUE_STATUS_INTERVAL'));
             resolve();
         });
+    }
+    
+    private async processMongoDBSyncJob(jobData: { dataSourceId: number; syncType: string; userId?: number }): Promise<void> {
+        const { dataSourceId, syncType } = jobData;
+        
+        try {
+            const { DataSourceProcessor } = await import('../processors/DataSourceProcessor.js');
+            const { DBDriver } = await import('../drivers/DBDriver.js');
+            const { EDataSourceType } = await import('../types/EDataSourceType.js');
+            const { MongoDBImportService } = await import('./MongoDBImportService.js');
+            
+            const processor = DataSourceProcessor.getInstance();
+            const dataSource = await processor.getDataSourceById(dataSourceId);
+            
+            if (!dataSource) {
+                console.error(`[QueueService] Data source ${dataSourceId} not found for MongoDB sync`);
+                return;
+            }
+            
+            // Get PostgreSQL DataSource instance
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                console.error(`[QueueService] PostgreSQL driver not available`);
+                return;
+            }
+            const pgDataSource = await driver.getConcreteDriver();
+            
+            const importService = MongoDBImportService.getInstance(pgDataSource);
+            
+            await importService.importDataSource(dataSource, {
+                batchSize: 1000,
+                incremental: syncType === 'incremental'
+            });
+            
+            console.log(`[QueueService] MongoDB sync completed for data source ${dataSourceId}`);
+            
+        } catch (error: any) {
+            console.error(`[QueueService] MongoDB sync failed for data source ${dataSourceId}:`, error);
+        }
     }
 }
