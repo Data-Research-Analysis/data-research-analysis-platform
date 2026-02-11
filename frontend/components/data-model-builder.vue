@@ -537,6 +537,11 @@ watch(() => state.data_table.query_options.group_by, async (value) => {
     state?.data_table?.query_options?.group_by?.aggregate_functions?.forEach((aggregate_function) => {
         aggregate_function.column_alias_name = aggregate_function.column_alias_name.replace(/\s/g, '_').toLowerCase();
     });
+    state?.data_table?.query_options?.group_by?.aggregate_expressions?.forEach((aggregate_expression) => {
+        if (aggregate_expression.column_alias_name) {
+            aggregate_expression.column_alias_name = aggregate_expression.column_alias_name.replace(/\s/g, '_').toLowerCase();
+        }
+    });
     await executeQueryOnExternalDataSource();
 }, { deep: true });
 watch(() => state.data_table.table_name, (value) => {
@@ -813,22 +818,37 @@ function syncGroupByColumns() {
         return;
     }
     
-    // Build set of aggregated columns
+    // Build set of aggregated columns (columns used in aggregate functions/expressions)
     const aggregatedColumns = new Set();
     
+    // Track columns in aggregate functions (e.g., COUNT(column), SUM(column))
     state.data_table.query_options.group_by.aggregate_functions?.forEach(aggFunc => {
         if (aggFunc.column) {
             aggregatedColumns.add(aggFunc.column);
         }
     });
     
+    // Track columns in aggregate expressions (e.g., COUNT(CASE WHEN column...))
     state.data_table.query_options.group_by.aggregate_expressions?.forEach(aggExpr => {
         if (aggExpr.expression) {
-            // Extract column references from expressions like "schema.table.column"
-            const matches = aggExpr.expression.match(/\w+\.\w+\.\w+/g);
-            if (matches) {
-                matches.forEach(col => aggregatedColumns.add(col));
+            // Extract column references from expressions
+            // Pattern 1: schema.table.column (full path)
+            const fullPathMatches = aggExpr.expression.match(/\w+\.\w+\.\w+/g);
+            if (fullPathMatches) {
+                fullPathMatches.forEach(col => aggregatedColumns.add(col));
             }
+            
+            // Pattern 2: Just column name (after we strip schema.table prefix)
+            // This handles expressions like "CASE WHEN balance_remaining <= 0"
+            // We need to match these back to full column paths
+            state.data_table.columns.forEach(col => {
+                const fullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
+                // Check if just the column name appears in expression
+                const columnNamePattern = new RegExp(`\\b${col.column_name}\\b`);
+                if (columnNamePattern.test(aggExpr.expression)) {
+                    aggregatedColumns.add(fullPath);
+                }
+            });
         }
     });
     
@@ -853,16 +873,27 @@ function syncGroupByColumns() {
             return columnRef;
         });
     
+    // Add calculated columns (CASE expressions, etc.) to GROUP BY
+    // Calculated columns are NOT aggregates, so they must be in GROUP BY when aggregates exist
+    const calculatedColumnExpressions = state.data_table.calculated_columns
+        ?.filter(calcCol => calcCol.expression && calcCol.expression.trim() !== '')
+        .map(calcCol => calcCol.expression) || [];
+    
+    // Combine base columns and calculated columns
+    const allGroupByColumns = [...groupByColumns, ...calculatedColumnExpressions];
+    
     // Initialize group_by_columns if it doesn't exist
     if (!state.data_table.query_options.group_by.group_by_columns) {
         state.data_table.query_options.group_by.group_by_columns = [];
     }
     
-    state.data_table.query_options.group_by.group_by_columns = groupByColumns;
+    state.data_table.query_options.group_by.group_by_columns = allGroupByColumns;
     
     console.log('[syncGroupByColumns] Updated group_by_columns:', {
-        total: groupByColumns.length,
-        columns: groupByColumns,
+        total: allGroupByColumns.length,
+        baseColumns: groupByColumns.length,
+        calculatedColumns: calculatedColumnExpressions.length,
+        columns: allGroupByColumns,
         excludedAggregates: Array.from(aggregatedColumns),
         hiddenColumnsIncluded: state.data_table.columns.filter(col => 
             !col.is_selected_column && (col.transform || col.transform_function)
@@ -2271,7 +2302,26 @@ function isColumnUsedInAggregate(columnName, schema, tableName) {
 
     // Check if used in aggregate functions
     const aggregateFunctions = state.data_table.query_options?.group_by?.aggregate_functions || [];
-    return aggregateFunctions.some(aggFunc => aggFunc.column === columnPath);
+    const inAggregateFunctions = aggregateFunctions.some(aggFunc => aggFunc.column === columnPath);
+    
+    if (inAggregateFunctions) {
+        return true;
+    }
+    
+    // Check if used in aggregate expressions
+    const aggregateExpressions = state.data_table.query_options?.group_by?.aggregate_expressions || [];
+    return aggregateExpressions.some(aggExpr => {
+        if (!aggExpr.expression) return false;
+        
+        // Check if full path appears in expression
+        if (aggExpr.expression.includes(columnPath)) {
+            return true;
+        }
+        
+        // Check if just column name appears (after schema.table prefix was stripped)
+        const columnNamePattern = new RegExp(`\\b${columnName}\\b`);
+        return columnNamePattern.test(aggExpr.expression);
+    });
 }
 
 /**
@@ -2621,10 +2671,17 @@ function addQueryOption(queryOption) {
     state.show_dialog = false;
 }
 function addAggregateExpression() {
-    if (!state?.data_table?.query_options?.group_by?.aggregate_expressions) {
+    // Initialize GROUP BY object ONLY if it doesn't exist (minimal structure)
+    if (!state?.data_table?.query_options?.group_by) {
+        state.data_table.query_options.group_by = {};
+    }
+    
+    // Initialize ONLY aggregate_expressions array (don't touch other GROUP BY properties)
+    if (!state.data_table.query_options.group_by.aggregate_expressions) {
         state.data_table.query_options.group_by.aggregate_expressions = [];
     }
 
+    // Add new aggregate expression
     state.data_table.query_options.group_by.aggregate_expressions.push({
         expression: '',
         column_alias_name: '',
@@ -2912,6 +2969,13 @@ async function addCalculatedColumn() {
     state.data_table.calculated_columns.push(finalColumn);
     
     console.log('[DEBUG addCalculatedColumn] After push, calculated_columns:', state.data_table.calculated_columns);
+    
+    // Sync GROUP BY to include calculated column expressions
+    if (state.data_table.query_options?.group_by?.aggregate_functions?.length > 0 ||
+        state.data_table.query_options?.group_by?.aggregate_expressions?.length > 0) {
+        syncGroupByColumns();
+    }
+    
     console.log('[DEBUG addCalculatedColumn] Closing dialog...');
     state.show_calculated_column_dialog = false;
     console.log('[DEBUG addCalculatedColumn] Calling executeQueryOnExternalDataSource...');
@@ -2920,6 +2984,13 @@ async function addCalculatedColumn() {
 }
 async function deleteCalculatedColumn(index) {
     state.data_table.calculated_columns.splice(index, 1);
+    
+    // Sync GROUP BY to remove deleted calculated column
+    if (state.data_table.query_options?.group_by?.aggregate_functions?.length > 0 ||
+        state.data_table.query_options?.group_by?.aggregate_expressions?.length > 0) {
+        syncGroupByColumns();
+    }
+    
     await executeQueryOnExternalDataSource();
 }
 function buildSQLQuery(silent = false) {
@@ -3284,6 +3355,26 @@ function buildSQLQuery(silent = false) {
                 aggregateColumns.add(aggFunc.column);
             }
         });
+        
+        // Also track columns used in aggregate expressions
+        state?.data_table?.query_options?.group_by?.aggregate_expressions?.forEach((aggExpr) => {
+            if (aggExpr.expression) {
+                // Extract full column paths (schema.table.column)
+                const fullPathMatches = aggExpr.expression.match(/\w+\.\w+\.\w+/g);
+                if (fullPathMatches) {
+                    fullPathMatches.forEach(col => aggregateColumns.add(col));
+                }
+                
+                // Also check for just column names and match to full paths
+                state.data_table.columns.forEach(col => {
+                    const fullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
+                    const columnNamePattern = new RegExp(`\\b${col.column_name}\\b`);
+                    if (columnNamePattern.test(aggExpr.expression)) {
+                        aggregateColumns.add(fullPath);
+                    }
+                });
+            }
+        });
 
         console.log('[buildSQLQuery] Columns used in aggregates:', Array.from(aggregateColumns));
 
@@ -3305,6 +3396,17 @@ function buildSQLQuery(silent = false) {
             const orderB = tableOrderMap.get(keyB) ?? 999;
             return orderA - orderB;
         });
+        
+        // Check for columns that are selected but will be hidden by aggregates
+        const hiddenByAggregates = orderedColumns.filter(col => {
+            const columnFullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
+            return col.is_selected_column && aggregateColumns.has(columnFullPath);
+        });
+        
+        if (hiddenByAggregates.length > 0) {
+            console.warn('[buildSQLQuery] ⚠️ The following columns are selected but will NOT appear in results (used in aggregates):', 
+                hiddenByAggregates.map(col => `${col.schema}.${col.table_name}.${col.column_name}`));
+        }
 
         sqlQuery = `SELECT ${orderedColumns.filter((column) => {
             // Exclude columns that are ONLY used in aggregates (not for grouping)
@@ -3341,6 +3443,19 @@ function buildSQLQuery(silent = false) {
             return `${columnRef} AS ${aliasName}`;
         }).join(', ')}`;
     }
+    
+    // Track if we have any base columns in SELECT to handle comma placement
+    const hasBaseColumns = state.data_table.columns.some(col => {
+        const columnFullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
+        const aggregateColumns = new Set();
+        state?.data_table?.query_options?.group_by?.aggregate_functions?.forEach((aggFunc) => {
+            if (aggFunc.column && aggFunc.aggregate_function !== '') {
+                aggregateColumns.add(aggFunc.column);
+            }
+        });
+        return col.is_selected_column && !aggregateColumns.has(columnFullPath);
+    });
+    
     state?.data_table?.query_options?.group_by?.aggregate_functions?.forEach((aggregate_function) => {
         if (aggregate_function.aggregate_function !== '' && aggregate_function.column !== '') {
             const distinctKeyword = aggregate_function.use_distinct ? 'DISTINCT ' : '';
@@ -3354,16 +3469,25 @@ function buildSQLQuery(silent = false) {
                 aliasName = `${aggregateFunc.toLowerCase()}_${columnName}`;
             }
 
-            sqlQuery += `, ${aggregateFunc}(${distinctKeyword}${aggregate_function.column}) AS ${aliasName}`;
+            // Add comma only if there are base columns or previous aggregates
+            const needsComma = hasBaseColumns || sqlQuery.includes(' AS ');
+            sqlQuery += `${needsComma ? ', ' : ''}${aggregateFunc}(${distinctKeyword}${aggregate_function.column}) AS ${aliasName}`;
         }
     });
 
     state?.data_table?.query_options?.group_by?.aggregate_expressions?.forEach((agg_expr) => {
         if (agg_expr.expression && agg_expr.expression.trim() !== '') {
             // Clean up expression: remove square brackets (invalid PostgreSQL syntax from AI)
-            const cleanExpression = agg_expr.expression.replace(/\[\[/g, '').replace(/\]\]/g, '').replace(/\[/g, '').replace(/\]/g, '');
+            let cleanExpression = agg_expr.expression.replace(/\[\[/g, '').replace(/\]\]/g, '').replace(/\[/g, '').replace(/\]/g, '');
+            
+            // Remove schema.table prefixes from column references (e.g., dra_excel.ds75_e922dab5.balance_remaining -> balance_remaining)
+            // This regex matches patterns like schema.table.column and replaces with just column
+            cleanExpression = cleanExpression.replace(/(\w+)\.(\w+)\.(\w+)/g, '$3');
+            
             const aliasName = agg_expr?.column_alias_name && agg_expr.column_alias_name !== '' ? ` AS ${agg_expr.column_alias_name}` : '';
-            sqlQuery += `, ${cleanExpression}${aliasName}`;
+            // Add comma only if there are previous columns/aggregates in SELECT
+            const needsComma = sqlQuery.includes(' AS ');
+            sqlQuery += `${needsComma ? ', ' : ''}${cleanExpression}${aliasName}`;
         }
     });
 
@@ -3437,10 +3561,18 @@ function buildSQLQuery(silent = false) {
         }
     });
     if (showGroupByClause.value) {
-        // Use group_by_columns if available (AI-generated string array), otherwise build from selected columns
-        const groupByColumns = state.data_table.query_options?.group_by?.group_by_columns?.length > 0
-            ? state.data_table.query_options.group_by.group_by_columns
-            : state.data_table.columns.filter((column) => column.is_selected_column).map((column) => {
+        // CRITICAL: Respect synced group_by_columns array
+        // If group_by_columns exists (even if empty), use it - DO NOT fallback to selected columns
+        // Empty array = aggregate-only query with no grouping
+        // Undefined/null = legacy query, fallback to selected columns
+        let groupByColumns;
+        if (state.data_table.query_options?.group_by?.group_by_columns !== undefined && 
+            state.data_table.query_options?.group_by?.group_by_columns !== null) {
+            // group_by_columns exists (synced by syncGroupByColumns) - use as-is
+            groupByColumns = state.data_table.query_options.group_by.group_by_columns;
+        } else {
+            // Legacy fallback: build from selected columns
+            groupByColumns = state.data_table.columns.filter((column) => column.is_selected_column).map((column) => {
                 let columnRef = `${column.schema}.${column.table_name}.${column.column_name}`;
 
                 if (column.transform_function) {
@@ -3450,8 +3582,12 @@ function buildSQLQuery(silent = false) {
 
                 return columnRef;
             });
+        }
 
-        sqlQuery += ` GROUP BY ${groupByColumns.join(', ')}`;
+        // Only add GROUP BY if there are columns to group by
+        if (groupByColumns.length > 0) {
+            sqlQuery += ` GROUP BY ${groupByColumns.join(', ')}`;
+        }
         state?.data_table?.query_options?.group_by?.having_conditions?.forEach((clause, index) => {
             // CRITICAL: PostgreSQL requires full aggregate expressions in HAVING, not aliases
             // Replace aggregate alias with full expression
@@ -5138,17 +5274,19 @@ function validateAndTransformAIModel(aiModel) {
                 });
             }
 
-                // CRITICAL: If group_by has aggregate_functions or aggregate_expressions, set the name flag
+                // CRITICAL: If group_by has aggregate_functions, set the name flag
                 // This flag is required for the UI to show the GROUP BY section
                 // 
                 // IMPORTANT: aggregate_function uses numeric indices:
                 // 0 = SUM, 1 = AVG, 2 = COUNT, 3 = MIN, 4 = MAX
                 // DO NOT use falsy checks (!) on aggregate_function as 0 (SUM) is valid!
+                // 
+                // NOTE: aggregate_expressions are now STANDALONE and should NOT trigger GROUP BY section
+                // They have their own purple-themed section in the UI
                 if (aiModel.query_options.group_by &&
-                    (aiModel.query_options.group_by.aggregate_functions?.length > 0 ||
-                        aiModel.query_options.group_by.aggregate_expressions?.length > 0)) {
+                    aiModel.query_options.group_by.aggregate_functions?.length > 0) {
                     aiModel.query_options.group_by.name = 'GROUP BY';
-                    console.log('[Data Model Builder] Set group_by.name flag for UI visibility');                // CRITICAL: Translate logical table names to physical in aggregate functions
+                    console.log('[Data Model Builder] Set group_by.name flag for GROUP BY section visibility');                // CRITICAL: Translate logical table names to physical in aggregate functions
                 // Aggregate functions reference columns like "schema.table.column"
                 // where table might still be a logical name that needs translation
                 
@@ -6404,7 +6542,8 @@ onBeforeUnmount(() => {
                                                                     readOnly ? 'cursor-not-allowed opacity-50' : ''
                                                                 ]"
                                                                 placeholder="Enter Column Alias Name"
-                                                                v-model="element.alias_name" />
+                                                                v-model="element.alias_name"
+                                                                @input="element.alias_name = element.alias_name.replace(/\s/g, '_').toLowerCase()" />
                                                         </td>
                                                         <td
                                                             class="border border-primary-blue-100 border-solid p-2 text-center">
@@ -6413,6 +6552,15 @@ onBeforeUnmount(() => {
                                                                     :class="readOnly ? 'cursor-not-allowed scale-150 mb-2' : 'cursor-pointer scale-150 mb-2'"
                                                                     v-model="element.is_selected_column"
                                                                     v-tippy="{ content: element.is_selected_column ? 'Uncheck to prevent the column from being added to the data model' : 'Check to add the column to the data model', placement: 'top' }" />
+                                                                
+                                                                <!-- Warning for columns selected but hidden by aggregates -->
+                                                                <div v-if="element.is_selected_column && isColumnUsedInAggregate(element.column_name, element.schema, element.table_name)"
+                                                                    class="flex flex-col items-center mb-2">
+                                                                    <span class="text-xs px-2 py-1 rounded-md font-semibold bg-orange-100 text-orange-800 border border-orange-300"
+                                                                        v-tippy="{ content: 'This column is used in an aggregate function and will NOT appear as a regular column in results. Only aggregated values will be shown.', placement: 'top' }">
+                                                                        ⚠️ HIDDEN BY AGGREGATE
+                                                                    </span>
+                                                                </div>
                                                                 
                                                                 <!-- Usage badges for hidden columns -->
                                                                 <div v-if="!element.is_selected_column && getColumnUsages(element).length > 0" 
@@ -6477,6 +6625,74 @@ onBeforeUnmount(() => {
                                         </div>
 
                                     </div>
+                                    
+                                    <!-- Aggregate Expressions Section - Separate from GROUP BY -->
+                                    <div v-if="state.data_table.query_options?.group_by?.aggregate_expressions?.length > 0" class="w-full flex flex-col mt-5">
+                                        <h3 class="font-bold mb-2">Aggregate Expressions</h3>
+                                        <div class="bg-purple-50 border-l-4 border-purple-400 p-4 mb-4 rounded-r-lg">
+                                            <div class="flex items-start">
+                                                <svg class="h-5 w-5 text-purple-400 mt-0.5 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                <div>
+                                                    <p class="text-sm text-purple-700 font-medium">
+                                                        <strong>Complex Aggregates:</strong> Create custom aggregate calculations from expressions (e.g., SUM(quantity * price), COUNT(CASE WHEN...))
+                                                    </p>
+                                                    <p class="text-xs text-purple-600 mt-1">
+                                                        Use this for aggregates that involve multiple columns or conditional logic.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="flex flex-col bg-gray-100 p-5 rounded-lg">
+                                            <!-- Show existing aggregate expressions -->
+                                            <div v-if="state.data_table.query_options.group_by?.aggregate_expressions && state.data_table.query_options.group_by.aggregate_expressions.length > 0">
+                                                <div v-for="(expr, index) in state.data_table.query_options.group_by.aggregate_expressions"
+                                                    :key="index"
+                                                    class="bg-white p-3 mb-3 rounded-lg border border-gray-300 shadow-sm">
+                                                    <div class="flex flex-row justify-between items-start">
+                                                        <div class="flex flex-col w-3/5 mr-2">
+                                                            <h5 class="font-bold mb-2">Expression</h5>
+                                                            <input type="text" :disabled="readOnly"
+                                                                :class="[
+                                                                    'w-full border border-primary-blue-100 border-solid p-2 rounded-lg',
+                                                                    readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                                                                ]"
+                                                                v-model="expr.expression"
+                                                                placeholder="e.g., SUM(quantity * price) or COUNT(CASE WHEN status = 'active' THEN 1 END)" />
+                                                            <span class="text-xs text-gray-600 mt-1">
+                                                                Complete SQL expression including aggregate function (SUM, AVG, COUNT, MIN, MAX, etc.)
+                                                            </span>
+                                                        </div>
+
+                                                        <div class="flex flex-col w-2/5 mr-2">
+                                                            <h5 class="font-bold mb-2">Alias</h5>
+                                                            <input type="text" :disabled="readOnly"
+                                                                :class="[
+                                                                    'w-full border border-primary-blue-100 border-solid p-2 rounded-lg',
+                                                                    readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                                                                ]"
+                                                                v-model="expr.column_alias_name"
+                                                                @input="expr.column_alias_name = expr.column_alias_name.replace(/\s/g, '_').toLowerCase()"
+                                                                placeholder="e.g., total_revenue" />
+                                                        </div>
+
+                                                        <div class="flex items-center pt-8">
+                                                            <div :class="[
+                                                                    'h-10 flex items-center px-5 py-2 font-bold rounded-lg whitespace-nowrap',
+                                                                    readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-red-500 hover:bg-red-300 cursor-pointer text-white'
+                                                                ]"
+                                                                @click="!readOnly && removeAggregateExpression(index)">
+                                                                Delete
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
                                     <div v-if="showWhereClause" class="w-full flex flex-col mt-5">
                                         <h3 class="font-bold mb-2">Where</h3>
                                         <div class="flex flex-col bg-gray-100 p-5 rounded-lg">
@@ -6559,7 +6775,7 @@ onBeforeUnmount(() => {
                                         </div>
                                     </div>
                                     <div v-if="showGroupByClause" class="w-full flex flex-col mt-5">
-                                        <h3 class="font-bold mb-2">Group By</h3>
+                                        <h3 class="font-bold mb-2">Aggregate Functions</h3>
                                         <!-- Aggregate Function Disclaimer -->
                                         <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-4 rounded-r-lg">
                                             <div class="flex items-start">
@@ -6620,7 +6836,8 @@ onBeforeUnmount(() => {
                                                                     readOnly ? 'cursor-not-allowed opacity-50' : ''
                                                                 ]"
                                                                 placeholder="Enter Column Alias Name"
-                                                                v-model="clause.column_alias_name" />
+                                                                v-model="clause.column_alias_name"
+                                                                @input="clause.column_alias_name = clause.column_alias_name.replace(/\s/g, '_').toLowerCase()" />
                                                         </div>
                                                         <Transition
                                                             enter-active-class="transition-all duration-300 ease-out"
@@ -6660,90 +6877,6 @@ onBeforeUnmount(() => {
                                                     </div>
                                                 </div>
                                             </div>
-
-                                            <!-- Aggregate Expressions Section -->
-                                            <Transition enter-active-class="transition-all duration-300 ease-out"
-                                                leave-active-class="transition-all duration-200 ease-in"
-                                                enter-from-class="opacity-0 -translate-x-4"
-                                                enter-to-class="opacity-100 translate-x-0"
-                                                leave-from-class="opacity-100 translate-x-0"
-                                                leave-to-class="opacity-0 translate-x-4">
-                                                <div v-if="state.viewMode === 'advanced' && state.data_table.query_options.group_by.aggregate_expressions && state.data_table.query_options.group_by.aggregate_expressions.length > 0"
-                                                    class="mt-4">
-                                                    <h4 class="font-bold mb-2">Aggregate Expressions</h4>
-                                                    <div class="text-sm text-gray-600 mb-2">
-                                                        Create aggregates from expressions (e.g., SUM(quantity * price))
-                                                    </div>
-
-                                                    <div v-for="(expr, index) in state.data_table.query_options.group_by.aggregate_expressions"
-                                                        :key="index"
-                                                        class="bg-gray-50 p-3 mb-2 rounded-lg border border-gray-300">
-                                                        <div class="flex flex-row justify-between items-start">
-                                                            <div class="flex flex-col w-3/5 mr-2">
-                                                                <h5 class="font-bold mb-2">Expression</h5>
-                                                                <input type="text" :disabled="readOnly"
-                                                                    :class="[
-                                                                        'w-full border border-primary-blue-100 border-solid p-2 rounded-lg',
-                                                                        readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
-                                                                    ]"
-                                                                    v-model="expr.expression"
-                                                                    placeholder="e.g., SUM(quantity * price) or AVG(DISTINCT column)" />
-                                                                <span class="text-xs text-gray-600 mt-1">
-                                                                    Complete SQL expression including aggregate function (SUM, AVG, COUNT, etc.)
-                                                                </span>
-                                                            </div>
-
-                                                            <div class="flex flex-col w-2/5 mr-2">
-                                                                <h5 class="font-bold mb-2">Alias</h5>
-                                                                <input type="text" :disabled="readOnly"
-                                                                    :class="[
-                                                                        'w-full border border-primary-blue-100 border-solid p-2 rounded-lg',
-                                                                        readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
-                                                                    ]"
-                                                                    v-model="expr.column_alias_name"
-                                                                    placeholder="e.g., total_revenue" />
-                                                            </div>
-
-                                                            <div class="flex items-center pt-8">
-                                                                <div :class="[
-                                                                        'h-10 flex items-center px-5 py-2 font-bold rounded-lg whitespace-nowrap',
-                                                                        readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-red-500 hover:bg-red-300 cursor-pointer text-white'
-                                                                    ]"
-                                                                    @click="!readOnly && removeAggregateExpression(index)">
-                                                                    Delete
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    <div :class="[
-                                                            'w-full border border-blue-400 border-dashed h-10 flex items-center justify-center font-bold text-blue-600 rounded-lg',
-                                                            readOnly ? 'cursor-not-allowed bg-gray-50 text-gray-400' : 'cursor-pointer hover:bg-blue-50'
-                                                        ]"
-                                                        @click="!readOnly && addAggregateExpression()">
-                                                        + Add Aggregate Expression
-                                                    </div>
-                                                </div>
-                                            </Transition>
-
-                                            <!-- Show button to add first expression if none exist -->
-                                            <Transition enter-active-class="transition-all duration-300 ease-out"
-                                                leave-active-class="transition-all duration-200 ease-in"
-                                                enter-from-class="opacity-0 -translate-x-4"
-                                                enter-to-class="opacity-100 translate-x-0"
-                                                leave-from-class="opacity-100 translate-x-0"
-                                                leave-to-class="opacity-0 translate-x-4">
-                                                <div v-if="state.viewMode === 'advanced' && state.data_table.query_options.group_by.name && (!state.data_table.query_options.group_by.aggregate_expressions || state.data_table.query_options.group_by.aggregate_expressions.length === 0)"
-                                                    class="mt-4">
-                                                    <div :class="[
-                                                            'w-full border border-blue-400 border-dashed h-12 flex items-center justify-center font-bold text-blue-600 rounded',
-                                                            readOnly ? 'cursor-not-allowed bg-gray-50 text-gray-400' : 'cursor-pointer hover:bg-blue-50'
-                                                        ]"
-                                                        @click="!readOnly && addAggregateExpression()">
-                                                        + Add Aggregate Expression (e.g., SUM(quantity * price))
-                                                    </div>
-                                                </div>
-                                            </Transition>
 
                                             <!-- HAVING Section - Always show when GROUP BY exists -->
                                             <div v-if="showGroupByClause" class="mt-4">
@@ -6988,6 +7121,14 @@ onBeforeUnmount(() => {
                                         ]"
                                         @click="!readOnly && openCalculatedColumnDialog()">
                                         + Add Calculated Column/Field
+                                    </div>
+                                    <div v-if="showDataModelControls"
+                                        :class="[
+                                            'w-full border border-purple-400 border-dashed h-15 flex items-center justify-center mb-5 mt-5 font-bold rounded-lg',
+                                            readOnly ? 'cursor-not-allowed bg-gray-100 text-gray-400' : 'cursor-pointer hover:bg-purple-50'
+                                        ]"
+                                        @click="!readOnly && addAggregateExpression()">
+                                        + Add Aggregate Expression
                                     </div>
                                     <template v-if="showDataModelControls && saveButtonEnabled && hasTableData">
                                         <div v-if="showDataModelControls"

@@ -148,6 +148,16 @@
                   />
                 </button>
 
+                <!-- Copy Button -->
+                <button
+                  v-if="canCreate"
+                  @click.stop="copyModel(item)"
+                  class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                  v-tippy="{ content: 'Copy Model' }"
+                >
+                  <font-awesome icon="fas fa-copy" />
+                </button>
+
                 <!-- Delete Button -->
                 <button
                   v-if="canDelete"
@@ -471,6 +481,53 @@ async function refreshModel(model: any) {
     });
   } finally {
     refreshingModelId.value = null;
+  }
+}
+
+async function copyModel(model: any) {
+  // Confirmation dialog
+  const { value: confirmCopy } = await $swal.fire({
+    title: `Copy Data Model "${cleanDataModelName(model.name)}"?`,
+    text: 'This will create a complete copy of this data model with all its configuration. The copy will be named "' + cleanDataModelName(model.name) + ' Copy".',
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Yes, copy it!',
+    confirmButtonColor: '#4F46E5'
+  });
+  
+  if (!confirmCopy) return;
+  
+  // Show loading
+  const loadingAlert = $swal.fire({
+    title: 'Copying...',
+    text: 'Creating a copy of your data model',
+    allowOutsideClick: false,
+    didOpen: () => {
+      $swal.showLoading();
+    }
+  });
+  
+  try {
+    const newModel = await dataModelsStore.copyDataModel(model.id);
+    
+    await $swal.fire({
+      icon: 'success',
+      title: 'Model Copied!',
+      text: `${cleanDataModelName(newModel.name)} has been created successfully.`,
+      timer: 3000,
+      showConfirmButton: false
+    });
+    
+    // Reload data models to show the new copy
+    await dataModelsStore.retrieveDataModels(projectId.value);
+    
+  } catch (error: any) {
+    await $swal.fire({
+      icon: 'error',
+      title: 'Copy Failed',
+      text: error.message || 'There was an error copying the data model. Please try again.',
+      confirmButtonColor: '#4F46E5'
+    });
   }
 }
 

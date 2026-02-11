@@ -83,11 +83,94 @@ onMounted(async () => {
         state.loading = false;
     }
 });
+
+async function copyDataModel() {
+    const { $swal } = useNuxtApp();
+    
+    // Confirmation dialog
+    const { value: confirmCopy } = await $swal.fire({
+        title: `Copy Data Model "${state.data_model?.name || 'Unknown'}"?`,
+        text: 'This will create a complete copy of this data model with all its configuration. The copy will be named "' + (state.data_model?.name || 'Unknown') + ' Copy".',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#4F46E5',
+        cancelButtonColor: '#DD4B39',
+        confirmButtonText: 'Yes, copy it!',
+    });
+    
+    if (!confirmCopy) return;
+    
+    // Show loading
+    $swal.fire({
+        title: 'Copying...',
+        text: 'Creating a copy of your data model',
+        allowOutsideClick: false,
+        didOpen: () => {
+            $swal.showLoading();
+        }
+    });
+    
+    try {
+        const newModel = await dataModelsStore.copyDataModel(dataModelId.value);
+        
+        await $swal.fire({
+            icon: 'success',
+            title: 'Model Copied!',
+            text: `${newModel.name.replace(/_dra_[a-zA-Z0-9_]+/g, '')} has been created successfully.`,
+            timer: 3000,
+            showConfirmButton: false
+        });
+        
+        // Reload data models
+        await dataModelsStore.retrieveDataModels(projectId.value);
+        
+        // Navigate to the new model's edit page (cross-source)
+        navigateTo(`/projects/${projectId.value}/data-models/${newModel.id}/edit`);
+        
+    } catch (error: any) {
+        await $swal.fire({
+            icon: 'error',
+            title: 'Copy Failed',
+            text: error.message || 'There was an error copying the data model. Please try again.',
+            confirmButtonColor: '#4F46E5'
+        });
+    }
+}
 </script>
 <template>
     <div v-if="project" class="flex flex-col">
         <tabs :project-id="project.id"/>
         <div class="flex flex-col min-h-100 mb-10">
+            <!-- Header -->
+            <div v-if="state.data_model" class="bg-white border-b border-gray-200 px-6 py-4 mb-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900 flex items-center gap-3">
+                            {{ state.data_model?.name?.replace(/_dra_[a-zA-Z0-9_]+/g, '') || 'Data Model' }}
+                            <span 
+                                v-if="state.data_model?.is_cross_source"
+                                class="inline-flex items-center px-3 py-1 rounded text-sm font-medium bg-purple-100 text-purple-800">
+                                <font-awesome icon="fas fa-link" class="mr-2 text-xs" />
+                                Cross-Source Model
+                            </span>
+                        </h1>
+                        <p class="text-sm text-gray-600 mt-1">
+                            Build and manage your cross-source data model
+                        </p>
+                    </div>
+                    <div v-if="permissions.canCreate.value">
+                        <button
+                            @click="copyDataModel"
+                            class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium gap-2"
+                            v-tippy="{ content: 'Create a copy of this data model' }"
+                        >
+                            <font-awesome icon="fas fa-copy" />
+                            <span>Copy Model</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
             <!-- Cross-source data model builder -->
             <data-model-builder 
                 v-if="!state.loading && state.data_source_tables.length > 0 && state.data_model?.sql_query" 
