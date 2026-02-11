@@ -5274,17 +5274,19 @@ function validateAndTransformAIModel(aiModel) {
                 });
             }
 
-                // CRITICAL: If group_by has aggregate_functions or aggregate_expressions, set the name flag
+                // CRITICAL: If group_by has aggregate_functions, set the name flag
                 // This flag is required for the UI to show the GROUP BY section
                 // 
                 // IMPORTANT: aggregate_function uses numeric indices:
                 // 0 = SUM, 1 = AVG, 2 = COUNT, 3 = MIN, 4 = MAX
                 // DO NOT use falsy checks (!) on aggregate_function as 0 (SUM) is valid!
+                // 
+                // NOTE: aggregate_expressions are now STANDALONE and should NOT trigger GROUP BY section
+                // They have their own purple-themed section in the UI
                 if (aiModel.query_options.group_by &&
-                    (aiModel.query_options.group_by.aggregate_functions?.length > 0 ||
-                        aiModel.query_options.group_by.aggregate_expressions?.length > 0)) {
+                    aiModel.query_options.group_by.aggregate_functions?.length > 0) {
                     aiModel.query_options.group_by.name = 'GROUP BY';
-                    console.log('[Data Model Builder] Set group_by.name flag for UI visibility');                // CRITICAL: Translate logical table names to physical in aggregate functions
+                    console.log('[Data Model Builder] Set group_by.name flag for GROUP BY section visibility');                // CRITICAL: Translate logical table names to physical in aggregate functions
                 // Aggregate functions reference columns like "schema.table.column"
                 // where table might still be a logical name that needs translation
                 
