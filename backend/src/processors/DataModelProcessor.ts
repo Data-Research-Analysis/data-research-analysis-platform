@@ -355,6 +355,162 @@ export class DataModelProcessor {
     }
 
     /**
+     * Copy/clone a data model with all its configuration
+     * Creates a complete duplicate with a new unique name and ID
+     * @param dataModelId - ID of data model to copy
+     * @param tokenDetails - User authentication details
+     * @returns New data model object if successful, null otherwise
+     */
+    public async copyDataModel(dataModelId: number, tokenDetails: ITokenDetails): Promise<DRADataModel | null> {
+        return new Promise<DRADataModel | null>(async (resolve) => {
+            try {
+                const { user_id } = tokenDetails;
+                const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+                if (!driver) {
+                    return resolve(null);
+                }
+                const dbConnector = await driver.getConcreteDriver();
+                const manager = dbConnector.manager;
+                if (!manager) {
+                    return resolve(null);
+                }
+                
+                // Verify user exists
+                const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+                if (!user) {
+                    return resolve(null);
+                }
+                
+                // Fetch original data model with all relations
+                let originalModel = await manager.findOne(DRADataModel, {
+                    where: {id: dataModelId},
+                    relations: ['data_source', 'data_source.project', 'data_model_sources', 'data_model_sources.data_source']
+                });
+                
+                if (!originalModel) {
+                    console.error(`Data model ${dataModelId} not found`);
+                    return resolve(null);
+                }
+                
+                // Verify user has READ permission on original model
+                // Check if user owns the model or is a project member
+                const isOwner = originalModel.users_platform?.id === user_id;
+                let hasAccess = isOwner;
+                
+                if (!hasAccess && originalModel.data_source?.project) {
+                    const membership = await manager.findOne(DRAProjectMember, {
+                        where: {
+                            user: {id: user_id},
+                            project: {id: originalModel.data_source.project.id}
+                        }
+                    });
+                    hasAccess = !!membership;
+                }
+                
+                if (!hasAccess) {
+                    console.error(`User ${user_id} does not have permission to copy data model ${dataModelId}`);
+                    return resolve(null);
+                }
+                
+                // Generate new name with (Copy) suffix
+                let baseName = originalModel.name.replace(/_dra_[a-zA-Z0-9_]+$/g, '');
+                let copyName = baseName;
+                let copyCount = 0;
+                
+                // Find existing copies to increment suffix
+                const existingModels = await manager.find(DRADataModel, {
+                    where: {
+                        users_platform: user
+                    }
+                });
+                
+                const existingNames = existingModels.map(m => m.name.replace(/_dra_[a-zA-Z0-9_]+$/g, ''));
+                
+                // Check for "Copy", "Copy 2", etc. (without parentheses to avoid PostgreSQL table name issues)
+                while (true) {
+                    const testName = copyCount === 0 ? `${baseName} Copy` : `${baseName} Copy ${copyCount + 1}`;
+                    if (!existingNames.includes(testName)) {
+                        copyName = testName;
+                        break;
+                    }
+                    copyCount++;
+                }
+                
+                // Apply unique UUID suffix
+                const uniqueName = UtilityService.getInstance().uniquiseName(copyName);
+                
+                // Create new data model record
+                const newModel = new DRADataModel();
+                newModel.name = uniqueName;
+                newModel.schema = originalModel.schema;
+                newModel.sql_query = originalModel.sql_query;
+                newModel.query = originalModel.query;
+                newModel.is_cross_source = originalModel.is_cross_source;
+                newModel.execution_metadata = originalModel.execution_metadata || {};
+                newModel.auto_refresh_enabled = originalModel.auto_refresh_enabled;
+                newModel.users_platform = user;
+                newModel.data_source = originalModel.data_source;
+                
+                // Reset refresh-related fields
+                newModel.last_refreshed_at = undefined;
+                newModel.refresh_status = 'IDLE';
+                newModel.refresh_error = undefined;
+                newModel.row_count = undefined;
+                newModel.last_refresh_duration_ms = undefined;
+                
+                // Save new model
+                const savedModel = await manager.save(newModel);
+                
+                // Copy cross-source references if applicable
+                if (originalModel.is_cross_source && originalModel.data_model_sources && originalModel.data_model_sources.length > 0) {
+                    for (const source of originalModel.data_model_sources) {
+                        const newSource = new DRADataModelSource();
+                        newSource.data_model = savedModel;
+                        newSource.data_source = source.data_source;
+                        await manager.save(newSource);
+                    }
+                }
+                
+                // Copy physical table structure and data
+                try {
+                    const originalTableName = `${originalModel.schema}.${originalModel.name}`;
+                    const newTableName = `${newModel.schema}.${newModel.name}`;
+                    
+                    // Create table structure (including indexes, constraints, etc.)
+                    await dbConnector.query(`CREATE TABLE ${newTableName} (LIKE ${originalTableName} INCLUDING ALL)`);
+                    
+                    // Copy data
+                    await dbConnector.query(`INSERT INTO ${newTableName} SELECT * FROM ${originalTableName}`);
+                    
+                    console.log(`Successfully copied table from ${originalTableName} to ${newTableName}`);
+                } catch (tableError) {
+                    console.error('Error copying physical table:', tableError);
+                    // Rollback: delete the model record if table copy failed
+                    await manager.remove(savedModel);
+                    throw new Error('Failed to copy physical table structure and data');
+                }
+                
+                // Reload with relations for return
+                const completeModel = await manager.findOne(DRADataModel, {
+                    where: {id: savedModel.id},
+                    relations: ['data_source', 'data_source.project', 'data_model_sources', 'data_model_sources.data_source', 'users_platform']
+                });
+                
+                // Send notification
+                const dataSourceName = originalModel.data_source?.name || 'Unknown Source';
+                await this.notificationHelper.notifyDataModelCreated(user_id, savedModel.id, copyName, dataSourceName);
+                
+                console.log(`Successfully copied data model ${dataModelId} to ${savedModel.id}`);
+                return resolve(completeModel);
+                
+            } catch (error) {
+                console.error('Error copying data model:', error);
+                return resolve(null);
+            }
+        });
+    }
+
+    /**
      * Refresh data model by re-executing stored query against external data source
      * Drops existing table and recreates with latest data
      * @param dataModelId - ID of data model to refresh

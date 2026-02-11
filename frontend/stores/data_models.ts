@@ -333,6 +333,31 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         return data;
     }
     
+    // Copy/clone data model
+    async function copyDataModel(dataModelId: number): Promise<IDataModel> {
+        const token = getAuthToken();
+        if (!token) {
+            throw new Error('Authentication required');
+        }
+        
+        const newModel = await $fetch<IDataModel>(
+            `${baseUrl()}/data-model/copy/${dataModelId}`, 
+            {
+                method: 'POST',
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+            }
+        );
+        
+        // Add to local store
+        dataModels.value.push(newModel);
+        setDataModels(dataModels.value);
+        
+        return newModel;
+    }
+    
     return {
         dataModels,
         selectedDataModel,
@@ -365,6 +390,7 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         clearRefreshJob,
         refreshDataModel,
         cascadeRefreshDataSource,
-        getRefreshHistory
+        getRefreshHistory,
+        copyDataModel
     }
 });
