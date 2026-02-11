@@ -19,6 +19,7 @@ const state = reactive({
     isInitialized: false, // Track if component has finished loading tables
     tables: [],
     table_aliases: [],
+    editing_join_index: null, // Track which JOIN is being edited (null = creating new)
     alias_form: {
         table: '',
         alias: ''
@@ -1399,6 +1400,7 @@ function getColumnsForTable(tableName, tableAlias = null, dataSourceId = null) {
  */
 function openJoinDialog() {
     if (props.readOnly) return;
+    state.editing_join_index = null; // Clear edit mode
     state.join_form = {
         left_table: '',
         left_table_alias: null,
@@ -1415,10 +1417,57 @@ function openJoinDialog() {
 }
 
 /**
+ * Open dialog to edit existing JOIN condition
+ */
+function editJoinCondition(joinIndex) {
+    if (props.readOnly) return;
+    
+    const join = state.join_conditions[joinIndex];
+    state.editing_join_index = joinIndex;
+    
+    // Construct table keys with schema.table format (and alias if present)
+    const leftTableKey = join.left_table_alias 
+        ? `${join.left_table_schema}.${join.left_table_name}::${join.left_table_alias}`
+        : `${join.left_table_schema}.${join.left_table_name}`;
+    
+    const rightTableKey = join.right_table_alias
+        ? `${join.right_table_schema}.${join.right_table_name}::${join.right_table_alias}`
+        : `${join.right_table_schema}.${join.right_table_name}`;
+    
+    // If cross-source, include data source ID
+    const leftKey = props.isCrossSource && join.left_data_source_id
+        ? `${leftTableKey}::${join.left_data_source_id}`
+        : leftTableKey;
+    
+    const rightKey = props.isCrossSource && join.right_data_source_id
+        ? `${rightTableKey}::${join.right_data_source_id}`
+        : rightTableKey;
+    
+    // Populate form with existing JOIN data
+    state.join_form = {
+        left_table: leftKey,
+        left_table_alias: join.left_table_alias,
+        left_column: join.left_column_name,
+        right_table: rightKey,
+        right_table_alias: join.right_table_alias,
+        right_column: join.right_column_name,
+        join_type: join.join_type || 'INNER',
+        primary_operator: join.primary_operator || '=',
+        join_logic: join.join_logic || 'AND',
+        additional_conditions: join.additional_conditions ? [...join.additional_conditions] : []
+    };
+    
+    state.show_join_dialog = true;
+    
+    console.log('[editJoinCondition] Editing JOIN at index', joinIndex, 'Form:', state.join_form);
+}
+
+/**
  * Close JOIN creation dialog
  */
 function closeJoinDialog() {
     state.show_join_dialog = false;
+    state.editing_join_index = null; // Clear edit mode
 }
 
 /**
@@ -1478,7 +1527,7 @@ function getJoinFormPreview() {
 }
 
 /**
- * Create new JOIN condition
+ * Create new JOIN condition (or update if editing)
  */
 async function createJoinCondition() {
     if (!isJoinFormValid()) {
@@ -1492,9 +1541,16 @@ async function createJoinCondition() {
 
     const leftInfo = parseTableKey(state.join_form.left_table);
     const rightInfo = parseTableKey(state.join_form.right_table);
+    
+    const isEditing = state.editing_join_index !== null;
 
-    // Check for duplicate JOIN
-    const isDuplicate = state.join_conditions.some(join => {
+    // Check for duplicate JOIN (skip current join if editing)
+    const isDuplicate = state.join_conditions.some((join, index) => {
+        // Skip duplicate check for the join being edited
+        if (isEditing && index === state.editing_join_index) {
+            return false;
+        }
+        
         const leftSourceMatch = !props.isCrossSource ||
             !leftInfo.dataSourceId ||
             join.left_data_source_id === leftInfo.dataSourceId;
@@ -1521,9 +1577,8 @@ async function createJoinCondition() {
         return;
     }
 
-    // Add new JOIN condition
-    const newJoin = {
-        id: Date.now(),
+    // Build JOIN object
+    const joinData = {
         left_table_schema: leftInfo.schema,
         left_table_name: leftInfo.table,
         left_table_alias: leftInfo.alias,
@@ -1539,26 +1594,48 @@ async function createJoinCondition() {
         join_type: state.join_form.join_type,
         primary_operator: state.join_form.primary_operator || '=',
         join_logic: state.join_form.join_logic || 'AND',
-        is_auto_detected: false,
-        additional_conditions: []
+        additional_conditions: state.join_form.additional_conditions || []
     };
-
-    state.join_conditions.push(newJoin);
+    
+    if (isEditing) {
+        // Update existing JOIN
+        const existingJoin = state.join_conditions[state.editing_join_index];
+        Object.assign(existingJoin, joinData);
+        
+        console.log('[createJoinCondition] Updated JOIN at index', state.editing_join_index);
+        
+        $swal.fire({
+            icon: 'success',
+            title: 'JOIN Updated',
+            timer: 1500,
+            showConfirmButton: false
+        });
+    } else {
+        // Add new JOIN condition
+        const newJoin = {
+            id: Date.now(),
+            is_auto_detected: false,
+            ...joinData
+        };
+        
+        state.join_conditions.push(newJoin);
+        
+        console.log('[createJoinCondition] Created new JOIN:', newJoin);
+        
+        $swal.fire({
+            icon: 'success',
+            title: 'JOIN Created',
+            timer: 1500,
+            showConfirmButton: false
+        });
+    }
     
     // CRITICAL: Immediately sync to data_table before query execution
     // This ensures JOINs are included in the query JSON sent to backend
     state.data_table.join_conditions = [...state.join_conditions];
 
-    console.log('[createJoinCondition] Created new JOIN:', newJoin);
     console.log('[createJoinCondition] Total JOINs now:', state.join_conditions.length);
     console.log('[createJoinCondition] Synced to data_table.join_conditions');
-
-    $swal.fire({
-        icon: 'success',
-        title: 'JOIN Created',
-        timer: 1500,
-        showConfirmButton: false
-    });
 
     closeJoinDialog();
     await executeQueryOnExternalDataSource();
@@ -2551,6 +2628,7 @@ function addAggregateExpression() {
     state.data_table.query_options.group_by.aggregate_expressions.push({
         expression: '',
         column_alias_name: '',
+        column_data_type: 'text', // Default to text, will be inferred from expression
     });
     
     // Sync GROUP BY columns after adding expression
@@ -3614,28 +3692,19 @@ async function saveDataModel() {
         url = `${baseUrl()}/data-model/update-data-model-on-query`;
     }
 
-    // Filter to include selected columns AND hidden referenced columns (aggregates, GROUP BY, WHERE, etc.)
+    // CRITICAL FIX: Send ALL columns with their is_selected_column state preserved
+    // Backend will filter for table creation, but preserve full array in query JSON
+    // This prevents permanent loss of unchecked columns
     const dataTableForSave = {
         ...state.data_table,
-        columns: state.data_table.columns.filter(col => {
-            // Include if selected for display
-            if (col.is_selected_column) return true;
-            
-            // Include if tracked as hidden reference (aggregate, GROUP BY, WHERE, HAVING, ORDER BY, etc.)
-            const isTracked = state.data_table.hidden_referenced_columns?.some(
-                tracked => tracked.schema === col.schema &&
-                           tracked.table_name === col.table_name &&
-                           tracked.column_name === col.column_name
-            );
-            return isTracked;
-        })
+        columns: state.data_table.columns // Send ALL columns - don't filter!
     };
 
-    console.log('[saveDataModel] Filtered columns for save:', {
+    console.log('[saveDataModel] Sending ALL columns to preserve full model definition:', {
         total: state.data_table.columns.length,
         selected: state.data_table.columns.filter(c => c.is_selected_column).length,
-        hiddenTracked: state.data_table.hidden_referenced_columns?.length || 0,
-        saved: dataTableForSave.columns.length
+        unselected: state.data_table.columns.filter(c => !c.is_selected_column).length,
+        hiddenTracked: state.data_table.hidden_referenced_columns?.length || 0
     });
 
     const responseData = await $fetch(url, {
@@ -4246,6 +4315,141 @@ async function applyAIGeneratedModel(model) {
 }
 
 /**
+ * Normalize schema name from AI response
+ * AI returns schemas like "dra_excel.ds72_xxxx" but we need just "dra_excel"
+ * 
+ * @param schema - Raw schema from AI (may include table name)
+ * @returns Normalized schema name
+ */
+function normalizeSchemaName(schema) {
+    if (!schema || !schema.includes('.')) {
+        return schema;
+    }
+    
+    const parts = schema.split('.');
+    // For Excel/PDF/Google services, schema is the first part
+    if (parts[0] === 'dra_excel' || parts[0] === 'dra_pdf' || 
+        parts[0] === 'dra_google_analytics' || parts[0] === 'dra_google_ad_manager' || 
+        parts[0] === 'dra_google_ads') {
+        return parts[0];
+    }
+    
+    // For regular databases, keep as-is
+    return schema;
+}
+
+/**
+ * Infer column data type from SQL expression
+ * Analyzes CASE expressions, functions, and literals to determine the correct type
+ * 
+ * @param {string} expression - SQL expression to analyze
+ * @returns {string} - PostgreSQL data type (text, numeric, boolean, timestamp, etc.)
+ */
+function inferDataTypeFromExpression(expression) {
+    if (!expression || typeof expression !== 'string') {
+        return 'numeric'; // Default fallback
+    }
+    
+    const expr = expression.trim();
+    const exprUpper = expr.toUpperCase();
+    
+    // Check for CASE expressions - analyze THEN/ELSE clauses
+    if (exprUpper.includes('CASE')) {
+        // More robust pattern that captures quoted strings with spaces
+        // Pattern: THEN 'value' or THEN "value" or THEN value
+        const thenPattern = /THEN\s+('[^']*'|"[^"]*"|\S+)/gi;
+        const elsePattern = /ELSE\s+('[^']*'|"[^"]*"|\S+)/i;
+        
+        const thenMatches = [];
+        let match;
+        while ((match = thenPattern.exec(expr)) !== null) {
+            thenMatches.push(match[1]);
+        }
+        
+        const elseMatch = expr.match(elsePattern);
+        const allClauses = [
+            ...thenMatches,
+            ...(elseMatch ? [elseMatch[1]] : [])
+        ];
+        
+        console.log(`[inferDataTypeFromExpression] CASE clauses found:`, allClauses);
+        
+        if (allClauses.length > 0) {
+            // If any clause is a string literal (quoted), it returns text
+            const hasStringLiteral = allClauses.some(clause => {
+                const trimmed = clause.trim();
+                return (trimmed.startsWith("'") && trimmed.endsWith("'")) || 
+                       (trimmed.startsWith('"') && trimmed.endsWith('"'));
+            });
+            
+            if (hasStringLiteral) {
+                console.log(`[inferDataTypeFromExpression] Detected string literal in CASE → text`);
+                return 'text';
+            }
+            
+            // If all clauses are numeric literals or NULL, it's numeric
+            const allNumericOrNull = allClauses.every(clause => {
+                const trimmed = clause.trim().toUpperCase();
+                if (trimmed === 'NULL') return true;
+                // Remove quotes if present
+                const unquoted = trimmed.replace(/^['"]|['"]$/g, '');
+                return !isNaN(Number(unquoted));
+            });
+            
+            if (allNumericOrNull) {
+                console.log(`[inferDataTypeFromExpression] All CASE clauses numeric → numeric`);
+                return 'numeric';
+            }
+            
+            // Mixed or unknown - default to text for safety
+            console.log(`[inferDataTypeFromExpression] Mixed CASE types → text (safe default)`);
+            return 'text';
+        }
+    }
+    
+    // Check for string functions (return text)
+    const stringFunctions = ['CONCAT', 'SUBSTRING', 'UPPER', 'LOWER', 'TRIM', 'REPLACE', 'LEFT', 'RIGHT'];
+    if (stringFunctions.some(func => expr.includes(func + '('))) {
+        return 'text';
+    }
+    
+    // Check for date functions (return date/timestamp)
+    const dateFunctions = ['DATE', 'CURRENT_DATE', 'CURRENT_TIMESTAMP', 'NOW', 'DATE_TRUNC', 'EXTRACT'];
+    if (dateFunctions.some(func => expr.includes(func))) {
+        return 'timestamp without time zone';
+    }
+    
+    // Check for aggregate functions (usually numeric)
+    const aggregateFunctions = ['SUM', 'AVG', 'COUNT', 'MIN', 'MAX'];
+    if (aggregateFunctions.some(func => expr.includes(func + '('))) {
+        // COUNT always returns integer
+        if (expr.includes('COUNT')) {
+            return 'bigint';
+        }
+        return 'numeric';
+    }
+    
+    // Check for boolean expressions
+    const booleanKeywords = ['TRUE', 'FALSE', 'AND', 'OR', 'NOT'];
+    if (booleanKeywords.some(keyword => expr.includes(keyword))) {
+        return 'boolean';
+    }
+    
+    // Check for string literals
+    if (expr.startsWith("'") || expr.startsWith('"')) {
+        return 'text';
+    }
+    
+    // Check for numeric literals
+    if (!isNaN(Number(expr))) {
+        return 'numeric';
+    }
+    
+    // Default to numeric for unknown expressions
+    return 'numeric';
+}
+
+/**
  * Validate and transform AI model to builder format
  * 
  * This function performs critical transformations:
@@ -4450,7 +4654,7 @@ function validateAndTransformAIModel(aiModel) {
 
         console.log('[DEBUG - AI Model Validation] Available tables in state:', state.tables?.length || 0);
         state.tables?.forEach(t => {
-            console.log(`  - ${t.table_name} (${t.schema}): ${t.columns?.length || 0} columns`);
+            console.log(`  - ${t.table_name} (${t.schema}) [logical: ${t.logical_name || 'NOT SET'}]: ${t.columns?.length || 0} columns`);
             console.log(`    Columns:`, t.columns?.map(c => c.column_name).join(', '));
         });
 
@@ -4477,25 +4681,40 @@ function validateAndTransformAIModel(aiModel) {
                 continue;
             }
 
+            // CRITICAL FIX: AI returns schema as "dra_excel.ds72_xxxx" but we need just "dra_excel"
+            // Normalize the schema name to handle combined schema.table references
+            const schemaToMatch = normalizeSchemaName(col.schema);
+            if (schemaToMatch !== col.schema) {
+                console.log(`[DEBUG - AI Model Validation] Normalized schema from "${col.schema}" to "${schemaToMatch}"`);
+            }
+
             // Check if this column exists in the available tables
             const availableTables = state.tables || [];
             
             // CRITICAL FIX: Support both physical and logical table names
-            // AI models use logical names (e.g., "user_acquisition")
-            // while state.tables uses physical names (e.g., "ds52_2b702ce5")
+            // AI models use logical names (e.g., "user_acquisition", "loans")
+            // while state.tables uses physical names (e.g., "ds52_2b702ce5", "ds72_1d68512e")
+            console.log(`[DEBUG - AI Model Validation] Searching for table: schema="${schemaToMatch}", table_name="${col.table_name}"`);
+            
             const sourceTable = availableTables.find(t => {
                 if (props.isCrossSource && col.data_source_id && t.data_source_id !== col.data_source_id) {
                     return false;
                 }
+                
+                console.log(`[DEBUG - AI Model Validation]   Checking table: physical="${t.table_name}", logical="${t.logical_name}", schema="${t.schema}"`);
+                
                 // Match by physical name (backwards compatible)
-                if (t.table_name === col.table_name && t.schema === col.schema) {
+                if (t.table_name === col.table_name && t.schema === schemaToMatch) {
+                    console.log(`[DEBUG - AI Model Validation]   ✓ Matched by physical name: ${col.table_name}`);
                     return true;
                 }
-                // Match by logical name (supports AI-generated models)
-                if (t.logical_name === col.table_name && t.schema === col.schema) {
+                // Match by logical name (supports AI-generated models with human-readable names)
+                if (t.logical_name === col.table_name && t.schema === schemaToMatch) {
                     console.log(`[DEBUG - AI Model Validation] ✓ Matched by logical name: ${col.table_name} -> ${t.table_name}`);
                     // IMPORTANT: Update col.table_name to physical name for subsequent processing
                     col.table_name = t.table_name;
+                    // Also update col.schema to the normalized schema
+                    col.schema = schemaToMatch;
                     if (props.isCrossSource && !col.data_source_id && t.data_source_id) {
                         col.data_source_id = t.data_source_id;
                     }
@@ -4505,8 +4724,8 @@ function validateAndTransformAIModel(aiModel) {
             });
 
             if (!sourceTable) {
-                console.warn(`[DEBUG - AI Model Validation] ⚠️ Table not found: ${col.schema}.${col.table_name}`);
-                columnErrors.push(`Column ${colIndex}: Table ${col.schema}.${col.table_name} does not exist in data source`);
+                console.warn(`[DEBUG - AI Model Validation] ⚠️ Table not found: ${schemaToMatch}.${col.table_name}`);
+                columnErrors.push(`Column ${colIndex}: Table ${schemaToMatch}.${col.table_name} does not exist in data source`);
                 continue;
             }
 
@@ -4582,10 +4801,28 @@ function validateAndTransformAIModel(aiModel) {
                 // CRITICAL: AI returns left_table/right_table (no schema), but validation needs schema
                 // Extract schema from column metadata if not present in JOIN
                 if (!join.left_table_schema || !join.left_table_name) {
-                    const leftColumn = aiModel.columns.find(col =>
+                    // First, try to find in columns array
+                    let leftColumn = aiModel.columns.find(col =>
                         col.table_name === join.left_table && col.column_name === join.left_column
                     );
-                    if (leftColumn) {
+                    
+                    // If not found in columns, search in state.tables
+                    if (!leftColumn) {
+                        const leftTable = state.tables?.find(t => 
+                            t.table_name === join.left_table || t.logical_name === join.left_table
+                        );
+                        if (leftTable) {
+                            const leftTableColumn = leftTable.columns?.find(c => 
+                                c.column_name === join.left_column
+                            );
+                            if (leftTableColumn) {
+                                join.left_table_schema = leftTable.schema;
+                                join.left_table_name = leftTable.table_name;
+                                join.left_column_name = join.left_column;
+                                console.log(`[Data Model Builder] Resolved left JOIN schema from state.tables: ${leftTable.schema}.${leftTable.table_name}`);
+                            }
+                        }
+                    } else {
                         join.left_table_schema = leftColumn.schema;
                         join.left_table_name = leftColumn.table_name;
                         join.left_column_name = leftColumn.column_name;
@@ -4593,15 +4830,66 @@ function validateAndTransformAIModel(aiModel) {
                 }
                 
                 if (!join.right_table_schema || !join.right_table_name) {
-                    const rightColumn = aiModel.columns.find(col =>
+                    // First, try to find in columns array
+                    let rightColumn = aiModel.columns.find(col =>
                         col.table_name === join.right_table && col.column_name === join.right_column
                     );
-                    if (rightColumn) {
+                    
+                    // If not found in columns, search in state.tables
+                    if (!rightColumn) {
+                        const rightTable = state.tables?.find(t => 
+                            t.table_name === join.right_table || t.logical_name === join.right_table
+                        );
+                        if (rightTable) {
+                            const rightTableColumn = rightTable.columns?.find(c => 
+                                c.column_name === join.right_column
+                            );
+                            if (rightTableColumn) {
+                                join.right_table_schema = rightTable.schema;
+                                join.right_table_name = rightTable.table_name;
+                                join.right_column_name = join.right_column;
+                                console.log(`[Data Model Builder] Resolved right JOIN schema from state.tables: ${rightTable.schema}.${rightTable.table_name}`);
+                            }
+                        }
+                    } else {
                         join.right_table_schema = rightColumn.schema;
                         join.right_table_name = rightColumn.table_name;
                         join.right_column_name = rightColumn.column_name;
                     }
                 }
+                
+                // CRITICAL: Skip JOIN if we couldn't resolve schema information
+                if (!join.left_table_schema || !join.left_table_name || !join.left_column_name) {
+                    console.error(`[Data Model Builder] Could not resolve left side of JOIN ${index + 1}:`, {
+                        left_table: join.left_table,
+                        left_column: join.left_column,
+                        resolved_schema: join.left_table_schema,
+                        resolved_table: join.left_table_name,
+                        resolved_column: join.left_column_name
+                    });
+                    joinErrors.push(
+                        `JOIN ${index + 1}: Could not resolve left table metadata for ${join.left_table}.${join.left_column}`
+                    );
+                    return;
+                }
+                
+                if (!join.right_table_schema || !join.right_table_name || !join.right_column_name) {
+                    console.error(`[Data Model Builder] Could not resolve right side of JOIN ${index + 1}:`, {
+                        right_table: join.right_table,
+                        right_column: join.right_column,
+                        resolved_schema: join.right_table_schema,
+                        resolved_table: join.right_table_name,
+                        resolved_column: join.right_column_name
+                    });
+                    joinErrors.push(
+                        `JOIN ${index + 1}: Could not resolve right table metadata for ${join.right_table}.${join.right_column}`
+                    );
+                    return;
+                }
+                
+                // CRITICAL FIX: Normalize schemas (they may be combined like "dra_excel.ds72_xxxx")
+                join.left_table_schema = normalizeSchemaName(join.left_table_schema);
+                join.right_table_schema = normalizeSchemaName(join.right_table_schema);
                 
                 console.log(`[Data Model Builder] Validating JOIN ${index + 1}:`, {
                     left: `${join.left_table_schema}.${join.left_table_name}.${join.left_column_name}`,
@@ -4973,6 +5261,12 @@ function validateAndTransformAIModel(aiModel) {
                         if (!aggExpr.column_alias_name) {
                             aggExpr.column_alias_name = `expr_${index}`;
                             console.log(`[Data Model Builder] Generated alias for aggregate expression: ${aggExpr.column_alias_name}`);
+                        }
+                        
+                        // CRITICAL: Infer data type from expression (especially for CASE statements)
+                        if (!aggExpr.column_data_type) {
+                            aggExpr.column_data_type = inferDataTypeFromExpression(aggExpr.expression);
+                            console.log(`[Data Model Builder] Inferred data type for ${aggExpr.column_alias_name}: ${aggExpr.column_data_type} from expression: ${aggExpr.expression.substring(0, 50)}...`);
                         }
                         
                         validAggregateExpressions.push(aggExpr);
@@ -5850,13 +6144,24 @@ onBeforeUnmount(() => {
                                         </button>
                                     </div>
 
-                                    <button @click="removeJoinCondition(joinIndex)" :disabled="readOnly"
-                                        :class="[
-                                            'px-3 py-1 text-sm transition-colors ml-2 rounded-lg',
-                                            readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-red-500 text-white hover:bg-red-600 cursor-pointer'
-                                        ]">
-                                        Remove
-                                    </button>
+                                    <div class="flex gap-2">
+                                        <button @click="editJoinCondition(joinIndex)" :disabled="readOnly"
+                                            :class="[
+                                                'px-3 py-1 text-sm transition-colors rounded-lg flex items-center gap-1',
+                                                readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-500 text-white hover:bg-blue-600 cursor-pointer'
+                                            ]"
+                                            v-tippy="{ content: 'Edit this JOIN condition', placement: 'top' }">
+                                            <font-awesome icon="fas fa-edit" />
+                                            Edit
+                                        </button>
+                                        <button @click="removeJoinCondition(joinIndex)" :disabled="readOnly"
+                                            :class="[
+                                                'px-3 py-1 text-sm transition-colors rounded-lg',
+                                                readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-red-500 text-white hover:bg-red-600 cursor-pointer'
+                                            ]">
+                                            Remove
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </template>
@@ -6553,7 +6858,8 @@ onBeforeUnmount(() => {
                                                             'w-full border border-primary-blue-100 border-solid p-2 rounded-lg',
                                                             readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
                                                         ]"
-                                                        v-model="clause.column">
+                                                        v-model="clause.column"
+                                                        @change="handleQueryOptionChanged('order-by-column')">
                                                         <optgroup label="Base Columns">
                                                             <option v-for="col in whereColumns" :key="col.value"
                                                                 :value="col.value">
@@ -6576,7 +6882,8 @@ onBeforeUnmount(() => {
                                                             'w-full border border-primary-blue-100 border-solid p-2 rounded-lg',
                                                             readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
                                                         ]"
-                                                        v-model="clause.order">
+                                                        v-model="clause.order"
+                                                        @change="handleQueryOptionChanged('order-by-order')">
                                                         <option v-for="(order, index) in state.order" :key="index"
                                                             :value="index">{{ order }}</option>
                                                     </select>
@@ -6856,7 +7163,7 @@ onBeforeUnmount(() => {
             <div class="bg-white p-6 w-[600px] shadow-2xl max-h-[90vh] overflow-y-auto">
                 <h3 class="text-xl font-bold mb-4 text-gray-800 flex items-center">
                     <font-awesome icon="fas fa-link" class="mr-2 text-green-600" />
-                    Create JOIN Condition
+                    {{ state.editing_join_index !== null ? 'Edit JOIN Condition' : 'Create JOIN Condition' }}
                 </h3>
 
                 <p class="text-sm text-gray-600 mb-4">
@@ -6966,7 +7273,7 @@ onBeforeUnmount(() => {
                     </button>
                     <button @click="createJoinCondition()" :disabled="!isJoinFormValid()"
                         class="px-4 py-2 bg-green-600 text-white hover:bg-green-700 transition-colors cursor-pointer disabled:bg-gray-400 disabled:cursor-not-allowed">
-                        Create JOIN
+                        {{ state.editing_join_index !== null ? 'Save Changes' : 'Create JOIN' }}
                     </button>
                 </div>
             </div>

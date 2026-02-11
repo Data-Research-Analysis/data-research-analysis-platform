@@ -552,9 +552,27 @@ export class DataModelProcessor {
                 //Create the table first then insert the data.
                 let createTableQuery = `CREATE TABLE ${dataModelName} `;
                 const sourceTable = JSON.parse(queryJSON);
+                
+                // CRITICAL FIX: Filter columns for table creation but preserve full array in saved query JSON
+                // Only create table columns for: selected columns OR hidden referenced columns
+                const columnsForTableCreation = sourceTable.columns.filter((col: any) => {
+                    // Include if selected for display
+                    if (col.is_selected_column) return true;
+                    
+                    // Include if tracked as hidden reference (aggregate, GROUP BY, WHERE, HAVING, ORDER BY, etc.)
+                    const isTracked = sourceTable.hidden_referenced_columns?.some(
+                        (tracked: any) => tracked.schema === col.schema &&
+                                   tracked.table_name === col.table_name &&
+                                   tracked.column_name === col.column_name
+                    );
+                    return isTracked;
+                });
+                
+                console.log(`[DataModelProcessor] Column preservation: Total=${sourceTable.columns.length}, ForTable=${columnsForTableCreation.length}`);
+                
                 let columns = '';
                 let insertQueryColumns = '';
-                sourceTable.columns.forEach((column: any, index: number) => {
+                columnsForTableCreation.forEach((column: any, index: number) => {
                     const columnSize = column?.character_maximum_length ? `(${column?.character_maximum_length})` : '';
                     // Check if column.data_type already contains size information (e.g., "varchar(1024)")
                     // If it does, don't append columnSize again to avoid "VARCHAR(1024)(1024)"
@@ -595,7 +613,7 @@ export class DataModelProcessor {
                         columnName = `${column.schema}_${column.table_name}_${column.column_name}`;
                     }
                     
-                    if (index < sourceTable.columns.length - 1) {
+                    if (index < columnsForTableCreation.length - 1) {
                         columns += `${columnName} ${dataTypeString}, `;
                         insertQueryColumns += `${columnName},`;
                     } else {
@@ -651,7 +669,7 @@ export class DataModelProcessor {
                     }
                 }
                 
-                // Handle GROUP BY aggregate expressions
+                // Handle GROUP BY aggregate expressions (complex expressions like quantity * price, CASE statements)
                 if (sourceTable.query_options?.group_by?.aggregate_expressions && 
                     sourceTable.query_options.group_by.aggregate_expressions.length > 0) {
                     const validExpressions = sourceTable.query_options.group_by.aggregate_expressions.filter(
@@ -665,11 +683,30 @@ export class DataModelProcessor {
                         validExpressions.forEach((expr: any, index: number) => {
                             const aliasName = expr.column_alias_name;
                             
+                            // CRITICAL: Use column_data_type if provided (inferred from expression), otherwise default to NUMERIC
+                            let dataTypeString = 'NUMERIC';
+                            if (expr.column_data_type && expr.column_data_type !== '') {
+                                // Map frontend data types to PostgreSQL types
+                                const exprType = expr.column_data_type.toLowerCase();
+                                if (exprType === 'text' || exprType.includes('char') || exprType.includes('varchar')) {
+                                    dataTypeString = 'TEXT';
+                                } else if (exprType === 'numeric' || exprType === 'decimal' || exprType.includes('int')) {
+                                    dataTypeString = 'NUMERIC';
+                                } else if (exprType === 'boolean') {
+                                    dataTypeString = 'BOOLEAN';
+                                } else if (exprType.includes('timestamp') || exprType.includes('date')) {
+                                    dataTypeString = exprType.toUpperCase();
+                                } else {
+                                    dataTypeString = expr.column_data_type.toUpperCase();
+                                }
+                                console.log(`[DataModelProcessor] Using inferred data type for aggregate expression ${aliasName}: ${dataTypeString} (from ${expr.column_data_type})`);
+                            }
+                            
                             if (index < validExpressions.length - 1) {
-                                columns += `${aliasName} NUMERIC, `;
+                                columns += `${aliasName} ${dataTypeString}, `;
                                 insertQueryColumns += `${aliasName}, `;
                             } else {
-                                columns += `${aliasName} NUMERIC`;
+                                columns += `${aliasName} ${dataTypeString}`;
                                 insertQueryColumns += `${aliasName}`;
                             }
                         });
@@ -682,7 +719,7 @@ export class DataModelProcessor {
                 
                 // Track column data types for proper value formatting
                 const columnDataTypes = new Map<string, string>();
-                sourceTable.columns.forEach((column: any) => {
+                columnsForTableCreation.forEach((column: any) => {
                     // Use same column name construction logic as INSERT loop to ensure key match
                     let columnName;
                     if (column.alias_name && column.alias_name !== '') {
@@ -727,7 +764,10 @@ export class DataModelProcessor {
                 if (sourceTable.query_options?.group_by?.aggregate_expressions) {
                     sourceTable.query_options.group_by.aggregate_expressions.forEach((expr: any) => {
                         if (expr.column_alias_name && expr.column_alias_name !== '') {
-                            columnDataTypes.set(expr.column_alias_name, 'NUMERIC');
+                            // Use column_data_type if provided, otherwise default to NUMERIC
+                            const dataType = expr.column_data_type || 'NUMERIC';
+                            columnDataTypes.set(expr.column_alias_name, dataType.toUpperCase());
+                            console.log(`[DataModelProcessor] Set data type for aggregate expression ${expr.column_alias_name}: ${dataType}`);
                         }
                     });
                 }
@@ -735,7 +775,7 @@ export class DataModelProcessor {
                 rowsFromDataSource.forEach((row: any, index: number) => {
                     let insertQuery = `INSERT INTO ${dataModelName} `;
                     let values = '';
-                    sourceTable.columns.forEach((column: any, columnIndex: number) => {
+                    columnsForTableCreation.forEach((column: any, columnIndex: number) => {
                         // Determine row key - use alias if provided for data lookup
                         let rowKey;
                         let columnName;
@@ -767,7 +807,7 @@ export class DataModelProcessor {
                         
                         const formattedValue = this.formatValueForSQL(row[rowKey], columnType, columnName);
                         
-                        if (columnIndex < sourceTable.columns.length - 1) {
+                        if (columnIndex < columnsForTableCreation.length - 1) {
                             values += `${formattedValue},`;
                         } else {
                             values += formattedValue;
@@ -977,11 +1017,20 @@ export class DataModelProcessor {
                 
                 for (let i=0; i < dataModelsTableNames.length; i++) {
                     const dataModelTableName = dataModelsTableNames[i];
-                    query = `SELECT * FROM "${dataModelTableName.schema}"."${dataModelTableName.table_name}"`;
-                    let rowsData = await dbConnector.query(query);
+                    
+                    // Check if table physically exists before querying
                     const tableSchema = tablesSchema.find((table: any) => {
                         return table.table_name === dataModelTableName.table_name && table.table_schema === dataModelTableName.schema;
                     });
+                    
+                    if (!tableSchema) {
+                        console.warn(`[DataModelProcessor] Table ${dataModelTableName.schema}.${dataModelTableName.table_name} does not exist in database, skipping data model ID ${dataModelTableName.data_model_id}`);
+                        continue;
+                    }
+                    
+                    query = `SELECT * FROM "${dataModelTableName.schema}"."${dataModelTableName.table_name}"`;
+                    let rowsData = await dbConnector.query(query);
+                    
                     if (tableSchema) {
                         tableSchema.rows = rowsData;
                     }

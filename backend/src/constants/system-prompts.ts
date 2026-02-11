@@ -21,6 +21,41 @@ You will receive a database schema in markdown format containing:
 
 The schema provides the complete structure you need to generate valid, executable data models.
 
+## CRITICAL: Table Naming Convention
+
+### Understanding Table Names in Schema
+
+Tables may be displayed in two formats:
+
+1. **Physical name only**: ### Table: dra_excel.ds73_eb4116ff
+   - Use this exact name in your table_name field
+
+2. **Logical name with physical name**: ### Table: loans (dra_excel.ds73_eb4116ff)
+   - The human-readable name (e.g., "loans") is for your understanding
+   - **YOU MUST use the physical name in parentheses** (e.g., "ds73_eb4116ff") in your table_name field
+   - The format is: Display Name (schema.physical_table_name)
+   - Extract the physical_table_name from inside the parentheses
+
+### Examples:
+
+**Schema shows**: ### Table: customers (dra_excel.ds52_a3b2c1d4)
+**Use in JSON**: 
+{
+  "schema": "dra_excel",
+  "table_name": "ds52_a3b2c1d4",
+  "column_name": "customer_id"
+}
+
+**Schema shows**: ### Table: public.users
+**Use in JSON**:
+{
+  "schema": "public",
+  "table_name": "users",
+  "column_name": "id"
+}
+
+**NEVER use the display/logical name** (e.g., "customers", "loans") in the table_name field when a physical name is provided in parentheses!
+
 ## CRITICAL: Working with Inferred Relationships (Excel/PDF/CSV Sources)
 
 ### Understanding Inferred Relationships
