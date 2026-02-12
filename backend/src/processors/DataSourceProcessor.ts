@@ -2843,6 +2843,11 @@ export class DataSourceProcessor {
     /**
      * Reconstruct SQL query from JSON query structure
      * This ensures JOIN conditions are properly included when executing queries
+     * 
+     * CRITICAL FIX (2026-02-13): Now uses group_by_columns array from AI/frontend
+     * Previously rebuilt GROUP BY from columns array, ignoring the group_by_columns
+     * that the AI Data Modeler was correctly generating. This caused SQL errors when
+     * aggregates were present but GROUP BY was not properly included in the final query.
      */
     public reconstructSQLFromJSON(queryJSON: any): string {
         const query = typeof queryJSON === 'string' ? JSON.parse(queryJSON) : queryJSON;
@@ -3092,20 +3097,47 @@ export class DataSourceProcessor {
         }
         
         // Build GROUP BY clause
-        if (query.query_options?.group_by?.name) {
-            const groupByColumns: string[] = [];
-            query.columns?.forEach((column: any) => {
-                if (column.is_selected_column) {
-                    const columnFullPath = `${column.schema}.${column.table_name}.${column.column_name}`;
-                    const isAggregateOnly = aggregateColumns.has(columnFullPath);
-                    if (!isAggregateOnly) {
-                        const tableRef = column.table_alias || column.table_name;
-                        groupByColumns.push(`${column.schema}.${tableRef}.${column.column_name}`);
+        // CRITICAL: Check for group_by.name (UI flag) OR presence of aggregates/group_by_columns
+        // The AI model may not set the 'name' field, but still provide group_by_columns and aggregate_expressions
+        const hasGroupByName = !!query.query_options?.group_by?.name;
+        const hasGroupByColumns = query.query_options?.group_by?.group_by_columns?.length > 0;
+        const hasAggFuncs = query.query_options?.group_by?.aggregate_functions?.some(
+            (agg: any) => agg.aggregate_function !== '' && agg.column !== ''
+        );
+        const hasAggExprs = query.query_options?.group_by?.aggregate_expressions?.some(
+            (expr: any) => expr.expression && expr.expression !== ''
+        );
+        if (hasGroupByName || hasGroupByColumns || hasAggFuncs || hasAggExprs) {
+            // CRITICAL: Use group_by_columns array if provided (new format from AI)
+            // Otherwise fallback to rebuilding from columns (legacy format)
+            let groupByColumns: string[] = [];
+            
+            if (query.query_options?.group_by?.group_by_columns && 
+                Array.isArray(query.query_options.group_by.group_by_columns) &&
+                query.query_options.group_by.group_by_columns.length > 0) {
+                // NEW FORMAT: Use group_by_columns array directly from AI/frontend
+                groupByColumns = query.query_options.group_by.group_by_columns;
+                console.log('[DataSourceProcessor] Using group_by_columns array:', groupByColumns);
+            } else {
+                // LEGACY FORMAT: Rebuild from columns array (backward compatibility)
+                console.log('[DataSourceProcessor] Rebuilding GROUP BY from columns array (legacy)');
+                query.columns?.forEach((column: any) => {
+                    if (column.is_selected_column) {
+                        const columnFullPath = `${column.schema}.${column.table_name}.${column.column_name}`;
+                        const isAggregateOnly = aggregateColumns.has(columnFullPath);
+                        if (!isAggregateOnly) {
+                            const tableRef = column.table_alias || column.table_name;
+                            groupByColumns.push(`${column.schema}.${tableRef}.${column.column_name}`);
+                        }
                     }
-                }
-            });
+                });
+            }
+            
             if (groupByColumns.length > 0) {
                 sqlParts.push(`GROUP BY ${groupByColumns.join(', ')}`);
+            } else if (query.query_options?.group_by?.aggregate_functions?.length > 0 ||
+                       query.query_options?.group_by?.aggregate_expressions?.length > 0) {
+                console.warn('[DataSourceProcessor] WARNING: Aggregates present but GROUP BY is empty!');
             }
         }
         

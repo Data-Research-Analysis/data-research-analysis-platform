@@ -354,6 +354,13 @@ RIGHT: {"aggregate_expressions": [{"expression": "SUM(amount)"}], "group_by_colu
    - DISCLAIMER: Aggregated raw columns won't appear in results - only their calculated values (SUM, COUNT, etc.)
 5. VALIDATE SQL CORRECTNESS: If aggregate_functions array is not empty, group_by_columns MUST contain all non-aggregated columns
 6. ALGORITHM FOR GROUP BY GENERATION (FOLLOW THESE STEPS):
+   
+   *** MANDATORY PRE-CHECK (DO THIS FIRST): ***
+   - IF aggregate_functions.length > 0 OR aggregate_expressions.length > 0
+   - THEN group_by_columns array MUST NOT BE EMPTY
+   - FAILURE TO DO THIS = GUARANTEED SQL ERROR
+   - NO EXCEPTIONS - EVERY non-aggregated selected column MUST be in group_by_columns
+   
    Step 1: Identify all columns needed for analysis
    Step 2: Determine which columns will be aggregated → Set A
       - From aggregate_functions array: Extract the 'column' field
@@ -362,8 +369,10 @@ RIGHT: {"aggregate_expressions": [{"expression": "SUM(amount)"}], "group_by_colu
    Step 3: For columns in Set A: set is_selected_column = false (they're aggregated, not selected)
    Step 4: For remaining columns: set is_selected_column = true (they're in SELECT clause)
    Step 5: Build group_by_columns from all is_selected_column = true columns
+      *** THIS STEP IS MANDATORY IF STEP 2 FOUND ANY AGGREGATES ***
    Step 6: Format as ["schema.table.column1", "schema.table.column2"]
    Step 7: VALIDATE: If aggregate_functions.length > 0, group_by_columns.length MUST be > 0
+      *** STOP AND FIX IF group_by_columns IS EMPTY WITH AGGREGATES ***
    Step 8: DOUBLE-CHECK: group_by_columns count should equal is_selected_column=true count
    Step 9: VALIDATE aggregate_expressions (if present):
       - Extract ALL column references from aggregate_expressions using regex: \w+\.\w+\.\w+
@@ -536,6 +545,53 @@ COMMON ERROR: "SUM(amount) / target" where target NOT aggregated
 ERROR: Expression "SUM(payments.principal) / targets.target_amount" -> target_amount must be in GROUP BY
 FIX #1: Add target_amount to group_by_columns with is_selected_column=true
 FIX #2: Use "SUM(payments.principal) / AVG(targets.target_amount)" instead
+
+#### Example 4b: CRITICAL - Empty group_by_columns with Aggregates (MOST COMMON ERROR)
+USER REQUEST: "Show recovery by branch and date"
+
+WRONG - Has aggregates but EMPTY group_by_columns:
+\`\`\`json
+{
+  "columns": [
+    {"schema": "dra_excel", "table_name": "branches", "column_name": "branch_id", "is_selected_column": true},
+    {"schema": "dra_excel", "table_name": "payments", "column_name": "payment_date", "is_selected_column": true},
+    {"schema": "dra_excel", "table_name": "payments", "column_name": "principal", "is_selected_column": false}
+  ],
+  "query_options": {
+    "group_by": {
+      "aggregate_expressions": [
+        {"expression": "SUM(dra_excel.payments.principal) / AVG(dra_excel.targets.target)", "column_alias_name": "achievement"}
+      ],
+      "group_by_columns": []
+    }
+  }
+}
+\`\`\`
+RESULTING SQL: SELECT branch_id, payment_date, SUM(principal)/AVG(target) FROM ... (NO GROUP BY!)
+SQL ERROR: "column branch_id must appear in the GROUP BY clause"
+
+CORRECT - group_by_columns populated:
+\`\`\`json
+{
+  "columns": [
+    {"schema": "dra_excel", "table_name": "branches", "column_name": "branch_id", "is_selected_column": true},
+    {"schema": "dra_excel", "table_name": "payments", "column_name": "payment_date", "is_selected_column": true},
+    {"schema": "dra_excel", "table_name": "payments", "column_name": "principal", "is_selected_column": false}
+  ],
+  "query_options": {
+    "group_by": {
+      "aggregate_expressions": [
+        {"expression": "SUM(dra_excel.payments.principal) / AVG(dra_excel.targets.target)", "column_alias_name": "achievement"}
+      ],
+      "group_by_columns": ["dra_excel.branches.branch_id", "dra_excel.payments.payment_date"]
+    }
+  }
+}
+\`\`\`
+RESULTING SQL: SELECT branch_id, payment_date, SUM(principal)/AVG(target) FROM ... GROUP BY branch_id, payment_date
+SQL SUCCESS!
+
+KEY RULE: IF you have ANY aggregate (SUM, AVG, COUNT, etc.), group_by_columns CANNOT be empty if ANY is_selected_column=true columns exist.
 
 #### Example 5: What NOT to Do (Common Mistakes)
 

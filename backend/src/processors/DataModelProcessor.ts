@@ -13,6 +13,7 @@ import { DRAProject } from "../models/DRAProject.js";
 import { DRAProjectMember } from "../models/DRAProjectMember.js";
 import { DRADataModelSource } from "../models/DRADataModelSource.js";
 import { NotificationHelperService } from "../services/NotificationHelperService.js";
+import { DataSourceProcessor } from "./DataSourceProcessor.js";
 
 export class DataModelProcessor {
     private static instance: DataModelProcessor;
@@ -703,7 +704,38 @@ export class DataModelProcessor {
             await internalDbConnector.query(`DROP TABLE IF EXISTS ${existingDataModel.schema}.${existingDataModel.name}`);
             try {
                 dataModelName = UtilityService.getInstance().uniquiseName(dataModelName);
-                const selectTableQuery = `${query}`;
+                
+                // CRITICAL FIX: Validate and reconstruct SQL to ensure GROUP BY correctness
+                // When aggregates are present, the SQL must include proper GROUP BY.
+                // This mirrors the fix in DataSourceProcessor.reconstructSQLFromJSON() which
+                // uses the group_by_columns array from the JSON instead of rebuilding from columns.
+                // Without this, refresh or update operations could execute SQL missing GROUP BY.
+                let selectTableQuery = `${query}`;
+                try {
+                    const parsedQuery = JSON.parse(queryJSON);
+                    const hasAggFunctions = parsedQuery?.query_options?.group_by?.aggregate_functions?.some(
+                        (agg: any) => agg.aggregate_function !== '' && agg.column !== ''
+                    ) || false;
+                    const hasAggExpressions = parsedQuery?.query_options?.group_by?.aggregate_expressions?.some(
+                        (expr: any) => expr.expression && expr.expression !== ''
+                    ) || false;
+                    
+                    if (hasAggFunctions || hasAggExpressions) {
+                        // Aggregates present - verify GROUP BY exists in the SQL
+                        const hasGroupBy = /\bGROUP\s+BY\b/i.test(selectTableQuery);
+                        if (!hasGroupBy) {
+                            console.warn('[DataModelProcessor] WARNING: Aggregates present but SQL has no GROUP BY clause. Reconstructing from JSON.');
+                            selectTableQuery = DataSourceProcessor.getInstance().reconstructSQLFromJSON(queryJSON);
+                            console.log('[DataModelProcessor] Reconstructed SQL:', selectTableQuery);
+                        } else {
+                            console.log('[DataModelProcessor] SQL GROUP BY validation passed.');
+                        }
+                    }
+                } catch (validationError) {
+                    console.error('[DataModelProcessor] GROUP BY validation error, using original SQL:', validationError);
+                    // Fall through with original query
+                }
+                
                 const rowsFromDataSource = await externalDBConnector.query(selectTableQuery);
                 //Create the table first then insert the data.
                 let createTableQuery = `CREATE TABLE ${dataModelName} `;
@@ -1040,7 +1072,7 @@ export class DataModelProcessor {
                     insertQuery += `${insertQueryColumns} VALUES(${values});`;
                     internalDbConnector.query(insertQuery);
                 });
-                await manager.update(DRADataModel, {id: existingDataModel.id}, {schema: 'public', name: dataModelName, sql_query: query, query: JSON.parse(queryJSON)});
+                await manager.update(DRADataModel, {id: existingDataModel.id}, {schema: 'public', name: dataModelName, sql_query: selectTableQuery, query: JSON.parse(queryJSON)});
                 return resolve(true);
             } catch (error) {
                 console.log('error', error);
