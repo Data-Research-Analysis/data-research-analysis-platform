@@ -46,11 +46,20 @@ router.post('/test-connection', async (req: Request, res: Response, next: any) =
 async (req: Request, res: Response) => {
     let { data_source_type, connection_string, host, port, schema, database_name, username, password } = matchedData(req);
     
-    // Validate: either connection_string OR individual fields must be provided
-    if (!connection_string && (!host || !port || !database_name || !username || !password)) {
-        return res.status(400).send({
-            message: 'Either provide a connection_string or all individual connection fields (host, port, database_name, username, password).'
-        });
+    // For MongoDB, require connection_string
+    if (data_source_type === 'mongodb') {
+        if (!connection_string) {
+            return res.status(400).send({
+                message: 'MongoDB requires a connection_string (e.g., mongodb+srv://username:password@host/database).'
+            });
+        }
+    } else {
+        // For other data sources, require individual fields
+        if (!host || !port || !database_name || !username || !password) {
+            return res.status(400).send({
+                message: 'Please provide all connection fields (host, port, database_name, username, password).'
+            });
+        }
     }
     
     // Set synthetic schema for MongoDB (users don't need to specify this)
@@ -96,11 +105,20 @@ router.post('/add-data-source', async (req: Request, res: Response, next: any) =
 async (req: Request, res: Response) => {
     let { data_source_type, connection_string, host, port, schema, database_name, username, password, project_id } = matchedData(req);
     
-    // Validate: either connection_string OR individual fields must be provided
-    if (!connection_string && (!host || !port || !database_name || !username || !password)) {
-        return res.status(400).send({
-            message: 'Either provide a connection_string or all individual connection fields (host, port, database_name, username, password).'
-        });
+    // For MongoDB, require connection_string
+    if (data_source_type === 'mongodb') {
+        if (!connection_string) {
+            return res.status(400).send({
+                message: 'MongoDB requires a connection_string (e.g., mongodb+srv://username:password@host/database).'
+            });
+        }
+    } else {
+        // For other data sources, require individual fields
+        if (!host || !port || !database_name || !username || !password) {
+            return res.status(400).send({
+                message: 'Please provide all connection fields (host, port, database_name, username, password).'
+            });
+        }
     }
     
     // Set synthetic schema for MongoDB (users don't need to specify this)

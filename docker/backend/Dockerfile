@@ -45,8 +45,13 @@ RUN chmod +x /entrypoint.sh
 
 # Set the working directory
 WORKDIR /backend
+
 # Create a non-root user with home directory
 RUN groupadd -r appuser && useradd -r -g appuser -m -d /home/appuser appuser
+
+# Set HOME environment variable for npm
+ENV HOME=/home/appuser
+
 RUN chown -R appuser:appuser /backend /home/appuser
 
 # Don't switch to appuser yet - we need root for the entrypoint

@@ -2,11 +2,30 @@ import { DataSource, QueryRunner } from 'typeorm';
 import { MongoDBNativeService } from './MongoDBNativeService.js';
 import { DRADataSource } from '../models/DRADataSource.js';
 import { DRAMongoDBSyncHistory } from '../models/DRAMongoDBSyncHistory.js';
+import { SocketIODriver } from '../drivers/SocketIODriver.js';
+import { ISyncProgress, ICollectionProgress } from '../interfaces/ISyncProgress.js';
+
+// PostgreSQL reserved keywords that need to be quoted
+const POSTGRESQL_RESERVED_KEYWORDS = new Set([
+    'user', 'group', 'order', 'select', 'table', 'column', 'index', 'database',
+    'schema', 'view', 'trigger', 'function', 'procedure', 'constraint', 'primary',
+    'foreign', 'unique', 'check', 'default', 'where', 'from', 'join', 'on',
+    'left', 'right', 'inner', 'outer', 'full', 'cross', 'union', 'intersect',
+    'except', 'limit', 'offset', 'fetch', 'for', 'with', 'as', 'case', 'when',
+    'then', 'else', 'end', 'and', 'or', 'not', 'in', 'exists', 'between', 'like',
+    'is', 'null', 'true', 'false', 'all', 'any', 'some', 'distinct', 'having',
+    'grant', 'revoke', 'commit', 'rollback', 'transaction', 'begin', 'start',
+    'create', 'drop', 'alter', 'truncate', 'insert', 'update', 'delete', 'cast',
+    'convert', 'count', 'sum', 'avg', 'min', 'max', 'date', 'time', 'timestamp',
+    'interval', 'year', 'month', 'day', 'hour', 'minute', 'second', 'zone',
+    'current', 'session', 'system', 'type', 'value', 'values', 'references'
+]);
 
 interface ImportOptions {
     batchSize?: number;
     incremental?: boolean;
     lastSyncField?: string; // Field to use for incremental sync (e.g., 'updatedAt')
+    adaptiveBatchSize?: boolean; // Enable adaptive batch sizing based on collection size
 }
 
 interface MongoDBTypeMapping {
@@ -39,9 +58,17 @@ const TYPE_MAPPINGS: MongoDBTypeMapping[] = [
 export class MongoDBImportService {
     private static instance: MongoDBImportService;
     private pgDataSource: DataSource;
+    private socketIO: SocketIODriver;
+    
+    // Progress tracking
+    private currentProgress: ISyncProgress | null = null;
+    private collectionProgressMap: Map<string, ICollectionProgress> = new Map();
+    private recordsProcessedPerSecond: number = 0;
+    private lastProgressEmitTime: Date = new Date();
 
     private constructor(pgDataSource: DataSource) {
         this.pgDataSource = pgDataSource;
+        this.socketIO = SocketIODriver.getInstance();
     }
 
     public static getInstance(pgDataSource: DataSource): MongoDBImportService {
@@ -56,7 +83,8 @@ export class MongoDBImportService {
      */
     public async importDataSource(
         dataSource: DRADataSource,
-        options: ImportOptions = {}
+        options: ImportOptions = {},
+        userId?: number
     ): Promise<void> {
         const mongoService = MongoDBNativeService.getInstance();
         
@@ -66,8 +94,30 @@ export class MongoDBImportService {
         }
 
         const clientId = `import_${dataSource.id}`;
+        const startTime = new Date();
         
         try {
+            // Initialize progress tracking
+            this.currentProgress = {
+                dataSourceId: dataSource.id,
+                userId: userId || 0,
+                status: 'initializing',
+                totalCollections: 0,
+                processedCollections: 0,
+                currentCollection: null,
+                totalRecords: 0,
+                processedRecords: 0,
+                failedRecords: 0,
+                percentage: 0,
+                estimatedTimeRemaining: null,
+                startTime,
+                lastUpdateTime: new Date(),
+                collections: []
+            };
+            
+            // Emit initial progress
+            await this.emitProgress();
+            
             // Update sync status
             await this.updateSyncStatus(dataSource.id, 'in_progress');
 
@@ -79,17 +129,43 @@ export class MongoDBImportService {
 
             console.log(`[MongoDBImportService] Found ${collections.length} collections to import`);
 
+            // Update progress with collection count
+            if (this.currentProgress) {
+                this.currentProgress.status = 'in_progress';
+                this.currentProgress.totalCollections = collections.length;
+                this.currentProgress.collections = collections.map(name => ({
+                    name,
+                    status: 'pending' as const,
+                    recordCount: 0,
+                    processedCount: 0
+                }));
+                await this.emitProgress();
+            }
+
             let totalRecordsSynced = 0;
 
             // Import each collection
             for (const collectionName of collections) {
                 console.log(`[MongoDBImportService] Importing collection: ${collectionName}`);
+                
+                // Update current collection in progress
+                if (this.currentProgress) {
+                    this.currentProgress.currentCollection = collectionName;
+                    await this.emitProgress();
+                }
+                
                 const recordsSynced = await this.importCollection(
                     dataSource,
                     collectionName,
                     options
                 );
                 totalRecordsSynced += recordsSynced;
+                
+                // Update processed collections count
+                if (this.currentProgress) {
+                    this.currentProgress.processedCollections++;
+                    await this.emitProgress();
+                }
             }
 
             // Update success status
@@ -98,6 +174,15 @@ export class MongoDBImportService {
                 last_sync_at: new Date()
             });
 
+            // Emit completion progress
+            if (this.currentProgress) {
+                this.currentProgress.status = 'completed';
+                this.currentProgress.percentage = 100;
+                this.currentProgress.estimatedTimeRemaining = 0;
+                this.currentProgress.currentCollection = null;
+                await this.emitProgress();
+            }
+
             console.log(`[MongoDBImportService] Import completed: ${totalRecordsSynced} total records`);
 
         } catch (error: any) {
@@ -105,10 +190,22 @@ export class MongoDBImportService {
             await this.updateSyncStatus(dataSource.id, 'failed', {
                 sync_error_message: error.message
             });
+            
+            // Emit failure progress
+            if (this.currentProgress) {
+                this.currentProgress.status = 'failed';
+                this.currentProgress.errorMessage = error.message;
+                await this.emitProgress();
+            }
+            
             throw error;
         } finally {
             // Disconnect MongoDB client
             await mongoService.disconnect(clientId);
+            
+            // Clear progress tracking
+            this.currentProgress = null;
+            this.collectionProgressMap.clear();
         }
     }
 
@@ -120,7 +217,12 @@ export class MongoDBImportService {
         collectionName: string,
         options: ImportOptions = {}
     ): Promise<number> {
-        const { batchSize = 1000, incremental = false, lastSyncField } = options;
+        const { 
+            batchSize = 1000, 
+            incremental = false, 
+            lastSyncField, 
+            adaptiveBatchSize = true 
+        } = options;
         
         if (!dataSource.connection_string) {
             throw new Error('MongoDB data source must have a connection_string to import data');
@@ -136,6 +238,16 @@ export class MongoDBImportService {
             incremental ? 'incremental' : 'full'
         );
 
+        // Initialize collection progress
+        const collectionProgress: ICollectionProgress = {
+            collectionName,
+            totalRecords: 0,
+            processedRecords: 0,
+            failedRecords: 0,
+            status: 'in_progress'
+        };
+        this.collectionProgressMap.set(collectionName, collectionProgress);
+
         try {
             // Get collection schema
             const schemaResult = await mongoService.inferCollectionSchema(
@@ -148,6 +260,16 @@ export class MongoDBImportService {
             // Check if collection is empty
             if (!schemaResult.fields || schemaResult.fields.length === 0) {
                 console.log(`[MongoDBImportService] Collection ${collectionName} is empty, skipping`);
+                
+                collectionProgress.status = 'completed';
+                if (this.currentProgress) {
+                    const collIdx = this.currentProgress.collections?.findIndex(c => c.name === collectionName);
+                    if (collIdx !== undefined && collIdx >= 0 && this.currentProgress.collections) {
+                        this.currentProgress.collections[collIdx].status = 'completed';
+                    }
+                    await this.emitProgress();
+                }
+                
                 await this.completeSyncHistory(syncHistory.id, 'completed', {
                     records_synced: 0,
                     records_failed: 0
@@ -155,8 +277,8 @@ export class MongoDBImportService {
                 return 0;
             }
 
-            // Create or update PostgreSQL table
-            const tableName = this.sanitizeTableName(collectionName);
+            // Create or update PostgreSQL table with unique name including data source ID
+            const tableName = this.generateUniqueTableName(collectionName, dataSource.id);
             await this.createOrUpdateTable(tableName, schemaResult.fields);
 
             // Get database and collection
@@ -175,11 +297,30 @@ export class MongoDBImportService {
             const totalDocuments = await collection.countDocuments(query);
             console.log(`[MongoDBImportService] Processing ${totalDocuments} documents from ${collectionName}`);
 
+            // Calculate optimal batch size if adaptive is enabled
+            const effectiveBatchSize = adaptiveBatchSize 
+                ? this.calculateOptimalBatchSize(totalDocuments, batchSize)
+                : batchSize;
+            
+            console.log(`[MongoDBImportService] Using batch size: ${effectiveBatchSize} for ${totalDocuments} documents`);
+
+            // Update collection progress with total count
+            collectionProgress.totalRecords = totalDocuments;
+            if (this.currentProgress) {
+                this.currentProgress.totalRecords += totalDocuments;
+                const collIdx = this.currentProgress.collections?.findIndex(c => c.name === collectionName);
+                if (collIdx !== undefined && collIdx >= 0 && this.currentProgress.collections) {
+                    this.currentProgress.collections[collIdx].recordCount = totalDocuments;
+                    this.currentProgress.collections[collIdx].status = 'in_progress';
+                }
+                await this.emitProgress();
+            }
+
             let processedDocuments = 0;
             let failedDocuments = 0;
 
-            // Process in batches
-            const cursor = collection.find(query).batchSize(batchSize);
+            // Process in batches with adaptive batch size
+            const cursor = collection.find(query).batchSize(effectiveBatchSize);
 
             const queryRunner = this.pgDataSource.createQueryRunner();
             await queryRunner.connect();
@@ -190,7 +331,7 @@ export class MongoDBImportService {
                 for await (const doc of cursor) {
                     batch.push(doc);
 
-                    if (batch.length >= batchSize) {
+                    if (batch.length >= effectiveBatchSize) {
                         const { success, failed } = await this.insertBatch(
                             queryRunner,
                             tableName,
@@ -199,6 +340,28 @@ export class MongoDBImportService {
                         );
                         processedDocuments += success;
                         failedDocuments += failed;
+                        
+                        // Update progress tracking
+                        collectionProgress.processedRecords = processedDocuments;
+                        collectionProgress.failedRecords = failedDocuments;
+                        
+                        if (this.currentProgress) {
+                            this.currentProgress.processedRecords += success;
+                            this.currentProgress.failedRecords += failed;
+                            
+                            const collIdx = this.currentProgress.collections?.findIndex(c => c.name === collectionName);
+                            if (collIdx !== undefined && collIdx >= 0 && this.currentProgress.collections) {
+                                this.currentProgress.collections[collIdx].processedCount = processedDocuments;
+                            }
+                            
+                            // Emit progress every 5 batches or 5000 records (whichever comes first)
+                            const shouldEmit = processedDocuments % 5000 === 0 || 
+                                             (processedDocuments / effectiveBatchSize) % 5 === 0;
+                            if (shouldEmit) {
+                                await this.emitProgress();
+                            }
+                        }
+                        
                         console.log(`[MongoDBImportService] Progress: ${processedDocuments}/${totalDocuments} documents`);
                         batch = [];
                     }
@@ -214,6 +377,22 @@ export class MongoDBImportService {
                     );
                     processedDocuments += success;
                     failedDocuments += failed;
+                    
+                    // Update final progress
+                    collectionProgress.processedRecords = processedDocuments;
+                    collectionProgress.failedRecords = failedDocuments;
+                    
+                    if (this.currentProgress) {
+                        this.currentProgress.processedRecords += success;
+                        this.currentProgress.failedRecords += failed;
+                        
+                        const collIdx = this.currentProgress.collections?.findIndex(c => c.name === collectionName);
+                        if (collIdx !== undefined && collIdx >= 0 && this.currentProgress.collections) {
+                            this.currentProgress.collections[collIdx].processedCount = processedDocuments;
+                        }
+                        await this.emitProgress();
+                    }
+                    
                     console.log(`[MongoDBImportService] Final: ${processedDocuments}/${totalDocuments} documents`);
                 }
 
@@ -227,6 +406,16 @@ export class MongoDBImportService {
                 records_failed: failedDocuments
             });
 
+            // Mark collection as completed
+            collectionProgress.status = 'completed';
+            if (this.currentProgress) {
+                const collIdx = this.currentProgress.collections?.findIndex(c => c.name === collectionName);
+                if (collIdx !== undefined && collIdx >= 0 && this.currentProgress.collections) {
+                    this.currentProgress.collections[collIdx].status = 'completed';
+                }
+                await this.emitProgress();
+            }
+
             return processedDocuments;
 
         } catch (error: any) {
@@ -234,6 +423,17 @@ export class MongoDBImportService {
             await this.completeSyncHistory(syncHistory.id, 'failed', {
                 error_message: error.message
             });
+            
+            // Mark collection as failed
+            collectionProgress.status = 'failed';
+            if (this.currentProgress) {
+                const collIdx = this.currentProgress.collections?.findIndex(c => c.name === collectionName);
+                if (collIdx !== undefined && collIdx >= 0 && this.currentProgress.collections) {
+                    this.currentProgress.collections[collIdx].status = 'failed';
+                }
+                await this.emitProgress();
+            }
+            
             throw error;
         }
     }
@@ -280,10 +480,74 @@ export class MongoDBImportService {
     }
 
     /**
+     * Emit progress update via Socket.IO
+     * Calculates percentage, ETA, and processing rate
+     */
+    private async emitProgress(): Promise<void> {
+        if (!this.currentProgress) return;
+
+        const now = new Date();
+        const elapsedSeconds = (now.getTime() - this.currentProgress.startTime.getTime()) / 1000;
+        
+        // Calculate progress percentage
+        if (this.currentProgress.totalRecords > 0) {
+            this.currentProgress.percentage = Math.min(
+                100,
+                Math.round((this.currentProgress.processedRecords / this.currentProgress.totalRecords) * 100)
+            );
+        } else if (this.currentProgress.totalCollections > 0) {
+            // Use collection progress if no records counted yet
+            this.currentProgress.percentage = Math.min(
+                100,
+                Math.round((this.currentProgress.processedCollections / this.currentProgress.totalCollections) * 100)
+            );
+        }
+
+        // Calculate processing rate and ETA
+        if (elapsedSeconds > 0 && this.currentProgress.processedRecords > 0) {
+            this.recordsProcessedPerSecond = this.currentProgress.processedRecords / elapsedSeconds;
+            
+            const remainingRecords = this.currentProgress.totalRecords - this.currentProgress.processedRecords;
+            if (remainingRecords > 0 && this.recordsProcessedPerSecond > 0) {
+                const estimatedSecondsRemaining = remainingRecords / this.recordsProcessedPerSecond;
+                this.currentProgress.estimatedTimeRemaining = Math.round(estimatedSecondsRemaining * 1000);
+            } else {
+                this.currentProgress.estimatedTimeRemaining = null;
+            }
+        }
+
+        // Update last update time
+        this.currentProgress.lastUpdateTime = now;
+
+        // Emit to specific user if userId is set, otherwise broadcast
+        try {
+            if (this.currentProgress.userId > 0) {
+                await this.socketIO.emitToUser(
+                    this.currentProgress.userId,
+                    'mongodb-sync-progress',
+                    this.currentProgress
+                );
+            } else {
+                await this.socketIO.emitEvent(
+                    'mongodb-sync-progress',
+                    this.currentProgress
+                );
+            }
+            
+            console.log(`[MongoDBImportService] Progress emitted: ${this.currentProgress.percentage}% ` +
+                       `(${this.currentProgress.processedRecords}/${this.currentProgress.totalRecords} records, ` +
+                       `${this.currentProgress.processedCollections}/${this.currentProgress.totalCollections} collections)`);
+        } catch (error) {
+            console.error('[MongoDBImportService] Failed to emit progress:', error);
+        }
+    }
+
+    /**
      * Build PostgreSQL column definitions from MongoDB schema
      */
     private buildColumnDefinitions(fields: any[]): string[] {
         const columns: string[] = [];
+        const seenColumnNames = new Set<string>();
 
         for (const field of fields) {
             const fieldName = field.field_name;
@@ -295,12 +559,50 @@ export class MongoDBImportService {
             if (fieldName.includes('.')) continue;
 
             const sanitizedName = this.sanitizeColumnName(fieldName);
+            
+            // Skip duplicate column names (can occur when long field names are truncated)
+            if (seenColumnNames.has(sanitizedName)) {
+                console.log(`[MongoDBImportService] Skipping duplicate column: ${sanitizedName} (original: ${fieldName})`);
+                continue;
+            }
+            
+            seenColumnNames.add(sanitizedName);
             const pgType = this.mapMongoDBTypeToPostgreSQL(field.data_type);
-
-            columns.push(`${sanitizedName} ${pgType}`);
+            
+            // Quote column name to handle reserved keywords and special characters
+            const quotedName = this.quoteIdentifier(sanitizedName);
+            columns.push(`${quotedName} ${pgType}`);
         }
 
         return columns;
+    }
+
+    /**
+     * Calculate optimal batch size based on collection size
+     * Larger collections use smaller batches to avoid memory issues
+     * Smaller collections use larger batches for efficiency
+     */
+    private calculateOptimalBatchSize(totalRecords: number, defaultBatchSize: number): number {
+        // For very small collections (< 1K), use larger batches
+        if (totalRecords < 1000) {
+            return Math.min(500, totalRecords);
+        }
+        // For small collections (1K-10K), use default or slightly larger
+        else if (totalRecords < 10000) {
+            return Math.min(2000, defaultBatchSize * 2);
+        }
+        // For medium collections (10K-100K), use default
+        else if (totalRecords < 100000) {
+            return defaultBatchSize;
+        }
+        // For large collections (100K-1M), use smaller batches
+        else if (totalRecords < 1000000) {
+            return Math.max(500, Math.floor(defaultBatchSize / 2));
+        }
+        // For very large collections (>1M), use very small batches
+        else {
+            return Math.max(250, Math.floor(defaultBatchSize / 4));
+        }
     }
 
     /**
@@ -317,9 +619,110 @@ export class MongoDBImportService {
     }
 
     /**
+     * Quote PostgreSQL identifier to handle reserved keywords and special characters
+     * Always quotes identifiers for safety
+     */
+    private quoteIdentifier(identifier: string): string {
+        // Always quote for safety - handles reserved keywords and special characters
+        return `"${identifier.replace(/"/g, '""')}"`;
+    }
+
+    /**
      * Insert batch of documents into PostgreSQL
+     * Uses optimized bulk INSERT with multi-row VALUES clause
      */
     private async insertBatch(
+        queryRunner: QueryRunner,
+        tableName: string,
+        documents: any[],
+        fields: any[]
+    ): Promise<{ success: number; failed: number }> {
+        if (documents.length === 0) {
+            return { success: 0, failed: 0 };
+        }
+
+        let success = 0;
+        let failed = 0;
+
+        // Start transaction for batch
+        await queryRunner.startTransaction();
+
+        try {
+            // Flatten all documents first
+            const flatDocuments = documents.map(doc => {
+                try {
+                    return { doc, flatDoc: this.flattenDocument(doc, fields), error: null };
+                } catch (error: any) {
+                    return { doc, flatDoc: null, error };
+                }
+            });
+
+            // Filter out documents that failed to flatten
+            const validDocuments = flatDocuments.filter(d => d.flatDoc !== null);
+            const failedDocuments = flatDocuments.filter(d => d.flatDoc === null);
+            
+            failed += failedDocuments.length;
+            failedDocuments.forEach(({ doc, error }) => {
+                console.error(`[MongoDBImportService] Failed to flatten document ${doc._id}:`, error?.message);
+            });
+
+            if (validDocuments.length === 0) {
+                await queryRunner.commitTransaction();
+                return { success: 0, failed };
+            }
+
+            // Get column names from first document (all should have same structure)
+            const firstFlatDoc = validDocuments[0].flatDoc!;
+            const columns = Object.keys(firstFlatDoc);
+
+            // Build multi-row VALUES clause
+            const allValues: any[] = [];
+            const valuePlaceholders: string[] = [];
+            let parameterIndex = 1;
+
+            for (const { flatDoc } of validDocuments) {
+                const rowValues = columns.map(col => flatDoc![col]);
+                allValues.push(...rowValues);
+                
+                const rowPlaceholders = columns.map(() => `$${parameterIndex++}`);
+                valuePlaceholders.push(`(${rowPlaceholders.join(', ')})`);
+            }
+
+            // Build UPSERT query with multi-row INSERT
+            const quotedColumns = columns.map(col => this.quoteIdentifier(col));
+            const updateClauses = columns
+                .filter(col => col !== '_id') // Don't update primary key
+                .map(col => `${this.quoteIdentifier(col)} = EXCLUDED.${this.quoteIdentifier(col)}`)
+                .join(', ');
+
+            const bulkInsertSQL = `
+                INSERT INTO dra_mongodb.${tableName} (${quotedColumns.join(', ')})
+                VALUES ${valuePlaceholders.join(',\n')}
+                ON CONFLICT (_id) DO UPDATE SET
+                    ${updateClauses}
+            `;
+
+            await queryRunner.query(bulkInsertSQL, allValues);
+            success += validDocuments.length;
+
+            await queryRunner.commitTransaction();
+
+        } catch (error: any) {
+            await queryRunner.rollbackTransaction();
+            console.error(`[MongoDBImportService] Bulk insert failed, falling back to individual inserts:`, error.message);
+            
+            // Fallback: try inserting documents one by one
+            return await this.insertBatchIndividual(queryRunner, tableName, documents, fields);
+        }
+
+        return { success, failed };
+    }
+
+    /**
+     * Fallback method: Insert documents individually with savepoints
+     * Used when bulk insert fails
+     */
+    private async insertBatchIndividual(
         queryRunner: QueryRunner,
         tableName: string,
         documents: any[],
@@ -328,12 +731,10 @@ export class MongoDBImportService {
         let success = 0;
         let failed = 0;
 
-        // Start transaction for batch
         await queryRunner.startTransaction();
 
         try {
             for (const doc of documents) {
-                // Create savepoint for each document to allow individual rollbacks
                 const savepointName = `sp_${doc._id.toString().replace(/[^a-zA-Z0-9]/g, '')}`;
                 
                 try {
@@ -341,18 +742,18 @@ export class MongoDBImportService {
                     
                     const flatDoc = this.flattenDocument(doc, fields);
                     const columns = Object.keys(flatDoc);
+                    const quotedColumns = columns.map(col => this.quoteIdentifier(col));
                     const values = Object.values(flatDoc);
 
                     const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
                     
-                    // Build UPSERT query
                     const updateClauses = columns
-                        .filter(col => col !== '_id') // Don't update primary key
-                        .map(col => `${col} = EXCLUDED.${col}`)
+                        .filter(col => col !== '_id')
+                        .map(col => `${this.quoteIdentifier(col)} = EXCLUDED.${this.quoteIdentifier(col)}`)
                         .join(', ');
 
                     const insertSQL = `
-                        INSERT INTO dra_mongodb.${tableName} (${columns.join(', ')})
+                        INSERT INTO dra_mongodb.${tableName} (${quotedColumns.join(', ')})
                         VALUES (${placeholders})
                         ON CONFLICT (_id) DO UPDATE SET
                             ${updateClauses}
@@ -363,7 +764,6 @@ export class MongoDBImportService {
                     success++;
 
                 } catch (error: any) {
-                    // Rollback to savepoint to keep transaction alive
                     try {
                         await queryRunner.query(`ROLLBACK TO SAVEPOINT ${savepointName}`);
                     } catch (rollbackError) {
@@ -400,13 +800,33 @@ export class MongoDBImportService {
             .filter(f => !f.field_name.includes('.'))
             .map(f => f.field_name);
 
+        // Track sanitized names to handle duplicates
+        const seenSanitizedNames = new Set<string>();
+        const fieldNameToSanitized = new Map<string, string>();
+        
+        // Build map of original field names to their sanitized versions (only first occurrence)
+        for (const field of fields) {
+            if (field.field_name === '_id' || field.field_name.includes('.')) continue;
+            
+            const sanitized = this.sanitizeColumnName(field.field_name);
+            if (!seenSanitizedNames.has(sanitized)) {
+                seenSanitizedNames.add(sanitized);
+                fieldNameToSanitized.set(field.field_name, sanitized);
+            }
+        }
+
         for (const [key, value] of Object.entries(doc)) {
             if (key === '_id') continue;
 
-            // Only process top-level fields
+            // Only process top-level fields that have a valid sanitized column name
             if (!topLevelFields.includes(key)) continue;
-
-            const sanitizedKey = this.sanitizeColumnName(key);
+            
+            const sanitizedKey = fieldNameToSanitized.get(key);
+            if (!sanitizedKey) {
+                // This field was skipped due to duplication
+                continue;
+            }
+            
             const fieldInfo = fields.find(f => f.field_name === key);
             const fieldType = fieldInfo?.data_type || 'unknown';
 
@@ -432,6 +852,16 @@ export class MongoDBImportService {
         }
 
         return flattened;
+    }
+
+    /**
+     * Generate unique table name with data source ID
+     * Pattern: {collection_name}_data_source_{dataSourceId}
+     * This ensures uniqueness across multiple MongoDB data sources
+     */
+    private generateUniqueTableName(collectionName: string, dataSourceId: number): string {
+        const sanitized = this.sanitizeTableName(collectionName);
+        return `${sanitized}_data_source_${dataSourceId}`;
     }
 
     /**
@@ -483,7 +913,7 @@ export class MongoDBImportService {
         const history = repo.create({
             data_source_id: dataSourceId,
             collection_name: collectionName,
-            table_name: this.sanitizeTableName(collectionName),
+            table_name: this.generateUniqueTableName(collectionName, dataSourceId),
             sync_type: syncType,
             status: 'in_progress',
             records_synced: 0,

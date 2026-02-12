@@ -1,77 +1,140 @@
 <script setup lang="ts">
+import { ref } from 'vue';
 import { useReCaptcha } from "vue-recaptcha-v3";
 import { useDataSourceStore } from '@/stores/data_sources';
+import { useLoggedInUserStore } from '@/stores/logged_in_user';
+import { io, Socket } from 'socket.io-client';
+import MongoDBSyncProgress from '@/components/MongoDBSyncProgress.vue';
+
 const dataSourceStore = useDataSourceStore();
+const userStore = useLoggedInUserStore();
 const recaptcha = useReCaptcha();
 
 const { $swal } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
+const config = useRuntimeConfig();
+
+// Socket.IO state
+let socket: Socket | null = null;
+const showProgressModal = ref(false);
+const syncProgress = ref<any>(null);
+
 const state = reactive({
-    useConnectionString: true,
     connection_string: '',
-    host: '',
-    port: '',
-    database_name: '',
-    username: '',
-    password: '',
     connection_string_error: false,
-    host_error: false,
-    port_error: false,
-    database_name_error: false,
-    username_error: false,
-    password_error: false,
     loading: false,
     showAlert: false,
     errorMessages: [],
     connectionSuccess: false,
-    showPassword: false,
 })
+
+// Initialize Socket.IO connection
+onMounted(() => {
+    if (import.meta.client) {
+        initializeSocket();
+    }
+});
+
+onBeforeUnmount(() => {
+    if (socket) {
+        socket.disconnect();
+    }
+});
+
+function initializeSocket() {
+    // Connect to Socket.IO server
+    const socketUrl = config.public.apiBase || 'http://localhost:3002';
+    socket = io(socketUrl, {
+        withCredentials: true,
+        transports: ['websocket', 'polling']
+    });
+
+    socket.on('connect', () => {
+        console.log('[Socket.IO] Connected:', socket?.id);
+    });
+
+    socket.on('disconnect', () => {
+        console.log('[Socket.IO] Disconnected');
+    });
+
+    // Listen for MongoDB sync progress updates
+    socket.on('mongodb-sync-progress', (progress: any) => {
+        console.log('[Socket.IO] Sync progress:', progress);
+        syncProgress.value = progress;
+        
+        // Show modal if sync is in progress
+        if (progress.status === 'in_progress' || progress.status === 'initializing') {
+            showProgressModal.value = true;
+        }
+    });
+
+    socket.on('serverInitialization', (data: any) => {
+        console.log('[Socket.IO] Server initialized:', data);
+    });
+}
+
+function validateConnectionString(connectionString: string): { valid: boolean; errors: string[] } {
+    const errors: string[] = [];
+    
+    if (!connectionString || connectionString.trim() === '') {
+        errors.push("Connection string is required.");
+        return { valid: false, errors };
+    }
+    
+    // Check if it starts with mongodb:// or mongodb+srv://
+    if (!connectionString.startsWith('mongodb://') && !connectionString.startsWith('mongodb+srv://')) {
+        errors.push("Connection string must start with 'mongodb://' or 'mongodb+srv://'.");
+    }
+    
+    // Check for @ symbol (indicates credentials)
+    if (!connectionString.includes('@')) {
+        errors.push("Connection string must include credentials with @ symbol (e.g., mongodb://user:pass@host/db).");
+    }
+    
+    // Extract and validate components
+    try {
+        const urlPattern = /^mongodb(\+srv)?:\/\/([^:]+):([^@]+)@([^\/]+)\/(.+)$/;
+        const match = connectionString.match(urlPattern);
+        
+        if (!match) {
+            errors.push("Invalid connection string format. Use: mongodb://user:pass@host:port/db or mongodb+srv://user:pass@host/db");
+        } else {
+            const [, , username, password, host, database] = match;
+            
+            if (!username || username.trim() === '') {
+                errors.push("Username is required in connection string.");
+            }
+            
+            if (!password || password.trim() === '') {
+                errors.push("Password is required in connection string.");
+            }
+            
+            if (!host || host.trim() === '') {
+                errors.push("Host is required in connection string.");
+            }
+            
+            if (!database || database.trim() === '') {
+                errors.push("Database name is required in connection string.");
+            }
+        }
+    } catch (error) {
+        errors.push("Failed to parse connection string.");
+    }
+    
+    return { valid: errors.length === 0, errors };
+}
 
 function validateFields() {
     state.errorMessages = [];
     
-    if (state.useConnectionString) {
-        // Validate connection string
-        if (!validate(state.connection_string, "", [validateRequired])) {
-            state.connection_string_error = true;
-            state.errorMessages.push("Please enter a valid connection string.");
-        } else {
-            state.connection_string_error = false;
-        }
+    const validation = validateConnectionString(state.connection_string);
+    
+    if (!validation.valid) {
+        state.connection_string_error = true;
+        state.errorMessages.push(...validation.errors);
     } else {
-        // Validate individual fields
         state.connection_string_error = false;
-        if (!validate(state.host, "", [validateRequired])) {
-            state.host_error = true;
-            state.errorMessages.push("Please enter a valid host.");
-        } else {
-            state.host_error = false;
-        }
-        if (!validate(state.port, "", [validateRequired])) {
-            state.port_error = true;
-            state.errorMessages.push("Please enter a valid port.");
-        } else {
-            state.port_error = false;
-        }
-        if (!validate(state.database_name, "", [validateRequired])) {
-            state.database_name_error = true;
-            state.errorMessages.push("Please enter a valid database name.");
-        } else {
-            state.database_name_error = false;
-        }
-        if (!validate(state.username, "", [validateRequired])) {
-            state.username_error = true;
-            state.errorMessages.push("Please enter a valid username.");
-        } else {
-            state.username_error = false;
-        }
-        if (!validate(state.password, "", [validateRequired])) {
-            state.password_error = true;
-            state.errorMessages.push("Please enter a valid password.");
-        } else {
-            state.password_error = false;
-        }
     }
 }
 
@@ -80,29 +143,18 @@ async function testConnection() {
     state.showAlert = false;
     state.errorMessages = [];
     validateFields();
-    const hasErrors = state.useConnectionString 
-        ? state.connection_string_error 
-        : (state.host_error || state.port_error || state.database_name_error || state.username_error || state.password_error);
     
-    if (hasErrors) {
+    if (state.connection_string_error) {
         state.showAlert = true;
         state.loading = false;
     } else {
         const recaptchaToken = await getRecaptchaToken(recaptcha, 'mongoConnectForm');
         const token = getAuthToken();
         if (recaptchaToken) {
-            const requestBody = state.useConnectionString ? {
+            const requestBody = {
                 data_source_type: "mongodb",
                 connection_string: state.connection_string,
                 schema: "dra_mongodb",
-            } : {
-                data_source_type: "mongodb",
-                host: state.host,
-                port: state.port,
-                schema: "dra_mongodb",
-                database_name: state.database_name,
-                username: state.username,
-                password: state.password,
             };
             
             const requestOptions = {
@@ -135,11 +187,8 @@ async function connectDataSource() {
     state.showAlert = false;
     state.errorMessages = [];
     validateFields();
-    const hasErrors = state.useConnectionString 
-        ? state.connection_string_error 
-        : (state.host_error || state.port_error || state.database_name_error || state.username_error || state.password_error);
     
-    if (hasErrors) {
+    if (state.connection_string_error) {
         state.showAlert = true;
         state.loading = false;
         return;
@@ -148,20 +197,11 @@ async function connectDataSource() {
     const recaptchaToken = await getRecaptchaToken(recaptcha, 'mongoConnectForm');
     const token = getAuthToken();
     if (recaptchaToken) {
-        const requestBody = state.useConnectionString ? {
+        const requestBody = {
             project_id: parseInt(route.params.projectid),
             data_source_type: "mongodb",
             connection_string: state.connection_string,
             schema: "dra_mongodb",
-        } : {
-            project_id: parseInt(route.params.projectid),
-            data_source_type: "mongodb",
-            host: state.host,
-            port: state.port,
-            schema: "dra_mongodb",
-            database_name: state.database_name,
-            username: state.username,
-            password: state.password,
         };
         
         const requestOptions = {
@@ -176,13 +216,30 @@ async function connectDataSource() {
                 method: "POST",
                 ...requestOptions
             });
+            
+            // Show progress modal immediately
+            showProgressModal.value = true;
+            syncProgress.value = {
+                dataSourceId: data.dataSourceId || 0,
+                userId: userStore.loggedInUser?.id || 0,
+                status: 'initializing',
+                totalCollections: 0,
+                processedCollections: 0,
+                currentCollection: null,
+                totalRecords: 0,
+                processedRecords: 0,
+                failedRecords: 0,
+                percentage: 0,
+                estimatedTimeRemaining: null,
+                startTime: new Date(),
+                lastUpdateTime: new Date(),
+            };
+            
             state.connectionSuccess = true;
-            state.showAlert = true;
-            state.errorMessages.push(data.message);
+            state.errorMessages.push("Data source created successfully. Sync started...");
+            state.loading = false;
+            
             await dataSourceStore.retrieveDataSources();
-            setTimeout(() => {
-                router.push(`/projects/${route.params.projectid}`);
-            }, 2000);
         } catch (error: any) {
             state.connectionSuccess = false;
             state.showAlert = true;
@@ -193,6 +250,15 @@ async function connectDataSource() {
         state.loading = false;
     }
 }
+
+function handleProgressModalClose() {
+    showProgressModal.value = false;
+    
+    // Navigate back to project page if sync completed successfully
+    if (syncProgress.value?.status === 'completed') {
+        router.push(`/projects/${route.params.projectid}`);
+    }
+}
 </script>
 <template>
     <div class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md">
@@ -200,27 +266,7 @@ async function connectDataSource() {
             Connect MongoDB Data Source
         </div>
         <div class="text-md mb-5">
-            Enter the connection details for your MongoDB data source.
-        </div>
-        
-        <!-- Toggle between Connection String and Individual Fields -->
-        <div class="self-center w-1/2 mb-6">
-            <div class="flex items-center justify-center gap-4 p-3 bg-gray-100 rounded-lg">
-                <button
-                    @click="state.useConnectionString = true"
-                    class="px-4 py-2 rounded-lg font-medium transition-colors"
-                    :class="state.useConnectionString ? 'bg-primary-blue-100 text-white' : 'bg-white text-gray-700 hover:bg-gray-200'"
-                    :disabled="state.loading">
-                    Connection String
-                </button>
-                <button
-                    @click="state.useConnectionString = false"
-                    class="px-4 py-2 rounded-lg font-medium transition-colors"
-                    :class="!state.useConnectionString ? 'bg-primary-blue-100 text-white' : 'bg-white text-gray-700 hover:bg-gray-200'"
-                    :disabled="state.loading">
-                    Individual Fields
-                </button>
-            </div>
+            Enter your MongoDB connection string below. Supports all MongoDB hosting: Atlas, self-hosted, AWS, Azure, GCP, replica sets, and more.
         </div>
         
         <div v-if="state.showAlert"
@@ -233,93 +279,26 @@ async function connectDataSource() {
             </template>
         </div>
         
-        <!-- Connection String Mode -->
-        <template v-if="state.useConnectionString">
-            <div class="self-center w-1/2 mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Connection String</label>
-                <input
-                    v-model="state.connection_string"
-                    type="text"
-                    class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-blue-100 focus:border-transparent hover:border-blue-200"
-                    :class="!state.connection_string_error ? '' : 'bg-red-300 text-black border-red-500'"
-                    placeholder="mongodb+srv://username:password@cluster0.mongodb.net/database"
-                    :disabled="state.loading"
-                />
-                <p class="text-xs text-gray-500 mt-1">Example: mongodb+srv://&lt;username&gt;:&lt;password&gt;:&lt;hostname&gt;/&lt;database-name&gt;</p>
+        <!-- Connection String Input -->
+        <div class="self-center w-1/2 mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">MongoDB Connection String *</label>
+            <input
+                v-model="state.connection_string"
+                type="text"
+                class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-blue-100 focus:border-transparent hover:border-blue-200"
+                :class="!state.connection_string_error ? '' : 'bg-red-300 text-black border-red-500'"
+                placeholder="mongodb://username:password@host:port/database"
+                :disabled="state.loading"
+            />
+            <div class="text-xs text-gray-600 mt-2 space-y-1">
+                <p class="font-semibold">Supported formats:</p>
+                <p><strong>Standard:</strong> <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">mongodb://user:pass@host:27017/database</code></p>
+                <p><strong>Atlas/SRV:</strong> <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">mongodb+srv://user:pass@cluster.mongodb.net/database</code></p>
+                <p><strong>Self-hosted:</strong> <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">mongodb://admin:pass@192.168.1.50:27017/mydb</code></p>
+                <p><strong>Replica Set:</strong> <code class="bg-gray-100 px-1 py-0.5 rounded text-xs">mongodb://user:pass@host1:27017,host2:27017/db?replicaSet=rs0</code></p>
+                <p class="text-gray-500 italic mt-2">Works with MongoDB Atlas, AWS DocumentDB, Azure Cosmos DB, self-hosted, and any MongoDB-compatible service.</p>
             </div>
-        </template>
-        
-        <!-- Individual Fields Mode -->
-        <template v-else>
-            <div class="self-center w-1/2 mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Host</label>
-                <input
-                    v-model="state.host"
-                    type="text"
-                    class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-blue-100 focus:border-transparent hover:border-blue-200"
-                    :class="!state.host_error ? '' : 'bg-red-300 text-black border-red-500'"
-                    placeholder="Enter host address"
-                    :disabled="state.loading"
-                />
-            </div>
-            
-            <div class="self-center w-1/2 mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Port</label>
-                <input
-                    v-model="state.port"
-                    type="text"
-                    class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-blue-100 focus:border-transparent hover:border-blue-200"
-                    :class="!state.port_error ? '' : 'bg-red-300 text-black border-red-500'"
-                    placeholder="Enter port number (e.g., 27017)"
-                    :disabled="state.loading"
-                />
-            </div>
-            
-            <div class="self-center w-1/2 mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Database Name</label>
-                <input
-                    v-model="state.database_name"
-                    type="text"
-                    class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-blue-100 focus:border-transparent hover:border-blue-200"
-                    :class="!state.database_name_error ? '' : 'bg-red-300 text-black border-red-500'"
-                    placeholder="Enter database name"
-                    :disabled="state.loading"
-                />
-            </div>
-            
-            <div class="self-center w-1/2 mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Username</label>
-                <input
-                    v-model="state.username"
-                    type="text"
-                    class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-blue-100 focus:border-transparent hover:border-blue-200"
-                    :class="!state.username_error ? '' : 'bg-red-300 text-black border-red-500'"
-                    placeholder="Enter username"
-                    :disabled="state.loading"
-                />
-            </div>
-            
-            <div class="self-center w-1/2 mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
-                <div class="relative">
-                    <input
-                        v-model="state.password"
-                        :type="state.showPassword ? 'text' : 'password'"
-                        class="w-full p-3 pr-12 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-blue-100 focus:border-transparent hover:border-blue-200"
-                        :class="!state.password_error ? '' : 'bg-red-300 text-black border-red-500'"
-                        placeholder="Enter password"
-                        :disabled="state.loading"
-                    />
-                    <button
-                        type="button"
-                        @click="state.showPassword = !state.showPassword"
-                        class="absolute right-3 top-3 text-gray-600 hover:text-gray-800"
-                        :disabled="state.loading">
-                        <font-awesome :icon="state.showPassword ? 'fas fa-eye-slash' : 'fas fa-eye'" class="text-lg cursor-pointer" />
-                    </button>
-                </div>
-            </div>
-        </template>
+        </div>
         
         <div class="flex flex-row self-center w-1/2 gap-5 mt-6">
             <div
@@ -336,4 +315,12 @@ async function connectDataSource() {
             </div>
         </div>
     </div>
+    
+    <!-- Progress Modal -->
+    <MongoDBSyncProgress
+        :is-visible="showProgressModal"
+        :progress="syncProgress"
+        :allow-close="true"
+        @close="handleProgressModalClose"
+    />
 </template>

@@ -3,11 +3,17 @@ import { MongoClient, Db, Collection } from 'mongodb';
 /**
  * MongoDBNativeService - Handles MongoDB connections using native driver
  * 
- * This service is used when connecting via connection strings (e.g., mongodb+srv://...)
- * which typically point to MongoDB Atlas or other managed MongoDB services.
+ * This service supports connection strings from ANY MongoDB hosting solution:
+ * - MongoDB Atlas (mongodb+srv://user:pass@cluster.mongodb.net/db)
+ * - Self-hosted MongoDB (mongodb://user:pass@server.company.com:27017/db)
+ * - AWS DocumentDB (mongodb://user:pass@docdb-cluster.region.docdb.amazonaws.com:27017/db)
+ * - Azure Cosmos DB (mongodb://user:pass@account.mongo.cosmos.azure.com:10255/db?ssl=true)
+ * - GCP MongoDB (mongodb://user:pass@mongodb.gcp.example.com:27017/db)
+ * - Replica Sets (mongodb://user:pass@host1:27017,host2:27017/db?replicaSet=rs0)
+ * - Localhost/Development (mongodb://localhost:27017/db)
  * 
- * For connections using individual fields (host, port, username, etc.),
- * the TypeORM-based connection is used instead.
+ * No hostname validation or restrictions - any valid MongoDB connection string is accepted.
+ * Supports both standard (mongodb://) and SRV (mongodb+srv://) protocols.
  */
 export class MongoDBNativeService {
     private static instance: MongoDBNativeService;

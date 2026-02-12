@@ -254,7 +254,7 @@ export class QueueService {
     }
     
     private async processMongoDBSyncJob(jobData: { dataSourceId: number; syncType: string; userId?: number }): Promise<void> {
-        const { dataSourceId, syncType } = jobData;
+        const { dataSourceId, syncType, userId } = jobData;
         
         try {
             const { DataSourceProcessor } = await import('../processors/DataSourceProcessor.js');
@@ -282,8 +282,9 @@ export class QueueService {
             
             await importService.importDataSource(dataSource, {
                 batchSize: 1000,
-                incremental: syncType === 'incremental'
-            });
+                incremental: syncType === 'incremental',
+                adaptiveBatchSize: true  // Enable adaptive batch sizing
+            }, userId);
             
             console.log(`[QueueService] MongoDB sync completed for data source ${dataSourceId}`);
             

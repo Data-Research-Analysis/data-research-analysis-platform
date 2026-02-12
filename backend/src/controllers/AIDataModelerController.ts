@@ -1275,23 +1275,25 @@ Keep it concise - aim for 200-300 words total.`;
         // Extract connection details (already decrypted by transformer)
         const connectionDetails = dataSource.connection_details;
         
+        // API-integrated sources (Excel, PDF, MongoDB) store data in PostgreSQL
+        // Use PostgreSQL connection for these sources instead of their original connection details
+        const apiSourceSchemas: Record<string, string> = {
+            'google_analytics': 'dra_google_analytics',
+            'google_ad_manager': 'dra_google_ad_manager',
+            'google_ads': 'dra_google_ads',
+            'excel': 'dra_excel',
+            'pdf': 'dra_pdf',
+            'mongodb': 'dra_mongodb'
+        };
+        
+        const isApiIntegratedSource = apiSourceSchemas[dataSource.data_type];
+        
         // Determine correct schema based on data source type
         let schema = connectionDetails.schema;
         
         if (!schema) {
-            // Only API-integrated sources have fixed schemas
-            // User databases (PostgreSQL, MySQL, MariaDB) should use connection_details.schema
-            const apiSourceSchemas: Record<string, string> = {
-                'google_analytics': 'dra_google_analytics',
-                'google_ad_manager': 'dra_google_ad_manager',
-                'google_ads': 'dra_google_ads',
-                'excel': 'dra_excel',
-                'pdf': 'dra_pdf',
-                'mongodb': 'dra_mongodb'
-            };
-            
             // Check if this is an API-integrated source
-            if (apiSourceSchemas[dataSource.data_type]) {
+            if (isApiIntegratedSource) {
                 schema = apiSourceSchemas[dataSource.data_type];
                 console.log(`[AIDataModelerController] Using fixed schema for API source '${dataSource.data_type}': '${schema}'`);
             } else {
@@ -1303,14 +1305,35 @@ Keep it concise - aim for 200-300 words total.`;
             console.log(`[AIDataModelerController] Using schema from connection details: '${schema}'`);
         }
         
+        // For API-integrated sources that store data in PostgreSQL, use internal PostgreSQL connection
+        let host = connectionDetails.host;
+        let port = connectionDetails.port;
+        let database = connectionDetails.database;
+        let username = connectionDetails.username;
+        let password = connectionDetails.password;
+        
+        if (isApiIntegratedSource) {
+            // Get internal PostgreSQL connection details from the DBDriver
+            const internalDataSource = manager.connection;
+            const pgOptions = internalDataSource.options as any;
+            
+            host = pgOptions.host;
+            port = pgOptions.port;
+            database = pgOptions.database;
+            username = pgOptions.username;
+            password = pgOptions.password;
+            
+            console.log(`[AIDataModelerController] Using internal PostgreSQL connection for API source '${dataSource.data_type}' (schema: ${schema}, host: ${host}:${port})`);
+        }
+        
         return {
             type: dataSource.data_type,
-            host: connectionDetails.host,
-            port: connectionDetails.port,
-            database: connectionDetails.database,
-            username: connectionDetails.username,
-            password: connectionDetails.password,
-            schema: schema
+            host,
+            port,
+            database,
+            username,
+            password,
+            schema
         };
     }
 
@@ -1327,6 +1350,7 @@ Keep it concise - aim for 200-300 words total.`;
             case 'google_ads':        // Google Ads data stored in PostgreSQL
             case 'excel':             // Excel data stored in PostgreSQL (dra_excel schema)
             case 'pdf':               // PDF data stored in PostgreSQL (dra_pdf schema)
+            case 'mongodb':           // MongoDB data stored in PostgreSQL (dra_mongodb schema)
                 return PostgresDataSource.getInstance().getDataSource(
                     host,
                     port,

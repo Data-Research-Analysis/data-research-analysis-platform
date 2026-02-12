@@ -688,7 +688,7 @@ export class DataSourceProcessor {
             // Find data source
             let dataSource = await manager.findOne(DRADataSource, {
                 where: { id: dataSourceId },
-                relations: { project: true }
+                relations: { project: true, users_platform: true }
             });
 
             if (!dataSource) {
@@ -696,7 +696,7 @@ export class DataSourceProcessor {
             }
 
             // Verify access (ownership or project membership)
-            if (dataSource.users_platform.id !== user.id) {
+            if (dataSource.users_platform?.id !== user.id) {
                 const membership = await manager.findOne(DRAProjectMember, {
                     where: {
                         user: { id: user_id },
@@ -729,7 +729,8 @@ export class DataSourceProcessor {
                 try {
                     const results = await this.executeMongoDBQueryFromPostgreSQL(
                         collectionName!,
-                        pipeline!
+                        pipeline!,
+                        dataSourceId
                     );
                     
                     return resolve({
@@ -796,16 +797,20 @@ export class DataSourceProcessor {
      */
     private async executeMongoDBQueryFromPostgreSQL(
         collectionName: string,
-        pipeline: any[]
+        pipeline: any[],
+        dataSourceId: number
     ): Promise<any[]> {
         const { MongoDBQueryTranslator } = await import('../services/MongoDBQueryTranslator.js');
         
-        // Sanitize collection name to table name
-        const tableName = collectionName
+        // Sanitize collection name to table name base
+        const sanitizedBase = collectionName
             .toLowerCase()
             .replace(/[^a-z0-9_]/g, '_')
             .replace(/^[0-9]/, '_$&')
             .substring(0, 63);
+        
+        // Generate unique table name with data source ID (matches MongoDBImportService pattern)
+        const tableName = `${sanitizedBase}_data_source_${dataSourceId}`;
         
         // Translate MongoDB aggregation pipeline to SQL
         const translator = new MongoDBQueryTranslator();
@@ -876,91 +881,85 @@ export class DataSourceProcessor {
             }
 
             if (dataSource.data_type === EDataSourceType.MONGODB) {
-                const schemaCollector = new SchemaCollectorService();
-
-                // We need to connect first to get the datasource
+                // MongoDB data is synced to PostgreSQL in dra_mongodb schema
+                // Query PostgreSQL directly instead of connecting to MongoDB
                 const connection = dataSource.connection_details;
+                const schemaCollector = new SchemaCollectorService();
                 
-                // If connection_string exists in the database column, add it to connection object
-                if (dataSource.connection_string) {
-                    connection.connection_string = dataSource.connection_string;
+                // Get internal PostgreSQL connection (where MongoDB data is synced)
+                const pgDriver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+                if (!pgDriver) {
+                    console.error('[DataSourceProcessor] Cannot get PostgreSQL driver for MongoDB data');
+                    return resolve(null);
                 }
                 
-                const mongoDriver = await DBDriver.getInstance().getDriver(EDataSourceType.MONGODB);
-                let dbConnector: DataSource;
-                try {
-                    dbConnector = await mongoDriver.connectExternalDB(connection);
-                    
-                    // For native driver, dbConnector is a mock object, so we need to handle differently
-                    // Check if this is a native connection by looking for connection_string
-                    const isNativeConnection = connection.connection_string ? true : false;
-                    
-                    if (isNativeConnection) {
-                        // Native driver: manually collect schema using MongoDBDriver methods
-                        const { MongoDBDriver } = await import('../drivers/MongoDBDriver.js');
-                        const driver = MongoDBDriver.getInstance();
-                        
-                        const collections = await driver.getMongoDBCollections();
-                        const tables = [];
-                        
-                        // Build table schema for each collection
-                        for (const collectionName of collections) {
-                            const schemaResult = await driver.inferCollectionSchema(collectionName, 100);
-                            
-                            // Convert to TableSchema format
-                            const columns = schemaResult.fields ? schemaResult.fields.map((field: any) => ({
-                                column_name: field.field_name,
-                                data_type: field.data_type || 'string',
-                                is_nullable: field.is_nullable ? 'YES' : 'NO',
-                                column_default: null,
-                                character_maximum_length: null
-                            })) : [];
-                            
-                            // Ensure _id exists
-                            if (!columns.find((c: any) => c.column_name === '_id')) {
-                                columns.unshift({
-                                    column_name: '_id',
-                                    data_type: 'varchar(24)',
-                                    is_nullable: 'NO',
-                                    column_default: null,
-                                    character_maximum_length: 24
-                                });
-                            }
-                            
-                            tables.push({
-                                schema: 'dra_mongodb',
-                                tableName: collectionName,
-                                columns: columns,
-                                primaryKeys: ['_id'],
-                                foreignKeys: []
-                            });
-                        }
-                        
-                        return resolve(tables);
-                    } else {
-                        // TypeORM connection: use schema collector normally
-                        const tables = await schemaCollector.collectSchema(dbConnector, dataSource.name);
-                        return resolve(tables);
-                    }
-                } catch (error) {
-                    console.error('[DataSourceProcessor] Error getting MongoDB tables:', error);
+                const pgManager = (await pgDriver.getConcreteDriver()).manager;
+                if (!pgManager) {
+                    console.error('[DataSourceProcessor] Cannot get PostgreSQL manager for MongoDB data');
                     return resolve(null);
-                } finally {
-                    // Only try to destroy if it's a real TypeORM DataSource
-                    if (dbConnector && typeof dbConnector.isInitialized !== 'undefined' && dbConnector.isInitialized) {
-                        try {
-                            await dbConnector.destroy();
-                        } catch (e) {
-                            console.error('[DataSourceProcessor] Error destroying connection:', e);
-                        }
-                    } else {
-                        // Native driver cleanup via MongoDBDriver
-                        try {
-                            await mongoDriver.close();
-                        } catch (e) {
-                            console.error('[DataSourceProcessor] Error closing mongo driver:', e);
-                        }
-                    }
+                }
+                
+                const pgConnection = pgManager.connection;
+                const schemaName = 'dra_mongodb';
+                
+                try {
+                    console.log(`[DataSourceProcessor] Querying PostgreSQL schema '${schemaName}' for MongoDB data source ${dataSourceId}`);
+                    
+                    // Collect schema from PostgreSQL where MongoDB data is stored
+                    const tables = await schemaCollector.collectSchema(pgConnection, schemaName);
+                    
+                    // Filter tables to only include those for this data source
+                    // MongoDB tables are named: {collection}_data_source_{id}
+                    const dataSourceSuffix = `_data_source_${dataSourceId}`;
+                    const filteredTables = tables.filter((table: any) => 
+                        table.tableName.endsWith(dataSourceSuffix)
+                    );
+                    
+                    // Transform to match frontend expected format (table_name with underscore)
+                    // KEEP the physical table name with suffix (just like dra_excel does)
+                    const cleanedTables = filteredTables.map((table: any) => {
+                        const physicalTableName = table.tableName;
+                        const logicalName = table.tableName.replace(dataSourceSuffix, '');
+                        return {
+                            table_name: physicalTableName,  // Keep full physical name for queries
+                            logical_name: logicalName,      // Display name without suffix
+                            original_sheet_name: null,
+                            table_type: null,
+                            schema: schemaName,
+                            columns: table.columns.map((col: any) => ({
+                                column_name: col.column_name,
+                                data_type: col.data_type,
+                                character_maximum_length: col.character_maximum_length,
+                                table_name: physicalTableName,  // Use physical name
+                                schema: schemaName,
+                                alias_name: '',
+                                is_selected_column: true,
+                                reference: {
+                                    local_table_schema: null,
+                                    local_table_name: null,
+                                    local_column_name: null,
+                                    foreign_table_schema: null,
+                                    foreign_table_name: null,
+                                    foreign_column_name: null,
+                                }
+                            })),
+                            references: table.foreignKeys.map((fk: any) => ({
+                                local_table_schema: fk.table_schema,
+                                local_table_name: fk.table_name,  // Keep physical name
+                                local_column_name: fk.column_name,
+                                foreign_table_schema: fk.foreign_table_schema,
+                                foreign_table_name: fk.foreign_table_name,  // Keep physical name
+                                foreign_column_name: fk.foreign_column_name,
+                            }))
+                        };
+                    });
+                    
+                    console.log(`[DataSourceProcessor] Found ${cleanedTables.length} tables for MongoDB data source ${dataSourceId}`);
+                    return resolve(cleanedTables);
+                    
+                } catch (error) {
+                    console.error('[DataSourceProcessor] Error getting MongoDB tables from PostgreSQL:', error);
+                    return resolve(null);
                 }
             } else if (dataSource.data_type === EDataSourceType.POSTGRESQL || dataSource.data_type === EDataSourceType.MYSQL || dataSource.data_type === EDataSourceType.MARIADB || dataSource.data_type === EDataSourceType.EXCEL || dataSource.data_type === EDataSourceType.PDF || dataSource.data_type === EDataSourceType.GOOGLE_ANALYTICS || dataSource.data_type === EDataSourceType.GOOGLE_AD_MANAGER || dataSource.data_type === EDataSourceType.GOOGLE_ADS) {
                 const connection = dataSource.connection_details;

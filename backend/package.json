@@ -88,7 +88,7 @@
     "json2csv": "^6.0.0-alpha.2",
     "jsonwebtoken": "^9.0.2",
     "lodash": "^4.17.21",
-    "mongodb": "^7.0.0",
+    "mongodb": "^6.21.0",
     "multer": "^2.0.2",
     "mysql2": "^3.15.1",
     "node-cron": "^4.2.1",
@@ -103,7 +103,7 @@
     "socket.io": "^4.8.1",
     "theta-mn-queue": "^3.0.9",
     "turndown": "^7.2.2",
-    "typeorm": "^0.3.27",
+    "typeorm": "^0.3.28",
     "uuid": "^11.1.0",
     "winston": "^3.17.0",
     "ws": "^8.18.3"
