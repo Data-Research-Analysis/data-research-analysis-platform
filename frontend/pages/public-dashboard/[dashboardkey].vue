@@ -866,7 +866,7 @@ function calculateRequiredHeight() {
         }));
         
         // Add padding and ensure minimum
-        return Math.max(maxBottom + 50, 600);
+        return Math.max(maxBottom + 24, 600);
     } catch (error) {
         // Fallback on error
         if (import.meta.client) {
@@ -978,8 +978,8 @@ onMounted(async () => {
             <!-- Dashboard Canvas -->
             <div v-else class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden data-research-analysis">
                 <!-- Positioning Container -->
-                <div class="w-full relative bg-gradient-to-br from-gray-50 to-white overflow-x-auto"
-                     :style="`min-height: ${calculateRequiredHeight()}px; padding: 20px;`">
+                <div class="w-full relative bg-gradient-to-br from-gray-50 to-white overflow-x-auto p-3"
+                     :style="`min-height: ${calculateRequiredHeight()}px;`">
                     
                     <!-- Optional grid background for reference -->
                     <div class="absolute inset-0 pointer-events-none opacity-5"
@@ -995,11 +995,11 @@ onMounted(async () => {
                     <div class="w-full h-full draggable-div-container relative">
                         <div v-for="(chart, index) in charts"
                             :key="chart.chart_id"
-                            class="absolute top-0 left-0 bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden hover:shadow-xl transition-shadow duration-200"
+                            class="absolute top-0 left-0 bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden hover:shadow-xl transition-shadow duration-200 p-2"
                             :id="`draggable-div-${chart.chart_id}`"
                             :style="`width: ${chart.dimensions?.width || '400px'}; height: ${chart.dimensions?.height || '300px'}; top: ${chart.location?.top || '0px'}; left: ${chart.location?.left || '0px'};`"
                         >
-                            <div class="flex flex-col">
+                            <div class="flex flex-col gap-1">
                                 <draggable
                                     v-if="chart.chart_type !== 'text_block'"
                                     :id="`draggable-${chart.chart_id}`"
@@ -1020,40 +1020,40 @@ onMounted(async () => {
                                                     :id="`chart-${chart.chart_id}`"   
                                                     :chart-id="`${chart.chart_id}`"
                                                     :data="chart.data[0]"
-                                                    :width="parseInt((chart.dimensions?.widthDraggable || chart.dimensions?.width || '400px').replace('px', '')) - 40"
-                                                    :height="parseInt((chart.dimensions?.heightDraggable || chart.dimensions?.height || '300px').replace('px', '')) - 80"
+                                                    :width="parseInt((chart.dimensions?.widthDraggable || chart.dimensions?.width || '400px').replace('px', '')) - 32"
+                                                    :height="parseInt((chart.dimensions?.heightDraggable || chart.dimensions?.height || '300px').replace('px', '')) - 48"
                                                     :enable-scroll-bars="true"
                                                     :show-row-numbers="true"
                                                     :sticky-header="true"
-                                                    :max-column-width="'200px'"
-                                                    :min-column-width="'120px'"
+                                                    :max-column-width="'150px'"
+                                                    :min-column-width="'100px'"
                                                     :use-container-sizing="true"
                                                     :virtual-scrolling="chart.data[0]?.rows?.length > 100"
                                                     :virtual-scroll-item-height="35"
                                                     @resize-needed="(data) => handleTableResize(chart.chart_id, data)"
-                                                    class="mt-2"
+                                                    class="mt-1"
                                                 />
                                                 <pie-chart
                                                     v-if="chart.chart_type === 'pie'"
                                                     :id="`chart-${chart.chart_id}`"   
                                                     :chart-id="`${chart.chart_id}`"
                                                     :data="chart.data"
-                                                    :width="1200"
-                                                    :height="1200"
+                                                    :width="800"
+                                                    :height="800"
                                                     :column-name="getChartColumnName(chart.chart_id)"
                                                     :enable-tooltips="true"
-                                                    class="mt-5"
+                                                    class="mt-1"
                                                 />
                                                 <donut-chart
                                                     v-if="chart.chart_type === 'donut'"
                                                     :id="`chart-${chart.chart_id}`"
                                                     :chart-id="`${chart.chart_id}`"
                                                     :data="chart.data"
-                                                    :width="1200"
-                                                    :height="1200"
+                                                    :width="800"
+                                                    :height="800"
                                                     :column-name="getChartColumnName(chart.chart_id)"
                                                     :enable-tooltips="true"
-                                                    class="mt-5"
+                                                    class="mt-1"
                                                 />
                                                 <vertical-bar-chart
                                                     v-if="chart.chart_type === 'vertical_bar'"
@@ -1067,7 +1067,7 @@ onMounted(async () => {
                                                     :column-name="getChartColumnName(chart.chart_id)"
                                                     :category-name="getChartCategoryName(chart.chart_id)"
                                                     :enable-tooltips="true"
-                                                    class="mt-5"
+                                                    class="mt-1"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
                                                 />
@@ -1082,7 +1082,7 @@ onMounted(async () => {
                                                     :column-name="getChartColumnName(chart.chart_id)"
                                                     :category-name="getChartCategoryName(chart.chart_id)"
                                                     :enable-tooltips="true"
-                                                    class="mt-5"
+                                                    class="mt-1"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
                                                 />
@@ -1101,7 +1101,7 @@ onMounted(async () => {
                                                     :column-name="getChartColumnName(chart.chart_id)"
                                                     :category-name="getChartCategoryName(chart.chart_id)"
                                                     :enable-tooltips="true"
-                                                    class="mt-5"
+                                                    class="mt-1"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
                                                 />
@@ -1122,6 +1122,7 @@ onMounted(async () => {
                                                     :category-name="getChartCategoryName(chart.chart_id)"
                                                     :stack-name="getChartStackName(chart.chart_id)"
                                                     :enable-tooltips="true"
+                                                    class="mt-1"
                                                     @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
                                                     @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
                                                 />
@@ -1154,8 +1155,8 @@ onMounted(async () => {
                                                     :id="`chart-${chart.chart_id}`"
                                                     :chart-id="`${chart.chart_id}`"
                                                     :data="chart.data[0]"
-                                                    :width="parseInt(chart.dimensions.widthDraggable.replace('px', '')) - 40"
-                                                    :height="parseInt(chart.dimensions.heightDraggable.replace('px', '')) - 80"
+                                                    :width="parseInt(chart.dimensions.widthDraggable.replace('px', '')) - 20"
+                                                    :height="parseInt(chart.dimensions.heightDraggable.replace('px', '')) - 30"
                                                     :color-scheme="'schemeCategory10'"
                                                     :show-labels="true"
                                                     :show-values="true"
@@ -1165,21 +1166,21 @@ onMounted(async () => {
                                                     :min-tile-size="30"
                                                     :category-name="getChartCategoryName(chart.chart_id)"
                                                     :value-name="getChartValueName(chart.chart_id)"
-                                                    class="mt-2"
+                                                    class="mt-1"
                                                 />
                                                 <bubble-chart
                                                     v-if="chart.chart_type === 'bubble'"
                                                     :id="`chart-${chart.chart_id}`"
                                                     :chart-id="`${chart.chart_id}`"
                                                     :data="chart.data"
-                                                    :width="parseInt(chart.dimensions.widthDraggable.replace('px', '')) - 40"
-                                                    :height="parseInt(chart.dimensions.heightDraggable.replace('px', '')) - 80"
+                                                    :width="parseInt(chart.dimensions.widthDraggable.replace('px', '')) - 20"
+                                                    :height="parseInt(chart.dimensions.heightDraggable.replace('px', '')) - 30"
                                                     :x-column-name="getChartXColumnName(chart.chart_id)"
                                                     :y-column-name="getChartYColumnName(chart.chart_id)"
                                                     :size-column-name="getChartSizeColumnName(chart.chart_id)"
                                                     :label-column-name="getChartLabelColumnName(chart.chart_id)"
                                                     :enable-tooltips="true"
-                                                    class="mt-2"
+                                                    class="mt-1"
                                                 />
                                             </div>
                                         </div>
@@ -1188,9 +1189,8 @@ onMounted(async () => {
                                 <div v-else :id="`draggable-${chart.chart_id}`">
                                     <div 
                                         :id="`chart-${chart.chart_id}`" 
-                                        class="prose max-w-none p-4 bg-white"
+                                        class="prose max-w-none p-2 bg-white min-h-[100px]"
                                         v-html="chart.text_editor.content"
-                                        :style="'min-height: 200px;'"
                                     ></div>
                                 </div>
                             </div>

@@ -593,6 +593,27 @@ Respond with ONLY this JSON wrapped in code block with json tag:
   - **When to use**: Complex formulas, CASE statements, mathematical operations between columns
   - **When NOT to use**: Simple single-column aggregates (use aggregate_functions instead)
 
+### PostgreSQL Date/Time Operations (CRITICAL)
+
+**Date Subtraction (Days Between Dates)**:
+- ✅ CORRECT: `(CAST(date_col1 AS DATE) - CAST(date_col2 AS DATE))` → Returns integer (number of days)
+- ✅ CORRECT: `EXTRACT(EPOCH FROM (timestamp_col1 - timestamp_col2)) / 86400` → Returns decimal days
+- ❌ WRONG: `EXTRACT(DAY FROM (date_col1 - date_col2))` → INVALID! EXTRACT(DAY) gets day-of-month from interval, not total days
+
+**Explanation**: In PostgreSQL, subtracting two DATE values returns an INTEGER (days). Subtracting TIMESTAMP values returns an INTERVAL. Use EXTRACT(EPOCH FROM interval) / 86400 to get total days from an interval.
+
+**Examples**:
+- Days between dates: `(CAST(dra_excel.loans.disbursed_date AS DATE) - CAST(dra_excel.loans.application_date AS DATE))` 
+- Age in years: `EXTRACT(YEAR FROM AGE(CAST(dra_excel.users.birth_date AS DATE)))`
+- Days from timestamp: `EXTRACT(EPOCH FROM (timestamp_col1 - timestamp_col2)) / 86400`
+
+**Common Date Functions**:
+- `AGE(date1, date2)` → Returns interval
+- `DATE_PART('year', date)` → Extract year component
+- `DATE_TRUNC('month', timestamp)` → Truncate to month
+- `CURRENT_DATE` → Today's date
+- `NOW()` → Current timestamp
+
 - \`group_by.group_by_columns\`: Array of column references for GROUP BY clause (REQUIRED when using aggregates)
   - **Data Type**: Array of strings
   - **Rule**: MUST contain ALL columns from "columns" array that are NOT aggregated
