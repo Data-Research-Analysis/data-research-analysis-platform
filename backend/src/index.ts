@@ -151,7 +151,12 @@ const __dirname = dirname(__filename);
 // This is essential when behind Nuxt SSR, reverse proxies, or load balancers
 app.set('trust proxy', true);
 
-app.use(express.json());
+// Increase timeout for large file uploads (10 minutes)
+app.use((req, res, next) => {
+    req.setTimeout(600000); // 10 minutes
+    res.setTimeout(600000);
+    next();
+});
 
 // CORS configuration - Allow specific origins with credentials
 app.use(cors({
@@ -178,6 +183,8 @@ app.use(cors({
   exposedHeaders: ['Set-Cookie']
 }));
 
+// Body parser with high limits for large Excel/file uploads
+// CRITICAL: Don't use express.json() before this as it has 100kb default limit
 app.use(bodyParser.urlencoded({ limit: '1000mb', extended: true }));
 app.use(bodyParser.json({ limit: '1000mb' }));
 

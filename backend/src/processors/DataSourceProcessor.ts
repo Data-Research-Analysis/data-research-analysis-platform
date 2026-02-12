@@ -23,6 +23,7 @@ import { GoogleAdManagerDriver } from "../drivers/GoogleAdManagerDriver.js";
 import { FederatedQueryService } from "../services/FederatedQueryService.js";
 import { TableMetadataService } from "../services/TableMetadataService.js";
 import { NotificationHelperService } from "../services/NotificationHelperService.js";
+import { ExcelFileService } from "../services/ExcelFileService.js";
 export class DataSourceProcessor {
     private static instance: DataSourceProcessor;
     private notificationHelper = NotificationHelperService.getInstance();
@@ -2219,6 +2220,281 @@ export class DataSourceProcessor {
                 }
             }
             return resolve({ status: 'error', file_id: fileId });
+        });
+    }
+
+    /**
+     * Add Excel data source from uploaded file (server-side processing)
+     * This method handles large Excel files by processing them server-side,
+     * avoiding the "request entity too large" error from JSON payloads
+     * @param dataSourceName - Name for the data source
+     * @param fileId - Unique file identifier
+     * @param filePath - Path to the uploaded Excel file
+     * @param tokenDetails - User authentication details
+     * @param projectId - Project ID
+     * @param dataSourceId - Existing data source ID (optional, for multi-sheet updates)
+     * @returns Promise with upload result
+     */
+    public async addExcelDataSourceFromFile(
+        dataSourceName: string,
+        fileId: string,
+        filePath: string,
+        tokenDetails: ITokenDetails,
+        projectId: number,
+        dataSourceId: number = null
+    ): Promise<IExcelDataSourceReturn & { error?: string }> {
+        return new Promise(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve({ status: 'error', file_id: fileId, error: 'Database driver not available' });
+            }
+            const dbConnector = await driver.getConcreteDriver();
+            if (!dbConnector) {
+                return resolve({ status: 'error', file_id: fileId, error: 'Database connector not available' });
+            }
+            const manager = dbConnector.manager;
+            if (!manager) {
+                return resolve({ status: 'error', file_id: fileId, error: 'Database manager not available' });
+            }
+
+            const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
+            if (!user) {
+                return resolve({ status: 'error', file_id: fileId, error: 'User not found' });
+            }
+
+            const project: DRAProject | null = await manager.findOne(DRAProject, { 
+                where: { id: projectId, users_platform: user } 
+            });
+            if (!project) {
+                return resolve({ status: 'error', file_id: fileId, error: 'Project not found' });
+            }
+
+            try {
+                // Parse the Excel file server-side
+                console.log('[Excel File Upload] Parsing file:', filePath);
+                const parseResult = await ExcelFileService.getInstance().parseExcelFileFromPath(filePath);
+                
+                if (!parseResult.sheets || parseResult.sheets.length === 0) {
+                    return resolve({ 
+                        status: 'error', 
+                        file_id: fileId, 
+                        error: 'No valid sheets found in Excel file' 
+                    });
+                }
+
+                let dataSource: DRADataSource;
+                const sheetsProcessed = [];
+
+                if (!dataSourceId) {
+                    // Create new data source
+                    dataSource = new DRADataSource();
+                    const host = UtilityService.getInstance().getConstants('POSTGRESQL_HOST');
+                    const port = UtilityService.getInstance().getConstants('POSTGRESQL_PORT');
+                    const database = UtilityService.getInstance().getConstants('POSTGRESQL_DB_NAME');
+                    const username = UtilityService.getInstance().getConstants('POSTGRESQL_USERNAME');
+                    const password = UtilityService.getInstance().getConstants('POSTGRESQL_PASSWORD');
+
+                    // Create dra_excel schema if it doesn't exist
+                    let query = `CREATE SCHEMA IF NOT EXISTS dra_excel`;
+                    await dbConnector.query(query);
+
+                    const connection: IDBConnectionDetails = {
+                        data_source_type: UtilityService.getInstance().getDataSourceType('postgresql'),
+                        host: host,
+                        port: port,
+                        schema: 'dra_excel',
+                        database: database,
+                        username: username,
+                        password: password,
+                    };
+
+                    dataSource.name = dataSourceName;
+                    dataSource.connection_details = connection;
+                    dataSource.data_type = UtilityService.getInstance().getDataSourceType('postgresql');
+                    dataSource.project = project;
+                    dataSource.users_platform = user;
+                    dataSource.created_at = new Date();
+                    dataSource = await manager.save(dataSource);
+                } else {
+                    dataSource = await manager.findOne(DRADataSource, { 
+                        where: { id: dataSourceId, project: project, users_platform: user } 
+                    });
+                    if (!dataSource) {
+                        return resolve({ 
+                            status: 'error', 
+                            file_id: fileId, 
+                            error: 'Data source not found' 
+                        });
+                    }
+                }
+
+                const tableMetadataService = TableMetadataService.getInstance();
+
+                // Process each sheet
+                for (const sheet of parseResult.sheets) {
+                    console.log(`[Excel File Upload] Processing sheet: ${sheet.name}`);
+
+                    // Generate physical and logical table names
+                    const logicalTableName = sheet.name;
+                    const physicalTableName = tableMetadataService.generatePhysicalTableName(
+                        dataSource.id,
+                        logicalTableName,
+                        fileId
+                    );
+
+                    console.log(`[Excel File Upload] Physical: ${physicalTableName}, Logical: ${logicalTableName}`);
+
+                    // Build CREATE TABLE query
+                    let createTableQuery = `CREATE TABLE dra_excel."${physicalTableName}" `;
+                    let columns = '';
+                    let insertQueryColumns = '';
+                    const sanitizedColumns: Array<{
+                        original: string;
+                        sanitized: string;
+                        type: string;
+                        title: string;
+                        key: string;
+                    }> = [];
+
+                    sheet.columns.forEach((column, index) => {
+                        const displayColumnName = column.title || `column_${index}`;
+                        const sanitizedColumnName = this.sanitizeColumnName(displayColumnName);
+
+                        sanitizedColumns.push({
+                            original: column.title,
+                            sanitized: sanitizedColumnName,
+                            type: column.type,
+                            title: displayColumnName,
+                            key: column.key
+                        });
+
+                        const dataType = UtilityService.getInstance().convertDataTypeToPostgresDataType(
+                            EDataSourceType.EXCEL, 
+                            column.type
+                        );
+                        let dataTypeString = dataType.size 
+                            ? `${dataType.type}(${dataType.size})` 
+                            : `${dataType.type}`;
+
+                        if (index < sheet.columns.length - 1) {
+                            columns += `${sanitizedColumnName} ${dataTypeString},`;
+                            insertQueryColumns += `${sanitizedColumnName},`;
+                        } else {
+                            columns += `${sanitizedColumnName} ${dataTypeString}`;
+                            insertQueryColumns += `${sanitizedColumnName}`;
+                        }
+                    });
+
+                    createTableQuery += `(${columns})`;
+
+                    try {
+                        // Create the table
+                        await dbConnector.query(createTableQuery);
+                        console.log('[Excel File Upload] Created table:', physicalTableName);
+
+                        insertQueryColumns = `(${insertQueryColumns})`;
+
+                        // Insert data rows in batches for better performance
+                        if (sheet.rows && sheet.rows.length > 0) {
+                            const batchSize = 1000;
+                            let successfulInserts = 0;
+
+                            for (let batchStart = 0; batchStart < sheet.rows.length; batchStart += batchSize) {
+                                const batchEnd = Math.min(batchStart + batchSize, sheet.rows.length);
+                                const batch = sheet.rows.slice(batchStart, batchEnd);
+
+                                for (const row of batch) {
+                                    let insertQuery = `INSERT INTO dra_excel."${physicalTableName}" `;
+                                    let values = '';
+
+                                    sanitizedColumns.forEach((columnInfo, colIndex) => {
+                                        let value = row[columnInfo.original];
+
+                                        if (colIndex > 0) {
+                                            values += ', ';
+                                        }
+
+                                        // Handle different data types
+                                        if (value === null || value === undefined || value === '') {
+                                            values += 'NULL';
+                                        } else if (typeof value === 'boolean') {
+                                            values += value ? 'TRUE' : 'FALSE';
+                                        } else if (typeof value === 'number') {
+                                            values += value;
+                                        } else if (value instanceof Date) {
+                                            values += `'${value.toISOString()}'`;
+                                        } else {
+                                            // Escape string values
+                                            const stringValue = String(value).replace(/'/g, "''");
+                                            values += `'${stringValue}'`;
+                                        }
+                                    });
+
+                                    insertQuery += `${insertQueryColumns} VALUES(${values})`;
+
+                                    try {
+                                        await dbConnector.query(insertQuery);
+                                        successfulInserts++;
+                                    } catch (error) {
+                                        console.error(`Error inserting row:`, error.message);
+                                        throw error;
+                                    }
+                                }
+
+                                console.log(`[Excel File Upload] Inserted batch ${batchStart}-${batchEnd} (${successfulInserts}/${sheet.rows.length})`);
+                            }
+
+                            console.log(`[Excel File Upload] Successfully inserted ${successfulInserts} rows`);
+                        }
+
+                        // Store table metadata
+                        await tableMetadataService.storeTableMetadata(manager, {
+                            dataSourceId: dataSource.id,
+                            usersPlatformId: user.id,
+                            schemaName: 'dra_excel',
+                            physicalTableName: physicalTableName,
+                            logicalTableName: logicalTableName,
+                            originalSheetName: sheet.metadata.originalSheetName,
+                            fileId: fileId,
+                            tableType: 'excel'
+                        });
+
+                        sheetsProcessed.push({
+                            sheet_id: `sheet_${sheet.index}`,
+                            sheet_name: sheet.name,
+                            table_name: physicalTableName,
+                            original_sheet_name: sheet.metadata.originalSheetName,
+                            sheet_index: sheet.index
+                        });
+
+                        console.log(`[Excel File Upload] Sheet processed: ${sheet.name}`);
+
+                    } catch (error) {
+                        console.error('Error creating/populating table:', error);
+                        throw error;
+                    }
+                }
+
+                // Clean up: add to deletion queue
+                await QueueService.getInstance().addFilesDeletionJob(user.id);
+
+                console.log('[Excel File Upload] Processing completed successfully');
+                return resolve({
+                    status: 'success',
+                    file_id: fileId,
+                    data_source_id: dataSource.id,
+                    sheets_processed: sheetsProcessed
+                });
+
+            } catch (error) {
+                console.error('Error processing Excel file:', error);
+                return resolve({ 
+                    status: 'error', 
+                    file_id: fileId, 
+                    error: error.message 
+                });
+            }
         });
     }
 
