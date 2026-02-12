@@ -3,6 +3,7 @@ import _ from 'lodash';
 import { useAIDataModelerStore } from '~/stores/ai-data-modeler';
 import { useSubscriptionStore } from '~/stores/subscription';
 import { useLoggedInUserStore } from '~/stores/logged_in_user';
+import SQLErrorAlert from '~/components/SQLErrorAlert.vue';
 
 const { $swal } = useNuxtApp();
 const route = useRoute();
@@ -80,6 +81,7 @@ const state = reactive({
     query_metadata: null, // Store row limit metadata
     calculated_column: {},
     alerts: [],
+    sqlError: null,  // SQL execution error for prominent display
     transform_functions: [
         { name: 'None', value: '', close_parens: 0 },
         { name: 'DATE', value: 'DATE', close_parens: 1 },
@@ -316,7 +318,58 @@ const havingColumns = computed(() => {
 });
 
 const orderByColumns = computed(() => {
-    return allAvailableColumns.value;
+    const columns = [];
+    
+    // 1. Regular columns and calculated columns (non-aggregate)
+    columns.push(...allAvailableColumns.value.filter(col => !col.is_aggregate));
+    
+    // 2. Aggregate functions - use alias names
+    if (state.data_table.query_options?.group_by?.aggregate_functions) {
+        state.data_table.query_options.group_by.aggregate_functions.forEach((aggFunc) => {
+            if (aggFunc.column && aggFunc.aggregate_function !== '' && aggFunc.column_alias_name) {
+                const funcName = state.aggregate_functions[aggFunc.aggregate_function];
+                columns.push({
+                    value: aggFunc.column_alias_name,  // Use alias for ORDER BY
+                    display: `${aggFunc.column_alias_name} (${funcName})`,
+                    is_aggregate: true,
+                    type: 'aggregate_function'
+                });
+            }
+        });
+    }
+    
+    // 3. Aggregate expressions - use alias names
+    if (state.data_table.query_options?.group_by?.aggregate_expressions) {
+        state.data_table.query_options.group_by.aggregate_expressions.forEach((aggExpr) => {
+            if (aggExpr.expression && aggExpr.expression.trim() !== '' && aggExpr.column_alias_name) {
+                columns.push({
+                    value: aggExpr.column_alias_name,  // Use alias for ORDER BY
+                    display: `${aggExpr.column_alias_name} (expression)`,
+                    is_aggregate: true,
+                    type: 'aggregate_expression'
+                });
+            }
+        });
+    }
+    
+    // 4. Calculated columns - use alias names
+    if (state.data_table.calculated_columns && Array.isArray(state.data_table.calculated_columns)) {
+        state.data_table.calculated_columns.forEach((calcCol) => {
+            if (calcCol.column_name && calcCol.expression) {
+                // Check if not already added from allAvailableColumns
+                if (!columns.some(c => c.value === calcCol.column_name)) {
+                    columns.push({
+                        value: calcCol.column_name,  // Use alias for ORDER BY
+                        display: `${calcCol.column_name} (calculated)`,
+                        is_aggregate: false,
+                        type: 'calculated_column'
+                    });
+                }
+            }
+        });
+    }
+    
+    return columns;
 });
 
 const numericColumnsWithAggregates = computed(() => {
@@ -4066,9 +4119,165 @@ async function executeQueryOnExternalDataSource() {
         }
     } catch (error) {
         console.error('[executeQuery] Error:', error);
+        
+        // Parse and display SQL error
+        state.sqlError = parseBackendError(error);
+        
+        // Scroll to error alert on client
+        if (import.meta.client) {
+            nextTick(() => {
+                const errorElement = document.querySelector('.sql-error-alert');
+                if (errorElement) {
+                    errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            });
+        }
     } finally {
         state.is_executing_query = false;
     }
+}
+
+/**
+ * Parses backend SQL errors and returns user-friendly error object
+ * @param {Error} error - The caught error from API call
+ * @returns {Object} Formatted error object
+ */
+function parseBackendError(error) {
+    const errorObj = {
+        type: 'error',
+        title: 'Query Error',
+        message: '',
+        technicalMessage: '',
+        suggestions: [],
+        dismissible: true
+    };
+    
+    // Extract error message
+    const errorMessage = error?.data?.message || error?.message || 'Unknown error occurred';
+    errorObj.technicalMessage = errorMessage;
+    
+    // Pattern matching for common SQL errors
+    
+    // 1. GROUP BY errors
+    if (errorMessage.includes('must appear in GROUP BY clause')) {
+        const columnMatch = errorMessage.match(/column "([^"]+)"/i);
+        const columnName = columnMatch ? columnMatch[1] : 'a column';
+        
+        errorObj.title = 'Missing GROUP BY Column';
+        errorObj.message = `The column "${columnName}" needs to be included in the GROUP BY section or used with an aggregate function (SUM, AVG, COUNT, etc.).`;
+        errorObj.suggestions = [
+            'Add this column to the "Group By Columns" section',
+            'Remove this column from the query',
+            'Apply an aggregate function (SUM, AVG, COUNT, MIN, MAX) to this column'
+        ];
+    }
+    
+    // 2. Column does not exist
+    else if (errorMessage.includes('column') && errorMessage.includes('does not exist')) {
+        const columnMatch = errorMessage.match(/column "([^"]+)"/i);
+        const columnName = columnMatch ? columnMatch[1] : 'unknown';
+        
+        errorObj.title = 'Column Not Found';
+        errorObj.message = `The column "${columnName}" doesn't exist in your data source.`;
+        errorObj.suggestions = [
+            'Check the column name for typos',
+            'Verify the column exists in the selected table',
+            'Refresh your data source schema if it was recently modified'
+        ];
+    }
+    
+    // 3. Table does not exist
+    else if (errorMessage.includes('relation') && errorMessage.includes('does not exist')) {
+        const tableMatch = errorMessage.match(/relation "([^"]+)"/i);
+        const tableName = tableMatch ? tableMatch[1] : 'unknown';
+        
+        errorObj.title = 'Table Not Found';
+        errorObj.message = `The table "${tableName}" doesn't exist or isn't accessible.`;
+        errorObj.suggestions = [
+            'Verify the table exists in your data source',
+            'Check if you have permission to access this table',
+            'Refresh your data source connection'
+        ];
+    }
+    
+    // 4. Invalid ORDER BY reference
+    else if (errorMessage.includes('ORDER BY') || errorMessage.includes('for SELECT DISTINCT, ORDER BY')) {
+        errorObj.title = 'Invalid ORDER BY Column';
+        errorObj.message = 'You cannot order by a column that is not in the SELECT clause.';
+        errorObj.suggestions = [
+            'Add the column to your query results',
+            'Remove it from the ORDER BY section',
+            'Use an alias if ordering by a calculated or aggregate column'
+        ];
+    }
+    
+    // 5. Type mismatch errors
+    else if ((errorMessage.includes('type') || errorMessage.includes('datatype')) && (errorMessage.includes('cannot') || errorMessage.includes('invalid'))) {
+        errorObj.title = 'Data Type Mismatch';
+        errorObj.message = 'There is a data type incompatibility in your query.';
+        errorObj.suggestions = [
+            'Cast columns to the correct type using the transform functions',
+            'Check filters for matching data types (numbers vs text)',
+            'Verify aggregate functions are used with numeric columns'
+        ];
+    }
+    
+    // 6. Division by zero
+    else if (errorMessage.includes('division by zero')) {
+        errorObj.title = 'Division by Zero';
+        errorObj.message = 'Your calculation attempts to divide by zero.';
+        errorObj.suggestions = [
+            'Add a WHERE clause to filter out zero values',
+            'Modify calculated columns to handle zero divisors',
+            'Add conditional logic to handle zero values'
+        ];
+    }
+    
+    // 7. Syntax errors
+    else if (errorMessage.includes('syntax error')) {
+        errorObj.title = 'SQL Syntax Error';
+        errorObj.message = 'There is a syntax error in the generated SQL query.';
+        errorObj.suggestions = [
+            'Check calculated column expressions for errors',
+            'Verify all filter values are properly formatted',
+            'Review join conditions for correctness'
+        ];
+    }
+    
+    // 8. Permission errors
+    else if (errorMessage.includes('permission denied') || errorMessage.includes('access denied')) {
+        errorObj.title = 'Permission Denied';
+        errorObj.message = 'You do not have permission to access this data.';
+        errorObj.suggestions = [
+            'Contact your database administrator',
+            'Verify you have SELECT permission on the table',
+            'Check if the data source credentials are correct'
+        ];
+    }
+    
+    // 9. Aggregate function errors
+    else if (errorMessage.includes('aggregate function')) {
+        errorObj.title = 'Aggregate Function Error';
+        errorObj.message = 'There is an issue with how aggregate functions are being used.';
+        errorObj.suggestions = [
+            'Aggregate functions (SUM, AVG, COUNT, etc.) can only be used with appropriate column types',
+            'Ensure all non-aggregate columns are in the GROUP BY section',
+            'Check for nested aggregate functions (not allowed)'
+        ];
+    }
+    
+    // 10. Generic fallback
+    else {
+        errorObj.title = 'Query Execution Error';
+        errorObj.message = 'An error occurred while executing your query.';
+        errorObj.suggestions = [
+            'Review your query configuration for any issues',
+            'Check the technical error message below for details',
+            'Try simplifying your query to isolate the issue'
+        ];
+    }
+    
+    return errorObj;
 }
 async function toggleColumnInDataModel(column, tableName, tableAlias = null) {
     const identifier = tableAlias || tableName;
@@ -5961,6 +6170,13 @@ onBeforeUnmount(() => {
             data model section to the right.
         </div>
 
+        <!-- SQL Error Alert (Prominent) -->
+        <SQLErrorAlert 
+            :error="state.sqlError" 
+            @dismiss="state.sqlError = null"
+            class="sticky top-20 z-40"
+        />
+        
         <!-- Alerts Section -->
         <div v-if="state.alerts && state.alerts.length > 0" class="flex flex-col mb-5">
             <div v-for="(alert, index) in state.alerts" :key="index"
@@ -6993,15 +7209,26 @@ onBeforeUnmount(() => {
                                                         ]"
                                                         v-model="clause.column"
                                                         @change="handleQueryOptionChanged('order-by-column')">
-                                                        <optgroup label="Base Columns">
-                                                            <option v-for="col in whereColumns" :key="col.value"
+                                                        <option value="">Select column to order by</option>
+                                                        <optgroup label="Regular Columns">
+                                                            <option v-for="col in orderByColumns.filter(c => !c.is_aggregate && c.type !== 'calculated_column')" 
+                                                                :key="col.value"
                                                                 :value="col.value">
                                                                 {{ col.display }}
                                                             </option>
                                                         </optgroup>
-                                                        <optgroup v-if="havingColumns.length > 0"
-                                                            label="Aggregate Columns">
-                                                            <option v-for="col in havingColumns" :key="col.value"
+                                                        <optgroup v-if="orderByColumns.filter(c => c.type === 'calculated_column').length > 0"
+                                                            label="Calculated Columns">
+                                                            <option v-for="col in orderByColumns.filter(c => c.type === 'calculated_column')" 
+                                                                :key="col.value"
+                                                                :value="col.value">
+                                                                {{ col.display }}
+                                                            </option>
+                                                        </optgroup>
+                                                        <optgroup v-if="orderByColumns.filter(c => c.is_aggregate).length > 0"
+                                                            label="Aggregates">
+                                                            <option v-for="col in orderByColumns.filter(c => c.is_aggregate)" 
+                                                                :key="col.value"
                                                                 :value="col.value">
                                                                 {{ col.display }}
                                                             </option>

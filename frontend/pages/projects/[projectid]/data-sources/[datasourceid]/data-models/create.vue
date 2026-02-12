@@ -62,7 +62,7 @@ onBeforeUnmount(() => {
 });
 </script>
 <template>
-    <div class="flex flex-col">
+    <div v-if="project" class="flex flex-col">
         <tabs :project-id="project.id"/>
         <tab-content-panel :corners="['top-right', 'bottom-left', 'bottom-right']">
             <div class="flex flex-col min-h-100 mb-10">
