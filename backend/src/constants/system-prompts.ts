@@ -320,6 +320,13 @@ When joining tables, ALWAYS include the foreign key columns:
 
 ## SQL AGGREGATE FUNCTION RULES (CRITICAL)
 
+### CRITICAL: EVERY Aggregate Query MUST Have GROUP BY
+
+**GOLDEN RULE**: If you use ANY aggregate function (SUM, COUNT, AVG, etc.), you MUST include group_by_columns array.
+
+WRONG: {"aggregate_expressions": [{"expression": "SUM(amount)"}], "group_by_columns": []}
+RIGHT: {"aggregate_expressions": [{"expression": "SUM(amount)"}], "group_by_columns": ["schema.table.branch_id"]}
+
 ### When Using Aggregates (COUNT, SUM, AVG, MIN, MAX):
 1. **MANDATORY GROUP BY**: All non-aggregated columns from the SELECT clause MUST appear in GROUP BY
 2. **Grouping Semantics**: GROUP BY determines how rows are grouped before aggregation
@@ -329,6 +336,9 @@ When joining tables, ALWAYS include the foreign key columns:
    - Rule: ALL non-aggregated columns → GROUP BY clause via group_by_columns
    - Note: Aggregated columns are automatically hidden from result set (SQL optimization)
 4. **CRITICAL SCHEMA RULE**: Use the ACTUAL schema name from the provided database schema, NOT "public" or generic names
+5. **COLUMNS IN EXPRESSIONS**: If aggregate_expressions reference columns OUTSIDE aggregate functions, those columns MUST be in group_by_columns
+   - BAD: "SUM(amount) / target" where target is not aggregated -> target MUST be in GROUP BY
+   - GOOD: Add target to group_by_columns OR use "SUM(amount) / AVG(target)"
 
 ## OUTPUT REQUIREMENTS & FORMAT
 
@@ -357,16 +367,27 @@ When joining tables, ALWAYS include the foreign key columns:
    Step 8: DOUBLE-CHECK: group_by_columns count should equal is_selected_column=true count
    Step 9: VALIDATE aggregate_expressions (if present):
       - Extract ALL column references from aggregate_expressions using regex: \w+\.\w+\.\w+
-      - Verify these columns are NOT in group_by_columns array
-      - Verify these columns have is_selected_column = false
-      - DOUBLE-CHECK: No overlap between aggregate_expression columns and group_by_columns
+      - Identify columns INSIDE aggregate functions (SUM, AVG, COUNT, etc.) → Set B
+      - Identify columns OUTSIDE aggregate functions (used in math operations) → Set C
+      - Verify Set B columns are NOT in group_by_columns array
+      - Verify Set B columns have is_selected_column = false
+      - Verify Set C columns ARE in group_by_columns array (or inside aggregates)
+      - Example: "SUM(amount) / target" → amount in Set B (aggregated), target in Set C (must be in GROUP BY)
+   Step 10: FINAL VALIDATION - If ANY aggregate exists:
+      - group_by_columns array MUST NOT be empty
+      - group_by_columns MUST contain all is_selected_column=true columns
+      - No aggregated columns should appear in group_by_columns
 7. AGGREGATE EXPRESSIONS vs AGGREGATE FUNCTIONS:
    - Use **aggregate_functions** for simple single-column aggregations: SUM(column), AVG(column), COUNT(DISTINCT column)
    - Use **aggregate_expressions** for complex custom SQL expressions: SUM(col1 * col2), AVG(CASE WHEN...), COUNT(DISTINCT CASE...)
    - aggregate_expressions format: {"expression": "complete SQL with function", "column_alias_name": "alias"}
    - Example: {"expression": "SUM(public.orders.quantity * public.products.price)", "column_alias_name": "total_revenue"}
    - DO NOT separate function from expression - write complete SQL in expression field
-   - CRITICAL: Use standard PostgreSQL syntax - schema.table.column (NO square brackets [[...]])
+   - CRITICAL: Use standard PostgreSQL syntax - schema.table.column (NO square brackets)
+   - **CRITICAL**: Columns used OUTSIDE aggregates in expressions MUST be in group_by_columns:
+     - WRONG: "SUM(recovered) / target" with target NOT in GROUP BY
+     - RIGHT: Add target to group_by_columns OR use "SUM(recovered) / AVG(target)"
+     - RIGHT: Add target with is_selected_column=true to both columns array AND group_by_columns array
 8. TABLE ALIASING FOR SELF-JOINS:
    - If same table appears multiple times, MUST use table_alias field with descriptive names
    - Each instance of the table must have a unique, role-based alias (e.g., "emp" and "mgr", NOT "users1" and "users2")
@@ -510,7 +531,13 @@ KEY POINTS:
 ✓ Columns used in aggregate_expressions (balance_remaining) are NOT in group_by_columns
 ✓ Columns used in aggregate_functions (disbursed_amount) are NOT in group_by_columns
 
-#### Example 4: What NOT to Do (Common Mistakes)
+#### Example 4: Columns Used OUTSIDE Aggregates (CRITICAL)
+COMMON ERROR: "SUM(amount) / target" where target NOT aggregated
+ERROR: Expression "SUM(payments.principal) / targets.target_amount" -> target_amount must be in GROUP BY
+FIX #1: Add target_amount to group_by_columns with is_selected_column=true
+FIX #2: Use "SUM(payments.principal) / AVG(targets.target_amount)" instead
+
+#### Example 5: What NOT to Do (Common Mistakes)
 
 WRONG - Missing group_by_columns:
 \`\`\`json
