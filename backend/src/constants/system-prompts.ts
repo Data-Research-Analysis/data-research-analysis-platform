@@ -345,13 +345,21 @@ When joining tables, ALWAYS include the foreign key columns:
 5. VALIDATE SQL CORRECTNESS: If aggregate_functions array is not empty, group_by_columns MUST contain all non-aggregated columns
 6. ALGORITHM FOR GROUP BY GENERATION (FOLLOW THESE STEPS):
    Step 1: Identify all columns needed for analysis
-   Step 2: Determine which columns will be aggregated (SUM, AVG, COUNT, etc.) → Set A
+   Step 2: Determine which columns will be aggregated → Set A
+      - From aggregate_functions array: Extract the 'column' field
+      - From aggregate_expressions array: Extract ALL column references (schema.table.column patterns using regex)
+      - CRITICAL: Columns in Set A are ONLY for aggregation, NOT for GROUP BY
    Step 3: For columns in Set A: set is_selected_column = false (they're aggregated, not selected)
    Step 4: For remaining columns: set is_selected_column = true (they're in SELECT clause)
    Step 5: Build group_by_columns from all is_selected_column = true columns
    Step 6: Format as ["schema.table.column1", "schema.table.column2"]
    Step 7: VALIDATE: If aggregate_functions.length > 0, group_by_columns.length MUST be > 0
    Step 8: DOUBLE-CHECK: group_by_columns count should equal is_selected_column=true count
+   Step 9: VALIDATE aggregate_expressions (if present):
+      - Extract ALL column references from aggregate_expressions using regex: \w+\.\w+\.\w+
+      - Verify these columns are NOT in group_by_columns array
+      - Verify these columns have is_selected_column = false
+      - DOUBLE-CHECK: No overlap between aggregate_expression columns and group_by_columns
 7. AGGREGATE EXPRESSIONS vs AGGREGATE FUNCTIONS:
    - Use **aggregate_functions** for simple single-column aggregations: SUM(column), AVG(column), COUNT(DISTINCT column)
    - Use **aggregate_expressions** for complex custom SQL expressions: SUM(col1 * col2), AVG(CASE WHEN...), COUNT(DISTINCT CASE...)
@@ -457,7 +465,52 @@ CORRECT MODEL - group_by_columns MUST contain BOTH:
 \`\`\`
 RESULTING SQL: SELECT region, category, SUM(amount) FROM sales GROUP BY region, category
 
-#### Example 3: What NOT to Do (Common Mistakes)
+#### Example 3: Complex Aggregate Expressions with GROUP BY
+USER REQUEST: "Show total loan disbursements and count of fully paid loans by branch"
+
+CORRECT MODEL - aggregate_expressions with proper group_by_columns:
+\`\`\`json
+{
+  "columns": [
+    {"schema": "dra_excel", "table_name": "loans", "column_name": "branch_name", "is_selected_column": true},
+    {"schema": "dra_excel", "table_name": "loans", "column_name": "disbursed_amount", "is_selected_column": false},
+    {"schema": "dra_excel", "table_name": "loans", "column_name": "balance_remaining", "is_selected_column": false}
+  ],
+  "query_options": {
+    "group_by": {
+      "aggregate_functions": [
+        {"column": "dra_excel.loans.disbursed_amount", "aggregate_function": 0, "column_alias_name": "total_disbursed"}
+      ],
+      "aggregate_expressions": [
+        {
+          "expression": "COUNT(CASE WHEN dra_excel.loans.balance_remaining <= 0 THEN 1 END)",
+          "column_alias_name": "fully_paid_count"
+        }
+      ],
+      "group_by_columns": ["dra_excel.loans.branch_name"]
+    }
+  }
+}
+\`\`\`
+RESULTING SQL: 
+\`\`\`sql
+SELECT 
+  branch_name, 
+  SUM(disbursed_amount) AS total_disbursed,
+  COUNT(CASE WHEN balance_remaining <= 0 THEN 1 END) AS fully_paid_count
+FROM loans 
+GROUP BY branch_name
+\`\`\`
+
+KEY POINTS:
+✓ branch_name has is_selected_column = true (non-aggregated, in GROUP BY)
+✓ disbursed_amount has is_selected_column = false (used in SUM aggregate)
+✓ balance_remaining has is_selected_column = false (used in CASE expression aggregate)
+✓ group_by_columns contains ONLY ["dra_excel.loans.branch_name"]
+✓ Columns used in aggregate_expressions (balance_remaining) are NOT in group_by_columns
+✓ Columns used in aggregate_functions (disbursed_amount) are NOT in group_by_columns
+
+#### Example 4: What NOT to Do (Common Mistakes)
 
 WRONG - Missing group_by_columns:
 \`\`\`json
@@ -586,6 +639,12 @@ Respond with ONLY this JSON wrapped in code block with json tag:
     - DO NOT use any placeholder syntax - write actual column names
     - Valid: "SUM(dra_excel.orders.quantity * dra_excel.products.price)"
     - Invalid: "SUM([[dra_excel.orders.quantity]] * [[dra_excel.products.price]])"
+  - **CRITICAL FOR GROUP BY**: Columns referenced in aggregate_expressions are AGGREGATED
+    - These columns must have is_selected_column = false
+    - These columns must NOT appear in group_by_columns array
+    - Only non-aggregated selected columns go in group_by_columns
+    - Example: COUNT(CASE WHEN balance_remaining <= 0...) → balance_remaining is aggregated, NOT in GROUP BY
+    - Example: SUM(quantity * price) → quantity and price are aggregated, NOT in GROUP BY
   - **Examples**:
     - {"expression": "SUM(public.orders.quantity * public.products.price)", "column_alias_name": "total_revenue"}
     - {"expression": "AVG(CASE WHEN public.orders.status='active' THEN public.orders.amount ELSE 0 END)", "column_alias_name": "avg_active_amount"}
