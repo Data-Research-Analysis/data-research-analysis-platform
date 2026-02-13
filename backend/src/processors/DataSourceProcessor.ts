@@ -103,26 +103,29 @@ export class DataSourceProcessor {
             const upperType = columnType.toUpperCase();
 
             // Format based on column type
+            // CRITICAL: Check TIMESTAMP types BEFORE TIME types
+            // because 'TIMESTAMP WITHOUT TIME ZONE' contains 'TIME WITHOUT'
+            // and would incorrectly match the TIME handler, stripping the date portion
             if (upperType === 'DATE') {
                 // DATE: YYYY-MM-DD format
                 const formatted = dateObj.toISOString().split('T')[0];
                 return `'${formatted}'`;
             } 
-            else if (upperType === 'TIME' || upperType.startsWith('TIME(') || upperType.includes('TIME WITHOUT')) {
-                // TIME: HH:MM:SS format
-                const timeString = dateObj.toISOString().split('T')[1].split('.')[0];
-                return `'${timeString}'`;
-            } 
-            else if (upperType === 'TIMESTAMP WITH TIME ZONE' || upperType === 'TIMESTAMPTZ') {
+            else if (upperType === 'TIMESTAMP WITH TIME ZONE' || upperType === 'TIMESTAMPTZ' || upperType.includes('TIMESTAMPTZ')) {
                 // TIMESTAMP WITH TIME ZONE: ISO 8601 format with timezone
                 return `'${dateObj.toISOString()}'`;
             } 
-            else if (upperType === 'TIMESTAMP' || upperType.startsWith('TIMESTAMP(') || upperType.includes('TIMESTAMP WITHOUT')) {
+            else if (upperType === 'TIMESTAMP' || upperType.startsWith('TIMESTAMP(') || upperType.includes('TIMESTAMP WITHOUT') || upperType.includes('TIMESTAMP ')) {
                 // TIMESTAMP: YYYY-MM-DD HH:MM:SS format (no timezone)
                 const formatted = dateObj.toISOString()
                     .replace('T', ' ')
                     .split('.')[0];
                 return `'${formatted}'`;
+            }
+            else if (upperType === 'TIME' || upperType.startsWith('TIME(') || upperType.includes('TIME WITHOUT')) {
+                // TIME: HH:MM:SS format (must come AFTER TIMESTAMP checks)
+                const timeString = dateObj.toISOString().split('T')[1].split('.')[0];
+                return `'${timeString}'`;
             }
 
             // Fallback: use ISO string for timestamp with timezone
@@ -144,6 +147,15 @@ export class DataSourceProcessor {
     private formatValueForSQL(value: any, columnType: string, columnName: string): string {
         if (value === null || value === undefined) {
             return 'null';
+        }
+
+        // Auto-detect Date objects regardless of declared column type
+        // External DB drivers may return Date objects for columns not recognized as date types
+        if (value instanceof Date) {
+            const upperType = columnType.toUpperCase();
+            const dateType = (upperType.includes('DATE') || upperType.includes('TIME') || upperType.includes('TIMESTAMP'))
+                ? upperType : 'TIMESTAMP';
+            return this.formatDateForSQL(value, dateType, columnName);
         }
 
         const upperType = columnType.toUpperCase();
@@ -190,6 +202,38 @@ export class DataSourceProcessor {
                 console.error(`Failed to serialize JSON for column ${columnName}:`, error, 'Value:', value, 'Type:', typeof value);
                 return 'null';
             }
+        }
+
+        // Auto-detect date-like strings as safety net
+        // Catches JavaScript Date.toString() format ("Thu Nov 23 2025 00:00:00 GMT+0000...")
+        // that external DB drivers may return as strings instead of Date objects.
+        // Without this, such strings get inserted raw into DATE/TIMESTAMP columns,
+        // causing PostgreSQL DateTimeParseError (code 22007).
+        if (typeof value === 'string') {
+            const trimmed = value.trim();
+            if (trimmed.includes('GMT') || trimmed.includes('UTC') || trimmed.includes('Coordinated Universal Time')) {
+                const dateObj = new Date(trimmed);
+                if (!isNaN(dateObj.getTime())) {
+                    console.warn(`[formatValueForSQL] Auto-detected date string for column ${columnName} (declared ${columnType}): "${trimmed.substring(0, 60)}"`);
+                    return this.formatDateForSQL(trimmed, 'TIMESTAMP', columnName);
+                }
+            }
+        }
+
+        // Handle NUMERIC/INTEGER/REAL/FLOAT types - don't wrap numbers in quotes
+        if (upperType.includes('NUMERIC') || upperType.includes('INTEGER') || upperType.includes('INT') ||
+            upperType.includes('REAL') || upperType.includes('FLOAT') || upperType.includes('DOUBLE') ||
+            upperType.includes('DECIMAL') || upperType.includes('BIGINT') || upperType.includes('SMALLINT')) {
+            const numValue = Number(value);
+            if (!isNaN(numValue)) {
+                return `${numValue}`;
+            }
+            return 'null';
+        }
+
+        // Handle BOOLEAN type
+        if (upperType === 'BOOLEAN' || upperType === 'BOOL') {
+            return this.convertToPostgresBoolean(value);
         }
 
         // Handle all other types with proper escaping
@@ -1512,7 +1556,32 @@ export class DataSourceProcessor {
                 }
                 
                 dataModelName = UtilityService.getInstance().uniquiseName(dataModelName);
-                const selectTableQuery = `${query}`;
+                
+                // CRITICAL FIX: Always reconstruct SQL from JSON for data model building
+                // The frontend buildSQLQuery() generates different column aliases than what the
+                // INSERT code expects. For single-table queries, frontend uses "tableName_col"
+                // but INSERT code looks up rows by "schema_tableName_col". Reconstructing from
+                // JSON ensures aliases match the INSERT row key format, preventing null data.
+                // This is consistent with executeQueryOnExternalDataSource() which also reconstructs.
+                let selectTableQuery: string;
+                try {
+                    selectTableQuery = this.reconstructSQLFromJSON(queryJSON);
+                    
+                    // Preserve LIMIT/OFFSET from original query if not in reconstructed SQL
+                    const limitMatch = query.match(/LIMIT\s+(\d+)/i);
+                    const offsetMatch = query.match(/OFFSET\s+(\d+)/i);
+                    if (limitMatch && !selectTableQuery.toUpperCase().includes('LIMIT')) {
+                        selectTableQuery += ` LIMIT ${limitMatch[1]}`;
+                    }
+                    if (offsetMatch && !selectTableQuery.toUpperCase().includes('OFFSET')) {
+                        selectTableQuery += ` OFFSET ${offsetMatch[1]}`;
+                    }
+                    
+                    console.log('[DataSourceProcessor] Reconstructed SQL for data model build:', selectTableQuery);
+                } catch (reconstructError) {
+                    console.error('[DataSourceProcessor] SQL reconstruction failed, falling back to frontend SQL:', reconstructError);
+                    selectTableQuery = `${query}`;
+                }
                 const rowsFromDataSource = await externalDBConnector.query(selectTableQuery);
                 //Create the table first then insert the data.
                 let createTableQuery = `CREATE TABLE ${dataModelName} `;
@@ -1764,7 +1833,9 @@ export class DataSourceProcessor {
                     });
                 }
                 
-                rowsFromDataSource.forEach((row: any, index: number) => {
+                let failedInserts = 0;
+                for (let index = 0; index < rowsFromDataSource.length; index++) {
+                    const row = rowsFromDataSource[index];
                     let insertQuery = `INSERT INTO ${dataModelName} `;
                     let values = '';
                     columnsForTableCreation.forEach((column: any, columnIndex: number) => {
@@ -1805,20 +1876,21 @@ export class DataSourceProcessor {
                             values += formattedValue;
                         }
                     });
-                    // Handle calculated column values
+                    // Handle calculated column values - use formatValueForSQL for proper type handling
                     if (sourceTable.calculated_columns && sourceTable.calculated_columns.length > 0) {
                         values += ',';
                         sourceTable.calculated_columns.forEach((column: any, columnIndex: number) => {
                             const columnName = column.column_name;
+                            const formattedVal = this.formatValueForSQL(row[columnName], 'NUMERIC', columnName);
                             if (columnIndex < sourceTable.calculated_columns.length - 1) {
-                                values += `'${row[columnName] || 0}',`;
+                                values += `${formattedVal},`;
                             } else {
-                                values += `'${row[columnName] || 0}'`;
+                                values += `${formattedVal}`;
                             }
                         });
                     }
                     
-                    // Handle aggregate function values
+                    // Handle aggregate function values - use formatValueForSQL for proper type handling
                     if (sourceTable.query_options?.group_by?.aggregate_functions && sourceTable.query_options.group_by.aggregate_functions.length > 0) {
                         const aggregateFunctions = ['SUM', 'AVG', 'COUNT', 'MIN', 'MAX'];
                         const validAggFuncs = sourceTable.query_options.group_by.aggregate_functions.filter(
@@ -1842,16 +1914,17 @@ export class DataSourceProcessor {
                                     aliasName = `${funcName}_${columnName}`.toLowerCase();
                                 }
                                 
+                                const formattedVal = this.formatValueForSQL(row[rowKey], 'NUMERIC', aliasName);
                                 if (columnIndex < validAggFuncs.length - 1) {
-                                    values += `'${row[rowKey] || 0}',`;
+                                    values += `${formattedVal},`;
                                 } else {
-                                    values += `'${row[rowKey] || 0}'`;
+                                    values += `${formattedVal}`;
                                 }
                             });
                         }
                     }
                     
-                    // Handle aggregate expression values
+                    // Handle aggregate expression values - use formatValueForSQL with inferred data type
                     if (sourceTable.query_options?.group_by?.aggregate_expressions && 
                         sourceTable.query_options.group_by.aggregate_expressions.length > 0) {
                         const validExpressions = sourceTable.query_options.group_by.aggregate_expressions.filter(
@@ -1862,24 +1935,35 @@ export class DataSourceProcessor {
                             values += ',';
                             validExpressions.forEach((expr: any, index: number) => {
                                 const aliasName = expr.column_alias_name;
-                                const value = row[aliasName] || 0;
+                                const exprDataType = columnDataTypes.get(aliasName) || 'NUMERIC';
+                                const formattedVal = this.formatValueForSQL(row[aliasName], exprDataType, aliasName);
                                 
                                 if (index < validExpressions.length - 1) {
-                                    values += `'${value}',`;
+                                    values += `${formattedVal},`;
                                 } else {
-                                    values += `'${value}'`;
+                                    values += `${formattedVal}`;
                                 }
                             });
                         }
                     }
                     
                     insertQuery += `${insertQueryColumns} VALUES(${values});`;
-                    internalDbConnector.query(insertQuery);
-                });
+                    try {
+                        await internalDbConnector.query(insertQuery);
+                    } catch (insertError: any) {
+                        failedInserts++;
+                        if (failedInserts <= 3) {
+                            console.error(`[DataSourceProcessor] INSERT failed for row ${index}:`, insertError?.message || insertError);
+                            console.error(`[DataSourceProcessor] Failed query:`, insertQuery.substring(0, 500));
+                        }
+                    }
+                }
+                const successfulInserts = rowsFromDataSource.length - failedInserts;
+                console.log(`[DataSourceProcessor] Inserted ${successfulInserts}/${rowsFromDataSource.length} rows into ${dataModelName} (${failedInserts} failed)`);
                 const dataModel = new DRADataModel();
                 dataModel.schema = 'public';
                 dataModel.name = dataModelName;
-                dataModel.sql_query = query;
+                dataModel.sql_query = selectTableQuery;
                 dataModel.query = JSON.parse(queryJSON);
                 
                 // Set data_source for single-source, null for cross-source
@@ -2843,6 +2927,11 @@ export class DataSourceProcessor {
     /**
      * Reconstruct SQL query from JSON query structure
      * This ensures JOIN conditions are properly included when executing queries
+     * 
+     * CRITICAL FIX (2026-02-13): Now uses group_by_columns array from AI/frontend
+     * Previously rebuilt GROUP BY from columns array, ignoring the group_by_columns
+     * that the AI Data Modeler was correctly generating. This caused SQL errors when
+     * aggregates were present but GROUP BY was not properly included in the final query.
      */
     public reconstructSQLFromJSON(queryJSON: any): string {
         const query = typeof queryJSON === 'string' ? JSON.parse(queryJSON) : queryJSON;
@@ -2870,10 +2959,22 @@ export class DataSourceProcessor {
                     const isAggregateOnly = aggregateColumns.has(columnFullPath);
                     
                     if (!isAggregateOnly) {
-                        const tableRef = column.table_alias || column.table_name;
-                        const aliasName = column?.alias_name && column.alias_name !== '' 
-                            ? column.alias_name 
-                            : `${column.schema}_${tableRef}_${column.column_name}`;
+                        // CRITICAL: Alias names must EXACTLY match the INSERT loop's rowKey construction
+                        // to ensure row value lookups succeed during data model building.
+                        // Special schemas use table_name_column_name (no schema prefix).
+                        // Regular schemas use schema_table_name_column_name.
+                        // Always use table_name (NOT table_alias) because INSERT loop uses table_name.
+                        let aliasName: string;
+                        if (column?.alias_name && column.alias_name !== '') {
+                            aliasName = column.alias_name;
+                        } else if (column.schema === 'dra_excel' || column.schema === 'dra_pdf' || column.schema === 'dra_google_analytics' || column.schema === 'dra_google_ad_manager' || column.schema === 'dra_google_ads') {
+                            // Special schemas: match INSERT loop's truncation logic
+                            aliasName = `${column.table_name}`.length > 20 
+                                ? `${column.table_name}`.slice(-20) + `_${column.column_name}` 
+                                : `${column.table_name}_${column.column_name}`;
+                        } else {
+                            aliasName = `${column.schema}_${column.table_name}_${column.column_name}`;
+                        }
                         
                         let columnRef = column.table_alias
                             ? `${column.schema}.${column.table_alias}.${column.column_name}`
@@ -3092,20 +3193,47 @@ export class DataSourceProcessor {
         }
         
         // Build GROUP BY clause
-        if (query.query_options?.group_by?.name) {
-            const groupByColumns: string[] = [];
-            query.columns?.forEach((column: any) => {
-                if (column.is_selected_column) {
-                    const columnFullPath = `${column.schema}.${column.table_name}.${column.column_name}`;
-                    const isAggregateOnly = aggregateColumns.has(columnFullPath);
-                    if (!isAggregateOnly) {
-                        const tableRef = column.table_alias || column.table_name;
-                        groupByColumns.push(`${column.schema}.${tableRef}.${column.column_name}`);
+        // CRITICAL: Check for group_by.name (UI flag) OR presence of aggregates/group_by_columns
+        // The AI model may not set the 'name' field, but still provide group_by_columns and aggregate_expressions
+        const hasGroupByName = !!query.query_options?.group_by?.name;
+        const hasGroupByColumns = query.query_options?.group_by?.group_by_columns?.length > 0;
+        const hasAggFuncs = query.query_options?.group_by?.aggregate_functions?.some(
+            (agg: any) => agg.aggregate_function !== '' && agg.column !== ''
+        );
+        const hasAggExprs = query.query_options?.group_by?.aggregate_expressions?.some(
+            (expr: any) => expr.expression && expr.expression !== ''
+        );
+        if (hasGroupByName || hasGroupByColumns || hasAggFuncs || hasAggExprs) {
+            // CRITICAL: Use group_by_columns array if provided (new format from AI)
+            // Otherwise fallback to rebuilding from columns (legacy format)
+            let groupByColumns: string[] = [];
+            
+            if (query.query_options?.group_by?.group_by_columns && 
+                Array.isArray(query.query_options.group_by.group_by_columns) &&
+                query.query_options.group_by.group_by_columns.length > 0) {
+                // NEW FORMAT: Use group_by_columns array directly from AI/frontend
+                groupByColumns = query.query_options.group_by.group_by_columns;
+                console.log('[DataSourceProcessor] Using group_by_columns array:', groupByColumns);
+            } else {
+                // LEGACY FORMAT: Rebuild from columns array (backward compatibility)
+                console.log('[DataSourceProcessor] Rebuilding GROUP BY from columns array (legacy)');
+                query.columns?.forEach((column: any) => {
+                    if (column.is_selected_column) {
+                        const columnFullPath = `${column.schema}.${column.table_name}.${column.column_name}`;
+                        const isAggregateOnly = aggregateColumns.has(columnFullPath);
+                        if (!isAggregateOnly) {
+                            const tableRef = column.table_alias || column.table_name;
+                            groupByColumns.push(`${column.schema}.${tableRef}.${column.column_name}`);
+                        }
                     }
-                }
-            });
+                });
+            }
+            
             if (groupByColumns.length > 0) {
                 sqlParts.push(`GROUP BY ${groupByColumns.join(', ')}`);
+            } else if (query.query_options?.group_by?.aggregate_functions?.length > 0 ||
+                       query.query_options?.group_by?.aggregate_expressions?.length > 0) {
+                console.warn('[DataSourceProcessor] WARNING: Aggregates present but GROUP BY is empty!');
             }
         }
         

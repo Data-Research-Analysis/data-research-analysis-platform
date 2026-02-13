@@ -199,7 +199,16 @@ const showOrderByClause = computed(() => {
     return state?.data_table?.query_options?.order_by?.length > 0;
 });
 const showGroupByClause = computed(() => {
-    return state?.data_table?.query_options?.group_by?.name ? true : false;
+    // Show GROUP BY section if name flag is set OR if aggregate functions/expressions exist
+    if (state?.data_table?.query_options?.group_by?.name) return true;
+    if (state?.data_table?.query_options?.group_by?.aggregate_functions?.some(
+        (agg) => agg.aggregate_function !== '' && agg.column !== ''
+    )) return true;
+    if (state?.data_table?.query_options?.group_by?.aggregate_expressions?.some(
+        (expr) => expr.expression && expr.expression !== ''
+    )) return true;
+    if (state?.data_table?.query_options?.group_by?.group_by_columns?.length > 0) return true;
+    return false;
 });
 const showDataModelControls = computed(() => {
     return state && state.data_table && state.data_table.columns && state.data_table.columns.length > 0;
@@ -308,6 +317,15 @@ const allAvailableColumns = computed(() => {
 
 const whereColumns = computed(() => {
     return allAvailableColumns.value.filter(col => !col.is_aggregate);
+});
+
+/**
+ * Columns available to add to GROUP BY - excludes columns already in group_by_columns
+ * and columns that are used in aggregate functions/expressions
+ */
+const availableGroupByColumns = computed(() => {
+    const currentGroupByCols = state.data_table.query_options?.group_by?.group_by_columns || [];
+    return whereColumns.value.filter(col => !currentGroupByCols.includes(col.value));
 });
 
 const havingColumns = computed(() => {
@@ -2749,6 +2767,44 @@ function removeAggregateExpression(index) {
     
     // Sync GROUP BY columns after removing expression
     syncGroupByColumns();
+}
+
+/**
+ * Add a column to group_by_columns from dropdown selection
+ */
+function addGroupByColumn(event) {
+    const columnRef = event.target.value;
+    if (!columnRef) return;
+    
+    // Initialize arrays if needed
+    if (!state.data_table.query_options.group_by) {
+        state.data_table.query_options.group_by = {};
+    }
+    if (!state.data_table.query_options.group_by.group_by_columns) {
+        state.data_table.query_options.group_by.group_by_columns = [];
+    }
+    
+    // Don't add duplicates
+    if (!state.data_table.query_options.group_by.group_by_columns.includes(columnRef)) {
+        state.data_table.query_options.group_by.group_by_columns.push(columnRef);
+        
+        // Ensure GROUP BY name flag is set for SQL generation
+        if (!state.data_table.query_options.group_by.name) {
+            state.data_table.query_options.group_by.name = 'GROUP BY';
+        }
+    }
+    
+    // Reset dropdown
+    event.target.value = '';
+}
+
+/**
+ * Remove a column from group_by_columns by index
+ */
+function removeGroupByColumn(index) {
+    if (state.data_table.query_options?.group_by?.group_by_columns) {
+        state.data_table.query_options.group_by.group_by_columns.splice(index, 1);
+    }
 }
 function onTransformChange(element, event) {
     const selectedFunc = state.transform_functions.find(f => f.value === event.target.value);
@@ -5490,12 +5546,16 @@ function validateAndTransformAIModel(aiModel) {
                 // 0 = SUM, 1 = AVG, 2 = COUNT, 3 = MIN, 4 = MAX
                 // DO NOT use falsy checks (!) on aggregate_function as 0 (SUM) is valid!
                 // 
-                // NOTE: aggregate_expressions are now STANDALONE and should NOT trigger GROUP BY section
-                // They have their own purple-themed section in the UI
+                // Set GROUP BY name flag when ANY aggregation is present (functions OR expressions)
+                // This flag controls UI visibility and SQL generation
                 if (aiModel.query_options.group_by &&
-                    aiModel.query_options.group_by.aggregate_functions?.length > 0) {
+                    (aiModel.query_options.group_by.aggregate_functions?.length > 0 ||
+                     aiModel.query_options.group_by.aggregate_expressions?.some(
+                         (expr) => expr.expression && expr.expression !== ''
+                     ) ||
+                     aiModel.query_options.group_by.group_by_columns?.length > 0)) {
                     aiModel.query_options.group_by.name = 'GROUP BY';
-                    console.log('[Data Model Builder] Set group_by.name flag for GROUP BY section visibility');                // CRITICAL: Translate logical table names to physical in aggregate functions
+                    console.log('[Data Model Builder] Set group_by.name flag for GROUP BY section visibility (functions OR expressions)');                // CRITICAL: Translate logical table names to physical in aggregate functions
                 // Aggregate functions reference columns like "schema.table.column"
                 // where table might still be a logical name that needs translation
                 
@@ -6990,6 +7050,64 @@ onBeforeUnmount(() => {
                                             </div>
                                         </div>
                                     </div>
+                                    
+                                    <!-- GROUP BY Columns Section -->
+                                    <div v-if="showGroupByClause" class="w-full flex flex-col mt-5">
+                                        <h3 class="font-bold mb-2">GROUP BY Columns</h3>
+                                        <div class="bg-green-50 border-l-4 border-green-400 p-4 mb-4 rounded-r-lg">
+                                            <div class="flex items-start">
+                                                <svg class="h-5 w-5 text-green-400 mt-0.5 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                <div>
+                                                    <p class="text-sm text-green-700 font-medium">
+                                                        <strong>GROUP BY:</strong> Columns that your results will be grouped by. Each unique combination of these columns will produce one row in the output.
+                                                    </p>
+                                                    <p class="text-xs text-green-600 mt-1">
+                                                        These columns are auto-detected from your selected columns, but you can manually add or remove them.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="flex flex-col bg-gray-100 p-5 rounded-lg">
+                                            <!-- Current GROUP BY columns -->
+                                            <div v-if="state.data_table.query_options?.group_by?.group_by_columns?.length > 0" class="flex flex-wrap gap-2 mb-3">
+                                                <div v-for="(col, index) in state.data_table.query_options.group_by.group_by_columns"
+                                                    :key="index"
+                                                    class="flex items-center bg-white border border-green-300 rounded-lg px-3 py-2 shadow-sm">
+                                                    <span class="text-sm text-gray-700 mr-2">{{ col.split('.').pop() }}</span>
+                                                    <span class="text-xs text-gray-400 mr-2" :title="col">{{ col }}</span>
+                                                    <div v-if="!readOnly"
+                                                        class="text-red-400 hover:text-red-600 cursor-pointer ml-1 font-bold"
+                                                        @click="removeGroupByColumn(index)"
+                                                        title="Remove from GROUP BY">
+                                                        &times;
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div v-else class="text-sm text-gray-500 mb-3 italic">
+                                                No GROUP BY columns added. Add columns below to group your results.
+                                            </div>
+                                            
+                                            <!-- Add column dropdown -->
+                                            <div class="flex flex-row items-center gap-2">
+                                                <select :disabled="readOnly || availableGroupByColumns.length === 0"
+                                                    :class="[
+                                                        'flex-1 border border-green-300 border-solid p-2 rounded-lg',
+                                                        readOnly || availableGroupByColumns.length === 0 ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                                                    ]"
+                                                    @change="addGroupByColumn($event)">
+                                                    <option value="" selected>+ Add column to GROUP BY...</option>
+                                                    <option v-for="col in availableGroupByColumns"
+                                                        :key="col.value"
+                                                        :value="col.value">
+                                                        {{ col.display }}
+                                                    </option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <div v-if="showGroupByClause" class="w-full flex flex-col mt-5">
                                         <h3 class="font-bold mb-2">Aggregate Functions</h3>
                                         <!-- Aggregate Function Disclaimer -->
@@ -7091,6 +7209,18 @@ onBeforeUnmount(() => {
                                                             Add
                                                         </div>
                                                     </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Add first aggregate function button - shows when list is empty -->
+                                            <div v-if="!state.data_table.query_options.group_by.aggregate_functions || state.data_table.query_options.group_by.aggregate_functions.length === 0"
+                                                class="flex justify-center mt-2">
+                                                <div :class="[
+                                                        'h-10 flex items-center self-center p-5 font-bold rounded-lg border-2 border-dashed',
+                                                        readOnly ? 'border-gray-300 text-gray-500 cursor-not-allowed' : 'border-blue-400 text-blue-500 hover:bg-blue-50 cursor-pointer'
+                                                    ]"
+                                                    @click="!readOnly && addQueryOption('GROUP BY')">
+                                                    + Add Aggregate Function
                                                 </div>
                                             </div>
 
