@@ -753,18 +753,21 @@ export class DataModelProcessor {
                 return resolve(false);
             }
             
-            // API-integrated sources (MongoDB, Excel, PDF) store data in PostgreSQL
+            // API-integrated sources (Excel, PDF) and synced MongoDB store data in PostgreSQL
             // Use internal PostgreSQL connection instead of connecting to external DB
             let externalDBConnector: DataSource;
-            const apiIntegratedTypes = ['mongodb', 'excel', 'pdf'];
-            const isApiIntegrated = apiIntegratedTypes.includes(dataSourceType.toLowerCase());
+            const fileBasedTypes = ['excel', 'pdf', 'csv'];
+            const isFileBased = fileBasedTypes.includes(dataSourceType.toLowerCase());
+            const isSyncedMongoDB = dataSource.data_type === EDataSourceType.MONGODB && 
+                                    dataSource.sync_status === 'completed' && 
+                                    dataSource.last_sync_at;
             
-            if (isApiIntegrated) {
-                // Use internal PostgreSQL connection where synced data lives
-                console.log(`[DataModelProcessor] Using internal PostgreSQL for API-integrated source: ${dataSourceType}`);
+            if (isFileBased || isSyncedMongoDB) {
+                // Use internal PostgreSQL connection where synced/imported data lives
+                console.log(`[DataModelProcessor] Using internal PostgreSQL for ${isSyncedMongoDB ? 'synced MongoDB' : 'file-based'} source: ${dataSourceType}`);
                 externalDBConnector = internalDbConnector;
             } else {
-                // Connect to external database for regular data sources
+                // Connect to external database for regular data sources (or non-synced MongoDB)
                 const externalDriver = await DBDriver.getInstance().getDriver(dataSourceType as any);
                 if (!externalDriver) {
                     return resolve(false);

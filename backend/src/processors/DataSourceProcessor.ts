@@ -637,10 +637,36 @@ export class DataSourceProcessor {
                     }
                 }
 
+                // Delete MongoDB schema tables
+                if (dataSource.data_type === EDataSourceType.MONGODB) {
+                    if (!dbConnector) {
+                        return resolve(false);
+                    }
+                    try {
+                        // MongoDB tables can be in format: {collectionName}_{dataSourceId} or just {collectionName}
+                        // We'll query metadata to get the exact table names
+                        const metadataQuery = `
+                            SELECT physical_table_name FROM dra_table_metadata 
+                            WHERE schema_name = 'dra_mongodb' AND data_source_id = $1
+                        `;
+                        const metadataResults = await dbConnector.query(metadataQuery, [dataSource.id]);
+                        
+                        console.log(`Found ${metadataResults.length} MongoDB tables to delete for data source ${dataSource.id}`);
+
+                        for (const row of metadataResults) {
+                            const tableName = row.physical_table_name;
+                            await dbConnector.query(`DROP TABLE IF EXISTS dra_mongodb.${tableName}`);
+                            console.log(`Dropped MongoDB table: ${tableName}`);
+                        }
+                    } catch (error) {
+                        console.error('Error dropping MongoDB tables:', error);
+                    }
+                }
+
                 // Store data source name for notification
                 const dataSourceName = dataSource.name;
 
-                // Remove the data source record
+                // Remove the data source record (CASCADE will handle related metadata)
                 await manager.remove(dataSource);
                 console.log(`Successfully deleted data source ${dataSourceId}`);
 
@@ -1407,10 +1433,53 @@ export class DataSourceProcessor {
 
             // Handle MongoDB queries
             if (dataSource.data_type === EDataSourceType.MONGODB) {
-                // For MongoDB, we expect the query to be passed as JSON or we use the queryJSON parameter
-                // We'll prioritize queryJSON if available, otherwise try to parse 'query' string
-                const jsonToUse = queryJSON || query;
-                return resolve(await this.executeMongoDBQuery(dataSource.id, jsonToUse, tokenDetails));
+                // Check if MongoDB data is synced to PostgreSQL
+                // If synced, treat as PostgreSQL query on dra_mongodb schema tables
+                // If not synced, execute as native MongoDB aggregation pipeline
+                if (dataSource.sync_status === 'completed' && dataSource.last_sync_at) {
+                    console.log(`[DataSourceProcessor] MongoDB data source ${dataSource.id} is synced to PostgreSQL, executing SQL query on internal database`);
+                    
+                    try {
+                        // Get internal PostgreSQL driver
+                        const internalDriver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+                        if (!internalDriver) {
+                            return resolve({ success: false, error: 'Internal PostgreSQL driver not available', data: [], rowCount: 0 });
+                        }
+                        const internalDbConnector = await internalDriver.getConcreteDriver();
+                        if (!internalDbConnector) {
+                            return resolve({ success: false, error: 'Internal PostgreSQL connection not available', data: [], rowCount: 0 });
+                        }
+
+                        // Reconstruct SQL from JSON if provided
+                        let finalQuery = query;
+                        if (queryJSON) {
+                            finalQuery = this.reconstructSQLFromJSON(queryJSON);
+
+                            // Extract LIMIT/OFFSET from original query if not in JSON
+                            const limitMatch = query.match(/LIMIT\s+(\d+)/i);
+                            const offsetMatch = query.match(/OFFSET\s+(\d+)/i);
+                            if (limitMatch && !finalQuery.includes('LIMIT')) {
+                                const limit = limitMatch[1];
+                                const offset = offsetMatch ? offsetMatch[1] : '0';
+                                finalQuery += ` LIMIT ${limit} OFFSET ${offset}`;
+                            }
+                        }
+
+                        console.log('[DataSourceProcessor] Executing SQL query on synced MongoDB data:', finalQuery);
+                        const results = await internalDbConnector.query(finalQuery);
+                        console.log('[DataSourceProcessor] Query results count:', results?.length || 0);
+                        return resolve(results);
+                    } catch (error) {
+                        console.error('[DataSourceProcessor] Error executing query on synced MongoDB data:', error);
+                        console.error('[DataSourceProcessor] Failed query was:', query);
+                        return resolve({ success: false, error: 'Query execution failed', data: [], rowCount: 0 });
+                    }
+                } else {
+                    // Not synced - execute as native MongoDB query with aggregation pipeline
+                    console.log(`[DataSourceProcessor] MongoDB data source ${dataSource.id} not synced, executing as native MongoDB query`);
+                    const jsonToUse = queryJSON || query;
+                    return resolve(await this.executeMongoDBQuery(dataSource.id, jsonToUse, tokenDetails));
+                }
             }
 
             const connection = dataSource.connection_details;
@@ -1761,9 +1830,13 @@ export class DataSourceProcessor {
 
                     const connection = singleDataSource.connection_details;
 
-                    // Check if it's Excel/CSV/PDF (already in PostgreSQL)
+                    // Check if it's Excel/CSV/PDF or synced MongoDB (already in PostgreSQL)
                     if (connection.data_source_type === 'excel' || connection.data_source_type === 'csv' || connection.data_source_type === 'pdf') {
                         console.log('[DataSourceProcessor] Excel/CSV/PDF data source - using internal PostgreSQL');
+                        externalDBConnector = internalDbConnector;
+                        dataSourceType = EDataSourceType.POSTGRESQL;
+                    } else if (singleDataSource.data_type === EDataSourceType.MONGODB && singleDataSource.sync_status === 'completed' && singleDataSource.last_sync_at) {
+                        console.log('[DataSourceProcessor] Synced MongoDB data source - using internal PostgreSQL');
                         externalDBConnector = internalDbConnector;
                         dataSourceType = EDataSourceType.POSTGRESQL;
                     } else if ('oauth_access_token' in connection) {
@@ -1827,24 +1900,31 @@ export class DataSourceProcessor {
                 }
 
                 const connection = dataSource.connection_details;
-                // Skip API-based data sources
-                if ('oauth_access_token' in connection) {
+                
+                // Check if it's synced MongoDB (already in PostgreSQL)
+                if (dataSource.data_type === EDataSourceType.MONGODB && dataSource.sync_status === 'completed' && dataSource.last_sync_at) {
+                    console.log('[DataSourceProcessor] Synced MongoDB data source - using internal PostgreSQL');
+                    externalDBConnector = internalDbConnector;
+                    dataSourceType = EDataSourceType.POSTGRESQL;
+                } else if ('oauth_access_token' in connection) {
+                    // Skip API-based data sources
                     return resolve(null);
-                }
+                } else {
+                    // External database (MySQL, MariaDB, PostgreSQL) - connect directly
+                    dataSourceType = UtilityService.getInstance().getDataSourceType(connection.data_source_type);
+                    if (!dataSourceType) {
+                        return resolve(null);
+                    }
 
-                dataSourceType = UtilityService.getInstance().getDataSourceType(connection.data_source_type);
-                if (!dataSourceType) {
-                    return resolve(null);
-                }
+                    const externalDriver = await DBDriver.getInstance().getDriver(dataSourceType as any);
+                    if (!externalDriver) {
+                        return resolve(null);
+                    }
 
-                const externalDriver = await DBDriver.getInstance().getDriver(dataSourceType as any);
-                if (!externalDriver) {
-                    return resolve(null);
-                }
-
-                externalDBConnector = await externalDriver.connectExternalDB(connection);
-                if (!externalDBConnector) {
-                    return resolve(null);
+                    externalDBConnector = await externalDriver.connectExternalDB(connection);
+                    if (!externalDBConnector) {
+                        return resolve(null);
+                    }
                 }
             } else {
                 return resolve(null);

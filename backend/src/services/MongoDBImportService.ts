@@ -2,6 +2,7 @@ import { DataSource, QueryRunner } from 'typeorm';
 import { MongoDBNativeService } from './MongoDBNativeService.js';
 import { DRADataSource } from '../models/DRADataSource.js';
 import { DRAMongoDBSyncHistory } from '../models/DRAMongoDBSyncHistory.js';
+import { DRATableMetadata } from '../models/DRATableMetadata.js';
 import { SocketIODriver } from '../drivers/SocketIODriver.js';
 import { ISyncProgress, ICollectionProgress } from '../interfaces/ISyncProgress.js';
 
@@ -279,7 +280,15 @@ export class MongoDBImportService {
 
             // Create or update PostgreSQL table with unique name including data source ID
             const tableName = this.generateUniqueTableName(collectionName, dataSource.id);
-            await this.createOrUpdateTable(tableName, schemaResult.fields);
+            
+            // Fetch users_platform_id from data source (needed for metadata)
+            const dsResult = await this.pgDataSource.query(
+                'SELECT users_platform_id FROM dra_data_sources WHERE id = $1',
+                [dataSource.id]
+            );
+            const usersPlatformId = dsResult[0]?.users_platform_id;
+            
+            await this.createOrUpdateTable(tableName, schemaResult.fields, dataSource.id, usersPlatformId, collectionName);
 
             // Get database and collection
             const db = await mongoService.getDatabase(
@@ -440,10 +449,14 @@ export class MongoDBImportService {
 
     /**
      * Create PostgreSQL table from MongoDB collection schema
+     * Also creates metadata entry for AI data modeler
      */
     private async createOrUpdateTable(
         tableName: string,
-        fields: any[]
+        fields: any[],
+        dataSourceId: number,
+        usersPlatformId: number,
+        collectionName: string
     ): Promise<void> {
         const queryRunner = this.pgDataSource.createQueryRunner();
         await queryRunner.connect();
@@ -468,14 +481,112 @@ export class MongoDBImportService {
                 
                 await queryRunner.query(createTableSQL);
                 console.log(`[MongoDBImportService] Created table: dra_mongodb.${tableName}`);
+
+                // Create metadata entry for AI data modeler
+                await this.createTableMetadata(
+                    dataSourceId,
+                    usersPlatformId,
+                    tableName,
+                    collectionName
+                );
             } else {
                 console.log(`[MongoDBImportService] Table exists: dra_mongodb.${tableName}, will update existing records`);
-                // TODO: Handle schema changes (add new columns, alter types)
-                // For now, we'll just update existing records via UPSERT
+                
+                // Ensure metadata exists for existing tables
+                await this.ensureTableMetadata(
+                    dataSourceId,
+                    usersPlatformId,
+                    tableName,
+                    collectionName
+                );
             }
 
         } finally {
             await queryRunner.release();
+        }
+    }
+
+    /**
+     * Create table metadata entry for AI data modeler
+     */
+    private async createTableMetadata(
+        dataSourceId: number,
+        usersPlatformId: number,
+        physicalTableName: string,
+        collectionName: string
+    ): Promise<void> {
+        try {
+            const manager = this.pgDataSource.manager;
+            
+            // Check if metadata already exists using a query (more reliable than findOne)
+            const existing = await manager.query(`
+                SELECT id FROM dra_table_metadata 
+                WHERE schema_name = $1 AND physical_table_name = $2
+            `, ['dra_mongodb', physicalTableName]);
+
+            if (existing && existing.length > 0) {
+                console.log(`[MongoDBImportService] Metadata already exists for table: ${physicalTableName}`);
+                return;
+            }
+
+            // Create new metadata entry
+            await manager.query(`
+                INSERT INTO dra_table_metadata (
+                    data_source_id,
+                    users_platform_id,
+                    schema_name,
+                    physical_table_name,
+                    logical_table_name,
+                    original_sheet_name,
+                    table_type
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+            `, [
+                dataSourceId,
+                usersPlatformId,
+                'dra_mongodb',
+                physicalTableName,
+                collectionName, // Use original collection name as display name
+                collectionName,
+                'mongodb'
+            ]);
+
+            console.log(`[MongoDBImportService] Created metadata for table: ${physicalTableName} (${collectionName})`);
+        } catch (error) {
+            console.error(`[MongoDBImportService] Failed to create metadata for ${physicalTableName}:`, error);
+            // Don't throw - metadata creation failure shouldn't block data import
+        }
+    }
+
+    /**
+     * Ensure table metadata exists for existing tables
+     */
+    private async ensureTableMetadata(
+        dataSourceId: number,
+        usersPlatformId: number,
+        physicalTableName: string,
+        collectionName: string
+    ): Promise<void> {
+        try {
+            const manager = this.pgDataSource.manager;
+            
+            // Check if metadata exists using a query
+            const existing = await manager.query(`
+                SELECT id FROM dra_table_metadata 
+                WHERE schema_name = $1 AND physical_table_name = $2
+            `, ['dra_mongodb', physicalTableName]);
+
+            if (!existing || existing.length === 0) {
+                console.log(`[MongoDBImportService] Backfilling metadata for existing table: ${physicalTableName}`);
+                await this.createTableMetadata(
+                    dataSourceId,
+                    usersPlatformId,
+                    physicalTableName,
+                    collectionName
+                );
+            }
+        } catch (error) {
+            console.error(`[MongoDBImportService] Failed to ensure metadata for ${physicalTableName}:`, error);
+            // Don't throw - metadata issues shouldn't block data import
         }
     }
 
