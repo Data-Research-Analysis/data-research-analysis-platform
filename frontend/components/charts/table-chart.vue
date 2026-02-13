@@ -221,10 +221,10 @@ function updateVisibleRange() {
   const containerHeight = state.containerHeight;
   const itemHeight = props.virtualScrollItemHeight;
   
-  // If container height isn't measured yet, show initial rows
+  // If container height isn't measured yet, show all rows (respecting data model limit)
   if (containerHeight <= 0) {
     state.visibleStartIndex = 0;
-    state.visibleEndIndex = Math.min(tableRows.value.length, 20); // Show first 20 rows initially
+    state.visibleEndIndex = tableRows.value.length; // Show all rows from data model
     return;
   }
   

@@ -13,6 +13,7 @@ import { DRAProject } from "../models/DRAProject.js";
 import { DRAProjectMember } from "../models/DRAProjectMember.js";
 import { DRADataModelSource } from "../models/DRADataModelSource.js";
 import { NotificationHelperService } from "../services/NotificationHelperService.js";
+import { DataSourceProcessor } from "./DataSourceProcessor.js";
 
 export class DataModelProcessor {
     private static instance: DataModelProcessor;
@@ -37,6 +38,31 @@ export class DataModelProcessor {
         }
         // Escape single quotes by doubling them (SQL standard)
         return String(value).replace(/'/g, "''");
+    }
+
+    /**
+     * Convert a value to a PostgreSQL boolean literal
+     */
+    private convertToPostgresBoolean(value: any): string {
+        if (value === null || value === undefined) {
+            return 'NULL';
+        }
+        
+        const stringValue = String(value).trim().toLowerCase();
+        
+        // Handle common true values
+        if (['true', '1', 'yes', 'y', 'on', 'active', 'enabled'].includes(stringValue)) {
+            return 'TRUE';
+        }
+        
+        // Handle common false values
+        if (['false', '0', 'no', 'n', 'off', 'inactive', 'disabled'].includes(stringValue)) {
+            return 'FALSE';
+        }
+        
+        // If we can't determine the boolean value, default to NULL
+        console.warn(`Unable to convert value "${value}" to boolean, using NULL`);
+        return 'NULL';
     }
 
     /**
@@ -93,26 +119,29 @@ export class DataModelProcessor {
             const upperType = columnType.toUpperCase();
 
             // Format based on column type
+            // CRITICAL: Check TIMESTAMP types BEFORE TIME types
+            // because 'TIMESTAMP WITHOUT TIME ZONE' contains 'TIME WITHOUT'
+            // and would incorrectly match the TIME handler, stripping the date portion
             if (upperType === 'DATE') {
                 // DATE: YYYY-MM-DD format
                 const formatted = dateObj.toISOString().split('T')[0];
                 return `'${formatted}'`;
             } 
-            else if (upperType === 'TIME' || upperType.startsWith('TIME(') || upperType.includes('TIME WITHOUT')) {
-                // TIME: HH:MM:SS format
-                const timeString = dateObj.toISOString().split('T')[1].split('.')[0];
-                return `'${timeString}'`;
-            } 
-            else if (upperType === 'TIMESTAMP WITH TIME ZONE' || upperType === 'TIMESTAMPTZ') {
+            else if (upperType === 'TIMESTAMP WITH TIME ZONE' || upperType === 'TIMESTAMPTZ' || upperType.includes('TIMESTAMPTZ')) {
                 // TIMESTAMP WITH TIME ZONE: ISO 8601 format with timezone
                 return `'${dateObj.toISOString()}'`;
             } 
-            else if (upperType === 'TIMESTAMP' || upperType.startsWith('TIMESTAMP(') || upperType.includes('TIMESTAMP WITHOUT')) {
+            else if (upperType === 'TIMESTAMP' || upperType.startsWith('TIMESTAMP(') || upperType.includes('TIMESTAMP WITHOUT') || upperType.includes('TIMESTAMP ')) {
                 // TIMESTAMP: YYYY-MM-DD HH:MM:SS format (no timezone)
                 const formatted = dateObj.toISOString()
                     .replace('T', ' ')
                     .split('.')[0];
                 return `'${formatted}'`;
+            }
+            else if (upperType === 'TIME' || upperType.startsWith('TIME(') || upperType.includes('TIME WITHOUT')) {
+                // TIME: HH:MM:SS format (must come AFTER TIMESTAMP checks)
+                const timeString = dateObj.toISOString().split('T')[1].split('.')[0];
+                return `'${timeString}'`;
             }
 
             // Fallback: use ISO string for timestamp with timezone
@@ -134,6 +163,15 @@ export class DataModelProcessor {
     private formatValueForSQL(value: any, columnType: string, columnName: string): string {
         if (value === null || value === undefined) {
             return 'null';
+        }
+
+        // Auto-detect Date objects regardless of declared column type
+        // External DB drivers may return Date objects for columns not recognized as date types
+        if (value instanceof Date) {
+            const upperType = columnType.toUpperCase();
+            const dateType = (upperType.includes('DATE') || upperType.includes('TIME') || upperType.includes('TIMESTAMP'))
+                ? upperType : 'TIMESTAMP';
+            return this.formatDateForSQL(value, dateType, columnName);
         }
 
         const upperType = columnType.toUpperCase();
@@ -180,6 +218,38 @@ export class DataModelProcessor {
                 console.error(`Failed to serialize JSON for column ${columnName}:`, error, 'Value:', value, 'Type:', typeof value);
                 return 'null';
             }
+        }
+
+        // Auto-detect date-like strings as safety net
+        // Catches JavaScript Date.toString() format ("Thu Nov 23 2025 00:00:00 GMT+0000...")
+        // that external DB drivers may return as strings instead of Date objects.
+        // Without this, such strings get inserted raw into DATE/TIMESTAMP columns,
+        // causing PostgreSQL DateTimeParseError (code 22007).
+        if (typeof value === 'string') {
+            const trimmed = value.trim();
+            if (trimmed.includes('GMT') || trimmed.includes('UTC') || trimmed.includes('Coordinated Universal Time')) {
+                const dateObj = new Date(trimmed);
+                if (!isNaN(dateObj.getTime())) {
+                    console.warn(`[formatValueForSQL] Auto-detected date string for column ${columnName} (declared ${columnType}): "${trimmed.substring(0, 60)}"`);
+                    return this.formatDateForSQL(trimmed, 'TIMESTAMP', columnName);
+                }
+            }
+        }
+
+        // Handle NUMERIC/INTEGER/REAL/FLOAT types - don't wrap numbers in quotes
+        if (upperType.includes('NUMERIC') || upperType.includes('INTEGER') || upperType.includes('INT') ||
+            upperType.includes('REAL') || upperType.includes('FLOAT') || upperType.includes('DOUBLE') ||
+            upperType.includes('DECIMAL') || upperType.includes('BIGINT') || upperType.includes('SMALLINT')) {
+            const numValue = Number(value);
+            if (!isNaN(numValue)) {
+                return `${numValue}`;
+            }
+            return 'null';
+        }
+
+        // Handle BOOLEAN type
+        if (upperType === 'BOOLEAN' || upperType === 'BOOL') {
+            return this.convertToPostgresBoolean(value);
         }
 
         // Handle all other types with proper escaping
@@ -350,6 +420,162 @@ export class DataModelProcessor {
             } catch (error) {
                 console.error(`Fatal error deleting data model ${dataModelId}:`, error);
                 return resolve(false);
+            }
+        });
+    }
+
+    /**
+     * Copy/clone a data model with all its configuration
+     * Creates a complete duplicate with a new unique name and ID
+     * @param dataModelId - ID of data model to copy
+     * @param tokenDetails - User authentication details
+     * @returns New data model object if successful, null otherwise
+     */
+    public async copyDataModel(dataModelId: number, tokenDetails: ITokenDetails): Promise<DRADataModel | null> {
+        return new Promise<DRADataModel | null>(async (resolve) => {
+            try {
+                const { user_id } = tokenDetails;
+                const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+                if (!driver) {
+                    return resolve(null);
+                }
+                const dbConnector = await driver.getConcreteDriver();
+                const manager = dbConnector.manager;
+                if (!manager) {
+                    return resolve(null);
+                }
+                
+                // Verify user exists
+                const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+                if (!user) {
+                    return resolve(null);
+                }
+                
+                // Fetch original data model with all relations
+                let originalModel = await manager.findOne(DRADataModel, {
+                    where: {id: dataModelId},
+                    relations: ['data_source', 'data_source.project', 'data_model_sources', 'data_model_sources.data_source']
+                });
+                
+                if (!originalModel) {
+                    console.error(`Data model ${dataModelId} not found`);
+                    return resolve(null);
+                }
+                
+                // Verify user has READ permission on original model
+                // Check if user owns the model or is a project member
+                const isOwner = originalModel.users_platform?.id === user_id;
+                let hasAccess = isOwner;
+                
+                if (!hasAccess && originalModel.data_source?.project) {
+                    const membership = await manager.findOne(DRAProjectMember, {
+                        where: {
+                            user: {id: user_id},
+                            project: {id: originalModel.data_source.project.id}
+                        }
+                    });
+                    hasAccess = !!membership;
+                }
+                
+                if (!hasAccess) {
+                    console.error(`User ${user_id} does not have permission to copy data model ${dataModelId}`);
+                    return resolve(null);
+                }
+                
+                // Generate new name with (Copy) suffix
+                let baseName = originalModel.name.replace(/_dra_[a-zA-Z0-9_]+$/g, '');
+                let copyName = baseName;
+                let copyCount = 0;
+                
+                // Find existing copies to increment suffix
+                const existingModels = await manager.find(DRADataModel, {
+                    where: {
+                        users_platform: user
+                    }
+                });
+                
+                const existingNames = existingModels.map(m => m.name.replace(/_dra_[a-zA-Z0-9_]+$/g, ''));
+                
+                // Check for "Copy", "Copy 2", etc. (without parentheses to avoid PostgreSQL table name issues)
+                while (true) {
+                    const testName = copyCount === 0 ? `${baseName} Copy` : `${baseName} Copy ${copyCount + 1}`;
+                    if (!existingNames.includes(testName)) {
+                        copyName = testName;
+                        break;
+                    }
+                    copyCount++;
+                }
+                
+                // Apply unique UUID suffix
+                const uniqueName = UtilityService.getInstance().uniquiseName(copyName);
+                
+                // Create new data model record
+                const newModel = new DRADataModel();
+                newModel.name = uniqueName;
+                newModel.schema = originalModel.schema;
+                newModel.sql_query = originalModel.sql_query;
+                newModel.query = originalModel.query;
+                newModel.is_cross_source = originalModel.is_cross_source;
+                newModel.execution_metadata = originalModel.execution_metadata || {};
+                newModel.auto_refresh_enabled = originalModel.auto_refresh_enabled;
+                newModel.users_platform = user;
+                newModel.data_source = originalModel.data_source;
+                
+                // Reset refresh-related fields
+                newModel.last_refreshed_at = undefined;
+                newModel.refresh_status = 'IDLE';
+                newModel.refresh_error = undefined;
+                newModel.row_count = undefined;
+                newModel.last_refresh_duration_ms = undefined;
+                
+                // Save new model
+                const savedModel = await manager.save(newModel);
+                
+                // Copy cross-source references if applicable
+                if (originalModel.is_cross_source && originalModel.data_model_sources && originalModel.data_model_sources.length > 0) {
+                    for (const source of originalModel.data_model_sources) {
+                        const newSource = new DRADataModelSource();
+                        newSource.data_model = savedModel;
+                        newSource.data_source = source.data_source;
+                        await manager.save(newSource);
+                    }
+                }
+                
+                // Copy physical table structure and data
+                try {
+                    const originalTableName = `${originalModel.schema}.${originalModel.name}`;
+                    const newTableName = `${newModel.schema}.${newModel.name}`;
+                    
+                    // Create table structure (including indexes, constraints, etc.)
+                    await dbConnector.query(`CREATE TABLE ${newTableName} (LIKE ${originalTableName} INCLUDING ALL)`);
+                    
+                    // Copy data
+                    await dbConnector.query(`INSERT INTO ${newTableName} SELECT * FROM ${originalTableName}`);
+                    
+                    console.log(`Successfully copied table from ${originalTableName} to ${newTableName}`);
+                } catch (tableError) {
+                    console.error('Error copying physical table:', tableError);
+                    // Rollback: delete the model record if table copy failed
+                    await manager.remove(savedModel);
+                    throw new Error('Failed to copy physical table structure and data');
+                }
+                
+                // Reload with relations for return
+                const completeModel = await manager.findOne(DRADataModel, {
+                    where: {id: savedModel.id},
+                    relations: ['data_source', 'data_source.project', 'data_model_sources', 'data_model_sources.data_source', 'users_platform']
+                });
+                
+                // Send notification
+                const dataSourceName = originalModel.data_source?.name || 'Unknown Source';
+                await this.notificationHelper.notifyDataModelCreated(user_id, savedModel.id, copyName, dataSourceName);
+                
+                console.log(`Successfully copied data model ${dataModelId} to ${savedModel.id}`);
+                return resolve(completeModel);
+                
+            } catch (error) {
+                console.error('Error copying data model:', error);
+                return resolve(null);
             }
         });
     }
@@ -560,14 +786,58 @@ export class DataModelProcessor {
             await internalDbConnector.query(`DROP TABLE IF EXISTS ${existingDataModel.schema}.${existingDataModel.name}`);
             try {
                 dataModelName = UtilityService.getInstance().uniquiseName(dataModelName);
-                const selectTableQuery = `${query}`;
+                
+                // CRITICAL FIX: Always reconstruct SQL from JSON for data model updates
+                // The frontend buildSQLQuery() generates different column aliases than what the
+                // INSERT code expects. For single-table queries, frontend uses "tableName_col"
+                // but INSERT code looks up rows by "schema_tableName_col". Reconstructing from
+                // JSON ensures aliases match the INSERT row key format, preventing null data.
+                // This also ensures proper GROUP BY inclusion from group_by_columns array.
+                let selectTableQuery: string;
+                try {
+                    selectTableQuery = DataSourceProcessor.getInstance().reconstructSQLFromJSON(queryJSON);
+                    
+                    // Preserve LIMIT/OFFSET from original query if not in reconstructed SQL
+                    const limitMatch = query.match(/LIMIT\s+(\d+)/i);
+                    const offsetMatch = query.match(/OFFSET\s+(\d+)/i);
+                    if (limitMatch && !selectTableQuery.toUpperCase().includes('LIMIT')) {
+                        selectTableQuery += ` LIMIT ${limitMatch[1]}`;
+                    }
+                    if (offsetMatch && !selectTableQuery.toUpperCase().includes('OFFSET')) {
+                        selectTableQuery += ` OFFSET ${offsetMatch[1]}`;
+                    }
+                    
+                    console.log('[DataModelProcessor] Reconstructed SQL for data model update:', selectTableQuery);
+                } catch (reconstructError) {
+                    console.error('[DataModelProcessor] SQL reconstruction failed, falling back to frontend SQL:', reconstructError);
+                    selectTableQuery = `${query}`;
+                }
+                
                 const rowsFromDataSource = await externalDBConnector.query(selectTableQuery);
                 //Create the table first then insert the data.
                 let createTableQuery = `CREATE TABLE ${dataModelName} `;
                 const sourceTable = JSON.parse(queryJSON);
+                
+                // CRITICAL FIX: Filter columns for table creation but preserve full array in saved query JSON
+                // Only create table columns for: selected columns OR hidden referenced columns
+                const columnsForTableCreation = sourceTable.columns.filter((col: any) => {
+                    // Include if selected for display
+                    if (col.is_selected_column) return true;
+                    
+                    // Include if tracked as hidden reference (aggregate, GROUP BY, WHERE, HAVING, ORDER BY, etc.)
+                    const isTracked = sourceTable.hidden_referenced_columns?.some(
+                        (tracked: any) => tracked.schema === col.schema &&
+                                   tracked.table_name === col.table_name &&
+                                   tracked.column_name === col.column_name
+                    );
+                    return isTracked;
+                });
+                
+                console.log(`[DataModelProcessor] Column preservation: Total=${sourceTable.columns.length}, ForTable=${columnsForTableCreation.length}`);
+                
                 let columns = '';
                 let insertQueryColumns = '';
-                sourceTable.columns.forEach((column: any, index: number) => {
+                columnsForTableCreation.forEach((column: any, index: number) => {
                     const columnSize = column?.character_maximum_length ? `(${column?.character_maximum_length})` : '';
                     // Check if column.data_type already contains size information (e.g., "varchar(1024)")
                     // If it does, don't append columnSize again to avoid "VARCHAR(1024)(1024)"
@@ -608,7 +878,7 @@ export class DataModelProcessor {
                         columnName = `${column.schema}_${column.table_name}_${column.column_name}`;
                     }
                     
-                    if (index < sourceTable.columns.length - 1) {
+                    if (index < columnsForTableCreation.length - 1) {
                         columns += `${columnName} ${dataTypeString}, `;
                         insertQueryColumns += `${columnName},`;
                     } else {
@@ -664,7 +934,7 @@ export class DataModelProcessor {
                     }
                 }
                 
-                // Handle GROUP BY aggregate expressions
+                // Handle GROUP BY aggregate expressions (complex expressions like quantity * price, CASE statements)
                 if (sourceTable.query_options?.group_by?.aggregate_expressions && 
                     sourceTable.query_options.group_by.aggregate_expressions.length > 0) {
                     const validExpressions = sourceTable.query_options.group_by.aggregate_expressions.filter(
@@ -678,11 +948,30 @@ export class DataModelProcessor {
                         validExpressions.forEach((expr: any, index: number) => {
                             const aliasName = expr.column_alias_name;
                             
+                            // CRITICAL: Use column_data_type if provided (inferred from expression), otherwise default to NUMERIC
+                            let dataTypeString = 'NUMERIC';
+                            if (expr.column_data_type && expr.column_data_type !== '') {
+                                // Map frontend data types to PostgreSQL types
+                                const exprType = expr.column_data_type.toLowerCase();
+                                if (exprType === 'text' || exprType.includes('char') || exprType.includes('varchar')) {
+                                    dataTypeString = 'TEXT';
+                                } else if (exprType === 'numeric' || exprType === 'decimal' || exprType.includes('int')) {
+                                    dataTypeString = 'NUMERIC';
+                                } else if (exprType === 'boolean') {
+                                    dataTypeString = 'BOOLEAN';
+                                } else if (exprType.includes('timestamp') || exprType.includes('date')) {
+                                    dataTypeString = exprType.toUpperCase();
+                                } else {
+                                    dataTypeString = expr.column_data_type.toUpperCase();
+                                }
+                                console.log(`[DataModelProcessor] Using inferred data type for aggregate expression ${aliasName}: ${dataTypeString} (from ${expr.column_data_type})`);
+                            }
+                            
                             if (index < validExpressions.length - 1) {
-                                columns += `${aliasName} NUMERIC, `;
+                                columns += `${aliasName} ${dataTypeString}, `;
                                 insertQueryColumns += `${aliasName}, `;
                             } else {
-                                columns += `${aliasName} NUMERIC`;
+                                columns += `${aliasName} ${dataTypeString}`;
                                 insertQueryColumns += `${aliasName}`;
                             }
                         });
@@ -695,7 +984,7 @@ export class DataModelProcessor {
                 
                 // Track column data types for proper value formatting
                 const columnDataTypes = new Map<string, string>();
-                sourceTable.columns.forEach((column: any) => {
+                columnsForTableCreation.forEach((column: any) => {
                     // Use same column name construction logic as INSERT loop to ensure key match
                     let columnName;
                     if (column.alias_name && column.alias_name !== '') {
@@ -740,15 +1029,20 @@ export class DataModelProcessor {
                 if (sourceTable.query_options?.group_by?.aggregate_expressions) {
                     sourceTable.query_options.group_by.aggregate_expressions.forEach((expr: any) => {
                         if (expr.column_alias_name && expr.column_alias_name !== '') {
-                            columnDataTypes.set(expr.column_alias_name, 'NUMERIC');
+                            // Use column_data_type if provided, otherwise default to NUMERIC
+                            const dataType = expr.column_data_type || 'NUMERIC';
+                            columnDataTypes.set(expr.column_alias_name, dataType.toUpperCase());
+                            console.log(`[DataModelProcessor] Set data type for aggregate expression ${expr.column_alias_name}: ${dataType}`);
                         }
                     });
                 }
                 
-                rowsFromDataSource.forEach((row: any, index: number) => {
+                let failedInserts = 0;
+                for (let index = 0; index < rowsFromDataSource.length; index++) {
+                    const row = rowsFromDataSource[index];
                     let insertQuery = `INSERT INTO ${dataModelName} `;
                     let values = '';
-                    sourceTable.columns.forEach((column: any, columnIndex: number) => {
+                    columnsForTableCreation.forEach((column: any, columnIndex: number) => {
                         // Determine row key - use alias if provided for data lookup
                         let rowKey;
                         let columnName;
@@ -780,26 +1074,27 @@ export class DataModelProcessor {
                         
                         const formattedValue = this.formatValueForSQL(row[rowKey], columnType, columnName);
                         
-                        if (columnIndex < sourceTable.columns.length - 1) {
+                        if (columnIndex < columnsForTableCreation.length - 1) {
                             values += `${formattedValue},`;
                         } else {
                             values += formattedValue;
                         }
                     });
-                    // Handle calculated column values
+                    // Handle calculated column values - use formatValueForSQL for proper type handling
                     if (sourceTable.calculated_columns && sourceTable.calculated_columns.length > 0) {
                         values += ',';
                         sourceTable.calculated_columns.forEach((column: any, columnIndex: number) => {
                             const columnName = column.column_name;
+                            const formattedVal = this.formatValueForSQL(row[columnName], 'NUMERIC', columnName);
                             if (columnIndex < sourceTable.calculated_columns.length - 1) {
-                                values += `'${row[columnName] || 0}',`;
+                                values += `${formattedVal},`;
                             } else {
-                                values += `'${row[columnName] || 0}'`;
+                                values += `${formattedVal}`;
                             }
                         });
                     }
                     
-                    // Handle aggregate function values
+                    // Handle aggregate function values - use formatValueForSQL for proper type handling
                     if (sourceTable.query_options?.group_by?.aggregate_functions && sourceTable.query_options.group_by.aggregate_functions.length > 0) {
                         const aggregateFunctions = ['SUM', 'AVG', 'COUNT', 'MIN', 'MAX'];
                         const validAggFuncs = sourceTable.query_options.group_by.aggregate_functions.filter(
@@ -823,16 +1118,17 @@ export class DataModelProcessor {
                                     aliasName = `${funcName}_${columnName}`.toLowerCase();
                                 }
                                 
+                                const formattedVal = this.formatValueForSQL(row[rowKey], 'NUMERIC', aliasName);
                                 if (columnIndex < validAggFuncs.length - 1) {
-                                    values += `'${row[rowKey] || 0}',`;
+                                    values += `${formattedVal},`;
                                 } else {
-                                    values += `'${row[rowKey] || 0}'`;
+                                    values += `${formattedVal}`;
                                 }
                             });
                         }
                     }
                     
-                    // Handle aggregate expression values
+                    // Handle aggregate expression values - use formatValueForSQL with inferred data type
                     if (sourceTable.query_options?.group_by?.aggregate_expressions && 
                         sourceTable.query_options.group_by.aggregate_expressions.length > 0) {
                         const validExpressions = sourceTable.query_options.group_by.aggregate_expressions.filter(
@@ -843,21 +1139,32 @@ export class DataModelProcessor {
                             values += ',';
                             validExpressions.forEach((expr: any, index: number) => {
                                 const aliasName = expr.column_alias_name;
-                                const value = row[aliasName] || 0;
+                                const exprDataType = columnDataTypes.get(aliasName) || 'NUMERIC';
+                                const formattedVal = this.formatValueForSQL(row[aliasName], exprDataType, aliasName);
                                 
                                 if (index < validExpressions.length - 1) {
-                                    values += `'${value}',`;
+                                    values += `${formattedVal},`;
                                 } else {
-                                    values += `'${value}'`;
+                                    values += `${formattedVal}`;
                                 }
                             });
                         }
                     }
                     
                     insertQuery += `${insertQueryColumns} VALUES(${values});`;
-                    internalDbConnector.query(insertQuery);
-                });
-                await manager.update(DRADataModel, {id: existingDataModel.id}, {schema: 'public', name: dataModelName, sql_query: query, query: JSON.parse(queryJSON)});
+                    try {
+                        await internalDbConnector.query(insertQuery);
+                    } catch (insertError: any) {
+                        failedInserts++;
+                        if (failedInserts <= 3) {
+                            console.error(`[DataModelProcessor] INSERT failed for row ${index}:`, insertError?.message || insertError);
+                            console.error(`[DataModelProcessor] Failed query:`, insertQuery.substring(0, 500));
+                        }
+                    }
+                }
+                const successfulInserts = rowsFromDataSource.length - failedInserts;
+                console.log(`[DataModelProcessor] Inserted ${successfulInserts}/${rowsFromDataSource.length} rows into ${dataModelName} (${failedInserts} failed)`);
+                await manager.update(DRADataModel, {id: existingDataModel.id}, {schema: 'public', name: dataModelName, sql_query: selectTableQuery, query: JSON.parse(queryJSON)});
                 return resolve(true);
             } catch (error) {
                 console.log('error', error);
@@ -990,11 +1297,20 @@ export class DataModelProcessor {
                 
                 for (let i=0; i < dataModelsTableNames.length; i++) {
                     const dataModelTableName = dataModelsTableNames[i];
-                    query = `SELECT * FROM "${dataModelTableName.schema}"."${dataModelTableName.table_name}"`;
-                    let rowsData = await dbConnector.query(query);
+                    
+                    // Check if table physically exists before querying
                     const tableSchema = tablesSchema.find((table: any) => {
                         return table.table_name === dataModelTableName.table_name && table.table_schema === dataModelTableName.schema;
                     });
+                    
+                    if (!tableSchema) {
+                        console.warn(`[DataModelProcessor] Table ${dataModelTableName.schema}.${dataModelTableName.table_name} does not exist in database, skipping data model ID ${dataModelTableName.data_model_id}`);
+                        continue;
+                    }
+                    
+                    query = `SELECT * FROM "${dataModelTableName.schema}"."${dataModelTableName.table_name}"`;
+                    let rowsData = await dbConnector.query(query);
+                    
                     if (tableSchema) {
                         tableSchema.rows = rowsData;
                     }

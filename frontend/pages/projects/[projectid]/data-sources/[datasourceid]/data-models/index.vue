@@ -163,6 +163,55 @@ async function refreshDataModel(dataModelId, dataModelName) {
     }
 }
 
+async function copyDataModel(dataModelId, dataModelName) {
+    // Confirmation dialog
+    const { value: confirmCopy } = await $swal.fire({
+        title: `Copy Data Model "${cleanDataModelName(dataModelName)}"?`,
+        text: 'This will create a complete copy of this data model with all its configuration. The copy will be named "' + cleanDataModelName(dataModelName) + ' Copy".',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#4F46E5',
+        cancelButtonColor: '#DD4B39',
+        confirmButtonText: 'Yes, copy it!',
+    });
+    
+    if (!confirmCopy) return;
+    
+    // Show loading
+    $swal.fire({
+        title: 'Copying...',
+        text: 'Creating a copy of your data model',
+        allowOutsideClick: false,
+        didOpen: () => {
+            $swal.showLoading();
+        }
+    });
+    
+    try {
+        const newModel = await dataModelsStore.copyDataModel(dataModelId);
+        
+        await $swal.fire({
+            icon: 'success',
+            title: 'Model Copied!',
+            text: `${cleanDataModelName(newModel.name)} has been created successfully.`,
+            timer: 3000,
+            showConfirmButton: false
+        });
+        
+        // Reload data models to show the new copy
+        await dataModelsStore.retrieveDataModels(project.value.id);
+        getDataModels();
+        
+    } catch (error) {
+        await $swal.fire({
+            icon: 'error',
+            title: 'Copy Failed',
+            text: error.message || 'There was an error copying the data model. Please try again.',
+            confirmButtonColor: '#4F46E5'
+        });
+    }
+}
+
 function cleanDataModelName(name) {
     return name.replace(/_dra_[a-zA-Z0-9_]+/g, "");
 }
@@ -267,6 +316,16 @@ onUnmounted(() => {
                                 :icon="state.refreshing_model_id === dataModel.id ? 'fas fa-spinner' : 'fas fa-sync'" 
                                 :class="{'animate-spin': state.refreshing_model_id === dataModel.id}"
                             />
+                        </button>
+
+                        <!-- Copy Button -->
+                        <button
+                            v-if="canCreate"
+                            @click.stop="copyDataModel(dataModel.id, dataModel.name)"
+                            class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            v-tippy="{ content: 'Copy Model' }"
+                        >
+                            <font-awesome icon="fas fa-copy" />
                         </button>
 
                         <!-- Delete Button -->

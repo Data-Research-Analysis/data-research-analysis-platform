@@ -115,6 +115,16 @@ watch(
             return {
                 ...chart,
                 text_editor: chart.text_editor || { content: '' },
+                dimensions: chart.dimensions || {
+                    width: '400px',
+                    height: '300px',
+                    widthDraggable: '400px',
+                    heightDraggable: '300px',
+                },
+                location: chart.location || {
+                    top: '0px',
+                    left: '0px',
+                },
                 config: {
                     drag_enabled: false,
                     resize_enabled: false,
@@ -122,6 +132,22 @@ watch(
                 },
             };
         }) || [];
+
+        if (import.meta.client) {
+            nextTick(() => {
+                state.dashboard.charts.forEach((chart) => {
+                    const draggableDiv = document.getElementById(`draggable-${chart.chart_id}`);
+                    if (draggableDiv && chart.dimensions) {
+                        draggableDiv.style.width = chart.dimensions.widthDraggable;
+                        draggableDiv.style.minHeight = chart.dimensions.heightDraggable;
+                    }
+
+                    if (chart.chart_type === 'table') {
+                        autoResizeTableContainer(chart.chart_id);
+                    }
+                });
+            });
+        }
     },
     { immediate: true }
 )
@@ -1535,28 +1561,6 @@ onUnmounted(() => {
                             :id="`draggable-div-${chart.chart_id}`"
                             :style="`width: ${chart.dimensions.width}; height: ${chart.dimensions.height}; top: ${chart.location.top}; left: ${chart.location.left};`"
                         >
-                            <div class="flex flex-row justify-between top-corners">
-                                <img
-                                    v-if="chart.config.resize_enabled"
-                                    :id="`top-left-corner-${chart.chart_id}`"
-                                    src="/assets/images/resize-corner.svg"
-                                    class="w-[12px] rotate-180 select-none top-left-corner translate-y-2"
-                                    :class="{ 'animate-pulse': chart.config.resize_enabled }"
-                                    alt="Resize Visualization"
-                                    @mousemove="topLeftCornerMouseMove($event, chart.chart_id)"
-                                    @mouseup="mouseUp"
-                                />
-                                <img
-                                    v-if="chart.config.resize_enabled"
-                                    :id="`top-right-corner-${chart.chart_id}`"
-                                    src="/assets/images/resize-corner.svg"
-                                    class="w-[12px] rotate-270 select-none top-right-corner translate-y-2"
-                                    :class="{ 'animate-pulse': chart.config.resize_enabled }"
-                                    alt="Resize Visualization"
-                                    @mousemove="topRightCornerMouseMove($event, chart.chart_id)"
-                                    @mouseup="mouseUp"
-                                />
-                            </div>
                             <div class="flex flex-col bg-white rounded-lg shadow-md">
                                 <div
                                     :id="`draggable-div-inner-container-${chart.chart_id}`"
@@ -1826,17 +1830,7 @@ onUnmounted(() => {
                                     />
                                 </div>
                             </div>
-                            <div class="flex flex-row justify-between bottom-corners">
-                                <img 
-                                    v-if="chart.config.resize_enabled"
-                                    :id="`bottom-left-corner-${chart.chart_id}`"
-                                    src="/assets/images/resize-corner.svg"
-                                    class="w-[12px] rotate-90 select-none bottom-left-corner -translate-y-2"
-                                    :class="{ 'animate-pulse': chart.config.resize_enabled }"
-                                    alt="Resize Visualization"
-                                    @mousemove="bottomLeftCornerMouseMove($event, chart.chart_id)"
-                                    @mouseup="mouseUp"
-                                />
+                            <div class="flex flex-row justify-end bottom-corners">
                                 <img
                                     v-if="chart.config.resize_enabled"
                                     :id="`bottom-right-corner-${chart.chart_id}`"

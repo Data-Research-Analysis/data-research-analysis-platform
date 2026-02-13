@@ -24,6 +24,57 @@ import { EAction } from '../services/PermissionService.js';
 
 const router = express.Router();
 
+// Multer configuration setup
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// PDF file upload configuration
+const pdfStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, path.join(__dirname, '../../public/uploads/pdfs/'));
+  },
+  filename: (req, file, cb) => {
+    cb(null, file.originalname);
+  }
+});
+const upload = multer({ storage: pdfStorage });
+
+// Excel file upload configuration - supports large files
+const excelStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, path.join(__dirname, '../../public/uploads/excel/'));
+  },
+  filename: (req, file, cb) => {
+    // Add timestamp to prevent filename conflicts
+    const timestamp = Date.now();
+    const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+    cb(null, `${timestamp}_${sanitizedName}`);
+  }
+});
+const excelUpload = multer({ 
+  storage: excelStorage,
+  limits: { 
+    fileSize: 500 * 1024 * 1024 // 500MB max file size
+  },
+  fileFilter: (req, file, cb) => {
+    // Accept only Excel and CSV files
+    const allowedMimes = [
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'text/csv',
+      'application/csv'
+    ];
+    const allowedExts = ['.xlsx', '.xls', '.csv'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    
+    if (allowedMimes.includes(file.mimetype) || allowedExts.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only Excel (.xlsx, .xls) and CSV files are allowed.'));
+    }
+  }
+});
+
 router.get('/list', async (req: Request, res: Response, next: any) => {
     next();
 },validateJWT, async (req: Request, res: Response) => {
@@ -345,6 +396,67 @@ async (req: Request, res: Response) => {
     }
 });
 
+/**
+ * POST /data-source/upload-excel-file
+ * Upload Excel file and process server-side (recommended for large files)
+ * This route handles the entire Excel file upload and parsing on the backend,
+ * avoiding the "request entity too large" error from sending large JSON payloads
+ */
+router.post('/upload-excel-file', expensiveOperationsLimiter, async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, excelUpload.single('file'), validate([
+    body('data_source_name').notEmpty().trim().escape(),
+    body('project_id').notEmpty().trim().escape(),
+    body('data_source_id').optional().trim().escape()
+]), requireProjectPermission(EAction.CREATE, 'project_id'),
+async (req: IMulterRequest, res: Response) => {
+    const file = req.file;
+    if (!file) {
+        return res.status(400).json({ message: 'No file uploaded.' });
+    }
+    
+    try {
+        const { data_source_name, project_id, data_source_id } = matchedData(req);
+        
+        console.log('Processing Excel file upload:', {
+            filename: file.filename,
+            size: file.size,
+            originalName: file.originalname,
+            data_source_name,
+            project_id
+        });
+        
+        // Process the Excel file server-side
+        const result = await DataSourceProcessor.getInstance().addExcelDataSourceFromFile(
+            data_source_name,
+            file.filename,
+            file.path,
+            req.body.tokenDetails,
+            parseInt(project_id),
+            data_source_id ? parseInt(data_source_id) : null
+        );
+        
+        if (result.status === 'success') {
+            res.status(200).json({
+                message: 'Excel file uploaded and processed successfully.',
+                result: result,
+                sheets_count: result.sheets_processed?.length || 0
+            });
+        } else {
+            res.status(400).json({
+                message: 'Excel file processing failed.',
+                error: result.error || 'Unknown error'
+            });
+        }
+    } catch (error) {
+        console.error('Excel file upload error:', error);
+        res.status(500).json({ 
+            message: 'Excel file upload failed.', 
+            error: error.message 
+        });
+    }
+});
+
 router.post('/add-pdf-data-source', expensiveOperationsLimiter, async (req: Request, res: Response, next: any) => {
     next();
 }, validateJWT, validate([
@@ -377,19 +489,69 @@ async (req: Request, res: Response) => {
     }
 });
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    // Set the destination directory for uploaded files
-    // Ensure this directory exists in your backend project
-    cb(null, path.join(__dirname, '../../public/uploads/pdfs/'));
-  },
-  filename: (req, file, cb) => {
-    cb(null, file.originalname);
-  }
+/**
+ * POST /data-source/upload-excel-preview
+ * Upload Excel file and return parsed data for preview (does NOT create data source yet)
+ * Similar to PDF upload flow - user can preview/edit data before creating data source
+ */
+router.post('/upload-excel-preview', expensiveOperationsLimiter, async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, excelUpload.single('file'), async (req: IMulterRequest, res: Response) => {
+    const file = req.file;
+    if (!file) {
+        return res.status(400).json({ message: 'No file uploaded.' });
+    }
+    
+    try {
+        console.log('Parsing Excel file for preview:', {
+            filename: file.filename,
+            size: file.size,
+            originalName: file.originalname
+        });
+        
+        // Parse the Excel file and return data without creating data source
+        const parseResult = await ExcelFileService.getInstance().parseExcelFileFromPath(file.path);
+        
+        if (!parseResult.sheets || parseResult.sheets.length === 0) {
+            return res.status(400).json({
+                message: 'No valid sheets found in Excel file',
+                success: false
+            });
+        }
+        
+        // Format response similar to PDF extraction
+        const formattedSheets = parseResult.sheets.map(sheet => ({
+            sheet_id: `sheet_${sheet.index}`,
+            sheet_name: sheet.name,
+            original_sheet_name: sheet.metadata.originalSheetName,
+            sheet_index: sheet.index,
+            columns: sheet.columns,
+            rows: sheet.rows,
+            metadata: {
+                rowCount: sheet.metadata.rowCount,
+                columnCount: sheet.metadata.columnCount
+            }
+        }));
+        
+        res.status(200).json({
+            url: file.path,
+            file_name: file.filename,
+            file_size: file.size,
+            original_name: file.originalname,
+            sheets: formattedSheets,
+            sheets_count: formattedSheets.length,
+            success: true
+        });
+    } catch (error) {
+        console.error('Excel parsing error:', error);
+        res.status(500).json({
+            message: 'Excel file parsing failed.',
+            error: error.message,
+            success: false
+        });
+    }
 });
-const upload = multer({ storage: storage });
+
 router.post('/upload/pdf', async (req: Request, res: Response, next: any) => {
     next();
 }, validateJWT, upload.single('file'), async (req: IMulterRequest, res: Response) => {

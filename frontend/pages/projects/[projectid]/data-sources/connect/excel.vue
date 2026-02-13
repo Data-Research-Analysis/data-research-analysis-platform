@@ -1,22 +1,51 @@
 <script setup>
-import * as XLSX from 'xlsx';
+import _ from 'lodash';
 const { $swal } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
+const config = useRuntimeConfig();
 
 let dropZone = null;
 const state = reactive({
     data_source_name: '',
     files: [],
     show_table_dialog: false,
-    sheets: [], // New: unified collection of all sheets from all Excel files
+    sheets: [], // Unified collection of all sheets from all Excel files
     activeSheetId: null,
     selected_file: null,
     loading: false,
+    upload_id: 0,
+});
+
+// Computed properties for button state management
+const allFilesCompleted = computed(() => {
+    if (!state.files || state.files.length === 0) return false;
+    return state.files.every(file => file.status === 'completed');
+});
+
+const hasProcessingFiles = computed(() => {
+    return state.files.some(file => file.status === 'processing');
+});
+
+const hasErrorFiles = computed(() => {
+    return state.files.some(file => file.status === 'error');
+});
+
+const buttonDisabled = computed(() => {
+    return state.loading || !allFilesCompleted.value || state.files.length === 0;
+});
+
+const buttonStatusText = computed(() => {
+    if (state.loading) return 'Creating Data Source...';
+    if (state.files.length === 0) return 'Please upload Excel files first';
+    if (hasErrorFiles.value) return 'Some files failed to process';
+    if (hasProcessingFiles.value) return 'Processing files...';
+    if (allFilesCompleted.value) return 'Ready to create data source';
+    return 'Upload Excel files to continue';
 });
 
 // Sheet Management Functions
-function createSheetFromWorksheet(file, worksheetData, sheetName, sheetIndex) {
+function createSheetFromWorksheet(file, sheetData, sheetName, sheetIndex) {
     const displaySheetName = `${sheetName} - ${file.name}`;
     const sheetId = `${file.id}_sheet_${sheetIndex}`;
     
@@ -27,13 +56,18 @@ function createSheetFromWorksheet(file, worksheetData, sheetName, sheetIndex) {
         fileId: file.id,
         sheetName: sheetName,
         sheetIndex: sheetIndex,
-        columns: worksheetData.columns || [],
-        rows: worksheetData.rows || [],
+        columns: sheetData.columns || [],
+        rows: (sheetData.rows || []).map((rowData, index) => ({
+            id: `row_${Date.now()}_${index}_${Math.random()}`,
+            index: index,
+            selected: false,
+            data: rowData
+        })),
         metadata: {
             created: new Date(),
             modified: new Date(),
-            rowCount: worksheetData.rows?.length || 0,
-            columnCount: worksheetData.columns?.length || 0,
+            rowCount: sheetData.rows?.length || 0,
+            columnCount: sheetData.columns?.length || 0,
             excelFileId: file.id,
             originalSheetName: sheetName
         }
@@ -78,10 +112,12 @@ function handleDrop(e) {
     const files = dt.files;
     handleFiles(files);
 }
+
 function preventDefaults(e) {
     e.preventDefault();
     e.stopPropagation();
 }
+
 function showTable(fileId) {
     nextTick(() => {
         state.show_table_dialog = false;
@@ -93,16 +129,12 @@ function showTable(fileId) {
                 // Get existing sheets for the selected file
                 const fileSheets = getSheetsByFileId(fileId);
                 
+                // If sheets already exist, set active sheet and show table
                 if (fileSheets.length > 0) {
-                    // Set the first sheet of this file as active if no active sheet or if active sheet is from different file
                     const currentActiveSheet = state.sheets.find(s => s.id === state.activeSheetId);
                     if (!currentActiveSheet || currentActiveSheet.fileId !== fileId) {
                         state.activeSheetId = fileSheets[0].id;
-                        console.log(`Set active sheet to: ${fileSheets[0].name}`);
                     }
-                } else {
-                    console.log('No sheets found for file:', file.name);
-                    console.log('This might indicate the file had no data or failed to process');
                 }
             }
             
@@ -110,6 +142,7 @@ function showTable(fileId) {
         }, 500);
     });
 }
+
 function removeFile(fileId) {
     // Remove sheets associated with this file
     removeSheetsByFileId(fileId);
@@ -123,6 +156,11 @@ function removeFile(fileId) {
     }
 }
 async function createDataSource() {
+    // Prevent execution if button should be disabled
+    if (buttonDisabled.value) {
+        return;
+    }
+
     const token = getAuthToken();
     if (!state.data_source_name || state.data_source_name.trim() === '') {
         $swal.fire({
@@ -138,6 +176,16 @@ async function createDataSource() {
             icon: 'error',
             title: `Error!`,
             text: `No sheet data available to create data source.`,
+        });
+        return;
+    }
+
+    // Additional check to ensure all files are completed
+    if (!allFilesCompleted.value) {
+        $swal.fire({
+            icon: 'error',
+            title: `Error!`,
+            text: `Please wait for all Excel files to finish processing before creating the data source.`,
         });
         return;
     }
@@ -157,7 +205,7 @@ async function createDataSource() {
         const file = state.files.find(f => f.id === sheet.fileId);
         if (!file) continue;
         
-        file.status = 'processing';
+        file.status = 'uploading';
         
         // Convert sheet data to the expected format
         const sheetRows = sheet.rows.map(row => row.data || row);        
@@ -225,386 +273,345 @@ function isValidFile(file) {
   
   return hasValidExtension || hasValidType
 }
-// Type detection helper functions
-function isBooleanType(values) {
-  const booleanPatterns = /^(true|false|yes|no|y|n|1|0|on|off|active|inactive|enabled|disabled)$/i
-  const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '')
-  if (nonEmptyValues.length === 0) return false
-  
-  return nonEmptyValues.every(value => 
-    booleanPatterns.test(String(value).trim())
-  )
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
 }
-function isNumberType(values) {
-  const numberPattern = /^-?\$?[\d,]+\.?\d*%?$/
-  const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '')
-  if (nonEmptyValues.length === 0) return false
-  
-  return nonEmptyValues.every(value => {
-    const str = String(value).trim().replace(/[$,%]/g, '')
-    return !isNaN(str) && !isNaN(parseFloat(str)) && str !== ''
-  })
-}
-function isDateType(values) {
-  const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '')
-  if (nonEmptyValues.length === 0) return false
-  
-  return nonEmptyValues.every(value => {
-    const str = String(value).trim()
-    if (!str) return false
-    
-    // Try parsing as date
-    const date = new Date(str)
-    if (isNaN(date.getTime())) return false
-    
-    // Check for common date patterns
-    const datePatterns = [
-      /^\d{4}-\d{2}-\d{2}$/, // YYYY-MM-DD
-      /^\d{2}\/\d{2}\/\d{4}$/, // MM/DD/YYYY or DD/MM/YYYY
-      /^\d{2}-\d{2}-\d{4}$/, // MM-DD-YYYY or DD-MM-YYYY
-      /^\w{3}\s+\d{1,2},?\s+\d{4}$/, // Mon DD, YYYY
-      /^\d{1,2}\/\d{1,2}\/\d{2,4}$/, // M/D/YY or MM/DD/YYYY
-      /^[A-Z][a-z]{2} [A-Z][a-z]{2} \d{2} \d{4} \d{2}:\d{2}:\d{2} GMT[+-]\d{4}( \(.+\))?$/ // JS Date string
-    ]
-    
-    return datePatterns.some(pattern => pattern.test(str))
-  })
-}
-function isEmailType(values) {
-  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '')
-  if (nonEmptyValues.length === 0) return false
-  
-  return nonEmptyValues.every(value => 
-    emailPattern.test(String(value).trim())
-  )
-}
-function isUrlType(values) {
-  const urlPattern = /^https?:\/\/.+\..+/
-  const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '')
-  if (nonEmptyValues.length === 0) return false
-  
-  return nonEmptyValues.every(value => 
-    urlPattern.test(String(value).trim())
-  )
-}
-function inferColumnType(values) {
-  // Priority order: boolean > number > date > email > url > text
-  if (isBooleanType(values)) return 'boolean'
-  if (isNumberType(values)) return 'number'
-  if (isDateType(values)) return 'date'
-  if (isEmailType(values)) return 'email'
-  if (isUrlType(values)) return 'url'
-  return 'text'
-}
-function calculateColumnWidth(columnName, values, type) {
-  // Calculate header width (8px per character + padding)
-  const headerWidth = columnName.length * 8 + 24
-  
-  // Calculate max content width (6px per character + padding)
-  const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '')
-  const maxContentLength = nonEmptyValues.length > 0 
-    ? Math.max(...nonEmptyValues.map(v => String(v).length))
-    : 0
-  const contentWidth = maxContentLength * 6 + 24
-  
-  // Type-specific minimum widths
-  const typeMinWidths = {
-    boolean: 80,
-    number: 100,
-    date: 120,
-    email: 200,
-    url: 200,
-    text: 100
-  }
-  
-  const minWidth = typeMinWidths[type] || 100
-  const calculatedWidth = Math.max(headerWidth, contentWidth, minWidth)
-  
-  // Cap maximum width at 300px for readability
-  return Math.min(calculatedWidth, 300)
-}
-function analyzeColumns(rows) {
-  if (!rows || rows.length === 0) return []
-  
-  const columnKeys = Object.keys(rows[0])
-  
-  return columnKeys.map(key => {
-    // Extract all values for this column
-    const columnValues = rows.map(row => row[key])
-    
-    // Infer type and calculate width
-    const type = inferColumnType(columnValues)
-    const width = calculateColumnWidth(key, columnValues, type)
-    
-    return {
-      id: `col_${Date.now()}_${Math.floor(Math.random() * 100) + 1}`,
-      key,
-      title: key,
-      type,
-      width,
-      sortable: true,
-      editable: true,
-      visible: true
-    }
-  })
-}
-async function parseFile(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      try {
-        let rows = []
-        let workbook = null
-        
-        if (file.name.toLowerCase().endsWith('.csv')) {
-          // Parse CSV
-          const text = e.target.result
-          const lines = text.split('\n').filter(line => line.trim())
-          const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''))
-          
-          rows = lines.slice(1).map(line => {
-            const values = line.split(',').map(v => v.trim().replace(/"/g, ''))
-            const obj = {}
-            headers.forEach((header, index) => {
-                obj[header] = values[index] || ''
-            })
-            return obj
-          })
-        } else {
-            // Parse Excel - extract all worksheets
-            const data = new Uint8Array(e.target.result)
-            workbook = XLSX.read(data, { type: 'array', cellDates: true })
-        }
-        
-        // Handle different file types for worksheet extraction
-        let worksheets = [];
-        
-        if (file.name.toLowerCase().endsWith('.csv')) {
-            // For CSV, create a single worksheet entry
-            const analyzedColumns = analyzeColumns(rows);
-            const worksheetData = {
-                sheetName: 'Sheet1',
-                rows: rows.map((row, index) => ({
-                    id: `row_${Date.now()}_${Math.floor(Math.random() * 100) + 1}`,
-                    index: index,
-                    selected: false,
-                    data: row
-                })),
-                columns: analyzedColumns,
-                num_rows: rows.length,
-                num_columns: analyzedColumns.length
-            };
-            worksheets.push(worksheetData);
-        } else {
-            // For Excel files, extract all worksheets
-            workbook.SheetNames.forEach((sheetName, index) => {
-                const worksheet = workbook.Sheets[sheetName];
-                const sheetRows = XLSX.utils.sheet_to_json(worksheet);
-                
-                if (sheetRows.length > 0) {
-                    const analyzedColumns = analyzeColumns(sheetRows);
-                    const worksheetData = {
-                        sheetName: sheetName,
-                        rows: sheetRows.map((row, rowIndex) => ({
-                            id: `row_${Date.now()}_${Math.floor(Math.random() * 100) + 1}_${index}`,
-                            index: rowIndex,
-                            selected: false,
-                            data: row
-                        })),
-                        columns: analyzedColumns,
-                        num_rows: sheetRows.length,
-                        num_columns: analyzedColumns.length
-                    };
-                    worksheets.push(worksheetData);
-                }
-            });
-        }
-        
-        // Calculate total statistics
-        const totalRows = worksheets.reduce((sum, ws) => sum + ws.num_rows, 0);
-        const maxColumns = worksheets.reduce((max, ws) => Math.max(max, ws.num_columns), 0);
-        
-        const fileData = {
-            id: `file_${Date.now()}_${Math.floor(Math.random() * 100) + 1}`,
-            name: file.name,
-            size: file.size,
-            type: file.type || 'application/octet-stream',
-            num_rows: totalRows,
-            num_columns: maxColumns,
-            status: 'pending',
-            workbook,
-            worksheets: worksheets,
-            uploadedAt: new Date()
-        };
-        
-        resolve(fileData)
-      } catch (error) {
-        reject(error)
-      }
-    }
-    
-    reader.onerror = () => reject(new Error('Failed to read file'))
-    
-    if (file.name.toLowerCase().endsWith('.csv')) {
-      reader.readAsText(file)
-    } else {
-      reader.readAsArrayBuffer(file)
-    }
-  })
-}
+
 async function handleFiles(files) {
+    const token = getAuthToken();
     const rejectedFiles = [];
+    
     for (const file of files) {
         if (isValidFile(file)) {
             try {
-                const parsedFile = await parseFile(file);
-                state.files.push(parsedFile);
+                // Store raw file object for upload
+                const fileEntry = {
+                    id: `file_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+                    name: file.name,
+                    size: file.size,
+                    sizeFormatted: formatFileSize(file.size),
+                    type: file.type || 'application/octet-stream',
+                    status: 'processing',
+                    raw: file, // Store the raw File object
+                    uploadedAt: new Date()
+                };
                 
-                // Immediately create sheets from worksheets
-                if (parsedFile.worksheets && parsedFile.worksheets.length > 0) {
-                    let sheetsCreated = 0;
-                    parsedFile.worksheets.forEach((worksheetData, index) => {
-                        if (worksheetData.rows && worksheetData.rows.length > 0) {
-                            const sheet = createSheetFromWorksheet(parsedFile, worksheetData, worksheetData.sheetName, index);
-                            addSheetToCollection(sheet);
-                            sheetsCreated++;
-                            console.log(`Created sheet: ${sheet.name} with ${worksheetData.rows.length} rows`);
-                        } else {
-                            console.log(`Skipping empty worksheet: ${worksheetData.sheetName}`);
-                        }
-                    });
+                state.files.push(fileEntry);
+                console.log(`Added file: ${file.name} (${fileEntry.sizeFormatted})`);
+                
+                // Upload to server for parsing
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                const response = await $fetch(`${config.public.apiBase}/data-source/upload-excel-preview`, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Authorization-Type': 'auth',
+                    },
+                    credentials: 'include'
+                });
+                
+                // Response format: { sheets: [...], success: true, ... }
+                if (response.success && response.sheets) {
+                    // Create sheet objects from parsed data
+                    for (const sheetData of response.sheets) {
+                        // Map backend format to frontend format
+                        const formattedSheet = {
+                            name: sheetData.sheet_name || sheetData.name,
+                            index: sheetData.sheet_index,
+                            columns: sheetData.columns,
+                            rows: sheetData.rows
+                        };
+                        
+                        const sheet = createSheetFromWorksheet(
+                            fileEntry,
+                            formattedSheet,
+                            formattedSheet.name,
+                            formattedSheet.index
+                        );
+                        
+                        // Analyze columns for type detection and width
+                        sheet.columns = analyzeColumns(sheet.rows, sheet.columns);
+                        
+                        addSheetToCollection(sheet);
+                    }
                     
-                    // Update file status to indicate sheets are ready
-                    parsedFile.status = 'loaded';
-                    console.log(`File ${parsedFile.name} processed with ${sheetsCreated} sheets created`);
+                    // Update status on the reactive object in state.files, not the local variable
+                    const stateFile = state.files.find(f => f.id === fileEntry.id);
+                    if (stateFile) {
+                        stateFile.status = 'completed';
+                    }
+                    console.log(`Parsed ${response.sheets.length} sheets from ${file.name}`);
                 } else {
-                    console.log('No worksheets found in file:', parsedFile.name);
-                    parsedFile.status = 'empty';
+                    const stateFile = state.files.find(f => f.id === fileEntry.id);
+                    if (stateFile) {
+                        stateFile.status = 'error';
+                    }
+                    console.error('Failed to parse Excel file:', response.error || 'Unknown error');
                 }
             } catch (error) {
                 console.error('Error processing file:', file.name, error);
-                rejectedFiles.push(`${file.name}`)
+                const stateFile = state.files.find(f => f.name === file.name);
+                if (stateFile) {
+                    stateFile.status = 'error';
+                }
+                rejectedFiles.push(file.name);
             }
         } else {
-            rejectedFiles.push(`${file.name}`)
+            rejectedFiles.push(file.name);
         }
     }
+    
     if (rejectedFiles.length > 0) {
         $swal.fire({
             icon: 'error',
             title: `Error!`,
-            text: `The following files could not be processed: ${rejectedFiles.join(', ')} as either there is an error in them or are not a valid excel file.`,
+            text: `The following files could not be processed: ${rejectedFiles.join(', ')}`,
         });
     }
 }
-// Sheet Event Handlers
-function handleCellUpdate(event) {
-    const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
-    if (activeSheet) {
-        // Find row by event.rowId (correct property from custom-data-table)
-        const row = activeSheet.rows.find(row => row.id === event.rowId);
-        if (row) {
-            if (row.data) {
-                row.data[event.columnKey] = event.newValue;
-            } else {
-                row[event.columnKey] = event.newValue;
-            }
-            activeSheet.metadata.modified = new Date();
+
+// Type Detection Functions
+function isBooleanType(values) {
+    const boolPattern = /^(true|false|yes|no|y|n|1|0)$/i;
+    const validCount = values.filter(v => 
+        v === null || v === '' || boolPattern.test(String(v).trim())
+    ).length;
+    return validCount / values.length >= 0.8;
+}
+
+function isNumberType(values) {
+    const validCount = values.filter(v => {
+        if (v === null || v === '') return true;
+        const num = Number(v);
+        return !isNaN(num) && isFinite(num);
+    }).length;
+    return validCount / values.length >= 0.8;
+}
+
+function isDateType(values) {
+    const validCount = values.filter(v => {
+        if (v === null || v === '') return true;
+        const date = new Date(v);
+        return !isNaN(date.getTime());
+    }).length;
+    return validCount / values.length >= 0.8;
+}
+
+function isEmailType(values) {
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const validCount = values.filter(v => 
+        v === null || v === '' || emailPattern.test(String(v).trim())
+    ).length;
+    return validCount / values.length >= 0.8;
+}
+
+function isUrlType(values) {
+    const urlPattern = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
+    const validCount = values.filter(v => 
+        v === null || v === '' || urlPattern.test(String(v).trim())
+    ).length;
+    return validCount / values.length >= 0.8;
+}
+
+function inferColumnType(columnValues) {
+    const nonEmptyValues = columnValues.filter(v => v !== null && v !== '');
+    
+    if (nonEmptyValues.length === 0) return 'text';
+    
+    if (isBooleanType(nonEmptyValues)) return 'boolean';
+    if (isNumberType(nonEmptyValues)) return 'number';
+    if (isDateType(nonEmptyValues)) return 'date';
+    if (isEmailType(nonEmptyValues)) return 'email';
+    if (isUrlType(nonEmptyValues)) return 'url';
+    
+    return 'text';
+}
+
+function calculateColumnWidth(title, values, type) {
+    const maxValueLength = Math.max(
+        title.length,
+        ...values.map(v => String(v || '').length)
+    );
+    
+    // Base width on content
+    let width = Math.min(Math.max(maxValueLength * 10, 100), 400);
+    
+    // Adjust by type
+    if (type === 'date') width = Math.max(width, 150);
+    if (type === 'email') width = Math.max(width, 200);
+    if (type === 'url') width = Math.max(width, 250);
+    
+    return width;
+}
+
+function analyzeColumns(rows, existingColumns = []) {
+    if (!rows || rows.length === 0) return existingColumns;
+    
+    const analyzedColumns = existingColumns.map(column => {
+        // Extract values for this column
+        const columnValues = rows.map(row => {
+            const rowData = row.data || row;
+            return rowData[column.key];
+        });
+        
+        // Infer type if not already set
+        const type = column.type || inferColumnType(columnValues);
+        
+        // Calculate width
+        const width = calculateColumnWidth(column.title, columnValues, type);
+        
+        return {
+            ...column,
+            type,
+            width,
+            visible: true,
+            sortable: true,
+            editable: true
+        };
+    });
+    
+    return analyzedColumns;
+}
+
+// Sheet Editing Handlers
+function handleCellUpdate(sheetId, rowIndex, columnKey, newValue) {
+    const sheet = state.sheets.find(s => s.id === sheetId);
+    if (!sheet || !sheet.rows[rowIndex]) return;
+    
+    sheet.rows[rowIndex].data[columnKey] = newValue;
+    sheet.metadata.modified = new Date();
+}
+
+function handleRowsRemoved(sheetId, rowIndices) {
+    const sheet = state.sheets.find(s => s.id === sheetId);
+    if (!sheet) return;
+    
+    // Sort indices in descending order to remove from end first
+    const sortedIndices = [...rowIndices].sort((a, b) => b - a);
+    sortedIndices.forEach(index => {
+        sheet.rows.splice(index, 1);
+    });
+    
+    // Update row indices
+    sheet.rows.forEach((row, index) => {
+        row.index = index;
+    });
+    
+    sheet.metadata.modified = new Date();
+    sheet.metadata.rowCount = sheet.rows.length;
+}
+
+function handleColumnRemoved(sheetId, columnKey) {
+    const sheet = state.sheets.find(s => s.id === sheetId);
+    if (!sheet) return;
+    
+    // Remove column definition
+    sheet.columns = sheet.columns.filter(col => col.key !== columnKey);
+    
+    // Remove data from all rows
+    sheet.rows.forEach(row => {
+        delete row.data[columnKey];
+    });
+    
+    sheet.metadata.modified = new Date();
+    sheet.metadata.columnCount = sheet.columns.length;
+}
+
+function handleRowAdded(sheetId, newRowData) {
+    const sheet = state.sheets.find(s => s.id === sheetId);
+    if (!sheet) return;
+    
+    const newRow = {
+        id: `row_${Date.now()}_${Math.random()}`,
+        index: sheet.rows.length,
+        selected: false,
+        data: newRowData || {}
+    };
+    
+    sheet.rows.push(newRow);
+    sheet.metadata.modified = new Date();
+    sheet.metadata.rowCount = sheet.rows.length;
+}
+
+function handleColumnAdded(sheetId, columnDef) {
+    const sheet = state.sheets.find(s => s.id === sheetId);
+    if (!sheet) return;
+    
+    sheet.columns.push(columnDef);
+    
+    // Initialize column in all rows
+    sheet.rows.forEach(row => {
+        if (!row.data[columnDef.key]) {
+            row.data[columnDef.key] = null;
         }
-    }
+    });
+    
+    sheet.metadata.modified = new Date();
+    sheet.metadata.columnCount = sheet.columns.length;
 }
 
-function handleRowsRemoved(event) {
-    const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
-    if (activeSheet) {
-        if (event.allRemoved) {
-            activeSheet.rows = [];
-        } else {
-            activeSheet.rows = activeSheet.rows.filter(row => 
-                !event.removedRows.some(removedRow => removedRow.id === row.id)
-            );
+function handleColumnRenamed(sheetId, oldKey, newKey, newTitle) {
+    const sheet = state.sheets.find(s => s.id === sheetId);
+    if (!sheet) return;
+    
+    // Update column definition
+    const column = sheet.columns.find(col => col.key === oldKey);
+    if (column) {
+        column.key = newKey;
+        column.title = newTitle;
+    }
+    
+    // Update data in all rows
+    sheet.rows.forEach(row => {
+        if (oldKey in row.data) {
+            row.data[newKey] = row.data[oldKey];
+            delete row.data[oldKey];
         }
-        activeSheet.metadata.rowCount = activeSheet.rows.length;
-        activeSheet.metadata.modified = new Date();
-    }
-}
-
-function handleColumnRemoved(event) {
-    const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
-    if (activeSheet) {
-        activeSheet.columns = activeSheet.columns.filter(col => col.key !== event.columnKey);
-        activeSheet.metadata.columnCount = activeSheet.columns.length;
-        activeSheet.metadata.modified = new Date();
-    }
-}
-
-function handleRowAdded(event) {
-    const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
-    if (activeSheet) {
-        // Update sheet row collection with all rows from the table
-        activeSheet.rows = [...event.allRows];
-        // Update sheet metadata
-        activeSheet.metadata.rowCount = event.rowCount;
-        activeSheet.metadata.modified = new Date();
-    }
-}
-
-function handleColumnAdded(event) {
-    const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
-    if (activeSheet) {        
-        // Update sheet column collection with all columns from the table
-        activeSheet.columns = [...event.allColumns];        
-        // Update sheet metadata
-        activeSheet.metadata.columnCount = event.columnCount;
-        activeSheet.metadata.modified = new Date();
-    }
-}
-
-function handleColumnRenamed(event) {
-    const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
-    if (activeSheet) {
-        const column = activeSheet.columns.find(col => col.id === event.columnId);
-        if (column) {
-            // Update column title and metadata
-            column.title = event.newName;
-            column.originalTitle = column.originalTitle || event.oldName;
-            
-            // Update key if needed (for backend consistency)
-            if (!column.originalKey) {
-                column.originalKey = column.key;
-            }    
-            // Keep same key or update based on new name
-            // The key is used for database column mapping, so we preserve it
-            // unless this is a brand new column
-            activeSheet.metadata.modified = new Date();
-        }
-    }
+    });
+    
+    sheet.metadata.modified = new Date();
 }
 
 function handleSheetChanged(event) {
     state.activeSheetId = event.newSheetId;
 }
 
-function handleSheetCreated(event) {
-    // Optionally handle custom sheet creation logic
-}
-
 function handleSheetDeleted(event) {
-    // Remove from our sheets collection if it exists
-    const sheetIndex = state.sheets.findIndex(s => s.id === event.id);
-    if (sheetIndex !== -1) {
-        state.sheets.splice(sheetIndex, 1);
+    const sheetId = event.sheetId || event.id;
+    const sheetIndex = state.sheets.findIndex(s => s.id === sheetId);
+    if (sheetIndex === -1) return;
+    
+    state.sheets.splice(sheetIndex, 1);
+    
+    // Update active sheet if deleted
+    if (state.activeSheetId === sheetId) {
+        if (state.sheets.length > 0) {
+            state.activeSheetId = state.sheets[0].id;
+        } else {
+            state.activeSheetId = null;
+            state.show_table_dialog = false;
+        }
     }
 }
 
 function handleSheetRenamed(event) {
-    const sheet = state.sheets.find(s => s.id === event.sheetId);
-    if (sheet) {
-        sheet.name = event.newName;
-        sheet.metadata.modified = new Date();
-    }
+    const sheetId = event.sheetId || event.id;
+    const newName = event.newName || event.name;
+    const sheet = state.sheets.find(s => s.id === sheetId);
+    if (!sheet) return;
+    
+    sheet.name = newName;
+    sheet.metadata.modified = new Date();
 }
+
 onMounted(async () => {
   const token = getAuthToken();
   const url = `${baseUrl()}/data-source/upload/file`;
@@ -631,80 +638,135 @@ onMounted(async () => {
             <div class="flex flex-col justify-center w-3/4 min-h-100 bg-gray-200 m-auto mt-5 text-center cursor-pointer rounded-xl" id="drop-zone">
                 <h3 class="text-lg font-semibold">Drop files here or click to upload</h3>
                 <p class="text-sm text-gray-600">Supported formats: .xlsx, .xls, .csv</p>
-                <input type="file" id="file-elem" multiple class="hidden">
+                <input type="file" id="file-elem" multiple accept=".xlsx,.xls,.csv" class="hidden">
             </div>
             <div class="grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5 mx-auto mt-5">
-                <div v-for="file in state.files" class="w-full relative">
-                    <notched-card  class="justify-self-center mt-5">
+                <div v-for="file in state.files" :key="file.id" class="w-full relative">
+                    <notched-card class="justify-self-center mt-5">
                         <template #body="{ onClick }">
                             <NuxtLink class="text-gray-500">
                                 <div class="flex flex-row justify-end">
                                     <font-awesome
-                                      v-if="file.status === 'loaded' && getSheetsByFileId(file.id).length > 0"
+                                      v-if="file.status === 'completed' && getSheetsByFileId(file.id).length > 0"
                                       icon="fas fa-table"
                                       class="text-xl ml-2 text-gray-500 hover:text-gray-400 cursor-pointer"
-                                      :v-tippy-content="'View Data In Table'"
                                       @click="showTable(file.id)"
                                     />
                                     <font-awesome
-                                      v-if="file.status === 'uploaded'"
+                                      v-if="file.status === 'completed'"
                                       icon="fas fa-check"
-                                      class="text-xl ml-2 text-green-300"
-                                    />
-                                    <font-awesome
-                                      v-else-if="file.status === 'loaded'"
-                                      icon="fas fa-check-circle"
-                                      class="text-xl ml-2 text-blue-500"
+                                      class="text-xl ml-2 text-green-500"
                                     />
                                     <font-awesome
                                       v-else-if="file.status === 'processing'"
-                                      icon="fas fa-hourglass-half"
-                                      class="text-xl ml-2 text-gray-500"
+                                      icon="fas fa-spinner"
+                                      class="text-xl ml-2 text-blue-500 fa-spin"
                                     />
                                     <font-awesome
-                                      v-else-if="file.status === 'empty'"
-                                      icon="fas fa-exclamation-triangle"
-                                      class="text-xl ml-2 text-yellow-500"
-                                    />
-                                    <font-awesome
-                                      v-else-if="file.status === 'failed'"
-                                      icon="fas fa-exclamation"
+                                      v-else-if="file.status === 'error'"
+                                      icon="fas fa-exclamation-circle"
                                       class="text-xl ml-2 text-red-500"
+                                    />
+                                    <font-awesome
+                                      v-else
+                                      icon="fas fa-clock"
+                                      class="text-xl ml-2 text-gray-400"
                                     />
                                 </div>
                                 <div class="flex flex-col justify-center">
-                                    <div class="text-md">
+                                    <div class="text-md font-semibold">
                                       {{ file.name }}
                                     </div>
-                                    <div v-if="file.status === 'loaded'" class="mt-1 text-xs text-blue-600">
-                                      {{ getSheetsByFileId(file.id).length }} sheet{{ getSheetsByFileId(file.id).length !== 1 ? 's' : '' }} ready
+                                    <div class="mt-1 text-xs text-gray-600">
+                                      {{ file.sizeFormatted }}
                                     </div>
-                                    <div v-else-if="file.status === 'empty'" class="mt-1 text-xs text-yellow-600">
-                                      No data found
+                                    <div v-if="file.status === 'completed'" class="mt-1 text-xs text-green-600">
+                                      Ready - {{ getSheetsByFileId(file.id).length }} sheet(s)
+                                    </div>
+                                    <div v-else-if="file.status === 'processing'" class="mt-1 text-xs text-blue-600">
+                                      Processing...
+                                    </div>
+                                    <div v-else-if="file.status === 'error'" class="mt-1 text-xs text-red-600">
+                                      Failed to process
+                                    </div>
+                                    <div v-else class="mt-1 text-xs text-gray-500">
+                                      Pending
                                     </div>
                                 </div>
                                 <div class="flex flex-row justify-center items-center mt-5 mr-10">
                                     <font-awesome
                                         icon="fas fa-file-excel"
-                                        class="text-5xl ml-2 text-green-300"
+                                        class="text-5xl ml-2"
+                                        :class="{
+                                            'text-green-500': file.status === 'completed',
+                                            'text-blue-500': file.status === 'processing',
+                                            'text-red-500': file.status === 'error',
+                                            'text-green-300': file.status === 'pending'
+                                        }"
                                     />
                                 </div>
                             </NuxtLink>
                         </template>
                     </notched-card>
-                    <div v-if="file.status === 'pending' || file.status === 'loaded' || file.status === 'empty' || file.status === 'failed'" class="absolute top-px -right-2 z-10 bg-gray-200 hover:bg-gray-300 border border-gray-200 border-solid rounded-full w-10 h-10 flex items-center justify-center cursor-pointer" @click="removeFile(file.id)" v-tippy="{ content: 'Remove File', placement: 'top' }">
+                    <div v-if="file.status === 'pending' || file.status === 'error'" class="absolute top-px -right-2 z-10 bg-gray-200 hover:bg-gray-300 border border-gray-200 border-solid rounded-full w-10 h-10 flex items-center justify-center cursor-pointer" @click="removeFile(file.id)" v-tippy="{ content: 'Remove File', placement: 'top' }">
                         <font-awesome icon="fas fa-xmark" class="text-xl text-red-500 hover:text-red-400" />
                     </div>
                 </div>
-            </div>            
+            </div>
+            
+            <!-- File processing status summary -->
+            <div v-if="state.files && state.files.length" class="flex flex-col items-center mt-5">
+                <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-3/4 max-w-md">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-2">Processing Status</h4>
+                    <div class="space-y-2">
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-600">Total Files:</span>
+                            <span class="font-medium">{{ state.files.length }}</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-green-600">Completed:</span>
+                            <span class="font-medium">{{ state.files.filter(f => f.status === 'completed').length }}</span>
+                        </div>
+                        <div class="flex justify-between text-sm" v-if="hasProcessingFiles">
+                            <span class="text-blue-600">Processing:</span>
+                            <span class="font-medium">{{ state.files.filter(f => f.status === 'processing').length }}</span>
+                        </div>
+                        <div class="flex justify-between text-sm" v-if="hasErrorFiles">
+                            <span class="text-red-600">Failed:</span>
+                            <span class="font-medium">{{ state.files.filter(f => f.status === 'error').length }}</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Progress bar -->
+                    <div class="mt-3">
+                        <div class="flex justify-between text-xs text-gray-500 mb-1">
+                            <span>Progress</span>
+                            <span>{{ state.files.length > 0 ? Math.round((state.files.filter(f => f.status === 'completed').length / state.files.length) * 100) : 0 }}%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div 
+                                class="bg-green-500 h-2 rounded-full transition-all duration-300 ease-out"
+                                :style="{ width: state.files.length > 0 ? (state.files.filter(f => f.status === 'completed').length / state.files.length) * 100 + '%' : '0%' }"
+                            ></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Show table section inline (not in dialog) -->
             <div v-if="state.files && state.files.length" class="flex flex-row w-full justify-center mt-10">
-                <div v-if="state.sheets && state.sheets.length && state.show_table_dialog" class="flex flex-col w-3/4 justify-center overflow-hidden mb-10">
+                <div v-if="state.sheets && state.sheets.length && state.show_table_dialog" class="flex flex-col w-full justify-center overflow-hidden mb-10 px-4">
                     <h2 class="mb-4 text-xl font-bold text-gray-800">Data From The Excel File(s)/Sheets</h2>
+                    <div class="text-sm text-gray-600 mb-4">
+                        Showing {{ state.sheets.length }} sheet{{ state.sheets.length !== 1 ? 's' : '' }} from {{ state.files.filter(f => f.status === 'completed').length }} Excel file{{ state.files.filter(f => f.status === 'completed').length !== 1 ? 's' : '' }}
+                    </div>
                     <custom-data-table
+                        :columns="[]"
                         :sheets="state.sheets"
-                        :active-sheet-id="state.activeSheetId"
+                        :activeSheetId="state.activeSheetId"
+                        :allowMultipleSheets="true"
+                        :maxSheets="50"
                         :editable="true"
-                        :multi-sheet="true"
                         @cell-updated="handleCellUpdate"
                         @rows-removed="handleRowsRemoved"
                         @column-removed="handleColumnRemoved"
@@ -712,18 +774,22 @@ onMounted(async () => {
                         @row-added="handleRowAdded"
                         @column-added="handleColumnAdded"
                         @sheet-changed="handleSheetChanged"
-                        @sheet-created="handleSheetCreated"
                         @sheet-deleted="handleSheetDeleted"
                         @sheet-renamed="handleSheetRenamed"
-                        ref="dataTable"
                     />
                 </div>
             </div>
+            
             <spinner v-if="state.loading"/>
-            <div v-else-if="!state.loading && state.files && state.files.length" class="h-10 text-center items-center self-center mt-5 mb-5 p-2 font-bold shadow-md select-none bg-primary-blue-100 hover:bg-primary-blue-200 cursor-pointer text-white rounded-lg" @click="createDataSource">
-                Create Excel Data Source &amp; Upload Excel Files
+            <div v-else-if="!state.loading && state.files && state.files.length" 
+                 class="h-10 text-center items-center self-center mt-5 mb-5 p-2 font-bold shadow-md select-none rounded-lg"
+                 :class="{
+                     'bg-primary-blue-100 hover:bg-primary-blue-200 cursor-pointer text-white': !buttonDisabled,
+                     'bg-gray-300 cursor-not-allowed text-gray-500': buttonDisabled
+                 }"
+                 @click="createDataSource">
+                Create Data Source
             </div>
-
         </div>
     </div>
 </template>

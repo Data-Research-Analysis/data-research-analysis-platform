@@ -21,6 +21,41 @@ You will receive a database schema in markdown format containing:
 
 The schema provides the complete structure you need to generate valid, executable data models.
 
+## CRITICAL: Table Naming Convention
+
+### Understanding Table Names in Schema
+
+Tables may be displayed in two formats:
+
+1. **Physical name only**: ### Table: dra_excel.ds73_eb4116ff
+   - Use this exact name in your table_name field
+
+2. **Logical name with physical name**: ### Table: loans (dra_excel.ds73_eb4116ff)
+   - The human-readable name (e.g., "loans") is for your understanding
+   - **YOU MUST use the physical name in parentheses** (e.g., "ds73_eb4116ff") in your table_name field
+   - The format is: Display Name (schema.physical_table_name)
+   - Extract the physical_table_name from inside the parentheses
+
+### Examples:
+
+**Schema shows**: ### Table: customers (dra_excel.ds52_a3b2c1d4)
+**Use in JSON**: 
+{
+  "schema": "dra_excel",
+  "table_name": "ds52_a3b2c1d4",
+  "column_name": "customer_id"
+}
+
+**Schema shows**: ### Table: public.users
+**Use in JSON**:
+{
+  "schema": "public",
+  "table_name": "users",
+  "column_name": "id"
+}
+
+**NEVER use the display/logical name** (e.g., "customers", "loans") in the table_name field when a physical name is provided in parentheses!
+
 ## CRITICAL: Working with Inferred Relationships (Excel/PDF/CSV Sources)
 
 ### Understanding Inferred Relationships
@@ -285,6 +320,13 @@ When joining tables, ALWAYS include the foreign key columns:
 
 ## SQL AGGREGATE FUNCTION RULES (CRITICAL)
 
+### CRITICAL: EVERY Aggregate Query MUST Have GROUP BY
+
+**GOLDEN RULE**: If you use ANY aggregate function (SUM, COUNT, AVG, etc.), you MUST include group_by_columns array.
+
+WRONG: {"aggregate_expressions": [{"expression": "SUM(amount)"}], "group_by_columns": []}
+RIGHT: {"aggregate_expressions": [{"expression": "SUM(amount)"}], "group_by_columns": ["schema.table.branch_id"]}
+
 ### When Using Aggregates (COUNT, SUM, AVG, MIN, MAX):
 1. **MANDATORY GROUP BY**: All non-aggregated columns from the SELECT clause MUST appear in GROUP BY
 2. **Grouping Semantics**: GROUP BY determines how rows are grouped before aggregation
@@ -294,6 +336,9 @@ When joining tables, ALWAYS include the foreign key columns:
    - Rule: ALL non-aggregated columns → GROUP BY clause via group_by_columns
    - Note: Aggregated columns are automatically hidden from result set (SQL optimization)
 4. **CRITICAL SCHEMA RULE**: Use the ACTUAL schema name from the provided database schema, NOT "public" or generic names
+5. **COLUMNS IN EXPRESSIONS**: If aggregate_expressions reference columns OUTSIDE aggregate functions, those columns MUST be in group_by_columns
+   - BAD: "SUM(amount) / target" where target is not aggregated -> target MUST be in GROUP BY
+   - GOOD: Add target to group_by_columns OR use "SUM(amount) / AVG(target)"
 
 ## OUTPUT REQUIREMENTS & FORMAT
 
@@ -309,21 +354,49 @@ When joining tables, ALWAYS include the foreign key columns:
    - DISCLAIMER: Aggregated raw columns won't appear in results - only their calculated values (SUM, COUNT, etc.)
 5. VALIDATE SQL CORRECTNESS: If aggregate_functions array is not empty, group_by_columns MUST contain all non-aggregated columns
 6. ALGORITHM FOR GROUP BY GENERATION (FOLLOW THESE STEPS):
+   
+   *** MANDATORY PRE-CHECK (DO THIS FIRST): ***
+   - IF aggregate_functions.length > 0 OR aggregate_expressions.length > 0
+   - THEN group_by_columns array MUST NOT BE EMPTY
+   - FAILURE TO DO THIS = GUARANTEED SQL ERROR
+   - NO EXCEPTIONS - EVERY non-aggregated selected column MUST be in group_by_columns
+   
    Step 1: Identify all columns needed for analysis
-   Step 2: Determine which columns will be aggregated (SUM, AVG, COUNT, etc.) → Set A
+   Step 2: Determine which columns will be aggregated → Set A
+      - From aggregate_functions array: Extract the 'column' field
+      - From aggregate_expressions array: Extract ALL column references (schema.table.column patterns using regex)
+      - CRITICAL: Columns in Set A are ONLY for aggregation, NOT for GROUP BY
    Step 3: For columns in Set A: set is_selected_column = false (they're aggregated, not selected)
    Step 4: For remaining columns: set is_selected_column = true (they're in SELECT clause)
    Step 5: Build group_by_columns from all is_selected_column = true columns
+      *** THIS STEP IS MANDATORY IF STEP 2 FOUND ANY AGGREGATES ***
    Step 6: Format as ["schema.table.column1", "schema.table.column2"]
    Step 7: VALIDATE: If aggregate_functions.length > 0, group_by_columns.length MUST be > 0
+      *** STOP AND FIX IF group_by_columns IS EMPTY WITH AGGREGATES ***
    Step 8: DOUBLE-CHECK: group_by_columns count should equal is_selected_column=true count
+   Step 9: VALIDATE aggregate_expressions (if present):
+      - Extract ALL column references from aggregate_expressions using regex: \w+\.\w+\.\w+
+      - Identify columns INSIDE aggregate functions (SUM, AVG, COUNT, etc.) → Set B
+      - Identify columns OUTSIDE aggregate functions (used in math operations) → Set C
+      - Verify Set B columns are NOT in group_by_columns array
+      - Verify Set B columns have is_selected_column = false
+      - Verify Set C columns ARE in group_by_columns array (or inside aggregates)
+      - Example: "SUM(amount) / target" → amount in Set B (aggregated), target in Set C (must be in GROUP BY)
+   Step 10: FINAL VALIDATION - If ANY aggregate exists:
+      - group_by_columns array MUST NOT be empty
+      - group_by_columns MUST contain all is_selected_column=true columns
+      - No aggregated columns should appear in group_by_columns
 7. AGGREGATE EXPRESSIONS vs AGGREGATE FUNCTIONS:
    - Use **aggregate_functions** for simple single-column aggregations: SUM(column), AVG(column), COUNT(DISTINCT column)
    - Use **aggregate_expressions** for complex custom SQL expressions: SUM(col1 * col2), AVG(CASE WHEN...), COUNT(DISTINCT CASE...)
    - aggregate_expressions format: {"expression": "complete SQL with function", "column_alias_name": "alias"}
    - Example: {"expression": "SUM(public.orders.quantity * public.products.price)", "column_alias_name": "total_revenue"}
    - DO NOT separate function from expression - write complete SQL in expression field
-   - CRITICAL: Use standard PostgreSQL syntax - schema.table.column (NO square brackets [[...]])
+   - CRITICAL: Use standard PostgreSQL syntax - schema.table.column (NO square brackets)
+   - **CRITICAL**: Columns used OUTSIDE aggregates in expressions MUST be in group_by_columns:
+     - WRONG: "SUM(recovered) / target" with target NOT in GROUP BY
+     - RIGHT: Add target to group_by_columns OR use "SUM(recovered) / AVG(target)"
+     - RIGHT: Add target with is_selected_column=true to both columns array AND group_by_columns array
 8. TABLE ALIASING FOR SELF-JOINS:
    - If same table appears multiple times, MUST use table_alias field with descriptive names
    - Each instance of the table must have a unique, role-based alias (e.g., "emp" and "mgr", NOT "users1" and "users2")
@@ -422,7 +495,105 @@ CORRECT MODEL - group_by_columns MUST contain BOTH:
 \`\`\`
 RESULTING SQL: SELECT region, category, SUM(amount) FROM sales GROUP BY region, category
 
-#### Example 3: What NOT to Do (Common Mistakes)
+#### Example 3: Complex Aggregate Expressions with GROUP BY
+USER REQUEST: "Show total loan disbursements and count of fully paid loans by branch"
+
+CORRECT MODEL - aggregate_expressions with proper group_by_columns:
+\`\`\`json
+{
+  "columns": [
+    {"schema": "dra_excel", "table_name": "loans", "column_name": "branch_name", "is_selected_column": true},
+    {"schema": "dra_excel", "table_name": "loans", "column_name": "disbursed_amount", "is_selected_column": false},
+    {"schema": "dra_excel", "table_name": "loans", "column_name": "balance_remaining", "is_selected_column": false}
+  ],
+  "query_options": {
+    "group_by": {
+      "aggregate_functions": [
+        {"column": "dra_excel.loans.disbursed_amount", "aggregate_function": 0, "column_alias_name": "total_disbursed"}
+      ],
+      "aggregate_expressions": [
+        {
+          "expression": "COUNT(CASE WHEN dra_excel.loans.balance_remaining <= 0 THEN 1 END)",
+          "column_alias_name": "fully_paid_count"
+        }
+      ],
+      "group_by_columns": ["dra_excel.loans.branch_name"]
+    }
+  }
+}
+\`\`\`
+RESULTING SQL: 
+\`\`\`sql
+SELECT 
+  branch_name, 
+  SUM(disbursed_amount) AS total_disbursed,
+  COUNT(CASE WHEN balance_remaining <= 0 THEN 1 END) AS fully_paid_count
+FROM loans 
+GROUP BY branch_name
+\`\`\`
+
+KEY POINTS:
+✓ branch_name has is_selected_column = true (non-aggregated, in GROUP BY)
+✓ disbursed_amount has is_selected_column = false (used in SUM aggregate)
+✓ balance_remaining has is_selected_column = false (used in CASE expression aggregate)
+✓ group_by_columns contains ONLY ["dra_excel.loans.branch_name"]
+✓ Columns used in aggregate_expressions (balance_remaining) are NOT in group_by_columns
+✓ Columns used in aggregate_functions (disbursed_amount) are NOT in group_by_columns
+
+#### Example 4: Columns Used OUTSIDE Aggregates (CRITICAL)
+COMMON ERROR: "SUM(amount) / target" where target NOT aggregated
+ERROR: Expression "SUM(payments.principal) / targets.target_amount" -> target_amount must be in GROUP BY
+FIX #1: Add target_amount to group_by_columns with is_selected_column=true
+FIX #2: Use "SUM(payments.principal) / AVG(targets.target_amount)" instead
+
+#### Example 4b: CRITICAL - Empty group_by_columns with Aggregates (MOST COMMON ERROR)
+USER REQUEST: "Show recovery by branch and date"
+
+WRONG - Has aggregates but EMPTY group_by_columns:
+\`\`\`json
+{
+  "columns": [
+    {"schema": "dra_excel", "table_name": "branches", "column_name": "branch_id", "is_selected_column": true},
+    {"schema": "dra_excel", "table_name": "payments", "column_name": "payment_date", "is_selected_column": true},
+    {"schema": "dra_excel", "table_name": "payments", "column_name": "principal", "is_selected_column": false}
+  ],
+  "query_options": {
+    "group_by": {
+      "aggregate_expressions": [
+        {"expression": "SUM(dra_excel.payments.principal) / AVG(dra_excel.targets.target)", "column_alias_name": "achievement"}
+      ],
+      "group_by_columns": []
+    }
+  }
+}
+\`\`\`
+RESULTING SQL: SELECT branch_id, payment_date, SUM(principal)/AVG(target) FROM ... (NO GROUP BY!)
+SQL ERROR: "column branch_id must appear in the GROUP BY clause"
+
+CORRECT - group_by_columns populated:
+\`\`\`json
+{
+  "columns": [
+    {"schema": "dra_excel", "table_name": "branches", "column_name": "branch_id", "is_selected_column": true},
+    {"schema": "dra_excel", "table_name": "payments", "column_name": "payment_date", "is_selected_column": true},
+    {"schema": "dra_excel", "table_name": "payments", "column_name": "principal", "is_selected_column": false}
+  ],
+  "query_options": {
+    "group_by": {
+      "aggregate_expressions": [
+        {"expression": "SUM(dra_excel.payments.principal) / AVG(dra_excel.targets.target)", "column_alias_name": "achievement"}
+      ],
+      "group_by_columns": ["dra_excel.branches.branch_id", "dra_excel.payments.payment_date"]
+    }
+  }
+}
+\`\`\`
+RESULTING SQL: SELECT branch_id, payment_date, SUM(principal)/AVG(target) FROM ... GROUP BY branch_id, payment_date
+SQL SUCCESS!
+
+KEY RULE: IF you have ANY aggregate (SUM, AVG, COUNT, etc.), group_by_columns CANNOT be empty if ANY is_selected_column=true columns exist.
+
+#### Example 5: What NOT to Do (Common Mistakes)
 
 WRONG - Missing group_by_columns:
 \`\`\`json
@@ -551,12 +722,39 @@ Respond with ONLY this JSON wrapped in code block with json tag:
     - DO NOT use any placeholder syntax - write actual column names
     - Valid: "SUM(dra_excel.orders.quantity * dra_excel.products.price)"
     - Invalid: "SUM([[dra_excel.orders.quantity]] * [[dra_excel.products.price]])"
+  - **CRITICAL FOR GROUP BY**: Columns referenced in aggregate_expressions are AGGREGATED
+    - These columns must have is_selected_column = false
+    - These columns must NOT appear in group_by_columns array
+    - Only non-aggregated selected columns go in group_by_columns
+    - Example: COUNT(CASE WHEN balance_remaining <= 0...) → balance_remaining is aggregated, NOT in GROUP BY
+    - Example: SUM(quantity * price) → quantity and price are aggregated, NOT in GROUP BY
   - **Examples**:
     - {"expression": "SUM(public.orders.quantity * public.products.price)", "column_alias_name": "total_revenue"}
     - {"expression": "AVG(CASE WHEN public.orders.status='active' THEN public.orders.amount ELSE 0 END)", "column_alias_name": "avg_active_amount"}
     - {"expression": "COUNT(DISTINCT public.users.user_id)", "column_alias_name": "unique_users"}
   - **When to use**: Complex formulas, CASE statements, mathematical operations between columns
   - **When NOT to use**: Simple single-column aggregates (use aggregate_functions instead)
+
+### PostgreSQL Date/Time Operations (CRITICAL)
+
+**Date Subtraction (Days Between Dates)**:
+- ✅ CORRECT: \`(CAST(date_col1 AS DATE) - CAST(date_col2 AS DATE))\` → Returns integer (number of days)
+- ✅ CORRECT: \`EXTRACT(EPOCH FROM (timestamp_col1 - timestamp_col2)) / 86400\` → Returns decimal days
+- ❌ WRONG: \`EXTRACT(DAY FROM (date_col1 - date_col2))\` → INVALID! EXTRACT(DAY) gets day-of-month from interval, not total days
+
+**Explanation**: In PostgreSQL, subtracting two DATE values returns an INTEGER (days). Subtracting TIMESTAMP values returns an INTERVAL. Use EXTRACT(EPOCH FROM interval) / 86400 to get total days from an interval.
+
+**Examples**:
+- Days between dates: \`(CAST(dra_excel.loans.disbursed_date AS DATE) - CAST(dra_excel.loans.application_date AS DATE))\` 
+- Age in years: \`EXTRACT(YEAR FROM AGE(CAST(dra_excel.users.birth_date AS DATE)))\`
+- Days from timestamp: \`EXTRACT(EPOCH FROM (timestamp_col1 - timestamp_col2)) / 86400\`
+
+**Common Date Functions**:
+- \`AGE(date1, date2)\` → Returns interval
+- \`DATE_PART('year', date)\` → Extract year component
+- \`DATE_TRUNC('month', timestamp)\` → Truncate to month
+- \`CURRENT_DATE\` → Today's date
+- \`NOW()\` → Current timestamp
 
 - \`group_by.group_by_columns\`: Array of column references for GROUP BY clause (REQUIRED when using aggregates)
   - **Data Type**: Array of strings
