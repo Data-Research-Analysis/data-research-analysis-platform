@@ -8,15 +8,20 @@ export default defineNuxtPlugin(async (nuxtApp) => {
   if (config.public.NUXT_ENV === 'production') {
     socketPath = `${socketHost}`;
   }
-  console.log(`Attempting to connect to Socket.IO server at ${socketPath}`);
+  console.log(`[Socket.IO] Attempting to connect to server at ${socketPath}`);
+  console.log(`[Socket.IO] Environment: ${config.public.NUXT_ENV}`);
 
   const socket: Socket = io(socketPath, {
     autoConnect: true,
     reconnection: true,
     reconnectionDelay: 1000,
-    reconnectionAttempts: 5,
+    reconnectionAttempts: 10, // Increased from 5
     timeout: 20000,
-    forceNew: true
+    forceNew: true,
+    transports: ['websocket', 'polling'], // Try WebSocket first, fall back to polling
+    upgrade: true, // Allow upgrade from polling to WebSocket
+    path: '/socket.io/', // Explicit path
+    withCredentials: true // Important for CORS
   });
 
   // Connection event handlers

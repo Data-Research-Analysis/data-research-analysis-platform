@@ -29,11 +29,17 @@ export class SocketIODriver {
                     `${UtilityService.getInstance().getConstants('SOCKETIO_CLIENT_URL')}`,
                     `${UtilityService.getInstance().getConstants('SOCKETIO_CLIENT_URL')}:${UtilityService.getInstance().getConstants('SOCKETIO_CLIENT_PORT')}`,
                     "http://localhost:3000",
-                    "http://localhost:3001"
+                    "http://localhost:3001",
+                    "https://dataresearchanalysis.com",
+                    "https://www.dataresearchanalysis.com",
+                    "https://api.dataresearchanalysis.com"
                 ],
                 methods: ["GET", "POST"],
                 credentials: true
-            }
+            },
+            transports: ['websocket', 'polling'], // Ensure both transports are enabled
+            allowEIO3: true, // Support older clients if needed
+            path: '/socket.io/' // Explicit path
         });
 
         this.io.on("connection", (socket) => {
