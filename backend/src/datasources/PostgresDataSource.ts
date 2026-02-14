@@ -26,6 +26,7 @@ import { DRANotification } from "../models/DRANotification.js";
 import { DRAPlatformSettings } from "../models/DRAPlatformSettings.js";
 import { DRAAccountCancellation } from "../models/DRAAccountCancellation.js";
 import { DRAEmailPreferences } from "../models/DRAEmailPreferences.js";
+import { DRAMongoDBSyncHistory } from "../models/DRAMongoDBSyncHistory.js";
 import { SyncHistory } from "../entities/SyncHistory.js";
 import dotenv from 'dotenv';
 dotenv.config();
@@ -50,7 +51,7 @@ export class PostgresDataSource {
             database: database,
             synchronize: false,
             logging: true,
-            entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAPrivateBetaUsers, DRADashboard, DRAArticle, DRAArticleCategory, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRADataModelRefreshHistory, DRAScheduledBackupRun, DRASubscriptionTier, DRAUserSubscription, DRAProjectMember, DRAProjectInvitation, DRANotification, DRAPlatformSettings, DRAAccountCancellation, DRAEmailPreferences, SyncHistory],
+            entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAPrivateBetaUsers, DRADashboard, DRAArticle, DRAArticleCategory, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRADataModelRefreshHistory, DRAScheduledBackupRun, DRASubscriptionTier, DRAUserSubscription, DRAProjectMember, DRAProjectInvitation, DRANotification, DRAPlatformSettings, DRAAccountCancellation, DRAEmailPreferences, DRAMongoDBSyncHistory, SyncHistory],
             subscribers: [],
             // Only load TypeORM migration files (exclude utility scripts like migrate-articles-markdown.ts)
             migrations: ['./src/migrations/*.ts'],

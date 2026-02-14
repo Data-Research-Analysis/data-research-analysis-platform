@@ -3,6 +3,7 @@ import _ from 'lodash';
 import { useAIDataModelerStore } from '~/stores/ai-data-modeler';
 import { useSubscriptionStore } from '~/stores/subscription';
 import { useLoggedInUserStore } from '~/stores/logged_in_user';
+import MongoDBQueryEditor from '~/components/data-sources/MongoDBQueryEditor.vue';
 import SQLErrorAlert from '~/components/SQLErrorAlert.vue';
 
 const { $swal } = useNuxtApp();
@@ -100,6 +101,11 @@ const state = reactive({
     is_saving_model: false,
     query_execution_count: 0,
     is_initial_load: true, // Track if component is still initializing (prevents premature suggestion fetches)
+    collapsed_tables: new Map(), // Track collapsed state for each table: key = `${schema}.${table_name}.${alias || 'base'}`, value = boolean
+    mongo_query: {
+        collection: '',
+        pipeline: '[]'
+    }
 });
 
 // Computed properties for tier-based row limits
@@ -235,6 +241,26 @@ const numericColumns = computed(() => {
         }
     })];
 })
+const isMongoDB = computed(() => {
+    return props.dataSource?.type === 'MONGODB';
+});
+
+const collectionNames = computed(() => {
+    return state.tables.map(table => table.table_name);
+});
+
+function onMongoQueryUpdate(payload) {
+    state.mongo_query.collection = payload.collection;
+    state.mongo_query.pipeline = payload.pipeline;
+}
+
+async function onRunMongoQuery(payload) {
+    if (payload) {
+        state.mongo_query.collection = payload.collection;
+        state.mongo_query.pipeline = payload.pipeline;
+    }
+    await executeQueryOnExternalDataSource();
+}
 
 const allAvailableColumns = computed(() => {
     const columns = [];
@@ -1395,6 +1421,77 @@ function getTablesWithAliases() {
 
     return result;
 }
+
+/**
+ * Toggle collapse state for a table
+ * @param {string} tableKey - Unique key for table: `${schema}.${table_name}.${alias || 'base'}`
+ */
+function toggleTableCollapse(tableKey) {
+    const currentState = state.collapsed_tables.get(tableKey) || false;
+    state.collapsed_tables.set(tableKey, !currentState);
+}
+
+/**
+ * Check if table is collapsed
+ * @param {string} tableKey - Unique key for table
+ * @returns {boolean} True if collapsed
+ */
+function isTableCollapsed(tableKey) {
+    return state.collapsed_tables.get(tableKey) || false;
+}
+
+/**
+ * Get column count for a table (for display when collapsed)
+ * @param {Array} columns - Array of column objects
+ * @returns {number} Column count
+ */
+function getColumnCount(columns) {
+    return columns?.length || 0;
+}
+
+/**
+ * Collapse all tables
+ */
+function collapseAllTables() {
+    const tablesWithAliases = getTablesWithAliases();
+    tablesWithAliases.forEach(tableOrAlias => {
+        const key = `${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`;
+        state.collapsed_tables.set(key, true);
+    });
+}
+
+/**
+ * Expand all tables
+ */
+function expandAllTables() {
+    state.collapsed_tables.clear();
+}
+
+/**
+ * Check if all tables are currently collapsed
+ */
+const allTablesCollapsed = computed(() => {
+    const tablesWithAliases = getTablesWithAliases();
+    if (tablesWithAliases.length === 0) return false;
+    
+    return tablesWithAliases.every(tableOrAlias => {
+        const key = `${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`;
+        return state.collapsed_tables.get(key) === true;
+    });
+});
+
+/**
+ * Check if all tables are currently expanded
+ */
+const allTablesExpanded = computed(() => {
+    const tablesWithAliases = getTablesWithAliases();
+    if (tablesWithAliases.length === 0) return true;
+    
+    return tablesWithAliases.every(tableOrAlias => {
+        const key = `${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`;
+        return !state.collapsed_tables.get(key);
+    });
+});
 
 /**
  * Check if data model has multiple tables (JOINs needed)
@@ -3811,209 +3908,244 @@ async function saveDataModel() {
     state.is_saving_model = true;
     
     try {
-        // VALIDATION: Check if this is truly cross-source or same-source with multiple tables
-        if (props.isCrossSource) {
-            const uniqueDataSourceIds = new Set(
-                state.data_table.columns
-                    .filter(col => col.data_source_id)
-                    .map(col => col.data_source_id)
-            );
+        if (isMongoDB.value) {
+            // MongoDB specific save logic
+            state.sql_query = state.mongo_query.pipeline; // Use pipeline as headers/query representation
             
-            console.log('[saveDataModel] Cross-source validation - Unique data sources:', Array.from(uniqueDataSourceIds));
+            // Build the data model
+            const token = getAuthToken();
+            let url = `${baseUrl()}/data-source/build-data-model-on-query`;
+            if (props.isEditDataModel) {
+                url = `${baseUrl()}/data-model/update-data-model-on-query`;
+            }
+
+            const responseData = await $fetch(url, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+                body: {
+                    data_source_id: props.isCrossSource ? null : route.params.datasourceid,
+                    project_id: props.isCrossSource ? props.projectId : null,
+                    query: state.mongo_query.pipeline, // Send pipeline string as query
+                    query_json: JSON.stringify({
+                        collection: state.mongo_query.collection,
+                        pipeline: JSON.parse(state.mongo_query.pipeline)
+                    }),
+                    data_model_name: state.data_table.table_name,
+                    data_model_id: props.isEditDataModel ? props.dataModel.id : null,
+                    is_cross_source: false, // MongoDB doesn't support cross-source yet
+                }
+            });
             
-            if (uniqueDataSourceIds.size === 1) {
-                const result = await $swal.fire({
-                    icon: 'warning',
-                    title: 'Same Data Source Detected',
-                    html: `All columns are from the same data source (ID: ${Array.from(uniqueDataSourceIds)[0]}). Cross-source mode is designed for combining data from <strong>different</strong> data sources.<br /><br />This may cause resolution issues. Continue anyway?`,
-                    showCancelButton: true,
-                    confirmButtonColor: '#3C8DBC',
-                    cancelButtonColor: '#DD4B39',
-                    confirmButtonText: 'Continue Anyway',
-                    cancelButtonText: 'Cancel'
+             $swal.fire({
+                icon: 'success',
+                title: `Data Model Saved!`,
+                text: 'Your MongoDB data model has been successfully saved.',
+                timer: 1500,
+                showConfirmButton: false
+            });
+
+             router.push(`/projects/${route.params.projectid}/data-sources/${route.params.datasourceid}/data-models`);
+        } else {
+            // Existing SQL Save Logic
+            // VALIDATION: Check if this is truly cross-source or same-source with multiple tables
+            if (props.isCrossSource) {
+                const uniqueDataSourceIds = new Set(
+                    state.data_table.columns
+                        .filter(col => col.data_source_id)
+                        .map(col => col.data_source_id)
+                );
+                
+                console.log('[saveDataModel] Cross-source validation - Unique data sources:', Array.from(uniqueDataSourceIds));
+                
+                if (uniqueDataSourceIds.size === 1) {
+                    const result = await $swal.fire({
+                        icon: 'warning',
+                        title: 'Same Data Source Detected',
+                        html: `All columns are from the same data source (ID: ${Array.from(uniqueDataSourceIds)[0]}). Cross-source mode is designed for combining data from <strong>different</strong> data sources.<br /><br />This may cause resolution issues. Continue anyway?`,
+                        showCancelButton: true,
+                        confirmButtonColor: '#3C8DBC',
+                        cancelButtonColor: '#DD4B39',
+                        confirmButtonText: 'Continue Anyway',
+                        cancelButtonText: 'Cancel'
+                    });
+                    
+                    if (!result.isConfirmed) {
+                        state.is_saving_model = false;
+                        return;
+                    }
+                }
+            }
+            
+            // Ensure JOIN conditions and table aliases are synced to data_table before save
+            state.data_table.join_conditions = [...state.join_conditions];
+            state.data_table.table_aliases = [...state.table_aliases];
+            
+            // CRITICAL FIX: Auto-sync group_by_columns when aggregate functions exist
+            // This ensures manually selected columns are included in GROUP BY clause
+            const hasAggregates = state.data_table.query_options?.group_by?.aggregate_functions?.length > 0 ||
+                                 state.data_table.query_options?.group_by?.aggregate_expressions?.length > 0;
+        
+            if (hasAggregates && state.data_table.query_options?.group_by) {
+                // Build set of columns used ONLY in aggregates (not in regular SELECT)
+                const aggregatedColumns = new Set();
+                
+                state.data_table.query_options.group_by.aggregate_functions?.forEach(aggFunc => {
+                    if (aggFunc.column) {
+                        aggregatedColumns.add(aggFunc.column);
+                    }
                 });
                 
-                if (!result.isConfirmed) {
-                    state.is_saving_model = false;
-                    return;
-                }
+                // Rebuild group_by_columns from currently selected non-aggregate columns
+                state.data_table.query_options.group_by.group_by_columns = state.data_table.columns
+                    .filter(col => col.is_selected_column === true)
+                    .map(col => {
+                        const fullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
+                        // Only include if NOT used exclusively in aggregate functions
+                        if (!aggregatedColumns.has(fullPath)) {
+                            return fullPath;
+                        }
+                        return null;
+                    })
+                    .filter(path => path !== null);
+                
+                console.log('[saveDataModel] Auto-synced group_by_columns:', state.data_table.query_options.group_by.group_by_columns);
             }
-        }
         
-        // Ensure JOIN conditions and table aliases are synced to data_table before save
-        state.data_table.join_conditions = [...state.join_conditions];
-        state.data_table.table_aliases = [...state.table_aliases];
-        
-        // CRITICAL FIX: Auto-sync group_by_columns when aggregate functions exist
-        // This ensures manually selected columns are included in GROUP BY clause
-        const hasAggregates = state.data_table.query_options?.group_by?.aggregate_functions?.length > 0 ||
-                             state.data_table.query_options?.group_by?.aggregate_expressions?.length > 0;
-    
-    if (hasAggregates && state.data_table.query_options?.group_by) {
-        // Build set of columns used ONLY in aggregates (not in regular SELECT)
-        const aggregatedColumns = new Set();
-        
-        state.data_table.query_options.group_by.aggregate_functions?.forEach(aggFunc => {
-            if (aggFunc.column) {
-                aggregatedColumns.add(aggFunc.column);
+            console.log('[saveDataModel] Synced to data_table before save:', {
+                join_conditions: state.data_table.join_conditions.length,
+                table_aliases: state.data_table.table_aliases.length,
+                group_by_columns: state.data_table.query_options?.group_by?.group_by_columns?.length || 0
+            });
+
+            let offsetStr = 'OFFSET 0';
+            let limitStr = 'LIMIT 5';
+            let sqlQuery = buildSQLQuery();
+
+            if (state.data_table.query_options.offset > -1) {
+                offsetStr = `OFFSET ${state.data_table.query_options.offset}`;
+            } else {
+                offsetStr = 'OFFSET 0';
             }
-        });
-        
-        // Rebuild group_by_columns from currently selected non-aggregate columns
-        state.data_table.query_options.group_by.group_by_columns = state.data_table.columns
-            .filter(col => col.is_selected_column === true)
-            .map(col => {
-                const fullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
-                // Only include if NOT used exclusively in aggregate functions
-                if (!aggregatedColumns.has(fullPath)) {
-                    return fullPath;
+            if (state.data_table.query_options.limit > -1) {
+                // CRITICAL: Enforce tier limit - never allow exceeding user's allowed limit
+                const tierLimit = subscriptionStore.subscription?.subscription_tier?.max_rows_per_data_model || 100000;
+                const effectiveLimit = tierLimit === -1 ? state.data_table.query_options.limit : Math.min(state.data_table.query_options.limit, tierLimit);
+                
+                if (state.data_table.query_options.limit > tierLimit && tierLimit !== -1) {
+                    console.warn(`[saveDataModel] User attempted to set limit ${state.data_table.query_options.limit} exceeding tier limit ${tierLimit}. Capping to tier limit.`);
+                    state.data_table.query_options.limit = tierLimit;
                 }
-                return null;
-            })
-            .filter(path => path !== null);
-        
-        console.log('[saveDataModel] Auto-synced group_by_columns:', state.data_table.query_options.group_by.group_by_columns);
-    }
-    
-    console.log('[saveDataModel] Synced to data_table before save:', {
-        join_conditions: state.data_table.join_conditions.length,
-        table_aliases: state.data_table.table_aliases.length,
-        group_by_columns: state.data_table.query_options?.group_by?.group_by_columns?.length || 0
-    });
+                
+                limitStr = `LIMIT ${effectiveLimit}`;
+            } else {
+                // Use user's tier limit as default
+                const userRowLimit = subscriptionStore.subscription?.subscription_tier?.max_rows_per_data_model || 100000;
+                limitStr = `LIMIT ${userRowLimit}`;
+            }
+            sqlQuery += ` ${limitStr} ${offsetStr}`;
+            state.sql_query = sqlQuery;
+            const { value: confirmDelete } = await $swal.fire({
+                icon: "success",
+                title: "SQL Query Generated!",
+                html: `Your SQL query has been generated and is a follows:<br /><br /> <span style='font-weight: bold;'>${sqlQuery}</span><br /><br /> Do you want to proceed with this SQL query to build your data model?`,
+                showCancelButton: true,
+                confirmButtonColor: "#3C8DBC",
+                cancelButtonColor: "#DD4B39",
+                confirmButtonText: "Yes, build my model now!",
+            });
+            if (!confirmDelete) {
+                // User cancelled, clear the flag and return
+                state.is_saving_model = false;
+                return;
+            }
+            //build the data model
+            const token = getAuthToken();
+            let url = `${baseUrl()}/data-source/build-data-model-on-query`;
+            if (props.isEditDataModel) {
+                url = `${baseUrl()}/data-model/update-data-model-on-query`;
+            }
 
-    let offsetStr = 'OFFSET 0';
-    let limitStr = 'LIMIT 5';
-    let sqlQuery = buildSQLQuery();
+            // CRITICAL FIX: Send ALL columns with their is_selected_column state preserved
+            // Backend will filter for table creation, but preserve full array in query JSON
+            // This prevents permanent loss of unchecked columns
+            const dataTableForSave = {
+                ...state.data_table,
+                columns: state.data_table.columns // Send ALL columns - don't filter!
+            };
 
-    if (state.data_table.query_options.offset > -1) {
-        offsetStr = `OFFSET ${state.data_table.query_options.offset}`;
-    } else {
-        offsetStr = 'OFFSET 0';
-    }
-    if (state.data_table.query_options.limit > -1) {
-        // CRITICAL: Enforce tier limit - never allow exceeding user's allowed limit
-        const tierLimit = subscriptionStore.subscription?.subscription_tier?.max_rows_per_data_model || 100000;
-        const effectiveLimit = tierLimit === -1 ? state.data_table.query_options.limit : Math.min(state.data_table.query_options.limit, tierLimit);
-        
-        if (state.data_table.query_options.limit > tierLimit && tierLimit !== -1) {
-            console.warn(`[saveDataModel] User attempted to set limit ${state.data_table.query_options.limit} exceeding tier limit ${tierLimit}. Capping to tier limit.`);
-            state.data_table.query_options.limit = tierLimit;
-        }
-        
-        limitStr = `LIMIT ${effectiveLimit}`;
-    } else {
-        // Use user's tier limit as default
-        const userRowLimit = subscriptionStore.subscription?.subscription_tier?.max_rows_per_data_model || 100000;
-        limitStr = `LIMIT ${userRowLimit}`;
-    }
-    sqlQuery += ` ${limitStr} ${offsetStr}`;
-    state.sql_query = sqlQuery;
-    
-    // Show confirmation dialog before saving
-    $swal.fire({
-        icon: 'success',
-        title: `Generated SQL Query!`,
-        text: sqlQuery,
-    });
-    const { value: confirmDelete } = await $swal.fire({
-        icon: "success",
-        title: "SQL Query Generated!",
-        html: `Your SQL query has been generated and is a follows:<br /><br /> <span style='font-weight: bold;'>${sqlQuery}</span><br /><br /> Do you want to proceed with this SQL query to build your data model?`,
-        showCancelButton: true,
-        confirmButtonColor: "#3C8DBC",
-        cancelButtonColor: "#DD4B39",
-        confirmButtonText: "Yes, build my model now!",
-    });
-    if (!confirmDelete) {
-        // User cancelled, clear the flag and return
-        state.is_saving_model = false;
-        return;
-    }
-    
-    //build the data model
-    const token = getAuthToken();
-    let url = `${baseUrl()}/data-source/build-data-model-on-query`;
-    if (props.isEditDataModel) {
-        url = `${baseUrl()}/data-model/update-data-model-on-query`;
-    }
+            console.log('[saveDataModel] Sending ALL columns to preserve full model definition:', {
+                total: state.data_table.columns.length,
+                selected: state.data_table.columns.filter(c => c.is_selected_column).length,
+                unselected: state.data_table.columns.filter(c => !c.is_selected_column).length,
+                hiddenTracked: state.data_table.hidden_referenced_columns?.length || 0
+            });
 
-    // CRITICAL FIX: Send ALL columns with their is_selected_column state preserved
-    // Backend will filter for table creation, but preserve full array in query JSON
-    // This prevents permanent loss of unchecked columns
-    const dataTableForSave = {
-        ...state.data_table,
-        columns: state.data_table.columns // Send ALL columns - don't filter!
-    };
-
-    console.log('[saveDataModel] Sending ALL columns to preserve full model definition:', {
-        total: state.data_table.columns.length,
-        selected: state.data_table.columns.filter(c => c.is_selected_column).length,
-        unselected: state.data_table.columns.filter(c => !c.is_selected_column).length,
-        hiddenTracked: state.data_table.hidden_referenced_columns?.length || 0
-    });
-
-    const responseData = await $fetch(url, {
-        method: "POST",
-        headers: {
-            "Authorization": `Bearer ${token}`,
-            "Authorization-Type": "auth",
-        },
-        body: {
-            data_source_id: props.isCrossSource ? null : route.params.datasourceid,
-            project_id: props.isCrossSource ? props.projectId : null,
-            query: state.sql_query,
-            query_json: JSON.stringify(dataTableForSave),
-            data_model_name: state.data_table.table_name,
-            data_model_id: props.isEditDataModel ? props.dataModel.id : null,
-            is_cross_source: props.isCrossSource || false,
-        }
-    });
-    
-    // Save AI conversation if one exists
-    if (aiDataModelerStore.conversationId && aiDataModelerStore.messages.length > 0) {
-        try {
-            const dataModelId = props.isEditDataModel
-                ? props.dataModel.id
-                : responseData.data_model_id;
-
-            if (dataModelId) {
-                // Ensure currentDataSourceId is set before saving (it should be from initializeConversation)
-                // But set it as fallback in case the drawer was closed
-                if (!aiDataModelerStore.currentDataSourceId) {
-                    aiDataModelerStore.currentDataSourceId = Number(route.params.datasourceid);
+            const responseData = await $fetch(url, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+                body: {
+                    data_source_id: props.isCrossSource ? null : route.params.datasourceid,
+                    project_id: props.isCrossSource ? props.projectId : null,
+                    query: state.sql_query,
+                    query_json: JSON.stringify(dataTableForSave),
+                    data_model_name: state.data_table.table_name,
+                    data_model_id: props.isEditDataModel ? props.dataModel.id : null,
+                    is_cross_source: props.isCrossSource || false,
                 }
+            });
+            
+            // Save AI conversation if one exists
+            if (aiDataModelerStore.conversationId && aiDataModelerStore.messages.length > 0) {
+                try {
+                    const dataModelId = props.isEditDataModel
+                        ? props.dataModel.id
+                        : responseData.data_model_id;
 
-                console.log('Saving AI conversation with:', {
-                    dataSourceId: aiDataModelerStore.currentDataSourceId,
-                    dataModelId,
-                    title: state.data_table.table_name || 'AI Generated Model',
+                    if (dataModelId) {
+                        // Ensure currentDataSourceId is set before saving (it should be from initializeConversation)
+                        // But set it as fallback in case the drawer was closed
+                        if (!aiDataModelerStore.currentDataSourceId) {
+                            aiDataModelerStore.currentDataSourceId = Number(route.params.datasourceid);
+                        }
+
+                        console.log('Saving AI conversation with:', {
+                            dataSourceId: aiDataModelerStore.currentDataSourceId,
+                            dataModelId,
+                            title: state.data_table.table_name || 'AI Generated Model',
+                            messagesCount: aiDataModelerStore.messages.length
+                        });
+
+                        const saved = await aiDataModelerStore.saveConversation(
+                            dataModelId,
+                            state.data_table.table_name || 'AI Generated Model'
+                        );
+
+                        if (saved) {
+                            console.log('AI conversation saved successfully');
+                        } else {
+                            console.warn('AI conversation save returned false');
+                        }
+                    }
+                } catch (error) {
+                    // Log error but don't block the data model save success
+                    console.error('Failed to save AI conversation:', error);
+                }
+            } else {
+                console.log('No AI conversation to save:', {
+                    hasConversationId: !!aiDataModelerStore.conversationId,
                     messagesCount: aiDataModelerStore.messages.length
                 });
-
-                const saved = await aiDataModelerStore.saveConversation(
-                    dataModelId,
-                    state.data_table.table_name || 'AI Generated Model'
-                );
-
-                if (saved) {
-                    console.log('AI conversation saved successfully');
-                } else {
-                    console.warn('AI conversation save returned false');
-                }
             }
-        } catch (error) {
-            // Log error but don't block the data model save success
-            console.error('Failed to save AI conversation:', error);
-        }
-    } else {
-        console.log('No AI conversation to save:', {
-            hasConversationId: !!aiDataModelerStore.conversationId,
-            messagesCount: aiDataModelerStore.messages.length
-        });
-    }
 
-    // enableRefreshDataFlag('clearDataModels');
-    router.push(`/projects/${route.params.projectid}/data-sources/${route.params.datasourceid}/data-models`);
+            // enableRefreshDataFlag('clearDataModels');
+            router.push(`/projects/${route.params.projectid}/data-sources/${route.params.datasourceid}/data-models`);
+        }
     } catch (error) {
         console.error('[saveDataModel] Error:', error);
         $swal.fire({
@@ -4079,58 +4211,79 @@ async function executeQueryOnExternalDataSource() {
         state.response_from_external_data_source_columns = [];
         state.response_from_external_data_source_rows = [];
         
-        // CRITICAL: For cross-source models, ensure all columns have data_source_id
-        // This is needed for backend's resolveTableNamesForCrossSource() to work
-        if (props.isCrossSource) {
-            console.log('[executeQuery] Cross-source model detected, validating data_source_id for all columns');
-            let missingCount = 0;
-            state.data_table.columns.forEach(col => {
-                if (!col.data_source_id) {
-                    // Backfill from state.tables metadata
-                    const sourceTable = state.tables.find(t => 
-                        t.table_name === col.table_name && t.schema === col.schema
-                    );
-                    if (sourceTable?.data_source_id) {
-                        col.data_source_id = sourceTable.data_source_id;
-                        missingCount++;
-                        console.log(`[executeQuery] Backfilled data_source_id for ${col.schema}.${col.table_name}.${col.column_name}`);
-                    } else {
-                        console.error(`[executeQuery] CRITICAL: Cannot find data_source_id for ${col.schema}.${col.table_name}.${col.column_name}`);
+        let url = `${baseUrl()}/data-source/execute-query-on-external-data-source`;
+        let requestBody = {};
+        
+        if (isMongoDB.value) {
+            // MongoDB Execution Path
+            state.sql_query = state.mongo_query.pipeline; // For display/debug
+            
+            requestBody = {
+                 data_source_id: route.params.datasourceid,
+                 query: state.mongo_query.pipeline, // Send pipeline string for compatibility/logging
+                 query_json: JSON.stringify({
+                     collection: state.mongo_query.collection,
+                     pipeline: JSON.parse(state.mongo_query.pipeline)
+                 })
+            };
+
+            // Basic client-side validation for MongoDB
+            if (!state.mongo_query.collection) {
+                 console.log('[executeQuery] MongoDB: No collection selected, skipping.');
+                 state.is_executing_query = false;
+                 return;
+            }
+        } else {
+            // SQL Execution Path
+            
+            // CRITICAL: For cross-source models, ensure all columns have data_source_id
+            if (props.isCrossSource) {
+                console.log('[executeQuery] Cross-source model detected, validating data_source_id for all columns');
+                let missingCount = 0;
+                state.data_table.columns.forEach(col => {
+                    if (!col.data_source_id) {
+                        // Backfill from state.tables metadata
+                        const sourceTable = state.tables.find(t => 
+                            t.table_name === col.table_name && t.schema === col.schema
+                        );
+                        if (sourceTable?.data_source_id) {
+                            col.data_source_id = sourceTable.data_source_id;
+                            missingCount++;
+                            console.log(`[executeQuery] Backfilled data_source_id for ${col.schema}.${col.table_name}.${col.column_name}`);
+                        } else {
+                            console.error(`[executeQuery] CRITICAL: Cannot find data_source_id for ${col.schema}.${col.table_name}.${col.column_name}`);
+                        }
                     }
+                });
+                if (missingCount > 0) {
+                    console.log(`[executeQuery] Backfilled ${missingCount} columns with missing data_source_id`);
                 }
-            });
-            if (missingCount > 0) {
-                console.log(`[executeQuery] Backfilled ${missingCount} columns with missing data_source_id`);
+            }
+            
+            // CRITICAL: Sync JOIN conditions to data_table before building query
+            state.data_table.join_conditions = [...state.join_conditions];
+            state.data_table.table_aliases = [...state.table_aliases];
+            
+            console.log('[executeQuery] Building SQL with calculated_columns:', state.data_table.calculated_columns);
+            state.sql_query = buildSQLQuery();
+            state.sql_query += ` LIMIT 5 OFFSET 0`;
+            console.log('[Data Model Builder - executeQueryOnExternalDataSource] SQL Query being sent:', state.sql_query);
+            console.log('[Data Model Builder - executeQueryOnExternalDataSource] JSON Query being sent:', JSON.stringify(state.data_table));
+            
+            requestBody = {
+                query: state.sql_query,
+                query_json: JSON.stringify(state.data_table),
+            };
+
+            if (props.isCrossSource) {
+                requestBody.project_id = props.projectId;
+                requestBody.is_cross_source = true;
+            } else {
+                requestBody.data_source_id = route.params.datasourceid;
             }
         }
-        
-        // CRITICAL: Sync JOIN conditions to data_table before building query
-        // This ensures the JSON sent to backend includes all JOINs
-        state.data_table.join_conditions = [...state.join_conditions];
-        state.data_table.table_aliases = [...state.table_aliases];
-        
-        console.log('[executeQuery] Building SQL with calculated_columns:', state.data_table.calculated_columns);
-        state.sql_query = buildSQLQuery(true); // true = silent mode, no modals
-        state.sql_query += ` LIMIT 5 OFFSET 0`;
-        console.log('[Data Model Builder - executeQueryOnExternalDataSource] SQL Query being sent:', state.sql_query);
-        console.log('[Data Model Builder - executeQueryOnExternalDataSource] JSON Query being sent:', JSON.stringify(state.data_table));
+
         const token = getAuthToken();
-        const url = `${baseUrl()}/data-source/execute-query-on-external-data-source`;
-        // For cross-source, we need to use the federated query endpoint
-        const requestBody = {
-            query: state.sql_query,
-            query_json: JSON.stringify(state.data_table),
-        };
-
-        if (props.isCrossSource) {
-            // In cross-source mode, send project_id instead of data_source_id
-            requestBody.project_id = props.projectId;
-            requestBody.is_cross_source = true;
-        } else {
-            // In single-source mode, use data_source_id from route
-            requestBody.data_source_id = route.params.datasourceid;
-        }
-
         const response = await $fetch(url, {
             method: "POST",
             headers: {
@@ -4148,28 +4301,29 @@ async function executeQueryOnExternalDataSource() {
         const data = response.results || response;
         
         if (data && data.length) {
-            // Check for array values in result (indicates potential cartesian product)
-            const hasArrayValues = data.some(row =>
-                Object.values(row).some(value => Array.isArray(value))
-            );
+            if (!isMongoDB.value) {
+                // Check for array values (only applicable to SQL cartesian products usually)
+                const hasArrayValues = data.some(row =>
+                    Object.values(row).some(value => Array.isArray(value))
+                );
 
-            if (hasArrayValues) {
-                const errorAlert = {
-                    type: 'error',
-                    message: 'The query result contains array values, which may indicate a cartesian product or improper join. Please review your table and column selections.'
-                };
-                if (!state.alerts.find(a => a.type === 'error' && a.message.includes('array values'))) {
-                    state.alerts.push(errorAlert);
+                if (hasArrayValues) {
+                    const errorAlert = {
+                        type: 'error',
+                        message: 'The query result contains array values, which may indicate a cartesian product or improper join. Please review your table and column selections.'
+                    };
+                    if (!state.alerts.find(a => a.type === 'error' && a.message.includes('array values'))) {
+                        state.alerts.push(errorAlert);
+                    }
+                } else {
+                    state.alerts = state.alerts.filter(a => !(a.type === 'error' && a.message.includes('array values')));
                 }
-            } else {
-                // Remove array error if it exists and no longer applies
-                state.alerts = state.alerts.filter(a => !(a.type === 'error' && a.message.includes('array values')));
             }
 
             const columns = Object.keys(data[0]);
             console.log('[executeQuery] Columns from query result:', columns);
             console.log('[executeQuery] Number of rows returned:', data.length);
-            console.log('[executeQuery] Calculated columns in state:', state.data_table.calculated_columns);
+            
             state.response_from_external_data_source_columns = columns;
             state.response_from_external_data_source_rows = data;
         }
@@ -6297,8 +6451,24 @@ onBeforeUnmount(() => {
             <div class="w-full h-1 bg-blue-300 mt-5 mb-5"></div>
         </div>
 
-        <!-- View Mode Toggle -->
-        <div class="flex justify-end mb-4">
+        <!-- MongoDB Query Editor (Replaces SQL Builder for MongoDB) -->
+        <div v-if="isMongoDB" class="m-10">
+            <div class="flex flex-row justify-center bg-gray-300 text-center font-bold p-1 mb-2 rounded-lg">
+                 <h4 class="w-full font-bold">
+                     <input type="text" class="border border-primary-blue-100 border-solid p-2 rounded w-1/2"
+                         placeholder="Enter Data Model Name" v-model="state.data_table.table_name" />
+                 </h4>
+            </div>
+            <MongoDBQueryEditor
+                :modelValue="{ collection: state.mongo_query.collection, pipeline: state.mongo_query.pipeline }"
+                :collections="collectionNames"
+                @update:modelValue="onMongoQueryUpdate"
+                @run-query="onRunMongoQuery"
+            />
+        </div>
+
+        <!-- View Mode Toggle (Only for SQL) -->
+        <div v-if="!isMongoDB" class="flex justify-end mb-4">
             <div class="inline-flex items-center gap-2">
                 <div class="inline-flex shadow-sm" role="group">
                     <button type="button" @click="state.viewMode = 'simple'" :disabled="readOnly" :class="[
@@ -6330,7 +6500,7 @@ onBeforeUnmount(() => {
             </div>
         </div>
 
-        <div class="flex flex-row m-10">
+        <div v-if="!isMongoDB" class="flex flex-row m-10">
             <div class="w-1/2 flex flex-col pr-5 mr-5 border-r-2 border-primary-blue-100">
                 <!-- Table Alias Manager -->
                 <div v-if="state.viewMode === 'advanced'" class="mb-6 p-4 border-2 border-blue-200 bg-blue-50 rounded-lg">
@@ -6591,7 +6761,28 @@ onBeforeUnmount(() => {
                     </button>
                 </div>
 
-                <h2 class="font-bold text-center mb-5">Tables</h2>
+                <div class="flex items-center mb-5">
+                    <div class="flex-1"></div>
+                    <h2 class="font-bold">Tables</h2>
+                    <div class="flex-1 flex gap-2 justify-end">
+                        <button 
+                            @click="collapseAllTables"
+                            class="px-3 py-1 text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg transition-all cursor-pointer flex items-center gap-1"
+                            :class="{ 'invisible': allTablesCollapsed }"
+                            v-tippy="{ content: 'Collapse all tables to hide columns', placement: 'top' }">
+                            <font-awesome icon="fas fa-compress-alt" class="text-xs" />
+                            Collapse All
+                        </button>
+                        <button 
+                            @click="expandAllTables"
+                            class="px-3 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-all cursor-pointer flex items-center gap-1"
+                            :class="{ 'invisible': allTablesExpanded }"
+                            v-tippy="{ content: 'Expand all tables to show columns', placement: 'top' }">
+                            <font-awesome icon="fas fa-expand-alt" class="text-xs" />
+                            Expand All
+                        </button>
+                    </div>
+                </div>
 
                 <!-- Aggregate-Only Columns Info Box -->
                 <div v-if="getAggregateOnlyColumns().length > 0"
@@ -6624,21 +6815,43 @@ onBeforeUnmount(() => {
                             'border-green-400 bg-green-50': tableOrAlias.isJoinedOrAggregate && !tableOrAlias.isAlias,
                             'border-primary-blue-100': !tableOrAlias.isAlias && !tableOrAlias.isJoinedOrAggregate
                         }">
-                        <h4 class="text-center font-bold p-1 mb-2 overflow-clip text-ellipsis wrap-anywhere" :class="{
-                            'bg-blue-200': tableOrAlias.isAlias,
-                            'bg-green-200': tableOrAlias.isJoinedOrAggregate && !tableOrAlias.isAlias,
-                            'bg-gray-300': !tableOrAlias.isAlias && !tableOrAlias.isJoinedOrAggregate
-                        }">
-                            {{ tableOrAlias.display_name }}
-                            <span v-if="tableOrAlias.isAlias" class="text-xs text-blue-700 block mt-1">
-                                (Alias of {{ tableOrAlias.original_table }})
-                            </span>
-                            <span v-if="tableOrAlias.isJoinedOrAggregate && !tableOrAlias.isAlias"
-                                class="text-xs text-green-800 block mt-1 flex items-center justify-center gap-1">
-                                <font-awesome icon="fas fa-link" class="text-xs" />
-                                Joined/Aggregate Table
-                            </span>
-                        </h4>
+                        <!-- Clickable header with collapse toggle -->
+                        <div @click="toggleTableCollapse(`${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`)"
+                            class="cursor-pointer hover:opacity-80 transition-opacity duration-150"
+                            :aria-expanded="!isTableCollapsed(`${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`)"
+                            role="button">
+                            <h4 class="text-center font-bold p-1 mb-2 overflow-clip text-ellipsis wrap-anywhere flex items-center justify-between" :class="{
+                                'bg-blue-200': tableOrAlias.isAlias,
+                                'bg-green-200': tableOrAlias.isJoinedOrAggregate && !tableOrAlias.isAlias,
+                                'bg-gray-300': !tableOrAlias.isAlias && !tableOrAlias.isJoinedOrAggregate
+                            }">
+                                <span class="flex-1">
+                                    {{ tableOrAlias.display_name }}
+                                    <span v-if="tableOrAlias.isAlias" class="text-xs text-blue-700 block mt-1">
+                                        (Alias of {{ tableOrAlias.original_table }})
+                                    </span>
+                                    <span v-if="tableOrAlias.isJoinedOrAggregate && !tableOrAlias.isAlias"
+                                        class="text-xs text-green-800 block mt-1 flex items-center justify-center gap-1">
+                                        <font-awesome icon="fas fa-link" class="text-xs" />
+                                        Joined/Aggregate Table
+                                    </span>
+                                    <!-- Show column count when collapsed -->
+                                    <span v-if="isTableCollapsed(`${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`)" 
+                                        class="text-xs text-gray-600 block mt-1">
+                                        {{ getColumnCount(tableOrAlias.columns) }} column{{ getColumnCount(tableOrAlias.columns) !== 1 ? 's' : '' }}
+                                    </span>
+                                </span>
+                                <!-- Caret icon -->
+                                <font-awesome 
+                                    :icon="isTableCollapsed(`${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`) 
+                                        ? 'fas fa-caret-down' 
+                                        : 'fas fa-caret-up'" 
+                                    class="text-lg mr-2 flex-shrink-0 cursor-pointer text-gray-600 hover:text-gray-800 transition-colors"
+                                />
+                            </h4>
+                        </div>
+                        
+                        <!-- Table metadata (always visible) -->
                         <div class="p-1 m-2 p-2 wrap-anywhere rounded-lg"
                             :class="tableOrAlias.isAlias ? 'bg-blue-100' : 'bg-gray-300'">
                             Table Schema: {{ tableOrAlias.schema }} <br />
@@ -6650,11 +6863,15 @@ onBeforeUnmount(() => {
                                 <br />Alias: <strong class="text-blue-700">{{ tableOrAlias.table_alias }}</strong>
                             </span>
                         </div>
-                        <draggable :list="(tableOrAlias && tableOrAlias.columns) ? tableOrAlias.columns : []" :group="{
-                            name: 'tables',
-                            pull: readOnly ? false : 'clone',
-                            put: false,
-                        }" itemKey="name">
+                        
+                        <!-- Collapsible columns section with smooth transition -->
+                        <Transition name="collapse">
+                            <div v-show="!isTableCollapsed(`${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`)">
+                                <draggable :list="(tableOrAlias && tableOrAlias.columns) ? tableOrAlias.columns : []" :group="{
+                                    name: 'tables',
+                                    pull: readOnly ? false : 'clone',
+                                    put: false,
+                                }" itemKey="name">
                             <template v-if="!tableOrAlias.columns || tableOrAlias.columns.length === 0" #header>
                                 <div class="p-6 text-center text-gray-500 italic">
                                     <font-awesome icon="fas fa-inbox" class="text-4xl mb-3 text-gray-400" />
@@ -6707,6 +6924,8 @@ onBeforeUnmount(() => {
                                 </div>
                             </template>
                         </draggable>
+                            </div>
+                        </Transition>
                     </div>
                 </div>
             </div>
@@ -7909,3 +8128,25 @@ onBeforeUnmount(() => {
         </overlay-dialog>
     </div>
 </template>
+
+<style scoped>
+/* Smooth collapse/expand transition for table columns */
+.collapse-enter-active,
+.collapse-leave-active {
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+
+.collapse-enter-from,
+.collapse-leave-to {
+    opacity: 0;
+    max-height: 0;
+    transform: translateY(-10px);
+}
+
+.collapse-enter-to,
+.collapse-leave-from {
+    opacity: 1;
+    max-height: 2000px; /* Arbitrary large value for smooth animation */
+}
+</style>

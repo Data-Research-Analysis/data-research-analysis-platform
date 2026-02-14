@@ -13,7 +13,52 @@ const props = defineProps({
     },
 });
 const dataModelsExist = computed(() => {
-    return dataModelsStore.getDataModels().length > 0;
+    if (!props.projectId) {
+        console.log('[Tabs] No projectId provided');
+        return false;
+    }
+    
+    const allModels = dataModelsStore.getDataModels();
+    console.log('[Tabs] Checking models for projectId:', props.projectId);
+    console.log('[Tabs] Total models in store:', allModels.length);
+    
+    // Log first model structure for debugging
+    if (allModels.length > 0) {
+        console.log('[Tabs] Sample model structure:', {
+            id: allModels[0].id,
+            name: allModels[0].name,
+            data_source: allModels[0].data_source,
+            data_model_sources: allModels[0].data_model_sources
+        });
+    }
+    
+    const projectModels = allModels.filter(model => {
+        // Single-source models - check multiple paths
+        if (model.data_source?.project?.id === props.projectId) {
+            console.log('[Tabs] ✓ Found model via data_source.project.id:', model.name);
+            return true;
+        }
+        
+        // Check if data_source.project_id exists (direct foreign key)
+        if (model.data_source?.project_id === props.projectId) {
+            console.log('[Tabs] ✓ Found model via data_source.project_id:', model.name);
+            return true;
+        }
+        
+        // Cross-source/federated models
+        if (model.data_model_sources?.some((dms) => 
+            dms.data_source?.project?.id === props.projectId || 
+            dms.data_source?.project_id === props.projectId)) {
+            console.log('[Tabs] ✓ Found cross-source model:', model.name);
+            return true;
+        }
+        
+        console.log('[Tabs] ✗ Model did not match:', model.name, 'data_source:', model.data_source);
+        return false;
+    });
+    
+    console.log('[Tabs] Project models found:', projectModels.length);
+    return projectModels.length > 0;
 });
 const isDashboardsRoute = computed(() => {
     return route.name === 'projects-projectid-dashboards-create' || route.name === 'projects-projectid-dashboards-dashboardid';

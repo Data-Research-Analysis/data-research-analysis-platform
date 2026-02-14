@@ -1275,22 +1275,25 @@ Keep it concise - aim for 200-300 words total.`;
         // Extract connection details (already decrypted by transformer)
         const connectionDetails = dataSource.connection_details;
         
+        // API-integrated sources (Excel, PDF, MongoDB) store data in PostgreSQL
+        // Use PostgreSQL connection for these sources instead of their original connection details
+        const apiSourceSchemas: Record<string, string> = {
+            'google_analytics': 'dra_google_analytics',
+            'google_ad_manager': 'dra_google_ad_manager',
+            'google_ads': 'dra_google_ads',
+            'excel': 'dra_excel',
+            'pdf': 'dra_pdf',
+            'mongodb': 'dra_mongodb'
+        };
+        
+        const isApiIntegratedSource = apiSourceSchemas[dataSource.data_type];
+        
         // Determine correct schema based on data source type
         let schema = connectionDetails.schema;
         
         if (!schema) {
-            // Only API-integrated sources have fixed schemas
-            // User databases (PostgreSQL, MySQL, MariaDB) should use connection_details.schema
-            const apiSourceSchemas: Record<string, string> = {
-                'google_analytics': 'dra_google_analytics',
-                'google_ad_manager': 'dra_google_ad_manager',
-                'google_ads': 'dra_google_ads',
-                'excel': 'dra_excel',
-                'pdf': 'dra_pdf'
-            };
-            
             // Check if this is an API-integrated source
-            if (apiSourceSchemas[dataSource.data_type]) {
+            if (isApiIntegratedSource) {
                 schema = apiSourceSchemas[dataSource.data_type];
                 console.log(`[AIDataModelerController] Using fixed schema for API source '${dataSource.data_type}': '${schema}'`);
             } else {
@@ -1302,14 +1305,35 @@ Keep it concise - aim for 200-300 words total.`;
             console.log(`[AIDataModelerController] Using schema from connection details: '${schema}'`);
         }
         
+        // For API-integrated sources that store data in PostgreSQL, use internal PostgreSQL connection
+        let host = connectionDetails.host;
+        let port = connectionDetails.port;
+        let database = connectionDetails.database;
+        let username = connectionDetails.username;
+        let password = connectionDetails.password;
+        
+        if (isApiIntegratedSource) {
+            // Get internal PostgreSQL connection details from the DBDriver
+            const internalDataSource = manager.connection;
+            const pgOptions = internalDataSource.options as any;
+            
+            host = pgOptions.host;
+            port = pgOptions.port;
+            database = pgOptions.database;
+            username = pgOptions.username;
+            password = pgOptions.password;
+            
+            console.log(`[AIDataModelerController] Using internal PostgreSQL connection for API source '${dataSource.data_type}' (schema: ${schema}, host: ${host}:${port})`);
+        }
+        
         return {
             type: dataSource.data_type,
-            host: connectionDetails.host,
-            port: connectionDetails.port,
-            database: connectionDetails.database,
-            username: connectionDetails.username,
-            password: connectionDetails.password,
-            schema: schema
+            host,
+            port,
+            database,
+            username,
+            password,
+            schema
         };
     }
 
@@ -1326,6 +1350,7 @@ Keep it concise - aim for 200-300 words total.`;
             case 'google_ads':        // Google Ads data stored in PostgreSQL
             case 'excel':             // Excel data stored in PostgreSQL (dra_excel schema)
             case 'pdf':               // PDF data stored in PostgreSQL (dra_pdf schema)
+            case 'mongodb':           // MongoDB data stored in PostgreSQL (dra_mongodb schema)
                 return PostgresDataSource.getInstance().getDataSource(
                     host,
                     port,
@@ -1469,11 +1494,12 @@ Keep it concise - aim for 200-300 words total.`;
             }
 
             // Prepare options for AI enhancement
-            const inferenceOptions = useAI ? {
-                useAI: true,
-                userId: userId,
-                conversationId: `join-inference-${dataSourceId}-${Date.now()}`
-            } : undefined;
+            // Always pass userId for PostgreSQL persistence (even if useAI is false)
+            const inferenceOptions = {
+                useAI: useAI,
+                userId: userId || tokenDetails?.id, // Fallback to tokenDetails.id if user_id not set
+                conversationId: useAI ? `join-inference-${dataSourceId}-${Date.now()}` : undefined
+            };
 
             let inferredJoins: any[];
             let analyzedTableNames: string[];
@@ -1570,40 +1596,30 @@ Keep it concise - aim for 200-300 words total.`;
                 }
             }
 
-            const tables = await schemaCollector.collectSchemaForTables(
-                dataSource,
-                dataSourceDetails.schema,
-                tableNames
-            );
+            // FILTERED MODE: Use same inference path as loadAll for consistency
+            // This ensures PostgreSQL persistence works for both modes
+            const joinInferenceService = (await import('../services/JoinInferenceService.js'))
+                .JoinInferenceService.getInstance();
 
-            // Clean up connection
+            // Use inferJoinsFromDataSource for persistence benefits
+            // Pass requested tables to filter results
+            inferredJoins = await joinInferenceService.inferJoinsFromDataSource(
+                dataSource,
+                dataSourceId,
+                schemaParam || dataSourceDetails.schema,
+                inferenceOptions,
+                20,
+                requestedTables && requestedTables.length > 0 ? requestedTables : tableNames
+            );
+            
+            analyzedTableNames = tableNames;
+
+            // Clean up connection after inference
             if (dataSource.isInitialized) {
                 await dataSource.destroy();
             }
 
-            // Merge logical table names (displayNames) into table schemas
-            const tablesWithDisplayNames = tables.map(table => {
-                const metadata = tableMetadata.find((m: any) => 
-                    m.physical_table_name === table.tableName
-                );
-                
-                return {
-                    ...table,
-                    displayName: metadata?.logical_table_name || table.tableName
-                };
-            });
-
-            console.log(`[AI Controller] Merged logical names for ${tablesWithDisplayNames.length} tables`);
-
-            // Run join inference with logical names
-            const joinInferenceService = (await import('../services/JoinInferenceService.js'))
-                .JoinInferenceService.getInstance();
-            
-            inferredJoins = await joinInferenceService.inferJoins(tablesWithDisplayNames, inferenceOptions);
-            analyzedTableNames = tableNames;
-
             console.log(`[AI Controller] Found ${inferredJoins.length} suggested joins among ${tableNames.length} tables (AI: ${useAI ? 'ENABLED' : 'DISABLED'})`);
-            console.log(`[AI Controller] Logical names used:`, tablesWithDisplayNames.map(t => `${t.tableName} (${t.displayName})`).join(', '));
 
             // Return suggestions
             res.status(200).json({

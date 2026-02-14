@@ -142,6 +142,11 @@ if (process.env.SCHEDULED_DELETION_ENABLED !== 'false') {
     console.log('✅ Scheduled deletion job started');
 }
 
+// Initialize and start queue processing service
+import { QueueService } from './services/QueueService.js';
+QueueService.getInstance().run();
+console.log('✅ Queue processing service started');
+
 
 const port = parseInt(UtilityService.getInstance().getConstants('PORT'));
 const __filename = fileURLToPath(import.meta.url);

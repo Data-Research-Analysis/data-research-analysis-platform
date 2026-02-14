@@ -10,4 +10,9 @@ export interface IDBDriver {
     getExternalConnection(): Promise<any>;
     getTablesColumnDetails(schema: string): Promise<string>;
     getTablesRelationships(schema: string): Promise<string>;
+    
+    // MongoDB-specific methods (optional implementation)
+    executeAggregation?(collectionName: string, pipeline: any[]): Promise<any>;
+    inferCollectionSchema?(collectionName: string, sampleSize?: number): Promise<any>;
+    getMongoDBCollections?(): Promise<string[]>;
 }

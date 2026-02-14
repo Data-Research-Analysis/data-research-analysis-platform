@@ -252,6 +252,41 @@ export const aiOperationsLimiter = rateLimit({
     }
 });
 /**
+ * MongoDB operations rate limiter
+ * Protects expensive MongoDB aggregation pipeline operations
+ * 
+ * Limits: 30 requests per 15 minutes per user
+ */
+export const mongoDBOperationsLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 30,
+    message: 'Too many MongoDB operations, please try again later',
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req: Request) => {
+        const userId = req.body?.tokenDetails?.user_id;
+        if (userId) {
+            return `mongodb_user_${userId}`;
+        }
+        // Use real client IP (handles proxy via X-Forwarded-For)
+        return `mongodb_ip_${getClientIp(req)}`;
+    },
+    handler: (req: Request, res: Response) => {
+        const userId = req.body?.tokenDetails?.user_id;
+        const clientIp = getClientIp(req);
+        console.warn(`[Rate Limit] MongoDB operations limit exceeded from ${userId ? `User ${userId}` : `IP ${clientIp}`}`);
+        res.status(429).json({
+            success: false,
+            error: 'Too many MongoDB operations, please try again later',
+            retryAfter: Math.ceil((req.rateLimit?.resetTime?.getTime() - Date.now()) / 1000)
+        });
+    },
+    skip: (req: Request) => {
+        return process.env.RATE_LIMIT_ENABLED === 'false';
+    }
+});
+
+/**
  * Invitation rate limiter
  * Protects project invitation endpoints from spam
  * 

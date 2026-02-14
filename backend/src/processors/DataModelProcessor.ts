@@ -752,19 +752,35 @@ export class DataModelProcessor {
             if (!dataSourceType) {
                 return resolve(false);
             }
-            const externalDriver = await DBDriver.getInstance().getDriver(dataSourceType as any);
-            if (!externalDriver) {
-                return resolve(false);
-            }
+            
+            // API-integrated sources (Excel, PDF) and synced MongoDB store data in PostgreSQL
+            // Use internal PostgreSQL connection instead of connecting to external DB
             let externalDBConnector: DataSource;
-            try {
-                externalDBConnector =  await externalDriver.connectExternalDB(connection);
-                if (!externalDBConnector) {
+            const fileBasedTypes = ['excel', 'pdf', 'csv'];
+            const isFileBased = fileBasedTypes.includes(dataSourceType.toLowerCase());
+            const isSyncedMongoDB = dataSource.data_type === EDataSourceType.MONGODB && 
+                                    dataSource.sync_status === 'completed' && 
+                                    dataSource.last_sync_at;
+            
+            if (isFileBased || isSyncedMongoDB) {
+                // Use internal PostgreSQL connection where synced/imported data lives
+                console.log(`[DataModelProcessor] Using internal PostgreSQL for ${isSyncedMongoDB ? 'synced MongoDB' : 'file-based'} source: ${dataSourceType}`);
+                externalDBConnector = internalDbConnector;
+            } else {
+                // Connect to external database for regular data sources (or non-synced MongoDB)
+                const externalDriver = await DBDriver.getInstance().getDriver(dataSourceType as any);
+                if (!externalDriver) {
                     return resolve(false);
                 }
-            } catch (error) {
-                console.log('Error connecting to external DB', error);
-                return resolve(false);
+                try {
+                    externalDBConnector = await externalDriver.connectExternalDB(connection);
+                    if (!externalDBConnector) {
+                        return resolve(false);
+                    }
+                } catch (error) {
+                    console.log('Error connecting to external DB', error);
+                    return resolve(false);
+                }
             }
             const existingDataModel = dataSource.data_models.find(model => model.id === dataModelId);
             if (!existingDataModel) {
@@ -857,9 +873,9 @@ export class DataModelProcessor {
                     let columnName;
                     if (column.alias_name && column.alias_name !== '') {
                         columnName = column.alias_name;
-                    } else if (column && (column.schema === 'dra_excel' || column.schema === 'dra_pdf' || column.schema === 'dra_google_analytics' || column.schema === 'dra_google_ad_manager' || column.schema === 'dra_google_ads')) {
-                        // For special schemas (Excel, PDF, GA), always use table_name regardless of aliases
-                        // This preserves datasource IDs in table names (e.g., device_15, sheet_123)
+                    } else if (column && (column.schema === 'dra_excel' || column.schema === 'dra_pdf' || column.schema === 'dra_mongodb' || column.schema === 'dra_google_analytics' || column.schema === 'dra_google_ad_manager' || column.schema === 'dra_google_ads')) {
+                        // For special schemas (Excel, PDF, MongoDB, GA), always use table_name regardless of aliases
+                        // This preserves datasource IDs in table names (e.g., device_15, sheet_123, companies_data_source_7)
                         columnName = `${column.table_name}`.length > 20 ? `${column.table_name}`.slice(-20) + `_${column.column_name}` : `${column.table_name}` + `_${column.column_name}`;
                     } else {
                         columnName = `${column.schema}_${column.table_name}_${column.column_name}`;
@@ -976,8 +992,8 @@ export class DataModelProcessor {
                     let columnName;
                     if (column.alias_name && column.alias_name !== '') {
                         columnName = column.alias_name;
-                    } else if (column && (column.schema === 'dra_excel' || column.schema === 'dra_pdf' || column.schema === 'dra_google_analytics' || column.schema === 'dra_google_ad_manager' || column.schema === 'dra_google_ads')) {
-                        // For special schemas (Excel, PDF, GA), always use table_name regardless of aliases
+                    } else if (column && (column.schema === 'dra_excel' || column.schema === 'dra_pdf' || column.schema === 'dra_mongodb' || column.schema === 'dra_google_analytics' || column.schema === 'dra_google_ad_manager' || column.schema === 'dra_google_ads')) {
+                        // For special schemas (Excel, PDF, MongoDB, GA), always use table_name regardless of aliases
                         columnName = `${column.table_name}`.length > 20 ? `${column.table_name}`.slice(-20) + `_${column.column_name}` : `${column.table_name}` + `_${column.column_name}`;
                     } else {
                         columnName = `${column.schema}_${column.table_name}_${column.column_name}`;
@@ -1036,8 +1052,8 @@ export class DataModelProcessor {
                         if (column.alias_name && column.alias_name !== '') {
                             rowKey = column.alias_name;
                             columnName = column.alias_name;
-                        } else if (column && (column.schema === 'dra_excel' || column.schema === 'dra_pdf' || column.schema === 'dra_google_analytics' || column.schema === 'dra_google_ad_manager' || column.schema === 'dra_google_ads')) {
-                            // For special schemas (Excel, PDF, GA), always use table_name regardless of aliases
+                        } else if (column && (column.schema === 'dra_excel' || column.schema === 'dra_pdf' || column.schema === 'dra_mongodb' || column.schema === 'dra_google_analytics' || column.schema === 'dra_google_ad_manager' || column.schema === 'dra_google_ads')) {
+                            // For special schemas (Excel, PDF, MongoDB, GA), always use table_name regardless of aliases
                             // This preserves datasource IDs in table names and ensures frontend-backend consistency
                             columnName = `${column.table_name}`.length > 20 ? `${column.table_name}`.slice(-20) + `_${column.column_name}` : `${column.table_name}` + `_${column.column_name}`;
                             rowKey = columnName;

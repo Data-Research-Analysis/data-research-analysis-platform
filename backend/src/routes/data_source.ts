@@ -84,20 +84,49 @@ router.get('/list', async (req: Request, res: Response, next: any) => {
 
 router.post('/test-connection', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([body('data_source_type').notEmpty().trim().escape(), body('host').notEmpty().trim().escape(), body('port').notEmpty().trim().escape(),
-    body('schema').notEmpty().trim().escape(), body('database_name').notEmpty().trim().escape(), body('username').notEmpty().trim().escape(),
-    body('password').notEmpty().trim().escape(),
+}, validateJWT, validate([
+    body('data_source_type').notEmpty().trim().escape(),
+    body('connection_string').optional().trim(),
+    body('host').optional().trim().escape(), 
+    body('port').optional().trim().escape(),
+    body('schema').optional().trim().escape(), 
+    body('database_name').optional().trim().escape(), 
+    body('username').optional().trim().escape(),
+    body('password').optional().trim().escape(),
 ]),
 async (req: Request, res: Response) => {
-    const { data_source_type, host, port, schema, database_name, username, password, } = matchedData(req);
+    let { data_source_type, connection_string, host, port, schema, database_name, username, password } = matchedData(req);
+    
+    // For MongoDB, require connection_string
+    if (data_source_type === 'mongodb') {
+        if (!connection_string) {
+            return res.status(400).send({
+                message: 'MongoDB requires a connection_string (e.g., mongodb+srv://username:password@host/database).'
+            });
+        }
+    } else {
+        // For other data sources, require individual fields
+        if (!host || !port || !database_name || !username || !password) {
+            return res.status(400).send({
+                message: 'Please provide all connection fields (host, port, database_name, username, password).'
+            });
+        }
+    }
+    
+    // Set synthetic schema for MongoDB (users don't need to specify this)
+    if (data_source_type === 'mongodb' && !schema) {
+        schema = 'dra_mongodb';
+    }
+    
     const connection: IDBConnectionDetails = {
         data_source_type: data_source_type,
-        host: host,
-        port: port,
+        connection_string: connection_string,
+        host: host || '',
+        port: port || 27017,
         schema: schema,
-        database: database_name,
-        username: username,
-        password: password,
+        database: database_name || '',
+        username: username || '',
+        password: password || '',
     };
     try {
         const response = await DataSourceProcessor.getInstance().connectToDataSource(connection);
@@ -113,20 +142,50 @@ async (req: Request, res: Response) => {
 
 router.post('/add-data-source', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, enforceDataSourceLimit, validate([body('data_source_type').notEmpty().trim().escape(), body('host').notEmpty().trim().escape(), body('port').notEmpty().trim().escape(),
-    body('schema').notEmpty().trim().escape(), body('database_name').notEmpty().trim().escape(), body('username').notEmpty().trim().escape(),
-    body('password').notEmpty().trim().escape(), body('project_id').notEmpty().trim().escape(),
+}, validateJWT, enforceDataSourceLimit, validate([
+    body('data_source_type').notEmpty().trim().escape(),
+    body('connection_string').optional().trim(),
+    body('host').optional().trim().escape(), 
+    body('port').optional().trim().escape(),
+    body('schema').optional().trim().escape(), 
+    body('database_name').optional().trim().escape(), 
+    body('username').optional().trim().escape(),
+    body('password').optional().trim().escape(), 
+    body('project_id').notEmpty().trim().escape(),
 ]), requireProjectPermission(EAction.CREATE, 'project_id'),
 async (req: Request, res: Response) => {
-    const { data_source_type, host, port, schema, database_name, username, password, project_id } = matchedData(req);
+    let { data_source_type, connection_string, host, port, schema, database_name, username, password, project_id } = matchedData(req);
+    
+    // For MongoDB, require connection_string
+    if (data_source_type === 'mongodb') {
+        if (!connection_string) {
+            return res.status(400).send({
+                message: 'MongoDB requires a connection_string (e.g., mongodb+srv://username:password@host/database).'
+            });
+        }
+    } else {
+        // For other data sources, require individual fields
+        if (!host || !port || !database_name || !username || !password) {
+            return res.status(400).send({
+                message: 'Please provide all connection fields (host, port, database_name, username, password).'
+            });
+        }
+    }
+    
+    // Set synthetic schema for MongoDB (users don't need to specify this)
+    if (data_source_type === 'mongodb' && !schema) {
+        schema = 'dra_mongodb';
+    }
+    
     const connection: IDBConnectionDetails = {
         data_source_type: data_source_type,
-        host: host,
-        port: port,
+        connection_string: connection_string,
+        host: host || '',
+        port: port || 27017,
         schema: schema,
-        database: database_name,
-        username: username,
-        password: password,
+        database: database_name || '',
+        username: username || '',
+        password: password || '',
     };
     try {
         const response = await DataSourceProcessor.getInstance().connectToDataSource(connection);
@@ -569,6 +628,147 @@ router.put('/:datasourceid/schedule',
             res.status(500).json({
                 success: false,
                 message: error.message || 'Internal server error'
+            });
+        }
+    }
+);
+
+/**
+ * POST /data-source/sync/:datasourceid
+ * Manually trigger MongoDB data sync
+ */
+router.post('/sync/:datasourceid',
+    validateJWT,
+    validate([
+        param('datasourceid').isInt().toInt(),
+        body('syncType').optional().isIn(['full', 'incremental'])
+    ]),
+    requireDataSourcePermission(EAction.UPDATE, 'datasourceid'),
+    expensiveOperationsLimiter,
+    async (req: Request, res: Response) => {
+        try {
+            const { datasourceid } = matchedData(req);
+            const syncType = req.body.syncType || 'full';
+
+            const processor = DataSourceProcessor.getInstance();
+            const dataSource = await processor.getDataSourceById(datasourceid);
+
+            if (!dataSource) {
+                return res.status(404).json({ 
+                    success: false,
+                    message: 'Data source not found' 
+                });
+            }
+
+            if (dataSource.data_type !== 'mongodb') {
+                return res.status(400).json({ 
+                    success: false,
+                    message: 'Only MongoDB data sources support sync' 
+                });
+            }
+
+            // Check if sync is already in progress
+            if (dataSource.sync_status === 'in_progress') {
+                return res.status(409).json({ 
+                    success: false,
+                    message: 'Sync is already in progress for this data source' 
+                });
+            }
+
+            // Queue sync job
+            const QueueService = (await import('../services/QueueService.js')).QueueService;
+            await QueueService.getInstance().addJob('mongodb-sync', {
+                dataSourceId: datasourceid,
+                syncType,
+                userId: req.body.tokenDetails.user_id
+            });
+
+            res.json({
+                success: true,
+                message: 'Sync queued successfully',
+                dataSourceId: datasourceid,
+                syncType
+            });
+
+        } catch (error: any) {
+            console.error('[DataSource] Sync queue error:', error);
+            res.status(500).json({ 
+                success: false,
+                message: 'Failed to queue sync',
+                error: error.message 
+            });
+        }
+    }
+);
+
+/**
+ * GET /data-source/sync-status/:datasourceid
+ * Get sync status and history for a MongoDB data source
+ */
+router.get('/sync-status/:datasourceid',
+    validateJWT,
+    validate([
+        param('datasourceid').isInt().toInt()
+    ]),
+    requireDataSourcePermission(EAction.READ, 'datasourceid'),
+    async (req: Request, res: Response) => {
+        try {
+            const { datasourceid } = matchedData(req);
+
+            const processor = DataSourceProcessor.getInstance();
+            const dataSource = await processor.getDataSourceById(datasourceid);
+
+            if (!dataSource) {
+                return res.status(404).json({ 
+                    success: false,
+                    message: 'Data source not found' 
+                });
+            }
+
+            if (dataSource.data_type !== 'mongodb') {
+                return res.status(400).json({ 
+                    success: false,
+                    message: 'Only MongoDB data sources have sync status' 
+                });
+            }
+
+            // Get recent sync history
+            const { DBDriver } = await import('../drivers/DBDriver.js');
+            const { EDataSourceType } = await import('../types/EDataSourceType.js');
+            const { DRAMongoDBSyncHistory } = await import('../models/DRAMongoDBSyncHistory.js');
+            
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return res.status(500).json({ 
+                    success: false,
+                    message: 'Database driver not available' 
+                });
+            }
+            
+            const pgDataSource = await driver.getConcreteDriver();
+            const historyRepo = pgDataSource.getRepository(DRAMongoDBSyncHistory);
+            const syncHistory = await historyRepo.find({
+                where: { data_source_id: datasourceid },
+                order: { started_at: 'DESC' },
+                take: 10
+            });
+
+            res.json({
+                success: true,
+                sync_status: dataSource.sync_status,
+                last_sync_at: dataSource.last_sync_at,
+                total_records_synced: dataSource.total_records_synced,
+                sync_error_message: dataSource.sync_error_message,
+                sync_config: dataSource.sync_config,
+                history: syncHistory
+            });
+
+        } catch (error: any) {
+            console.error('[DataSource] Get sync status error:', error);
+            res.status(500).json({ 
+                success: false,
+                message: 'Failed to get sync status',
+                error: error.message 
             });
         }
     }
