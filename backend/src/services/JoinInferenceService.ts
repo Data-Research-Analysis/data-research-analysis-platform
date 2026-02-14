@@ -1103,17 +1103,29 @@ Return ONLY a JSON array of suggestions. Example format:
             if (persistedSuggestions && persistedSuggestions.length > 0) {
                 console.log(`[JoinInferenceService] PostgreSQL Cache HIT: Found ${persistedSuggestions.length} persisted suggestions`);
                 
+                // Helper function to derive confidence category from score
+                const getConfidenceCategory = (score: number): 'high' | 'medium' | 'low' => {
+                    if (score > 0.7) return 'high';
+                    if (score >= 0.4) return 'medium';
+                    return 'low';
+                };
+                
                 // Convert to IInferredJoin format and cache in Redis for next time
-                const convertedSuggestions: IInferredJoin[] = persistedSuggestions.map(s => ({
+                const convertedSuggestions: IInferredJoin[] = persistedSuggestions.map((s, index) => ({
+                    id: `inferred_join_${Date.now()}_${index}`,
                     left_schema: schemaName || 'public',
                     left_table: s.left_table,
                     left_column: s.left_column,
+                    left_column_type: 'unknown', // Column types not stored in persistence layer
                     right_schema: schemaName || 'public',
                     right_table: s.right_table,
                     right_column: s.right_column,
-                    suggested_join_type: s.suggested_join_type,
+                    right_column_type: 'unknown', // Column types not stored in persistence layer
+                    confidence: getConfidenceCategory(s.confidence_score),
                     confidence_score: s.confidence_score,
                     reasoning: s.reasoning || '',
+                    suggested_join_type: s.suggested_join_type as 'INNER' | 'LEFT' | 'RIGHT',
+                    matched_patterns: [], // Pattern info not stored in persistence layer
                 }));
 
                 // Warm up Redis cache
