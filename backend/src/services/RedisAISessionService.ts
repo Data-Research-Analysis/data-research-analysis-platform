@@ -1,5 +1,8 @@
 import { getRedisClient, RedisTTL } from '../config/redis.config.js';
 import { v4 as uuidv4 } from 'uuid';
+import { AppDataSource } from '../datasources/PostgresDS.js';
+import { DRAAIDataModelConversation } from '../models/DRAAIDataModelConversation.js';
+import { DRAAIDataModelMessage } from '../models/DRAAIDataModelMessage.js';
 
 export interface AIMessage {
     role: 'user' | 'assistant' | 'system';
@@ -134,12 +137,32 @@ export class RedisAISessionService {
         // Update session activity
         await this.updateSessionActivity(dataSourceId, userId, sessionType);
 
+        // Auto-persist to PostgreSQL for permanent storage
+        await this.persistMessageToPostgreSQL(dataSourceId, userId, role, content, sessionType);
+
         return message;
     }
 
     async getMessages(dataSourceId: number, userId: number, sessionType: string = 'data_model'): Promise<AIMessage[]> {
         const messagesKey = this.getMessagesKey(dataSourceId, userId, sessionType);
         const messages = await this.redis.lrange(messagesKey, 0, -1);
+
+        // If Redis is empty, try loading from PostgreSQL
+        if (messages.length === 0) {
+            console.log(`[RedisAISessionService] Redis messages empty, loading from PostgreSQL`);
+            const postgresMessages = await this.loadMessagesFromPostgreSQL(dataSourceId, userId, sessionType);
+            
+            // Warm up Redis cache with PostgreSQL messages
+            if (postgresMessages.length > 0) {
+                for (const msg of postgresMessages) {
+                    await this.redis.rpush(messagesKey, JSON.stringify(msg));
+                }
+                await this.redis.expire(messagesKey, RedisTTL.AI_MESSAGES);
+                console.log(`[RedisAISessionService] Loaded ${postgresMessages.length} messages from PostgreSQL`);
+            }
+            
+            return postgresMessages;
+        }
 
         return messages.map((msg) => JSON.parse(msg));
     }
@@ -286,5 +309,112 @@ export class RedisAISessionService {
             this.redis.expire(keys[2], RedisTTL.AI_MODEL_DRAFT),
             this.redis.expire(keys[3], RedisTTL.AI_SCHEMA_CONTEXT),
         ]);
+    }
+
+    /**
+     * Get or create a PostgreSQL conversation for permanent storage
+     * This ensures chat history persists beyond Redis TTL
+     */
+    private async getOrCreateConversation(
+        dataSourceId: number,
+        userId: number,
+        sessionType: string = 'data_model'
+    ): Promise<number> {
+        const conversationRepo = AppDataSource.getRepository(DRAAIDataModelConversation);
+
+        // Try to find existing draft conversation for this data source + user
+        let conversation = await conversationRepo.findOne({
+            where: {
+                data_source: { id: dataSourceId.toString() } as any,
+                user: { id: userId.toString() } as any,
+                status: 'draft',
+            },
+            order: {
+                created_at: 'DESC',
+            },
+        });
+
+        // If no conversation exists, create one
+        if (!conversation) {
+            conversation = conversationRepo.create({
+                title: `${sessionType} conversation - ${new Date().toLocaleString()}`,
+                status: 'draft',
+                started_at: new Date(),
+                data_source: { id: dataSourceId } as any,
+                user: { id: userId } as any,
+            });
+            await conversationRepo.save(conversation);
+            console.log(`[RedisAISessionService] Created new PostgreSQL conversation ${conversation.id} for data source ${dataSourceId}`);
+        }
+
+        return conversation.id;
+    }
+
+    /**
+     * Persist a message to PostgreSQL for permanent storage
+     * Called automatically by addMessage to preserve chat history
+     */
+    private async persistMessageToPostgreSQL(
+        dataSourceId: number,
+        userId: number,
+        role: 'user' | 'assistant' | 'system',
+        content: string,
+        sessionType: string = 'data_model'
+    ): Promise<void> {
+        try {
+            const conversationId = await this.getOrCreateConversation(dataSourceId, userId, sessionType);
+            
+            const messageRepo = AppDataSource.getRepository(DRAAIDataModelMessage);
+            const message = messageRepo.create({
+                conversation: { id: conversationId } as any,
+                role,
+                content,
+                metadata: null,
+            });
+            await messageRepo.save(message);
+
+            console.log(`[RedisAISessionService] Persisted message to PostgreSQL conversation ${conversationId}`);
+        } catch (error) {
+            console.error(`[RedisAISessionService] Failed to persist message to PostgreSQL:`, error);
+            // Don't throw - persistence failure shouldn't break the flow
+        }
+    }
+
+    /**
+     * Load messages from PostgreSQL when Redis cache is empty
+     * Provides seamless fallback for expired Redis sessions
+     */
+    private async loadMessagesFromPostgreSQL(
+        dataSourceId: number,
+        userId: number,
+        sessionType: string = 'data_model'
+    ): Promise<AIMessage[]> {
+        try {
+            const conversationRepo = AppDataSource.getRepository(DRAAIDataModelConversation);
+            const conversation = await conversationRepo.findOne({
+                where: {
+                    data_source: { id: dataSourceId.toString() } as any,
+                    user: { id: userId.toString() } as any,
+                    status: 'draft',
+                },
+                relations: ['messages'],
+                order: {
+                    created_at: 'DESC',
+                },
+            });
+
+            if (!conversation || !conversation.messages) {
+                return [];
+            }
+
+            return conversation.messages.map(msg => ({
+                role: msg.role,
+                content: msg.content,
+                timestamp: msg.created_at.toISOString(),
+            }));
+        } catch (error) {
+            console.error(`[RedisAISessionService] Failed to load messages from PostgreSQL:`, error);
+            return [];
+        }
     }
 }

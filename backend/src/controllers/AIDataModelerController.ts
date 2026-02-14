@@ -1494,11 +1494,12 @@ Keep it concise - aim for 200-300 words total.`;
             }
 
             // Prepare options for AI enhancement
-            const inferenceOptions = useAI ? {
-                useAI: true,
-                userId: userId,
-                conversationId: `join-inference-${dataSourceId}-${Date.now()}`
-            } : undefined;
+            // Always pass userId for PostgreSQL persistence (even if useAI is false)
+            const inferenceOptions = {
+                useAI: useAI,
+                userId: userId || tokenDetails?.id, // Fallback to tokenDetails.id if user_id not set
+                conversationId: useAI ? `join-inference-${dataSourceId}-${Date.now()}` : undefined
+            };
 
             let inferredJoins: any[];
             let analyzedTableNames: string[];
@@ -1595,40 +1596,30 @@ Keep it concise - aim for 200-300 words total.`;
                 }
             }
 
-            const tables = await schemaCollector.collectSchemaForTables(
-                dataSource,
-                dataSourceDetails.schema,
-                tableNames
-            );
+            // FILTERED MODE: Use same inference path as loadAll for consistency
+            // This ensures PostgreSQL persistence works for both modes
+            const joinInferenceService = (await import('../services/JoinInferenceService.js'))
+                .JoinInferenceService.getInstance();
 
-            // Clean up connection
+            // Use inferJoinsFromDataSource for persistence benefits
+            // Pass requested tables to filter results
+            inferredJoins = await joinInferenceService.inferJoinsFromDataSource(
+                dataSource,
+                dataSourceId,
+                schemaParam || dataSourceDetails.schema,
+                inferenceOptions,
+                20,
+                requestedTables && requestedTables.length > 0 ? requestedTables : tableNames
+            );
+            
+            analyzedTableNames = tableNames;
+
+            // Clean up connection after inference
             if (dataSource.isInitialized) {
                 await dataSource.destroy();
             }
 
-            // Merge logical table names (displayNames) into table schemas
-            const tablesWithDisplayNames = tables.map(table => {
-                const metadata = tableMetadata.find((m: any) => 
-                    m.physical_table_name === table.tableName
-                );
-                
-                return {
-                    ...table,
-                    displayName: metadata?.logical_table_name || table.tableName
-                };
-            });
-
-            console.log(`[AI Controller] Merged logical names for ${tablesWithDisplayNames.length} tables`);
-
-            // Run join inference with logical names
-            const joinInferenceService = (await import('../services/JoinInferenceService.js'))
-                .JoinInferenceService.getInstance();
-            
-            inferredJoins = await joinInferenceService.inferJoins(tablesWithDisplayNames, inferenceOptions);
-            analyzedTableNames = tableNames;
-
             console.log(`[AI Controller] Found ${inferredJoins.length} suggested joins among ${tableNames.length} tables (AI: ${useAI ? 'ENABLED' : 'DISABLED'})`);
-            console.log(`[AI Controller] Logical names used:`, tablesWithDisplayNames.map(t => `${t.tableName} (${t.displayName})`).join(', '));
 
             // Return suggestions
             res.status(200).json({

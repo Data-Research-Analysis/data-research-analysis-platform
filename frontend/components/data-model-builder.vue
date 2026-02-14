@@ -101,6 +101,7 @@ const state = reactive({
     is_saving_model: false,
     query_execution_count: 0,
     is_initial_load: true, // Track if component is still initializing (prevents premature suggestion fetches)
+    collapsed_tables: new Map(), // Track collapsed state for each table: key = `${schema}.${table_name}.${alias || 'base'}`, value = boolean
     mongo_query: {
         collection: '',
         pipeline: '[]'
@@ -1420,6 +1421,77 @@ function getTablesWithAliases() {
 
     return result;
 }
+
+/**
+ * Toggle collapse state for a table
+ * @param {string} tableKey - Unique key for table: `${schema}.${table_name}.${alias || 'base'}`
+ */
+function toggleTableCollapse(tableKey) {
+    const currentState = state.collapsed_tables.get(tableKey) || false;
+    state.collapsed_tables.set(tableKey, !currentState);
+}
+
+/**
+ * Check if table is collapsed
+ * @param {string} tableKey - Unique key for table
+ * @returns {boolean} True if collapsed
+ */
+function isTableCollapsed(tableKey) {
+    return state.collapsed_tables.get(tableKey) || false;
+}
+
+/**
+ * Get column count for a table (for display when collapsed)
+ * @param {Array} columns - Array of column objects
+ * @returns {number} Column count
+ */
+function getColumnCount(columns) {
+    return columns?.length || 0;
+}
+
+/**
+ * Collapse all tables
+ */
+function collapseAllTables() {
+    const tablesWithAliases = getTablesWithAliases();
+    tablesWithAliases.forEach(tableOrAlias => {
+        const key = `${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`;
+        state.collapsed_tables.set(key, true);
+    });
+}
+
+/**
+ * Expand all tables
+ */
+function expandAllTables() {
+    state.collapsed_tables.clear();
+}
+
+/**
+ * Check if all tables are currently collapsed
+ */
+const allTablesCollapsed = computed(() => {
+    const tablesWithAliases = getTablesWithAliases();
+    if (tablesWithAliases.length === 0) return false;
+    
+    return tablesWithAliases.every(tableOrAlias => {
+        const key = `${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`;
+        return state.collapsed_tables.get(key) === true;
+    });
+});
+
+/**
+ * Check if all tables are currently expanded
+ */
+const allTablesExpanded = computed(() => {
+    const tablesWithAliases = getTablesWithAliases();
+    if (tablesWithAliases.length === 0) return true;
+    
+    return tablesWithAliases.every(tableOrAlias => {
+        const key = `${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`;
+        return !state.collapsed_tables.get(key);
+    });
+});
 
 /**
  * Check if data model has multiple tables (JOINs needed)
@@ -6689,7 +6761,28 @@ onBeforeUnmount(() => {
                     </button>
                 </div>
 
-                <h2 class="font-bold text-center mb-5">Tables</h2>
+                <div class="flex items-center mb-5">
+                    <div class="flex-1"></div>
+                    <h2 class="font-bold">Tables</h2>
+                    <div class="flex-1 flex gap-2 justify-end">
+                        <button 
+                            @click="collapseAllTables"
+                            class="px-3 py-1 text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg transition-all cursor-pointer flex items-center gap-1"
+                            :class="{ 'invisible': allTablesCollapsed }"
+                            v-tippy="{ content: 'Collapse all tables to hide columns', placement: 'top' }">
+                            <font-awesome icon="fas fa-compress-alt" class="text-xs" />
+                            Collapse All
+                        </button>
+                        <button 
+                            @click="expandAllTables"
+                            class="px-3 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-all cursor-pointer flex items-center gap-1"
+                            :class="{ 'invisible': allTablesExpanded }"
+                            v-tippy="{ content: 'Expand all tables to show columns', placement: 'top' }">
+                            <font-awesome icon="fas fa-expand-alt" class="text-xs" />
+                            Expand All
+                        </button>
+                    </div>
+                </div>
 
                 <!-- Aggregate-Only Columns Info Box -->
                 <div v-if="getAggregateOnlyColumns().length > 0"
@@ -6722,21 +6815,43 @@ onBeforeUnmount(() => {
                             'border-green-400 bg-green-50': tableOrAlias.isJoinedOrAggregate && !tableOrAlias.isAlias,
                             'border-primary-blue-100': !tableOrAlias.isAlias && !tableOrAlias.isJoinedOrAggregate
                         }">
-                        <h4 class="text-center font-bold p-1 mb-2 overflow-clip text-ellipsis wrap-anywhere" :class="{
-                            'bg-blue-200': tableOrAlias.isAlias,
-                            'bg-green-200': tableOrAlias.isJoinedOrAggregate && !tableOrAlias.isAlias,
-                            'bg-gray-300': !tableOrAlias.isAlias && !tableOrAlias.isJoinedOrAggregate
-                        }">
-                            {{ tableOrAlias.display_name }}
-                            <span v-if="tableOrAlias.isAlias" class="text-xs text-blue-700 block mt-1">
-                                (Alias of {{ tableOrAlias.original_table }})
-                            </span>
-                            <span v-if="tableOrAlias.isJoinedOrAggregate && !tableOrAlias.isAlias"
-                                class="text-xs text-green-800 block mt-1 flex items-center justify-center gap-1">
-                                <font-awesome icon="fas fa-link" class="text-xs" />
-                                Joined/Aggregate Table
-                            </span>
-                        </h4>
+                        <!-- Clickable header with collapse toggle -->
+                        <div @click="toggleTableCollapse(`${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`)"
+                            class="cursor-pointer hover:opacity-80 transition-opacity duration-150"
+                            :aria-expanded="!isTableCollapsed(`${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`)"
+                            role="button">
+                            <h4 class="text-center font-bold p-1 mb-2 overflow-clip text-ellipsis wrap-anywhere flex items-center justify-between" :class="{
+                                'bg-blue-200': tableOrAlias.isAlias,
+                                'bg-green-200': tableOrAlias.isJoinedOrAggregate && !tableOrAlias.isAlias,
+                                'bg-gray-300': !tableOrAlias.isAlias && !tableOrAlias.isJoinedOrAggregate
+                            }">
+                                <span class="flex-1">
+                                    {{ tableOrAlias.display_name }}
+                                    <span v-if="tableOrAlias.isAlias" class="text-xs text-blue-700 block mt-1">
+                                        (Alias of {{ tableOrAlias.original_table }})
+                                    </span>
+                                    <span v-if="tableOrAlias.isJoinedOrAggregate && !tableOrAlias.isAlias"
+                                        class="text-xs text-green-800 block mt-1 flex items-center justify-center gap-1">
+                                        <font-awesome icon="fas fa-link" class="text-xs" />
+                                        Joined/Aggregate Table
+                                    </span>
+                                    <!-- Show column count when collapsed -->
+                                    <span v-if="isTableCollapsed(`${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`)" 
+                                        class="text-xs text-gray-600 block mt-1">
+                                        {{ getColumnCount(tableOrAlias.columns) }} column{{ getColumnCount(tableOrAlias.columns) !== 1 ? 's' : '' }}
+                                    </span>
+                                </span>
+                                <!-- Caret icon -->
+                                <font-awesome 
+                                    :icon="isTableCollapsed(`${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`) 
+                                        ? 'fas fa-caret-down' 
+                                        : 'fas fa-caret-up'" 
+                                    class="text-lg mr-2 flex-shrink-0 cursor-pointer text-gray-600 hover:text-gray-800 transition-colors"
+                                />
+                            </h4>
+                        </div>
+                        
+                        <!-- Table metadata (always visible) -->
                         <div class="p-1 m-2 p-2 wrap-anywhere rounded-lg"
                             :class="tableOrAlias.isAlias ? 'bg-blue-100' : 'bg-gray-300'">
                             Table Schema: {{ tableOrAlias.schema }} <br />
@@ -6748,11 +6863,15 @@ onBeforeUnmount(() => {
                                 <br />Alias: <strong class="text-blue-700">{{ tableOrAlias.table_alias }}</strong>
                             </span>
                         </div>
-                        <draggable :list="(tableOrAlias && tableOrAlias.columns) ? tableOrAlias.columns : []" :group="{
-                            name: 'tables',
-                            pull: readOnly ? false : 'clone',
-                            put: false,
-                        }" itemKey="name">
+                        
+                        <!-- Collapsible columns section with smooth transition -->
+                        <Transition name="collapse">
+                            <div v-show="!isTableCollapsed(`${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`)">
+                                <draggable :list="(tableOrAlias && tableOrAlias.columns) ? tableOrAlias.columns : []" :group="{
+                                    name: 'tables',
+                                    pull: readOnly ? false : 'clone',
+                                    put: false,
+                                }" itemKey="name">
                             <template v-if="!tableOrAlias.columns || tableOrAlias.columns.length === 0" #header>
                                 <div class="p-6 text-center text-gray-500 italic">
                                     <font-awesome icon="fas fa-inbox" class="text-4xl mb-3 text-gray-400" />
@@ -6805,6 +6924,8 @@ onBeforeUnmount(() => {
                                 </div>
                             </template>
                         </draggable>
+                            </div>
+                        </Transition>
                     </div>
                 </div>
             </div>
@@ -8007,3 +8128,25 @@ onBeforeUnmount(() => {
         </overlay-dialog>
     </div>
 </template>
+
+<style scoped>
+/* Smooth collapse/expand transition for table columns */
+.collapse-enter-active,
+.collapse-leave-active {
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+
+.collapse-enter-from,
+.collapse-leave-to {
+    opacity: 0;
+    max-height: 0;
+    transform: translateY(-10px);
+}
+
+.collapse-enter-to,
+.collapse-leave-from {
+    opacity: 1;
+    max-height: 2000px; /* Arbitrary large value for smooth animation */
+}
+</style>
