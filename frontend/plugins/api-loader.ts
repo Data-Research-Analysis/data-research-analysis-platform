@@ -28,7 +28,25 @@ export default defineNuxtPlugin(() => {
       '/admin/image/upload',  // Image uploads in article editor (silent background operation)
       '/image/upload',        // Public image uploads (if exists)
     ]
+
+    // Third-party domains that should be completely ignored by the interceptor
+    // (no loader, no error logging)
+    const ignoredDomains = [
+      'google-analytics.com',
+      'googletagmanager.com',
+      'googleapis.com/analytics',
+      'google.com/recaptcha',
+      'gstatic.com/recaptcha',
+    ]
     
+    /**
+     * Check if URL belongs to a third-party service that should be fully ignored
+     */
+    const isThirdPartyUrl = (url: string | URL | Request): boolean => {
+      const urlString = typeof url === 'string' ? url : url.toString()
+      return ignoredDomains.some(domain => urlString.includes(domain))
+    }
+
     /**
      * Check if URL should skip loader
      */
@@ -43,6 +61,12 @@ export default defineNuxtPlugin(() => {
     // Override global fetch
     window.fetch = async (...args: Parameters<typeof fetch>): Promise<Response> => {
       const [url] = args
+
+      // Completely bypass interceptor for third-party services (GA, GTM, reCAPTCHA, etc.)
+      if (isThirdPartyUrl(url)) {
+        return originalFetch(...args)
+      }
+
       const skipLoader = shouldSkipLoader(url)
       
       // Show loader unless URL is excluded

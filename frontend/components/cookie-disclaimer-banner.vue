@@ -195,7 +195,9 @@ onMounted(() => {
         analyticsEnabled.value = preferences.analytics || false;
 
         // Apply analytics consent
-        if (!preferences.analytics) {
+        if (preferences.analytics) {
+          enableGoogleAnalytics();
+        } else {
           disableGoogleAnalytics();
         }
       }
