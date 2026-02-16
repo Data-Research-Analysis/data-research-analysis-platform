@@ -1,6 +1,10 @@
 <script setup lang="ts">
-import { useReCaptcha } from "vue-recaptcha-v3";
-const recaptcha = useReCaptcha();
+// useReCaptcha must be deferred to client-side to avoid SSR hydration mismatch
+let recaptcha: any = null;
+if (import.meta.client) {
+    const { useReCaptcha } = await import('vue-recaptcha-v3');
+    recaptcha = useReCaptcha();
+}
 
 const state = reactive({
     email: "",

@@ -15,7 +15,8 @@ const isHomePage = computed(() => {
 const isPublicDashboard = computed(() => {
     return route.name === 'public-dashboard-dashboardkey';
 });
-const currentYear = computed(() => { return new Date().getFullYear()});
+// Use a non-reactive value to avoid SSR/client mismatch at year boundaries
+const currentYear = new Date().getFullYear();
 function scrollToTop() {
     // Only access window on client side for SSR compatibility
     if (import.meta.client) {

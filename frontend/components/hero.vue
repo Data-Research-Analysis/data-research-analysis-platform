@@ -1,10 +1,15 @@
 <script setup>
-import { useReCaptcha } from "vue-recaptcha-v3";
 import dataSourcesImage from '/assets/images/data-sources.png';
 import templateAIImage from '/assets/images/template-ai.png';
 import chatAIImage from '/assets/images/chat-ai.png';
 import dashboardImage from '/assets/images/dashboard.png';
-const recaptcha = useReCaptcha();
+
+// useReCaptcha must be deferred to client-side to avoid SSR hydration mismatch
+let recaptcha = null;
+if (import.meta.client) {
+    const { useReCaptcha } = await import('vue-recaptcha-v3');
+    recaptcha = useReCaptcha();
+}
 
 const state = reactive({
     email: "",

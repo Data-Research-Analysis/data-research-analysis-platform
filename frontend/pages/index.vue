@@ -60,8 +60,7 @@ useHead({
         { name: 'twitter:image', content: `${siteUrl}/images/og-image.png` },
     ],
     link: [
-        { rel: 'canonical', href: siteUrl },
-        { rel: 'preload', as: 'image', href: '/assets/images/data-sources.png', fetchpriority: 'high' }
+        { rel: 'canonical', href: siteUrl }
     ]
 });
 

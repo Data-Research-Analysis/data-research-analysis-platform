@@ -40,10 +40,20 @@ export default defineNuxtPlugin(() => {
     ]
     
     /**
+     * Extract URL string from various fetch input types
+     */
+    const getUrlString = (input: string | URL | Request): string => {
+      if (typeof input === 'string') return input
+      if (input instanceof URL) return input.href
+      if (input instanceof Request) return input.url
+      return String(input)
+    }
+
+    /**
      * Check if URL belongs to a third-party service that should be fully ignored
      */
     const isThirdPartyUrl = (url: string | URL | Request): boolean => {
-      const urlString = typeof url === 'string' ? url : url.toString()
+      const urlString = getUrlString(url)
       return ignoredDomains.some(domain => urlString.includes(domain))
     }
 
@@ -51,7 +61,7 @@ export default defineNuxtPlugin(() => {
      * Check if URL should skip loader
      */
     const shouldSkipLoader = (url: string | URL | Request): boolean => {
-      const urlString = typeof url === 'string' ? url : url.toString()
+      const urlString = getUrlString(url)
       return excludedUrls.some(excluded => urlString.includes(excluded))
     }
     
@@ -60,14 +70,15 @@ export default defineNuxtPlugin(() => {
     
     // Override global fetch
     window.fetch = async (...args: Parameters<typeof fetch>): Promise<Response> => {
-      const [url] = args
+      const [input] = args
+      const urlString = getUrlString(input)
 
       // Completely bypass interceptor for third-party services (GA, GTM, reCAPTCHA, etc.)
-      if (isThirdPartyUrl(url)) {
+      if (isThirdPartyUrl(input)) {
         return originalFetch(...args)
       }
 
-      const skipLoader = shouldSkipLoader(url)
+      const skipLoader = shouldSkipLoader(input)
       
       // Show loader unless URL is excluded
       if (!skipLoader) {
@@ -80,13 +91,13 @@ export default defineNuxtPlugin(() => {
         
         // Check for HTTP errors
         if (!response.ok && !skipLoader) {
-          console.warn(`API Error: ${response.status} ${response.statusText}`, url)
+          console.warn(`API Error: ${response.status} ${response.statusText}`, urlString)
         }
         
         return response
       } catch (error) {
         // Handle network errors
-        console.error('Fetch error:', error, url)
+        console.error('Fetch error:', error, urlString)
         
         // Force hide loader on error to prevent stuck loader
         if (!skipLoader) {
