@@ -113,7 +113,7 @@ export default defineNuxtConfig({
       ['consent', 'default', {
         analytics_storage: 'denied',
         ad_storage: 'denied',
-        wait_for_update: 500
+        wait_for_update: 1000
       }]
     ]
   },

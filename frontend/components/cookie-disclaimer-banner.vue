@@ -190,16 +190,11 @@ onMounted(() => {
       if (daysSince > 180) {
         showBanner.value = true;
       } else {
-        // Load saved preferences
+        // Load saved preferences to sync local state
+        // NOTE: Actual GA consent is already restored earlier by ga-consent.client.ts plugin
+        // to ensure it happens within GA's wait_for_update window
         const preferences = JSON.parse(consent);
         analyticsEnabled.value = preferences.analytics || false;
-
-        // Apply analytics consent
-        if (preferences.analytics) {
-          enableGoogleAnalytics();
-        } else {
-          disableGoogleAnalytics();
-        }
       }
     }
   }
