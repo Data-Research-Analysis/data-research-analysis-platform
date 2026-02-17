@@ -2,7 +2,7 @@
  * Composable for managing the authentication token saved in the browser cookie
  * @param token 
  */
-import { useLoggedInUserStore } from "@/stores/logged_in_user";
+import { useLoggedInUserStore } from '@/stores/logged_in_user';
 
 export function setAuthToken(token: string) {
     // Use Nuxt's useCookie for SSR compatibility

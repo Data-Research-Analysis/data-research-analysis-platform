@@ -27,6 +27,8 @@ export default defineNuxtPlugin(() => {
       '/validate-token',      // Quick token validation
       '/admin/image/upload',  // Image uploads in article editor (silent background operation)
       '/image/upload',        // Public image uploads (if exists)
+      '/insights/session',    // AI Insights session operations (has own loading UI)
+      '/insights/reports',    // AI Insights report operations (has own loading UI)
     ]
 
     // Third-party domains that should be completely ignored by the interceptor

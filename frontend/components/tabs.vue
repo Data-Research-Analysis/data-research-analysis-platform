@@ -1,6 +1,8 @@
 <script setup>
 import { useDataModelsStore } from '@/stores/data_models';
+import { useDataSourceStore } from '@/stores/data_sources';
 const dataModelsStore = useDataModelsStore();
+const dataSourceStore = useDataSourceStore();
 const router = useRouter();
 const route = useRoute();
 const state = reactive({
@@ -12,13 +14,35 @@ const props = defineProps({
         default: 0,
     },
 });
+
+const dataSourcesExist = computed(() => {
+    if (!props.projectId) {
+        console.log('[Tabs] No projectId provided');
+        return false;
+    }
+    
+    // Access reactive ref directly instead of calling getDataSources() which mutates state
+    const allDataSources = dataSourceStore.dataSources;
+    console.log('[Tabs] Checking data sources for projectId:', props.projectId);
+    console.log('[Tabs] Total data sources in store:', allDataSources.length);
+    
+    const projectDataSources = allDataSources.filter((ds) => {
+        const dsProjectId = ds.project_id || ds.project?.id;
+        return dsProjectId === props.projectId;
+    });
+    
+    console.log('[Tabs] Project data sources found:', projectDataSources.length);
+    return projectDataSources.length > 0;
+});
+
 const dataModelsExist = computed(() => {
     if (!props.projectId) {
         console.log('[Tabs] No projectId provided');
         return false;
     }
     
-    const allModels = dataModelsStore.getDataModels();
+    // Access reactive ref directly instead of calling getDataModels() which mutates state
+    const allModels = dataModelsStore.dataModels;
     console.log('[Tabs] Checking models for projectId:', props.projectId);
     console.log('[Tabs] Total models in store:', allModels.length);
     
@@ -71,12 +95,16 @@ function setSelectedTab(tab) {
         router.push(`/projects/${props.projectId}/data-models`);
     } else if (tab === 'dashboards') {
         router.push(`/projects/${props.projectId}/dashboards`);
+    } else if (tab === 'insights') {
+        router.push(`/projects/${props.projectId}/insights`);
     }
 }
 onMounted(() => {
     // Use Nuxt's route.path instead of window.location for SSR compatibility
     const path = route.path;
-    if (path.includes('dashboards')) {
+    if (path.includes('insights')) {
+        state.selectedTab = 'insights';
+    } else if (path.includes('dashboards')) {
         state.selectedTab = 'dashboards';
     } else if (path.includes('data-models')) {
         state.selectedTab = 'data_models';
@@ -95,12 +123,28 @@ onMounted(() => {
             Data Sources
         </div>
         
-        <div class="bg-primary-blue-100 hover:bg-primary-blue-400 text-white p-3 cursor-pointer font-bold select-none"
+        <div v-if="dataSourcesExist" class="bg-primary-blue-100 hover:bg-primary-blue-400 text-white p-3 cursor-pointer font-bold select-none"
             @click="setSelectedTab('data_models')"
             :class="{ 'bg-primary-blue-400': state.selectedTab === 'data_models' }"
         >
             <font-awesome icon="fas fa-database" class="text-xl text-white"/>
             Data Models
+        </div>
+        <div v-else class="bg-gray-100 text-gray-500 p-3 border border-gray-500 border-solid font-bold select-none" v-tippy="{ content: 'Connect data sources in order to create data models', placement: 'top' }">
+            <font-awesome icon="fas fa-database" class="text-xl text-gray-500"/>
+            Data Models
+        </div>
+
+        <div v-if="dataSourcesExist" class="bg-primary-blue-100 hover:bg-primary-blue-400 text-white p-3 border-l border-white border-solid cursor-pointer font-bold select-none"
+            @click="setSelectedTab('insights')"
+            :class="{ 'bg-primary-blue-400': state.selectedTab === 'insights' }"
+        >
+            <font-awesome icon="fas fa-lightbulb" class="text-xl text-white"/>
+            AI Insights
+        </div>
+        <div v-else class="bg-gray-100 text-gray-500 p-3 border border-gray-500 border-solid font-bold select-none" v-tippy="{ content: 'Connect data sources in order to generate AI insights', placement: 'top' }">
+            <font-awesome icon="fas fa-lightbulb" class="text-xl text-gray-500"/>
+            AI Insights
         </div>
         
         <div v-if="dataModelsExist" class="bg-primary-blue-100 hover:bg-primary-blue-400 text-white p-3 border-l border-white border-solid rounded-tr-lg cursor-pointer font-bold select-none"

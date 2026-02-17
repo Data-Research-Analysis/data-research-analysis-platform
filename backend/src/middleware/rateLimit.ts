@@ -251,6 +251,43 @@ export const aiOperationsLimiter = rateLimit({
         return process.env.RATE_LIMIT_ENABLED === 'false';
     }
 });
+
+/**
+ * Insights generation rate limiter
+ * Protects AI insights generation which involves heavy data sampling and analysis
+ * 
+ * Limits: 15 insight generations per hour per user
+ * Reason: Each generation samples data, computes statistics, and processes through Gemini API
+ */
+export const insightsLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 15,
+    message: 'Too many insight generation requests, please wait before trying again',
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req: Request) => {
+        const userId = req.body?.tokenDetails?.user_id;
+        if (userId) {
+            return `insights_user_${userId}`;
+        }
+        const clientIp = getClientIp(req);
+        return `insights_ip_${clientIp}`;
+    },
+    handler: (req: Request, res: Response) => {
+        const userId = req.body?.tokenDetails?.user_id;
+        const clientIp = getClientIp(req);
+        console.warn(`[Rate Limit] Insights limit exceeded from ${userId ? `User ${userId}` : `IP ${clientIp}`}, Path: ${req.path}`);
+        res.status(429).json({
+            error: 'Too many requests',
+            message: 'You have reached the hourly limit for insight generation. Please try again later.',
+            retryAfter: Math.ceil((req.rateLimit?.resetTime?.getTime() - Date.now()) / 1000)
+        });
+    },
+    skip: (req: Request) => {
+        return process.env.RATE_LIMIT_ENABLED === 'false';
+    }
+});
+
 /**
  * MongoDB operations rate limiter
  * Protects expensive MongoDB aggregation pipeline operations
