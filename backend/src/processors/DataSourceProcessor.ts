@@ -1472,7 +1472,7 @@ export class DataSourceProcessor {
                     } catch (error) {
                         console.error('[DataSourceProcessor] Error executing query on synced MongoDB data:', error);
                         console.error('[DataSourceProcessor] Failed query was:', query);
-                        return resolve({ success: false, error: 'Query execution failed', data: [], rowCount: 0 });
+                        return reject(error);
                     }
                 } else {
                     // Not synced - execute as native MongoDB query with aggregation pipeline
@@ -1530,7 +1530,7 @@ export class DataSourceProcessor {
             } catch (error) {
                 console.error('[DataSourceProcessor] Error executing query:', error);
                 console.error('[DataSourceProcessor] Failed query was:', query);
-                return resolve(null);
+                return reject(error);
             }
         });
     }
@@ -2389,8 +2389,8 @@ export class DataSourceProcessor {
 
                 return resolve(savedDataModel.id);
             } catch (error) {
-                console.log('error', error);
-                return resolve(null);
+                console.error('[DataSourceProcessor] Error building data model:', error);
+                return reject(error);
             }
         });
     }
@@ -3594,9 +3594,27 @@ export class DataSourceProcessor {
             if (query.query_options?.group_by?.group_by_columns && 
                 Array.isArray(query.query_options.group_by.group_by_columns) &&
                 query.query_options.group_by.group_by_columns.length > 0) {
-                // NEW FORMAT: Use group_by_columns array directly from AI/frontend
-                groupByColumns = query.query_options.group_by.group_by_columns;
-                console.log('[DataSourceProcessor] Using group_by_columns array:', groupByColumns);
+                // NEW FORMAT: Use group_by_columns array from AI/frontend
+                // CRITICAL: Map column references to use table_alias when present,
+                // so GROUP BY references match SELECT column references exactly.
+                // Frontend stores group_by_columns as schema.table_name.column_name,
+                // but SELECT uses schema.table_alias.column_name when aliases exist.
+                groupByColumns = query.query_options.group_by.group_by_columns.map((colRef: string) => {
+                    // Check if this is a plain column reference (not wrapped in a transform function)
+                    const parts = colRef.split('.');
+                    if (parts.length === 3) {
+                        const [schema, tableName, columnName] = parts;
+                        // Find if any column in the model has a table_alias for this table
+                        const aliasedColumn = query.columns?.find((c: any) =>
+                            c.schema === schema && c.table_name === tableName && c.table_alias
+                        );
+                        if (aliasedColumn?.table_alias) {
+                            return `${schema}.${aliasedColumn.table_alias}.${columnName}`;
+                        }
+                    }
+                    return colRef;
+                });
+                console.log('[DataSourceProcessor] Using group_by_columns array (alias-mapped):', groupByColumns);
             } else {
                 // LEGACY FORMAT: Rebuild from columns array (backward compatibility)
                 console.log('[DataSourceProcessor] Rebuilding GROUP BY from columns array (legacy)');

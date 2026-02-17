@@ -950,7 +950,7 @@ function syncGroupByColumns() {
     });
     
     // Rebuild group_by_columns from selected AND hidden columns with transforms
-    const groupByColumns = state.data_table.columns
+    const autoGroupByColumns = state.data_table.columns
         .filter(col => {
             const fullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
             const isAggregated = aggregatedColumns.has(fullPath);
@@ -976,8 +976,21 @@ function syncGroupByColumns() {
         ?.filter(calcCol => calcCol.expression && calcCol.expression.trim() !== '')
         .map(calcCol => calcCol.expression) || [];
     
-    // Combine base columns and calculated columns
-    const allGroupByColumns = [...groupByColumns, ...calculatedColumnExpressions];
+    // Preserve manually-added GROUP BY columns that the user added via the dropdown
+    // These are columns that exist in the current group_by_columns but are NOT auto-derived
+    // from selected columns or calculated columns
+    // CRITICAL: Do NOT filter against aggregatedColumns here - if the user explicitly added
+    // a column to GROUP BY, respect that decision. The aggregatedColumns set can contain
+    // false positives from aggressive regex matching against aggregate expression text.
+    const currentGroupByCols = state.data_table.query_options.group_by.group_by_columns || [];
+    const autoSet = new Set([...autoGroupByColumns, ...calculatedColumnExpressions]);
+    const manualGroupByColumns = currentGroupByCols.filter(col => {
+        // Keep if not auto-derived (user manually added it via dropdown)
+        return !autoSet.has(col);
+    });
+    
+    // Combine: auto-derived columns + calculated columns + manually-added columns
+    const allGroupByColumns = [...autoGroupByColumns, ...calculatedColumnExpressions, ...manualGroupByColumns];
     
     // Initialize group_by_columns if it doesn't exist
     if (!state.data_table.query_options.group_by.group_by_columns) {
@@ -988,8 +1001,9 @@ function syncGroupByColumns() {
     
     console.log('[syncGroupByColumns] Updated group_by_columns:', {
         total: allGroupByColumns.length,
-        baseColumns: groupByColumns.length,
+        autoColumns: autoGroupByColumns.length,
         calculatedColumns: calculatedColumnExpressions.length,
+        manualColumns: manualGroupByColumns.length,
         columns: allGroupByColumns,
         excludedAggregates: Array.from(aggregatedColumns),
         hiddenColumnsIncluded: state.data_table.columns.filter(col => 
@@ -3983,36 +3997,11 @@ async function saveDataModel() {
             state.data_table.join_conditions = [...state.join_conditions];
             state.data_table.table_aliases = [...state.table_aliases];
             
-            // CRITICAL FIX: Auto-sync group_by_columns when aggregate functions exist
-            // This ensures manually selected columns are included in GROUP BY clause
-            const hasAggregates = state.data_table.query_options?.group_by?.aggregate_functions?.length > 0 ||
-                                 state.data_table.query_options?.group_by?.aggregate_expressions?.length > 0;
-        
-            if (hasAggregates && state.data_table.query_options?.group_by) {
-                // Build set of columns used ONLY in aggregates (not in regular SELECT)
-                const aggregatedColumns = new Set();
-                
-                state.data_table.query_options.group_by.aggregate_functions?.forEach(aggFunc => {
-                    if (aggFunc.column) {
-                        aggregatedColumns.add(aggFunc.column);
-                    }
-                });
-                
-                // Rebuild group_by_columns from currently selected non-aggregate columns
-                state.data_table.query_options.group_by.group_by_columns = state.data_table.columns
-                    .filter(col => col.is_selected_column === true)
-                    .map(col => {
-                        const fullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
-                        // Only include if NOT used exclusively in aggregate functions
-                        if (!aggregatedColumns.has(fullPath)) {
-                            return fullPath;
-                        }
-                        return null;
-                    })
-                    .filter(path => path !== null);
-                
-                console.log('[saveDataModel] Auto-synced group_by_columns:', state.data_table.query_options.group_by.group_by_columns);
-            }
+            // Sync group_by_columns before save using the canonical sync function
+            // This preserves manually-added GROUP BY columns while ensuring
+            // auto-derived columns are up to date
+            syncGroupByColumns();
+            console.log('[saveDataModel] Synced group_by_columns via syncGroupByColumns:', state.data_table.query_options?.group_by?.group_by_columns);
         
             console.log('[saveDataModel] Synced to data_table before save:', {
                 join_conditions: state.data_table.join_conditions.length,
@@ -4148,11 +4137,19 @@ async function saveDataModel() {
         }
     } catch (error) {
         console.error('[saveDataModel] Error:', error);
-        $swal.fire({
-            icon: 'error',
-            title: `Error! `,
-            text: 'Unfortunately, we encountered an error! Please refresh the page and try again.',
-        });
+        
+        // Parse and display SQL error prominently
+        state.sqlError = parseBackendError(error);
+        
+        // Scroll to error alert on client
+        if (import.meta.client) {
+            nextTick(() => {
+                const errorElement = document.querySelector('.sql-error-alert');
+                if (errorElement) {
+                    errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            });
+        }
     } finally {
         // Always clear the flag
         state.is_saving_model = false;

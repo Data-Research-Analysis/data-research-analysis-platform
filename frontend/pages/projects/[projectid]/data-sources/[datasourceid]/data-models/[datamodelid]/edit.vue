@@ -151,7 +151,7 @@ onUnmounted(() => {
 });
 
 async function copyDataModel() {
-    const { $swal } = useNuxtApp();
+    const { $swal } = useNuxtApp() as any;
     
     // Confirmation dialog
     const { value: confirmCopy } = await $swal.fire({
@@ -305,7 +305,7 @@ async function copyDataModel() {
                 <!-- Tab Content -->
                 
                 <!-- Data Model Builder Tab -->
-                <div v-if="activeTab === 'builder'" class="bg-white rounded-lg shadow mb-6 overflow-hidden">
+                <div v-if="activeTab === 'builder'" class="bg-white rounded-lg shadow mb-6 p-4 overflow-hidden">
                     <!-- Show builder if we have tables data (even if empty) and data model -->
                     <div v-if="state.data_source_tables !== null && state.data_model && state.data_model.query">
                         <data-model-builder 
