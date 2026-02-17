@@ -55,7 +55,7 @@
           <div class="flex-shrink-0 ml-4">
             <button
               @click="$emit('dismiss')"
-              class="inline-flex text-red-500 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 rounded-lg p-1.5 transition-colors"
+              class="inline-flex text-red-500 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 rounded-lg p-1.5 transition-colors cursor-pointer"
               aria-label="Dismiss error"
             >
               <font-awesome icon="fas fa-times" class="text-xl" />

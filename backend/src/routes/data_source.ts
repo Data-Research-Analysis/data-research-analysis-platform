@@ -303,15 +303,29 @@ async (req: Request, res: Response) => {
         });
     }
     
-    const response = await DataSourceProcessor.getInstance().executeQueryOnExternalDataSource(
-        data_source_id, 
-        query, 
-        req.body.tokenDetails, 
-        query_json,
-        is_cross_source,
-        project_id
-    );
-    res.status(200).send(response); 
+    try {
+        const response = await DataSourceProcessor.getInstance().executeQueryOnExternalDataSource(
+            data_source_id, 
+            query, 
+            req.body.tokenDetails, 
+            query_json,
+            is_cross_source,
+            project_id
+        );
+        res.status(200).send(response); 
+    } catch (error: any) {
+        console.error('[ROUTE /execute-query-on-external-data-source] Error:', error?.message || error);
+        res.status(400).send({
+            message: error?.message || 'Query execution failed',
+            sqlError: {
+                code: error?.code || null,
+                detail: error?.detail || null,
+                hint: error?.hint || null,
+                position: error?.position || null,
+                routine: error?.routine || null
+            }
+        });
+    }
 });
 
 router.post('/build-data-model-on-query', async (req: Request, res: Response, next: any) => {
@@ -335,21 +349,35 @@ async (req: Request, res: Response) => {
         });
     }
     
-    const result = await DataSourceProcessor.getInstance().buildDataModelOnQuery(
-        data_source_id, 
-        query, 
-        query_json, 
-        data_model_name, 
-        req.body.tokenDetails,
-        is_cross_source,
-        project_id,
-        data_model_id
-    );
-    
-    if (result) {
-        res.status(200).send({message: 'The data model has been built.', data_model_id: result}); 
-    } else {
-        res.status(400).send({message: 'The data model could not be built.'});
+    try {
+        const result = await DataSourceProcessor.getInstance().buildDataModelOnQuery(
+            data_source_id, 
+            query, 
+            query_json, 
+            data_model_name, 
+            req.body.tokenDetails,
+            is_cross_source,
+            project_id,
+            data_model_id
+        );
+        
+        if (result) {
+            res.status(200).send({message: 'The data model has been built.', data_model_id: result}); 
+        } else {
+            res.status(400).send({message: 'The data model could not be built.'});
+        }
+    } catch (error: any) {
+        console.error('[ROUTE /build-data-model-on-query] Error:', error?.message || error);
+        res.status(400).send({
+            message: error?.message || 'The data model could not be built.',
+            sqlError: {
+                code: error?.code || null,
+                detail: error?.detail || null,
+                hint: error?.hint || null,
+                position: error?.position || null,
+                routine: error?.routine || null
+            }
+        });
     }
 });
 
