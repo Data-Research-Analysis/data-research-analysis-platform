@@ -17,6 +17,8 @@ interface RefreshJob {
     status: 'pending' | 'running' | 'completed' | 'failed';
 }
 
+let dataModelsInitialized = false;
+
 export const useDataModelsStore = defineStore('dataModelsDRA', () => {
     const dataModels = ref<IDataModel[]>([])
     const selectedDataModel = ref<IDataModel>()
@@ -393,4 +395,12 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         getRefreshHistory,
         copyDataModel
     }
+    
+    // Initialize from localStorage once on client
+    if (import.meta.client && !dataModelsInitialized && localStorage.getItem('dataModels')) {
+        dataModels.value = JSON.parse(localStorage.getItem('dataModels') || '[]');
+        dataModelsInitialized = true;
+    }
+    
+    return storeExports;
 });

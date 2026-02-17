@@ -1,4 +1,5 @@
 import { io, Socket } from "socket.io-client";
+import { getAuthToken } from "~/composables/AuthToken";
 
 export default defineNuxtPlugin(async (nuxtApp) => {
   const config = useRuntimeConfig();  
@@ -11,7 +12,21 @@ export default defineNuxtPlugin(async (nuxtApp) => {
   console.log(`[Socket.IO] Attempting to connect to server at ${socketPath}`);
   console.log(`[Socket.IO] Environment: ${config.public.NUXT_ENV}`);
 
+  // Get auth token for authenticated connections
+  const authToken = getAuthToken();
+  if (authToken) {
+    console.log('[Socket.IO] Auth token found, connecting as authenticated user');
+    console.log('[Socket.IO] Token type:', typeof authToken);
+    console.log('[Socket.IO] Token length:', authToken.length);
+    console.log('[Socket.IO] Token (first 30 chars):', authToken.substring(0, 30));
+  } else {
+    console.log('[Socket.IO] No auth token, connecting as anonymous user');
+  }
+
   const socket: Socket = io(socketPath, {
+    auth: {
+      token: authToken // Send auth token in handshake
+    },
     autoConnect: true,
     reconnection: true,
     reconnectionDelay: 1000,
@@ -49,9 +64,12 @@ export default defineNuxtPlugin(async (nuxtApp) => {
     console.error('💀 Socket.IO reconnection failed - max attempts reached');
   });
 
-  // Listen for server initialization message
+  // Listen for server initialization message (now includes userId and room info)
   socket.on('serverInitialization', (data) => {
     console.log('📡 Server initialization message:', data);
+    if (data.userId) {
+      console.log(`✅ Authenticated as user ${data.userId} in room ${data.room}`);
+    }
   });
 
   // Data source sync events (client-side listeners)

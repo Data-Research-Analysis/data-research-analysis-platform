@@ -55,7 +55,7 @@ services:
       context: .
       dockerfile: ./docker/database/Dockerfile
     volumes:
-      - data_research_analysis_postgres_data:/var/lib/postgresql/data
+      - data_research_analysis_postgres_data:/var/lib/postgresql
     ports:
       - "$POSTGRESDB_LOCAL_PORT:$POSTGRESDB_DOCKER_PORT"
     networks:

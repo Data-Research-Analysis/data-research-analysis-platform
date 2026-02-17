@@ -11,6 +11,9 @@ import type {
     IGoogleAdsSyncConfig,
     IGoogleAdsSyncStatus
 } from '~/types/IGoogleAds';
+
+let dataSourcesInitialized = false;
+
 export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     const dataSources = ref<IDataSource[]>([])
     const selectedDataSource = ref<IDataSource>()
@@ -561,4 +564,12 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         setSyncError,
         getSyncError,
     }
+    
+    // Initialize from localStorage once on client
+    if (import.meta.client && !dataSourcesInitialized && localStorage.getItem('dataSources')) {
+        dataSources.value = JSON.parse(localStorage.getItem('dataSources') || '[]');
+        dataSourcesInitialized = true;
+    }
+    
+    return storeExports;
 });

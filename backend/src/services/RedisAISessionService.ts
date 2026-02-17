@@ -14,7 +14,7 @@ export interface AISessionMetadata {
     conversationId: string;
     dataSourceId: number;
     userId: number;
-    sessionType?: 'data_model' | 'data_quality' | 'attribution'; // Session type for multi-mode support
+    sessionType?: 'data_model' | 'data_quality' | 'attribution' | 'insights'; // Session type for multi-mode support
     startedAt: string;
     lastActivityAt: string;
     status: 'draft' | 'saved' | 'archived';
@@ -24,6 +24,14 @@ export interface ModelDraft {
     tables: any;
     relationships: any[];
     indexes: any[];
+    lastModified: string;
+    version: number;
+}
+
+export interface InsightsDraft {
+    dataSourceIds: number[];
+    insights: any;
+    selectedSources: string[];
     lastModified: string;
     version: number;
 }
@@ -59,7 +67,7 @@ export class RedisAISessionService {
         dataSourceId: number,
         userId: number,
         schemaContext: SchemaContext,
-        sessionType: 'data_model' | 'data_quality' | 'attribution' = 'data_model'
+        sessionType: 'data_model' | 'data_quality' | 'attribution' | 'insights' = 'data_model'
     ): Promise<AISessionMetadata> {
         const conversationKey = this.getConversationKey(dataSourceId, userId, sessionType);
         const schemaKey = this.getSchemaContextKey(dataSourceId, userId, sessionType);
@@ -97,7 +105,7 @@ export class RedisAISessionService {
             conversationId: data.conversationId,
             dataSourceId: parseInt(data.dataSourceId, 10),
             userId: parseInt(data.userId, 10),
-            sessionType: data.sessionType as 'data_model' | 'data_quality' | 'attribution',
+            sessionType: data.sessionType as 'data_model' | 'data_quality' | 'attribution' | 'insights',
             startedAt: data.startedAt,
             lastActivityAt: data.lastActivityAt,
             status: data.status as 'draft' | 'saved' | 'archived',
