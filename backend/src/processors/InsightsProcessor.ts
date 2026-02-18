@@ -332,6 +332,11 @@ export class InsightsProcessor {
             await redis.set(contextKey, markdown);
             await redis.expire(contextKey, 24 * 60 * 60); // 24 hours
 
+            // Store sampling_info separately so generateInsights can reference it
+            const samplingInfoKey = `sampling_info:insights:${projectId}:${userId}`;
+            await redis.set(samplingInfoKey, JSON.stringify(context.sampling_info ?? null));
+            await redis.expire(samplingInfoKey, 24 * 60 * 60); // 24 hours
+
             // Store insight draft with data source IDs
             const draftKey = `insight_draft:insights:${projectId}:${userId}`;
             await redis.set(draftKey, JSON.stringify({
@@ -408,6 +413,11 @@ export class InsightsProcessor {
             const redis = this.redisSessionService['redis'];
             const contextKey = `schema_context:insights:${projectId}:${userId}`;
             const schemaContext = await redis.get(contextKey);
+
+            // Retrieve sampling_info stored during initializeSession
+            const samplingInfoKey = `sampling_info:insights:${projectId}:${userId}`;
+            const samplingInfoRaw = await redis.get(samplingInfoKey);
+            const samplingInfo = samplingInfoRaw ? JSON.parse(samplingInfoRaw) : null;
 
             if (!schemaContext) {
                 return {
@@ -548,7 +558,7 @@ Please analyze the provided data and return structured insights.
             const existingDraft = await redis.get(draftKey);
             const draft = existingDraft ? JSON.parse(existingDraft) : {};
             draft.insights = insights;
-            draft.sampling_info = context.sampling_info;
+            draft.sampling_info = samplingInfo;
             draft.lastModified = new Date().toISOString();
             draft.version = (draft.version || 0) + 1;
             await redis.set(draftKey, JSON.stringify(draft));
@@ -565,7 +575,7 @@ Please analyze the provided data and return structured insights.
             await socketIODriver.emitToUser(userId, 'insight-complete', {
                 projectId,
                 insights,
-                sampling_info: context.sampling_info
+                sampling_info: samplingInfo
             });
 
             return {

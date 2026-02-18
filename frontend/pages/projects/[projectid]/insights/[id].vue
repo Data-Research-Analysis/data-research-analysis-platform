@@ -360,7 +360,7 @@
               <span class="message-role">{{ msg.role === 'user' ? 'You' : 'AI Assistant' }}</span>
               <span class="message-time">{{ formatTime(msg.created_at) }}</span>
             </div>
-            <div class="message-content">{{ msg.content }}</div>
+            <div class="message-content prose prose-sm max-w-none" v-html="renderMarkdown(typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content, null, 2))"></div>
           </div>
         </div>
       </div>
@@ -371,8 +371,10 @@
 <script setup>
 import { useInsightsStore } from '@/stores/insights';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
+import { useMarkdown } from '@/composables/useMarkdown';
 
 const insightsStore = useInsightsStore();
+const { renderMarkdown } = useMarkdown();
 const route = useRoute();
 const router = useRouter();
 const { $swal } = useNuxtApp();
