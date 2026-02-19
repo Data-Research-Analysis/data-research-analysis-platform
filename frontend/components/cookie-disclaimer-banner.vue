@@ -259,17 +259,34 @@ function disableGoogleAnalytics() {
       });
     }
 
-    // Delete GA cookies
-    const gaCookies = ['_ga', '_gid', '_gat'];
-    gaCookies.forEach(cookieName => {
-      document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-    });
+    // Build the domain attribute variants to cover both root and subdomain-scoped cookies.
+    // GA sets cookies on the root domain with a leading dot (e.g. .dataresearchanalysis.com)
+    // so deletion without a matching domain attribute has no effect on those cookies.
+    const hostname = window.location.hostname;
+    const parts = hostname.split('.');
+    // Root domain = last two labels (e.g. dataresearchanalysis.com)
+    const rootDomain = parts.length >= 2 ? parts.slice(-2).join('.') : hostname;
+    const domainVariants = [hostname, `.${hostname}`, rootDomain, `.${rootDomain}`];
+    const expiry = 'expires=Thu, 01 Jan 1970 00:00:00 UTC';
 
-    // Delete GA cookies with specific patterns
+    // Delete GA cookies
+    const deleteCookie = (name: string) => {
+      // Delete with no domain (catches localhost/exact-match cookies)
+      document.cookie = `${name}=; ${expiry}; path=/;`;
+      // Delete with each domain variant to catch subdomain- and root-domain-scoped cookies
+      domainVariants.forEach(domain => {
+        document.cookie = `${name}=; ${expiry}; path=/; domain=${domain};`;
+      });
+    };
+
+    const knownGACookies = ['_ga', '_gid', '_gat'];
+    knownGACookies.forEach(deleteCookie);
+
+    // Also catch dynamically named GA cookies (e.g. _ga_XXXXXXXX container IDs)
     document.cookie.split(';').forEach(cookie => {
       const cookieName = cookie.split('=')[0].trim();
       if (cookieName.startsWith('_ga')) {
-        document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+        deleteCookie(cookieName);
       }
     });
   }

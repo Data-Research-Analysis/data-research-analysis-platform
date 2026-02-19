@@ -52,5 +52,7 @@ const isInInvitationAccept = computed(() => {
             </div>
         </div>
         <footer-nav />
+        <!-- Cookie consent banner — placed in layout so it appears on every page -->
+        <cookie-disclaimer-banner />
     </div>
 </template>
