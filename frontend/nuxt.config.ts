@@ -111,6 +111,7 @@ export default defineNuxtConfig({
     config: {
       anonymize_ip: true, // Anonymize IP addresses (GDPR)
       cookie_flags: 'SameSite=None;Secure', // Security
+      debug_mode: true, // Enable GA4 DebugView
     },
     // Initialize with consent denied until user accepts.
     // wait_for_update must be long enough for the cookie banner to render AND be
