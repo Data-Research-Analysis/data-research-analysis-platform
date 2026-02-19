@@ -34,16 +34,18 @@ export default defineNuxtPlugin(() => {
         }
 
         if (preferences.analytics) {
-          // Use gtag function if available, otherwise push directly to dataLayer
-          // dataLayer approach works even if gtag.js hasn't fully loaded yet
+          // Use gtag function if available, otherwise push directly to dataLayer.
+          // IMPORTANT: dataLayer commands must be pushed as an Arguments object (not an
+          // array) — this is what gtag() does internally. Calling dataLayer.push() with
+          // individual spread arguments pushes 3 separate unrelated items that GA ignores.
           if (typeof (window as any).gtag === 'function') {
             (window as any).gtag('consent', 'update', {
               analytics_storage: 'granted'
             })
           } else if (Array.isArray((window as any).dataLayer)) {
-            (window as any).dataLayer.push('consent', 'update', {
-              analytics_storage: 'granted'
-            })
+            // Replicate what gtag() does: push an Arguments object onto dataLayer
+            ;(function gtag(...args: any[]) { (window as any).dataLayer.push(arguments) })
+              ('consent', 'update', { analytics_storage: 'granted' })
           }
         }
       }

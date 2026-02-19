@@ -75,7 +75,5 @@ useHead({
         <how-do-it-get-started id="how-do-it-get-started" />
         <join-private-beta id="join-private-beta" />
         <faq-section ref="faqSectionRef" />
-        <!-- Cookie Banner -->
-        <cookie-disclaimer-banner />
     </div>
 </template>
