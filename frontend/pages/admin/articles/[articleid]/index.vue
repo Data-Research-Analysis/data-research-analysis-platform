@@ -226,6 +226,76 @@ watchEffect(() => {
         }
     }
 });
+
+// ---- Version History ----
+const route = useRoute();
+const showVersionHistory = ref(false);
+const previewVersion = ref(null);
+
+const { data: versions, pending: versionsPending, refresh: refreshVersions } = useArticleVersions(
+    route.params.articleid
+);
+
+function toggleVersionHistory() {
+    showVersionHistory.value = !showVersionHistory.value;
+    if (showVersionHistory.value) {
+        refreshVersions();
+    }
+}
+
+function formatVersionDate(dateString) {
+    if (!dateString) return '—';
+    return new Date(dateString).toLocaleString(undefined, {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+    });
+}
+
+// The latest saved version (versions are returned newest-first)
+const currentVersion = computed(() => {
+    if (!versions.value || versions.value.length === 0) return null;
+    return versions.value[0];
+})
+
+async function restoreVersion(versionNumber) {
+    const result = await $swal.fire({
+        title: `Restore to Version ${versionNumber}?`,
+        text: 'Your current content will be auto-saved as a new version before restoring.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Yes, restore it!',
+    });
+    if (!result.isConfirmed) return;
+
+    try {
+        const token = getAuthToken();
+        await $fetch(
+            `${baseUrl()}/admin/article/${article.value.article.id}/versions/${versionNumber}/restore`,
+            {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Authorization-Type': 'auth',
+                },
+            }
+        );
+        hasUnsavedChanges.value = false;
+        await $swal.fire({
+            icon: 'success',
+            title: 'Restored!',
+            text: `Article restored to version ${versionNumber}.`,
+        });
+        window.location.reload();
+    } catch (error) {
+        await $swal.fire({
+            icon: 'error',
+            title: 'Error!',
+            text: 'There was an error restoring the article.',
+        });
+    }
+}
 </script>
 <template>
     <div class="flex flex-row">
@@ -237,6 +307,9 @@ watchEffect(() => {
                 <div class="flex flex-row">
                     <div class="font-bold text-2xl mb-5">
                         Edit Article
+                    </div>
+                    <div v-if="currentVersion" class="self-center ml-3 mb-4 px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs font-mono border border-gray-200">
+                        v{{ currentVersion.version_number }}
                     </div>
                     <div
                         class="w-18 text-center self-center text-sm p-1 ml-2 mb-4 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md rounded-lg"
@@ -289,6 +362,85 @@ watchEffect(() => {
                         No categories available.
                     </div>
                 </div>
+                <!-- Version History Panel -->
+                <div class="mt-3 mb-3">
+                    <button
+                        @click="toggleVersionHistory"
+                        class="flex items-center gap-2 text-sm font-medium text-primary-blue-600 hover:text-primary-blue-800 transition-colors cursor-pointer"
+                    >
+                        <font-awesome :icon="showVersionHistory ? 'fas fa-chevron-down' : 'fas fa-chevron-right'" class="text-xs" />
+                        <span>
+                            Version History
+                            <span v-if="versions && versions.length" class="text-gray-500 font-normal">
+                                ({{ versions.length }} version{{ versions.length !== 1 ? 's' : '' }})
+                            </span>
+                        </span>
+                    </button>
+
+                    <div v-if="showVersionHistory" class="mt-3">
+                        <!-- Loading -->
+                        <div v-if="versionsPending" class="flex items-center gap-2 text-gray-500 text-sm py-4">
+                            <div class="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-primary-blue-500"></div>
+                            <span>Loading versions...</span>
+                        </div>
+
+                        <!-- Empty -->
+                        <div v-else-if="!versions || versions.length === 0" class="text-gray-400 text-sm py-4">
+                            No versions saved yet. Versions are created automatically each time you update the article.
+                        </div>
+
+                        <!-- Versions table -->
+                        <div v-else class="overflow-x-auto rounded-lg border border-gray-200">
+                            <table class="min-w-full divide-y divide-gray-200 text-sm">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-4 py-2 text-left font-medium text-gray-600">Version</th>
+                                        <th class="px-4 py-2 text-left font-medium text-gray-600">Title</th>
+                                        <th class="px-4 py-2 text-left font-medium text-gray-600">Saved</th>
+                                        <th class="px-4 py-2 text-left font-medium text-gray-600">Note</th>
+                                        <th class="px-4 py-2 text-right font-medium text-gray-600">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100 bg-white">
+                                    <tr
+                                        v-for="version in versions"
+                                        :key="version.id"
+                                        class="hover:bg-gray-50 transition-colors"
+                                    >
+                                        <td class="px-4 py-2 font-mono text-gray-700">
+                                            v{{ version.version_number }}
+                                        </td>
+                                        <td class="px-4 py-2 text-gray-800 max-w-xs truncate">
+                                            {{ version.title }}
+                                        </td>
+                                        <td class="px-4 py-2 text-gray-500 whitespace-nowrap">
+                                            {{ formatVersionDate(version.created_at) }}
+                                        </td>
+                                        <td class="px-4 py-2 text-gray-400 max-w-xs truncate">
+                                            {{ version.change_summary || '—' }}
+                                        </td>
+                                        <td class="px-4 py-2">
+                                            <div class="flex justify-end gap-2">
+                                                <button
+                                                    @click="previewVersion = version"
+                                                    class="px-2 py-1 text-xs rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium transition-colors cursor-pointer"
+                                                >
+                                                    Preview
+                                                </button>
+                                                <button
+                                                    @click="restoreVersion(version.version_number)"
+                                                    class="px-2 py-1 text-xs rounded bg-primary-blue-100 hover:bg-primary-blue-200 text-primary-blue-700 font-medium transition-colors cursor-pointer"
+                                                >
+                                                    Restore
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
                 <div>
                     <text-editor 
                         :buttons="['bold', 'italic', 'heading', 'strike', 'underline', 'link', 'code', 'image', 'ordered-list', 'bullet-list', 'undo', 'redo', 'block-quote']" 
@@ -302,4 +454,11 @@ watchEffect(() => {
             </div>
         </div>
     </div>
+
+    <!-- Version Preview Modal -->
+    <article-version-preview-modal
+        v-if="previewVersion"
+        :version="previewVersion"
+        @close="previewVersion = null"
+    />
 </template>

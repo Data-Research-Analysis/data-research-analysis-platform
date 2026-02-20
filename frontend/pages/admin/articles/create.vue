@@ -117,21 +117,19 @@ async function publishArticle() {
     }
 }
 async function saveAsDraft() {
-    const response = await postData("draft");
-    if (response.status === 200) {
-        hasUnsavedChanges.value = false // Clear unsaved changes flag
-    }
-    if (response.status === 200) {
+    try {
+        await postData('draft');
+        hasUnsavedChanges.value = false; // Clear unsaved changes flag
         $swal.fire({
             icon: 'success',
-            title: `Success! `,
+            title: 'Success!',
             text: 'The article has been saved as a draft.',
         });
-        router.push(`/admin/articles`);
-    } else {
+        router.push('/admin/articles');
+    } catch (error) {
         $swal.fire({
             icon: 'error',
-            title: `Error! `,
+            title: 'Error!',
             text: 'Unfortunately, we encountered an error! The article could not be saved as a draft.',
         });
     }

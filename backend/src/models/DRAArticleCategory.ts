@@ -11,7 +11,7 @@ export class DRAArticleCategory {
   @PrimaryColumn({ type: 'bigint' })
   category_id!: number;
   
-  @ManyToOne(() => DRAArticle, (article) => article.dra_articles_categories)
+  @ManyToOne(() => DRAArticle, (article) => article.dra_articles_categories, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'article_id'})
   article!: Relation<DRAArticle>
   

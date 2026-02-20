@@ -1,10 +1,12 @@
 import {defineStore} from 'pinia'
 import type { IArticle } from '~/types/IArticle';
 import type { ICategory } from '~/types/ICategory';
+import type { IArticleVersion } from '~/types/IArticleVersion';
 export const useArticlesStore = defineStore('articlesDRA', () => {
     const articles = ref<IArticle[]>([]);
     const categories = ref<ICategory[]>([]);
     const selectedArticle = ref<IArticle>();
+    const articleVersions = ref<IArticleVersion[]>();
 
     function setArticles(articlesList: IArticle[]) {
         articles.value = articlesList;
@@ -64,6 +66,24 @@ export const useArticlesStore = defineStore('articlesDRA', () => {
             localStorage.removeItem('selectedArticle');
         }
     }
+    function setArticleVersions(versions: IArticleVersion[]) {
+        articleVersions.value = versions;
+        if (import.meta.client) {
+            localStorage.setItem('articleVersions', JSON.stringify(versions));
+        }
+    }
+    function getArticleVersions() {
+        if (import.meta.client && localStorage.getItem('articleVersions')) {
+            articleVersions.value = JSON.parse(localStorage.getItem('articleVersions') || '[]') || [];
+        }
+        return articleVersions.value ?? [];
+    }
+    function clearArticleVersions() {
+        articleVersions.value = undefined;
+        if (import.meta.client) {
+            localStorage.removeItem('articleVersions');
+        }
+    }
     async function retrieveCategories() {
         const token = getAuthToken();
         if (!token) {
@@ -108,14 +128,18 @@ export const useArticlesStore = defineStore('articlesDRA', () => {
         articles,
         categories,
         selectedArticle,
+        articleVersions,
         setArticles,
         setCategories,
         setSelectedArticle,
+        setArticleVersions,
         getArticles,
         getCategories,
         getSelectedArticle,
+        getArticleVersions,
         clearArticles,
         clearCategories,
+        clearArticleVersions,
         retrieveCategories,
         retrieveArticles,
         retrievePublicArticles,

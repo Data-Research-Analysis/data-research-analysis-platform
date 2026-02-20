@@ -280,7 +280,7 @@ useHead({
         </div>
 
         <!-- Loading State -->
-        <div v-if="pending" class="flex flex-row justify-center mt-10">
+        <div v-if="pending" class="flex flex-row justify-center">
             <div class="min-h-100 max-w-200 flex flex-col ml-4 mr-4 mb-5 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md">
                 <div class="flex justify-center items-center h-40">
                     <p class="text-gray-500">Loading article...</p>
@@ -289,7 +289,7 @@ useHead({
         </div>
 
         <!-- Error State -->
-        <div v-else-if="error" class="flex flex-row justify-center mt-10">
+        <div v-else-if="error" class="flex flex-row justify-center">
             <div class="min-h-100 max-w-200 flex flex-col ml-4 mr-4 mb-5 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md">
                 <div class="flex justify-center items-center h-40">
                     <p class="text-red-500">Error loading article. Please try again later.</p>
@@ -298,7 +298,7 @@ useHead({
         </div>
 
         <!-- Article Not Found -->
-        <div v-else-if="!article" class="flex flex-row justify-center mt-10">
+        <div v-else-if="!article" class="flex flex-row justify-center">
             <div class="min-h-100 max-w-200 flex flex-col ml-4 mr-4 mb-5 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md">
                 <div class="flex justify-center items-center h-40">
                     <p class="text-gray-500">Article not found.</p>
@@ -307,7 +307,7 @@ useHead({
         </div>
 
         <!-- Article Content -->
-        <div v-else class="flex flex-row justify-center mt-10">
+        <div v-else class="flex flex-row justify-center">
             <article class="min-h-100 max-w-200 flex flex-col ml-4 mr-4 mb-5 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md rounded-lg" 
                      itemscope 
                      itemtype="https://schema.org/Article">
