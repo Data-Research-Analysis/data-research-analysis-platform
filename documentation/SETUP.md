@@ -5,6 +5,250 @@ The repository contains:
 * `backend`, the API built in TypeScript and NodeJS
 * `frontend`, the application built in Vue3/Nuxt3
 
+## Quick Start (Automated Setup - Recommended)
+
+The platform includes an automated setup CLI that handles environment configuration, Docker orchestration, and database initialization.
+
+### One-Command Setup
+
+```bash
+npm run setup
+```
+
+This interactive wizard will:
+1. Generate environment files (`.env`) for root, backend, and frontend
+2. Create required Docker volumes
+3. Build and start Docker containers
+4. Run database migrations
+5. Seed the database with test data
+
+### Express Setup (Skip Prompts)
+
+For quick setup with sensible defaults:
+
+```bash
+npm run setup:express
+```
+
+## CLI Command Reference
+
+### Setup Modes
+
+| Command | Description |
+|---------|-------------|
+| `npm run setup` | Full interactive setup (config + Docker + database) |
+| `npm run setup:express` | Express mode with minimal prompts |
+| `npm run setup:config` | Generate .env files only (skip Docker) |
+| `npm run setup:docker` | Docker operations only (skip config) |
+| `npm run setup:update` | Update existing configuration |
+
+### Docker Operations
+
+| Command | Description |
+|---------|-------------|
+| `npm run setup:down` | Stop and remove all containers |
+| `npm run setup:rebuild` | Rebuild Docker images and restart |
+| `docker-compose restart` | Restart all services |
+| `docker-compose restart backend` | Restart backend service only |
+
+### Database Operations
+
+| Command | Description |
+|---------|-------------|
+| `npm run setup:migrate` | Run database migrations |
+| `npm run setup:seed` | Run database seeders |
+
+Migrations and seeders are automatically executed during initial setup, but can be run manually if needed.
+
+### Health & Monitoring
+
+| Command | Description |
+|---------|-------------|
+| `npm run setup:health` | Run comprehensive health check |
+| `npm run setup:validate` | Validate .env file completeness |
+| `npm run setup:status` | Show status of all services |
+
+### Service Management
+
+#### View Service Status
+
+```bash
+npm run setup:status
+```
+
+Shows real-time status of all 6 services:
+- backend
+- frontend
+- database
+- redis
+- mysql-test
+- mariadb-test
+
+#### Restart Individual Service
+
+```bash
+node setup-cli.js --restart backend
+node setup-cli.js --restart frontend
+node setup-cli.js --restart database
+```
+
+#### View Service Logs
+
+```bash
+# View last 100 lines (default)
+node setup-cli.js --logs backend
+
+# View last N lines
+node setup-cli.js --logs backend --tail 50
+
+# Follow logs in real-time
+node setup-cli.js --logs backend --follow
+node setup-cli.js --logs frontend --follow --tail 100
+```
+
+Available services: `backend`, `frontend`, `database`, `redis`, `mysql-test`, `mariadb-test`
+
+### Advanced Options
+
+| Flag | Description |
+|------|-------------|
+| `--help`, `-h` | Show help message with all options |
+| `--skip-migrations` | Skip database migrations during setup |
+| `--skip-seeders` | Skip database seeders during setup |
+| `--dry-run` | Preview what would happen without making changes |
+| `--remove-config` | Remove .env files during teardown |
+
+### Common Workflows
+
+#### First-Time Setup
+
+```bash
+# 1. Clone repository
+git clone https://github.com/Data-Research-Analysis/data-research-analysis-platform.git
+cd data-research-analysis-platform
+
+# 2. Add hosts entries (see Manual Setup section below)
+
+# 3. Run automated setup
+npm run setup
+
+# 4. Access the application
+# Frontend: http://frontend.dataresearchanalysis.test:3000
+# Backend: http://backend.dataresearchanalysis.test:3002
+```
+
+#### Reset and Rebuild
+
+```bash
+# Stop everything
+npm run setup:down
+
+# Rebuild and restart
+npm run setup:rebuild
+```
+
+#### Troubleshooting
+
+```bash
+# Check system health
+npm run setup:health
+
+# Validate environment files
+npm run setup:validate
+
+# Check service status
+npm run setup:status
+
+# View backend logs
+node setup-cli.js --logs backend --tail 100
+
+# Restart a problematic service
+node setup-cli.js --restart backend
+```
+
+#### Database Management
+
+```bash
+# Run migrations only
+npm run setup:migrate
+
+# Run seeders only
+npm run setup:seed
+
+# Re-run migrations (inside backend container)
+docker exec backend.dataresearchanalysis.test npm run migration:revert
+docker exec backend.dataresearchanalysis.test npm run migration:run
+```
+
+### Environment Configuration
+
+The setup CLI generates three `.env` files:
+
+1. **Root `.env`** - Docker and PostgreSQL configuration
+2. **`backend/.env`** - Backend server and database settings
+3. **`frontend/.env`** - Frontend Nuxt3 application settings
+
+All sensitive values (JWT secrets, encryption keys) are automatically generated with cryptographically secure random values.
+
+#### Required Environment Variables
+
+**Root:**
+- `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`
+- `REDIS_PASSWORD`
+
+**Backend:**
+- Database: `POSTGRESQL_HOST`, `POSTGRESQL_PORT`, `POSTGRESQL_USERNAME`, `POSTGRESQL_PASSWORD`, `POSTGRESQL_DB_NAME`
+- Security: `JWT_SECRET`, `ENCRYPTION_KEY`, `PASSWORD_SALT`
+- Server: `NODE_ENV`, `PUBLIC_BACKEND_URL`, `FRONTEND_URL`, `PORT`
+
+**Frontend:**
+- `NUXT_API_URL` - Backend API endpoint
+- `RECAPTCHA_SITE_KEY` - Google reCAPTCHA site key
+
+### Docker Volumes
+
+The setup CLI automatically creates required external volumes:
+- `data_research_analysis_postgres_data` - PostgreSQL database data
+- `data_research_analysis_redis_data` - Redis cache data
+
+**Important:** External volumes are never automatically deleted. To manually remove:
+
+```bash
+docker volume ls  # List all volumes
+docker volume rm data_research_analysis_postgres_data
+docker volume rm data_research_analysis_redis_data
+```
+
+### Pre-flight Validation
+
+Before starting services, validate your environment:
+
+```bash
+npm run setup:validate
+```
+
+This checks:
+- All required `.env` files exist
+- All required environment variables are present
+- No placeholder values (like "changeme") remain
+- Provides specific remediation steps for issues found
+
+### Getting Help
+
+```bash
+# Show all available commands and options
+node setup-cli.js --help
+
+# Or simply
+npm run setup -- --help
+```
+
+---
+
+## Manual Setup (Alternative)
+
+If you prefer manual setup or need to customize the process, follow the platform-specific instructions below.
+
 ## Windows Setup
 1. Add `127.0.0.1 frontend.dataresearchanalysis.test backend.dataresearchanalysis.test` to your hosts file `c:\windows\system32\drivers\etc\hosts` (https://www.howtogeek.com/howto/27350/beginner-geek-how-to-edit-your-hosts-file/).
 2. Clone the repository `https://github.com/Data-Research-Analysis/data-research-analysis-platform.git`.
