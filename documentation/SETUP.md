@@ -261,11 +261,11 @@ If you prefer manual setup or need to customize the process, follow the platform
 9. Run `npm run typeorm migration:generate ./src/migrations/CreateTables -- -d ./src/datasources/PostgresDSMigrations.ts` to generate the migration file that creates tables file from the data models. Only run this command if the migration file create tables migration file is not present.
 10. Run `npm run typeorm migration:run -- -d ./src/datasources/PostgresDSMigrations.ts` to run the migrations.
 11. After the migrations have been completed then run `npm run seed:run -- -d ./src/datasources/PostgresDSMigrations.ts src/seeders/*.ts` to run the seeders.
-12. Now visit https://online.studiesw.test:3000 in your browser!
+12. Now visit http://frontend.dataresearchanalysis.test:3000 in your browser!
 13. To revert the migrations run the command `npm run typeorm migration:revert -- -d ./src/datasources/PostgresDSMigrations.ts`
 
 ## Ubuntu Setup
-1. Add `127.0.0.1 online.studiesw.test online-api.studiesw.test online-redis.studiesw.test online-db.studiesw.test` to your hosts file `~/etc/hosts`.
+1. Add `127.0.0.1 frontend.dataresearchanalysis.test backend.dataresearchanalysis.test` to your hosts file `~/etc/hosts`.
 2. Clone the repository `https://github.com/Data-Research-Analysis/data-research-analysis-platform.git`.
 3. Copy `backend/.env.example` to `backend/.env` and update any missing values as necessary.
 4. Copy `frontend/.env.example` to `frontend/.env` and update any missing values as necessary.
@@ -276,7 +276,7 @@ If you prefer manual setup or need to customize the process, follow the platform
 9. Run `npm run typeorm migration:generate ./src/migrations/CreateTables -- -d ./src/datasources/PostgresDSMigrations.ts` to generate the migration file that creates tables file from the data models. Only run this command if the migration file create tables migration file is not present.
 10. Run `npm run typeorm migration:run -- -d ./src/datasources/PostgresDSMigrations.ts` to run the migrations.
 11. After the migrations have been completed then run `npm run seed:run -- -d ./src/datasources/PostgresDSMigrations.ts src/seeders/*.ts` to run the seeders.
-12. Now visit https://online.studiesw.test:3000 in your browser!
+12. Now visit http://frontend.dataresearchanalysis.test:3000 in your browser!
 13. To revert the migrations run the command `npm run typeorm migration:revert -- -d ./src/datasources/PostgresDSMigrations.ts`
 
 ## Test User Credentials

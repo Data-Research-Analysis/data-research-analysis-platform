@@ -863,7 +863,7 @@ function showCompletionSummary(config) {
   console.log(chalk.gray('  User:   testuser@dataresearchanalysis.com / testuser'));
   
   console.log(chalk.bold('\n🔗 Quick Links:'));
-  console.log(chalk.blue(`  Platform:  https://online.studiesw.test:3000`));
+  console.log(chalk.blue(`  Platform:  http://frontend.dataresearchanalysis.test:3000`));
   console.log(chalk.blue(`  API Docs:  http://localhost:3002/api-docs`));
   
   console.log(chalk.bold('\n📝 Useful Commands:'));
@@ -1129,7 +1129,7 @@ $ npm run setup
   Redis:     localhost:6379
 
 🔗 Quick Links:
-  Platform:  https://online.studiesw.test:3000
+  Platform:  http://frontend.dataresearchanalysis.test:3000
   API Docs:  http://localhost:3002/api-docs
 
 📝 Useful Commands:
@@ -1167,7 +1167,7 @@ Required values (3 questions):
 ✓ Running migrations... (15 migrations)
 ✓ Seeding database...
 
-✨ Ready to go! Visit: https://online.studiesw.test:3000
+✨ Ready to go! Visit: http://frontend.dataresearchanalysis.test:3000
 
 Total time: 4m 12s
 ```
