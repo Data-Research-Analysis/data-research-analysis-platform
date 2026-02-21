@@ -37,7 +37,7 @@ import {
   rebuildDockerCompose
 } from './lib/cli/docker.js';
 import { runHealthCheck } from './lib/cli/health.js';
-import { runMigrations, runSeeders, installDependencies } from './lib/cli/database.js';
+import { runMigrations, runSeeders, installDependencies } from './lib/cli/backend.js';
 import { runPreflightCheck, quickValidate } from './lib/cli/validate.js';
 import { 
   restartService, 

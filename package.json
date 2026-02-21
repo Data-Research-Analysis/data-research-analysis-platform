@@ -5,7 +5,7 @@
   "main": "setup-cli.js",
   "type": "module",
   "scripts": {
-    "setup": "node setup-cli.js",
+    "setup": "npm install && node setup-cli.js",
     "setup:express": "node setup-cli.js --express",
     "setup:config": "node setup-cli.js --config-only",
     "setup:docker": "node setup-cli.js --docker-only",
@@ -15,8 +15,6 @@
     "setup:health": "node setup-cli.js --health",
     "setup:validate": "node setup-cli.js --validate",
     "setup:status": "node setup-cli.js --status",
-    "setup:migrate": "docker exec -e POSTGRESQL_HOST_MIGRATIONS=database.dataresearchanalysis.test -e POSTGRESQL_PORT_MIGRATIONS=5432 backend.dataresearchanalysis.test npm run migration:run",
-    "setup:seed": "docker exec -e POSTGRESQL_HOST_MIGRATIONS=database.dataresearchanalysis.test -e POSTGRESQL_PORT_MIGRATIONS=5432 backend.dataresearchanalysis.test npm run seed:run -- -d ./src/datasources/PostgresDSMigrations.ts src/seeders/*.ts",
     "setup:logs": "docker-compose logs",
     "setup:logs:follow": "docker-compose logs -f",
     "setup:logs:backend": "docker-compose logs backend",
