@@ -38,10 +38,23 @@ const {
 } = require('./lib/cli/docker.js');
 const { runHealthCheck } = require('./lib/cli/health.js');
 const { runMigrations, runSeeders } = require('./lib/cli/database.js');
+const { runPreflightCheck, quickValidate } = require('./lib/cli/validate.js');
+const { 
+  restartService, 
+  displayServicesStatus, 
+  viewLogs 
+} = require('./lib/cli/services.js');
 
 // Parse command-line arguments
 function parseArguments() {
   const args = process.argv.slice(2);
+  
+  // Extract values for flags that take arguments
+  const restartIndex = args.indexOf('--restart');
+  const restartService = restartIndex !== -1 && args[restartIndex + 1] ? args[restartIndex + 1] : null;
+  
+  const logsIndex = args.indexOf('--logs');
+  const logsService = logsIndex !== -1 && args[logsIndex + 1] ? args[logsIndex + 1] : null;
   
   return {
     help: args.includes('--help') || args.includes('-h'),
@@ -52,6 +65,12 @@ function parseArguments() {
     down: args.includes('--down'),
     rebuild: args.includes('--rebuild'),
     health: args.includes('--health'),
+    validate: args.includes('--validate'),
+    status: args.includes('--status'),
+    restart: restartService,
+    logs: logsService,
+    follow: args.includes('--follow') || args.includes('-f'),
+    tail: args.includes('--tail') ? parseInt(args[args.indexOf('--tail') + 1]) || 100 : null,
     skipMigrations: args.includes('--skip-migrations'),
     skipSeeders: args.includes('--skip-seeders'),
     removeConfig: args.includes('--remove-config'),
@@ -89,7 +108,11 @@ function showHelp() {
   console.log('  npm run setup:rebuild          Rebuild containers');
   console.log('  npm run setup:health           Health check');
   console.log('  npm run setup:migrate          Run database migrations');
-  console.log('  npm run setup:seed             Run database seeders\n');
+  console.log('  npm run setup:seed             Run database seeders');
+  console.log('  node setup-cli.js --validate   Validate .env files');
+  console.log('  node setup-cli.js --status     Show services status');
+  console.log('  node setup-cli.js --restart <service>   Restart a service');
+  console.log('  node setup-cli.js --logs <service>      View service logs\n');
   
   console.log(chalk.bold('OPTIONS:'));
   console.log('  --help, -h                     Show this help message');
@@ -99,6 +122,12 @@ function showHelp() {
   console.log('  --update                       Update existing configuration');
   console.log('  --down                         Stop and remove containers');
   console.log('  --rebuild                      Rebuild Docker images');
+  console.log('  --validate                     Run pre-flight validation');
+  console.log('  --status                       Show services status');
+  console.log('  --restart <service>            Restart specific service');
+  console.log('  --logs <service>               View service logs');
+  console.log('  --follow, -f                   Follow logs (with --logs)');
+  console.log('  --tail <n>                     Show last n lines (with --logs)');
   console.log('  --health                       Run health check');
   console.log('  --skip-migrations              Skip database migrations');
   console.log('  --skip-seeders                 Skip database seeders');
@@ -111,7 +140,11 @@ function showHelp() {
   console.log('  npm run setup:health           # Check system health');
   console.log('  npm run setup:down             # Stop all containers');
   console.log('  npm run setup:migrate          # Run database migrations');
-  console.log('  npm run setup:seed             # Run database seeders\n');
+  console.log('  npm run setup:seed             # Run database seeders');
+  console.log('  node setup-cli.js --validate   # Validate .env files');
+  console.log('  node setup-cli.js --status     # Show services status');
+  console.log('  node setup-cli.js --restart backend  # Restart backend');
+  console.log('  node setup-cli.js --logs backend --follow  # Follow backend logs\n');
   
   console.log(chalk.yellow('💡 Tip: External Docker volumes are never automatically deleted.'));
   console.log(chalk.gray('   To remove volumes manually: docker volume rm <volume_name>\n'));
@@ -210,6 +243,34 @@ async function main() {
       
       console.log(chalk.green('✅ Rebuild and restart complete!\n'));
       return;
+    }
+    
+    // Validation mode
+    if (flags.validate) {
+      const validationResult = await runPreflightCheck();
+      process.exit(validationResult.success ? 0 : 1);
+    }
+    
+    // Status mode
+    if (flags.status) {
+      const statusResult = await displayServicesStatus();
+      process.exit(statusResult.allRunning ? 0 : 1);
+    }
+    
+    // Restart service mode
+    if (flags.restart) {
+      const restartResult = await restartService(flags.restart);
+      process.exit(restartResult.success ? 0 : 1);
+    }
+    
+    // Logs mode
+    if (flags.logs) {
+      const logsOptions = {
+        follow: flags.follow,
+        tail: flags.tail || 100
+      };
+      const logsResult = await viewLogs(flags.logs, logsOptions);
+      process.exit(logsResult.success ? 0 : 1);
     }
     
     // Default: Full setup or specific mode
