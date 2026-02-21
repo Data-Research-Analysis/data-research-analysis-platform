@@ -1,10 +1,50 @@
 {
+  "name": "data-research-analysis-platform",
+  "version": "1.0.0",
+  "description": "Interactive CLI for complete platform setup and Docker orchestration",
+  "main": "setup-cli.js",
+  "scripts": {
+    "setup": "node setup-cli.js",
+    "setup:express": "node setup-cli.js --express",
+    "setup:config": "node setup-cli.js --config-only",
+    "setup:docker": "node setup-cli.js --docker-only",
+    "setup:update": "node setup-cli.js --update",
+    "setup:down": "node setup-cli.js --down",
+    "setup:rebuild": "node setup-cli.js --rebuild",
+    "setup:health": "node setup-cli.js --health",
+    "setup:logs": "docker-compose logs",
+    "setup:logs:follow": "docker-compose logs -f",
+    "setup:logs:backend": "docker-compose logs backend",
+    "setup:logs:frontend": "docker-compose logs frontend",
+    "setup:restart": "docker-compose restart",
+    "setup:restart:backend": "docker-compose restart backend",
+    "setup:restart:frontend": "docker-compose restart frontend"
+  },
   "dependencies": {
     "pg": "^8.15.6",
     "reflect-metadata": "^0.2.2",
-    "typeorm": "^0.3.23"
+    "typeorm": "^0.3.23",
+    "inquirer": "^9.2.12",
+    "chalk": "^4.1.2",
+    "ora": "^5.4.1",
+    "execa": "^5.1.1",
+    "p-retry": "^4.6.2",
+    "dockerode": "^4.0.2",
+    "fs-extra": "^11.2.0",
+    "dotenv": "^16.3.1"
   },
   "devDependencies": {
-    "@types/node": "^22.15.17"
-  }
+    "@types/node": "^22.15.17",
+    "@types/inquirer": "^9.0.7",
+    "@types/fs-extra": "^11.0.4"
+  },
+  "keywords": [
+    "data-analysis",
+    "analytics",
+    "dashboard",
+    "visualization",
+    "setup-cli"
+  ],
+  "author": "Data Research Analysis Team",
+  "license": "MIT"
 }
