@@ -15,6 +15,7 @@
     "setup:health": "node setup-cli.js --health",
     "setup:validate": "node setup-cli.js --validate",
     "setup:status": "node setup-cli.js --status",
+    "setup:help": "node setup-cli.js --help",
     "setup:logs": "docker-compose logs",
     "setup:logs:follow": "docker-compose logs -f",
     "setup:logs:backend": "docker-compose logs backend",

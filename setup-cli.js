@@ -107,8 +107,6 @@ function showHelp() {
   console.log('  npm run setup:down             Stop containers');
   console.log('  npm run setup:rebuild          Rebuild containers');
   console.log('  npm run setup:health           Health check');
-  console.log('  npm run setup:migrate          Run database migrations');
-  console.log('  npm run setup:seed             Run database seeders');
   console.log('  node setup-cli.js --validate   Validate .env files');
   console.log('  node setup-cli.js --status     Show services status');
   console.log('  node setup-cli.js --restart <service>   Restart a service');

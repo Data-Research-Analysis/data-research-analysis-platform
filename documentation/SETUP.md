@@ -166,20 +166,6 @@ node setup-cli.js --logs backend --tail 100
 node setup-cli.js --restart backend
 ```
 
-#### Database Management
-
-```bash
-# Run migrations only
-npm run setup:migrate
-
-# Run seeders only
-npm run setup:seed
-
-# Re-run migrations (inside backend container)
-docker exec backend.dataresearchanalysis.test npm run migration:revert
-docker exec backend.dataresearchanalysis.test npm run migration:run
-```
-
 ### Environment Configuration
 
 The setup CLI generates three `.env` files:
