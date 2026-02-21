@@ -11,6 +11,10 @@
  */
 
 const chalk = require('chalk');
+const ora = require('ora');
+const { DOCKER_VOLUMES, ENVIRONMENT_DEFAULTS } = require('./lib/cli/constants.js');
+const { detectEnvironment, loadExistingEnv, createBackup, buildConfiguration } = require('./lib/cli/utils.js');
+const { generateEncryptionKey, generateJWTSecret, generateSecurePassword } = require('./lib/cli/generators.js');
 
 // Parse command-line arguments
 function parseArguments() {
@@ -86,6 +90,50 @@ function showHelp() {
   console.log(chalk.gray('   To remove volumes manually: docker volume rm <volume_name>\n'));
 }
 
+// Show configuration preview
+function showConfigPreview(config, mode = 'full') {
+  console.log(chalk.bold.cyan('\n📋 Configuration Preview:\n'));
+  
+  // Environment mode
+  console.log(chalk.bold('Environment:'), chalk.yellow(config.mode || 'development'));
+  
+  // Database settings
+  if (config.database) {
+    console.log(chalk.bold('\n🗄️  Database:'));
+    console.log(`  Host: ${config.database.host || 'localhost'}`);
+    console.log(`  Port: ${config.database.port || 5432}`);
+    console.log(`  Database: ${config.database.name || 'data_research_analysis'}`);
+    console.log(`  User: ${config.database.user || 'dra_user'}`);
+    console.log(`  Password: ${chalk.gray('••••••••')}`);
+  }
+  
+  // Security settings
+  if (config.security) {
+    console.log(chalk.bold('\n🔐 Security:'));
+    console.log(`  Encryption Key: ${config.security.encryptionKey ? chalk.green('Generated ✓') : chalk.red('Missing ✗')}`);
+    console.log(`  JWT Secret: ${config.security.jwtSecret ? chalk.green('Generated ✓') : chalk.red('Missing ✗')}`);
+    console.log(`  Session Secret: ${config.security.sessionSecret ? chalk.green('Generated ✓') : chalk.red('Missing ✗')}`);
+  }
+  
+  // Server settings
+  if (config.server) {
+    console.log(chalk.bold('\n🌐 Server:'));
+    console.log(`  Backend URL: ${config.server.backendUrl || 'http://localhost:3002'}`);
+    console.log(`  Frontend URL: ${config.server.frontendUrl || 'http://localhost:3000'}`);
+    console.log(`  API Port: ${config.server.apiPort || 3002}`);
+  }
+  
+  // Docker volumes
+  if (mode === 'full' || mode === 'docker') {
+    console.log(chalk.bold('\n🐋 Docker Volumes:'));
+    DOCKER_VOLUMES.forEach(volumeName => {
+      console.log(`  - ${chalk.cyan(volumeName)}`);
+    });
+  }
+  
+  console.log(); // Empty line
+}
+
 // Main entry point
 async function main() {
   try {
@@ -99,28 +147,121 @@ async function main() {
     
     // Health check mode
     if (flags.health) {
-      console.log(chalk.yellow('\n🏥 Health check mode - Coming soon!\n'));
+      console.log(chalk.yellow('\n🏥 Health check mode - Coming soon in Phase 6!\n'));
       return;
     }
     
     // Teardown mode
     if (flags.down) {
-      console.log(chalk.yellow('\n🔽 Teardown mode - Coming soon!\n'));
+      console.log(chalk.yellow('\n🔽 Teardown mode - Coming soon in Phase 4!\n'));
       return;
     }
     
     // Rebuild mode
     if (flags.rebuild) {
-      console.log(chalk.yellow('\n🔨 Rebuild mode - Coming soon!\n'));
+      console.log(chalk.yellow('\n🔨 Rebuild mode - Coming soon in Phase 4!\n'));
       return;
     }
     
-    // Default: Full setup
+    // Default: Full setup or specific mode
     showWelcomeBanner();
     
-    console.log(chalk.yellow('⚠️  Setup functionality coming soon!\n'));
-    console.log(chalk.gray('This is Phase 1 - Project structure initialized.'));
-    console.log(chalk.gray('Run with --help to see available modes.\n'));
+    // Step 1: Detect existing environment
+    const spinner = ora('Detecting existing environment...').start();
+    const env = detectEnvironment();
+    spinner.succeed('Environment detection complete');
+    
+    // Show environment status
+    if (!env.isNew) {
+      console.log(chalk.yellow('\n⚠️  Existing environment detected:'));
+      if (env.files.root) console.log(chalk.gray('  - Root .env found'));
+      if (env.files.backend) console.log(chalk.gray('  - Backend .env found'));
+      if (env.files.frontend) console.log(chalk.gray('  - Frontend .env found'));
+      
+      if (!flags.update && !flags.dryRun) {
+        console.log(chalk.yellow('\n💡 Use --update to modify existing configuration'));
+        console.log(chalk.yellow('💡 Use --dry-run to preview changes\n'));
+        return;
+      }
+    }
+    
+    // Step 2: Determine mode and build configuration
+    let mode = 'development'; // Default
+    if (flags.express) {
+      mode = 'express';
+      console.log(chalk.cyan('\n⚡ Express mode - using sensible defaults\n'));
+    } else if (flags.configOnly) {
+      console.log(chalk.cyan('\n📝 Config-only mode\n'));
+    } else if (flags.dockerOnly) {
+      console.log(chalk.cyan('\n🐋 Docker-only mode\n'));
+      console.log(chalk.yellow('⚠️  Docker operations coming in Phase 4!\n'));
+      return;
+    }
+    
+    // Step 3: Build configuration (Phase 3+ will prompt for values)
+    const config = {
+      mode: mode === 'express' ? 'development' : mode,
+      database: {
+        host: 'database.dataresearchanalysis.test',
+        port: 5432,
+        name: 'data_research_analysis',
+        user: 'dra_user',
+        password: generateSecurePassword()
+      },
+      security: {
+        encryptionKey: generateEncryptionKey(),
+        jwtSecret: generateJWTSecret(),
+        sessionSecret: generateJWTSecret()
+      },
+      server: {
+        backendUrl: 'http://localhost:3002',
+        frontendUrl: 'http://localhost:3000',
+        apiPort: 3002
+      }
+    };
+    
+    // Step 4: Show configuration preview
+    showConfigPreview(config, flags.configOnly ? 'config' : 'full');
+    
+    // Step 5: Dry-run mode - stop here
+    if (flags.dryRun) {
+      console.log(chalk.yellow('🔍 Dry-run mode - no changes made'));
+      console.log(chalk.gray('\nWhat would happen next:'));
+      if (!flags.dockerOnly) {
+        console.log(chalk.gray('  1. Generate .env files for root, backend, frontend'));
+        if (env.files.root || env.files.backend || env.files.frontend) {
+          console.log(chalk.gray('  2. Create backups of existing .env files'));
+        }
+      }
+      if (!flags.configOnly) {
+        console.log(chalk.gray('  3. Create external Docker volumes'));
+        console.log(chalk.gray('  4. Build Docker images'));
+        console.log(chalk.gray('  5. Start Docker containers'));
+        if (!flags.skipMigrations) {
+          console.log(chalk.gray('  6. Run database migrations'));
+        }
+        if (!flags.skipSeeders) {
+          console.log(chalk.gray('  7. Run database seeders'));
+        }
+        console.log(chalk.gray('  8. Perform health checks'));
+      }
+      console.log(chalk.yellow('\n✅ Dry-run complete - remove --dry-run to apply changes\n'));
+      return;
+    }
+    
+    // Step 6: Actual implementation (Phase 3+)
+    console.log(chalk.yellow('⚠️  File generation coming in Phase 3!'));
+    console.log(chalk.gray('\nPhase 2 Complete - Core CLI structure implemented:'));
+    console.log(chalk.green('  ✓ Environment detection'));
+    console.log(chalk.green('  ✓ Configuration building'));
+    console.log(chalk.green('  ✓ Configuration preview'));
+    console.log(chalk.green('  ✓ Dry-run mode'));
+    console.log(chalk.green('  ✓ Error handling\n'));
+    
+    console.log(chalk.cyan('Next phases:'));
+    console.log(chalk.gray('  Phase 3: Environment file generation'));
+    console.log(chalk.gray('  Phase 4: Docker operations'));
+    console.log(chalk.gray('  Phase 5: Database operations\n'));
     
   } catch (error) {
     console.error(chalk.red.bold('\n❌ Setup Failed\n'));
@@ -131,6 +272,12 @@ async function main() {
       console.error(chalk.gray(error.stack));
     }
     
+    console.log(chalk.yellow('\n💡 Troubleshooting tips:'));
+    console.log(chalk.gray('  - Run with --dry-run to preview without making changes'));
+    console.log(chalk.gray('  - Check file permissions in project directory'));
+    console.log(chalk.gray('  - Ensure Docker is installed and running'));
+    console.log(chalk.gray('  - Use --help to see all available options\n'));
+    
     process.exit(1);
   }
 }
@@ -140,4 +287,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { parseArguments, showWelcomeBanner, showHelp };
+module.exports = { parseArguments, showWelcomeBanner, showHelp, showConfigPreview };
