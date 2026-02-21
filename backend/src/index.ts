@@ -173,7 +173,6 @@ app.use(cors({
     const allowedOrigins = [
       'http://localhost:3000',
       'http://frontend.dataresearchanalysis.test:3000',
-      'https://online.studiesw.test:3000',
       process.env.FRONTEND_URL
     ].filter(Boolean);
     
