@@ -10,12 +10,12 @@
  * - Health monitoring
  */
 
-const chalk = require('chalk');
-const ora = require('ora');
-const { DOCKER_VOLUMES, ENVIRONMENT_DEFAULTS } = require('./lib/cli/constants.js');
-const { detectEnvironment, loadExistingEnv, createBackup, buildConfiguration } = require('./lib/cli/utils.js');
-const { generateEncryptionKey, generateJWTSecret, generateSecurePassword } = require('./lib/cli/generators.js');
-const {
+import chalk from 'chalk';
+import ora from 'ora';
+import { DOCKER_VOLUMES, ENVIRONMENT_DEFAULTS } from './lib/cli/constants.js';
+import { detectEnvironment, loadExistingEnv, createBackup, buildConfiguration } from './lib/cli/utils.js';
+import { generateEncryptionKey, generateJWTSecret, generateSecurePassword } from './lib/cli/generators.js';
+import {
   promptEnvironmentType,
   promptSetupMode,
   promptDatabaseConfig,
@@ -26,24 +26,24 @@ const {
   promptBackupConfig,
   promptGoogleServices,
   promptAWSConfig
-} = require('./lib/cli/prompts.js');
-const { writeAllEnvFiles } = require('./lib/cli/writers.js');
-const {
+} from './lib/cli/prompts.js';
+import { writeAllEnvFiles } from './lib/cli/writers.js';
+import {
   createRequiredVolumes,
   buildDockerCompose,
   startDockerCompose,
   waitForServicesHealthy,
   teardownDockerCompose,
   rebuildDockerCompose
-} = require('./lib/cli/docker.js');
-const { runHealthCheck } = require('./lib/cli/health.js');
-const { runMigrations, runSeeders } = require('./lib/cli/database.js');
-const { runPreflightCheck, quickValidate } = require('./lib/cli/validate.js');
-const { 
+} from './lib/cli/docker.js';
+import { runHealthCheck } from './lib/cli/health.js';
+import { runMigrations, runSeeders } from './lib/cli/database.js';
+import { runPreflightCheck, quickValidate } from './lib/cli/validate.js';
+import { 
   restartService, 
   displayServicesStatus, 
   viewLogs 
-} = require('./lib/cli/services.js');
+} from './lib/cli/services.js';
 
 // Parse command-line arguments
 function parseArguments() {
@@ -491,8 +491,6 @@ async function main() {
 }
 
 // Run main function
-if (require.main === module) {
+if (import.meta.url === `file://${process.argv[1]}`) {
   main();
 }
-
-module.exports = { parseArguments, showWelcomeBanner, showHelp, showConfigPreview };
