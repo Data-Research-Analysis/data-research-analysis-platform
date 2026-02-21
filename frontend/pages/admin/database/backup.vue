@@ -23,8 +23,16 @@ const {
     cleanupBackupListener
 } = useDatabaseBackup();
 
-// Socket.IO listener with callback
-setupBackupListener((data) => {
+const onBackupComplete = (data: any) => {
+    if (!data.success) {
+        $swal.fire({
+            icon: 'error',
+            title: 'Backup Failed',
+            text: data.error || 'An error occurred while creating the backup. Please try again or check the server logs.'
+        });
+        return;
+    }
+
     $swal.fire({
         icon: 'success',
         title: 'Backup Created!',
@@ -37,7 +45,7 @@ setupBackupListener((data) => {
             router.push('/admin/database');
         }
     });
-});
+};
 
 // Download backup handler
 const handleDownloadBackup = async () => {
@@ -60,20 +68,7 @@ const goBack = () => {
 
 // Lifecycle
 onMounted(() => {
-    setupBackupListener((data) => {
-        $swal.fire({
-            icon: 'success',
-            title: 'Backup Created!',
-            text: 'Your database backup has been created successfully.',
-            confirmButtonText: 'View Backups',
-            showCancelButton: true,
-            cancelButtonText: 'Stay Here'
-        }).then((result: any) => {
-            if (result.isConfirmed) {
-                router.push('/admin/database');
-            }
-        });
-    });
+    setupBackupListener(onBackupComplete);
 });
 
 onUnmounted(() => {
@@ -185,14 +180,14 @@ onUnmounted(() => {
                             <div class="flex space-x-4">
                                 <button
                                     @click="handleDownloadBackup"
-                                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 cursor-pointer"
                                 >
                                     <font-awesome-icon icon="fa-solid fa-download" class="mr-2" />
                                     Download Backup
                                 </button>
                                 <button
                                     @click="goBack"
-                                    class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                                    class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer"
                                 >
                                     Back to Dashboard
                                 </button>
