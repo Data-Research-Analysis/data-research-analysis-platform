@@ -4457,4 +4457,140 @@ export class DataSourceProcessor {
             return resolve(syncResult);
         });
     }
+
+    /**
+     * Add Meta Ads data source
+     */
+    public async addMetaAdsDataSource(
+        name: string,
+        connectionDetails: IAPIConnectionDetails,
+        tokenDetails: ITokenDetails,
+        projectId: number
+    ): Promise<number | null> {
+        return new Promise<number | null>(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve(null);
+            }
+            const dbConnector = await driver.getConcreteDriver();
+            const manager = dbConnector.manager;
+            if (!manager) {
+                return resolve(null);
+            }
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!user) {
+                return resolve(null);
+            }
+            const project: DRAProject|null = await manager.findOne(DRAProject, {where: {id: projectId, users_platform: user}});
+            if (project) {
+                // Create schema for Meta Ads data
+                const schemaName = 'dra_meta_ads';
+                await manager.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+                
+                // Get internal database connection details
+                const host = UtilityService.getInstance().getConstants('POSTGRESQL_HOST');
+                const port = UtilityService.getInstance().getConstants('POSTGRESQL_PORT');
+                const database = UtilityService.getInstance().getConstants('POSTGRESQL_DB_NAME');
+                const username = UtilityService.getInstance().getConstants('POSTGRESQL_USERNAME');
+                const password = UtilityService.getInstance().getConstants('POSTGRESQL_PASSWORD');
+                
+                // Create hybrid connection details: database connection + API connection
+                const hybridConnection: IDBConnectionDetails = {
+                    data_source_type: EDataSourceType.META_ADS,
+                    host: host,
+                    port: parseInt(port),
+                    schema: schemaName,
+                    database: database,
+                    username: username,
+                    password: password,
+                    api_connection_details: connectionDetails
+                };
+                
+                const dataSource = new DRADataSource();
+                dataSource.name = name;
+                dataSource.connection_details = hybridConnection;
+                dataSource.data_type = EDataSourceType.META_ADS;
+                dataSource.project = project;
+                dataSource.users_platform = user;
+                dataSource.created_at = new Date();
+                const savedDataSource = await manager.save(dataSource);
+                
+                console.log('✅ Meta Ads data source added successfully with ID:', savedDataSource.id);
+                return resolve(savedDataSource.id);
+            }
+            return resolve(null);
+        });
+    }
+
+    /**
+     * Sync Meta Ads data source
+     */
+    public async syncMetaAdsDataSource(
+        dataSourceId: number,
+        user_id: number
+    ): Promise<boolean> {
+        return new Promise<boolean>(async (resolve, reject) => {
+            if (!dataSourceId || isNaN(dataSourceId) || !Number.isInteger(dataSourceId) || dataSourceId < 1) {
+                console.error('[syncMetaAdsDataSource] Invalid data source ID:', dataSourceId);
+                return resolve(false);
+            }
+            
+            console.log('[syncMetaAdsDataSource] Starting sync for data source ID:', dataSourceId);
+            
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                console.error('[syncMetaAdsDataSource] Database driver not available');
+                return resolve(false);
+            }
+            const manager = (await driver.getConcreteDriver()).manager;
+            if (!manager) {
+                console.error('[syncMetaAdsDataSource] Database manager not available');
+                return resolve(false);
+            }
+            
+            // Get user
+            console.log('[syncMetaAdsDataSource] Fetching user with ID:', user_id);
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!user) {
+                console.error('[syncMetaAdsDataSource] User not found:', user_id);
+                return resolve(false);
+            }
+            
+            // Get data source
+            console.log('[syncMetaAdsDataSource] Fetching data source with ID:', dataSourceId);
+            const dataSource = await manager.findOne(DRADataSource, {
+                where: {id: dataSourceId, users_platform: user, data_type: EDataSourceType.META_ADS}
+            });
+            
+            if (!dataSource) {
+                console.error('Data source not found or not a Meta Ads source');
+                return resolve(false);
+            }
+            
+            // Get connection details - extract API connection from hybrid structure
+            const connection = dataSource.connection_details;
+            if (!connection.api_connection_details) {
+                console.error('API connection details not found in data source');
+                return resolve(false);
+            }
+            
+            const apiConnectionDetails = connection.api_connection_details;
+            
+            // Trigger sync
+            const { MetaAdsDriver } = await import('../drivers/MetaAdsDriver.js');
+            const metaAdsDriver = MetaAdsDriver.getInstance();
+            const syncResult = await metaAdsDriver.syncToDatabase(dataSourceId, dataSource.users_platform.id, apiConnectionDetails);
+            
+            if (syncResult) {
+                // Update last sync time in API connection details
+                apiConnectionDetails.api_config.last_sync = new Date();
+                connection.api_connection_details = apiConnectionDetails;
+                dataSource.connection_details = connection;
+                await manager.save(dataSource);
+            }
+            
+            return resolve(syncResult);
+        });
+    }
 }
