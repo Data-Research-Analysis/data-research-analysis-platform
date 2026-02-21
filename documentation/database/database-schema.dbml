@@ -1,13 +1,13 @@
 // Data Research Analysis Platform - Database Schema
 // Full-stack data analytics platform with Vue3/Nuxt3 frontend and Node.js/Express/TypeScript backend
-// Generated: January 17, 2026
+// Generated: February 21, 2026
 // Database: PostgreSQL
 
 Project DataResearchAnalysis {
   database_type: 'PostgreSQL'
   Note: '''
     Data analytics platform supporting:
-    - Multi-source data connections (PostgreSQL, MySQL, MariaDB, CSV, Excel, PDF, Google Analytics, Google Ads)
+    - Multi-source data connections (PostgreSQL, MySQL, MariaDB, MongoDB, CSV, Excel, PDF, Google Analytics, Google Ads)
     - AI-powered data modeling with Gemini 2.0 Flash
     - Interactive dashboards with role-based access control (RBAC)
     - Project-based collaboration with invitations
@@ -32,7 +32,7 @@ Enum data_source_type {
   postgresql [note: 'PostgreSQL database connection']
   mysql [note: 'MySQL database connection']
   mariadb [note: 'MariaDB database connection']
-  mongodb [note: 'MongoDB database connection (future)']
+  mongodb [note: 'MongoDB database connection']
   google_analytics [note: 'Google Analytics API integration']
   google_ad_manager [note: 'Google Ad Manager API integration']
   google_ads [note: 'Google Ads API integration']
@@ -103,6 +103,124 @@ Enum subscription_tier_name {
   business [note: 'Business tier with advanced features']
   enterprise [note: 'Enterprise tier with unlimited resources']
 }
+
+Enum ai_insight_report_status {
+  draft [note: 'Active report, session in progress']
+  saved [note: 'Report saved to database']
+  archived [note: 'Report archived, no longer active']
+}
+
+Enum ai_insight_message_role {
+  user [note: 'Message from user']
+  assistant [note: 'Response from AI (Gemini)']
+  system [note: 'System-generated message']
+}
+
+Enum cancellation_status {
+  pending [note: 'Cancellation requested, waiting for effective date']
+  active [note: 'Cancellation effective, in retention period before deletion']
+  data_deleted [note: 'User data has been permanently deleted']
+  reactivated [note: 'User reactivated before data deletion']
+}
+
+Enum notification_type {
+  // Project Management
+  project_created
+  project_updated
+  project_deleted
+  project_shared
+  project_invitation
+  project_member_added
+  project_member_removed
+  project_role_changed
+  invitation_accepted
+  invitation_declined
+  invitation_expired
+  invitation_cancelled
+  // Data Source Operations
+  data_source_created
+  data_source_updated
+  data_source_deleted
+  data_source_connection_failed
+  data_source_connection_restored
+  data_source_sync_started
+  data_source_sync_complete
+  data_source_sync_failed
+  data_source_scheduled_sync_complete
+  data_source_scheduled_sync_failed
+  data_source_sync_large_dataset
+  sync_schedule_enabled
+  sync_schedule_changed
+  sync_schedule_disabled
+  // OAuth & Authentication
+  oauth_token_expiring
+  oauth_token_expired
+  // Data Model Operations
+  data_model_created
+  data_model_updated
+  data_model_deleted
+  data_model_query_failed
+  // AI Data Modeler
+  ai_conversation_started
+  ai_model_ready
+  ai_conversation_saved
+  ai_processing_error
+  // Dashboard Operations
+  dashboard_created
+  dashboard_updated
+  dashboard_deleted
+  dashboard_shared
+  dashboard_comment
+  dashboard_export_started
+  dashboard_export_complete
+  dashboard_export_failed
+  dashboard_export_ready
+  // User Account
+  account_created
+  account_update
+  email_verified
+  password_changed
+  password_reset_requested
+  security_alert
+  account_cancellation_requested
+  account_cancellation_reminder_7_days
+  account_cancellation_reminder_1_day
+  account_reactivated
+  account_data_deleted
+  // Subscription Management
+  subscription_assigned
+  subscription_upgraded
+  subscription_downgraded
+  subscription_expiring
+  subscription_expired
+  tier_limit_reached
+  // Payment
+  payment_received
+  payment_failed
+  invoice_generated
+  // Database Backup (admin only)
+  backup_completed
+  backup_failed
+  scheduled_backup_complete
+  scheduled_backup_failed
+  restore_started
+  restore_completed
+  restore_failed
+  // Admin User Management
+  user_created_by_admin
+  user_updated_by_admin
+  user_deleted_by_admin
+  user_role_changed
+  // System
+  system_update
+  maintenance_scheduled
+  service_degradation
+  service_restored
+  // Content Management
+  article_published
+  article_updated
+}
+// notification_type: 82 values across 12 categories. Delivered real-time via Socket.IO and persisted in dra_notifications.
 
 // ============================================
 // CORE TABLES
@@ -320,6 +438,34 @@ Table dra_ai_data_model_messages {
   Note: 'Individual messages in AI data modeling conversations. Assistant messages contain structured model recommendations.'
 }
 
+Table dra_ai_join_suggestions {
+  id varchar(36) [pk, note: 'UUID primary key']
+  data_source_id int [not null]
+  schema_name varchar(255) [null, note: 'Database schema name (null for default)']
+  schema_hash varchar(64) [not null, note: 'Hash of schema structure for cache invalidation']
+  left_table varchar(255) [not null]
+  left_column varchar(255) [not null]
+  right_table varchar(255) [not null]
+  right_column varchar(255) [not null]
+  suggested_join_type varchar(50) [not null, note: 'INNER, LEFT, RIGHT, FULL']
+  confidence_score decimal(5,2) [not null, note: 'AI confidence 0.00–100.00']
+  reasoning text [null, note: 'AI explanation for the suggestion']
+  is_junction_table boolean [not null, default: false]
+  metadata jsonb [null]
+  created_by_user_id int [not null]
+  created_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    data_source_id
+    (data_source_id, schema_hash) [note: 'Cache lookup by schema version']
+    (data_source_id, left_table, right_table)
+    confidence_score [note: 'Order by AI confidence']
+  }
+
+  Note: 'AI-generated join suggestions for cross-table queries. Cached per schema hash to avoid redundant AI calls. UUID primary key.'
+}
+
 // ============================================
 // DASHBOARDS & VISUALIZATIONS
 // ============================================
@@ -438,7 +584,27 @@ Table dra_articles {
     publish_status
   }
   
-  Note: 'Blog articles/documentation. Supports Markdown and HTML content with SEO-friendly slugs.'
+  Note: 'Blog articles/documentation. Supports Markdown and HTML content with SEO-friendly slugs. Full version history tracked in dra_article_versions.'
+}
+
+Table dra_article_versions {
+  id int [pk, increment]
+  article_id int [not null]
+  users_platform_id int [null, note: 'Editor who created this version (null if user deleted)']
+  version_number int [not null, note: 'Monotonically increasing version counter per article']
+  title varchar(512) [not null]
+  content text [not null, note: 'HTML content snapshot']
+  content_markdown text [null, note: 'Markdown source snapshot']
+  change_summary varchar(512) [null, note: 'Optional description of changes made']
+  created_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    article_id
+    users_platform_id
+    (article_id, version_number)
+  }
+
+  Note: 'Immutable version history for articles. Each save creates a new version. Enables rollback to any prior state.'
 }
 
 Table dra_categories {
@@ -575,6 +741,138 @@ Table sync_history {
 }
 
 // ============================================
+// MONGODB INTEGRATION
+// ============================================
+
+Table dra_mongodb_sync_history {
+  id int [pk, increment]
+  data_source_id int [not null]
+  collection_name varchar(100) [not null, note: 'MongoDB collection name']
+  table_name varchar(100) [not null, note: 'PostgreSQL table name in dra_mongodb schema']
+  sync_type varchar(50) [not null, note: 'full | incremental']
+  status varchar(50) [not null, note: 'in_progress | completed | failed']
+  records_synced int [not null, default: 0]
+  records_failed int [not null, default: 0]
+  started_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  completed_at timestamp [null]
+  error_message text [null]
+  sync_metadata jsonb [null, note: 'Last sync timestamps, filters, etc.']
+
+  indexes {
+    data_source_id
+    (data_source_id, collection_name)
+    status
+    started_at
+  }
+
+  Note: 'Tracks MongoDB collection import operations. Each sync run is recorded with performance metrics and error details.'
+}
+
+// ============================================
+// AI INSIGHTS
+// ============================================
+
+Table dra_ai_insight_reports {
+  id int [pk, increment]
+  title varchar(255) [not null]
+  project_id int [not null]
+  user_id int [not null]
+  data_source_ids jsonb [not null, note: 'Array of data source IDs included in the analysis']
+  insights_summary jsonb [null, note: 'AI-generated structured insights output']
+  status ai_insight_report_status [not null, default: 'draft']
+  started_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  saved_at timestamp [null, note: 'When report was saved to database']
+  created_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    project_id
+    user_id
+    status
+  }
+
+  Note: 'AI-powered insight reports using Google Gemini. Draft state stored in Redis (24h TTL), transferred to PostgreSQL on save. Supports multi-source analysis.'
+}
+
+Table dra_ai_insight_messages {
+  id int [pk, increment]
+  report_id int [not null]
+  role ai_insight_message_role [not null]
+  content text [not null, note: 'Message text']
+  metadata jsonb [null, note: 'Additional context, chart data, structured outputs']
+  created_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    report_id
+    role
+  }
+
+  Note: 'Individual messages within an AI insight report conversation. Assistant messages contain structured analytical insights.'
+}
+
+// ============================================
+// NOTIFICATIONS
+// ============================================
+
+Table dra_notifications {
+  id int [pk, increment]
+  users_platform_id int [not null]
+  type notification_type [not null]
+  title varchar(255) [not null]
+  message text [not null]
+  link varchar(512) [null, note: 'Optional click-to-navigate URL']
+  metadata jsonb [not null, default: '{}', note: 'Additional event context']
+  is_read boolean [not null, default: false]
+  read_at timestamp [null]
+  created_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  expires_at timestamp [null, note: 'Auto-expire notifications after this time']
+
+  indexes {
+    users_platform_id
+    (users_platform_id, is_read) [note: 'Unread count queries']
+    type
+    created_at
+    expires_at [note: 'Cleanup expired notifications']
+  }
+
+  Note: 'User notifications for 82 platform event types across 12 categories. Delivered real-time via Socket.IO. Supports read/unread tracking and auto-expiration.'
+}
+
+// ============================================
+// ACCOUNT MANAGEMENT
+// ============================================
+
+Table dra_account_cancellations {
+  id int [pk, increment]
+  users_platform_id int [not null]
+  cancellation_reason text [null, note: 'Free-text cancellation reason from user']
+  cancellation_reason_category varchar(100) [null, note: 'too_expensive | missing_features | switching_service | too_complex | poor_performance | technical_issues | no_longer_needed | other']
+  requested_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  effective_at timestamp [null, note: 'When cancellation becomes effective']
+  deletion_scheduled_at timestamp [null, note: 'Scheduled permanent data deletion date']
+  status cancellation_status [not null, default: 'pending']
+  data_exported boolean [not null, default: false]
+  data_export_timestamp timestamp [null]
+  data_deleted_at timestamp [null, note: 'When data was permanently deleted']
+  deleted_by_admin_id int [null, note: 'Admin who processed the deletion']
+  reactivated_at timestamp [null, note: 'When user reactivated before deletion']
+  notification_7_days_sent boolean [not null, default: false]
+  notification_1_day_sent boolean [not null, default: false]
+  notification_deletion_sent boolean [not null, default: false]
+  notes text [null, note: 'Internal admin notes']
+  created_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at timestamp [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    users_platform_id
+    status
+    deletion_scheduled_at [note: 'Scheduled deletion job queries']
+  }
+
+  Note: 'Manages the full account cancellation lifecycle: request → retention period → data deletion. Supports reactivation before deletion. Tracks notification delivery.'
+}
+
+// ============================================
 // RELATIONSHIPS SUMMARY
 // ============================================
 
@@ -632,3 +930,26 @@ Ref: dra_verification_codes.users_platform_id > dra_users_platform.id [delete: c
 // Operations relationships
 Ref: dra_scheduled_backup_runs.triggered_by_user_id > dra_users_platform.id [delete: cascade]
 Ref: sync_history.data_source_id > dra_data_sources.id [delete: cascade]
+
+// Article versioning relationships
+Ref: dra_article_versions.article_id > dra_articles.id [delete: cascade]
+Ref: dra_article_versions.users_platform_id > dra_users_platform.id [delete: set null]
+
+// AI join suggestions relationships
+Ref: dra_ai_join_suggestions.data_source_id > dra_data_sources.id [delete: cascade]
+Ref: dra_ai_join_suggestions.created_by_user_id > dra_users_platform.id [delete: cascade]
+
+// MongoDB sync history relationships
+Ref: dra_mongodb_sync_history.data_source_id > dra_data_sources.id [delete: cascade]
+
+// AI insights relationships
+Ref: dra_ai_insight_reports.project_id > dra_projects.id [delete: cascade]
+Ref: dra_ai_insight_reports.user_id > dra_users_platform.id [delete: cascade]
+Ref: dra_ai_insight_messages.report_id > dra_ai_insight_reports.id [delete: cascade]
+
+// Notifications relationships
+Ref: dra_notifications.users_platform_id > dra_users_platform.id [delete: cascade]
+
+// Account cancellation relationships
+Ref: dra_account_cancellations.users_platform_id > dra_users_platform.id [delete: cascade]
+Ref: dra_account_cancellations.deleted_by_admin_id > dra_users_platform.id [delete: set null]

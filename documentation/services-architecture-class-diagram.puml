@@ -214,11 +214,11 @@ package "Business Logic Processors" {
         -instance: ArticleProcessor
         --
         +getInstance(): ArticleProcessor
-        +getArticles(tokenDetails: ITokenDetails): Promise<IArticle[]>
-        +addArticle(title, content, content_markdown, publish_status, category_ids, tokenDetails): Promise<boolean>
+        +getArticles(tokenDetails): Promise<IArticle[]>
+        +addArticle(title, content, markdown, status, categories, tokenDetails): Promise<boolean>
         +publishArticle(articleId, tokenDetails): Promise<boolean>
         +deleteArticle(articleId, tokenDetails): Promise<boolean>
-        +editArticle(articleId, title, content, content_markdown, category_ids, tokenDetails): Promise<boolean>
+        +editArticle(articleId, ...fields, tokenDetails): Promise<boolean>
         +getPublicArticles(): Promise<IArticle[]>
     }
     
@@ -271,8 +271,9 @@ package "Business Logic Processors" {
         +deleteDataSource(dataSourceId, tokenDetails): Promise<boolean>
         +addExcelDataSource(...): Promise<IExcelDataSourceReturn>
         +addPDFDataSource(...): Promise<IPDFDataSourceReturn>
-        -escapeSQL(value): string
-        -formatDateForSQL(value, columnType, columnName): string
+        +addGoogleAnalyticsDataSource(connDetails, tokenDetails, projectId): Promise<boolean>
+        +syncGoogleAnalyticsDataSource(dataSourceId, dateRange, tokenDetails): Promise<any>
+        +addGoogleAdsDataSource(connDetails, tokenDetails, projectId): Promise<boolean>
     }
     
     class PrivateBetaUserProcessor {
@@ -310,6 +311,7 @@ package "Business Logic Processors" {
         +getUsers(tokenDetails): Promise<any[]>
         +updateUserType(userId, userType, tokenDetails): Promise<boolean>
         +deleteUser(userId, tokenDetails): Promise<boolean>
+        +updateSubscriptionTier(userId, tier): Promise<boolean>
     }
     
     class UserProcessor {
@@ -320,7 +322,313 @@ package "Business Logic Processors" {
         +updateProfile(userData, tokenDetails): Promise<boolean>
         +changePassword(oldPassword, newPassword, tokenDetails): Promise<boolean>
     }
+
+    class NotificationProcessor {
+        -instance: NotificationProcessor
+        --
+        +getInstance(): NotificationProcessor
+        +getUserNotifications(userId, page, limit): Promise<INotification[]>
+        +getUnreadCount(userId): Promise<number>
+        +markAsRead(notificationId, userId): Promise<boolean>
+        +markAllAsRead(userId): Promise<boolean>
+        +deleteNotification(notificationId, userId): Promise<boolean>
+        +cleanupExpiredNotifications(): Promise<number>
+    }
+
+    class AccountCancellationProcessor {
+        -instance: AccountCancellationProcessor
+        --
+        +getInstance(): AccountCancellationProcessor
+        +requestCancellation(userId, reason, category, feedback): Promise<any>
+        +getStatus(userId): Promise<any>
+        +reactivate(userId): Promise<boolean>
+    }
+
+    class AttributionProcessor {
+        -instance: AttributionProcessor
+        --
+        +getInstance(): AttributionProcessor
+        +trackEvent(projectId, eventData, userId): Promise<any>
+        +generateReport(projectId, params, userId): Promise<any>
+        +listProjectReports(projectId, userId): Promise<any[]>
+        +getChannelPerformance(projectId, params): Promise<any>
+        +calculateROI(projectId, params): Promise<any>
+        +compareModels(projectId, params): Promise<any>
+        +analyzeFunnel(projectId, params): Promise<any>
+        +getJourneyMap(projectId, params): Promise<any>
+    }
+
+    class DataQualityProcessor {
+        -instance: DataQualityProcessor
+        --
+        +getInstance(): DataQualityProcessor
+        +analyze(dataModelId, userId, checks, options): Promise<any>
+        +clean(dataModelId, userId, operations, previewOnly): Promise<any>
+        +getLatestReport(dataModelId, userId): Promise<any>
+        +getHistory(dataModelId, userId): Promise<any[]>
+    }
 }
+
+package "OAuth & Google Integration Services" {
+    class GoogleOAuthService {
+        -instance: GoogleOAuthService
+        -clientId: string
+        -clientSecret: string
+        --
+        +getInstance(): GoogleOAuthService
+        +isConfigured(): boolean
+        +generateAuthUrl(scopes, state): string
+        +exchangeCodeForTokens(code): Promise<IGoogleTokens>
+        +refreshAccessToken(refreshToken): Promise<IGoogleTokens>
+        +revokeToken(accessToken): Promise<void>
+        +getGoogleAnalyticsScopes(): string[]
+        +getGoogleAdsScopes(): string[]
+        +getGoogleAdManagerScopes(): string[]
+    }
+
+    class OAuthSessionService {
+        -instance: OAuthSessionService
+        -redisClient: RedisClient
+        --
+        +getInstance(): OAuthSessionService
+        +storeTokens(tokens, service, userId): Promise<string>
+        +getTokens(sessionId): Promise<IGoogleTokens>
+        +deleteSession(sessionId): Promise<void>
+        +isSessionValid(sessionId): Promise<boolean>
+    }
+
+    class GoogleAnalyticsService {
+        -instance: GoogleAnalyticsService
+        --
+        +getInstance(): GoogleAnalyticsService
+        +listProperties(accessToken): Promise<IProperty[]>
+        +getMetadata(propertyId, connectionDetails): Promise<any>
+        +getReportPresets(): IReportPreset[]
+        +runReport(propertyId, dateRange, dimensions, metrics, accessToken): Promise<any>
+    }
+
+    class GoogleAdsService {
+        -instance: GoogleAdsService
+        --
+        +getInstance(): GoogleAdsService
+        +listCustomers(accessToken): Promise<ICustomer[]>
+        +runReport(customerId, reportType, dateRange, accessToken): Promise<any>
+    }
+
+    class GoogleAdManagerService {
+        -instance: GoogleAdManagerService
+        --
+        +getInstance(): GoogleAdManagerService
+        +listNetworks(accessToken): Promise<INetwork[]>
+        +runReport(networkCode, reportType, dateRange, accessToken): Promise<any>
+    }
+}
+
+package "AI Services" {
+    class GeminiService {
+        -instance: GeminiService
+        -generativeModel: GenerativeModel
+        --
+        +getInstance(): GeminiService
+        +initializeConversation(conversationId, systemPrompt, schemaContext): Promise<void>
+        +sendMessage(conversationId, userMessage): Promise<string>
+        +generateInsight(dataContext, prompt): Promise<string>
+        +streamResponse(conversationId, message, onChunk): Promise<void>
+    }
+
+    class RedisAISessionService {
+        -instance: RedisAISessionService
+        -redisClient: RedisClient
+        --
+        +getInstance(): RedisAISessionService
+        +createSession(dataSourceId, userId, schemaContext): Promise<string>
+        +saveMessage(sessionId, role, content): Promise<void>
+        +saveModelDraft(sessionId, draft): Promise<void>
+        +getSession(sessionId): Promise<IAISession>
+        +transferToDatabase(sessionId, dataModelId): Promise<void>
+        +deleteSession(sessionId): Promise<void>
+    }
+
+    class SchemaCollectorService {
+        -instance: SchemaCollectorService
+        --
+        +getInstance(): SchemaCollectorService
+        +collectSchema(dataSource, schemaName): Promise<ITableSchema[]>
+        +getTableColumns(schema, table): Promise<IColumnInfo[]>
+        +getSampleData(schema, table, limit): Promise<any[]>
+    }
+
+    class SchemaFormatterService {
+        +formatSchemaToMarkdown(tables): string
+        +formatTableAsMarkdown(table): string
+        +buildSystemPrompt(schemaMarkdown): string
+    }
+}
+
+package "Project Collaboration Services" {
+    class InvitationService {
+        -instance: InvitationService
+        --
+        +getInstance(): InvitationService
+        +createInvitation(projectId, email, role, invitedBy): Promise<IInvitation>
+        +getProjectInvitations(projectId): Promise<IInvitation[]>
+        +getUserPendingInvitations(email): Promise<IInvitation[]>
+        +getInvitationByToken(token): Promise<IInvitation>
+        +acceptInvitation(token, userId): Promise<any>
+        +cancelInvitation(invitationId, userId): Promise<boolean>
+        +resendInvitation(invitationId, userId): Promise<boolean>
+        +expireOldInvitations(): Promise<number>
+    }
+
+    class RBACService {
+        -instance: RBACService
+        --
+        +getInstance(): RBACService
+        +getProjectMembers(projectId): Promise<IProjectMember[]>
+        +addMember(projectId, userId, role, requesterId): Promise<boolean>
+        +updateMemberRole(projectId, userId, role, requesterId): Promise<boolean>
+        +removeMember(projectId, userId, requesterId): Promise<boolean>
+        +getUserRole(projectId, userId): Promise<EProjectRole>
+        +checkPermission(permission, role): boolean
+        +authorize(permission): RequestHandler
+    }
+
+    class NotificationHelperService {
+        +createNotification(userId, type, title, message, metadata, expiresAt): Promise<void>
+        +bulkNotify(userIds, type, title, message): Promise<void>
+    }
+}
+
+package "Data Quality Services" {
+    class DataQualityExecutionService {
+        -instance: DataQualityExecutionService
+        --
+        +getInstance(): DataQualityExecutionService
+        +runChecks(dataModel, checks, options, reportId): Promise<IQualityResults>
+        +runNullCheck(schema, table): Promise<INullStats[]>
+        +runDuplicateCheck(schema, table): Promise<IDuplicateStats>
+        +runOutlierDetection(schema, table): Promise<IOutlierStats[]>
+        +runTypeConsistencyCheck(schema, table): Promise<ITypeViolation[]>
+        +runReferentialIntegrityCheck(schema, table, refs): Promise<IIntegrityStats>
+        +previewCleaning(dataModel, operations): Promise<ICleanPreview>
+    }
+
+    class DataQualityHistoryService {
+        -instance: DataQualityHistoryService
+        --
+        +getInstance(): DataQualityHistoryService
+        +recordHistoryEntry(dataModelId, reportId, score): Promise<void>
+        +getScoreHistory(dataModelId): Promise<IHistoryPoint[]>
+    }
+}
+
+package "Attribution Services" {
+    class AttributionCalculatorService {
+        -instance: AttributionCalculatorService
+        --
+        +getInstance(): AttributionCalculatorService
+        +calculateAttributionModel(projectId, dateRange, model, channels): Promise<IAttributionResults>
+        +applyLinearModel(paths): IChannelCredit[]
+        +applyFirstTouchModel(paths): IChannelCredit[]
+        +applyLastTouchModel(paths): IChannelCredit[]
+        +applyTimeDecayModel(paths, halfLife): IChannelCredit[]
+        +applyPositionBasedModel(paths): IChannelCredit[]
+    }
+
+    class ChannelTrackingService {
+        -instance: ChannelTrackingService
+        --
+        +getInstance(): ChannelTrackingService
+        +recordChannelTouch(projectId, sessionId, channel, timestamp, campaignId): Promise<void>
+        +aggregateChannelMetrics(projectId, dateRange): Promise<IChannelMetrics[]>
+    }
+
+    class FunnelAnalysisService {
+        -instance: FunnelAnalysisService
+        --
+        +getInstance(): FunnelAnalysisService
+        +buildFunnelMetrics(projectId, funnelSteps, dateRange): Promise<IFunnelAnalysis>
+        +calculateDropOffRates(steps): IDropOffRate[]
+    }
+}
+
+package "Account & Billing Services" {
+    class DataDeletionService {
+        -instance: DataDeletionService
+        --
+        +getInstance(): DataDeletionService
+        +estimateUserDataSize(userId): Promise<IDataSizeEstimate>
+        +deleteUserData(userId): Promise<boolean>
+    }
+
+    class DataModelExportService {
+        -instance: DataModelExportService
+        --
+        +getInstance(): DataModelExportService
+        +exportDataModel(dataModelId, format, userId): Promise<IExportResult>
+    }
+
+    class TierEnforcementService {
+        -instance: TierEnforcementService
+        --
+        +getInstance(): TierEnforcementService
+        +canAccessFeature(userId, featureName): Promise<IAccessResult>
+        +getUsageStats(userId): Promise<IUsageStats>
+        +checkTierAccess(userId, feature): Promise<IAccessResult>
+    }
+
+    class RowLimitService {
+        -instance: RowLimitService
+        --
+        +getInstance(): RowLimitService
+        +checkRowLimitCompliance(userId, operationType): Promise<ILimitCheck>
+        +getUsageStats(userId): Promise<IRowLimitStats>
+        +getTierLimits(tier): ITierLimits
+    }
+}
+
+package "MongoDB Services" {
+    class MongoDBNativeService {
+        -instance: MongoDBNativeService
+        --
+        +getInstance(): MongoDBNativeService
+        +testConnection(connectionDetails): Promise<boolean>
+        +listCollections(database): Promise<string[]>
+        +inferCollectionSchema(collection, sampleSize): Promise<IInferredSchema>
+        +getMongoToPGTypeMap(inferredSchema): ITypeMappings
+    }
+
+    class MongoDBImportService {
+        -instance: MongoDBImportService
+        --
+        +getInstance(): MongoDBImportService
+        +importAllCollections(dataSourceId, connectionDetails): Promise<IImportResult>
+        +syncDelta(dataSourceId, connectionDetails, sinceTimestamp): Promise<ISyncResult>
+    }
+
+    class MongoDBQueryTranslator {
+        -instance: MongoDBQueryTranslator
+        --
+        +getInstance(): MongoDBQueryTranslator
+        +translateAndExecute(sql, dataModel): Promise<IQueryResults>
+        +mapSchemaReferences(sql, sourceMapping): string
+    }
+}
+
+package "Scheduled Jobs" {
+    class ScheduledDeletionJob {
+        +run(): Promise<void>
+        +processExpiredCancellations(): Promise<void>
+        +sendWarningEmails(daysRemaining): Promise<void>
+    }
+
+    class ScheduledBackupJob {
+        +run(): Promise<void>
+        +triggerAutomatedBackup(): Promise<void>
+    }
+}
+
+
 
 package "Text Processing" {
     class TextExtractDriver {
@@ -380,6 +688,68 @@ UserManagementProcessor --> DBDriver : queries
 UserProcessor --> DBDriver : queries
 UserProcessor --> UtilityService : password operations
 
+' New Processor Dependencies
+NotificationProcessor --> DBDriver : queries
+AccountCancellationProcessor --> DBDriver : queries
+AccountCancellationProcessor --> NotificationHelperService : notifies
+AccountCancellationProcessor --> DataDeletionService : delegates deletion
+AttributionProcessor --> AttributionCalculatorService : calculates
+AttributionProcessor --> ChannelTrackingService : tracks
+AttributionProcessor --> FunnelAnalysisService : analyzes
+AttributionProcessor --> DBDriver : stores results
+DataQualityProcessor --> DataQualityExecutionService : runs checks
+DataQualityProcessor --> DataQualityHistoryService : records history
+DataQualityProcessor --> NotificationHelperService : notifies
+DataQualityProcessor --> SocketIODriver : progress events
+
+' Google OAuth Dependencies
+GoogleOAuthService ..> Google : "Google Auth APIs"
+OAuthSessionService --> RedisClient : "stores tokens"
+DataSourceProcessor --> GoogleOAuthService : refreshes tokens
+DataSourceProcessor --> GoogleAnalyticsService : fetches data
+DataSourceProcessor --> GoogleAdsService : fetches ads data
+
+' AI Service Dependencies
+GeminiService ..> GoogleGeminiAPI : "Gemini 2.0 Flash"
+RedisAISessionService --> RedisClient : "24h TTL sessions"
+DataModelProcessor --> GeminiService : sends prompts
+DataModelProcessor --> RedisAISessionService : manages sessions
+DataModelProcessor --> SchemaCollectorService : collects schema
+SchemaCollectorService --> DBDriver : queries schema
+SchemaFormatterService ..> SchemaCollectorService : formats output
+
+' Collaboration Service Dependencies
+InvitationService --> DBDriver : queries
+InvitationService --> NotificationHelperService : notifies
+InvitationService --> MailDriver : sends emails
+RBACService --> DBDriver : queries
+RBACService --> NotificationHelperService : notifies
+NotificationHelperService --> SocketIODriver : emits real-time
+NotificationHelperService --> DBDriver : persists
+
+' MongoDB Dependencies
+DataSourceProcessor --> MongoDBNativeService : connects
+DataSourceProcessor --> MongoDBImportService : imports
+MongoDBNativeService ..> MongoDB : "MongoDB driver"
+MongoDBImportService --> MongoDBNativeService : uses
+MongoDBQueryTranslator --> DBDriver : executes SQL
+
+' Tier / Billing Dependencies
+TierEnforcementService --> DBDriver : checks tier
+RowLimitService --> DBDriver : counts rows
+
+' Data Operations
+DatabaseBackupService --> SocketIODriver : emits progress
+DatabaseBackupService --> NotificationHelperService : notifies
+DatabaseBackupService ..> pgdump : "pg_dump/psql system commands"
+DataDeletionService --> DBDriver : cascade deletes
+DataModelExportService --> FilesService : writes exports
+
+' Scheduled Jobs
+ScheduledDeletionJob --> DataDeletionService : triggers deletion
+ScheduledDeletionJob --> MailDriver : sends warnings
+ScheduledBackupJob --> QueueService : queues backup jobs
+
 AWSService --> FilesService : uploads files
 AWSService ..> TextExtractDriver : may use
 
@@ -404,13 +774,13 @@ WorkerService ..> WinstonLoggerService : logs
 PDFService ..> WinstonLoggerService : logs
 DataSourceProcessor ..> WinstonLoggerService : logs
 
-note right of QueueService : Manages background job processing\nfor PDF conversion and text extraction
+note right of QueueService : Manages background job processing\nfor PDF conversion, text extraction,\ndatabase backup, and restore
 
 note right of WorkerService : Spawns worker threads for\nheavy processing tasks
 
-note right of SocketIODriver : Provides real-time communication\nbetween frontend and backend
+note right of SocketIODriver : emitToUser(userId, event, payload)\nUser rooms: 'user:{userId}'\nAll processors can emit events
 
-note right of DataSourceProcessor : Handles Excel/PDF data processing\nwith table creation and management\nUses EncryptionService for connection_details
+note right of DataSourceProcessor : Handles Excel/PDF/MongoDB/Google data\nwith table creation and management\nUses EncryptionService for connection_details
 
 note bottom of AWSService : Handles S3 operations for\nfile storage and retrieval
 
@@ -421,5 +791,9 @@ note right of EncryptionService : **Encryption Details:**\nAlgorithm: aes-256-cb
 note bottom of TokenProcessor : **JWT Token Management:**\nGenerates tokens with user payload\nValidates token signature & expiration\nExtracts token details for authentication
 
 note top of ProjectProcessor : **Cascade Deletion:**\nProject deletion triggers:\n- Data source removal\n- Data model table drops\n- Dashboard cleanup\n- All via cascade relationships
+
+note right of GeminiService : **AI Model:**\nGoogle Gemini 2.0 Flash\nConversation history in Redis (24h TTL)\nSchema fed as markdown system context\nStructured 3-section response format
+
+note right of RBACService : **RBAC Permissions:**\nOWNER > EDITOR > VIEWER\nauthrize() middleware guard\nChecked per-route on project operations
 
 @enduml

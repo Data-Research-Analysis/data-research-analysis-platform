@@ -81,4 +81,43 @@ async (req: Request, res: Response) => {
     }
 });
 
+// ----------------------------------------------------------------
+// Article Version Routes
+// ----------------------------------------------------------------
+
+router.get('/:article_id/versions', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([param('article_id').notEmpty().trim().toInt()]),
+async (req: Request, res: Response) => {
+    const { article_id } = matchedData(req);
+    const versions = await ArticleProcessor.getInstance().getVersions(article_id, req.body.tokenDetails);
+    res.status(200).send(versions);
+});
+
+router.get('/:article_id/versions/:version_number', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([param('article_id').notEmpty().trim().toInt(), param('version_number').notEmpty().trim().toInt()]),
+async (req: Request, res: Response) => {
+    const { article_id, version_number } = matchedData(req);
+    const version = await ArticleProcessor.getInstance().getVersion(article_id, version_number, req.body.tokenDetails);
+    if (version) {
+        res.status(200).send(version);
+    } else {
+        res.status(404).send({message: 'Version not found.'});
+    }
+});
+
+router.post('/:article_id/versions/:version_number/restore', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([param('article_id').notEmpty().trim().toInt(), param('version_number').notEmpty().trim().toInt()]),
+async (req: Request, res: Response) => {
+    const { article_id, version_number } = matchedData(req);
+    const result = await ArticleProcessor.getInstance().restoreVersion(article_id, version_number, req.body.tokenDetails);
+    if (result) {
+        res.status(200).send({message: `Article restored to version ${version_number}.`});
+    } else {
+        res.status(400).send({message: 'The article could not be restored to that version.'});
+    }
+});
+
 export default router;

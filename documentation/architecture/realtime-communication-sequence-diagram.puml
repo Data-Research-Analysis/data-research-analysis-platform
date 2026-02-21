@@ -1,5 +1,4 @@
 @startuml Real_Time_Communication_Sequence_Diagram
-!theme aws-orange
 title Data Research Analysis Platform - Socket.IO Real-time Communication
 
 participant "Frontend\n(Vue/Nuxt)" as Frontend
@@ -163,13 +162,134 @@ SocketServer -> SocketServer: Clean up client resources
 deactivate SocketServer
 deactivate SocketClient
 
+== Database Backup Progress ==
+
+Frontend -> Express: POST /admin/database/backup
+activate Express
+Express -> Queue: addDatabaseBackupJob(userId)
+activate Queue
+Queue --> Express: { jobId }
+deactivate Queue
+Express --> Frontend: HTTP 202 Accepted
+deactivate Express
+
+Queue -> Worker: Dequeue database backup job
+activate Worker
+
+Worker -> SocketServer: emitToUser(userId, 'backup-progress',\n{ progress: 5, message: 'Starting pg_dump...' })
+activate SocketServer
+SocketServer -> SocketClient: emit('backup-progress', payload)
+SocketClient -> Frontend: Update backup progress bar (5%)
+deactivate SocketServer
+
+Worker -> Worker: Execute pg_dump on PostgreSQL
+Worker -> SocketServer: emitToUser(userId, 'backup-progress',\n{ progress: 60, message: 'Compressing archive...' })
+activate SocketServer
+SocketServer -> SocketClient: emit('backup-progress', { progress: 60 })
+SocketClient -> Frontend: Update backup progress bar (60%)
+deactivate SocketServer
+
+Worker -> Worker: Create ZIP archive
+Worker -> SocketServer: emitToUser(userId, 'backup-progress',\n{ progress: 100, message: 'Backup complete', filename })
+activate SocketServer
+SocketServer -> SocketClient: emit('backup-progress', { progress: 100, filename })
+SocketClient -> Frontend: Show download button
+deactivate SocketServer
+
+deactivate Worker
+
+== Database Restore Progress ==
+
+Frontend -> Express: POST /admin/database/restore (file upload)
+activate Express
+Express -> Queue: addDatabaseRestoreJob(zipPath, userId)
+activate Queue
+Queue --> Express: { jobId }
+deactivate Queue
+Express --> Frontend: HTTP 202 Accepted
+deactivate Express
+
+Queue -> Worker: Dequeue restore job
+activate Worker
+Worker -> SocketServer: emitToUser(userId, 'restore-progress',\n{ progress: 20, message: 'Dropping tables...' })
+activate SocketServer
+SocketServer -> SocketClient: emit('restore-progress', payload)
+SocketClient -> Frontend: Update restore progress bar
+deactivate SocketServer
+Worker -> SocketServer: emitToUser(userId, 'restore-progress',\n{ progress: 100, message: 'Restore complete' })
+activate SocketServer
+SocketServer -> SocketClient: emit('restore-progress', { progress: 100 })
+SocketClient -> Frontend: Show "Restore complete" toast
+deactivate SocketServer
+deactivate Worker
+
+== Real-time Notifications ==
+
+note over Frontend
+  Any server-side action can trigger a notification
+  via NotificationHelperService.createNotification()
+end note
+
+Worker -> SocketServer: emitToUser(userId, 'notification',\n{ id, type, title, message,\n  is_read: false, created_at, metadata })
+activate SocketServer
+SocketServer -> SocketClient: emit('notification', notificationPayload)
+SocketClient -> Frontend: Receive 'notification' event
+deactivate SocketServer
+
+Frontend -> Frontend: Increment badge count
+Frontend -> Frontend: Show toast: "{title}: {message}"
+Frontend -> Frontend: Prepend to notification list
+
+note over SocketServer
+  **emitToUser(userId, event, payload):**
+  Sends to room 'user:{userId}'
+  User joins this room on socket connect
+  Only reaches that specific user's connections
+end note
+
+== Google Analytics Sync Progress ==
+
+Queue -> Worker: Dequeue GA sync job
+activate Worker
+Worker -> SocketServer: emitToUser(userId, 'ga-sync-progress',\n{ dataSourceId, progress: 10, message: 'Fetching GA data...' })
+activate SocketServer
+SocketServer -> SocketClient: emit('ga-sync-progress', payload)
+SocketClient -> Frontend: Show sync progress indicator
+deactivate SocketServer
+Worker -> SocketServer: emitToUser(userId, 'ga-sync-progress',\n{ dataSourceId, progress: 100, message: 'Sync complete' })
+activate SocketServer
+SocketServer -> SocketClient: emit('ga-sync-progress', { progress: 100 })
+SocketClient -> Frontend: Show "Data source updated" badge
+deactivate SocketServer
+deactivate Worker
+
 note across
+  **Complete Event Catalog (emitted by Backend via emitToUser):**
+
+  | Event                  | Emitter                        | Use Case                              |
+  |------------------------|--------------------------------|---------------------------------------|
+  | notification           | NotificationHelperService      | Any platform-wide notification        |
+  | backup-progress        | DatabaseBackupService + Worker | Real-time pg_dump & ZIP progress      |
+  | restore-progress       | DatabaseBackupService + Worker | Real-time DB restore progress         |
+  | PDF_TO_IMAGES_COMPLETE | WorkerService (PDF)            | PDF to image conversion done          |
+  | PDF_PROCESSING_ERROR   | WorkerService (PDF)            | PDF processing failure                |
+  | DATA_MODEL_BUILD_COMPLETE | WorkerService (DM)          | Data model query build finished       |
+  | DASHBOARD_EXPORT_COMPLETE | WorkerService (Dashboard)   | Dashboard export file ready           |
+  | ga-sync-progress       | DataSourceProcessor (GA)       | Google Analytics sync % progress      |
+  | ai-response            | GeminiService                  | AI Data Modeler streaming response    |
+  | query-complete         | DataModelProcessor             | Query execution result ready          |
+  | dq-analysis-progress   | DataQualityProcessor           | Data quality analysis % progress      |
+
+  **User Isolation:**
+  Socket.IO rooms: user:{userId}
+  Every authenticated socket joins its user room on connect
+  emitToUser() broadcasts only to that room → private delivery
+
   Socket.IO provides:
   - Automatic reconnection
-  - Event acknowledgments  
-  - Room-based broadcasting
+  - Event acknowledgments
+  - Room-based user isolation
   - Fallback to long-polling
-  - Real-time progress updates
 end note
 
 @enduml

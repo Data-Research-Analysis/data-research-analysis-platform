@@ -1,0 +1,337 @@
+@startuml Google_OAuth_Data_Sources_Sequence_Diagram
+title Data Research Analysis Platform - Google OAuth & Data Source Integration
+
+participant "Frontend\n(Vue/Nuxt)" as Frontend
+participant "Auth MW" as AuthMW
+participant "Express Router\n/oauth" as OAuthRouter
+participant "Express Router\n/google-analytics\n/google-ads\n/google-ad-manager" as DataRouter
+participant "GoogleOAuth\nService" as OAuthService
+participant "OAuthSession\nService (Redis)" as SessionService
+participant "Google APIs\n(OAuth 2.0)" as Google
+participant "DataSource\nProcessor" as DSProcessor
+participant "Database\n(PostgreSQL)" as DB
+participant "Socket.IO\nServer" as SocketServer
+
+' ============================================
+' FLOW 1: Initiate OAuth Authorization
+' ============================================
+
+== Step 1: Get Authorization URL ==
+
+Frontend -> OAuthRouter: GET /oauth/google/auth-url?service=analytics\nAuthorization: Bearer {JWT}
+activate OAuthRouter
+
+OAuthRouter -> AuthMW: validateJWT
+AuthMW --> OAuthRouter: User authenticated
+
+OAuthRouter -> OAuthService: isConfigured()
+activate OAuthService
+OAuthService -> OAuthService: Check GOOGLE_CLIENT_ID,\nGOOGLE_CLIENT_SECRET env vars
+OAuthService --> OAuthRouter: true
+
+OAuthService -> OAuthService: getGoogleAnalyticsScopes()\n[OR getGoogleAdsScopes() / getGoogleAdManagerScopes()]
+note right: Scopes per service:\n**Analytics:** analytics.readonly\n**Ads:** adwords\n**Ad Manager:** dfp (Display & Video 360)
+
+OAuthService -> OAuthService: generateAuthUrl(scopes, state)\n- state = { service, userId, timestamp }
+OAuthService --> OAuthRouter: authorizationUrl
+deactivate OAuthService
+
+OAuthRouter --> Frontend: HTTP 200 OK\n{ authUrl: "https://accounts.google.com/o/\noauth2/auth?client_id=...&scope=...&state=..." }
+deactivate OAuthRouter
+
+Frontend -> Frontend: Open authUrl in popup or redirect
+note right: User sees Google consent screen\nto grant platform access to their data
+
+' ============================================
+' FLOW 2: OAuth Callback & Token Exchange
+' ============================================
+
+== Step 2: Google Redirects Back (Callback) ==
+
+Google -> OAuthRouter: GET /oauth/google/callback?code=AUTH_CODE&state={...}
+activate OAuthRouter
+
+note over OAuthRouter: Frontend popup catches redirect\nand POSTs code to backend
+
+OAuthRouter -> OAuthService: exchangeCodeForTokens(code)
+activate OAuthService
+
+OAuthService -> Google: POST https://oauth2.googleapis.com/token\n{ code, client_id, client_secret,\n  redirect_uri, grant_type: 'authorization_code' }
+activate Google
+Google --> OAuthService: { access_token, refresh_token,\n  expires_in, token_type, scope }
+deactivate Google
+
+OAuthService --> OAuthRouter: tokens { access_token, refresh_token, expires_in }
+deactivate OAuthService
+
+OAuthRouter -> SessionService: storeTokens(tokens, service, userId)
+activate SessionService
+SessionService -> SessionService: Generate UUID sessionId
+SessionService -> SessionService: SET oauth_session:{sessionId} = {\n  access_token (encrypted),\n  refresh_token (encrypted),\n  service, userId, expires_at\n}\nEXPIRE 1h (access token TTL)
+SessionService --> OAuthRouter: sessionId
+deactivate SessionService
+
+OAuthRouter --> Frontend: HTTP 200 OK\n{ sessionId: "uuid-oauth", service: "analytics" }
+deactivate OAuthRouter
+
+Frontend -> Frontend: Store sessionId in component state\nProceed to property/account selection
+
+' ============================================
+' FLOW 3: Fetch Available Properties/Accounts
+' ============================================
+
+== Step 3: List Available Properties / Accounts ==
+
+Frontend -> DataRouter: POST /google-analytics/properties\nAuthorization: Bearer {JWT}\n{ access_token: "ya29.xxxx" }
+activate DataRouter
+
+DataRouter -> AuthMW: validateJWT
+AuthMW --> DataRouter: Authenticated
+
+DataRouter -> OAuthService: listProperties(access_token)
+activate OAuthService
+OAuthService -> Google: GET https://analyticsadmin.googleapis.com/\nv1beta/accounts:list\nAuthorization: Bearer {access_token}
+activate Google
+Google --> OAuthService: { accounts: [{ name, displayName }] }
+deactivate Google
+
+loop For each account
+    OAuthService -> Google: GET analyticsadmin/v1beta/{account}/properties
+    Google --> OAuthService: Properties list
+end
+
+OAuthService --> DataRouter: [{ propertyId, displayName, accountName }]
+deactivate OAuthService
+
+DataRouter --> Frontend: HTTP 200 OK\n{ properties: [...] }
+deactivate DataRouter
+
+Frontend -> Frontend: Show property selector dropdown\nUser picks target property
+
+' ============================================
+' FLOW 4A: Add Google Analytics Data Source
+' ============================================
+
+== Step 4A: Add Google Analytics Data Source ==
+
+Frontend -> DataRouter: POST /google-analytics/add-data-source\nAuthorization: Bearer {JWT}\n{ projectId, name, access_token, refresh_token,\n  property_id, account_id, date_range,\n  dimensions, metrics }
+activate DataRouter
+
+DataRouter -> AuthMW: validateJWT
+AuthMW --> DataRouter: Authenticated
+
+DataRouter -> DSProcessor: addGoogleAnalyticsDataSource(\n  connectionDetails, tokenDetails, projectId)
+activate DSProcessor
+
+DSProcessor -> DB: INSERT INTO dra_data_sources\n(name, data_type: 'google_analytics',\n connection_details: { encrypted JWT tokens,\n property_id, date_range, metrics })
+activate DB
+note right: connection_details auto-encrypted\nby TypeORM ValueTransformer
+DB --> DSProcessor: dataSource.id = 77
+deactivate DB
+
+DSProcessor -> SocketServer: emitToUser(userId, 'ga-sync-progress',\n{ dataSourceId: 77, progress: 10, message: 'Source created...' })
+
+DSProcessor -> DB: Create schema: dra_google_analytics_{77}
+activate DB
+DB --> DSProcessor: Schema created
+deactivate DB
+
+DSProcessor -> Google: Run Analytics Data API report\n(initial full sync)
+activate Google
+Google --> DSProcessor: Analytics rows
+deactivate Google
+
+DSProcessor -> DB: INSERT rows into dra_google_analytics_{77}\ntables (sessions, events, conversions, etc.)
+activate DB
+DB --> DSProcessor: Data loaded
+deactivate DB
+
+DSProcessor -> DB: INSERT INTO sync_history\n(data_source_id: 77, sync_type: FULL,\n status: COMPLETED, records_synced: N)
+activate DB
+DB --> DSProcessor: Sync history recorded
+deactivate DB
+
+DSProcessor -> SocketServer: emitToUser(userId, 'ga-sync-progress',\n{ progress: 100, message: 'Data source ready' })
+SocketServer --> Frontend: Real-time progress events
+
+DSProcessor --> DataRouter: dataSourceId: 77
+deactivate DSProcessor
+
+DataRouter --> Frontend: HTTP 200 OK\n{ dataSourceId: 77, tablesCreated: [...] }
+deactivate DataRouter
+
+' ============================================
+' FLOW 4B: Add Google Ads Data Source
+' ============================================
+
+== Step 4B: Add Google Ads Data Source ==
+
+Frontend -> DataRouter: POST /google-ads/add-data-source\nAuthorization: Bearer {JWT}\n{ projectId, name, access_token, refresh_token,\n  customer_id, report_types, date_range }
+activate DataRouter
+DataRouter -> DSProcessor: addGoogleAdsDataSource(connectionDetails, tokenDetails, projectId)
+activate DSProcessor
+DSProcessor -> DB: INSERT INTO dra_data_sources (data_type: 'google_ads')
+DB --> DSProcessor: dataSource.id = 78
+DSProcessor -> Google: Query Google Ads API\n(campaigns, ad_groups, keywords, conversions)
+Google --> DSProcessor: Ads data
+DSProcessor -> DB: INSERT rows into dra_google_ads_{78} schema tables
+DB --> DSProcessor: Stored
+DSProcessor --> DataRouter: dataSourceId: 78
+deactivate DSProcessor
+DataRouter --> Frontend: HTTP 200 OK\n{ dataSourceId: 78 }
+deactivate DataRouter
+
+' ============================================
+' FLOW 5: Sync / Refresh Data Source
+' ============================================
+
+== Step 5: Sync Data Source (Manual or Scheduled) ==
+
+Frontend -> DataRouter: POST /google-analytics/sync/{dataSourceId}\nAuthorization: Bearer {JWT}\n{ startDate, endDate }
+activate DataRouter
+
+DataRouter -> AuthMW: validateJWT
+AuthMW --> DataRouter: Authenticated
+
+DataRouter -> DSProcessor: syncGoogleAnalyticsDataSource(dataSourceId, dateRange, tokenDetails)
+activate DSProcessor
+
+DSProcessor -> DB: Load DRADataSource (auto-decrypt connection_details)
+activate DB
+DB --> DSProcessor: { access_token (decrypted), refresh_token, property_id }
+deactivate DB
+
+DSProcessor -> DSProcessor: Check if access_token expired
+
+alt Token expired, refresh_token available
+    DSProcessor -> OAuthService: refreshAccessToken(refresh_token)
+    activate OAuthService
+    OAuthService -> Google: POST oauth2/token\n{ grant_type: refresh_token, refresh_token }
+    activate Google
+    Google --> OAuthService: { access_token, expires_in }
+    deactivate Google
+    OAuthService --> DSProcessor: newAccessToken
+    deactivate OAuthService
+    
+    DSProcessor -> DB: UPDATE dra_data_sources\nSET connection_details.access_token = newToken\n(auto-encrypted by ValueTransformer)
+    DB --> DSProcessor: Token updated
+end
+
+DSProcessor -> SocketServer: emitToUser(userId, 'ga-sync-progress',\n{ dataSourceId, progress: 10 })
+
+DSProcessor -> Google: Run Analytics report for date range
+activate Google
+Google --> DSProcessor: Analytics data rows
+deactivate Google
+
+DSProcessor -> DB: TRUNCATE / UPSERT dra_google_analytics_{id} tables
+activate DB
+DB --> DSProcessor: Data refreshed
+deactivate DB
+
+DSProcessor -> DB: INSERT INTO sync_history\n(sync_type: MANUAL, status: COMPLETED)
+DB --> DSProcessor: History updated
+
+DSProcessor -> SocketServer: emitToUser(userId, 'ga-sync-progress', { progress: 100 })
+SocketServer --> Frontend: Sync complete event
+
+DSProcessor --> DataRouter: syncSummary
+deactivate DSProcessor
+
+DataRouter --> Frontend: HTTP 200 OK\n{ rowsSynced: N, tablesUpdated: [...] }
+deactivate DataRouter
+
+' ============================================
+' FLOW 6: Token Refresh (Background)
+' ============================================
+
+== Step 6: Standalone Token Refresh ==
+
+Frontend -> OAuthRouter: POST /oauth/google/refresh\nAuthorization: Bearer {JWT}\n{ refresh_token: "1//xxxxxETC" }
+activate OAuthRouter
+OAuthRouter -> OAuthService: refreshAccessToken(refresh_token)
+activate OAuthService
+OAuthService -> Google: POST oauth2.googleapis.com/token\n{ grant_type: 'refresh_token' }
+activate Google
+Google --> OAuthService: { access_token, expires_in }
+deactivate Google
+OAuthService --> OAuthRouter: { access_token, expires_in }
+deactivate OAuthService
+OAuthRouter --> Frontend: HTTP 200 OK\n{ access_token, expires_in }
+deactivate OAuthRouter
+
+' ============================================
+' FLOW 7: Revoke OAuth Tokens
+' ============================================
+
+== Step 7: Revoke / Disconnect ==
+
+Frontend -> OAuthRouter: POST /oauth/google/revoke\n{ access_token }
+activate OAuthRouter
+OAuthRouter -> OAuthService: revokeToken(access_token)
+activate OAuthService
+OAuthService -> Google: POST oauth2.googleapis.com/revoke?token={access_token}
+activate Google
+Google --> OAuthService: HTTP 200 (token revoked)
+deactivate Google
+OAuthService --> OAuthRouter: true
+deactivate OAuthService
+OAuthRouter --> Frontend: HTTP 200 OK\n{ revoked: true }
+deactivate OAuthRouter
+
+Frontend -> Frontend: Clear OAuth tokens from data source\nShow "Reconnect" button in UI
+
+' ============================================
+' ERROR HANDLING
+' ============================================
+
+== Error Handling ==
+
+alt OAuth Consent Denied by User
+    Google -> OAuthRouter: GET /callback?error=access_denied
+    OAuthRouter --> Frontend: HTTP 200 OK\n{ error: 'OAuth access denied by user' }
+    Frontend -> Frontend: Show "Authorization required" message
+
+else Google Service Not Configured
+    OAuthRouter -> OAuthService: isConfigured()
+    OAuthService --> OAuthRouter: false (missing env vars)
+    OAuthRouter --> Frontend: HTTP 503 Service Unavailable\n{ error: 'Google OAuth not configured' }
+    
+else Token Invalidated (user revoked externally)
+    DSProcessor -> Google: API call with stale token
+    Google --> DSProcessor: HTTP 401 { error: 'invalid_grant' }
+    DSProcessor --> Frontend: HTTP 401\n{ error: 'OAuth token revoked. Please reconnect data source.' }
+    Frontend -> Frontend: Show "Reconnect" prompt on data source card
+
+else Rate Limit Exceeded
+    Google --> DataRouter: HTTP 429 Too Many Requests
+    DataRouter --> Frontend: HTTP 429\n{ error: 'Google API rate limit. Retry after 60s.' }
+end
+
+note over Frontend, DB
+  **Google OAuth Architecture Summary:**
+
+  **Supported Services:**
+  - Google Analytics (GA4) — analytics.readonly scope
+  - Google Ads               — adwords scope
+  - Google Ad Manager        — dfp scope
+
+  **OAuth Session Storage:**
+  - Tokens stored in Redis (OAuthSessionService)
+  - Access tokens expire: 1 hour (Google-issued)
+  - Refresh tokens: long-lived, stored encrypted in dra_data_sources.connection_details
+  - Automatic refresh during sync operations
+
+  **Token Security:**
+  - All tokens encrypted at rest via ValueTransformer (AES-256-CBC)
+  - Refresh tokens stored only in PostgreSQL (not Redis)
+  - Redis sessions expire: matching access token TTL
+
+  **Data Storage:**
+  - Google Analytics → dra_google_analytics_{dataSourceId} schema
+  - Google Ads       → dra_google_ads_{dataSourceId} schema
+  - Google Ad Mgr    → dra_google_ad_manager_{dataSourceId} schema
+  - All syncs tracked in sync_history table
+end note
+
+@enduml

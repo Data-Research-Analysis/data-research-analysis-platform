@@ -1,0 +1,164 @@
+# Features
+
+The features that have been marked as check have been implemented while those that are planned to be implemented are marked as unchecked.
+
+#### Completion/In-Progress ####
+- [x] is a completed task
+
+- [-] is an in-progress task
+
+- [ ] is a pending task
+
+- [x]  **User Authentication**
+- [x]  **User Registration**
+- [x]  **User Management System**
+    - [x] List Users (Admin Access)
+    - [x] Add New User (Admin Access)
+    - [x] Edit User (Admin Access)
+    - [x] Delete User (Admin Access)
+- [x] **Beta Users Management System**
+    - [x] List Beta Users (Admin Access)
+    - [x] Convert Beta User To Actual User (Admin Access)
+- [x]  **Blog Article Publishing System**: Articles for the sole reason to help market the platform will be implemented and admin users will be allowed to write and manage articles that will be published.
+    - [x] Add Article (Admin Access)
+        - [x] Save Article As Draft (Admin Access)
+        - [x] Publish Article (Admin Access)
+    - [x] List Articles (Admin Access)
+    - [x] Edit Article (Admin Access)
+        - [x] Article Versioning (Admin Access)
+    - [x] Delete Article (Admin Access)
+    - [x] Add Category (Admin Access)
+    - [x] List Categories (Admin Access)
+        - [x] Delete Category (Admin Access)
+        - [x] Edit Category (Admin Access)
+    - [x] Display Published Article (Public Access)
+    - [x] Display List of Published Articles (Public Access)
+- [X] Database Backup &amp; Restore
+- [x]  **Projects**: A project is a concept that is being used to group together data and related information of an analysis so that a user can easily manage the multiple analysis that the user will perform on different data sets that may not be related to one another. Having projects allows us to organize the data in neatly packed containers so that the user can easily focus on his/her data analysis activities.
+- [-]  **Data Sources**: A data source can be database that contains data that a user wants to bring into the platform to analyse. The aim is to provide support for multiple datasets so that the users can perform all of their analysis in this single platform without having to go back and forth from one software to another.
+    - [x] Google Analytics
+    - [x] Google Ads
+    - [x] Google Ad Manager
+    - [-] Meta Ads
+    - [ ] Linkedin Ads
+    - [x] PDF Files (Includes multiple pages support; data in the form of tables and paragraph text are supported)
+    - [x] Excel Files (Includes multiple sheets support)
+    - [x] PostgreSQL
+    - [x] MariaDB
+    - [x] MySQL
+    - [x] MongoDB
+- [x] **Data Models**: A data model is the representation of the data that the user will build which will then be used for analysis. Essentially raw data will not be saved in the platform's database, but data models will be built which will form the foundation for the analysis that the user will perform.
+- [x] **Custom Calculated Fields**: The user will be able to create new custom fields which will further aid the user in his/her analysis.
+- [x] **Data Model Builder**: The data model builder is simple easy to use drag and drop UI based control mechanism that allows the user to build data models. The user can select the columns from multiple tables and even performs auto joins between tables that have a relation between them.
+    - [x] **AI Data Modeler**: Instantly generate production-ready data models with a single click or converse with the agent to analyze your data sources and build you production ready data models. AI analyzes your database schema and provides intelligent preset templates (e.g., Sales Analysis, User Engagement, Performance Metrics) that automatically configure tables, JOINs, columns, and aggregations. No SQL knowledge required—just click and apply.
+    - [x] **Intelligent Join Suggestions**: AI-powered join recommendations analyze table relationships and suggest optimal join conditions with confidence scoring
+    - [x] **Join Catalog**: Save and reuse common join patterns across data models with a centralized join catalog management system
+- [x] **AI Insights**: AI-powered data analysis that samples your connected data sources and generates actionable insights using Google Gemini. Supports follow-up conversation to drill deeper into findings.
+    - [x] Initialize Insight Session (select project + one or more data sources)
+    - [x] AI-Generated Insight Reports (automatic analysis of sampled data)
+    - [x] Conversational Follow-up Chat (ask follow-up questions about the insights)
+    - [x] Save Insight Reports
+    - [x] View Saved Reports (per project)
+    - [x] Delete Insight Reports
+    - [x] Cancel Active Session
+    - [x] Redis-based Session Persistence
+    - [x] Rate-limited AI Operations (dedicated insightsLimiter)
+- [x] **Subscription Tier Management System**: Complete subscription tier management with dynamic limits and real-time enforcement
+    - [x] Admin Subscription Tiers Panel (CRUD Operations)
+    - [x] Create Custom Subscription Tiers
+    - [x] Edit Tier Limits (Projects, Data Sources, Data Models, Dashboards, AI Generations)
+    - [x] Custom Tier Naming Support
+    - [x] Tier Activation/Deactivation
+    - [x] Price Configuration (Monthly USD)
+    - [x] 5 Pre-configured Tiers (FREE, PRO, TEAM, BUSINESS, ENTERPRISE)
+- [x] **Subscription Tier Enforcement**: Real-time limit enforcement across all platform resources
+    - [x] Row Limit Per Data Model (Automatic SQL LIMIT Injection)
+    - [x] Maximum Projects Per User
+    - [x] Maximum Data Sources Per Project
+    - [x] Maximum Data Models Per Data Source
+    - [x] Maximum Dashboards Per User
+    - [x] AI Generations Per Month Limit
+    - [x] Unlimited Tier Support (Value: -1)
+    - [x] Middleware-based Resource Validation
+    - [x] Tier Upgrade/Downgrade Support
+- [x] **User Subscription Management**: User-facing subscription features and controls
+    - [x] View Current Subscription Tier
+    - [x] View Tier Limits and Features
+    - [x] Real-time Usage Statistics Dashboard
+    - [x] Usage Indicators on All Resource Pages
+    - [x] Resource Capacity Warnings
+    - [x] Subscription History Tracking
+    - [x] Auto-assignment of FREE Tier for New Users
+- [x] **Advanced UI/UX Features**
+    - [x] Dynamic Usage Indicators (Projects, Data Sources, Data Models, Dashboards)
+    - [x] "Unlimited" Display for Unlimited Tiers
+    - [x] Per-Resource Capacity Calculations
+    - [x] Cross-Data Source Model Capacity (Data Sources × Limit)
+    - [x] Single Data Source Model Capacity (Per-Source Limit)
+    - [x] Informational Tooltips for Limit Explanations
+    - [x] Tier Badge Display on User Interface
+    - [x] Resource Creation Prevention at Limit
+    - [x] Tier Limit Modal Warnings
+- [x] **Scheduled Database Backups**: Automated backup system with configurable schedules
+    - [x] Recurring Backup Schedules (Daily, Weekly, Monthly, Custom Cron)
+    - [x] Background Job Queue Processing
+    - [x] Real-time Progress Updates (Socket.IO)
+    - [x] Backup Retention Management
+    - [x] Automatic Cleanup of Old Backups
+    - [x] Email Notifications on Success/Failure
+    - [x] Admin Control Panel for Backup Schedules
+    - [x] Manual Trigger Support
+- [x] **Privacy & Compliance Features**
+    - [x] GDPR-Compliant Cookie Consent Banner
+    - [x] Cookie Consent Management (Essential vs Analytics)
+    - [x] Google Analytics GA4 Integration with Consent Mode
+    - [x] IP Anonymization for Analytics
+    - [x] Cookie Preferences Storage (localStorage)
+    - [x] 180-Day Re-consent Mechanism
+    - [x] Privacy Policy with Cookie Disclosure
+    - [x] Cookie Deletion on Opt-out
+    - [x] Customizable Cookie Settings Modal
+- [x] **OAuth Integration & Security**
+    - [x] Google OAuth 2.0 Authentication
+    - [x] OAuth Session Management (Redis-based)
+    - [x] State Token Validation (CSRF Protection)
+    - [x] OAuth Token Encryption
+    - [x] Automatic Token Refresh
+    - [x] OAuth Callback Security
+    - [x] Session Expiry Management
+- [x] **Performance & Monitoring**
+    - [x] Performance Metrics Tracking
+    - [x] Operation Timing Statistics
+    - [x] Bottleneck Detection
+    - [x] Slowest Operations Identification
+    - [x] Performance API Endpoints
+    - [x] Metrics Cleanup Operations
+- [x] **Rate Limiting**: Multi-level rate limiting for API protection
+    - [x] General API Rate Limiter (1000 req/15min)
+    - [x] Authentication Rate Limiter (10 req/15min)
+    - [x] Expensive Operations Limiter (30 req/15min)
+    - [x] OAuth Callback Limiter (10 req/15min)
+    - [x] AI Operations Limiter (20 req/hour)
+    - [x] Google Ad Manager Rate Limiting
+    - [x] Rate Limit Status Endpoints
+- [x] **Data Security & Encryption**
+    - [x] Automatic Field-Level Encryption (AES-256-CBC)
+    - [x] Connection Details Encryption
+    - [x] OAuth Credentials Encryption
+    - [x] TypeORM ValueTransformer Integration
+    - [x] Encrypted Backup Support
+    - [x] Secure Key Management
+- [-]  **Dashboard**: A dashboard is essentially a collection of visualizations/charts which will help the user tell a story and show the bigger picture.
+    - [x] Droppable Text
+    - [x] Table
+    - [x] Pie Chart
+    - [x] Donut Chart
+    - [x] Vertical Bar Chart
+    - [x] Horizontal Bar Chart
+    - [x] Vertical Bar Chart With Line
+    - [x] Stacked Bar Chart
+    - [x] Multi-line Chart
+    - [x] Treemap Chart
+    - [x] Bubble Chart
+    - [ ] Stacked Area Chart
+    - [ ] Map Chart

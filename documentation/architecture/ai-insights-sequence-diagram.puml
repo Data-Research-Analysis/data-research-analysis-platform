@@ -1,0 +1,447 @@
+@startuml AI_Insights_Sequence_Diagram
+title Data Research Analysis Platform - AI Insights Flow (Gemini + Redis + Socket.IO Streaming)
+
+participant "Frontend\n(Vue/Nuxt)" as Frontend
+participant "Socket.IO\nClient" as Socket
+participant "Express Router\n/insights" as Router
+participant "Auth MW" as AuthMW
+participant "InsightsProcessor" as Processor
+participant "DataSampling\nService" as Sampler
+participant "DBDriver /\nData Sources" as DSConn
+participant "RedisAI\nSessionService" as Redis
+participant "GeminiService\n(Gemini 2.0 Flash)" as Gemini
+participant "Socket.IO\nServer" as SocketServer
+participant "Database\n(PostgreSQL)" as DB
+
+' ============================================
+' FLOW 1: Connect Socket.IO first
+' ============================================
+
+== Establish Socket.IO Connection ==
+
+Frontend -> Socket: Connect to ws://backend:3002\n(before starting analysis)
+activate Socket
+Socket -> SocketServer: WebSocket handshake
+SocketServer --> Socket: Connection established
+Socket --> Frontend: 'connect' event
+
+Frontend -> Frontend: Register listeners:\n- 'insight-analysis-progress'\n- 'insight-chunk'\n- 'insight-complete'\n- 'insight-error'
+
+' ============================================
+' FLOW 2: Initialize Session
+' ============================================
+
+== Session Initialization ==
+
+Frontend -> Router: POST /insights/initialize\nAuthorization: Bearer {JWT}\n{ projectId: 5, dataSourceIds: [42, 43] }
+activate Router
+
+Router -> AuthMW: validateJWT
+activate AuthMW
+AuthMW --> Router: User authenticated (userId: 101)
+deactivate AuthMW
+
+Router -> Processor: InsightsProcessor.initializeSession(\n  projectId: 5, dataSourceIds: [42,43], userId: 101, tokenDetails)
+activate Processor
+
+Processor -> DB: Validate user has access to project 5\n(owner OR project member)
+activate DB
+DB --> Processor: Access confirmed
+deactivate DB
+
+Processor -> DB: Validate data sources [42, 43]\nbelong to project 5
+activate DB
+DB --> Processor: Data sources validated
+deactivate DB
+
+Processor -> Redis: getSession(projectId: 5, userId: 101, 'insights')
+activate Redis
+Redis --> Processor: null (no active session)
+deactivate Redis
+
+note over Processor, SocketServer: **Progress events stream to user in real-time via Socket.IO**
+
+Processor -> SocketServer: emitToUser(101, 'insight-analysis-progress',\n{ phase: 'sampling', progress: 10,\n  message: 'Connecting to data sources...' })
+SocketServer -> Socket: Forward event
+Socket -> Frontend: Update progress bar → 10%
+
+Processor -> DB: Load DRADataModels for dataSourceIds [42, 43]\nto get logical table name mappings
+activate DB
+DB --> Processor: Data models with schema.tableName → logicalName map
+deactivate DB
+
+Processor -> Sampler: buildInsightContext(projectId: 5, dataSourceIds: [42,43],\n  tokenDetails, tableNameMapping)
+activate Sampler
+
+loop For each data source
+    Sampler -> DSConn: Connect to data source (auto-decrypt connection_details)
+    activate DSConn
+    Sampler -> DSConn: SELECT * FROM table LIMIT 100\n(sample rows per table)
+    DSConn --> Sampler: Sample rows
+    Sampler -> DSConn: Compute column statistics:\nCOUNT, MIN, MAX, AVG, NULL%, DISTINCT
+    DSConn --> Sampler: Statistics
+    deactivate DSConn
+end
+
+Sampler -> Sampler: Build schema markdown with:\n- Table descriptions\n- Column types + statistics\n- Sample data rows\n- Relationships from data models
+
+Sampler --> Processor: { context: { data_sources[], sampling_info },\n  markdown: "### Table: orders\n..." }
+deactivate Sampler
+
+Processor -> SocketServer: emitToUser(101, 'insight-analysis-progress',\n{ phase: 'computing_stats', progress: 60,\n  message: 'Computing statistics...' })
+SocketServer -> Socket: Forward event
+Socket -> Frontend: Update progress bar → 60%
+
+Processor -> Redis: createSession(projectId: 5, userId: 101,\n  { tables: context.data_sources }, 'insights')
+activate Redis
+Redis -> Redis: SET session:insights:5:101 = { conversationId: "uuid-zzzz",\n  status: 'draft', messages: [] }\nEXPIRE 24h
+
+Redis -> Redis: SET schema_context:insights:5:101 = markdown\nEXPIRE 24h
+
+Redis -> Redis: SET sampling_info:insights:5:101 = JSON(sampling_info)\nEXPIRE 24h
+
+Redis -> Redis: SET insight_draft:insights:5:101 = {\n  dataSourceIds: [42,43], insights: null,\n  version: 1, lastModified: now() }\nEXPIRE 24h
+
+Redis --> Processor: { conversationId: "uuid-zzzz" }
+deactivate Redis
+
+Processor -> SocketServer: emitToUser(101, 'insight-analysis-progress',\n{ phase: 'analyzing', progress: 70,\n  message: 'Initializing AI analysis...' })
+SocketServer -> Socket: Forward
+Socket -> Frontend: Update progress bar → 70%
+
+Processor -> Gemini: initializeConversation("uuid-zzzz", markdown, AI_INSIGHTS_EXPERT_PROMPT)
+activate Gemini
+Gemini -> Gemini: Initialize chat history:\n- System: expert data analyst prompt\n- User: schema + statistics context
+Gemini --> Processor: Conversation initialized
+deactivate Gemini
+
+Processor -> SocketServer: emitToUser(101, 'insight-analysis-progress',\n{ phase: 'complete', progress: 100,\n  message: 'Session initialized successfully' })
+SocketServer -> Socket: Forward
+Socket -> Frontend: Update progress bar → 100%
+
+Processor --> Router: { success: true, conversationId: "uuid-zzzz",\n  projectId: 5, dataSourceIds: [42,43] }
+Router --> Frontend: HTTP 200 OK\n{ conversationId, projectId, dataSourceIds }
+deactivate Processor
+deactivate Router
+
+Frontend -> Frontend: Store conversationId in insights store\nEnable "Generate Insights" button
+
+' ============================================
+' FLOW 3: Generate Initial Insights (Streaming)
+' ============================================
+
+== Generate Insights (Streamed via Socket.IO) ==
+
+Frontend -> Router: POST /insights/generate\nAuthorization: Bearer {JWT}\n{ projectId: 5, userId: 101 }
+activate Router
+
+Router -> AuthMW: validateJWT
+AuthMW --> Router: Authenticated
+
+Router -> Processor: InsightsProcessor.generateInsights(projectId: 5, userId: 101)
+activate Processor
+
+Processor -> Redis: getSession(projectId: 5, userId: 101, 'insights')
+activate Redis
+Redis --> Processor: { conversationId: "uuid-zzzz", status: 'draft' }
+deactivate Redis
+
+Processor -> Redis: GET schema_context:insights:5:101
+activate Redis
+Redis --> Processor: markdown (schema + stats)
+deactivate Redis
+
+Processor -> Redis: GET sampling_info:insights:5:101
+activate Redis
+Redis --> Processor: sampling metadata
+deactivate Redis
+
+Processor -> Gemini: initializeConversation("uuid-zzzz", markdown)\n(re-initializes context if needed)
+Gemini --> Processor: Ready
+
+Processor -> SocketServer: emitToUser(101, 'insight-analysis-progress',\n{ phase: 'analyzing', progress: 20,\n  message: 'Generating insights...' })
+SocketServer -> Socket: Forward
+Socket -> Frontend: Show streaming indicator
+
+Processor -> Gemini: sendMessageStream("uuid-zzzz", insightPrompt, onChunk)
+activate Gemini
+
+note over Gemini, SocketServer: **Gemini streams response in chunks**\n**Each chunk forwarded to frontend in real-time**
+
+loop For each streamed chunk
+    Gemini -> Processor: onChunk(chunk: string)
+    Processor -> SocketServer: emitToUser(101, 'insight-chunk',\n{ conversationId, chunk, progress })
+    SocketServer -> Socket: Forward chunk
+    Socket -> Frontend: Append chunk to UI (streaming text effect)
+    
+    alt Every 10 chunks
+        Processor -> SocketServer: emitToUser(101, 'insight-analysis-progress',\n{ progress: min(90, 20 + chunks/2),\n  message: "Generating (N chunks)..." })
+        SocketServer -> Socket: Forward progress
+        Socket -> Frontend: Update progress bar
+    end
+end
+
+Gemini --> Processor: fullResponse (complete text)
+deactivate Gemini
+
+Processor -> Processor: Parse response into structured JSON:\n{ summary, keyFindings[], recommendations[],\n  charts[], suggestedQuestions[] }
+
+Processor -> Redis: addMessage("uuid-zzzz", 'assistant', fullResponse)
+activate Redis
+Redis --> Processor: Message stored
+deactivate Redis
+
+Processor -> Redis: SET insight_draft:insights:5:101 = {\n  dataSourceIds: [42,43], insights: parsedInsights,\n  version: 2, lastModified: now() }
+activate Redis
+Redis --> Processor: Draft updated
+deactivate Redis
+
+Processor -> SocketServer: emitToUser(101, 'insight-analysis-progress',\n{ phase: 'complete', progress: 100,\n  message: 'Insights generated successfully!' })
+SocketServer -> Socket: Forward
+Socket -> Frontend: Show "complete" state
+
+Processor -> SocketServer: emitToUser(101, 'insight-complete',\n{ insights: parsedInsights,\n  suggestedQuestions: [...],\n  conversationId: "uuid-zzzz" })
+SocketServer -> Socket: Forward final event
+Socket -> Frontend: Render full insights dashboard:\n- Key findings cards\n- Chart recommendations\n- Summary text
+
+Processor --> Router: { success: true, insights: parsedInsights, conversationId }
+Router --> Frontend: HTTP 200 OK\n{ insights, conversationId }
+deactivate Processor
+deactivate Router
+
+' ============================================
+' FLOW 4: Ask Follow-Up Question
+' ============================================
+
+== Ask Follow-Up Question (Non-Streaming) ==
+
+Frontend -> Router: POST /insights/follow-up\nAuthorization: Bearer {JWT}\n{ projectId: 5, userId: 101,\n  message: "Why is Q3 revenue down 15%?" }
+activate Router
+
+Router -> Processor: InsightsProcessor.askFollowUp(projectId: 5, userId: 101, message)
+activate Processor
+
+Processor -> Redis: getSession(projectId: 5, userId: 101, 'insights')
+activate Redis
+Redis --> Processor: Active session { conversationId: "uuid-zzzz" }
+deactivate Redis
+
+Processor -> Redis: GET schema_context:insights:5:101
+Redis --> Processor: Context markdown (re-init Gemini if needed)
+
+Processor -> Gemini: sendMessage("uuid-zzzz", followUpMessage)
+activate Gemini
+note right: Non-streaming for follow-ups.\nFull conversation history retained\nfor contextual continuity.
+Gemini -> Gemini: Process with full conversation history\n(schema ctx + insights + prior Q&A)
+Gemini --> Processor: Focused follow-up response
+deactivate Gemini
+
+Processor -> Redis: addMessage("uuid-zzzz", 'user', followUpMessage)
+Processor -> Redis: addMessage("uuid-zzzz", 'assistant', followUpResponse)
+Redis --> Processor: Messages stored
+
+Processor --> Router: { success: true, message: followUpResponse }
+Router --> Frontend: HTTP 200 OK\n{ message: "Q3 dip driven by..." }
+deactivate Processor
+deactivate Router
+
+Frontend -> Frontend: Append Q&A to chat history in UI
+
+' ============================================
+' FLOW 5: Get Active Session (Restore on Return)
+' ============================================
+
+== Restore Active Session ==
+
+Frontend -> Router: GET /insights/session/:projectId
+activate Router
+Router -> Processor: getActiveSession(projectId: 5, userId: 101)
+activate Processor
+
+Processor -> Redis: getSession(projectId: 5, userId: 101, 'insights')
+activate Redis
+
+alt Active session exists in Redis
+    Redis --> Processor: { conversationId, status: 'draft' }
+    deactivate Redis
+    Processor -> Redis: GET insight_draft:insights:5:101
+    Redis --> Processor: { insights, dataSourceIds, version }
+    Processor --> Frontend: HTTP 200 OK\n{ session: { conversationId, insights, dataSourceIds } }
+    Frontend -> Frontend: Restore insights dashboard state\nShow "Continue session" with saved insights
+    
+else Session expired (> 24h) or not found
+    Redis --> Processor: null
+    deactivate Redis
+    Processor --> Frontend: HTTP 200 OK\n{ session: null }
+    Frontend -> Frontend: Show "Start new analysis" prompt
+end
+
+deactivate Processor
+deactivate Router
+
+' ============================================
+' FLOW 6: Cancel Session
+' ============================================
+
+== Cancel Session ==
+
+Frontend -> Router: DELETE /insights/session/:projectId
+activate Router
+Router -> Processor: cancelSession(projectId: 5, userId: 101)
+activate Processor
+Processor -> Redis: DELETE session:insights:5:101\nDELETE schema_context:insights:5:101\nDELETE sampling_info:insights:5:101\nDELETE insight_draft:insights:5:101
+Redis --> Processor: Keys deleted
+Processor --> Frontend: HTTP 200 OK\n{ cancelled: true }
+deactivate Processor
+deactivate Router
+
+' ============================================
+' FLOW 7: Save Report to PostgreSQL
+' ============================================
+
+== Save Insight Report ==
+
+Frontend -> Router: POST /insights/save\nAuthorization: Bearer {JWT}\n{ projectId: 5, title: "Q3 2025 Sales Analysis" }
+activate Router
+
+Router -> AuthMW: validateJWT
+AuthMW --> Router: Authenticated
+
+Router -> Processor: InsightsProcessor.saveInsightReport(\n  projectId: 5, userId: 101, title: "Q3 2025 Sales Analysis")
+activate Processor
+
+Processor -> Redis: getSession(projectId: 5, userId: 101, 'insights')
+activate Redis
+Redis --> Processor: { conversationId: "uuid-zzzz" }
+deactivate Redis
+
+Processor -> Redis: GET insight_draft:insights:5:101
+activate Redis
+Redis --> Processor: { dataSourceIds: [42,43], insights: { ... } }
+deactivate Redis
+
+Processor -> DB: BEGIN TRANSACTION
+activate DB
+
+Processor -> DB: INSERT INTO dra_ai_insight_reports\n  (title, project_id, user_id,\n   data_source_ids: [42,43],\n   insights_summary: parsedInsights,\n   status: 'saved',\n   started_at, saved_at: now())
+DB --> Processor: report.id = 18
+
+Processor -> Redis: GET session:insights:5:101 messages
+Redis --> Processor: All messages (user + assistant)
+
+loop For each message in session
+    Processor -> DB: INSERT INTO dra_ai_insight_messages\n  (report_id: 18, role, content, metadata, created_at)
+    DB --> Processor: Message persisted
+end
+
+Processor -> DB: COMMIT TRANSACTION
+deactivate DB
+
+Processor -> Redis: DELETE ALL insight keys for projectId:5 userId:101\n(session, schema_context, sampling_info, insight_draft)
+activate Redis
+Redis --> Processor: Cleared
+deactivate Redis
+
+Processor --> Router: { success: true, reportId: 18 }
+Router --> Frontend: HTTP 200 OK\n{ reportId: 18, saved: true }
+deactivate Processor
+deactivate Router
+
+Frontend -> Frontend: Mark report as saved in store\nNavigate to saved reports view\nShow success notification
+
+' ============================================
+' FLOW 8: Load Saved Reports
+' ============================================
+
+== Load Saved Reports ==
+
+Frontend -> Router: GET /insights/reports/:projectId
+activate Router
+Router -> Processor: getInsightReports(projectId: 5, userId: 101)
+activate Processor
+Processor -> DB: SELECT * FROM dra_ai_insight_reports\n  WHERE project_id = 5\n  AND (user_id = 101 OR project member)\n  ORDER BY created_at DESC
+activate DB
+DB --> Processor: Reports list (id, title, status, saved_at, ...)
+deactivate DB
+Processor --> Frontend: HTTP 200 OK\n{ reports: [{ id, title, status, saved_at }] }
+deactivate Processor
+deactivate Router
+
+Frontend -> Router: GET /insights/report/:reportId\n(load with messages)
+activate Router
+Router -> Processor: getInsightReport(reportId: 18, userId: 101)
+activate Processor
+Processor -> DB: SELECT * FROM dra_ai_insight_reports WHERE id = 18
+activate DB
+DB --> Processor: Report with messages joined
+deactivate DB
+Processor --> Frontend: HTTP 200 OK\n{ report: { id, title, insights_summary,\n  messages: [{ role, content }] } }
+deactivate Processor
+deactivate Router
+
+Frontend -> Frontend: Render saved report:\n- Insights dashboard from insights_summary\n- Chat history from messages
+
+' ============================================
+' ERROR HANDLING
+' ============================================
+
+== Error Handling ==
+
+alt Gemini streaming error mid-stream
+    Gemini --> Processor: Stream error / API failure
+    Processor -> SocketServer: emitToUser(101, 'insight-error',\n{ error: "Unable to generate insights,\n  please try again" })
+    SocketServer -> Socket: Forward error event
+    Socket -> Frontend: Show error state + retry button
+    Router --> Frontend: HTTP 500\n{ error: "AI service error" }
+
+else Session expired during generation
+    Processor -> Redis: getSession(...)
+    Redis --> Processor: null (expired)
+    Processor --> Frontend: HTTP 400 Bad Request\n{ error: "Session expired. Please re-initialize." }
+    Frontend -> Frontend: Prompt user to restart analysis
+
+else Data source connection failure during sampling
+    Sampler -> DSConn: Connect to data source 43
+    DSConn --> Sampler: Connection refused / timeout
+    Sampler --> Processor: Error
+    Processor -> SocketServer: emitToUser(101, 'insight-error',\n{ phase: 'sampling', dataSourceId: 43,\n  error: "Cannot reach data source" })
+    SocketServer -> Socket: Forward
+    Socket -> Frontend: Show which data source failed\nOffer to proceed with available sources
+end
+
+note over Frontend, DB
+  **AI Insights Architecture Summary:**
+
+  **Session Lifecycle:**
+  draft (Redis, 24h TTL) → saved (PostgreSQL + Redis cleared)
+  Sessions survive page refresh; expire after 24h inactivity
+  
+  **Redis Keys per Session (TTL: 24h each):**
+  - session:insights:{projectId}:{userId}          → conversationId, messages, status
+  - schema_context:insights:{projectId}:{userId}   → schema + statistics markdown
+  - sampling_info:insights:{projectId}:{userId}    → sampling metadata per table
+  - insight_draft:insights:{projectId}:{userId}    → generated insights JSON + dataSourceIds
+  
+  **Database Storage (on save):**
+  - dra_ai_insight_reports                         → report metadata + insights_summary JSONB
+  - dra_ai_insight_messages                        → full Q&A history
+  
+  **Socket.IO Events:**
+  - insight-analysis-progress  → phase, progress (0–100), message
+  - insight-chunk              → streamed text chunk (token-by-token)
+  - insight-complete           → final parsed insights + suggestedQuestions
+  - insight-error              → error details + recovery hint
+  
+  **Data Sampling:**
+  - 100 rows sampled per table
+  - Column stats: COUNT / MIN / MAX / AVG / NULL% / DISTINCT
+  - Physical-to-logical table name mapping via DRADataModel
+  
+  **AI Integration:**
+  - Model: Gemini 2.0 Flash
+  - Initial generation: streaming (token chunks via Socket.IO)
+  - Follow-up questions: non-streaming (full response)
+  - Context window: schema + stats + full conversation history
+end note
+
+@enduml
