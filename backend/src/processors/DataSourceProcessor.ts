@@ -4444,7 +4444,7 @@ export class DataSourceProcessor {
             // Trigger sync
             const { MetaAdsDriver } = await import('../drivers/MetaAdsDriver.js');
             const metaAdsDriver = MetaAdsDriver.getInstance();
-            const syncResult = await metaAdsDriver.syncToDatabase(dataSourceId, dataSource.users_platform.id, apiConnectionDetails);
+            const syncResult = await metaAdsDriver.syncToDatabase(dataSourceId, user.id, apiConnectionDetails);
             
             if (syncResult) {
                 // Update last sync time in API connection details
