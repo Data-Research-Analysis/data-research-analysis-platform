@@ -101,9 +101,21 @@ export class GeminiService {
             });
             
             return responseText;
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error sending message to Gemini:', error);
-            throw new Error('Failed to get AI response');
+            
+            // Provide user-friendly error messages based on error type
+            if (error.message?.includes('fetch failed') || error.code === 'ECONNREFUSED') {
+                throw new Error('Unable to connect to AI service. Please check your internet connection and try again.');
+            } else if (error.message?.includes('quota') || error.message?.includes('rate limit')) {
+                throw new Error('AI service quota exceeded. Please try again in a few moments.');
+            } else if (error.message?.includes('timeout')) {
+                throw new Error('AI service request timed out. Please try again.');
+            } else if (error.message?.includes('API key')) {
+                throw new Error('AI service configuration error. Please contact support.');
+            } else {
+                throw new Error('Unable to generate AI response at this time. Please try again later.');
+            }
         }
     }
 

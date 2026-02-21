@@ -214,7 +214,7 @@ import { AuthProcessor } from './processors/AuthProcessor';     // ❌ Breaks
 TypeORM migrations in [backend/src/migrations](backend/src/migrations). Use datasource: `PostgresDSMigrations.ts`. Always test with dry-run first. Database operations use transactions for cascade deletes.
 
 ### Docker Development
-3 main services: `frontend.dataresearchanalysis.test`, `backend.dataresearchanalysis.test`, `database.dataresearchanalysis.test`. Add to hosts file. Access frontend at https://online.studiesw.test:3000 (see [README.md](README.md)).
+3 main services: `frontend.dataresearchanalysis.test`, `backend.dataresearchanalysis.test`, `database.dataresearchanalysis.test`. Add to hosts file. Access frontend at http://frontend.dataresearchanalysis.test:3000 (see [README.md](README.md)).
 
 ## Database Backup & Restore
 **Admin-only feature** using background job queue with Socket.IO progress updates.

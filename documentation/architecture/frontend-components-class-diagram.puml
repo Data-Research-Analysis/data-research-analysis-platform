@@ -1,5 +1,4 @@
 @startuml Frontend_Components_Class_Diagram
-!theme aws-orange
 title Data Research Analysis Platform - Frontend Components Architecture
 
 ' Define styling
@@ -99,6 +98,73 @@ package "Pinia Stores" {
         --
         +setUsers(users): void
         +retrieveUsers(): Promise<void>
+    }
+
+    class useAIDataModelerStore {
+        +conversations: Ref<IAIConversation[]>
+        +activeConversation: Ref<IAIConversation>
+        +messages: Ref<IAIMessage[]>
+        +modelDraft: Ref<any>
+        --
+        +setConversations(conversations): void
+        +setActiveConversation(conversation): void
+        +appendMessage(message): void
+        +setModelDraft(draft): void
+        +clearSession(): void
+    }
+
+    class useAttributionStore {
+        +reports: Ref<IAttributionReport[]>
+        +events: Ref<IAttributionEvent[]>
+        --
+        +setReports(reports): void
+        +appendEvent(event): void
+        +retrieveReports(projectId): Promise<void>
+    }
+
+    class useInsightsStore {
+        +insightReports: Ref<IInsightReport[]>
+        +activeReport: Ref<IInsightReport>
+        --
+        +setInsightReports(reports): void
+        +setActiveReport(report): void
+        +retrieveInsights(projectId): Promise<void>
+    }
+
+    class useNotificationsStore {
+        +notifications: Ref<INotification[]>
+        +unreadCount: Ref<number>
+        --
+        +setNotifications(notifications): void
+        +prependNotification(notification): void
+        +markAsRead(notificationId): void
+        +markAllAsRead(): void
+        +setUnreadCount(count): void
+        +deleteNotification(id): void
+    }
+
+    class useSubscriptionStore {
+        +currentTier: Ref<string>
+        +limits: Ref<ITierLimits>
+        +usage: Ref<IUsageStats>
+        --
+        +setSubscription(data): void
+        +retrieveSubscription(): Promise<void>
+    }
+
+    class useEmailPreferencesStore {
+        +preferences: Ref<IEmailPreferences>
+        --
+        +setPreferences(prefs): void
+        +retrievePreferences(): Promise<void>
+        +updatePreferences(prefs): Promise<void>
+    }
+
+    class useScheduledBackupsStore {
+        +backups: Ref<IBackupRun[]>
+        --
+        +setBackups(backups): void
+        +retrieveBackups(): Promise<void>
     }
 }
 
@@ -443,94 +509,138 @@ package "Chart Components" {
     }
 }
 
-package "Stores (Pinia)" {
-    class DataSourceStore {
-        +dataSources: IDataSource[]
-        +selectedDataSource: IDataSource
+package "Additional Pages" {
+    class ForgotPasswordPage {
+        +form: ForgotPasswordForm
         --
-        +setDataSources(sources: IDataSource[]): void
-        +setSelectedDataSource(source: IDataSource): void
-        +retrieveDataSources(): Promise<void>
-        +clearDataSources(): void
+        +handleForgotPassword(email): Promise<void>
+        +handleResetPassword(code, newPassword): Promise<void>
     }
 
-    class ProjectStore {
-        +projects: IProject[]
-        +selectedProject: IProject
+    class InvitationsPage {
+        +pendingInvitations: IInvitation[]
         --
-        +setProjects(projects: IProject[]): void
-        +setSelectedProject(project: IProject): void
-        +retrieveProjects(): Promise<void>
-        +clearProjects(): void
+        +loadUserInvitations(): Promise<void>
+        +acceptInvitation(token): Promise<void>
+        +declineInvitation(invitationId): Promise<void>
     }
 
-    class DashboardStore {
-        +dashboards: IDashboard[]
-        +selectedDashboard: IDashboard
-        --
-        +setDashboards(dashboards: IDashboard[]): void
-        +setSelectedDashboard(dashboard: IDashboard): void
-        +retrieveDashboards(): Promise<void>
-        +exportDashboard(dashboard: IDashboard): Promise<void>
-    }
-
-    class DataModelStore {
-        +dataModels: IDataModel[]
-        +selectedDataModel: IDataModel
-        --
-        +setDataModels(models: IDataModel[]): void
-        +setSelectedDataModel(model: IDataModel): void
-        +retrieveDataModels(): Promise<void>
-        +buildDataModel(config: ModelConfig): Promise<void>
-    }
-
-    class LoggedInUserStore {
-        +user: User
-        +isAuthenticated: boolean
+    class InvitationAcceptPage {
         +token: string
+        +invitationDetails: IInvitation
         --
-        +setUser(user: User): void
-        +setToken(token: string): void
-        +login(credentials: LoginCredentials): Promise<void>
-        +logout(): void
-        +refreshToken(): Promise<void>
+        +loadInvitationByToken(token): Promise<void>
+        +confirmAccept(): Promise<void>
     }
 
-    class ArticleStore {
-        +articles: IArticle[]
-        +selectedArticle: IArticle
-        +categories: ICategory[]
+    class NotificationsPage {
+        +notifications: INotification[]
         --
-        +setArticles(articles: IArticle[]): void
-        +setSelectedArticle(article: IArticle): void
-        +retrieveArticles(): Promise<void>
-        +createArticle(article: IArticle): Promise<void>
+        +loadNotifications(): Promise<void>
+        +markAllRead(): Promise<void>
+        +deleteNotification(id): Promise<void>
+    }
+
+    class AttributionPage {
+        +reports: IAttributionReport[]
+        +selectedModel: string
+        --
+        +loadReports(): Promise<void>
+        +generateReport(params): Promise<void>
+        +trackEvent(event): Promise<void>
+    }
+
+    class DataQualityPage {
+        +report: IQualityReport
+        +history: IHistoryPoint[]
+        --
+        +runAnalysis(checks): Promise<void>
+        +applyClean(operations): Promise<void>
+        +loadHistory(): Promise<void>
+    }
+
+    class AIDataModelerPage {
+        +conversation: IAIConversation
+        +messages: IAIMessage[]
+        --
+        +sendMessage(message): Promise<void>
+        +applyModelDraft(): Promise<void>
+        +saveConversation(): Promise<void>
+    }
+
+    class AIInsightsPage {
+        +insightReports: IInsightReport[]
+        --
+        +createInsightReport(prompt): Promise<void>
+        +loadInsights(): Promise<void>
+    }
+
+    class AdminDatabasePage {
+        +backups: IBackupRun[]
+        +backupProgress: number
+        +restoreProgress: number
+        --
+        +triggerBackup(): Promise<void>
+        +triggerRestore(file): Promise<void>
+        +downloadBackup(filename): void
+        +listenBackupProgress(): void
+    }
+
+    class OAuthCallbackPage {
+        +code: string
+        +service: string
+        --
+        +handleCallback(): Promise<void>
+        +notifyParentWindow(sessionId): void
+    }
+
+    class SettingsPage {
+        +emailPreferences: IEmailPreferences
+        +subscriptionInfo: ISubscriptionInfo
+        --
+        +loadSettings(): Promise<void>
+        +saveEmailPreferences(prefs): Promise<void>
+        +requestCancellation(reason): Promise<void>
+        +reactivateAccount(): Promise<void>
+    }
+
+    class ProjectMembersPage {
+        +members: IProjectMember[]
+        +pendingInvitations: IInvitation[]
+        --
+        +loadMembers(): Promise<void>
+        +inviteMember(email, role): Promise<void>
+        +changeMemberRole(userId, role): Promise<void>
+        +removeMember(userId): Promise<void>
     }
 }
 
-package "Composables" {
-    class AuthToken {
+package "Data Source Connect Pages" {
+    class ConnectPostgreSQLPage {
+        +form: ConnectionForm
         --
-        +getAuthToken(): string
-        +setAuthToken(token: string): void
-        +removeAuthToken(): void
-        +isTokenValid(): boolean
+        +testConnection(): Promise<boolean>
+        +save(): Promise<void>
     }
 
-    class Utils {
+    class ConnectGoogleAnalyticsPage {
+        +authUrl: string
+        +properties: IProperty[]
+        +sessionId: string
         --
-        +baseUrl(): string
-        +formatDate(date: Date): string
-        +debounce(func: Function, wait: number): Function
-        +generateUUID(): string
+        +initiateOAuth(): Promise<void>
+        +handleCallback(sessionId): void
+        +listProperties(accessToken): Promise<void>
+        +save(propertyId, tokens): Promise<void>
     }
 
-    class Validator {
+    class ConnectMongoDBPage {
+        +form: MongoDBConnectionForm
+        +collections: string[]
         --
-        +validateEmail(email: string): boolean
-        +validatePassword(password: string): boolean
-        +validateRequired(value: any): boolean
-        +validateForm(form: FormData): ValidationResult
+        +testConnection(): Promise<boolean>
+        +discoverCollections(): Promise<void>
+        +save(): Promise<void>
     }
 }
 
@@ -542,6 +652,20 @@ DefaultLayout ||--o{ ProjectsPage : contains
 DefaultLayout ||--o{ DataSourcesPage : contains
 DefaultLayout ||--o{ DashboardsPage : contains
 DefaultLayout ||--o{ PDFDataSourcePage : contains
+DefaultLayout ||--o{ ForgotPasswordPage : contains
+DefaultLayout ||--o{ InvitationsPage : contains
+DefaultLayout ||--o{ InvitationAcceptPage : contains
+DefaultLayout ||--o{ NotificationsPage : contains
+DefaultLayout ||--o{ AttributionPage : contains
+DefaultLayout ||--o{ DataQualityPage : contains
+DefaultLayout ||--o{ AIDataModelerPage : contains
+DefaultLayout ||--o{ AIInsightsPage : contains
+DefaultLayout ||--o{ AdminDatabasePage : contains
+DefaultLayout ||--o{ SettingsPage : contains
+DefaultLayout ||--o{ ProjectMembersPage : contains
+DefaultLayout ||--o{ OAuthCallbackPage : contains
+DefaultLayout ||--o{ ConnectGoogleAnalyticsPage : contains
+DefaultLayout ||--o{ ConnectMongoDBPage : contains
 
 ' Layout components
 DefaultLayout ||--|| HeaderNav : includes
@@ -573,6 +697,17 @@ DashboardsPage --> useDashboardsStore : uses
 PDFDataSourcePage --> useDataSourceStore : updates
 LoginPage --> useLoggedInUserStore : authenticates
 RegisterPage --> useLoggedInUserStore : creates user
+InvitationsPage --> useProjectsStore : uses
+InvitationAcceptPage --> useProjectsStore : uses
+NotificationsPage --> useNotificationsStore : uses
+AttributionPage --> useAttributionStore : uses
+DataQualityPage --> useDataModelsStore : uses
+AIDataModelerPage --> useAIDataModelerStore : uses
+AIInsightsPage --> useInsightsStore : uses
+AdminDatabasePage --> useScheduledBackupsStore : uses
+SettingsPage --> useSubscriptionStore : uses
+SettingsPage --> useEmailPreferencesStore : uses
+ProjectMembersPage --> useProjectsStore : uses
 
 ' Middleware relationships
 LoadDataMiddleware --> useProjectsStore : loads
@@ -580,6 +715,8 @@ LoadDataMiddleware --> useDataSourceStore : loads
 LoadDataMiddleware --> useDataModelsStore : loads
 LoadDataMiddleware --> useDashboardsStore : loads
 LoadDataMiddleware --> useArticlesStore : loads
+LoadDataMiddleware --> useNotificationsStore : loads
+LoadDataMiddleware --> useSubscriptionStore : loads
 ValidateDataMiddleware --> useProjectsStore : validates
 ValidateDataMiddleware --> useLoggedInUserStore : checks auth
 
@@ -602,6 +739,13 @@ useDataModelsStore ..> localStorage : syncs
 useDashboardsStore ..> localStorage : syncs
 useArticlesStore ..> localStorage : syncs
 useLoggedInUserStore ..> localStorage : syncs
+useNotificationsStore ..> localStorage : syncs
+useAttributionStore ..> localStorage : syncs
+useInsightsStore ..> localStorage : syncs
+useSubscriptionStore ..> localStorage : syncs
+useEmailPreferencesStore ..> localStorage : syncs
+useAIDataModelerStore ..> localStorage : syncs
+useScheduledBackupsStore ..> localStorage : syncs
 
 note right of PDFDataSourcePage : Handles PDF file upload with\nreal-time progress tracking\nvia Socket.IO
 

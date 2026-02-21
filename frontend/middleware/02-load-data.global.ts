@@ -36,6 +36,10 @@ function isDashboardRoute(path: string): boolean {
   return /^\/projects\/\d+\/dashboards/.test(path);
 }
 
+function isInsightsRoute(path: string): boolean {
+  return /^\/projects\/\d+\/insights/.test(path);
+}
+
 function isAdminRoute(path: string): boolean {
   return path.startsWith('/admin');
 }
@@ -210,6 +214,24 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
             (async () => {
               await dashboardsStore.retrieveDashboards();
               markDataLoaded('dashboards');
+            })()
+          );
+        } else if (isInsightsRoute(to.path)) {
+          // Load projects and insights data for insights routes
+          if (shouldRefreshData('projects')) {
+            loadTasks.push(
+              (async () => {
+                await projectsStore.retrieveProjects();
+                markDataLoaded('projects');
+              })()
+            );
+          }
+          
+          // Load data sources for insights context
+          loadTasks.push(
+            (async () => {
+              await dataSourceStore.retrieveDataSources();
+              markDataLoaded('dataSources');
             })()
           );
         }

@@ -51,7 +51,7 @@ export default defineNuxtConfig({
   ],
   vite: {
     server: {
-      allowedHosts: ['www.dataresearchanalysis.com', 'dataresearchanalysis.com', 'dataresearchanalysis.test', 'frontend-marketing.dataresearchanalysis.test'],
+      allowedHosts: ['www.dataresearchanalysis.com', 'dataresearchanalysis.com', 'dataresearchanalysis.test', 'frontend.dataresearchanalysis.test', 'frontend-marketing.dataresearchanalysis.test'],
     },
     plugins: [
       tailwindcss(),
@@ -76,6 +76,8 @@ export default defineNuxtConfig({
     { src: '~/plugins/api-loader.ts', mode: 'client' },
     // fontawesome.ts is universal (works on server for SSR icons)
     // init-user.client.ts, navigation-perf.client.ts, prefetch-links.client.ts auto-detected by .client.ts suffix
+    // ga-consent must be explicitly ordered LAST so nuxt-gtag's dataLayer is initialised first
+    { src: '~/plugins/ga-consent.client.ts', mode: 'client' },
   ],
   modules: [
     'nuxt-gtag',
@@ -103,17 +105,22 @@ export default defineNuxtConfig({
     }
   },
   gtag: {
+    // Guard: if NUXT_GA_ID is not set the module is disabled to prevent silent failures
+    enabled: !!process.env.NUXT_GA_ID,
     id: process.env.NUXT_GA_ID,
     config: {
       anonymize_ip: true, // Anonymize IP addresses (GDPR)
       cookie_flags: 'SameSite=None;Secure', // Security
+      debug_mode: false, // Enable GA4 DebugView
     },
-    // Initialize with consent denied until user accepts
+    // Initialize with consent denied until user accepts.
+    // wait_for_update must be long enough for the cookie banner to render AND be
+    // interacted with by returning users (restored by ga-consent.client.ts plugin).
     initCommands: [
       ['consent', 'default', {
         analytics_storage: 'denied',
         ad_storage: 'denied',
-        wait_for_update: 500
+        wait_for_update: 3000
       }]
     ]
   },

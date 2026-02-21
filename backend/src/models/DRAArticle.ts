@@ -1,6 +1,7 @@
 import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, Relation } from 'typeorm';
 import { DRAUsersPlatform } from './DRAUsersPlatform.js';
 import { DRAArticleCategory } from './DRAArticleCategory.js';
+import { DRAArticleVersion } from './DRAArticleVersion.js';
 import { EPublishStatus } from '../types/EPublishStatus.js';
 @Entity('dra_articles')
 export class DRAArticle {
@@ -26,5 +27,8 @@ export class DRAArticle {
   
   @OneToMany(() => DRAArticleCategory, (dataArticleCategory) => dataArticleCategory.article)
   dra_articles_categories!: Relation<DRAArticleCategory>[]
+
+  @OneToMany(() => DRAArticleVersion, (version) => version.article)
+  dra_article_versions!: Relation<DRAArticleVersion>[]
 
 }

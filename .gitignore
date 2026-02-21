@@ -1,4 +1,11 @@
 #----------
+# Root
+#----------
+node_modules
+package-lock.json
+.env
+
+#----------
 # Backend
 #----------
 backend/node_modules
@@ -28,5 +35,3 @@ frontend/.nitro
 frontend/.data
 frontend/dist
 frontend/tsconfig.json
-
-.env

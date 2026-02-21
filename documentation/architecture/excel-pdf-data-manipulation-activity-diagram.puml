@@ -1,5 +1,4 @@
 @startuml Excel_PDF_Data_Manipulation_Activity_Diagram
-!theme aws-orange
 title Data Research Analysis Platform - Excel/PDF Data Manipulation Workflow
 
 skinparam activity {

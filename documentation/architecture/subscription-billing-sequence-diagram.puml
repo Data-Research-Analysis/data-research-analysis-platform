@@ -1,0 +1,220 @@
+@startuml Subscription_Billing_Sequence_Diagram
+title Data Research Analysis Platform - Subscription Tiers & Usage Enforcement
+
+participant "Frontend\n(Vue/Nuxt)" as Frontend
+participant "Auth MW" as AuthMW
+participant "Express Router\n/subscription" as SubRouter
+participant "Tier Enforcement\nService" as TierService
+participant "Row Limit\nService" as RowLimitService
+participant "Express Router\n(any protected\nroute)" as AnyRouter
+participant "Tier Enforcement\nMiddleware" as TierMW
+participant "Admin Router\n/admin/users" as AdminRouter
+participant "UserManagement\nProcessor" as UserMgmtProc
+participant "Database\n(PostgreSQL)" as DB
+
+' ============================================
+' FLOW 1: Admin Assigns Subscription Tier
+' ============================================
+
+== Flow 1: Admin Assigns/Changes User Subscription Tier ==
+
+Frontend -> AdminRouter: PUT /admin/users/{userId}/subscription-tier\nAuthorization: Bearer {JWT} (admin)\n{ tier: 'professional' }
+activate AdminRouter
+
+AdminRouter -> AuthMW: validateJWT + isAdmin
+AuthMW --> AdminRouter: ✅ Admin
+
+AdminRouter -> UserMgmtProc: updateSubscriptionTier(userId, 'professional')
+activate UserMgmtProc
+
+UserMgmtProc -> DB: SELECT * FROM dra_users WHERE id = userId
+activate DB
+DB --> UserMgmtProc: user { subscription_tier: 'free' }
+deactivate DB
+
+UserMgmtProc -> DB: UPDATE dra_users\nSET subscription_tier = 'professional',\n    tier_assigned_at = NOW(),\n    tier_assigned_by = adminUserId\nWHERE id = userId
+activate DB
+DB --> UserMgmtProc: Updated
+deactivate DB
+
+UserMgmtProc --> AdminRouter: { updated: true, tier: 'professional' }
+deactivate UserMgmtProc
+
+AdminRouter --> Frontend: HTTP 200 OK\n{ userId, tier: 'professional' }
+deactivate AdminRouter
+
+note over Frontend
+  **Subscription Tiers:**
+  - free       → row limits, restricted features
+  - starter    → higher limits, basic features
+  - professional → enterprise limits, all features
+  - enterprise → unlimited + priority support
+end note
+
+' ============================================
+' FLOW 2: Tier Enforcement Middleware (per-request)
+' ============================================
+
+== Flow 2: Tier Enforcement Middleware Intercepts Request ==
+
+Frontend -> AnyRouter: POST /data-models/{id}/query\nAuthorization: Bearer {JWT}\n{ query: ... }
+activate AnyRouter
+
+AnyRouter -> AuthMW: validateJWT
+AuthMW --> AnyRouter: { userId, subscription_tier: 'free' }
+
+AnyRouter -> TierMW: checkTierAccess(userId, feature: 'data_query')
+activate TierMW
+
+TierMW -> TierService: canAccessFeature(userId, featureName)
+activate TierService
+
+TierService -> DB: SELECT subscription_tier, feature_flags\nFROM dra_users WHERE id = userId
+activate DB
+DB --> TierService: { tier: 'free', feature_flags: {} }
+deactivate DB
+
+TierService -> TierService: Lookup tier limits config:\nfree.data_query_enabled = true\nfree.max_row_export = 1000\nstarter.max_row_export = 10000\nprofessional.max_row_export = unlimited
+
+TierService -> RowLimitService: checkRowLimitCompliance(userId, 'query')
+activate RowLimitService
+
+RowLimitService -> DB: SELECT SUM(row_count)\nFROM dra_data_sources\nWHERE project_id IN\n  (SELECT id FROM dra_projects WHERE owner_id = userId)
+activate DB
+DB --> RowLimitService: totalRows = 4500
+deactivate DB
+
+RowLimitService -> RowLimitService: Compare against tier limit:\nfree.max_total_rows = 5000\n4500 < 5000 → ✅ within limit
+RowLimitService --> TierService: { withinLimit: true, used: 4500, limit: 5000, pct: 90 }
+deactivate RowLimitService
+
+TierService --> TierMW: { canAccess: true, usage: { pct: 90 } }
+deactivate TierService
+
+TierMW --> AnyRouter: ✅ Proceed (but attach usage warning header)
+deactivate TierMW
+
+AnyRouter -> AnyRouter: Execute actual route logic
+AnyRouter --> Frontend: HTTP 200 OK\n[query results]\nHeaders: X-Usage-Percent: 90\n         X-Tier: free
+
+Frontend -> Frontend: Show "90% of row limit used" warning banner
+
+' ============================================
+' FLOW 3: Tier Limit Exceeded
+' ============================================
+
+== Flow 3: Request Blocked by Tier Enforcement ==
+
+Frontend -> AnyRouter: POST /data-sources (add new data source)\nAuthorization: Bearer {JWT}
+activate AnyRouter
+AnyRouter -> TierMW: checkTierAccess(userId, 'add_data_source')
+activate TierMW
+TierMW -> TierService: getUsageStats(userId)
+activate TierService
+TierService -> DB: SELECT COUNT(*) FROM dra_data_sources\nWHERE project_id IN user_projects
+activate DB
+DB --> TierService: count = 5
+deactivate DB
+TierService -> TierService: free.max_data_sources = 3\n5 > 3 → ❌ over limit
+TierService --> TierMW: { canAccess: false,\n  reason: 'data_source_limit_exceeded',\n  current: 5, limit: 3 }
+deactivate TierService
+TierMW --> AnyRouter: ❌ HTTP 402 Payment Required\n{ error: 'Data source limit reached (3/3)',\n  upgrade_url: '${FRONTEND_URL}/subscription/upgrade' }
+deactivate TierMW
+AnyRouter --> Frontend: HTTP 402 Payment Required\n{ error, upgrade_url }
+deactivate AnyRouter
+
+Frontend -> Frontend: Show "Upgrade your plan" modal\nDisplay feature comparison table\nLink to upgrade page
+
+' ============================================
+' FLOW 4: Get Current Subscription Status
+' ============================================
+
+== Flow 4: Get Current Subscription & Usage Stats ==
+
+Frontend -> SubRouter: GET /subscription/current\nAuthorization: Bearer {JWT}
+activate SubRouter
+
+SubRouter -> AuthMW: validateJWT
+AuthMW --> SubRouter: { userId }
+
+SubRouter -> RowLimitService: getUsageStats(user_id)
+activate RowLimitService
+
+RowLimitService -> DB: SELECT subscription_tier FROM dra_users WHERE id = userId
+activate DB
+DB --> RowLimitService: tier = 'free'
+deactivate DB
+
+RowLimitService -> DB: SELECT\n  COUNT(DISTINCT ds.id) AS data_source_count,\n  COUNT(DISTINCT p.id) AS project_count,\n  SUM(ds.row_count) AS total_rows\nFROM dra_projects p\nJOIN dra_data_sources ds ON ds.project_id = p.id\nWHERE p.owner_id = userId
+activate DB
+DB --> RowLimitService: { data_source_count: 2, project_count: 1, total_rows: 3200 }
+deactivate DB
+
+RowLimitService --> SubRouter: {\n  tier: 'free',\n  limits: {\n    data_sources: { used: 2, limit: 3 },\n    projects:     { used: 1, limit: 2 },\n    total_rows:   { used: 3200, limit: 5000 }\n  },\n  features: {\n    ai_data_modeler: false,\n    data_export: true,\n    attribution: false,\n    google_analytics: false\n  }\n}
+deactivate RowLimitService
+
+SubRouter --> Frontend: HTTP 200 OK\n{ subscription: { tier, limits, features } }
+deactivate SubRouter
+
+Frontend -> Frontend: Populate subscription page\nShow usage bars, feature badges\nHighlight locked features with upgrade prompts
+
+' ============================================
+' FLOW 5: Get Detailed Usage Stats
+' ============================================
+
+== Flow 5: Get All Usage Statistics ==
+
+Frontend -> SubRouter: GET /subscription/usage\nAuthorization: Bearer {JWT}
+activate SubRouter
+SubRouter -> AuthMW: validateJWT
+AuthMW --> SubRouter: { userId }
+
+SubRouter -> TierService: getUsageStats(user_id)
+activate TierService
+
+TierService -> DB: Aggregate all usage metrics:\n- Projects count + size\n- Data sources count + row counts\n- Data models count\n- Dashboards count\n- API calls this month\n- Storage used (MB)\n- AI queries this month
+activate DB
+DB --> TierService: detailedUsageStats
+deactivate DB
+
+TierService -> TierService: Compute percentages vs tier limits\nFlag any approaching/exceeding limits
+
+TierService --> SubRouter: detailedUsageStats
+deactivate TierService
+
+SubRouter --> Frontend: HTTP 200 OK\n{ usage: { ... }, warnings: [\n  'You have used 90% of your row limit'\n] }
+deactivate SubRouter
+
+' ============================================
+' TIER LIMITS REFERENCE
+' ============================================
+
+note over Frontend, DB
+  **Subscription Tier Limits Matrix:**
+
+  | Feature                 | Free    | Starter   | Professional | Enterprise  |
+  |-------------------------|---------|-----------|--------------|-------------|
+  | Max projects            | 2       | 10        | unlimited    | unlimited   |
+  | Max data sources        | 3       | 15        | unlimited    | unlimited   |
+  | Max total rows          | 5,000   | 100,000   | 1,000,000    | unlimited   |
+  | Max dashboards          | 5       | 25        | unlimited    | unlimited   |
+  | AI data modeler         | ❌      | ✅        | ✅           | ✅          |
+  | Google Analytics        | ❌      | ✅        | ✅           | ✅          |
+  | Google Ads              | ❌      | ❌        | ✅           | ✅          |
+  | Marketing attribution   | ❌      | ❌        | ✅           | ✅          |
+  | Data quality analysis   | ❌      | ✅        | ✅           | ✅          |
+  | CSV/Excel export        | ✅      | ✅        | ✅           | ✅          |
+  | PostgreSQL source       | ✅      | ✅        | ✅           | ✅          |
+  | MySQL/MariaDB source    | ❌      | ✅        | ✅           | ✅          |
+  | MongoDB source          | ❌      | ❌        | ✅           | ✅          |
+  | Scheduled backups       | ❌      | ❌        | ✅           | ✅          |
+  | Priority support        | ❌      | ❌        | ❌           | ✅          |
+
+  **Row Limit Enforcement:**
+  - RowLimitService.checkRowLimitCompliance() → per-request check
+  - TierEnforcementService.getUsageStats()    → aggregate stats
+  - Limits checked via middleware before every data write operation
+  - HTTP 402 returned when limit exceeded
+end note
+
+@enduml

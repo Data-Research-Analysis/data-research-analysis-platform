@@ -22,11 +22,15 @@
     import Blockquote from '@tiptap/extension-blockquote'
     import HardBreak from '@tiptap/extension-hard-break'
     import { Markdown } from '@tiptap/markdown'
-    import { Extension } from '@tiptap/core'
-
     const emits = defineEmits(['update:content', 'update:markdown']);
     const state = reactive({
         content: null,
+    });
+
+    // Inline link dialog state
+    const linkDialog = reactive({
+        show: false,
+        url: '',
     });
     
     // Phase 1: View state management for HTML/Markdown toggle
@@ -37,27 +41,10 @@
     
     // Track uploading images
     const uploadingImages = ref(new Set());
-    
-    // Custom extension to ensure Enter key always works
-    const EnterKeyFix = Extension.create({
-        name: 'enterKeyFix',
-        
-        addKeyboardShortcuts() {
-            return {
-                // Ensure Enter always splits blocks
-                'Enter': () => {
-                    return this.editor.commands.splitBlock()
-                },
-                // Ensure Shift+Enter works (handled by HardBreak, but as fallback)
-                'Shift-Enter': () => {
-                    return this.editor.commands.setHardBreak()
-                },
-            }
-        },
-        
-        // High priority to override other extensions
-        priority: 1000,
-    });
+
+    // Guard to prevent the content watcher from calling setContent when the
+    // editor itself emitted the change (would reset cursor position).
+    let isInternalUpdate = false;
     
     // Initialize the editor
     const editor = useEditor({
@@ -68,7 +55,6 @@
             Text,
             Paragraph,
             HardBreak,
-            EnterKeyFix,
             // Formatting extensions next
             Bold,
             Italic, 
@@ -199,9 +185,13 @@
             },
         },
         onUpdate: ({ editor }) => {
-            // Update the content state whenever the editor content changes
+            // Mark this as an internal (user-driven) update so the content
+            // watcher below does NOT call setContent and reset the cursor.
+            isInternalUpdate = true;
             emits('update:content', editor.getHTML());
             emits('update:markdown', editor.getMarkdown());
+            // Reset on next tick after Vue has propagated the prop change.
+            nextTick(() => { isInternalUpdate = false; });
         },
     });
     const props = defineProps({
@@ -253,18 +243,24 @@
         if (!editorInstance || !newContent) {
             return;
         }
-        
+
+        // Skip when the editor itself emitted this change — calling setContent
+        // here would reset the cursor to the end of the document.
+        if (isInternalUpdate) {
+            return;
+        }
+
         // Get current content to compare
         const currentContent = editorInstance.getHTML();
-        
+
         // Only update if content is different to avoid infinite loops
         if (currentContent === newContent) {
             return;
         }
-        
+
         // Detect if content is HTML or markdown
         const isHTML = newContent.trim().startsWith('<') || newContent.includes('</');
-        
+
         // Handle content based on actual content type and input format
         if (props.inputFormat === 'markdown' && !isHTML) {
             editorInstance.commands.setContent(newContent, { contentType: 'markdown' });
@@ -275,42 +271,41 @@
         }
     }, { immediate: true });
     function setLink() {
-        // Only use window.prompt on client side for SSR compatibility
-        if (!import.meta.client) return;
-        
-        if (!editor.value.isActive('link')) {
-            const previousUrl = editor.value.getAttributes('link').href;
-            const url = window.prompt('URL', previousUrl);
-            // cancelled
-            if (url === null) {
-                return
-            }
-    
-            // empty
-            if (url === '') {
-                editor
-                .value
-                .chain()
-                .focus()
-                .extendMarkRange('link')
-                .unsetLink()
-                .run()
-        
-                return
-            }
-        
-            // update link
-            editor
-                .value  
-                .chain()
-                .focus()
-                .extendMarkRange('link')
-                .setLink({ href: url })
-                .run()
+        if (!import.meta.client || !editor.value) return;
 
-        } else {
+        if (editor.value.isActive('link')) {
+            // Toggle off: remove existing link
             editor.value.chain().focus().unsetLink().run();
+            return;
         }
+
+        // Pre-fill with existing href if selection is already inside a link
+        linkDialog.url = editor.value.getAttributes('link').href || '';
+        linkDialog.show = true;
+    }
+
+    function confirmLink() {
+        const url = linkDialog.url.trim();
+        linkDialog.show = false;
+        linkDialog.url = '';
+
+        if (!editor.value) return;
+
+        if (!url) {
+            // Empty URL → remove link
+            editor.value.chain().focus().extendMarkRange('link').unsetLink().run();
+            return;
+        }
+
+        // Normalise: prepend https:// if no protocol given
+        const href = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+        editor.value.chain().focus().extendMarkRange('link').setLink({ href }).run();
+    }
+
+    function cancelLink() {
+        linkDialog.show = false;
+        linkDialog.url = '';
+        editor.value?.commands.focus();
     }
     function setImage() {
         // Only use window.prompt on client side for SSR compatibility
@@ -588,6 +583,31 @@
             </div>
         </div>
         
+        <!-- Inline Link Dialog -->
+        <div
+            v-if="linkDialog.show"
+            class="flex items-center gap-2 bg-white border border-blue-300 rounded-lg px-3 py-2 mb-2 shadow-sm"
+        >
+            <span class="text-sm text-gray-600 whitespace-nowrap">Link URL:</span>
+            <input
+                v-model="linkDialog.url"
+                type="url"
+                placeholder="https://example.com"
+                class="flex-1 text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                @keydown.enter.prevent="confirmLink"
+                @keydown.esc.prevent="cancelLink"
+                autofocus
+            />
+            <button
+                @click="confirmLink"
+                class="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 font-medium"
+            >Apply</button>
+            <button
+                @click="cancelLink"
+                class="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+            >Cancel</button>
+        </div>
+
         <!-- WYSIWYG Editor View with transition -->
         <transition name="fade" mode="out-in">
             <editor-content

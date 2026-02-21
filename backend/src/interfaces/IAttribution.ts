@@ -65,6 +65,7 @@ export interface IEventTrackingRequest {
     referrer?: string;
     pageUrl?: string;
     metadata?: Record<string, any>;
+    eventTimestamp?: Date;
 }
 
 export interface IUTMParameters {

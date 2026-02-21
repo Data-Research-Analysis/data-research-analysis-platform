@@ -1,5 +1,4 @@
 @startuml Backend_Models_Class_Diagram
-!theme aws-orange
 title Data Research Analysis Platform - Backend Models
 
 ' Define styling
@@ -18,7 +17,7 @@ package "Core Entities" {
         +id: number
         +email: string
         +created_at: Date
-    }
+    
 
     class DRAUsersPlatform {
         +id: number
@@ -146,32 +145,322 @@ package "Content Management" {
     }
 }
 
-package "Enums & Types" {
-    enum EUserType {
-        ADMIN
-        NORMAL
+package "Project Collaboration" {
+    class DRAProjectMember {
+        +id: number
+        +role: EProjectRole
+        +joined_at: Date
+        +invited_by: number?
+        --
+        +project: DRAProject {onDelete: CASCADE}
+        +users_platform: DRAUsersPlatform
     }
 
-    enum EDataSourceType {
-        POSTGRESQL
-        MYSQL
-        MARIADB
-        MONGODB
-        CSV
-        EXCEL
-        PDF
+    class DRAProjectInvitation {
+        +id: number
+        +email: string
+        +role: EProjectRole
+        +token: string
+        +status: EInvitationStatus
+        +expires_at: Date
+        +accepted_at: Date?
+        +reactivated_at: Date?
+        --
+        +project: DRAProject {onDelete: CASCADE}
+        +invited_by: DRAUsersPlatform
     }
 
-    interface IDBConnectionDetails {
-        host?: string
-        port?: number
-        database?: string
-        username?: string
-        password?: string
-        file_path?: string
+    enum EProjectRole {
+        OWNER
+        EDITOR
+        VIEWER
+    }
+
+    enum EInvitationStatus {
+        PENDING
+        ACCEPTED
+        CANCELLED
+        EXPIRED
     }
 }
 
+package "Notifications" {
+    class DRANotification {
+        +id: number
+        +type: string
+        +title: string
+        +message: string
+        +is_read: boolean
+        +read_at: Date?
+        +expires_at: Date?
+        +metadata: JSONB?
+        +created_at: Date
+        --
+        +users_platform: DRAUsersPlatform {onDelete: CASCADE}
+    }
+}
+
+package "Account Lifecycle" {
+    class DRAAccountCancellation {
+        +id: number
+        +reason: string
+        +category: string
+        +feedback: string?
+        +status: EAccountCancellationStatus
+        +grace_period_ends_at: Date
+        +requested_at: Date
+        +reactivated_at: Date?
+        --
+        +users_platform: DRAUsersPlatform
+    }
+
+    enum EAccountCancellationStatus {
+        PENDING
+        CANCELLED
+        DATA_DELETED
+    }
+}
+
+package "Subscriptions" {
+    class DRASubscriptionTier {
+        +id: number
+        +name: string
+        +tier_key: string
+        +max_projects: number
+        +max_data_sources: number
+        +max_total_rows: number
+        +features: JSONB
+        +is_active: boolean
+    }
+
+    class DRAUserSubscription {
+        +id: number
+        +tier: string
+        +assigned_at: Date
+        +assigned_by: number?
+        --
+        +users_platform: DRAUsersPlatform {onDelete: CASCADE}
+    }
+
+    class DRAEmailPreferences {
+        +id: number
+        +marketing_emails: boolean
+        +product_updates: boolean
+        +weekly_digest: boolean
+        +created_at: Date
+        +updated_at: Date
+        --
+        +users_platform: DRAUsersPlatform {onDelete: CASCADE}
+    }
+}
+
+package "Data Infrastructure" {
+    class DRAMongoDBSyncHistory {
+        +id: number
+        +sync_type: EMongoSyncType
+        +status: string
+        +records_synced: number
+        +error_message: string?
+        +started_at: Date
+        +completed_at: Date?
+        --
+        +data_source: DRADataSource {onDelete: CASCADE}
+    }
+
+    class DRATableMetadata {
+        +id: number
+        +schema_name: string
+        +table_name: string
+        +column_metadata: JSONB
+        +row_count: number?
+        +last_analyzed_at: Date?
+        --
+        +data_source: DRADataSource {onDelete: CASCADE}
+    }
+
+    class DRADataModelSource {
+        +id: number
+        +alias: string
+        +join_type: string?
+        +join_condition: string?
+        --
+        +data_model: DRADataModel {onDelete: CASCADE}
+        +data_source: DRADataSource
+    }
+
+    class DRADataModelRefreshHistory {
+        +id: number
+        +refresh_type: string
+        +rows_affected: number?
+        +duration_ms: number?
+        +status: string
+        +error_message: string?
+        +refreshed_at: Date
+        --
+        +data_model: DRADataModel {onDelete: CASCADE}
+    }
+
+    class DRACrossSourceJoinCatalog {
+        +id: number
+        +join_name: string
+        +left_schema: string
+        +left_table: string
+        +right_schema: string
+        +right_table: string
+        +join_conditions: JSONB
+        +is_active: boolean
+        --
+        +project: DRAProject {onDelete: CASCADE}
+    }
+
+    enum EMongoSyncType {
+        FULL
+        INCREMENTAL
+    }
+}
+
+package "AI / Intelligence" {
+    class DRAAIDataModelConversation {
+        +id: number
+        +status: EConversationStatus
+        +schema_context: text?
+        +model_draft: JSONB?
+        +created_at: Date
+        +updated_at: Date
+        --
+        +users_platform: DRAUsersPlatform {onDelete: CASCADE}
+        +data_source: DRADataSource {onDelete: CASCADE}
+    }
+
+    class DRAAIDataModelMessage {
+        +id: number
+        +role: EMessageRole
+        +content: text
+        +created_at: Date
+        --
+        +conversation: DRAAIDataModelConversation {onDelete: CASCADE}
+    }
+
+    class DRAAIInsightReport {
+        +id: number
+        +title: string
+        +insight_type: string
+        +results: JSONB
+        +status: string
+        +created_at: Date
+        --
+        +data_model: DRADataModel {onDelete: CASCADE}
+        +users_platform: DRAUsersPlatform
+    }
+
+    class DRAAIInsightMessage {
+        +id: number
+        +role: EMessageRole
+        +content: text
+        +created_at: Date
+        --
+        +insight_report: DRAAIInsightReport {onDelete: CASCADE}
+    }
+
+    class DRAAIJoinSuggestion {
+        +id: number
+        +left_schema: string
+        +left_table: string
+        +right_schema: string
+        +right_table: string
+        +confidence_score: float
+        +reasoning: text?
+        +status: string
+        --
+        +project: DRAProject {onDelete: CASCADE}
+    }
+
+    enum EConversationStatus {
+        DRAFT
+        SAVED
+        ARCHIVED
+    }
+
+    enum EMessageRole {
+        USER
+        ASSISTANT
+    }
+}
+
+package "Administration" {
+    class DRAScheduledBackupRun {
+        +id: number
+        +backup_type: string
+        +status: string
+        +filename: string?
+        +file_size_bytes: number?
+        +error_message: string?
+        +initiated_at: Date
+        +completed_at: Date?
+        --
+        +initiated_by: DRAUsersPlatform
+    }
+
+    class DRAPlatformSettings {
+        +id: number
+        +setting_key: string
+        +setting_value: JSONB
+        +description: string?
+        +updated_at: Date
+        --
+        +updated_by: DRAUsersPlatform?
+    }
+
+    class DRASitemapEntry {
+        +id: number
+        +url: string
+        +priority: float
+        +change_frequency: string
+        +last_modified: Date
+    }
+}
+
+package "Content (existing + extended)" {
+    class DRAArticleVersion {
+        +id: number
+        +content: text
+        +content_markdown: text?
+        +version_number: number
+        +created_at: Date
+        --
+        +article: DRAArticle {onDelete: CASCADE}
+        +created_by: DRAUsersPlatform
+    }
+}
+
+' New Relationships
+DRAProject ||--o{ DRAProjectMember : "has members"
+DRAProject ||--o{ DRAProjectInvitation : "has invitations"
+DRAUsersPlatform ||--o{ DRAProjectMember : "member of"
+DRAUsersPlatform ||--o{ DRANotification : "receives"
+DRAUsersPlatform ||--o{ DRAAccountCancellation : "requests"
+DRAUsersPlatform ||--o| DRAUserSubscription : "subscribed via"
+DRAUsersPlatform ||--o| DRAEmailPreferences : "preferences"
+DRADataSource ||--o{ DRAMongoDBSyncHistory : "tracks syncs"
+DRADataSource ||--o{ DRATableMetadata : "has metadata"
+DRADataModel ||--o{ DRADataModelSource : "built from"
+DRADataModel ||--o{ DRADataModelRefreshHistory : "refresh history"
+DRAProject ||--o{ DRACrossSourceJoinCatalog : "defines joins"
+DRAProject ||--o{ DRAAIJoinSuggestion : "AI suggestions"
+DRAUsersPlatform ||--o{ DRAAIDataModelConversation : "has conversations"
+DRADataSource ||--o{ DRAAIDataModelConversation : "context for"
+DRAAIDataModelConversation ||--o{ DRAAIDataModelMessage : "contains"
+DRADataModel ||--o{ DRAAIInsightReport : "analyzed by AI"
+DRAAIInsightReport ||--o{ DRAAIInsightMessage : "conversation"
+DRAArticle ||--o{ DRAArticleVersion : "versioned as"
+
+note right of DRAProjectMember : RBAC-enforced project access\nRoles: OWNER > EDITOR > VIEWER\nControls all project operations
+
+note right of DRANotification : Real-time delivery via Socket.IO\nPersisted for offline users\nAuto-expires after configurable TTL
+
+note right of DRAAIDataModelConversation : Redis session (active)\n→ PostgreSQL (on save via\ntransferToDatabase())\n24-hour Redis TTL
+
+note right of DRAScheduledBackupRun : Tracks both manual +\nautomated backup runs\nLinks to BullMQ job ID
 ' Relationships
 DRAUsersPlatform ||--o{ DRAProject : "owns"
 DRAUsersPlatform ||--o{ DRADataSource : "creates"
@@ -185,17 +474,17 @@ DRAProject ||--o{ DRADataSource : "contains"
 DRAProject ||--o{ DRADashboard : "includes"
 
 DRADataSource ||--o{ DRADataModel : "generates"
-DRADataSource }o--|| EDataSourceType : "typed as"
-DRADataSource }o--|| IDBConnectionDetails : "configured with"
 
-DRADashboard ||--o| DRADashboardExportMetaData : "exports to"
 
-DRAArticle }o--o{ DRACategory : "categorized by"
-DRAArticleCategory }|--|| DRAArticle : "links"
-DRAArticleCategory }|--|| DRACategory : "links"
 
-DRAUsersPlatform }o--|| EUserType : "classified as"
-DRAArticle }o--|| EPublishStatus : "status"
+DRADashboard --|> DRADashboardExportMetaData : "exports to"
+DRADataSource --|> EDataSourceType : "typed as"
+DRADataSource --|> IDBConnectionDetails : "configured with"
+DRAArticle --|> DRACategory : "categorized by"
+DRAArticleCategory --|> DRAArticle : "links"
+DRAArticleCategory --|> DRACategory : "links"
+DRAUsersPlatform --|> EUserType : "classified as"
+DRAArticle --|> EPublishStatus : "status"
 
 note right of DRADataSource : Supports multiple data source types\nincluding databases, files, and PDFs\n\n**Encryption:**\nconnection_details uses ValueTransformer\nfor automatic encryption/decryption\nSupports legacy unencrypted data
 

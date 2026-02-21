@@ -149,6 +149,59 @@ onUnmounted(() => {
     clearInterval(refreshInterval);
   }
 });
+
+async function copyDataModel() {
+    const { $swal } = useNuxtApp() as any;
+    
+    // Confirmation dialog
+    const { value: confirmCopy } = await $swal.fire({
+        title: `Copy Data Model "${state.data_model?.name || 'Unknown'}"?`,
+        text: 'This will create a complete copy of this data model with all its configuration. The copy will be named "' + (state.data_model?.name || 'Unknown') + ' Copy".',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#4F46E5',
+        cancelButtonColor: '#DD4B39',
+        confirmButtonText: 'Yes, copy it!',
+    });
+    
+    if (!confirmCopy) return;
+    
+    // Show loading
+    $swal.fire({
+        title: 'Copying...',
+        text: 'Creating a copy of your data model',
+        allowOutsideClick: false,
+        didOpen: () => {
+            $swal.showLoading();
+        }
+    });
+    
+    try {
+        const newModel = await dataModelsStore.copyDataModel(dataModelId.value);
+        
+        await $swal.fire({
+            icon: 'success',
+            title: 'Model Copied!',
+            text: `${newModel.name.replace(/_dra_[a-zA-Z0-9_]+/g, '')} has been created successfully.`,
+            timer: 3000,
+            showConfirmButton: false
+        });
+        
+        // Reload data models
+        await dataModelsStore.retrieveDataModels(projectId.value);
+        
+        // Navigate to the new model's edit page
+        navigateTo(`/projects/${projectId.value}/data-sources/${route.params.datasourceid}/data-models/${newModel.id}/edit`);
+        
+    } catch (error: any) {
+        await $swal.fire({
+            icon: 'error',
+            title: 'Copy Failed',
+            text: error.message || 'There was an error copying the data model. Please try again.',
+            confirmButtonColor: '#4F46E5'
+        });
+    }
+}
 </script>
 <template>
     <div v-if="project" class="min-h-screen bg-gray-50">
@@ -171,6 +224,16 @@ onUnmounted(() => {
                             <p class="text-base text-gray-600 mt-1">
                                 Build and manage your data model
                             </p>
+                        </div>
+                        <div v-if="permissions.canCreate.value">
+                            <button
+                                @click="copyDataModel"
+                                class="inline-flex items-center px-4 py-2 bg-primary-blue-100 hover:bg-primary-blue-300 text-white rounded-lg transition-colors font-medium gap-2 cursor-pointer"
+                                v-tippy="{ content: 'Create a copy of this data model' }"
+                            >
+                                <font-awesome icon="fas fa-copy" />
+                                <span>Copy Model</span>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -242,7 +305,7 @@ onUnmounted(() => {
                 <!-- Tab Content -->
                 
                 <!-- Data Model Builder Tab -->
-                <div v-if="activeTab === 'builder'" class="bg-white rounded-lg shadow mb-6 overflow-hidden">
+                <div v-if="activeTab === 'builder'" class="bg-white rounded-lg shadow mb-6 p-4 overflow-hidden">
                     <!-- Show builder if we have tables data (even if empty) and data model -->
                     <div v-if="state.data_source_tables !== null && state.data_model && state.data_model.query">
                         <data-model-builder 

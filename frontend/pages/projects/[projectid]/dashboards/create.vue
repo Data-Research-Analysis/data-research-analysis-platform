@@ -208,7 +208,7 @@ function addChartToDashboard(chartType) {
         chart.config.add_columns_enabled = false;
     });
     state.chart_mode = chartType;
-    state.dashboard.charts.push({
+    const newChart = {
         x_axis_label: 'X Axis',
         y_axis_label: 'Y Axis',
         chart_type: chartType,
@@ -236,7 +236,20 @@ function addChartToDashboard(chartType) {
             top: '0px',
             left: '0px',
         },
-    });
+    };
+    
+    state.dashboard.charts.push(newChart);
+    
+    // Apply dimensions to the draggable container after adding
+    if (import.meta.client) {
+        nextTick(() => {
+            const draggableDiv = document.getElementById(`draggable-${newChart.chart_id}`);
+            if (draggableDiv && newChart.dimensions) {
+                draggableDiv.style.width = newChart.dimensions.widthDraggable;
+                draggableDiv.style.minHeight = newChart.dimensions.heightDraggable;
+            }
+        });
+    }
 }
 function autoResizeTableContainer(chartId) {
     const chart = state.dashboard.charts.find((chart) => chart.chart_id === chartId);
@@ -1171,40 +1184,19 @@ onMounted(async () => {
                         </div>
                     </div>
                 </div>
-                <div class="flex flex-col min-h-200 max-h-200 h-200 overflow-hidden overflow-x-auto mr-2 mb-10 border border-primary-blue-100 border-solid bg-gray-300 rounded-br-lg rounded-bl-lg"
+                <div class="flex flex-col min-h-200 max-h-200 h-200 overflow-hidden overflow-x-auto mr-2 mb-10 border border-primary-blue-100 border-solid bg-white rounded-br-lg rounded-bl-lg"
                     :class="{'ml-4': state.sidebar_status}"
+                    style="background-image: repeating-linear-gradient(0deg, #e5e7eb 0px, #e5e7eb 1px, transparent 1px, transparent 20px), repeating-linear-gradient(90deg, #e5e7eb 0px, #e5e7eb 1px, transparent 1px, transparent 20px); background-size: 20px 20px;"
                 >
-                    <div class="w-full h-full bg-gray-300 draggable-div-container relative rounded-lg">
+                    <div class="w-full h-full draggable-div-container relative rounded-lg">
                         <div v-for="(chart, index) in state.dashboard.charts"
                             class="w-50 flex flex-col justify-between cursor-pointer draggable-div absolute top-0 left-0"
                             :id="`draggable-div-${chart.chart_id}`"
                         >
-                            <div class="flex flex-row justify-between top-corners">
-                                <img
-                                    v-if="chart.config.resize_enabled"
-                                    :id="`top-left-corner-${chart.chart_id}`"
-                                    src="/assets/images/resize-corner.svg"
-                                    class="w-[12px] rotate-180 select-none top-left-corner translate-y-2"
-                                    :class="{ 'animate-pulse': chart.config.resize_enabled }"
-                                    alt="Resize Visualization"
-                                    @mousemove="topLeftCornerMouseMove($event, chart.chart_id)"
-                                    @mouseup="mouseUp"
-                                />
-                                <img
-                                    v-if="chart.config.resize_enabled"
-                                    :id="`top-right-corner-${chart.chart_id}`"
-                                    src="/assets/images/resize-corner.svg"
-                                    class="w-[12px] rotate-270 select-none top-right-corner translate-y-2"
-                                    :class="{ 'animate-pulse': chart.config.resize_enabled }"
-                                    alt="Resize Visualization"
-                                    @mousemove="topRightCornerMouseMove($event, chart.chart_id)"
-                                    @mouseup="mouseUp"
-                                />
-                            </div>
-                            <div class="flex flex-col">
+                            <div class="flex flex-col bg-white rounded-lg shadow-md">
                                 <div
                                     :id="`draggable-div-inner-container-${chart.chart_id}`"
-                                    class="flex flex-row border border-3 border-gray-600 border-b-0 p-2"
+                                    class="flex flex-row bg-gradient-to-b from-gray-50 to-white border border-gray-200 border-b-0 p-2 rounded-t-lg"
                                     :class="{ 'bg-gray-300 cursor-move': chart.config.drag_enabled, 'bg-gray-200': !chart.config.drag_enabled }"
                                     @mousedown="draggableDivMouseDown($event, chart.chart_id)"
                                     @mouseup="stopDragAndResize"
@@ -1257,8 +1249,8 @@ onMounted(async () => {
                                 
                                 <!-- Empty chart placeholder - shows when no columns configured -->
                                 <div v-if="isChartEmpty(chart) && chart.chart_type !== 'text_block'" 
-                                     class="flex flex-col items-center justify-center bg-gray-50 border border-3 border-gray-600 border-t-0"
-                                     style="min-height: 300px;">
+                                     class="min-h-[300px] flex flex-col items-center justify-center bg-gray-50 border border-gray-200 border-t-0 rounded-b-lg"
+                                >
                                     <img 
                                         :src="chartPlaceholders[chart.chart_type]" 
                                         :alt="`${chart.chart_type} preview`"
@@ -1279,7 +1271,7 @@ onMounted(async () => {
                                     v-model="chart.columns"
                                     group="data_model_columns"
                                     itemKey="column_name"
-                                    class="flex flex-row w-full h-50 bg-gray-200 border border-3 border-gray-600 border-t-0 draggable-model-columns"
+                                    class="min-h-[300px] flex flex-row w-full h-50 bg-white border border-gray-200 border-t-0 rounded-b-lg draggable-model-columns"
                                     tag="div"
                                     :disabled="!chart.config.add_columns_enabled"
                                     @change="changeDataModel($event, chart.chart_id)"
@@ -1430,17 +1422,7 @@ onMounted(async () => {
                                     <text-editor :id="`chart-${chart.chart_id}`" :buttons="['bold', 'italic', 'heading', 'strike', 'underline']" minHeight="10" @update:content="(content) => { updateContent(content, chart.chart_id) }"/>
                                 </div>
                             </div>
-                            <div class="flex flex-row justify-between bottom-corners">
-                                <img 
-                                    v-if="chart.config.resize_enabled"
-                                    :id="`bottom-left-corner-${chart.chart_id}`"
-                                    src="/assets/images/resize-corner.svg"
-                                    class="w-[12px] rotate-90 select-none bottom-left-corner -translate-y-2"
-                                    :class="{ 'animate-pulse': chart.config.resize_enabled }"
-                                    alt="Resize Visualization"
-                                    @mousemove="bottomLeftCornerMouseMove($event, chart.chart_id)"
-                                    @mouseup="mouseUp"
-                                />
+                            <div class="flex flex-row justify-end bottom-corners">
                                 <img
                                     v-if="chart.config.resize_enabled"
                                     :id="`bottom-right-corner-${chart.chart_id}`"

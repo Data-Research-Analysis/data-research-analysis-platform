@@ -3,6 +3,8 @@ import { getGeminiService } from './GeminiService.js';
 import { SchemaCollectorService } from './SchemaCollectorService.js';
 import { DataSource } from 'typeorm';
 import { getRedisClient } from '../config/redis.config.js';
+import { JoinSuggestionPersistenceService } from './JoinSuggestionPersistenceService.js';
+import { SchemaHashUtil } from '../utils/SchemaHashUtil.js';
 
 /**
  * Table schema structure from SchemaCollectorService
@@ -1060,21 +1062,88 @@ Return ONLY a JSON array of suggestions. Example format:
 
         console.log(`[JoinInferenceService] Inferring joins for data source ID: ${dataSourceId}`);
 
-        // Try Redis cache first
+        // Step 1: Try Redis cache first (fastest - hot cache)
         try {
             const redis = getRedisClient();
             const cached = await redis.get(cacheKey);
             
             if (cached) {
                 const suggestions = JSON.parse(cached);
-                console.log(`[JoinInferenceService] Cache HIT: ${cacheKey} (${suggestions.length} suggestions)`);
+                console.log(`[JoinInferenceService] Redis Cache HIT: ${cacheKey} (${suggestions.length} suggestions)`);
                 return suggestions;
             }
             
-            console.log(`[JoinInferenceService] Cache MISS: ${cacheKey}`);
+            console.log(`[JoinInferenceService] Redis Cache MISS: ${cacheKey}`);
         } catch (error) {
             console.warn(`[JoinInferenceService] Redis cache error:`, error);
-            // Continue without cache
+            // Continue to PostgreSQL check
+        }
+
+        // Step 2: Check PostgreSQL persistence (slower than Redis, but permanent)
+        // Generate current schema hash to detect changes
+        const schemaHash = await SchemaHashUtil.generateSchemaHash(dataSource, schemaName);
+        console.log(`[JoinInferenceService] Current schema hash: ${schemaHash}`);
+
+        const persistenceService = JoinSuggestionPersistenceService.getInstance();
+        
+        try {
+            const persistedSuggestions = tableNames && tableNames.length > 0
+                ? await persistenceService.getJoinSuggestionsForTables(
+                    dataSourceId,
+                    schemaHash,
+                    tableNames,
+                    schemaName
+                )
+                : await persistenceService.getJoinSuggestions(
+                    dataSourceId,
+                    schemaHash,
+                    schemaName
+                );
+
+            if (persistedSuggestions && persistedSuggestions.length > 0) {
+                console.log(`[JoinInferenceService] PostgreSQL Cache HIT: Found ${persistedSuggestions.length} persisted suggestions`);
+                
+                // Helper function to derive confidence category from score
+                const getConfidenceCategory = (score: number): 'high' | 'medium' | 'low' => {
+                    if (score > 0.7) return 'high';
+                    if (score >= 0.4) return 'medium';
+                    return 'low';
+                };
+                
+                // Convert to IInferredJoin format and cache in Redis for next time
+                const convertedSuggestions: IInferredJoin[] = persistedSuggestions.map((s, index) => ({
+                    id: `inferred_join_${Date.now()}_${index}`,
+                    left_schema: schemaName || 'public',
+                    left_table: s.left_table,
+                    left_column: s.left_column,
+                    left_column_type: 'unknown', // Column types not stored in persistence layer
+                    right_schema: schemaName || 'public',
+                    right_table: s.right_table,
+                    right_column: s.right_column,
+                    right_column_type: 'unknown', // Column types not stored in persistence layer
+                    confidence: getConfidenceCategory(s.confidence_score),
+                    confidence_score: s.confidence_score,
+                    reasoning: s.reasoning || '',
+                    suggested_join_type: s.suggested_join_type as 'INNER' | 'LEFT' | 'RIGHT',
+                    matched_patterns: [], // Pattern info not stored in persistence layer
+                }));
+
+                // Warm up Redis cache
+                try {
+                    const redis = getRedisClient();
+                    await redis.setex(cacheKey, 86400, JSON.stringify(convertedSuggestions));
+                    console.log(`[JoinInferenceService] Warmed up Redis cache from PostgreSQL`);
+                } catch (error) {
+                    console.warn(`[JoinInferenceService] Failed to warm Redis cache:`, error);
+                }
+
+                return convertedSuggestions;
+            }
+            
+            console.log(`[JoinInferenceService] PostgreSQL Cache MISS: No persisted suggestions found or schema changed`);
+        } catch (error) {
+            console.warn(`[JoinInferenceService] PostgreSQL persistence check error:`, error);
+            // Continue to generation
         }
 
         // Collect schema for all tables (or a filtered set if provided)
@@ -1144,6 +1213,34 @@ Return ONLY a JSON array of suggestions. Example format:
 
         // Run inference on all tables
         const suggestions = await this.inferJoins(formattedTables, options);
+
+        // Step 3: Persist suggestions to PostgreSQL for long-term storage
+        try {
+            if (suggestions && suggestions.length > 0 && options?.userId) {
+                const suggestionsToPersist = suggestions.map(s => ({
+                    left_table: s.left_table,
+                    left_column: s.left_column,
+                    right_table: s.right_table,
+                    right_column: s.right_column,
+                    suggested_join_type: s.suggested_join_type,
+                    confidence_score: s.confidence_score,
+                    reasoning: s.reasoning,
+                }));
+
+                await persistenceService.saveJoinSuggestions({
+                    dataSourceId: dataSourceId,
+                    schemaName: schemaName,
+                    schemaHash: schemaHash,
+                    suggestions: suggestionsToPersist,
+                    userId: options.userId,
+                });
+
+                console.log(`[JoinInferenceService] Persisted ${suggestions.length} suggestions to PostgreSQL`);
+            }
+        } catch (error) {
+            console.error(`[JoinInferenceService] Failed to persist suggestions to PostgreSQL:`, error);
+            // Continue - persistence failure shouldn't break the flow
+        }
 
         // Cache results for 24 hours (unique per data source ID)
         try {

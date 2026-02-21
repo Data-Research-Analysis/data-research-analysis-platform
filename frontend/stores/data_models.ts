@@ -17,6 +17,8 @@ interface RefreshJob {
     status: 'pending' | 'running' | 'completed' | 'failed';
 }
 
+let dataModelsInitialized = false;
+
 export const useDataModelsStore = defineStore('dataModelsDRA', () => {
     const dataModels = ref<IDataModel[]>([])
     const selectedDataModel = ref<IDataModel>()
@@ -333,6 +335,31 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         return data;
     }
     
+    // Copy/clone data model
+    async function copyDataModel(dataModelId: number): Promise<IDataModel> {
+        const token = getAuthToken();
+        if (!token) {
+            throw new Error('Authentication required');
+        }
+        
+        const newModel = await $fetch<IDataModel>(
+            `${baseUrl()}/data-model/copy/${dataModelId}`, 
+            {
+                method: 'POST',
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+            }
+        );
+        
+        // Add to local store
+        dataModels.value.push(newModel);
+        setDataModels(dataModels.value);
+        
+        return newModel;
+    }
+    
     return {
         dataModels,
         selectedDataModel,
@@ -365,6 +392,15 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         clearRefreshJob,
         refreshDataModel,
         cascadeRefreshDataSource,
-        getRefreshHistory
+        getRefreshHistory,
+        copyDataModel
     }
+    
+    // Initialize from localStorage once on client
+    if (import.meta.client && !dataModelsInitialized && localStorage.getItem('dataModels')) {
+        dataModels.value = JSON.parse(localStorage.getItem('dataModels') || '[]');
+        dataModelsInitialized = true;
+    }
+    
+    return storeExports;
 });

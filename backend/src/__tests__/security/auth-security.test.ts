@@ -373,7 +373,7 @@ describe('Authentication and Authorization Security Tests', () => {
     describe('CORS and Security Headers', () => {
         it('should document CORS header requirements', () => {
             // Test documents that CORS headers should be validated
-            const allowedOrigins = ['https://online.studiesw.test:3000'];
+            const allowedOrigins = ['http://frontend.dataresearchanalysis.test:3000'];
             const testOrigin = 'https://evil-site.com';
 
             expect(allowedOrigins).not.toContain(testOrigin);

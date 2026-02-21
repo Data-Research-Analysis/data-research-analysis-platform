@@ -21,6 +21,7 @@ import attribution from './routes/attribution.js';
 import dashboard from './routes/dashboard.js';
 import dashboard_query from './routes/dashboard_query.js';
 import ai_data_modeler from './routes/ai_data_modeler.js';
+import insights from './routes/insights.js';
 import oauth from './routes/oauth.js';
 import google_analytics from './routes/google_analytics.js';
 import google_ad_manager from './routes/google_ad_manager.js';
@@ -143,6 +144,11 @@ if (process.env.SCHEDULED_DELETION_ENABLED !== 'false') {
     console.log('✅ Scheduled deletion job started');
 }
 
+// Initialize and start queue processing service
+import { QueueService } from './services/QueueService.js';
+QueueService.getInstance().run();
+console.log('✅ Queue processing service started');
+
 
 const port = parseInt(UtilityService.getInstance().getConstants('PORT'));
 const __filename = fileURLToPath(import.meta.url);
@@ -152,7 +158,12 @@ const __dirname = dirname(__filename);
 // This is essential when behind Nuxt SSR, reverse proxies, or load balancers
 app.set('trust proxy', true);
 
-app.use(express.json());
+// Increase timeout for large file uploads (10 minutes)
+app.use((req, res, next) => {
+    req.setTimeout(600000); // 10 minutes
+    res.setTimeout(600000);
+    next();
+});
 
 // CORS configuration - Allow specific origins with credentials
 app.use(cors({
@@ -163,7 +174,6 @@ app.use(cors({
     const allowedOrigins = [
       'http://localhost:3000',
       'http://frontend.dataresearchanalysis.test:3000',
-      'https://online.studiesw.test:3000',
       process.env.FRONTEND_URL
     ].filter(Boolean);
     
@@ -179,6 +189,8 @@ app.use(cors({
   exposedHeaders: ['Set-Cookie']
 }));
 
+// Body parser with high limits for large Excel/file uploads
+// CRITICAL: Don't use express.json() before this as it has 100kb default limit
 app.use(bodyParser.urlencoded({ limit: '1000mb', extended: true }));
 app.use(bodyParser.json({ limit: '1000mb' }));
 
@@ -200,6 +212,7 @@ app.use('/', attribution);
 app.use('/dashboard', dashboard);
 app.use('/dashboard', dashboard_query);
 app.use('/ai-data-modeler', ai_data_modeler);
+app.use('/insights', insights);
 app.use('/oauth', oauth);
 app.use('/google-analytics', google_analytics);
 app.use('/google-ad-manager', google_ad_manager);

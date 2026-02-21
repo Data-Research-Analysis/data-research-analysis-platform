@@ -141,7 +141,7 @@ export class UTMParameterService {
                  (project_id, user_identifier, session_id, event_type, event_name, 
                   event_value, channel_id, utm_source, utm_medium, utm_campaign, 
                   utm_term, utm_content, referrer, page_url, metadata, event_timestamp)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, COALESCE($16, NOW()))
                  RETURNING id`,
                 [
                     eventRequest.projectId,
@@ -158,7 +158,8 @@ export class UTMParameterService {
                     eventRequest.utmParams?.content || null,
                     eventRequest.referrer || null,
                     eventRequest.pageUrl || null,
-                    eventRequest.metadata ? JSON.stringify(eventRequest.metadata) : null
+                    eventRequest.metadata ? JSON.stringify(eventRequest.metadata) : null,
+                    eventRequest.eventTimestamp || null
                 ]
             );
 

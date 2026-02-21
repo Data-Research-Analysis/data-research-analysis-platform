@@ -1,5 +1,8 @@
 import {defineStore} from 'pinia'
 import type { IProject } from '~/types/IProject';
+
+let initialized = false;
+
 export const useProjectsStore = defineStore('projectsDRA', () => {
     const projects = ref<IProject[]>([])
     const selectedProject = ref<IProject>()
@@ -67,6 +70,13 @@ export const useProjectsStore = defineStore('projectsDRA', () => {
             localStorage.removeItem('selectedProject');
         }
     }
+    
+    // Initialize projects from localStorage on client (run only once)
+    if (import.meta.client && !initialized && localStorage.getItem('projects')) {
+        projects.value = JSON.parse(localStorage.getItem('projects') || '[]');
+        initialized = true;
+    }
+    
     return {
         projects,
         selectedProject,

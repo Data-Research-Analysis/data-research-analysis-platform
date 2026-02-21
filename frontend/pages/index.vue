@@ -60,8 +60,7 @@ useHead({
         { name: 'twitter:image', content: `${siteUrl}/images/og-image.png` },
     ],
     link: [
-        { rel: 'canonical', href: siteUrl },
-        { rel: 'preload', as: 'image', href: '/assets/images/data-sources.png', fetchpriority: 'high' }
+        { rel: 'canonical', href: siteUrl }
     ]
 });
 
@@ -76,7 +75,5 @@ useHead({
         <how-do-it-get-started id="how-do-it-get-started" />
         <join-private-beta id="join-private-beta" />
         <faq-section ref="faqSectionRef" />
-        <!-- Cookie Banner -->
-        <cookie-disclaimer-banner />
     </div>
 </template>

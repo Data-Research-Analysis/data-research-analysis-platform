@@ -35,7 +35,7 @@ router.post(
             }
 
             const result = await DataQualityProcessor.getInstance()
-                .analyzeDataModel(dataModelId, req.tokenDetails);
+                .analyzeDataModel(dataModelId, req.body.tokenDetails);
 
             res.status(200).json(result);
         } catch (error) {
@@ -81,7 +81,7 @@ router.post(
             };
 
             const result = await DataQualityProcessor.getInstance()
-                .applyCleaningRules(dataModelId, config, req.tokenDetails);
+                .applyCleaningRules(dataModelId, config, req.body.tokenDetails);
 
             res.status(200).json(result);
         } catch (error) {

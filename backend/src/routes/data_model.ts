@@ -39,6 +39,23 @@ async (req: Request, res: Response) => {
         res.status(400).send({message: 'The data model could not be deleted.'});
     }
 });
+router.post('/copy/:data_model_id', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([param('data_model_id').notEmpty().trim().escape().toInt()]), authorize(Permission.DATA_MODEL_CREATE), requireDataModelPermission(EAction.READ, 'data_model_id'),
+async (req: Request, res: Response) => {
+    const { data_model_id } = matchedData(req);
+    try {
+        const newModel = await DataModelProcessor.getInstance().copyDataModel(data_model_id, req.body.tokenDetails);
+        if (newModel) {
+            res.status(200).send(newModel);
+        } else {
+            res.status(400).send({message: 'The data model could not be copied.'});
+        }
+    } catch (error: any) {
+        console.error('Error copying data model:', error);
+        res.status(500).send({message: error.message || 'An error occurred while copying the data model.'});
+    }
+});
 router.post('/refresh/:data_model_id', async (req: Request, res: Response, next: any) => {
     next();
 }, validateJWT, validate([param('data_model_id').notEmpty().trim().escape().toInt()]), requireDataModelPermission(EAction.UPDATE, 'data_model_id'),

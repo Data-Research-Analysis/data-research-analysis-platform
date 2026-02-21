@@ -4,9 +4,9 @@ import { useAIDataModelerStore } from '~/stores/ai-data-modeler';
 import AIMessage from './AIMessage.vue';
 import LoadingDots from './LoadingDots.vue';
 import AIModelPreview from './AIModelPreview.vue';
+import AIChatInput from './ai-chat-input.vue';
 
 const aiDataModelerStore = useAIDataModelerStore();
-const userInput = ref('');
 const messagesContainer = ref<HTMLElement | null>(null);
 const showHelpModal = ref(false);
 const joinAlertDismissed = ref(false);
@@ -178,19 +178,10 @@ function scrollToBottom() {
     }
 }
 
-async function sendMessage() {
-    if (!userInput.value.trim() || aiDataModelerStore.isLoading) return;
-    
-    const message = userInput.value.trim();
-    userInput.value = '';
-    
+async function sendMessage(message: string) {
     // Send message in chat mode (not template mode)
     await aiDataModelerStore.sendMessage(message);
     scrollToBottom();
-}
-
-function useSuggestion(suggestion: string) {
-    userInput.value = suggestion;
 }
 
 onMounted(() => {
@@ -263,7 +254,7 @@ onMounted(() => {
                             <button 
                                 v-for="example in examplePrompts"
                                 :key="example"
-                                @click="useSuggestion(example)"
+                                @click="sendMessage(example)"
                                 class="w-full text-left px-4 py-3 bg-white hover:bg-blue-100 rounded-lg border border-blue-200 text-blue-700 text-sm cursor-pointer transition-all hover:shadow-sm"
                             >
                                 💬 {{ example }}
@@ -305,38 +296,33 @@ onMounted(() => {
         </div>
 
         <!-- Input Area (Fixed) -->
-        <div class="border-t border-gray-200 p-4 bg-white">
-            <div class="flex gap-2 mb-2">
-                <input
-                    v-model="userInput"
-                    @keyup.enter="sendMessage"
-                    placeholder="Describe the data model you need..."
-                    class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    :disabled="aiDataModelerStore.isLoading"
-                />
-                <button
-                    @click="clearChat"
-                    :disabled="aiDataModelerStore.messages.length === 0"
-                    class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                    title="Clear chat history">
-                    <font-awesome icon="fas fa-trash-alt" class="w-4 h-4" />
-                </button>
-                <button
-                    @click="sendMessage"
-                    :disabled="!userInput.trim() || aiDataModelerStore.isLoading"
-                    class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer">
-                    Send
-                </button>
-            </div>
-            
+        <div>
             <!-- Suggestions -->
-            <div v-if="suggestions.length > 0" class="flex flex-wrap gap-2">
+            <div v-if="suggestions.length > 0" class="px-4 pb-2 bg-white flex flex-wrap gap-2">
                 <button 
                     v-for="suggestion in suggestions"
                     :key="suggestion"
-                    @click="useSuggestion(suggestion)"
+                    @click="sendMessage(suggestion)"
                     class="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-full transition-colors cursor-pointer">
                     {{ suggestion }}
+                </button>
+            </div>
+            
+            <!-- Chat Input with Clear Button -->
+            <div class="flex gap-2 items-end">
+                <div class="flex-1">
+                    <AIChatInput 
+                        :disabled="aiDataModelerStore.isLoading"
+                        placeholder="Describe the data model you need..."
+                        @send="sendMessage"
+                    />
+                </div>
+                <button
+                    @click="clearChat"
+                    :disabled="aiDataModelerStore.messages.length === 0"
+                    class="mb-4 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer flex-shrink-0 h-[40px]"
+                    title="Clear chat history">
+                    <font-awesome icon="fas fa-trash-alt" class="w-4 h-4" />
                 </button>
             </div>
         </div>

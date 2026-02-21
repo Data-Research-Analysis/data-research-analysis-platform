@@ -251,6 +251,78 @@ export const aiOperationsLimiter = rateLimit({
         return process.env.RATE_LIMIT_ENABLED === 'false';
     }
 });
+
+/**
+ * Insights generation rate limiter
+ * Protects AI insights generation which involves heavy data sampling and analysis
+ * 
+ * Limits: 15 insight generations per hour per user
+ * Reason: Each generation samples data, computes statistics, and processes through Gemini API
+ */
+export const insightsLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 15,
+    message: 'Too many insight generation requests, please wait before trying again',
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req: Request) => {
+        const userId = req.body?.tokenDetails?.user_id;
+        if (userId) {
+            return `insights_user_${userId}`;
+        }
+        const clientIp = getClientIp(req);
+        return `insights_ip_${clientIp}`;
+    },
+    handler: (req: Request, res: Response) => {
+        const userId = req.body?.tokenDetails?.user_id;
+        const clientIp = getClientIp(req);
+        console.warn(`[Rate Limit] Insights limit exceeded from ${userId ? `User ${userId}` : `IP ${clientIp}`}, Path: ${req.path}`);
+        res.status(429).json({
+            error: 'Too many requests',
+            message: 'You have reached the hourly limit for insight generation. Please try again later.',
+            retryAfter: Math.ceil((req.rateLimit?.resetTime?.getTime() - Date.now()) / 1000)
+        });
+    },
+    skip: (req: Request) => {
+        return process.env.RATE_LIMIT_ENABLED === 'false';
+    }
+});
+
+/**
+ * MongoDB operations rate limiter
+ * Protects expensive MongoDB aggregation pipeline operations
+ * 
+ * Limits: 30 requests per 15 minutes per user
+ */
+export const mongoDBOperationsLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 30,
+    message: 'Too many MongoDB operations, please try again later',
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req: Request) => {
+        const userId = req.body?.tokenDetails?.user_id;
+        if (userId) {
+            return `mongodb_user_${userId}`;
+        }
+        // Use real client IP (handles proxy via X-Forwarded-For)
+        return `mongodb_ip_${getClientIp(req)}`;
+    },
+    handler: (req: Request, res: Response) => {
+        const userId = req.body?.tokenDetails?.user_id;
+        const clientIp = getClientIp(req);
+        console.warn(`[Rate Limit] MongoDB operations limit exceeded from ${userId ? `User ${userId}` : `IP ${clientIp}`}`);
+        res.status(429).json({
+            success: false,
+            error: 'Too many MongoDB operations, please try again later',
+            retryAfter: Math.ceil((req.rateLimit?.resetTime?.getTime() - Date.now()) / 1000)
+        });
+    },
+    skip: (req: Request) => {
+        return process.env.RATE_LIMIT_ENABLED === 'false';
+    }
+});
+
 /**
  * Invitation rate limiter
  * Protects project invitation endpoints from spam

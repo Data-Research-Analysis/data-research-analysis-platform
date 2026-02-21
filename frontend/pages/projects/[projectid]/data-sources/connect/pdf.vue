@@ -851,7 +851,7 @@ onMounted(async () => {
                     }"
                     @click="!buttonDisabled && createDataSource()"
                 >
-                    Create PDF Data Source &am;amp; Upload PDF Files
+                    Create PDF Data Source &amp; Upload PDF Files
                 </div>
             </div>
         </div>

@@ -279,9 +279,12 @@ function toggleSidebar() {
                />
            </div>
     </div>
-    <div v-if="state.sideBarStatus" class="flex flex-col min-h-150 bg-gray-300 shadow-md relative w-70">
-        <div class="flex flex-row items-center ml-2 mr-2 p-2 text-lg font-bold cursor-pointer select-none">
-            <h3 class="mr-2">Data Models</h3>
+    <div v-if="state.sideBarStatus" class="flex flex-col min-h-150 bg-gradient-to-b from-gray-50 to-white border-r border-gray-200 shadow-sm relative w-70">
+        <div class="flex flex-row items-center mx-3 mt-3 mb-2 p-3 text-lg font-bold cursor-pointer select-none bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100">
+            <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center mr-2">
+                <font-awesome icon="fas fa-database" class="text-white text-sm" />
+            </div>
+            <h3 class="text-gray-800">Data Models</h3>
         </div>
         
         <!-- Helper text for smart column selection -->
@@ -316,66 +319,69 @@ function toggleSidebar() {
                     'h-auto': state.dataModelsOpened
                 }"
             >
-                <div v-if="isDataModelEnabled(dataModel)" class="flex flex-col ml-4 select-none cursor-pointer ">
-                    <div class="flex flex-row" @click="toggleDataModels(dataModel)">
-                        <font-awesome v-if="!dataModel.show_model" icon="fas fa-angle-right" class="mt-1 mr-1" />
-                        <font-awesome v-else="dataModel.show_model" icon="fas fa-angle-down" class="mt-1 mr-1" />
-                        <h5 class="w-full"
+                <div v-if="isDataModelEnabled(dataModel)" class="flex flex-col mx-3 mb-2 select-none cursor-pointer">
+                    <div class="flex flex-row items-center w-3/4 px-3 py-2 rounded-lg bg-white border border-gray-200 hover:border-blue-300 hover:shadow-sm transition-all duration-200" @click="toggleDataModels(dataModel)">
+                        <div class="w-6 h-6 flex items-center justify-center mr-2">
+                            <font-awesome v-if="!dataModel.show_model" icon="fas fa-chevron-right" class="text-gray-400 text-xs" />
+                            <font-awesome v-else="dataModel.show_model" icon="fas fa-chevron-down" class="text-gray-400 text-xs" />
+                        </div>
+                        <h5 class="font-semibold text-gray-700 flex-1 min-w-0 truncate"
                             v-tippy="{ content: `${dataModel.cleaned_model_name}`, placement: 'right' }"
                         >
                             {{ dataModel.cleaned_model_name.length > 20 ? `${dataModel.cleaned_model_name.substring(0, 20)}...`: dataModel.cleaned_model_name }}
                         </h5>
                     </div>
-                    <div v-if="dataModel.show_model">
+                    <div v-if="dataModel.show_model" class="pr-3">
                         <draggable
-                            class="ml-6"
+                            class="ml-6 flex flex-col"
                             :list="dataModel.columns"
                             :group="{ name: 'data_model_columns', pull: 'clone', put: false }"
                             itemKey="column_name"
                         >
                             <template #item="{ element, index }">
-                                <div class="flex flex-row items-center">
+                                <div class="flex flex-row items-start w-3/4 px-2 py-2 mb-1 rounded-lg bg-white border border-gray-200 hover:border-blue-300 hover:shadow-sm transition-all duration-200 group">
                                     <!-- Checkbox - conditionally shown based on chart type and selection -->
                                     <div v-if="props.selectedChart && props.selectedChart.chart_id && props.selectedChart.config.add_columns_enabled && shouldShowCheckbox(element)" 
-                                         class="h-10 flex flex-col justify-center">
+                                         class="flex items-center mr-2 flex-shrink-0">
                                         <input 
                                             type="checkbox" 
-                                            class="cursor-pointer mt-1 scale-150"
+                                            class="cursor-pointer w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
                                             :checked="isColumnSelected(dataModel.model_name, element.column_name)" 
                                             @change="toggleSelectedColumn($event, dataModel.model_name, element.column_name)"
                                         />
                                     </div>
                                     
                                     <!-- Column Type Icon -->
-                                    <div class="flex items-center mx-2">
+                                    <div class="flex items-center mr-2 flex-shrink-0">
                                         <font-awesome 
                                             :icon="getColumnIcon(element).icon"
                                             :class="getColumnIcon(element).color"
-                                            class="text-sm"
+                                            class="text-sm group-hover:scale-110 transition-transform"
                                         />
                                     </div>
                                     
-                                    <!-- Column name - always visible, always black -->
-                                    <div class="h-10 flex flex-col justify-center">
+                                    <!-- Column name - always visible -->
+                                    <div class="flex-1 min-w-0 flex flex-col">
                                         <h6 
                                             v-tippy="{
                                                 content: `Column Name: ${getCleanColumnName(element.column_name, dataModel.model_name)}<br />Column Data Type: ${element.data_type}`
                                             }" 
-                                            class="text-sm font-bold hover:text-gray-500 p-1 m-1"
+                                            class="text-sm font-medium text-gray-700 group-hover:text-gray-900 break-words whitespace-normal transition-colors"
                                         >
-                                            {{ getCleanColumnName(element.column_name, dataModel.model_name).length > 20 ? `${getCleanColumnName(element.column_name, dataModel.model_name).substring(0, 20)}...`: getCleanColumnName(element.column_name, dataModel.model_name) }}
+                                            {{ getCleanColumnName(element.column_name, dataModel.model_name) }}
                                         </h6>
+                                        <span class="text-xs text-gray-400 uppercase block mt-0.5">{{ element.data_type }}</span>
                                     </div>
                                 </div>
                             </template>
                         </draggable>
                     </div>
                 </div>
-                <div v-else class="flex flex-row items-center text-gray-500 ml-4 select-none"
+                <div v-else class="flex flex-row items-center w-3/4 mx-3 px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-gray-400 select-none"
                     v-tippy="{ content: 'Delete all of the columns from the selected data model to add columns from this data model.', placement: 'right' }"
                 >
-                    <font-awesome icon="fas fa-angle-right" class="mt-1 mr-1" />
-                    {{ dataModel.cleaned_model_name.length > 20 ? `${dataModel.cleaned_model_name.substring(0, 20)}...`: dataModel.cleaned_model_name }}
+                    <font-awesome icon="fas fa-lock" class="mr-2 text-xs flex-shrink-0" />
+                    <span class="text-sm min-w-0 truncate">{{ dataModel.cleaned_model_name.length > 20 ? `${dataModel.cleaned_model_name.substring(0, 20)}...`: dataModel.cleaned_model_name }}</span>
                 </div>
             </div>
         </div>        

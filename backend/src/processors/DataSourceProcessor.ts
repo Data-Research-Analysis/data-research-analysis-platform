@@ -23,16 +23,38 @@ import { GoogleAdManagerDriver } from "../drivers/GoogleAdManagerDriver.js";
 import { FederatedQueryService } from "../services/FederatedQueryService.js";
 import { TableMetadataService } from "../services/TableMetadataService.js";
 import { NotificationHelperService } from "../services/NotificationHelperService.js";
+import { SchemaCollectorService } from "../services/SchemaCollectorService.js";
+import { ExcelFileService } from "../services/ExcelFileService.js";
 export class DataSourceProcessor {
     private static instance: DataSourceProcessor;
     private notificationHelper = NotificationHelperService.getInstance();
-    private constructor() {}
+    private constructor() { }
 
     public static getInstance(): DataSourceProcessor {
         if (!DataSourceProcessor.instance) {
             DataSourceProcessor.instance = new DataSourceProcessor();
         }
         return DataSourceProcessor.instance;
+    }
+
+    /**
+     * Get data source by ID
+     * @param dataSourceId - Data source ID
+     * @returns Data source or null if not found
+     */
+    public async getDataSourceById(dataSourceId: number): Promise<DRADataSource | null> {
+        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+        if (!driver) {
+            return null;
+        }
+        const manager = (await driver.getConcreteDriver()).manager;
+        if (!manager) {
+            return null;
+        }
+        
+        return await manager.findOne(DRADataSource, { 
+            where: { id: dataSourceId }
+        });
     }
 
     /**
@@ -71,7 +93,7 @@ export class DataSourceProcessor {
                 if (value.trim() === '' || value === '0000-00-00' || value === '0000-00-00 00:00:00') {
                     return 'null';
                 }
-                
+
                 // Handle JavaScript Date.toString() format
                 // e.g., "Sun Nov 23 2025 00:00:00 GMT+0000 (Coordinated Universal Time)"
                 if (value.includes('GMT')) {
@@ -102,26 +124,29 @@ export class DataSourceProcessor {
             const upperType = columnType.toUpperCase();
 
             // Format based on column type
+            // CRITICAL: Check TIMESTAMP types BEFORE TIME types
+            // because 'TIMESTAMP WITHOUT TIME ZONE' contains 'TIME WITHOUT'
+            // and would incorrectly match the TIME handler, stripping the date portion
             if (upperType === 'DATE') {
                 // DATE: YYYY-MM-DD format
                 const formatted = dateObj.toISOString().split('T')[0];
                 return `'${formatted}'`;
             } 
-            else if (upperType === 'TIME' || upperType.startsWith('TIME(') || upperType.includes('TIME WITHOUT')) {
-                // TIME: HH:MM:SS format
-                const timeString = dateObj.toISOString().split('T')[1].split('.')[0];
-                return `'${timeString}'`;
-            } 
-            else if (upperType === 'TIMESTAMP WITH TIME ZONE' || upperType === 'TIMESTAMPTZ') {
+            else if (upperType === 'TIMESTAMP WITH TIME ZONE' || upperType === 'TIMESTAMPTZ' || upperType.includes('TIMESTAMPTZ')) {
                 // TIMESTAMP WITH TIME ZONE: ISO 8601 format with timezone
                 return `'${dateObj.toISOString()}'`;
             } 
-            else if (upperType === 'TIMESTAMP' || upperType.startsWith('TIMESTAMP(') || upperType.includes('TIMESTAMP WITHOUT')) {
+            else if (upperType === 'TIMESTAMP' || upperType.startsWith('TIMESTAMP(') || upperType.includes('TIMESTAMP WITHOUT') || upperType.includes('TIMESTAMP ')) {
                 // TIMESTAMP: YYYY-MM-DD HH:MM:SS format (no timezone)
                 const formatted = dateObj.toISOString()
                     .replace('T', ' ')
                     .split('.')[0];
                 return `'${formatted}'`;
+            }
+            else if (upperType === 'TIME' || upperType.startsWith('TIME(') || upperType.includes('TIME WITHOUT')) {
+                // TIME: HH:MM:SS format (must come AFTER TIMESTAMP checks)
+                const timeString = dateObj.toISOString().split('T')[1].split('.')[0];
+                return `'${timeString}'`;
             }
 
             // Fallback: use ISO string for timestamp with timezone
@@ -145,11 +170,20 @@ export class DataSourceProcessor {
             return 'null';
         }
 
+        // Auto-detect Date objects regardless of declared column type
+        // External DB drivers may return Date objects for columns not recognized as date types
+        if (value instanceof Date) {
+            const upperType = columnType.toUpperCase();
+            const dateType = (upperType.includes('DATE') || upperType.includes('TIME') || upperType.includes('TIMESTAMP'))
+                ? upperType : 'TIMESTAMP';
+            return this.formatDateForSQL(value, dateType, columnName);
+        }
+
         const upperType = columnType.toUpperCase();
 
         // Handle DATE, TIME, and TIMESTAMP types
-        if (upperType.includes('DATE') || 
-            upperType.includes('TIME') || 
+        if (upperType.includes('DATE') ||
+            upperType.includes('TIME') ||
             upperType.includes('TIMESTAMP')) {
             return this.formatDateForSQL(value, upperType, columnName);
         }
@@ -191,6 +225,38 @@ export class DataSourceProcessor {
             }
         }
 
+        // Auto-detect date-like strings as safety net
+        // Catches JavaScript Date.toString() format ("Thu Nov 23 2025 00:00:00 GMT+0000...")
+        // that external DB drivers may return as strings instead of Date objects.
+        // Without this, such strings get inserted raw into DATE/TIMESTAMP columns,
+        // causing PostgreSQL DateTimeParseError (code 22007).
+        if (typeof value === 'string') {
+            const trimmed = value.trim();
+            if (trimmed.includes('GMT') || trimmed.includes('UTC') || trimmed.includes('Coordinated Universal Time')) {
+                const dateObj = new Date(trimmed);
+                if (!isNaN(dateObj.getTime())) {
+                    console.warn(`[formatValueForSQL] Auto-detected date string for column ${columnName} (declared ${columnType}): "${trimmed.substring(0, 60)}"`);
+                    return this.formatDateForSQL(trimmed, 'TIMESTAMP', columnName);
+                }
+            }
+        }
+
+        // Handle NUMERIC/INTEGER/REAL/FLOAT types - don't wrap numbers in quotes
+        if (upperType.includes('NUMERIC') || upperType.includes('INTEGER') || upperType.includes('INT') ||
+            upperType.includes('REAL') || upperType.includes('FLOAT') || upperType.includes('DOUBLE') ||
+            upperType.includes('DECIMAL') || upperType.includes('BIGINT') || upperType.includes('SMALLINT')) {
+            const numValue = Number(value);
+            if (!isNaN(numValue)) {
+                return `${numValue}`;
+            }
+            return 'null';
+        }
+
+        // Handle BOOLEAN type
+        if (upperType === 'BOOLEAN' || upperType === 'BOOL') {
+            return this.convertToPostgresBoolean(value);
+        }
+
         // Handle all other types with proper escaping
         return `'${this.escapeSQL(value)}'`;
     }
@@ -206,23 +272,23 @@ export class DataSourceProcessor {
             if (!manager) {
                 return resolve([]);
             }
-            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
             if (!user) {
                 return resolve([]);
             }
-            
+
             // 1. Get owned data sources
             const ownedDataSources = await manager.find(DRADataSource, {
-                where: {users_platform: user},
+                where: { users_platform: user },
                 relations: {
                     project: true,
                     data_models: true
                 }
             });
-            
+
             // 2. Get data sources from projects where user is a member
             const memberProjects = await manager.find(DRAProjectMember, {
-                where: {user: {id: user_id}},
+                where: { user: { id: user_id } },
                 relations: {
                     project: {
                         data_sources: {
@@ -232,31 +298,31 @@ export class DataSourceProcessor {
                     }
                 }
             });
-            
+
             const memberDataSources = memberProjects.flatMap(m => m.project?.data_sources || []);
-            
+
             // 3. Combine and deduplicate
             const allDataSourcesMap = new Map();
-            
+
             ownedDataSources.forEach(ds => {
                 allDataSourcesMap.set(ds.id, ds);
             });
-            
+
             memberDataSources.forEach(ds => {
                 if (!allDataSourcesMap.has(ds.id)) {
                     allDataSourcesMap.set(ds.id, ds);
                 }
             });
-            
+
             const dataSources = Array.from(allDataSourcesMap.values());
-            
+
             // Transform to include counts
             const dataSourcesWithCounts = dataSources.map(ds => ({
                 ...ds,
                 data_models_count: ds.data_models?.length || 0,
                 DataModels: ds.data_models  // Backward compatibility
             }));
-            
+
             return resolve(dataSourcesWithCounts);
         });
     }
@@ -276,18 +342,18 @@ export class DataSourceProcessor {
             if (!manager) {
                 return resolve([]);
             }
-            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
             if (!user) {
                 return resolve([]);
             }
             const project = await manager.findOne(DRAProject, {
-                where: {id: projectId, users_platform: user}
+                where: { id: projectId, users_platform: user }
             });
             if (!project) {
                 return resolve([]);
             }
             const dataSources = await manager.find(DRADataSource, {
-                where: {project: project, users_platform: user},
+                where: { project: project, users_platform: user },
                 relations: ['project']
             });
             return resolve(dataSources);
@@ -310,7 +376,7 @@ export class DataSourceProcessor {
             }
             let dbConnector: DataSource;
             try {
-                dbConnector =  await externalDriver.connectExternalDB(connection);
+                dbConnector = await externalDriver.connectExternalDB(connection);
                 if (!dbConnector) {
                     return resolve(null);
                 }
@@ -333,11 +399,11 @@ export class DataSourceProcessor {
             if (!manager) {
                 return resolve(false);
             }
-            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
             if (!user) {
                 return resolve(false);
             }
-            const project:DRAProject|null = await manager.findOne(DRAProject, {where: {id: projectId, users_platform: user}});
+            const project: DRAProject | null = await manager.findOne(DRAProject, { where: { id: projectId, users_platform: user } });
             if (project) {
                 const dataSource = new DRADataSource();
                 dataSource.name = connection.database;
@@ -345,8 +411,14 @@ export class DataSourceProcessor {
                 dataSource.data_type = UtilityService.getInstance().getDataSourceType(connection.data_source_type);
                 dataSource.project = project;
                 dataSource.users_platform = user;
-                const savedDataSource = await manager.save(dataSource);
                 
+                // Store connection_string separately if provided (for MongoDB)
+                if (connection.connection_string) {
+                    dataSource.connection_string = connection.connection_string;
+                }
+                
+                const savedDataSource = await manager.save(dataSource);
+
                 // Send notification
                 await this.notificationHelper.notifyDataSourceCreated(
                     user_id,
@@ -354,7 +426,22 @@ export class DataSourceProcessor {
                     savedDataSource.name,
                     connection.data_source_type
                 );
-                
+
+                // For MongoDB, trigger initial import (async, non-blocking)
+                if (connection.data_source_type === 'mongodb' && connection.connection_string) {
+                    try {
+                        const QueueService = (await import('../services/QueueService.js')).QueueService;
+                        QueueService.getInstance().addJob('mongodb-import', {
+                            dataSourceId: savedDataSource.id,
+                            syncType: 'full'
+                        });
+                        console.log(`[DataSourceProcessor] Queued MongoDB import for data source ${savedDataSource.id}`);
+                    } catch (error) {
+                        console.error('[DataSourceProcessor] Failed to queue MongoDB import:', error);
+                        // Don't fail data source creation if import queueing fails
+                    }
+                }
+
                 return resolve(true);
             }
             return resolve(false);
@@ -372,21 +459,21 @@ export class DataSourceProcessor {
             if (!manager) {
                 return resolve(false);
             }
-            
-            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+
+            const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
             if (!user) {
                 return resolve(false);
             }
-            
+
             // Find existing data source owned by user
             const dataSource = await manager.findOne(DRADataSource, {
-                where: {id: dataSourceId, users_platform: user}
+                where: { id: dataSourceId, users_platform: user }
             });
-            
+
             if (!dataSource) {
                 return resolve(false);
             }
-            
+
             // Test new connection before updating
             try {
                 const testConnection = await this.connectToDataSource(connection);
@@ -398,12 +485,20 @@ export class DataSourceProcessor {
                 console.error('Failed to connect with new credentials:', error);
                 return resolve(false);
             }
-            
+
             // Update connection details (will be auto-encrypted by transformer)
             dataSource.connection_details = connection;
             dataSource.name = connection.database;
             dataSource.data_type = UtilityService.getInstance().getDataSourceType(connection.data_source_type);
             
+            // Update connection_string if provided (for MongoDB)
+            if (connection.connection_string) {
+                dataSource.connection_string = connection.connection_string;
+            } else {
+                // Clear connection_string if not provided (switching from connection string to individual fields)
+                dataSource.connection_string = null;
+            }
+
             await manager.save(dataSource);
             return resolve(true);
         });
@@ -419,20 +514,20 @@ export class DataSourceProcessor {
                 }
                 const manager = (await driver.getConcreteDriver()).manager;
                 const dbConnector = await driver.getConcreteDriver();
-                const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+                const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
                 if (!user) {
                     return resolve(false);
                 }
-                const dataSource: DRADataSource|null = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}, relations: ['data_models']});
+                const dataSource: DRADataSource | null = await manager.findOne(DRADataSource, { where: { id: dataSourceId, users_platform: user }, relations: ['data_models'] });
                 if (!dataSource) {
                     return resolve(false);
                 }
-                                
+
                 // Get all data models for this data source
                 const dataModels = dataSource.data_models;
-                
+
                 console.log(`Found ${dataModels.length} data models to delete`);
-                
+
                 // For each data model, drop physical table and clean dashboard references
                 for (const dataModel of dataModels) {
                     try {
@@ -453,7 +548,7 @@ export class DataSourceProcessor {
                         const query = `SELECT table_name FROM information_schema.tables WHERE table_schema = 'dra_excel' AND table_name LIKE 'ds${dataSource.id}_%'`;
                         const tables = await dbConnector.query(query);
                         console.log(`Found ${tables.length} Excel tables to delete for data source ${dataSource.id}`);
-                        
+
                         for (let i = 0; i < tables.length; i++) {
                             const tableName = tables[i].table_name;
                             await dbConnector.query(`DROP TABLE IF EXISTS dra_excel.${tableName}`);
@@ -463,7 +558,7 @@ export class DataSourceProcessor {
                         console.error(`Error deleting Excel tables:`, error);
                     }
                 }
-                
+
                 // Delete PDF schema tables
                 if ('schema' in dataSource.connection_details && dataSource.connection_details.schema === 'dra_pdf') {
                     if (!dbConnector) {
@@ -473,7 +568,7 @@ export class DataSourceProcessor {
                         const query = `SELECT table_name FROM information_schema.tables WHERE table_schema = 'dra_pdf' AND table_name LIKE 'ds${dataSource.id}_%'`;
                         const tables = await dbConnector.query(query);
                         console.log(`Found ${tables.length} PDF tables to delete for data source ${dataSource.id}`);
-                        
+
                         for (let i = 0; i < tables.length; i++) {
                             const tableName = tables[i].table_name;
                             await dbConnector.query(`DROP TABLE IF EXISTS dra_pdf.${tableName}`);
@@ -483,7 +578,7 @@ export class DataSourceProcessor {
                         console.error(`Error deleting PDF tables:`, error);
                     }
                 }
-                
+
                 // Delete Google Analytics schema tables
                 if ('schema' in dataSource.connection_details && dataSource.connection_details.schema === 'dra_google_analytics') {
                     if (!dbConnector) {
@@ -493,7 +588,7 @@ export class DataSourceProcessor {
                         const query = `SELECT table_name FROM information_schema.tables WHERE table_schema = 'dra_google_analytics' AND table_name LIKE 'ds${dataSource.id}_%'`;
                         const tables = await dbConnector.query(query);
                         console.log(`Found ${tables.length} Google Analytics tables to delete for data source ${dataSource.id}`);
-                        
+
                         for (let i = 0; i < tables.length; i++) {
                             const tableName = tables[i].table_name;
                             await dbConnector.query(`DROP TABLE IF EXISTS dra_google_analytics.${tableName}`);
@@ -503,7 +598,7 @@ export class DataSourceProcessor {
                         console.error(`Error deleting Google Analytics tables:`, error);
                     }
                 }
-                
+
                 // Delete Google Ad Manager schema tables
                 if ('schema' in dataSource.connection_details && dataSource.connection_details.schema === 'dra_google_ad_manager') {
                     if (!dbConnector) {
@@ -512,7 +607,7 @@ export class DataSourceProcessor {
                     try {
                         const query = `SELECT table_name FROM information_schema.tables WHERE table_schema = 'dra_google_ad_manager' AND table_name LIKE 'ds${dataSource.id}_%'`;
                         const tables = await dbConnector.query(query);
-                        
+
                         for (const table of tables) {
                             const tableName = table.table_name;
                             await dbConnector.query(`DROP TABLE IF EXISTS dra_google_ad_manager.${tableName}`);
@@ -522,7 +617,7 @@ export class DataSourceProcessor {
                         console.error('Error dropping Google Ad Manager tables:', error);
                     }
                 }
-                
+
                 // Delete Google Ads schema tables
                 if ('schema' in dataSource.connection_details && dataSource.connection_details.schema === 'dra_google_ads') {
                     if (!dbConnector) {
@@ -531,7 +626,7 @@ export class DataSourceProcessor {
                     try {
                         const query = `SELECT table_name FROM information_schema.tables WHERE table_schema = 'dra_google_ads' AND table_name LIKE 'ds${dataSource.id}_%'`;
                         const tables = await dbConnector.query(query);
-                        
+
                         for (const table of tables) {
                             const tableName = table.table_name;
                             await dbConnector.query(`DROP TABLE IF EXISTS dra_google_ads.${tableName}`);
@@ -541,17 +636,43 @@ export class DataSourceProcessor {
                         console.error('Error dropping Google Ads tables:', error);
                     }
                 }
-                
+
+                // Delete MongoDB schema tables
+                if (dataSource.data_type === EDataSourceType.MONGODB) {
+                    if (!dbConnector) {
+                        return resolve(false);
+                    }
+                    try {
+                        // MongoDB tables can be in format: {collectionName}_{dataSourceId} or just {collectionName}
+                        // We'll query metadata to get the exact table names
+                        const metadataQuery = `
+                            SELECT physical_table_name FROM dra_table_metadata 
+                            WHERE schema_name = 'dra_mongodb' AND data_source_id = $1
+                        `;
+                        const metadataResults = await dbConnector.query(metadataQuery, [dataSource.id]);
+                        
+                        console.log(`Found ${metadataResults.length} MongoDB tables to delete for data source ${dataSource.id}`);
+
+                        for (const row of metadataResults) {
+                            const tableName = row.physical_table_name;
+                            await dbConnector.query(`DROP TABLE IF EXISTS dra_mongodb.${tableName}`);
+                            console.log(`Dropped MongoDB table: ${tableName}`);
+                        }
+                    } catch (error) {
+                        console.error('Error dropping MongoDB tables:', error);
+                    }
+                }
+
                 // Store data source name for notification
                 const dataSourceName = dataSource.name;
-                
-                // Remove the data source record
+
+                // Remove the data source record (CASCADE will handle related metadata)
                 await manager.remove(dataSource);
                 console.log(`Successfully deleted data source ${dataSourceId}`);
-                
+
                 // Send notification
                 await this.notificationHelper.notifyDataSourceDeleted(user_id, dataSourceName);
-                
+
                 return resolve(true);
             } catch (error) {
                 console.error(`Fatal error deleting data source ${dataSourceId}:`, error);
@@ -565,44 +686,44 @@ export class DataSourceProcessor {
      * When aggregate functions are used, all non-aggregated columns must appear in GROUP BY
      * Uses group_by_columns array for GROUP BY column references
      */
-    private validateGroupByRequirements(queryJSON: string): {valid: boolean, error?: string} {
+    private validateGroupByRequirements(queryJSON: string): { valid: boolean, error?: string } {
         try {
             const sourceTable = JSON.parse(queryJSON);
             const aggregateFunctions = sourceTable?.query_options?.group_by?.aggregate_functions || [];
             const aggregateExpressions = sourceTable?.query_options?.group_by?.aggregate_expressions || [];
-            
+
             // Check if any aggregation is being done
-            const hasAggregation = aggregateFunctions.length > 0 || 
-                                  (aggregateExpressions.length > 0 && typeof aggregateExpressions[0] === 'object');
-            
+            const hasAggregation = aggregateFunctions.length > 0 ||
+                (aggregateExpressions.length > 0 && typeof aggregateExpressions[0] === 'object');
+
             if (!hasAggregation) {
-                return {valid: true}; // No aggregates, no GROUP BY needed
+                return { valid: true }; // No aggregates, no GROUP BY needed
             }
-            
+
             // Has aggregates - check GROUP BY exists
             // Use group_by_columns (new field) for GROUP BY column references
             const groupByColumns = sourceTable?.query_options?.group_by?.group_by_columns || [];
             const columns = sourceTable?.columns || [];
-            
+
             // Build list of aggregated column references from aggregate_functions
             const aggregatedColumns = new Set(
                 aggregateFunctions.map((agg: any) => agg.column)
             );
-            
+
             // Find non-aggregated columns (columns that appear in SELECT but not in aggregate functions)
             const nonAggregatedColumns = columns.filter((col: any) => {
                 const colRef = `${col.schema}.${col.table_name}.${col.column_name}`;
                 return !aggregatedColumns.has(colRef) && col.is_selected_column;
             });
-            
+
             // All non-aggregated columns must be in group_by_columns
             const missingGroupBy = nonAggregatedColumns.filter((col: any) => {
                 const colRef = `${col.schema}.${col.table_name}.${col.column_name}`;
                 return !groupByColumns.includes(colRef);
             });
-            
+
             if (missingGroupBy.length > 0) {
-                const missingCols = missingGroupBy.map((col: any) => 
+                const missingCols = missingGroupBy.map((col: any) =>
                     `${col.schema}.${col.table_name}.${col.column_name}`
                 ).join(', ');
                 return {
@@ -610,8 +731,8 @@ export class DataSourceProcessor {
                     error: `SQL aggregate validation error: Non-aggregated columns must appear in GROUP BY clause (group_by_columns array). Missing columns: ${missingCols}. Use actual schema name from data source.`
                 };
             }
-            
-            return {valid: true};
+
+            return { valid: true };
         } catch (error) {
             console.error('[DataSourceProcessor] Error validating GROUP BY requirements:', error);
             return {
@@ -619,6 +740,165 @@ export class DataSourceProcessor {
                 error: `GROUP BY validation error: ${error.message}`
             };
         }
+    }
+
+    private async executeMongoDBQuery(dataSourceId: number, queryJSON: string, tokenDetails: ITokenDetails): Promise<any> {
+        return new Promise<any>(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve({ success: false, error: 'Internal driver error' });
+            }
+            const manager = (await driver.getConcreteDriver()).manager;
+
+            const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
+            if (!user) {
+                return resolve({ success: false, error: 'User not found' });
+            }
+
+            // Find data source
+            let dataSource = await manager.findOne(DRADataSource, {
+                where: { id: dataSourceId },
+                relations: { project: true, users_platform: true }
+            });
+
+            if (!dataSource) {
+                return resolve({ success: false, error: 'Data source not found' });
+            }
+
+            // Verify access (ownership or project membership)
+            if (dataSource.users_platform?.id !== user.id) {
+                const membership = await manager.findOne(DRAProjectMember, {
+                    where: {
+                        user: { id: user_id },
+                        project: { id: dataSource.project.id }
+                    }
+                });
+                if (!membership) {
+                    return resolve({ success: false, error: 'Access denied' });
+                }
+            }
+
+            // Validate query JSON structure
+            const { MongoDBValidator } = await import('../utilities/MongoDBValidator.js');
+            const validation = MongoDBValidator.validateQueryJSON(queryJSON);
+            
+            if (!validation.valid) {
+                return resolve({ 
+                    success: false, 
+                    error: validation.error || 'Invalid query',
+                    data: [],
+                    rowCount: 0
+                });
+            }
+
+            const { collection: collectionName, pipeline } = validation;
+
+            // Check if data is imported to PostgreSQL (new approach)
+            if (dataSource.sync_status === 'completed' && dataSource.last_sync_at) {
+                console.log(`[DataSourceProcessor] Querying MongoDB data from PostgreSQL for collection: ${collectionName}`);
+                try {
+                    const results = await this.executeMongoDBQueryFromPostgreSQL(
+                        collectionName!,
+                        pipeline!,
+                        dataSourceId
+                    );
+                    
+                    return resolve({
+                        success: true,
+                        data: results,
+                        rowCount: results.length
+                    });
+                } catch (error: any) {
+                    console.error('[DataSourceProcessor] PostgreSQL query failed, falling back to MongoDB:', error);
+                    // Fall through to direct MongoDB query
+                }
+            }
+
+            // Fall back to direct MongoDB query (legacy approach or if PostgreSQL query fails)
+            console.log(`[DataSourceProcessor] Querying MongoDB directly for collection: ${collectionName}`);
+
+            // Connect to MongoDB
+            const connection = dataSource.connection_details;
+            
+            // If connection_string exists in the database column, add it to connection object
+            if (dataSource.connection_string) {
+                connection.connection_string = dataSource.connection_string;
+            }
+            
+            const mongoDriver = await DBDriver.getInstance().getDriver(EDataSourceType.MONGODB);
+            let dbConnector: DataSource;
+            try {
+                dbConnector = await mongoDriver.connectExternalDB(connection);
+            } catch (error) {
+                return resolve({ success: false, error: 'Failed to connect to MongoDB' });
+            }
+
+            try {
+                // Execute aggregation - type-safe check for optional method
+                if (!mongoDriver.executeAggregation || typeof mongoDriver.executeAggregation !== 'function') {
+                    return resolve({ success: false, error: 'MongoDB driver does not support aggregation' });
+                }
+                
+                const results = await mongoDriver.executeAggregation(collectionName!, pipeline!);
+
+                return resolve({
+                    success: true,
+                    data: results,
+                    rowCount: results.length
+                });
+
+            } catch (error: any) {
+                console.error('MongoDB query execution error:', error);
+                return resolve({ 
+                    success: false, 
+                    error: error.message || 'Query execution failed',
+                    data: [],
+                    rowCount: 0
+                });
+            } finally {
+                await mongoDriver.close();
+            }
+        });
+    }
+
+    /**
+     * Execute MongoDB query against PostgreSQL (for imported data)
+     * @private
+     */
+    private async executeMongoDBQueryFromPostgreSQL(
+        collectionName: string,
+        pipeline: any[],
+        dataSourceId: number
+    ): Promise<any[]> {
+        const { MongoDBQueryTranslator } = await import('../services/MongoDBQueryTranslator.js');
+        
+        // Sanitize collection name to table name base
+        const sanitizedBase = collectionName
+            .toLowerCase()
+            .replace(/[^a-z0-9_]/g, '_')
+            .replace(/^[0-9]/, '_$&')
+            .substring(0, 63);
+        
+        // Generate unique table name with data source ID (matches MongoDBImportService pattern)
+        const tableName = `${sanitizedBase}_data_source_${dataSourceId}`;
+        
+        // Translate MongoDB aggregation pipeline to SQL
+        const translator = new MongoDBQueryTranslator();
+        const sql = translator.translatePipeline(tableName, pipeline);
+        
+        console.log(`[DataSourceProcessor] Translated SQL: ${sql}`);
+
+        // Execute SQL query against PostgreSQL
+        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+        if (!driver) {
+            throw new Error('PostgreSQL driver not available');
+        }
+        
+        const pgDataSource = await driver.getConcreteDriver();
+        const results = await pgDataSource.query(sql);
+
+        return results;
     }
 
     public async getTablesFromDataSource(dataSourceId: number, tokenDetails: ITokenDetails): Promise<any> {
@@ -632,33 +912,33 @@ export class DataSourceProcessor {
             if (!manager) {
                 return resolve(null);
             }
-            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
             if (!user) {
                 return resolve(null);
             }
-            
+
             // First try to find data source owned by user
-            let dataSource: DRADataSource|null = await manager.findOne(DRADataSource, {
-                where: {id: dataSourceId, users_platform: user},
-                relations: {project: true}
+            let dataSource: DRADataSource | null = await manager.findOne(DRADataSource, {
+                where: { id: dataSourceId, users_platform: user },
+                relations: { project: true }
             });
-            
+
             // If not owned, check if user is a member of the project that owns this data source
             if (!dataSource) {
                 dataSource = await manager.findOne(DRADataSource, {
-                    where: {id: dataSourceId},
-                    relations: {project: true}
+                    where: { id: dataSourceId },
+                    relations: { project: true }
                 });
-                
+
                 if (dataSource && dataSource.project) {
                     // Check if user is a member of this project
                     const membership = await manager.findOne(DRAProjectMember, {
                         where: {
-                            user: {id: user_id},
-                            project: {id: dataSource.project.id}
+                            user: { id: user_id },
+                            project: { id: dataSource.project.id }
                         }
                     });
-                    
+
                     if (!membership) {
                         return resolve(null);
                     }
@@ -666,18 +946,97 @@ export class DataSourceProcessor {
                     return resolve(null);
                 }
             }
-            
+
             if (!dataSource) {
                 return resolve(null);
             }
 
             if (dataSource.data_type === EDataSourceType.MONGODB) {
-                //TODO: Leaving here for when MongoDB data source is implemented
+                // MongoDB data is synced to PostgreSQL in dra_mongodb schema
+                // Query PostgreSQL directly instead of connecting to MongoDB
+                const connection = dataSource.connection_details;
+                const schemaCollector = new SchemaCollectorService();
+                
+                // Get internal PostgreSQL connection (where MongoDB data is synced)
+                const pgDriver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+                if (!pgDriver) {
+                    console.error('[DataSourceProcessor] Cannot get PostgreSQL driver for MongoDB data');
+                    return resolve(null);
+                }
+                
+                const pgManager = (await pgDriver.getConcreteDriver()).manager;
+                if (!pgManager) {
+                    console.error('[DataSourceProcessor] Cannot get PostgreSQL manager for MongoDB data');
+                    return resolve(null);
+                }
+                
+                const pgConnection = pgManager.connection;
+                const schemaName = 'dra_mongodb';
+                
+                try {
+                    console.log(`[DataSourceProcessor] Querying PostgreSQL schema '${schemaName}' for MongoDB data source ${dataSourceId}`);
+                    
+                    // Collect schema from PostgreSQL where MongoDB data is stored
+                    const tables = await schemaCollector.collectSchema(pgConnection, schemaName);
+                    
+                    // Filter tables to only include those for this data source
+                    // MongoDB tables are named: {collection}_data_source_{id}
+                    const dataSourceSuffix = `_data_source_${dataSourceId}`;
+                    const filteredTables = tables.filter((table: any) => 
+                        table.tableName.endsWith(dataSourceSuffix)
+                    );
+                    
+                    // Transform to match frontend expected format (table_name with underscore)
+                    // KEEP the physical table name with suffix (just like dra_excel does)
+                    const cleanedTables = filteredTables.map((table: any) => {
+                        const physicalTableName = table.tableName;
+                        const logicalName = table.tableName.replace(dataSourceSuffix, '');
+                        return {
+                            table_name: physicalTableName,  // Keep full physical name for queries
+                            logical_name: logicalName,      // Display name without suffix
+                            original_sheet_name: null,
+                            table_type: null,
+                            schema: schemaName,
+                            columns: table.columns.map((col: any) => ({
+                                column_name: col.column_name,
+                                data_type: col.data_type,
+                                character_maximum_length: col.character_maximum_length,
+                                table_name: physicalTableName,  // Use physical name
+                                schema: schemaName,
+                                alias_name: '',
+                                is_selected_column: true,
+                                reference: {
+                                    local_table_schema: null,
+                                    local_table_name: null,
+                                    local_column_name: null,
+                                    foreign_table_schema: null,
+                                    foreign_table_name: null,
+                                    foreign_column_name: null,
+                                }
+                            })),
+                            references: table.foreignKeys.map((fk: any) => ({
+                                local_table_schema: fk.table_schema,
+                                local_table_name: fk.table_name,  // Keep physical name
+                                local_column_name: fk.column_name,
+                                foreign_table_schema: fk.foreign_table_schema,
+                                foreign_table_name: fk.foreign_table_name,  // Keep physical name
+                                foreign_column_name: fk.foreign_column_name,
+                            }))
+                        };
+                    });
+                    
+                    console.log(`[DataSourceProcessor] Found ${cleanedTables.length} tables for MongoDB data source ${dataSourceId}`);
+                    return resolve(cleanedTables);
+                    
+                } catch (error) {
+                    console.error('[DataSourceProcessor] Error getting MongoDB tables from PostgreSQL:', error);
+                    return resolve(null);
+                }
             } else if (dataSource.data_type === EDataSourceType.POSTGRESQL || dataSource.data_type === EDataSourceType.MYSQL || dataSource.data_type === EDataSourceType.MARIADB || dataSource.data_type === EDataSourceType.EXCEL || dataSource.data_type === EDataSourceType.PDF || dataSource.data_type === EDataSourceType.GOOGLE_ANALYTICS || dataSource.data_type === EDataSourceType.GOOGLE_AD_MANAGER || dataSource.data_type === EDataSourceType.GOOGLE_ADS) {
                 const connection = dataSource.connection_details;
                 console.log('[DEBUG - DataSourceProcessor] Connecting to data source ID:', dataSource.id);
                 console.log('[DEBUG - DataSourceProcessor] Data source type:', dataSource.data_type);
-                
+
                 // Determine schema name based on data source type
                 // For API-based sources (Google Analytics, Ads, Ad Manager), connection_details doesn't have 'schema'
                 // We need to derive it from the data_type instead
@@ -696,22 +1055,22 @@ export class DataSourceProcessor {
                     // For PostgreSQL, MySQL, MariaDB - use schema from connection_details
                     schemaName = connection.schema;
                 }
-                
+
                 console.log('[DEBUG - DataSourceProcessor] Using schema name:', schemaName);
-                
+
                 // Skip API-based data sources that haven't been synced yet
                 if ('oauth_access_token' in connection) {
                     // For OAuth sources, we only return tables if they've been synced to PostgreSQL
                     // We'll fetch metadata to see if tables exist
                     console.log('[DEBUG - DataSourceProcessor] OAuth source detected, checking for synced tables');
                 }
-                
-                const dataSourceType = dataSource.data_type === EDataSourceType.GOOGLE_ANALYTICS || 
-                                      dataSource.data_type === EDataSourceType.GOOGLE_AD_MANAGER || 
-                                      dataSource.data_type === EDataSourceType.GOOGLE_ADS 
-                                      ? EDataSourceType.POSTGRESQL  // API sources are synced to PostgreSQL
-                                      : UtilityService.getInstance().getDataSourceType(connection.data_source_type);
-                
+
+                const dataSourceType = dataSource.data_type === EDataSourceType.GOOGLE_ANALYTICS ||
+                    dataSource.data_type === EDataSourceType.GOOGLE_AD_MANAGER ||
+                    dataSource.data_type === EDataSourceType.GOOGLE_ADS
+                    ? EDataSourceType.POSTGRESQL  // API sources are synced to PostgreSQL
+                    : UtilityService.getInstance().getDataSourceType(connection.data_source_type);
+
                 if (!dataSourceType) {
                     return resolve(null);
                 }
@@ -734,7 +1093,7 @@ export class DataSourceProcessor {
                     console.log('Error connecting to external DB', error);
                     return resolve(false);
                 }
-                
+
                 // Fetch table metadata first to get physical table names
                 let tableMetadata: any[] = [];
                 try {
@@ -753,10 +1112,10 @@ export class DataSourceProcessor {
                 } catch (error) {
                     console.error('[DEBUG] Error fetching table metadata:', error);
                 }
-                
+
                 // Build the base query
                 let query = await externalDriver.getTablesColumnDetails(schemaName);
-                
+
                 // If we have metadata, use physical_table_names; otherwise fall back to old pattern
                 if (tableMetadata.length > 0) {
                     const physicalTableNames = tableMetadata.map(m => m.physical_table_name);
@@ -783,19 +1142,19 @@ export class DataSourceProcessor {
                         console.log(`[DEBUG] External database source: using schema filter only`);
                     }
                 }
-                
+
                 let tablesSchema = await dbConnector.query(query);
-                
+
                 // Create metadata lookup map
                 const metadataMap = new Map();
                 tableMetadata.forEach((meta: any) => {
                     metadataMap.set(meta.physical_table_name, meta);
                 });
-                
+
                 let tables = tablesSchema.map((table: any) => {
                     const physicalTableName = table?.table_name || table?.TABLE_NAME;
                     const metadata = metadataMap.get(physicalTableName);
-                    
+
                     return {
                         table_name: physicalTableName,
                         logical_name: metadata?.logical_table_name || physicalTableName,
@@ -807,15 +1166,15 @@ export class DataSourceProcessor {
                     }
                 });
                 tables = _.uniqBy(tables, 'table_name');
-                
+
                 console.log('[DEBUG - DataSourceProcessor] Tables before column population:', tables.length);
-                
+
                 tables.forEach((table: any) => {
                     const columnsBefore = table.columns.length;
                     tablesSchema.forEach((result: any) => {
                         const resultTableName = result?.table_name || result?.TABLE_NAME;
                         const resultSchema = result?.table_schema || result?.TABLE_SCHEMA;
-                        
+
                         // Match on both table name AND schema to prevent cross-schema pollution
                         if (table?.table_name === resultTableName && table?.schema === resultSchema) {
                             table.columns.push({
@@ -830,7 +1189,7 @@ export class DataSourceProcessor {
                                     local_table_schema: null,
                                     local_table_name: null,
                                     local_column_name: null,
-    
+
                                     foreign_table_schema: null,
                                     foreign_table_name: null,
                                     foreign_column_name: null,
@@ -838,18 +1197,18 @@ export class DataSourceProcessor {
                             });
                         }
                     });
-                    
+
                     // Defensive filter: Remove any columns that don't match the table's schema
                     const beforeFilter = table.columns.length;
                     table.columns = table.columns.filter((col: any) => col.schema === table.schema);
                     const afterFilter = table.columns.length;
-                    
+
                     if (beforeFilter !== afterFilter) {
                         console.warn(`[DEBUG - DataSourceProcessor] ⚠️ SCHEMA MISMATCH: Filtered ${beforeFilter - afterFilter} columns with wrong schema from ${table.table_name}`);
                     }
-                    
+
                     console.log(`[DEBUG - DataSourceProcessor] Table ${table.table_name}: Added ${table.columns.length - columnsBefore} columns (total: ${table.columns.length})`);
-                    
+
                     // Check for duplicate columns
                     const columnNames = table.columns.map((c: any) => c.column_name);
                     const duplicates = columnNames.filter((name: string, index: number) => columnNames.indexOf(name) !== index);
@@ -864,9 +1223,9 @@ export class DataSourceProcessor {
                     query += ` AND tc.table_name LIKE '%_data_source_${dataSource.id}_%'`;
                 }
                 tablesSchema = await dbConnector.query(query);
-                
+
                 console.log('[DEBUG - DataSourceProcessor] Foreign key relationships found:', tablesSchema.length);
-                
+
                 tablesSchema.forEach((result: any) => {
                     tables.forEach((table: any) => {
                         if (table?.table_name === result?.local_table_name || table?.table_name === result?.LOCAL_TABLE_NAME) {
@@ -875,7 +1234,7 @@ export class DataSourceProcessor {
                                     column.reference.local_table_schema = result?.local_table_schema || result?.LOCAL_TABLE_SCHEMA;
                                     column.reference.local_table_name = result?.local_table_name || result?.LOCAL_TABLE_NAME;
                                     column.reference.local_column_name = result?.local_column_name || result?.LOCAL_COLUMN_NAME;
-    
+
                                     column.reference.foreign_table_schema = result?.foreign_table_schema || result?.FOREIGN_TABLE_SCHEMA;
                                     column.reference.foreign_table_name = result?.foreign_table_name || result?.FOREIGN_TABLE_NAME;
                                     column.reference.foreign_column_name = result?.foreign_column_name || result?.FOREIGN_COLUMN_NAME;
@@ -885,36 +1244,36 @@ export class DataSourceProcessor {
                         }
                     });
                 });
-                
+
                 // CRITICAL FIX: Deduplicate columns in each table
                 console.log('[DEBUG - DataSourceProcessor] Deduplicating columns...');
                 tables.forEach((table: any) => {
                     const beforeCount = table.columns.length;
-                    table.columns = _.uniqBy(table.columns, (col: any) => 
+                    table.columns = _.uniqBy(table.columns, (col: any) =>
                         `${col.schema}.${col.table_name}.${col.column_name}`
                     );
                     const afterCount = table.columns.length;
-                    
+
                     if (beforeCount !== afterCount) {
                         console.log(`[DEBUG - DataSourceProcessor] ✓ Removed ${beforeCount - afterCount} duplicate columns from ${table.table_name}`);
                     }
                 });
-                
+
                 // Final diagnostic before returning
                 console.log('[DEBUG - DataSourceProcessor] Final table summary:');
                 tables.forEach((table: any) => {
                     console.log(`  - ${table.table_name}: ${table.columns.length} columns, ${table.references.length} foreign keys`);
                 });
-                
+
                 return resolve(tables);
             }
         });
     }
 
     public async executeQueryOnExternalDataSource(
-        dataSourceId: number, 
-        query: string, 
-        tokenDetails: ITokenDetails, 
+        dataSourceId: number,
+        query: string,
+        tokenDetails: ITokenDetails,
         queryJSON?: string,
         isCrossSource?: boolean,
         projectId?: number
@@ -929,7 +1288,7 @@ export class DataSourceProcessor {
             if (!manager) {
                 return resolve(null);
             }
-            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
             if (!user) {
                 return resolve(null);
             }
@@ -940,13 +1299,13 @@ export class DataSourceProcessor {
                 console.log('[DataSourceProcessor] Executing cross-source query for project:', projectId);
                 try {
                     // Check if this is a JOIN query or simple single-table query
-                    const hasJoins = queryJSON && JSON.parse(queryJSON).join_conditions && 
-                                    JSON.parse(queryJSON).join_conditions.length > 0;
-                    
+                    const hasJoins = queryJSON && JSON.parse(queryJSON).join_conditions &&
+                        JSON.parse(queryJSON).join_conditions.length > 0;
+
                     if (hasJoins) {
                         // For queries with JOINs, we need to execute on synced PostgreSQL data
                         console.log('[DataSourceProcessor] Cross-source query has JOINs, using synced data approach');
-                        
+
                         // Get the internal PostgreSQL connector
                         const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
                         if (!driver) {
@@ -956,17 +1315,17 @@ export class DataSourceProcessor {
                         if (!manager) {
                             return resolve(null);
                         }
-                        
+
                         // Resolve table names and transform query
                         const tableMap = await this.resolveTableNamesForCrossSource(projectId, queryJSON, manager);
-                        
+
                         if (tableMap.size === 0) {
                             console.warn('[DataSourceProcessor] Tables not synced to PostgreSQL. Checking if all tables from same data source...');
-                            
+
                             // Parse queryJSON to get all unique data_source_ids from columns
                             const parsedQuery = JSON.parse(queryJSON);
                             const uniqueDataSourceIds = new Set<number>();
-                            
+
                             if (parsedQuery.columns && Array.isArray(parsedQuery.columns)) {
                                 parsedQuery.columns.forEach((col: any) => {
                                     if (col.data_source_id) {
@@ -974,14 +1333,14 @@ export class DataSourceProcessor {
                                     }
                                 });
                             }
-                            
+
                             console.log(`[DataSourceProcessor] Found ${uniqueDataSourceIds.size} unique data source(s) in query`);
-                            
+
                             if (uniqueDataSourceIds.size === 1) {
                                 // All tables from same source - execute directly on that data source
                                 const dataSourceId = Array.from(uniqueDataSourceIds)[0];
                                 console.log(`[DataSourceProcessor] All tables from same data source (${dataSourceId}), executing directly on external database`);
-                                
+
                                 const results = await this.executeQueryOnExternalDataSource(
                                     dataSourceId,
                                     query,
@@ -1002,10 +1361,10 @@ export class DataSourceProcessor {
                                 return resolve([]);
                             }
                         }
-                        
+
                         const transformedQuery = this.transformQueryForCrossSource(query, tableMap);
                         console.log('[DataSourceProcessor] Executing transformed cross-source JOIN query:', transformedQuery);
-                        
+
                         const internalDbConnector = await driver.getConcreteDriver();
                         const results = await internalDbConnector.query(transformedQuery);
                         return resolve(results);
@@ -1033,7 +1392,7 @@ export class DataSourceProcessor {
                             }
                         }
                     }
-                    
+
                     // If we can't determine a data source, return empty
                     console.warn('[DataSourceProcessor] Could not determine data source for cross-source query');
                     return resolve([]);
@@ -1046,23 +1405,23 @@ export class DataSourceProcessor {
 
             // Handle single-source queries (original logic)
             // First try to find data source owned by user
-            let dataSource: DRADataSource|null = await manager.findOne(DRADataSource, {where: {id: dataSourceId, users_platform: user}});
-            
+            let dataSource: DRADataSource | null = await manager.findOne(DRADataSource, { where: { id: dataSourceId, users_platform: user } });
+
             // If not owned by user, check if user is a member of the data source's project
             if (!dataSource) {
                 dataSource = await manager.findOne(DRADataSource, {
-                    where: {id: dataSourceId},
-                    relations: {project: true}
+                    where: { id: dataSourceId },
+                    relations: { project: true }
                 });
-                
+
                 if (dataSource?.project) {
                     const membership = await manager.findOne(DRAProjectMember, {
                         where: {
-                            user: {id: user_id},
-                            project: {id: dataSource.project.id}
+                            user: { id: user_id },
+                            project: { id: dataSource.project.id }
                         }
                     });
-                    
+
                     if (!membership) {
                         return resolve(null);
                     }
@@ -1071,6 +1430,58 @@ export class DataSourceProcessor {
                     return resolve(null);
                 }
             }
+
+            // Handle MongoDB queries
+            if (dataSource.data_type === EDataSourceType.MONGODB) {
+                // Check if MongoDB data is synced to PostgreSQL
+                // If synced, treat as PostgreSQL query on dra_mongodb schema tables
+                // If not synced, execute as native MongoDB aggregation pipeline
+                if (dataSource.sync_status === 'completed' && dataSource.last_sync_at) {
+                    console.log(`[DataSourceProcessor] MongoDB data source ${dataSource.id} is synced to PostgreSQL, executing SQL query on internal database`);
+                    
+                    try {
+                        // Get internal PostgreSQL driver
+                        const internalDriver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+                        if (!internalDriver) {
+                            return resolve({ success: false, error: 'Internal PostgreSQL driver not available', data: [], rowCount: 0 });
+                        }
+                        const internalDbConnector = await internalDriver.getConcreteDriver();
+                        if (!internalDbConnector) {
+                            return resolve({ success: false, error: 'Internal PostgreSQL connection not available', data: [], rowCount: 0 });
+                        }
+
+                        // Reconstruct SQL from JSON if provided
+                        let finalQuery = query;
+                        if (queryJSON) {
+                            finalQuery = this.reconstructSQLFromJSON(queryJSON);
+
+                            // Extract LIMIT/OFFSET from original query if not in JSON
+                            const limitMatch = query.match(/LIMIT\s+(\d+)/i);
+                            const offsetMatch = query.match(/OFFSET\s+(\d+)/i);
+                            if (limitMatch && !finalQuery.includes('LIMIT')) {
+                                const limit = limitMatch[1];
+                                const offset = offsetMatch ? offsetMatch[1] : '0';
+                                finalQuery += ` LIMIT ${limit} OFFSET ${offset}`;
+                            }
+                        }
+
+                        console.log('[DataSourceProcessor] Executing SQL query on synced MongoDB data:', finalQuery);
+                        const results = await internalDbConnector.query(finalQuery);
+                        console.log('[DataSourceProcessor] Query results count:', results?.length || 0);
+                        return resolve(results);
+                    } catch (error) {
+                        console.error('[DataSourceProcessor] Error executing query on synced MongoDB data:', error);
+                        console.error('[DataSourceProcessor] Failed query was:', query);
+                        return reject(error);
+                    }
+                } else {
+                    // Not synced - execute as native MongoDB query with aggregation pipeline
+                    console.log(`[DataSourceProcessor] MongoDB data source ${dataSource.id} not synced, executing as native MongoDB query`);
+                    const jsonToUse = queryJSON || query;
+                    return resolve(await this.executeMongoDBQuery(dataSource.id, jsonToUse, tokenDetails));
+                }
+            }
+
             const connection = dataSource.connection_details;
             // Skip API-based data sources
             if ('oauth_access_token' in connection) {
@@ -1086,7 +1497,7 @@ export class DataSourceProcessor {
             }
             let dbConnector: DataSource;
             try {
-                dbConnector =  await externalDriver.connectExternalDB(connection);
+                dbConnector = await externalDriver.connectExternalDB(connection);
                 if (!dbConnector) {
                     return resolve(false);
                 }
@@ -1100,7 +1511,7 @@ export class DataSourceProcessor {
                 let finalQuery = query;
                 if (queryJSON) {                    
                     finalQuery = this.reconstructSQLFromJSON(queryJSON);
-                    
+
                     // Extract LIMIT/OFFSET from original query if not in JSON
                     // This handles cases where LIMIT is added as SQL string (e.g., 'LIMIT 5 OFFSET 0')
                     const limitMatch = query.match(/LIMIT\s+(\d+)/i);
@@ -1110,13 +1521,16 @@ export class DataSourceProcessor {
                         const offset = offsetMatch ? offsetMatch[1] : '0';
                         finalQuery += ` LIMIT ${limit} OFFSET ${offset}`;
                     }
-                }                
-                const results = await dbConnector.query(finalQuery);                
+                }
+
+                console.log('[DataSourceProcessor] Executing query on external datasource:', finalQuery);
+                const results = await dbConnector.query(finalQuery);
+                console.log('[DataSourceProcessor] Query results count:', results?.length || 0);
                 return resolve(results);
             } catch (error) {
                 console.error('[DataSourceProcessor] Error executing query:', error);
                 console.error('[DataSourceProcessor] Failed query was:', query);
-                return resolve(null);
+                return reject(error);
             }
         });
     }
@@ -1137,14 +1551,14 @@ export class DataSourceProcessor {
         manager: any
     ): Promise<Map<string, { schema: string; table_name: string; data_source_id: number }>> {
         const tableMap = new Map<string, { schema: string; table_name: string; data_source_id: number }>();
-        
+
         try {
             const parsedQuery = JSON.parse(queryJSON);
-            
+
             // Extract unique table references from columns
             const tableRefs = new Map<string, { schema: string; table: string; data_source_id: number }>();
             const uniqueDataSourceIds = new Set<number>();
-            
+
             if (parsedQuery.columns && Array.isArray(parsedQuery.columns)) {
                 parsedQuery.columns.forEach((col: any) => {
                     if (col.schema && col.table_name && col.data_source_id) {
@@ -1160,15 +1574,15 @@ export class DataSourceProcessor {
                     }
                 });
             }
-            
+
             const isSameSource = uniqueDataSourceIds.size === 1;
             console.log(`[DataSourceProcessor] Resolving ${tableRefs.size} unique table references for cross-source query`);
             console.log(`[DataSourceProcessor] Query involves ${uniqueDataSourceIds.size} data source(s): ${Array.from(uniqueDataSourceIds).join(', ')}`);
-            
+
             // For each unique table reference, find its synced PostgreSQL equivalent
             for (const [originalRef, ref] of tableRefs) {
                 console.log(`[DataSourceProcessor] Looking up synced table for: ${originalRef} (data_source_id: ${ref.data_source_id})`);
-                
+
                 // First, try to find in dra_table_metadata using physical_table_name or logical_table_name
                 let metadata = await manager.query(`
                     SELECT 
@@ -1181,27 +1595,27 @@ export class DataSourceProcessor {
                     AND (physical_table_name = $2 OR logical_table_name = $2)
                     LIMIT 1
                 `, [ref.data_source_id, ref.table]);
-                
+
                 // If not found by physical_table_name or logical_table_name, try matching by schema pattern
                 // This handles cases where the table is from the original MySQL/PostgreSQL database
                 if (!metadata || metadata.length === 0) {
                     // For external databases (MySQL, MariaDB, PostgreSQL), the tables are NOT synced
                     // They exist in their original schemas. We need to use foreign data wrapper approach
                     // OR we need to check if data has been synced to a DRA schema
-                    
+
                     // Check if this is a synced table by looking at the data source
                     const dataSource = await manager.query(`
                         SELECT id, data_type, connection_details
                         FROM dra_data_source
                         WHERE id = $1
                     `, [ref.data_source_id]);
-                    
+
                     if (dataSource && dataSource.length > 0) {
                         const dsType = dataSource[0].data_type;
-                        
+
                         // For API-based data sources (Google Analytics, Excel, CSV, PDF), tables are already in PostgreSQL
                         // They use their original schema.table names directly
-                        if (dsType === 'google_analytics' || dsType === 'google_ads' || dsType === 'google_ads_manager' || 
+                        if (dsType === 'google_analytics' || dsType === 'google_ads' || dsType === 'google_ads_manager' ||
                             dsType === 'excel' || dsType === 'csv' || dsType === 'pdf') {
                             console.log(`[DataSourceProcessor] API/File data source (${dsType}) - table already in PostgreSQL: ${originalRef}`);
                             tableMap.set(originalRef, {
@@ -1211,7 +1625,7 @@ export class DataSourceProcessor {
                             });
                             continue;
                         }
-                        
+
                         // For MySQL, MariaDB, PostgreSQL data sources that are external
                         // The query should use the original schema.table names
                         // But we need to qualify them with the synced schema if they've been imported
@@ -1226,7 +1640,7 @@ export class DataSourceProcessor {
                                 WHERE data_source_id = $1
                                 LIMIT 1
                             `, [ref.data_source_id]);
-                            
+
                             if (anyTable && anyTable.length > 0) {
                                 // Data IS synced - find the specific table
                                 // Try matching by physical_table_name pattern (which may include original table name)
@@ -1246,7 +1660,7 @@ export class DataSourceProcessor {
                                     )
                                     LIMIT 1
                                 `, [ref.data_source_id, ref.table, `${ref.table}_%`, `%_${ref.table}_%`]);
-                                
+
                                 if (tablePattern && tablePattern.length > 0) {
                                     metadata = tablePattern;
                                     console.log(`[DataSourceProcessor] Found synced table by pattern: ${tablePattern[0].schema_name}.${tablePattern[0].physical_table_name}`);
@@ -1264,14 +1678,14 @@ export class DataSourceProcessor {
                         }
                     }
                 }
-                
+
                 if (metadata && metadata.length > 0) {
                     const syncedInfo = {
                         schema: metadata[0].schema_name,
                         table_name: metadata[0].physical_table_name,
                         data_source_id: metadata[0].data_source_id
                     };
-                    
+
                     tableMap.set(originalRef, syncedInfo);
                     console.log(`[DataSourceProcessor] ✓ Mapped ${originalRef} → ${syncedInfo.schema}.${syncedInfo.table_name}`);
                 } else {
@@ -1292,10 +1706,10 @@ export class DataSourceProcessor {
                     }
                 }
             }
-            
+
             console.log(`[DataSourceProcessor] Successfully resolved ${tableMap.size} table mappings`);
             return tableMap;
-            
+
         } catch (error) {
             console.error('[DataSourceProcessor] Error resolving cross-source table names:', error);
             return tableMap;
@@ -1315,29 +1729,29 @@ export class DataSourceProcessor {
         tableMap: Map<string, { schema: string; table_name: string }>
     ): string {
         let transformedQuery = originalQuery;
-        
+
         console.log('[DataSourceProcessor] Transforming query with synced table names...');
-        
+
         // Sort table references by length (longest first) to avoid partial replacements
         const sortedRefs = Array.from(tableMap.entries()).sort((a, b) => b[0].length - a[0].length);
-        
+
         for (const [originalRef, syncedInfo] of sortedRefs) {
             const replacement = `${syncedInfo.schema}.${syncedInfo.table_name}`;
-            
+
             // Create regex that matches the table reference as a whole word
             // This handles: schema.table, schema.table.column, FROM schema.table, JOIN schema.table
             const escapedRef = originalRef.replace(/\./g, '\\.');
             const regex = new RegExp(`\\b${escapedRef}\\b`, 'g');
-            
+
             const beforeCount = (transformedQuery.match(regex) || []).length;
             transformedQuery = transformedQuery.replace(regex, replacement);
             const afterCount = (transformedQuery.match(new RegExp(`\\b${replacement.replace(/\./g, '\\.')}\\b`, 'g')) || []).length;
-            
+
             if (beforeCount > 0) {
                 console.log(`[DataSourceProcessor] Replaced ${beforeCount} occurrences: ${originalRef} → ${replacement}`);
             }
         }
-        
+
         return transformedQuery;
     }
 
@@ -1356,23 +1770,23 @@ export class DataSourceProcessor {
             if (!manager) {
                 return resolve(null);
             }
-            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
             if (!user) {
                 return resolve(null);
             }
-            
+
             let dataSource: DRADataSource | null = null;
             let externalDBConnector: DataSource;
             let dataSourceType: any = null;
-            
+
             // Handle cross-source vs single-source
             if (isCrossSource && projectId) {
                 console.log('[DataSourceProcessor] Building cross-source data model for project:', projectId);
-                
+
                 // Parse queryJSON to check data sources
                 const parsedQuery = JSON.parse(queryJSON);
                 const uniqueDataSourceIds = new Set<number>();
-                
+
                 if (parsedQuery.columns && Array.isArray(parsedQuery.columns)) {
                     parsedQuery.columns.forEach((col: any) => {
                         if (col.data_source_id) {
@@ -1380,45 +1794,49 @@ export class DataSourceProcessor {
                         }
                     });
                 }
-                
+
                 console.log(`[DataSourceProcessor] Found ${uniqueDataSourceIds.size} unique data source(s) in data model`);
-                
+
                 // If all tables from same source, use that source directly (no transformation needed)
                 if (uniqueDataSourceIds.size === 1) {
                     const singleDataSourceId = Array.from(uniqueDataSourceIds)[0];
                     console.log(`[DataSourceProcessor] All tables from same data source (${singleDataSourceId}), using direct connection`);
-                    
+
                     // Fetch the data source
                     const singleDataSource = await manager.findOne(DRADataSource, {
-                        where: {id: singleDataSourceId},
-                        relations: {project: true, users_platform: true}
+                        where: { id: singleDataSourceId },
+                        relations: { project: true, users_platform: true }
                     });
-                    
+
                     if (!singleDataSource) {
                         console.error('[DataSourceProcessor] Could not find data source:', singleDataSourceId);
                         return resolve(null);
                     }
-                    
+
                     // Check if user has access
                     if (singleDataSource.users_platform?.id !== user_id) {
                         const membership = await manager.findOne(DRAProjectMember, {
                             where: {
-                                user: {id: user_id},
-                                project: {id: singleDataSource.project?.id}
+                                user: { id: user_id },
+                                project: { id: singleDataSource.project?.id }
                             }
                         });
-                        
+
                         if (!membership) {
                             console.error('[DataSourceProcessor] User does not have access to data source:', singleDataSourceId);
                             return resolve(null);
                         }
                     }
-                    
+
                     const connection = singleDataSource.connection_details;
-                    
-                    // Check if it's Excel/CSV/PDF (already in PostgreSQL)
+
+                    // Check if it's Excel/CSV/PDF or synced MongoDB (already in PostgreSQL)
                     if (connection.data_source_type === 'excel' || connection.data_source_type === 'csv' || connection.data_source_type === 'pdf') {
                         console.log('[DataSourceProcessor] Excel/CSV/PDF data source - using internal PostgreSQL');
+                        externalDBConnector = internalDbConnector;
+                        dataSourceType = EDataSourceType.POSTGRESQL;
+                    } else if (singleDataSource.data_type === EDataSourceType.MONGODB && singleDataSource.sync_status === 'completed' && singleDataSource.last_sync_at) {
+                        console.log('[DataSourceProcessor] Synced MongoDB data source - using internal PostgreSQL');
                         externalDBConnector = internalDbConnector;
                         dataSourceType = EDataSourceType.POSTGRESQL;
                     } else if ('oauth_access_token' in connection) {
@@ -1430,12 +1848,12 @@ export class DataSourceProcessor {
                         if (!dataSourceType) {
                             return resolve(null);
                         }
-                        
+
                         const externalDriver = await DBDriver.getInstance().getDriver(dataSourceType as any);
                         if (!externalDriver) {
                             return resolve(null);
                         }
-                        
+
                         externalDBConnector = await externalDriver.connectExternalDB(connection);
                         if (!externalDBConnector) {
                             return resolve(null);
@@ -1444,27 +1862,27 @@ export class DataSourceProcessor {
                 } else if (uniqueDataSourceIds.size > 1) {
                     // True cross-source - need to resolve synced table names
                     console.log('[DataSourceProcessor] True cross-source model - attempting to resolve synced tables');
-                    
+
                     const tableMap = await this.resolveTableNamesForCrossSource(projectId, queryJSON, manager);
-                    
+
                     if (tableMap.size === 0) {
                         console.error('[DataSourceProcessor] Could not resolve cross-source table names. Tables must be synced to PostgreSQL for cross-source JOINs.');
                         return resolve(null);
                     }
-                    
+
                     // Transform the query to use synced table names
                     const transformedQuery = this.transformQueryForCrossSource(query, tableMap);
-                    
+
                     if (transformedQuery === query) {
                         console.warn('[DataSourceProcessor] Query was not transformed. This may indicate table mapping failed.');
                     }
-                    
+
                     // Update the query with the transformed version
                     query = transformedQuery;
-                    
+
                     console.log('[DataSourceProcessor] Cross-source query transformation complete');
                     console.log('[DataSourceProcessor] Transformed query:', query);
-                    
+
                     // Execute on internal PostgreSQL connector with synced tables
                     externalDBConnector = internalDbConnector;
                     dataSourceType = EDataSourceType.POSTGRESQL;
@@ -1475,31 +1893,38 @@ export class DataSourceProcessor {
             } else if (dataSourceId) {
                 // Single-source: fetch data source and connect
                 dataSource = await manager.findOne(DRADataSource, {
-                    where: {id: dataSourceId, users_platform: user}
+                    where: { id: dataSourceId, users_platform: user }
                 });
                 if (!dataSource) {
                     return resolve(null);
                 }
-                
+
                 const connection = dataSource.connection_details;
-                // Skip API-based data sources
-                if ('oauth_access_token' in connection) {
-                    return resolve(null);
-                }
                 
-                dataSourceType = UtilityService.getInstance().getDataSourceType(connection.data_source_type);
-                if (!dataSourceType) {
+                // Check if it's synced MongoDB (already in PostgreSQL)
+                if (dataSource.data_type === EDataSourceType.MONGODB && dataSource.sync_status === 'completed' && dataSource.last_sync_at) {
+                    console.log('[DataSourceProcessor] Synced MongoDB data source - using internal PostgreSQL');
+                    externalDBConnector = internalDbConnector;
+                    dataSourceType = EDataSourceType.POSTGRESQL;
+                } else if ('oauth_access_token' in connection) {
+                    // Skip API-based data sources
                     return resolve(null);
-                }
-                
-                const externalDriver = await DBDriver.getInstance().getDriver(dataSourceType as any);
-                if (!externalDriver) {
-                    return resolve(null);
-                }
-                
-                externalDBConnector = await externalDriver.connectExternalDB(connection);
-                if (!externalDBConnector) {
-                    return resolve(null);
+                } else {
+                    // External database (MySQL, MariaDB, PostgreSQL) - connect directly
+                    dataSourceType = UtilityService.getInstance().getDataSourceType(connection.data_source_type);
+                    if (!dataSourceType) {
+                        return resolve(null);
+                    }
+
+                    const externalDriver = await DBDriver.getInstance().getDriver(dataSourceType as any);
+                    if (!externalDriver) {
+                        return resolve(null);
+                    }
+
+                    externalDBConnector = await externalDriver.connectExternalDB(connection);
+                    if (!externalDBConnector) {
+                        return resolve(null);
+                    }
                 }
             } else {
                 return resolve(null);
@@ -1511,44 +1936,88 @@ export class DataSourceProcessor {
                     console.error('[DataSourceProcessor] SQL validation failed:', validation.error);
                     throw new Error(validation.error);
                 }
-                
+
                 dataModelName = UtilityService.getInstance().uniquiseName(dataModelName);
-                const selectTableQuery = `${query}`;
+                
+                // CRITICAL FIX: Always reconstruct SQL from JSON for data model building
+                // The frontend buildSQLQuery() generates different column aliases than what the
+                // INSERT code expects. For single-table queries, frontend uses "tableName_col"
+                // but INSERT code looks up rows by "schema_tableName_col". Reconstructing from
+                // JSON ensures aliases match the INSERT row key format, preventing null data.
+                // This is consistent with executeQueryOnExternalDataSource() which also reconstructs.
+                let selectTableQuery: string;
+                try {
+                    selectTableQuery = this.reconstructSQLFromJSON(queryJSON);
+                    
+                    // Preserve LIMIT/OFFSET from original query if not in reconstructed SQL
+                    const limitMatch = query.match(/LIMIT\s+(\d+)/i);
+                    const offsetMatch = query.match(/OFFSET\s+(\d+)/i);
+                    if (limitMatch && !selectTableQuery.toUpperCase().includes('LIMIT')) {
+                        selectTableQuery += ` LIMIT ${limitMatch[1]}`;
+                    }
+                    if (offsetMatch && !selectTableQuery.toUpperCase().includes('OFFSET')) {
+                        selectTableQuery += ` OFFSET ${offsetMatch[1]}`;
+                    }
+                    
+                    console.log('[DataSourceProcessor] Reconstructed SQL for data model build:', selectTableQuery);
+                } catch (reconstructError) {
+                    console.error('[DataSourceProcessor] SQL reconstruction failed, falling back to frontend SQL:', reconstructError);
+                    selectTableQuery = `${query}`;
+                }
                 const rowsFromDataSource = await externalDBConnector.query(selectTableQuery);
                 //Create the table first then insert the data.
                 let createTableQuery = `CREATE TABLE ${dataModelName} `;
                 const sourceTable = JSON.parse(queryJSON);
+                
+                // CRITICAL FIX: Filter columns for table creation but preserve full array in saved query JSON
+                // Only create table columns for: selected columns OR hidden referenced columns
+                const columnsForTableCreation = sourceTable.columns.filter((col: any) => {
+                    // Include if selected for display
+                    if (col.is_selected_column) return true;
+                    
+                    // Include if tracked as hidden reference (aggregate, GROUP BY, WHERE, HAVING, ORDER BY, etc.)
+                    const isTracked = sourceTable.hidden_referenced_columns?.some(
+                        (tracked: any) => tracked.schema === col.schema &&
+                                   tracked.table_name === col.table_name &&
+                                   tracked.column_name === col.column_name
+                    );
+                    return isTracked;
+                });
+                
+                console.log(`[DataSourceProcessor] Column preservation: Total=${sourceTable.columns.length}, ForTable=${columnsForTableCreation.length}`);
+                
                 let columns = '';
                 let insertQueryColumns = '';
-                sourceTable.columns.forEach((column: any, index: number) => {
+                columnsForTableCreation.forEach((column: any, index: number) => {
                     let columnSize = '';
-                    
+
                     // Only apply character_maximum_length to string types, and cap NUMERIC precision at 1000
                     if (column?.character_maximum_length) {
                         const maxLength = column.character_maximum_length;
                         const columnDataType = column.data_type?.toUpperCase() || '';
-                        
+
                         // For NUMERIC/DECIMAL types, cap precision at 1000 (PostgreSQL limit)
                         if (columnDataType.includes('NUMERIC') || columnDataType.includes('DECIMAL')) {
                             columnSize = maxLength > 1000 ? '' : `(${maxLength})`;
-                        } 
+                        }
                         // For string types, use the length as-is
                         else if (columnDataType.includes('CHAR') || columnDataType.includes('TEXT') || columnDataType.includes('VARCHAR')) {
                             columnSize = `(${maxLength})`;
                         }
                         // For other types, don't apply size
                     }
-                    
+
                     // Check if column.data_type already contains size information (e.g., "varchar(1024)")
                     // If it does, don't append columnSize again to avoid "VARCHAR(1024)(1024)"
                     const dataTypeAlreadyHasSize = column.data_type && /\(\s*\d+(?:,\d+)?\s*\)/.test(column.data_type);
                     const columnType = dataTypeAlreadyHasSize ? column.data_type : `${column.data_type}${columnSize}`;
 
+
                     // For cross-source models, use the column's data_source_type; for single-source, use the global dataSourceType
-                    const columnDataSourceType = isCrossSource && column.data_source_type 
+                    const columnDataSourceType = isCrossSource && column.data_source_type
                         ? UtilityService.getInstance().getDataSourceType(column.data_source_type)
                         : dataSourceType;
-                    
+
                     const dataType = UtilityService.getInstance().convertDataTypeToPostgresDataType(columnDataSourceType, columnType);
                     let dataTypeString = '';
                     if (dataType.size) {
@@ -1556,7 +2025,7 @@ export class DataSourceProcessor {
                     } else {
                         dataTypeString = `${dataType.type}`;
                     }
-                    
+
                     // Override data type if transform function is applied
                     if (column.transform_function) {
                         const transformFunc = column.transform_function.toUpperCase();
@@ -1570,7 +2039,7 @@ export class DataSourceProcessor {
                             dataTypeString = 'NUMERIC';
                         }
                     }
-                    
+
                     // Determine column name - use alias if provided, otherwise construct from schema_table_column
                     let columnName;
                     if (column.alias_name && column.alias_name !== '') {
@@ -1583,7 +2052,7 @@ export class DataSourceProcessor {
                         columnName = `${column.schema}_${column.table_name}_${column.column_name}`;
                     }
                     
-                    if (index < sourceTable.columns.length - 1) {
+                    if (index < columnsForTableCreation.length - 1) {
                         columns += `${columnName} ${dataTypeString}, `;
                         insertQueryColumns += `${columnName},`;
                     } else {
@@ -1605,19 +2074,19 @@ export class DataSourceProcessor {
                         }
                     });
                 }
-                
+
                 // Handle GROUP BY aggregate function columns
                 if (sourceTable.query_options?.group_by?.aggregate_functions && sourceTable.query_options.group_by.aggregate_functions.length > 0) {
                     const aggregateFunctions = ['SUM', 'AVG', 'COUNT', 'MIN', 'MAX'];
                     const validAggFuncs = sourceTable.query_options.group_by.aggregate_functions.filter(
                         (aggFunc: any) => aggFunc.aggregate_function !== '' && aggFunc.column !== ''
                     );
-                    
+
                     if (validAggFuncs.length > 0) {
                         // Only add comma if there's content before (regular columns always exist, or calculated columns were added)
                         columns += ', ';
                         insertQueryColumns += ', ';
-                        
+
                         validAggFuncs.forEach((aggFunc: any, index: number) => {
                             // Determine column alias name
                             let aliasName = aggFunc.column_alias_name;
@@ -1626,7 +2095,7 @@ export class DataSourceProcessor {
                                 const columnName = columnParts[columnParts.length - 1];
                                 aliasName = `${aggregateFunctions[aggFunc.aggregate_function]}_${columnName}`.toLowerCase();
                             }
-                            
+
                             // Add column to CREATE TABLE statement
                             if (index < validAggFuncs.length - 1) {
                                 columns += `${aliasName} NUMERIC, `;
@@ -1639,40 +2108,59 @@ export class DataSourceProcessor {
                     }
                 }
                 
-                // Handle GROUP BY aggregate expressions (complex expressions like quantity * price)
+                // Handle GROUP BY aggregate expressions (complex expressions like quantity * price, CASE statements)
                 if (sourceTable.query_options?.group_by?.aggregate_expressions && 
                     sourceTable.query_options.group_by.aggregate_expressions.length > 0) {
                     const validExpressions = sourceTable.query_options.group_by.aggregate_expressions.filter(
                         (expr: any) => expr.column_alias_name && expr.column_alias_name !== ''
                     );
-                    
+
                     if (validExpressions.length > 0) {
                         columns += ', ';
                         insertQueryColumns += ', ';
-                        
+
                         validExpressions.forEach((expr: any, index: number) => {
                             const aliasName = expr.column_alias_name;
                             
+                            // CRITICAL: Use column_data_type if provided (inferred from expression), otherwise default to NUMERIC
+                            let dataTypeString = 'NUMERIC';
+                            if (expr.column_data_type && expr.column_data_type !== '') {
+                                // Map frontend data types to PostgreSQL types
+                                const exprType = expr.column_data_type.toLowerCase();
+                                if (exprType === 'text' || exprType.includes('char') || exprType.includes('varchar')) {
+                                    dataTypeString = 'TEXT';
+                                } else if (exprType === 'numeric' || exprType === 'decimal' || exprType.includes('int')) {
+                                    dataTypeString = 'NUMERIC';
+                                } else if (exprType === 'boolean') {
+                                    dataTypeString = 'BOOLEAN';
+                                } else if (exprType.includes('timestamp') || exprType.includes('date')) {
+                                    dataTypeString = exprType.toUpperCase();
+                                } else {
+                                    dataTypeString = expr.column_data_type.toUpperCase();
+                                }
+                                console.log(`[DataSourceProcessor] Using inferred data type for aggregate expression ${aliasName}: ${dataTypeString} (from ${expr.column_data_type})`);
+                            }
+                            
                             if (index < validExpressions.length - 1) {
-                                columns += `${aliasName} NUMERIC, `;
+                                columns += `${aliasName} ${dataTypeString}, `;
                                 insertQueryColumns += `${aliasName}, `;
                             } else {
-                                columns += `${aliasName} NUMERIC`;
+                                columns += `${aliasName} ${dataTypeString}`;
                                 insertQueryColumns += `${aliasName}`;
                             }
                         });
                     }
                 }
-                
+
                 createTableQuery += `(${columns})`;
 
                 await internalDbConnector.query(createTableQuery);
 
                 insertQueryColumns = `(${insertQueryColumns})`;
-                
+
                 // Track column data types for proper value formatting
                 const columnDataTypes = new Map<string, string>();
-                sourceTable.columns.forEach((column: any) => {
+                columnsForTableCreation.forEach((column: any) => {
                     // Use same column name construction logic as INSERT loop to ensure key match
                     let columnName;
                     if (column.alias_name && column.alias_name !== '') {
@@ -1685,12 +2173,12 @@ export class DataSourceProcessor {
                     }
                     const columnSize = column?.character_maximum_length ? `(${column?.character_maximum_length})` : '';
                     const columnType = `${column.data_type}${columnSize}`;
-                    
+
                     // For cross-source models, use the column's data_source_type; for single-source, use the global dataSourceType
-                    const columnDataSourceType = isCrossSource && column.data_source_type 
+                    const columnDataSourceType = isCrossSource && column.data_source_type
                         ? UtilityService.getInstance().getDataSourceType(column.data_source_type)
                         : dataSourceType;
-                    
+
                     const dataType = UtilityService.getInstance().convertDataTypeToPostgresDataType(columnDataSourceType, columnType);
                     let dataTypeString = '';
                     if (dataType.size) {
@@ -1698,7 +2186,7 @@ export class DataSourceProcessor {
                     } else {
                         dataTypeString = `${dataType.type}`;
                     }
-                    
+
                     // Override data type if transform function is applied
                     if (column.transform_function) {
                         const transformFunc = column.transform_function.toUpperCase();
@@ -1712,23 +2200,28 @@ export class DataSourceProcessor {
                             dataTypeString = 'NUMERIC';
                         }
                     }
-                    
+
                     columnDataTypes.set(columnName, dataTypeString);
                 });
-                
+
                 // Add aggregate expressions to columnDataTypes map
                 if (sourceTable.query_options?.group_by?.aggregate_expressions) {
                     sourceTable.query_options.group_by.aggregate_expressions.forEach((expr: any) => {
                         if (expr.column_alias_name && expr.column_alias_name !== '') {
-                            columnDataTypes.set(expr.column_alias_name, 'NUMERIC');
+                            // Use column_data_type if provided, otherwise default to NUMERIC
+                            const dataType = expr.column_data_type || 'NUMERIC';
+                            columnDataTypes.set(expr.column_alias_name, dataType.toUpperCase());
+                            console.log(`[DataSourceProcessor] Set data type for aggregate expression ${expr.column_alias_name}: ${dataType}`);
                         }
                     });
                 }
                 
-                rowsFromDataSource.forEach((row: any, index: number) => {
+                let failedInserts = 0;
+                for (let index = 0; index < rowsFromDataSource.length; index++) {
+                    const row = rowsFromDataSource[index];
                     let insertQuery = `INSERT INTO ${dataModelName} `;
                     let values = '';
-                    sourceTable.columns.forEach((column: any, columnIndex: number) => {
+                    columnsForTableCreation.forEach((column: any, columnIndex: number) => {
                         // Determine row key - use alias if provided for data lookup
                         let rowKey;
                         let columnName;
@@ -1745,104 +2238,117 @@ export class DataSourceProcessor {
                             // When alias is empty, frontend generates alias as schema_table_column
                             rowKey = `${column.schema}_${column.table_name}_${column.column_name}`;
                         }
-                        
+
                         // Get the column data type and format the value accordingly
                         const columnType = columnDataTypes.get(columnName) || 'TEXT';
-                        
+
                         // Log JSON/JSONB/DATE columns for debugging (first row only)
-                        if ((columnType.toUpperCase().includes('JSON') || 
-                             columnType.toUpperCase().includes('DATE') || 
-                             columnType.toUpperCase().includes('TIME') || 
-                             columnType.toUpperCase().includes('TIMESTAMP')) && 
+                        if ((columnType.toUpperCase().includes('JSON') ||
+                            columnType.toUpperCase().includes('DATE') ||
+                            columnType.toUpperCase().includes('TIME') ||
+                            columnType.toUpperCase().includes('TIMESTAMP')) &&
                             index === 0) {
                             console.log(`Column ${columnName} (${columnType}):`, typeof row[rowKey], row[rowKey]);
                         }
-                        
+
                         const formattedValue = this.formatValueForSQL(row[rowKey], columnType, columnName);
                         
-                        if (columnIndex < sourceTable.columns.length - 1) {
+                        if (columnIndex < columnsForTableCreation.length - 1) {
                             values += `${formattedValue},`;
                         } else {
                             values += formattedValue;
                         }
                     });
-                    // Handle calculated column values
+                    // Handle calculated column values - use formatValueForSQL for proper type handling
                     if (sourceTable.calculated_columns && sourceTable.calculated_columns.length > 0) {
                         values += ',';
                         sourceTable.calculated_columns.forEach((column: any, columnIndex: number) => {
                             const columnName = column.column_name;
+                            const formattedVal = this.formatValueForSQL(row[columnName], 'NUMERIC', columnName);
                             if (columnIndex < sourceTable.calculated_columns.length - 1) {
-                                values += `'${row[columnName] || 0}',`;
+                                values += `${formattedVal},`;
                             } else {
-                                values += `'${row[columnName] || 0}'`;
+                                values += `${formattedVal}`;
                             }
                         });
                     }
                     
-                    // Handle aggregate function values
+                    // Handle aggregate function values - use formatValueForSQL for proper type handling
                     if (sourceTable.query_options?.group_by?.aggregate_functions && sourceTable.query_options.group_by.aggregate_functions.length > 0) {
                         const aggregateFunctions = ['SUM', 'AVG', 'COUNT', 'MIN', 'MAX'];
                         const validAggFuncs = sourceTable.query_options.group_by.aggregate_functions.filter(
                             (aggFunc: any) => aggFunc.aggregate_function !== '' && aggFunc.column !== ''
                         );
-                        
+
                         if (validAggFuncs.length > 0) {
                             values += ',';
                             validAggFuncs.forEach((aggFunc: any, columnIndex: number) => {
                                 let aliasName = aggFunc.column_alias_name;
                                 let rowKey = aliasName; // Key to lookup in row data
-                                
+
                                 if (!aliasName || aliasName === '') {
                                     // When no alias is provided, PostgreSQL uses lowercase function name as column name
                                     const funcName = aggregateFunctions[aggFunc.aggregate_function].toLowerCase();
                                     rowKey = funcName; // PostgreSQL default: 'sum', 'avg', 'count', 'min', 'max'
-                                    
+
                                     // Generate alias for table column name
                                     const columnParts = aggFunc.column.split('.');
                                     const columnName = columnParts[columnParts.length - 1];
                                     aliasName = `${funcName}_${columnName}`.toLowerCase();
                                 }
                                 
+                                const formattedVal = this.formatValueForSQL(row[rowKey], 'NUMERIC', aliasName);
                                 if (columnIndex < validAggFuncs.length - 1) {
-                                    values += `'${row[rowKey] || 0}',`;
+                                    values += `${formattedVal},`;
                                 } else {
-                                    values += `'${row[rowKey] || 0}'`;
+                                    values += `${formattedVal}`;
                                 }
                             });
                         }
                     }
                     
-                    // Handle aggregate expression values
+                    // Handle aggregate expression values - use formatValueForSQL with inferred data type
                     if (sourceTable.query_options?.group_by?.aggregate_expressions && 
                         sourceTable.query_options.group_by.aggregate_expressions.length > 0) {
                         const validExpressions = sourceTable.query_options.group_by.aggregate_expressions.filter(
                             (expr: any) => expr.column_alias_name && expr.column_alias_name !== ''
                         );
-                        
+
                         if (validExpressions.length > 0) {
                             values += ',';
                             validExpressions.forEach((expr: any, index: number) => {
                                 const aliasName = expr.column_alias_name;
-                                const value = row[aliasName] || 0;
+                                const exprDataType = columnDataTypes.get(aliasName) || 'NUMERIC';
+                                const formattedVal = this.formatValueForSQL(row[aliasName], exprDataType, aliasName);
                                 
                                 if (index < validExpressions.length - 1) {
-                                    values += `'${value}',`;
+                                    values += `${formattedVal},`;
                                 } else {
-                                    values += `'${value}'`;
+                                    values += `${formattedVal}`;
                                 }
                             });
                         }
                     }
-                    
+
                     insertQuery += `${insertQueryColumns} VALUES(${values});`;
-                    internalDbConnector.query(insertQuery);
-                });
+                    try {
+                        await internalDbConnector.query(insertQuery);
+                    } catch (insertError: any) {
+                        failedInserts++;
+                        if (failedInserts <= 3) {
+                            console.error(`[DataSourceProcessor] INSERT failed for row ${index}:`, insertError?.message || insertError);
+                            console.error(`[DataSourceProcessor] Failed query:`, insertQuery.substring(0, 500));
+                        }
+                    }
+                }
+                const successfulInserts = rowsFromDataSource.length - failedInserts;
+                console.log(`[DataSourceProcessor] Inserted ${successfulInserts}/${rowsFromDataSource.length} rows into ${dataModelName} (${failedInserts} failed)`);
                 const dataModel = new DRADataModel();
                 dataModel.schema = 'public';
                 dataModel.name = dataModelName;
-                dataModel.sql_query = query;
+                dataModel.sql_query = selectTableQuery;
                 dataModel.query = JSON.parse(queryJSON);
-                
+
                 // Set data_source for single-source, null for cross-source
                 if (isCrossSource) {
                     dataModel.data_source = null;
@@ -1851,16 +2357,16 @@ export class DataSourceProcessor {
                     dataModel.data_source = dataSource;
                     dataModel.is_cross_source = false;
                 }
-                
+
                 dataModel.users_platform = user;
                 const savedDataModel = await manager.save(dataModel);
-                
+
                 // For cross-source models, populate the DRADataModelSource junction table
                 if (isCrossSource && projectId) {
                     // Extract unique data source IDs from the query JSON
                     const parsedQuery = JSON.parse(queryJSON);
                     const dataSourceIds = new Set<number>();
-                    
+
                     if (parsedQuery.columns) {
                         parsedQuery.columns.forEach((col: any) => {
                             if (col.data_source_id) {
@@ -1868,7 +2374,7 @@ export class DataSourceProcessor {
                             }
                         });
                     }
-                    
+
                     // Create junction table entries for each data source
                     for (const dsId of dataSourceIds) {
                         const junction = new DRADataModelSource();
@@ -1877,14 +2383,14 @@ export class DataSourceProcessor {
                         junction.users_platform_id = user.id;
                         await manager.save(junction);
                     }
-                    
+
                     console.log(`[DataSourceProcessor] Created ${dataSourceIds.size} data model source links`);
                 }
-                
+
                 return resolve(savedDataModel.id);
             } catch (error) {
-                console.log('error', error);
-                return resolve(null);
+                console.error('[DataSourceProcessor] Error building data model:', error);
+                return reject(error);
             }
         });
     }
@@ -1904,11 +2410,11 @@ export class DataSourceProcessor {
             if (!manager) {
                 return resolve({ status: 'error', file_id: fileId });
             }
-            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
             if (!user) {
                 return resolve({ status: 'error', file_id: fileId });
             }
-            const project:DRAProject|null = await manager.findOne(DRAProject, {where: {id: projectId, users_platform: user}});
+            const project: DRAProject | null = await manager.findOne(DRAProject, { where: { id: projectId, users_platform: user } });
             if (project) {
                 let dataSource = new DRADataSource();
                 const sheetsProcessed = [];
@@ -1942,7 +2448,7 @@ export class DataSourceProcessor {
                 } else {
                     dataSource = await manager.findOne(DRADataSource, { where: { id: dataSourceId, project: project, users_platform: user } });
                 }
-                
+
                 try {
                     const parsedTableStructure = JSON.parse(data);
                     // Get sheet information
@@ -1950,11 +2456,11 @@ export class DataSourceProcessor {
                     const sheetId = sheetInfo?.sheet_id || `sheet_${Date.now()}`;
                     const originalSheetName = sheetInfo?.original_sheet_name || sheetName;
                     const sheetIndex = sheetInfo?.sheet_index || 0;
-                
+
                     // CRITICAL: Use hash-based short table name to avoid PostgreSQL 63-char limit
                     // Generate logical name (human-readable, can be any length)
                     const logicalTableName = `${sheetName}`;
-                    
+
                     // Generate short physical name using hash (e.g., ds23_a7b3c9d1)
                     const tableMetadataService = TableMetadataService.getInstance();
                     const physicalTableName = tableMetadataService.generatePhysicalTableName(
@@ -1962,32 +2468,32 @@ export class DataSourceProcessor {
                         logicalTableName,
                         fileId
                     );
-                    
+
                     console.log(`[Excel Upload] Physical table: ${physicalTableName}, Logical: ${logicalTableName}`);
-                    
+
                     let createTableQuery = `CREATE TABLE dra_excel."${physicalTableName}" `;
                     let columns = '';
                     let insertQueryColumns = '';
                     const sanitizedColumns: Array<{
-                        original: string, 
-                        sanitized: string, 
-                        type: string, 
-                        title?: string, 
+                        original: string,
+                        sanitized: string,
+                        type: string,
+                        title?: string,
                         key?: string,
                         originalTitle?: string,
                         displayTitle?: string
                     }> = [];
-                    
+
                     if (parsedTableStructure.columns && parsedTableStructure.columns.length > 0) {
                         parsedTableStructure.columns.forEach((column: any, index: number) => {
                             // Use renamed title if available, fall back to original names
                             const displayColumnName = column.title || column.column_name || `column_${index}`;
                             const originalColumnName = column.originalTitle || column.original_title || column.column_name || displayColumnName;
                             const columnKey = column.originalKey || column.original_key || column.key || displayColumnName.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
-                            
+
                             // Sanitize the display name for database usage
                             const sanitizedColumnName = this.sanitizeColumnName(displayColumnName);
-                            
+
                             sanitizedColumns.push({
                                 original: originalColumnName,
                                 sanitized: sanitizedColumnName,
@@ -1997,7 +2503,7 @@ export class DataSourceProcessor {
                                 originalTitle: originalColumnName,
                                 displayTitle: displayColumnName
                             });
-                            
+
                             const dataType = UtilityService.getInstance().convertDataTypeToPostgresDataType(EDataSourceType.EXCEL, column.type);
                             let dataTypeString = '';
                             if (dataType.size) {
@@ -2005,7 +2511,7 @@ export class DataSourceProcessor {
                             } else {
                                 dataTypeString = `${dataType.type}`;
                             }
-                            
+
                             if (index < parsedTableStructure.columns.length - 1) {
                                 columns += `${sanitizedColumnName} ${dataTypeString},`;
                                 insertQueryColumns += `${sanitizedColumnName},`;
@@ -2014,31 +2520,31 @@ export class DataSourceProcessor {
                                 insertQueryColumns += `${sanitizedColumnName}`;
                             }
                         });
-                        
+
                         createTableQuery += `(${columns})`;
 
                         try {
                             // Create the table
                             await dbConnector.query(createTableQuery);
                             console.log('[Excel Upload] Successfully created physical table:', physicalTableName, 'for logical table:', logicalTableName);
-    
+
                             insertQueryColumns = `(${insertQueryColumns})`;
 
                             // Insert data rows
-                            if (parsedTableStructure.rows && parsedTableStructure.rows.length > 0) {                            
+                            if (parsedTableStructure.rows && parsedTableStructure.rows.length > 0) {
                                 let successfulInserts = 0;
                                 let failedInserts = 0;
-                                
+
                                 for (let rowIndex = 0; rowIndex < parsedTableStructure.rows.length; rowIndex++) {
                                     const row = parsedTableStructure.rows[rowIndex];
                                     let insertQuery = `INSERT INTO dra_excel."${physicalTableName}" `;
                                     let values = '';
-     
+
                                     sanitizedColumns.forEach((columnInfo, colIndex) => {
                                         // Try multiple ways to get the value for renamed columns
                                         let value = undefined;
                                         const originalColumn = parsedTableStructure.columns[colIndex];
-                                        
+
                                         // Frontend sends flattened row data, so try direct access first
                                         // Strategy 1: Use current column title (handles renamed columns)
                                         if (originalColumn?.title && row[originalColumn.title] !== undefined) {
@@ -2073,7 +2579,7 @@ export class DataSourceProcessor {
                                         if (colIndex > 0) {
                                             values += ', ';
                                         }
-                                        
+
                                         // Handle different data types properly with comprehensive escaping
                                         if (value === null || value === undefined || value === '') {
                                             values += 'NULL';
@@ -2097,7 +2603,7 @@ export class DataSourceProcessor {
                                             values += `'${escapedValue}'`;
                                         }
                                     });
-    
+
                                     insertQuery += `${insertQueryColumns} VALUES(${values})`;
                                     try {
                                         const result = await dbConnector.query(insertQuery);
@@ -2111,13 +2617,13 @@ export class DataSourceProcessor {
                                         throw error;
                                     }
                                 }
-                                                            
+
                                 // Verify data was actually inserted by counting rows in the table
                                 try {
                                     const countQuery = `SELECT COUNT(*) as row_count FROM dra_excel."${physicalTableName}"`;
                                     const countResult = await dbConnector.query(countQuery);
                                     const actualRowCount = countResult[0]?.row_count || 0;
-                                    
+
                                     if (actualRowCount === 0 && parsedTableStructure.rows.length > 0) {
                                         console.error('WARNING: No rows found in database despite successful insertions!');
                                     } else if (actualRowCount !== parsedTableStructure.rows.length) {
@@ -2131,7 +2637,7 @@ export class DataSourceProcessor {
                                 console.log('No rows to insert - parsedTableStructure.rows is empty or undefined');
                             }
                             // Log column mapping for renamed columns
-                            const renamedColumns = sanitizedColumns.filter(col => 
+                            const renamedColumns = sanitizedColumns.filter(col =>
                                 col.originalTitle && col.displayTitle && col.originalTitle !== col.displayTitle
                             );
                             // Track processed sheet
@@ -2143,7 +2649,7 @@ export class DataSourceProcessor {
                                 sheet_index: sheetIndex
                             });
                             console.log(`[Excel Upload] Successfully processed sheet: ${sheetName} -> physical table: ${physicalTableName}`);
-                            
+
                             // Store table metadata for physical-to-logical name mapping
                             await tableMetadataService.storeTableMetadata(manager, {
                                 dataSourceId: dataSource.id,
@@ -2160,17 +2666,17 @@ export class DataSourceProcessor {
                             console.error('Error creating table:', error);
                             console.error('Failed query:', createTableQuery);
                             throw error;
-                        }                        
+                        }
                     }
-                    
+
                     console.log('Excel data source processing completed successfully');
-                    return resolve({ 
-                        status: 'success', 
-                        file_id: fileId, 
-                        data_source_id: dataSource.id, 
-                        sheets_processed: sheetsProcessed 
+                    return resolve({
+                        status: 'success',
+                        file_id: fileId,
+                        data_source_id: dataSource.id,
+                        sheets_processed: sheetsProcessed
                     });
-                
+
                 } catch (error) {
                     console.error('Error processing Excel data source:', error);
                     console.error('Sheet info:', sheetInfo);
@@ -2179,6 +2685,281 @@ export class DataSourceProcessor {
                 }
             }
             return resolve({ status: 'error', file_id: fileId });
+        });
+    }
+
+    /**
+     * Add Excel data source from uploaded file (server-side processing)
+     * This method handles large Excel files by processing them server-side,
+     * avoiding the "request entity too large" error from JSON payloads
+     * @param dataSourceName - Name for the data source
+     * @param fileId - Unique file identifier
+     * @param filePath - Path to the uploaded Excel file
+     * @param tokenDetails - User authentication details
+     * @param projectId - Project ID
+     * @param dataSourceId - Existing data source ID (optional, for multi-sheet updates)
+     * @returns Promise with upload result
+     */
+    public async addExcelDataSourceFromFile(
+        dataSourceName: string,
+        fileId: string,
+        filePath: string,
+        tokenDetails: ITokenDetails,
+        projectId: number,
+        dataSourceId: number = null
+    ): Promise<IExcelDataSourceReturn & { error?: string }> {
+        return new Promise(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve({ status: 'error', file_id: fileId, error: 'Database driver not available' });
+            }
+            const dbConnector = await driver.getConcreteDriver();
+            if (!dbConnector) {
+                return resolve({ status: 'error', file_id: fileId, error: 'Database connector not available' });
+            }
+            const manager = dbConnector.manager;
+            if (!manager) {
+                return resolve({ status: 'error', file_id: fileId, error: 'Database manager not available' });
+            }
+
+            const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
+            if (!user) {
+                return resolve({ status: 'error', file_id: fileId, error: 'User not found' });
+            }
+
+            const project: DRAProject | null = await manager.findOne(DRAProject, { 
+                where: { id: projectId, users_platform: user } 
+            });
+            if (!project) {
+                return resolve({ status: 'error', file_id: fileId, error: 'Project not found' });
+            }
+
+            try {
+                // Parse the Excel file server-side
+                console.log('[Excel File Upload] Parsing file:', filePath);
+                const parseResult = await ExcelFileService.getInstance().parseExcelFileFromPath(filePath);
+                
+                if (!parseResult.sheets || parseResult.sheets.length === 0) {
+                    return resolve({ 
+                        status: 'error', 
+                        file_id: fileId, 
+                        error: 'No valid sheets found in Excel file' 
+                    });
+                }
+
+                let dataSource: DRADataSource;
+                const sheetsProcessed = [];
+
+                if (!dataSourceId) {
+                    // Create new data source
+                    dataSource = new DRADataSource();
+                    const host = UtilityService.getInstance().getConstants('POSTGRESQL_HOST');
+                    const port = UtilityService.getInstance().getConstants('POSTGRESQL_PORT');
+                    const database = UtilityService.getInstance().getConstants('POSTGRESQL_DB_NAME');
+                    const username = UtilityService.getInstance().getConstants('POSTGRESQL_USERNAME');
+                    const password = UtilityService.getInstance().getConstants('POSTGRESQL_PASSWORD');
+
+                    // Create dra_excel schema if it doesn't exist
+                    let query = `CREATE SCHEMA IF NOT EXISTS dra_excel`;
+                    await dbConnector.query(query);
+
+                    const connection: IDBConnectionDetails = {
+                        data_source_type: UtilityService.getInstance().getDataSourceType('postgresql'),
+                        host: host,
+                        port: port,
+                        schema: 'dra_excel',
+                        database: database,
+                        username: username,
+                        password: password,
+                    };
+
+                    dataSource.name = dataSourceName;
+                    dataSource.connection_details = connection;
+                    dataSource.data_type = UtilityService.getInstance().getDataSourceType('postgresql');
+                    dataSource.project = project;
+                    dataSource.users_platform = user;
+                    dataSource.created_at = new Date();
+                    dataSource = await manager.save(dataSource);
+                } else {
+                    dataSource = await manager.findOne(DRADataSource, { 
+                        where: { id: dataSourceId, project: project, users_platform: user } 
+                    });
+                    if (!dataSource) {
+                        return resolve({ 
+                            status: 'error', 
+                            file_id: fileId, 
+                            error: 'Data source not found' 
+                        });
+                    }
+                }
+
+                const tableMetadataService = TableMetadataService.getInstance();
+
+                // Process each sheet
+                for (const sheet of parseResult.sheets) {
+                    console.log(`[Excel File Upload] Processing sheet: ${sheet.name}`);
+
+                    // Generate physical and logical table names
+                    const logicalTableName = sheet.name;
+                    const physicalTableName = tableMetadataService.generatePhysicalTableName(
+                        dataSource.id,
+                        logicalTableName,
+                        fileId
+                    );
+
+                    console.log(`[Excel File Upload] Physical: ${physicalTableName}, Logical: ${logicalTableName}`);
+
+                    // Build CREATE TABLE query
+                    let createTableQuery = `CREATE TABLE dra_excel."${physicalTableName}" `;
+                    let columns = '';
+                    let insertQueryColumns = '';
+                    const sanitizedColumns: Array<{
+                        original: string;
+                        sanitized: string;
+                        type: string;
+                        title: string;
+                        key: string;
+                    }> = [];
+
+                    sheet.columns.forEach((column, index) => {
+                        const displayColumnName = column.title || `column_${index}`;
+                        const sanitizedColumnName = this.sanitizeColumnName(displayColumnName);
+
+                        sanitizedColumns.push({
+                            original: column.title,
+                            sanitized: sanitizedColumnName,
+                            type: column.type,
+                            title: displayColumnName,
+                            key: column.key
+                        });
+
+                        const dataType = UtilityService.getInstance().convertDataTypeToPostgresDataType(
+                            EDataSourceType.EXCEL, 
+                            column.type
+                        );
+                        let dataTypeString = dataType.size 
+                            ? `${dataType.type}(${dataType.size})` 
+                            : `${dataType.type}`;
+
+                        if (index < sheet.columns.length - 1) {
+                            columns += `${sanitizedColumnName} ${dataTypeString},`;
+                            insertQueryColumns += `${sanitizedColumnName},`;
+                        } else {
+                            columns += `${sanitizedColumnName} ${dataTypeString}`;
+                            insertQueryColumns += `${sanitizedColumnName}`;
+                        }
+                    });
+
+                    createTableQuery += `(${columns})`;
+
+                    try {
+                        // Create the table
+                        await dbConnector.query(createTableQuery);
+                        console.log('[Excel File Upload] Created table:', physicalTableName);
+
+                        insertQueryColumns = `(${insertQueryColumns})`;
+
+                        // Insert data rows in batches for better performance
+                        if (sheet.rows && sheet.rows.length > 0) {
+                            const batchSize = 1000;
+                            let successfulInserts = 0;
+
+                            for (let batchStart = 0; batchStart < sheet.rows.length; batchStart += batchSize) {
+                                const batchEnd = Math.min(batchStart + batchSize, sheet.rows.length);
+                                const batch = sheet.rows.slice(batchStart, batchEnd);
+
+                                for (const row of batch) {
+                                    let insertQuery = `INSERT INTO dra_excel."${physicalTableName}" `;
+                                    let values = '';
+
+                                    sanitizedColumns.forEach((columnInfo, colIndex) => {
+                                        let value = row[columnInfo.original];
+
+                                        if (colIndex > 0) {
+                                            values += ', ';
+                                        }
+
+                                        // Handle different data types
+                                        if (value === null || value === undefined || value === '') {
+                                            values += 'NULL';
+                                        } else if (typeof value === 'boolean') {
+                                            values += value ? 'TRUE' : 'FALSE';
+                                        } else if (typeof value === 'number') {
+                                            values += value;
+                                        } else if (value instanceof Date) {
+                                            values += `'${value.toISOString()}'`;
+                                        } else {
+                                            // Escape string values
+                                            const stringValue = String(value).replace(/'/g, "''");
+                                            values += `'${stringValue}'`;
+                                        }
+                                    });
+
+                                    insertQuery += `${insertQueryColumns} VALUES(${values})`;
+
+                                    try {
+                                        await dbConnector.query(insertQuery);
+                                        successfulInserts++;
+                                    } catch (error) {
+                                        console.error(`Error inserting row:`, error.message);
+                                        throw error;
+                                    }
+                                }
+
+                                console.log(`[Excel File Upload] Inserted batch ${batchStart}-${batchEnd} (${successfulInserts}/${sheet.rows.length})`);
+                            }
+
+                            console.log(`[Excel File Upload] Successfully inserted ${successfulInserts} rows`);
+                        }
+
+                        // Store table metadata
+                        await tableMetadataService.storeTableMetadata(manager, {
+                            dataSourceId: dataSource.id,
+                            usersPlatformId: user.id,
+                            schemaName: 'dra_excel',
+                            physicalTableName: physicalTableName,
+                            logicalTableName: logicalTableName,
+                            originalSheetName: sheet.metadata.originalSheetName,
+                            fileId: fileId,
+                            tableType: 'excel'
+                        });
+
+                        sheetsProcessed.push({
+                            sheet_id: `sheet_${sheet.index}`,
+                            sheet_name: sheet.name,
+                            table_name: physicalTableName,
+                            original_sheet_name: sheet.metadata.originalSheetName,
+                            sheet_index: sheet.index
+                        });
+
+                        console.log(`[Excel File Upload] Sheet processed: ${sheet.name}`);
+
+                    } catch (error) {
+                        console.error('Error creating/populating table:', error);
+                        throw error;
+                    }
+                }
+
+                // Clean up: add to deletion queue
+                await QueueService.getInstance().addFilesDeletionJob(user.id);
+
+                console.log('[Excel File Upload] Processing completed successfully');
+                return resolve({
+                    status: 'success',
+                    file_id: fileId,
+                    data_source_id: dataSource.id,
+                    sheets_processed: sheetsProcessed
+                });
+
+            } catch (error) {
+                console.error('Error processing Excel file:', error);
+                return resolve({ 
+                    status: 'error', 
+                    file_id: fileId, 
+                    error: error.message 
+                });
+            }
         });
     }
 
@@ -2197,11 +2978,11 @@ export class DataSourceProcessor {
             if (!manager) {
                 return resolve({ status: 'error', file_id: fileId });
             }
-            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
             if (!user) {
                 return resolve({ status: 'error', file_id: fileId });
             }
-            const project: DRAProject|null = await manager.findOne(DRAProject, {where: {id: projectId, users_platform: user}});
+            const project: DRAProject | null = await manager.findOne(DRAProject, { where: { id: projectId, users_platform: user } });
             if (project) {
                 let dataSource = new DRADataSource();
                 const sheetsProcessed = [];
@@ -2240,13 +3021,13 @@ export class DataSourceProcessor {
                     // Parse the data - could be a single sheet or multiple sheets
                     const parsedTableStructure = JSON.parse(data);
                     const sheetName = sheetInfo?.sheet_name || 'Sheet1';
-                    const sheetId = sheetInfo?.sheet_id || `sheet_${Date.now()}`;                    
+                    const sheetId = sheetInfo?.sheet_id || `sheet_${Date.now()}`;
                     const sheetIndex = sheetInfo?.sheet_index || 0;
 
                     // CRITICAL: Use hash-based short table name to avoid PostgreSQL 63-char limit
                     // Generate logical name (human-readable, can be any length)
                     const logicalTableName = `${sheetName}`;
-                    
+
                     // Generate short physical name using hash (e.g., ds23_a7b3c9d1)
                     const tableMetadataService = TableMetadataService.getInstance();
                     const physicalTableName = tableMetadataService.generatePhysicalTableName(
@@ -2254,33 +3035,33 @@ export class DataSourceProcessor {
                         logicalTableName,
                         fileId
                     );
-                    
+
                     console.log(`[PDF Upload] Physical table: ${physicalTableName}, Logical: ${logicalTableName}`);
 
                     let createTableQuery = `CREATE TABLE dra_pdf.${physicalTableName} `;
                     let columns = '';
                     let insertQueryColumns = '';
-                    
+
                     const sanitizedPdfColumns: Array<{
-                        original: string, 
-                        sanitized: string, 
-                        type: string, 
-                        title?: string, 
+                        original: string,
+                        sanitized: string,
+                        type: string,
+                        title?: string,
                         key?: string,
                         originalTitle?: string,
                         displayTitle?: string
                     }> = [];
-                    
+
                     if (parsedTableStructure.columns && parsedTableStructure.columns.length > 0) {
                         parsedTableStructure.columns.forEach((column: any, index: number) => {
                             // Handle renamed columns for PDF similar to Excel
                             const displayColumnName = column.title || column.column_name || `column_${index}`;
                             const originalColumnName = column.originalTitle || column.original_title || column.column_name || displayColumnName;
                             const columnKey = column.originalKey || column.original_key || column.key || displayColumnName.toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
-                            
+
                             // Sanitize the display name for database usage
                             const sanitizedColumnName = this.sanitizeColumnName(displayColumnName);
-                            
+
                             sanitizedPdfColumns.push({
                                 original: originalColumnName,
                                 sanitized: sanitizedColumnName,
@@ -2290,7 +3071,7 @@ export class DataSourceProcessor {
                                 originalTitle: originalColumnName,
                                 displayTitle: displayColumnName
                             });
-                            
+
                             const dataType = UtilityService.getInstance().convertDataTypeToPostgresDataType(EDataSourceType.PDF, column.type);
                             let dataTypeString = '';
                             if (dataType.size) {
@@ -2309,7 +3090,7 @@ export class DataSourceProcessor {
                                 insertQueryColumns += `${sanitizedColumnName}`;
                             }
                         });
-                        
+
                         createTableQuery += `(${columns})`;
 
                         insertQueryColumns = `(${insertQueryColumns})`;
@@ -2323,12 +3104,12 @@ export class DataSourceProcessor {
                                 for (const row of parsedTableStructure.rows) {
                                     let insertQuery = `INSERT INTO dra_pdf.${physicalTableName} `;
                                     let values = '';
-                                    
+
                                     sanitizedPdfColumns.forEach((columnInfo, colIndex) => {
                                         // Try multiple ways to get the value for renamed columns (similar to Excel)
                                         let value = undefined;
                                         const originalColumn = parsedTableStructure.columns[colIndex];
-                                        
+
                                         // Strategy 1: Use current column title (handles renamed columns)
                                         if (originalColumn?.title && row[originalColumn.title] !== undefined) {
                                             value = row[originalColumn.title];
@@ -2351,11 +3132,11 @@ export class DataSourceProcessor {
                                                 value = row.data[originalColumn.key];
                                             }
                                         }
-                                        
+
                                         if (colIndex > 0) {
                                             values += ', ';
                                         }
-                                        
+
                                         // Handle different data types properly with comprehensive escaping
                                         if (value === null || value === undefined || value === '') {
                                             values += 'NULL';
@@ -2383,9 +3164,9 @@ export class DataSourceProcessor {
                                     await dbConnector.query(insertQuery);
                                 }
                             }
-                            
+
                             // Log column mapping for renamed columns (PDF)
-                            const renamedPdfColumns = sanitizedPdfColumns.filter(col => 
+                            const renamedPdfColumns = sanitizedPdfColumns.filter(col =>
                                 col.originalTitle && col.displayTitle && col.originalTitle !== col.displayTitle
                             );
                             if (renamedPdfColumns.length > 0) {
@@ -2394,7 +3175,7 @@ export class DataSourceProcessor {
                                 });
                             }
                         } catch (error) {
-                           console.error('Error creating table:', physicalTableName, error);
+                            console.error('Error creating table:', physicalTableName, error);
                             throw error;
                         }
                         // Track processed sheet
@@ -2404,7 +3185,7 @@ export class DataSourceProcessor {
                             table_name: physicalTableName, // Physical hash-based table name
                             sheet_index: sheetIndex
                         });
-                        
+
                         // Store table metadata for physical-to-logical name mapping
                         await tableMetadataService.storeTableMetadata(manager, {
                             dataSourceId: dataSource.id,
@@ -2430,10 +3211,10 @@ export class DataSourceProcessor {
                 await QueueService.getInstance().addFilesDeletionJob(user.id);
 
                 // FilesService.getInstance().deleteFileFromDisk()
-                
+
                 return resolve({
-                    status: 'success', 
-                    file_id: fileId, 
+                    status: 'success',
+                    file_id: fileId,
                     data_source_id: dataSource.id,
                     sheets_processed: sheetsProcessed.length,
                     sheet_details: sheetsProcessed
@@ -2452,31 +3233,31 @@ export class DataSourceProcessor {
             .replace(/[^a-zA-Z0-9_]/g, '_')
             .replace(/_+/g, '_')
             .replace(/^_+|_+$/g, '');
-        
+
         // Ensure it starts with a letter or underscore
         if (!/^[a-zA-Z_]/.test(sanitized)) {
             sanitized = `col_${sanitized}`;
         }
-        
+
         // Ensure it's not empty
         if (!sanitized) {
             sanitized = `col_${Date.now()}`;
         }
-        
+
         // Check against PostgreSQL reserved keywords
         const reservedKeywords = [
-            'user', 'table', 'select', 'insert', 'update', 'delete', 'create', 'drop', 
+            'user', 'table', 'select', 'insert', 'update', 'delete', 'create', 'drop',
             'alter', 'index', 'view', 'grant', 'revoke', 'commit', 'rollback', 'transaction',
             'primary', 'foreign', 'key', 'constraint', 'check', 'unique', 'not', 'null',
             'default', 'auto_increment', 'timestamp', 'date', 'time', 'year', 'month',
             'order', 'group', 'having', 'where', 'limit', 'offset', 'union', 'join',
             'inner', 'outer', 'left', 'right', 'cross', 'natural', 'on', 'using'
         ];
-        
+
         if (reservedKeywords.includes(sanitized.toLowerCase())) {
             sanitized = `${sanitized}_col`;
         }
-        
+
         return sanitized;
     }
 
@@ -2508,19 +3289,19 @@ export class DataSourceProcessor {
         if (value === null || value === undefined) {
             return 'NULL';
         }
-        
+
         const stringValue = String(value).trim().toLowerCase();
-        
+
         // Handle common true values
         if (['true', '1', 'yes', 'y', 'on', 'active', 'enabled'].includes(stringValue)) {
             return 'TRUE';
         }
-        
+
         // Handle common false values
         if (['false', '0', 'no', 'n', 'off', 'inactive', 'disabled'].includes(stringValue)) {
             return 'FALSE';
         }
-        
+
         // If we can't determine the boolean value, default to NULL
         console.warn(`Unable to convert value "${value}" to boolean, using NULL`);
         return 'NULL';
@@ -2529,70 +3310,87 @@ export class DataSourceProcessor {
     /**
      * Reconstruct SQL query from JSON query structure
      * This ensures JOIN conditions are properly included when executing queries
+     * 
+     * CRITICAL FIX (2026-02-13): Now uses group_by_columns array from AI/frontend
+     * Previously rebuilt GROUP BY from columns array, ignoring the group_by_columns
+     * that the AI Data Modeler was correctly generating. This caused SQL errors when
+     * aggregates were present but GROUP BY was not properly included in the final query.
      */
     public reconstructSQLFromJSON(queryJSON: any): string {
         const query = typeof queryJSON === 'string' ? JSON.parse(queryJSON) : queryJSON;
-        
+
         let sqlParts: string[] = [];
-        
+
         // Build SELECT clause
         const aggregateFunctions = ['SUM', 'AVG', 'COUNT', 'MIN', 'MAX'];
         const aggregateColumns = new Set<string>();
-        
+
         // Track columns used in aggregate functions
         query?.query_options?.group_by?.aggregate_functions?.forEach((aggFunc: any) => {
             if (aggFunc.column && aggFunc.aggregate_function !== '') {
                 aggregateColumns.add(aggFunc.column);
             }
         });
-        
+
         // Build column selections (excluding aggregate-only columns)
         const selectColumns: string[] = [];
-        
+
         if (query.columns && Array.isArray(query.columns)) {
             query.columns.forEach((column: any) => {
                 if (column.is_selected_column) {
                     const columnFullPath = `${column.schema}.${column.table_name}.${column.column_name}`;
                     const isAggregateOnly = aggregateColumns.has(columnFullPath);
-                    
+
                     if (!isAggregateOnly) {
-                        const tableRef = column.table_alias || column.table_name;
-                        const aliasName = column?.alias_name && column.alias_name !== '' 
-                            ? column.alias_name 
-                            : `${column.schema}_${tableRef}_${column.column_name}`;
+                        // CRITICAL: Alias names must EXACTLY match the INSERT loop's rowKey construction
+                        // to ensure row value lookups succeed during data model building.
+                        // Special schemas use table_name_column_name (no schema prefix).
+                        // Regular schemas use schema_table_name_column_name.
+                        // Always use table_name (NOT table_alias) because INSERT loop uses table_name.
+                        let aliasName: string;
+                        if (column?.alias_name && column.alias_name !== '') {
+                            aliasName = column.alias_name;
+                        } else if (column.schema === 'dra_excel' || column.schema === 'dra_pdf' || column.schema === 'dra_google_analytics' || column.schema === 'dra_google_ad_manager' || column.schema === 'dra_google_ads') {
+                            // Special schemas: match INSERT loop's truncation logic
+                            aliasName = `${column.table_name}`.length > 20 
+                                ? `${column.table_name}`.slice(-20) + `_${column.column_name}` 
+                                : `${column.table_name}_${column.column_name}`;
+                        } else {
+                            aliasName = `${column.schema}_${column.table_name}_${column.column_name}`;
+                        }
                         
                         let columnRef = column.table_alias
                             ? `${column.schema}.${column.table_alias}.${column.column_name}`
                             : `${column.schema}.${column.table_name}.${column.column_name}`;
-                        
+
                         if (column.transform_function) {
                             const closeParens = ')'.repeat(column.transform_close_parens || 1);
                             columnRef = `${column.transform_function}(${columnRef}${closeParens}`;
                         }
-                        
+
                         selectColumns.push(`${columnRef} AS ${aliasName}`);
                     }
                 }
             });
         }
-        
+
         // Add aggregate functions to SELECT
         query?.query_options?.group_by?.aggregate_functions?.forEach((aggFunc: any) => {
             if (aggFunc.aggregate_function !== '' && aggFunc.column !== '') {
                 const distinctKeyword = aggFunc.use_distinct ? 'DISTINCT ' : '';
                 const aggregateFunc = aggregateFunctions[aggFunc.aggregate_function];
-                
+
                 let aliasName = aggFunc.column_alias_name;
                 if (!aliasName || aliasName === '') {
                     const columnParts = aggFunc.column.split('.');
                     const columnName = columnParts[columnParts.length - 1];
                     aliasName = `${aggregateFunc.toLowerCase()}_${columnName}`;
                 }
-                
+
                 selectColumns.push(`${aggregateFunc}(${distinctKeyword}${aggFunc.column}) AS ${aliasName}`);
             }
         });
-        
+
         // Add aggregate expressions to SELECT (use expression as-is, already contains complete SQL)
         query?.query_options?.group_by?.aggregate_expressions?.forEach((aggExpr: any) => {
             if (aggExpr.expression && aggExpr.expression.trim() !== '') {
@@ -2602,7 +3400,7 @@ export class DataSourceProcessor {
                 selectColumns.push(`${cleanExpression} AS ${aliasName}`);
             }
         });
-        
+
         // Add calculated columns to SELECT
         if (query.calculated_columns && Array.isArray(query.calculated_columns)) {
             query.calculated_columns.forEach((calcCol: any) => {
@@ -2613,15 +3411,15 @@ export class DataSourceProcessor {
                 }
             });
         }
-        
+
         sqlParts.push(`SELECT ${selectColumns.join(', ')}`);
-        
+
         // Build FROM/JOIN clauses
         if (query.join_conditions && Array.isArray(query.join_conditions) && query.join_conditions.length > 0) {
             console.log('[DataSourceProcessor] Building FROM/JOIN clauses from join_conditions:', query.join_conditions.length);
-            
+
             const fromJoinClauses: any[] = [];
-            
+
             // Map join_conditions to the format expected
             query.join_conditions.forEach((join: any) => {
                 fromJoinClauses.push({
@@ -2638,46 +3436,46 @@ export class DataSourceProcessor {
                     additional_conditions: join.additional_conditions || []
                 });
             });
-            
+
             const fromJoinClause: string[] = [];
             const addedTables = new Set<string>();
-            
+
             // Get table aliases helper
             const getTableAlias = (schema: string, tableName: string) => {
                 if (query.columns && Array.isArray(query.columns)) {
-                    const col = query.columns.find((c: any) => 
+                    const col = query.columns.find((c: any) =>
                         c.schema === schema && c.table_name === tableName && c.table_alias
                     );
                     return col?.table_alias || null;
                 }
                 return null;
             };
-            
+
             fromJoinClauses.forEach((clause, index) => {
                 const leftAlias = clause.left_table_alias || getTableAlias(clause.left_table_schema, clause.left_table_name);
                 const rightAlias = clause.right_table_alias || getTableAlias(clause.right_table_schema, clause.right_table_name);
-                
+
                 const leftTableFull = `${clause.left_table_schema}.${clause.left_table_name}`;
                 const rightTableFull = `${clause.right_table_schema}.${clause.right_table_name}`;
-                
+
                 const leftTableSQL = leftAlias ? `${leftTableFull} AS ${leftAlias}` : leftTableFull;
                 const rightTableSQL = rightAlias ? `${rightTableFull} AS ${rightAlias}` : rightTableFull;
-                
+
                 const leftRef = leftAlias || clause.left_table_name;
                 const rightRef = rightAlias || clause.right_table_name;
-                
+
                 const joinType = clause.join_type || 'INNER';
-                
+
                 if (index === 0) {
                     // First JOIN - establish FROM and first JOIN
                     const operator = clause.primary_operator || '=';
                     fromJoinClause.push(`FROM ${leftTableSQL}`);
                     fromJoinClause.push(`${joinType} JOIN ${rightTableSQL}`);
                     fromJoinClause.push(`ON ${clause.left_table_schema}.${leftRef}.${clause.left_column_name} ${operator} ${clause.right_table_schema}.${rightRef}.${clause.right_column_name}`);
-                    
+
                     addedTables.add(leftTableFull);
                     addedTables.add(rightTableFull);
-                    
+
                     // Add additional conditions if present
                     if (clause.additional_conditions && clause.additional_conditions.length > 0) {
                         clause.additional_conditions.forEach((addCond: any) => {
@@ -2690,10 +3488,10 @@ export class DataSourceProcessor {
                     // Subsequent JOINs
                     const leftTableExists = addedTables.has(leftTableFull);
                     const rightTableExists = addedTables.has(rightTableFull);
-                    
+
                     const operator = clause.primary_operator || '=';
                     const joinCondition = `${clause.left_table_schema}.${leftRef}.${clause.left_column_name} ${operator} ${clause.right_table_schema}.${rightRef}.${clause.right_column_name}`;
-                    
+
                     if (!leftTableExists && !rightTableExists) {
                         // Neither table exists - add right table
                         fromJoinClause.push(`${joinType} JOIN ${rightTableSQL}`);
@@ -2710,7 +3508,7 @@ export class DataSourceProcessor {
                         fromJoinClause.push(`ON ${joinCondition}`);
                         addedTables.add(rightTableFull);
                     }
-                    
+
                     // Add additional conditions if present
                     if (clause.additional_conditions && clause.additional_conditions.length > 0) {
                         clause.additional_conditions.forEach((addCond: any) => {
@@ -2721,7 +3519,7 @@ export class DataSourceProcessor {
                     }
                 }
             });
-            
+
             sqlParts.push(fromJoinClause.join(' '));
         } else if (query.columns && query.columns.length > 0) {
             // No JOINs - use simple FROM clause from first selected column
@@ -2730,9 +3528,9 @@ export class DataSourceProcessor {
                 sqlParts.push(`FROM ${firstColumn.schema}.${firstColumn.table_name}`);
             }
         }
-        
+
         // Build WHERE clause
-        if (query.query_options?.where && Array.isArray(query.query_options.where) && query.query_options.where.length > 0) {            
+        if (query.query_options?.where && Array.isArray(query.query_options.where) && query.query_options.where.length > 0) {
             const whereClauses: string[] = [];
             // CRITICAL: This array MUST match the frontend's state.equality array order exactly
             // Frontend: ['=', '>', '<', '>=', '<=', '!=', 'IN', 'NOT IN']
@@ -2776,25 +3574,70 @@ export class DataSourceProcessor {
                 sqlParts.push(whereSQL);
             }
         }
-        
+
         // Build GROUP BY clause
-        if (query.query_options?.group_by?.name) {
-            const groupByColumns: string[] = [];
-            query.columns?.forEach((column: any) => {
-                if (column.is_selected_column) {
-                    const columnFullPath = `${column.schema}.${column.table_name}.${column.column_name}`;
-                    const isAggregateOnly = aggregateColumns.has(columnFullPath);
-                    if (!isAggregateOnly) {
-                        const tableRef = column.table_alias || column.table_name;
-                        groupByColumns.push(`${column.schema}.${tableRef}.${column.column_name}`);
+        // CRITICAL: Check for group_by.name (UI flag) OR presence of aggregates/group_by_columns
+        // The AI model may not set the 'name' field, but still provide group_by_columns and aggregate_expressions
+        const hasGroupByName = !!query.query_options?.group_by?.name;
+        const hasGroupByColumns = query.query_options?.group_by?.group_by_columns?.length > 0;
+        const hasAggFuncs = query.query_options?.group_by?.aggregate_functions?.some(
+            (agg: any) => agg.aggregate_function !== '' && agg.column !== ''
+        );
+        const hasAggExprs = query.query_options?.group_by?.aggregate_expressions?.some(
+            (expr: any) => expr.expression && expr.expression !== ''
+        );
+        if (hasGroupByName || hasGroupByColumns || hasAggFuncs || hasAggExprs) {
+            // CRITICAL: Use group_by_columns array if provided (new format from AI)
+            // Otherwise fallback to rebuilding from columns (legacy format)
+            let groupByColumns: string[] = [];
+            
+            if (query.query_options?.group_by?.group_by_columns && 
+                Array.isArray(query.query_options.group_by.group_by_columns) &&
+                query.query_options.group_by.group_by_columns.length > 0) {
+                // NEW FORMAT: Use group_by_columns array from AI/frontend
+                // CRITICAL: Map column references to use table_alias when present,
+                // so GROUP BY references match SELECT column references exactly.
+                // Frontend stores group_by_columns as schema.table_name.column_name,
+                // but SELECT uses schema.table_alias.column_name when aliases exist.
+                groupByColumns = query.query_options.group_by.group_by_columns.map((colRef: string) => {
+                    // Check if this is a plain column reference (not wrapped in a transform function)
+                    const parts = colRef.split('.');
+                    if (parts.length === 3) {
+                        const [schema, tableName, columnName] = parts;
+                        // Find if any column in the model has a table_alias for this table
+                        const aliasedColumn = query.columns?.find((c: any) =>
+                            c.schema === schema && c.table_name === tableName && c.table_alias
+                        );
+                        if (aliasedColumn?.table_alias) {
+                            return `${schema}.${aliasedColumn.table_alias}.${columnName}`;
+                        }
                     }
-                }
-            });
+                    return colRef;
+                });
+                console.log('[DataSourceProcessor] Using group_by_columns array (alias-mapped):', groupByColumns);
+            } else {
+                // LEGACY FORMAT: Rebuild from columns array (backward compatibility)
+                console.log('[DataSourceProcessor] Rebuilding GROUP BY from columns array (legacy)');
+                query.columns?.forEach((column: any) => {
+                    if (column.is_selected_column) {
+                        const columnFullPath = `${column.schema}.${column.table_name}.${column.column_name}`;
+                        const isAggregateOnly = aggregateColumns.has(columnFullPath);
+                        if (!isAggregateOnly) {
+                            const tableRef = column.table_alias || column.table_name;
+                            groupByColumns.push(`${column.schema}.${tableRef}.${column.column_name}`);
+                        }
+                    }
+                });
+            }
+            
             if (groupByColumns.length > 0) {
                 sqlParts.push(`GROUP BY ${groupByColumns.join(', ')}`);
+            } else if (query.query_options?.group_by?.aggregate_functions?.length > 0 ||
+                       query.query_options?.group_by?.aggregate_expressions?.length > 0) {
+                console.warn('[DataSourceProcessor] WARNING: Aggregates present but GROUP BY is empty!');
             }
         }
-        
+
         // Build HAVING clause
         if (query.query_options?.group_by?.having_conditions && query.query_options.group_by.having_conditions.length > 0) {
             const havingClauses: string[] = [];
@@ -2854,7 +3697,7 @@ export class DataSourceProcessor {
                 sqlParts.push(`HAVING ${havingClauses.join(' AND ')}`);
             }
         }
-        
+
         // Build ORDER BY clause
         if (query.query_options?.order_by && Array.isArray(query.query_options.order_by) && query.query_options.order_by.length > 0) {
             const orderByClauses: string[] = [];
@@ -2867,7 +3710,7 @@ export class DataSourceProcessor {
                 sqlParts.push(`ORDER BY ${orderByClauses.join(', ')}`);
             }
         }
-        
+
         // Build LIMIT/OFFSET clause
         if (query.query_options?.limit && query.query_options.limit !== -1) {
             // CRITICAL: Ensure LIMIT is at least 1 (never 0 or negative)
@@ -2877,7 +3720,7 @@ export class DataSourceProcessor {
         if (query.query_options?.offset && query.query_options.offset !== -1) {
             sqlParts.push(`OFFSET ${query.query_options.offset}`);
         }
-        
+
         const finalSQL = sqlParts.join(' ');
         console.log('[DataSourceProcessor] Reconstructed SQL from JSON:', finalSQL);
         return finalSQL;
@@ -2903,23 +3746,23 @@ export class DataSourceProcessor {
             if (!manager) {
                 return resolve(null);
             }
-            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
             if (!user) {
                 return resolve(null);
             }
-            const project: DRAProject|null = await manager.findOne(DRAProject, {where: {id: projectId, users_platform: user}});
+            const project: DRAProject | null = await manager.findOne(DRAProject, { where: { id: projectId, users_platform: user } });
             if (project) {
                 // Create schema for Google Analytics data
                 const schemaName = 'dra_google_analytics';
                 await manager.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
-                
+
                 // Get internal database connection details
                 const host = UtilityService.getInstance().getConstants('POSTGRESQL_HOST');
                 const port = UtilityService.getInstance().getConstants('POSTGRESQL_PORT');
                 const database = UtilityService.getInstance().getConstants('POSTGRESQL_DB_NAME');
                 const username = UtilityService.getInstance().getConstants('POSTGRESQL_USERNAME');
                 const password = UtilityService.getInstance().getConstants('POSTGRESQL_PASSWORD');
-                
+
                 // Create hybrid connection details: database connection + API connection
                 const hybridConnection: IDBConnectionDetails = {
                     data_source_type: EDataSourceType.GOOGLE_ANALYTICS,
@@ -2931,7 +3774,7 @@ export class DataSourceProcessor {
                     password: password,
                     api_connection_details: connectionDetails
                 };
-                
+
                 const dataSource = new DRADataSource();
                 dataSource.name = name;
                 dataSource.connection_details = hybridConnection;
@@ -2940,7 +3783,7 @@ export class DataSourceProcessor {
                 dataSource.users_platform = user;
                 dataSource.created_at = new Date();
                 const savedDataSource = await manager.save(dataSource);
-                
+
                 console.log('✅ Google Analytics data source added successfully with ID:', savedDataSource.id);
                 return resolve(savedDataSource.id);
             }
@@ -2961,9 +3804,9 @@ export class DataSourceProcessor {
                 console.error('[syncGoogleAnalyticsDataSource] Invalid data source ID:', dataSourceId, 'Type:', typeof dataSourceId);
                 return resolve(false);
             }
-            
+
             console.log('[syncGoogleAnalyticsDataSource] Starting sync for data source ID:', dataSourceId);
-            
+
             const { user_id } = tokenDetails;
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             if (!driver) {
@@ -2975,43 +3818,43 @@ export class DataSourceProcessor {
                 console.error('[syncGoogleAnalyticsDataSource] Database manager not available');
                 return resolve(false);
             }
-            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
             if (!user) {
                 console.error('[syncGoogleAnalyticsDataSource] User not found:', user_id);
                 return resolve(false);
             }
-            
+
             // Get data source
             console.log('[syncGoogleAnalyticsDataSource] Fetching data source with ID:', dataSourceId);
             const dataSource = await manager.findOne(DRADataSource, {
-                where: {id: dataSourceId, users_platform: user, data_type: EDataSourceType.GOOGLE_ANALYTICS}
+                where: { id: dataSourceId, users_platform: user, data_type: EDataSourceType.GOOGLE_ANALYTICS }
             });
-            
+
             if (!dataSource) {
                 console.error('Data source not found or not a Google Analytics source');
                 return resolve(false);
             }
-            
+
             // Get connection details - extract API connection from hybrid structure
             const connection = dataSource.connection_details;
             if (!connection.api_connection_details) {
                 console.error('API connection details not found in data source');
                 return resolve(false);
             }
-            
+
             const apiConnectionDetails = connection.api_connection_details;
-            
+
             // Trigger sync
             const gaDriver = GoogleAnalyticsDriver.getInstance();
             const syncResult = await gaDriver.syncToDatabase(dataSourceId, user.id, apiConnectionDetails);
-            
+
             if (syncResult) {
                 // Update last sync time in API connection details
                 apiConnectionDetails.api_config.last_sync = new Date();
                 connection.api_connection_details = apiConnectionDetails;
                 dataSource.connection_details = connection;
                 await manager.save(dataSource);
-                
+
                 // Send success notification (simple version - can be enhanced with record count)
                 await this.notificationHelper.notifyDataSourceSyncComplete(
                     user_id,
@@ -3028,7 +3871,7 @@ export class DataSourceProcessor {
                     'Sync operation failed'
                 );
             }
-            
+
             return resolve(syncResult);
         });
     }
@@ -3053,23 +3896,23 @@ export class DataSourceProcessor {
             if (!manager) {
                 return resolve(null);
             }
-            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
             if (!user) {
                 return resolve(null);
             }
-            const project: DRAProject|null = await manager.findOne(DRAProject, {where: {id: projectId, users_platform: user}});
+            const project: DRAProject | null = await manager.findOne(DRAProject, { where: { id: projectId, users_platform: user } });
             if (project) {
                 // Create schema for Google Ad Manager data
                 const schemaName = 'dra_google_ad_manager';
                 await manager.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
-                
+
                 // Get internal database connection details
                 const host = UtilityService.getInstance().getConstants('POSTGRESQL_HOST');
                 const port = UtilityService.getInstance().getConstants('POSTGRESQL_PORT');
                 const database = UtilityService.getInstance().getConstants('POSTGRESQL_DB_NAME');
                 const username = UtilityService.getInstance().getConstants('POSTGRESQL_USERNAME');
                 const password = UtilityService.getInstance().getConstants('POSTGRESQL_PASSWORD');
-                
+
                 // Create hybrid connection details: database connection + API connection
                 const hybridConnection: IDBConnectionDetails = {
                     data_source_type: EDataSourceType.GOOGLE_AD_MANAGER,
@@ -3081,7 +3924,7 @@ export class DataSourceProcessor {
                     password: password,
                     api_connection_details: connectionDetails
                 };
-                
+
                 const dataSource = new DRADataSource();
                 dataSource.name = name;
                 dataSource.connection_details = hybridConnection;
@@ -3090,7 +3933,7 @@ export class DataSourceProcessor {
                 dataSource.users_platform = user;
                 dataSource.created_at = new Date();
                 const savedDataSource = await manager.save(dataSource);
-                
+
                 console.log('✅ Google Ad Manager data source added successfully with ID:', savedDataSource.id);
                 return resolve(savedDataSource.id);
             }
@@ -3111,9 +3954,9 @@ export class DataSourceProcessor {
                 console.error('[syncGoogleAdManagerDataSource] Invalid data source ID:', dataSourceId, 'Type:', typeof dataSourceId);
                 return resolve(false);
             }
-            
+
             console.log('[syncGoogleAdManagerDataSource] Starting sync for data source ID:', dataSourceId);
-            
+
             const { user_id } = tokenDetails;
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             if (!driver) {
@@ -3125,32 +3968,32 @@ export class DataSourceProcessor {
                 console.error('[syncGoogleAdManagerDataSource] Database manager not available');
                 return resolve(false);
             }
-            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
             if (!user) {
                 console.error('[syncGoogleAdManagerDataSource] User not found:', user_id);
                 return resolve(false);
             }
-            
+
             // Get data source
             console.log('[syncGoogleAdManagerDataSource] Fetching data source with ID:', dataSourceId);
             const dataSource = await manager.findOne(DRADataSource, {
-                where: {id: dataSourceId, users_platform: user, data_type: EDataSourceType.GOOGLE_AD_MANAGER}
+                where: { id: dataSourceId, users_platform: user, data_type: EDataSourceType.GOOGLE_AD_MANAGER }
             });
-            
+
             if (!dataSource) {
                 console.error('Data source not found or not a Google Ad Manager source');
                 return resolve(false);
             }
-            
+
             // Get connection details - extract API connection from hybrid structure
             const connection = dataSource.connection_details;
             if (!connection.api_connection_details) {
                 console.error('API connection details not found in data source');
                 return resolve(false);
             }
-            
+
             const apiConnectionDetails = connection.api_connection_details;
-            
+
             // Trigger sync
             const gamDriver = GoogleAdManagerDriver.getInstance();
             const syncResult = await gamDriver.syncToDatabase(dataSourceId, user.id, apiConnectionDetails);
@@ -3161,7 +4004,7 @@ export class DataSourceProcessor {
                 connection.api_connection_details = apiConnectionDetails;
                 dataSource.connection_details = connection;
                 await manager.save(dataSource);
-                
+
                 // Send success notification
                 await this.notificationHelper.notifyDataSourceSyncComplete(
                     user_id,
@@ -3178,7 +4021,7 @@ export class DataSourceProcessor {
                     'Sync operation failed'
                 );
             }
-            
+
             return resolve(syncResult);
         });
     }
@@ -3200,24 +4043,24 @@ export class DataSourceProcessor {
             if (!manager) {
                 return resolve(null);
             }
-            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
             if (!user) {
                 return resolve(null);
             }
-            
-            const project: DRAProject|null = await manager.findOne(DRAProject, {where: {users_platform: user}});
+
+            const project: DRAProject | null = await manager.findOne(DRAProject, { where: { users_platform: user } });
             if (project) {
                 // Create schema for Google Ads data
                 const schemaName = 'dra_google_ads';
                 await manager.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
-                
+
                 // Get internal database connection details
                 const host = UtilityService.getInstance().getConstants('POSTGRESQL_HOST');
                 const port = UtilityService.getInstance().getConstants('POSTGRESQL_PORT');
                 const database = UtilityService.getInstance().getConstants('POSTGRESQL_DB_NAME');
                 const username = UtilityService.getInstance().getConstants('POSTGRESQL_USERNAME');
                 const password = UtilityService.getInstance().getConstants('POSTGRESQL_PASSWORD');
-                
+
                 // Prepare API connection details
                 const apiConnectionDetails: IAPIConnectionDetails = {
                     oauth_access_token: syncConfig.accessToken,
@@ -3231,7 +4074,7 @@ export class DataSourceProcessor {
                         end_date: syncConfig.endDate
                     }
                 };
-                
+
                 // Create hybrid connection details: database connection + API connection
                 const hybridConnection: IDBConnectionDetails = {
                     data_source_type: EDataSourceType.GOOGLE_ADS,
@@ -3243,7 +4086,7 @@ export class DataSourceProcessor {
                     password: password,
                     api_connection_details: apiConnectionDetails
                 };
-                
+
                 const dataSource = new DRADataSource();
                 dataSource.name = syncConfig.name;
                 dataSource.connection_details = hybridConnection;
@@ -3252,7 +4095,7 @@ export class DataSourceProcessor {
                 dataSource.users_platform = user;
                 dataSource.created_at = new Date();
                 const savedDataSource = await manager.save(dataSource);
-                
+
                 console.log('✅ Google Ads data source added successfully with ID:', savedDataSource.id);
                 return resolve(savedDataSource.id);
             }
@@ -3272,9 +4115,9 @@ export class DataSourceProcessor {
                 console.error('[syncGoogleAdsDataSource] Invalid data source ID:', dataSourceId);
                 return resolve(false);
             }
-            
+
             console.log('[syncGoogleAdsDataSource] Starting sync for data source ID:', dataSourceId);
-            
+
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             if (!driver) {
                 console.error('[syncGoogleAdsDataSource] Database driver not available');
@@ -3285,44 +4128,44 @@ export class DataSourceProcessor {
                 console.error('[syncGoogleAdsDataSource] Database manager not available');
                 return resolve(false);
             }
-            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
             if (!user) {
                 console.error('[syncGoogleAdsDataSource] User not found:', user_id);
                 return resolve(false);
             }
-            
+
             // Get data source
             console.log('[syncGoogleAdsDataSource] Fetching data source with ID:', dataSourceId);
             const dataSource = await manager.findOne(DRADataSource, {
-                where: {id: dataSourceId, users_platform: user, data_type: EDataSourceType.GOOGLE_ADS}
+                where: { id: dataSourceId, users_platform: user, data_type: EDataSourceType.GOOGLE_ADS }
             });
-            
+
             if (!dataSource) {
                 console.error('Data source not found or not a Google Ads source');
                 return resolve(false);
             }
-            
+
             // Get connection details - extract API connection from hybrid structure
             const connection = dataSource.connection_details;
             if (!connection.api_connection_details) {
                 console.error('API connection details not found in data source');
                 return resolve(false);
             }
-            
+
             const apiConnectionDetails = connection.api_connection_details;
-            
+
             // Trigger sync
             const { GoogleAdsDriver } = await import('../drivers/GoogleAdsDriver.js');
             const adsDriver = GoogleAdsDriver.getInstance();
             const syncResult = await adsDriver.syncToDatabase(dataSourceId, user.id, apiConnectionDetails);
-            
+
             if (syncResult) {
                 // Update last sync time in API connection details
                 apiConnectionDetails.api_config.last_sync = new Date();
                 connection.api_connection_details = apiConnectionDetails;
                 dataSource.connection_details = connection;
                 await manager.save(dataSource);
-                
+
                 // Send success notification
                 await this.notificationHelper.notifyDataSourceSyncComplete(
                     user_id,
@@ -3339,7 +4182,7 @@ export class DataSourceProcessor {
                     'Sync operation failed'
                 );
             }
-            
+
             return resolve(syncResult);
         });
     }
@@ -3357,7 +4200,7 @@ export class DataSourceProcessor {
         try {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-            
+
             if (!driver) {
                 return { success: false, message: 'Database driver not available' };
             }
@@ -3432,42 +4275,42 @@ export class DataSourceProcessor {
             case 'daily': {
                 const nextRun = new Date(now);
                 nextRun.setDate(nextRun.getDate() + 1);
-                
+
                 if (scheduleTime) {
                     const [hours, minutes] = scheduleTime.split(':').map(Number);
                     nextRun.setHours(hours, minutes, 0, 0);
                 } else {
                     nextRun.setHours(0, 0, 0, 0);
                 }
-                
+
                 return nextRun;
             }
 
             case 'weekly': {
                 const nextRun = new Date(now);
                 nextRun.setDate(nextRun.getDate() + 7);
-                
+
                 if (scheduleTime) {
                     const [hours, minutes] = scheduleTime.split(':').map(Number);
                     nextRun.setHours(hours, minutes, 0, 0);
                 } else {
                     nextRun.setHours(0, 0, 0, 0);
                 }
-                
+
                 return nextRun;
             }
 
             case 'monthly': {
                 const nextRun = new Date(now);
                 nextRun.setMonth(nextRun.getMonth() + 1);
-                
+
                 if (scheduleTime) {
                     const [hours, minutes] = scheduleTime.split(':').map(Number);
                     nextRun.setHours(hours, minutes, 0, 0);
                 } else {
                     nextRun.setHours(0, 0, 0, 0);
                 }
-                
+
                 return nextRun;
             }
 

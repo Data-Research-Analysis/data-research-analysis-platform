@@ -3,6 +3,8 @@ import _ from 'lodash';
 import { useAIDataModelerStore } from '~/stores/ai-data-modeler';
 import { useSubscriptionStore } from '~/stores/subscription';
 import { useLoggedInUserStore } from '~/stores/logged_in_user';
+import MongoDBQueryEditor from '~/components/data-sources/MongoDBQueryEditor.vue';
+import SQLErrorAlert from '~/components/SQLErrorAlert.vue';
 
 const { $swal } = useNuxtApp();
 const route = useRoute();
@@ -19,6 +21,7 @@ const state = reactive({
     isInitialized: false, // Track if component has finished loading tables
     tables: [],
     table_aliases: [],
+    editing_join_index: null, // Track which JOIN is being edited (null = creating new)
     alias_form: {
         table: '',
         alias: ''
@@ -79,6 +82,7 @@ const state = reactive({
     query_metadata: null, // Store row limit metadata
     calculated_column: {},
     alerts: [],
+    sqlError: null,  // SQL execution error for prominent display
     transform_functions: [
         { name: 'None', value: '', close_parens: 0 },
         { name: 'DATE', value: 'DATE', close_parens: 1 },
@@ -97,6 +101,11 @@ const state = reactive({
     is_saving_model: false,
     query_execution_count: 0,
     is_initial_load: true, // Track if component is still initializing (prevents premature suggestion fetches)
+    collapsed_tables: new Map(), // Track collapsed state for each table: key = `${schema}.${table_name}.${alias || 'base'}`, value = boolean
+    mongo_query: {
+        collection: '',
+        pipeline: '[]'
+    }
 });
 
 // Computed properties for tier-based row limits
@@ -196,7 +205,16 @@ const showOrderByClause = computed(() => {
     return state?.data_table?.query_options?.order_by?.length > 0;
 });
 const showGroupByClause = computed(() => {
-    return state?.data_table?.query_options?.group_by?.name ? true : false;
+    // Show GROUP BY section if name flag is set OR if aggregate functions/expressions exist
+    if (state?.data_table?.query_options?.group_by?.name) return true;
+    if (state?.data_table?.query_options?.group_by?.aggregate_functions?.some(
+        (agg) => agg.aggregate_function !== '' && agg.column !== ''
+    )) return true;
+    if (state?.data_table?.query_options?.group_by?.aggregate_expressions?.some(
+        (expr) => expr.expression && expr.expression !== ''
+    )) return true;
+    if (state?.data_table?.query_options?.group_by?.group_by_columns?.length > 0) return true;
+    return false;
 });
 const showDataModelControls = computed(() => {
     return state && state.data_table && state.data_table.columns && state.data_table.columns.length > 0;
@@ -223,6 +241,26 @@ const numericColumns = computed(() => {
         }
     })];
 })
+const isMongoDB = computed(() => {
+    return props.dataSource?.type === 'MONGODB';
+});
+
+const collectionNames = computed(() => {
+    return state.tables.map(table => table.table_name);
+});
+
+function onMongoQueryUpdate(payload) {
+    state.mongo_query.collection = payload.collection;
+    state.mongo_query.pipeline = payload.pipeline;
+}
+
+async function onRunMongoQuery(payload) {
+    if (payload) {
+        state.mongo_query.collection = payload.collection;
+        state.mongo_query.pipeline = payload.pipeline;
+    }
+    await executeQueryOnExternalDataSource();
+}
 
 const allAvailableColumns = computed(() => {
     const columns = [];
@@ -307,6 +345,15 @@ const whereColumns = computed(() => {
     return allAvailableColumns.value.filter(col => !col.is_aggregate);
 });
 
+/**
+ * Columns available to add to GROUP BY - excludes columns already in group_by_columns
+ * and columns that are used in aggregate functions/expressions
+ */
+const availableGroupByColumns = computed(() => {
+    const currentGroupByCols = state.data_table.query_options?.group_by?.group_by_columns || [];
+    return whereColumns.value.filter(col => !currentGroupByCols.includes(col.value));
+});
+
 const havingColumns = computed(() => {
     if (showGroupByClause.value) {
         return allAvailableColumns.value.filter(col => col.is_aggregate);
@@ -315,7 +362,58 @@ const havingColumns = computed(() => {
 });
 
 const orderByColumns = computed(() => {
-    return allAvailableColumns.value;
+    const columns = [];
+    
+    // 1. Regular columns and calculated columns (non-aggregate)
+    columns.push(...allAvailableColumns.value.filter(col => !col.is_aggregate));
+    
+    // 2. Aggregate functions - use alias names
+    if (state.data_table.query_options?.group_by?.aggregate_functions) {
+        state.data_table.query_options.group_by.aggregate_functions.forEach((aggFunc) => {
+            if (aggFunc.column && aggFunc.aggregate_function !== '' && aggFunc.column_alias_name) {
+                const funcName = state.aggregate_functions[aggFunc.aggregate_function];
+                columns.push({
+                    value: aggFunc.column_alias_name,  // Use alias for ORDER BY
+                    display: `${aggFunc.column_alias_name} (${funcName})`,
+                    is_aggregate: true,
+                    type: 'aggregate_function'
+                });
+            }
+        });
+    }
+    
+    // 3. Aggregate expressions - use alias names
+    if (state.data_table.query_options?.group_by?.aggregate_expressions) {
+        state.data_table.query_options.group_by.aggregate_expressions.forEach((aggExpr) => {
+            if (aggExpr.expression && aggExpr.expression.trim() !== '' && aggExpr.column_alias_name) {
+                columns.push({
+                    value: aggExpr.column_alias_name,  // Use alias for ORDER BY
+                    display: `${aggExpr.column_alias_name} (expression)`,
+                    is_aggregate: true,
+                    type: 'aggregate_expression'
+                });
+            }
+        });
+    }
+    
+    // 4. Calculated columns - use alias names
+    if (state.data_table.calculated_columns && Array.isArray(state.data_table.calculated_columns)) {
+        state.data_table.calculated_columns.forEach((calcCol) => {
+            if (calcCol.column_name && calcCol.expression) {
+                // Check if not already added from allAvailableColumns
+                if (!columns.some(c => c.value === calcCol.column_name)) {
+                    columns.push({
+                        value: calcCol.column_name,  // Use alias for ORDER BY
+                        display: `${calcCol.column_name} (calculated)`,
+                        is_aggregate: false,
+                        type: 'calculated_column'
+                    });
+                }
+            }
+        });
+    }
+    
+    return columns;
 });
 
 const numericColumnsWithAggregates = computed(() => {
@@ -387,6 +485,23 @@ const numericColumnsWithAggregates = computed(() => {
                     type: 'aggregate_expression',
                     data_type: 'NUMBER',
                     expression_index: index
+                });
+            }
+        });
+    }
+
+    // 4. Add existing calculated columns (enable computed calculations)
+    if (state.data_table.calculated_columns && Array.isArray(state.data_table.calculated_columns)) {
+        state.data_table.calculated_columns.forEach((calcCol, index) => {
+            if (calcCol.column_name && calcCol.expression) {
+                columns.push({
+                    value: calcCol.column_name,
+                    display: `${calcCol.column_name} (Calculated)`,
+                    display_short: calcCol.column_name,
+                    type: 'calculated_column',
+                    data_type: calcCol.column_data_type || 'NUMBER',
+                    expression: calcCol.expression,
+                    calculated_index: index
                 });
             }
         });
@@ -518,6 +633,11 @@ watch(() => state.data_table.query_options, async (value) => {
 watch(() => state.data_table.query_options.group_by, async (value) => {
     state?.data_table?.query_options?.group_by?.aggregate_functions?.forEach((aggregate_function) => {
         aggregate_function.column_alias_name = aggregate_function.column_alias_name.replace(/\s/g, '_').toLowerCase();
+    });
+    state?.data_table?.query_options?.group_by?.aggregate_expressions?.forEach((aggregate_expression) => {
+        if (aggregate_expression.column_alias_name) {
+            aggregate_expression.column_alias_name = aggregate_expression.column_alias_name.replace(/\s/g, '_').toLowerCase();
+        }
     });
     await executeQueryOnExternalDataSource();
 }, { deep: true });
@@ -795,27 +915,42 @@ function syncGroupByColumns() {
         return;
     }
     
-    // Build set of aggregated columns
+    // Build set of aggregated columns (columns used in aggregate functions/expressions)
     const aggregatedColumns = new Set();
     
+    // Track columns in aggregate functions (e.g., COUNT(column), SUM(column))
     state.data_table.query_options.group_by.aggregate_functions?.forEach(aggFunc => {
         if (aggFunc.column) {
             aggregatedColumns.add(aggFunc.column);
         }
     });
     
+    // Track columns in aggregate expressions (e.g., COUNT(CASE WHEN column...))
     state.data_table.query_options.group_by.aggregate_expressions?.forEach(aggExpr => {
         if (aggExpr.expression) {
-            // Extract column references from expressions like "schema.table.column"
-            const matches = aggExpr.expression.match(/\w+\.\w+\.\w+/g);
-            if (matches) {
-                matches.forEach(col => aggregatedColumns.add(col));
+            // Extract column references from expressions
+            // Pattern 1: schema.table.column (full path)
+            const fullPathMatches = aggExpr.expression.match(/\w+\.\w+\.\w+/g);
+            if (fullPathMatches) {
+                fullPathMatches.forEach(col => aggregatedColumns.add(col));
             }
+            
+            // Pattern 2: Just column name (after we strip schema.table prefix)
+            // This handles expressions like "CASE WHEN balance_remaining <= 0"
+            // We need to match these back to full column paths
+            state.data_table.columns.forEach(col => {
+                const fullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
+                // Check if just the column name appears in expression
+                const columnNamePattern = new RegExp(`\\b${col.column_name}\\b`);
+                if (columnNamePattern.test(aggExpr.expression)) {
+                    aggregatedColumns.add(fullPath);
+                }
+            });
         }
     });
     
     // Rebuild group_by_columns from selected AND hidden columns with transforms
-    const groupByColumns = state.data_table.columns
+    const autoGroupByColumns = state.data_table.columns
         .filter(col => {
             const fullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
             const isAggregated = aggregatedColumns.has(fullPath);
@@ -835,16 +970,41 @@ function syncGroupByColumns() {
             return columnRef;
         });
     
+    // Add calculated columns (CASE expressions, etc.) to GROUP BY
+    // Calculated columns are NOT aggregates, so they must be in GROUP BY when aggregates exist
+    const calculatedColumnExpressions = state.data_table.calculated_columns
+        ?.filter(calcCol => calcCol.expression && calcCol.expression.trim() !== '')
+        .map(calcCol => calcCol.expression) || [];
+    
+    // Preserve manually-added GROUP BY columns that the user added via the dropdown
+    // These are columns that exist in the current group_by_columns but are NOT auto-derived
+    // from selected columns or calculated columns
+    // CRITICAL: Do NOT filter against aggregatedColumns here - if the user explicitly added
+    // a column to GROUP BY, respect that decision. The aggregatedColumns set can contain
+    // false positives from aggressive regex matching against aggregate expression text.
+    const currentGroupByCols = state.data_table.query_options.group_by.group_by_columns || [];
+    const autoSet = new Set([...autoGroupByColumns, ...calculatedColumnExpressions]);
+    const manualGroupByColumns = currentGroupByCols.filter(col => {
+        // Keep if not auto-derived (user manually added it via dropdown)
+        return !autoSet.has(col);
+    });
+    
+    // Combine: auto-derived columns + calculated columns + manually-added columns
+    const allGroupByColumns = [...autoGroupByColumns, ...calculatedColumnExpressions, ...manualGroupByColumns];
+    
     // Initialize group_by_columns if it doesn't exist
     if (!state.data_table.query_options.group_by.group_by_columns) {
         state.data_table.query_options.group_by.group_by_columns = [];
     }
     
-    state.data_table.query_options.group_by.group_by_columns = groupByColumns;
+    state.data_table.query_options.group_by.group_by_columns = allGroupByColumns;
     
     console.log('[syncGroupByColumns] Updated group_by_columns:', {
-        total: groupByColumns.length,
-        columns: groupByColumns,
+        total: allGroupByColumns.length,
+        autoColumns: autoGroupByColumns.length,
+        calculatedColumns: calculatedColumnExpressions.length,
+        manualColumns: manualGroupByColumns.length,
+        columns: allGroupByColumns,
         excludedAggregates: Array.from(aggregatedColumns),
         hiddenColumnsIncluded: state.data_table.columns.filter(col => 
             !col.is_selected_column && (col.transform || col.transform_function)
@@ -1277,6 +1437,77 @@ function getTablesWithAliases() {
 }
 
 /**
+ * Toggle collapse state for a table
+ * @param {string} tableKey - Unique key for table: `${schema}.${table_name}.${alias || 'base'}`
+ */
+function toggleTableCollapse(tableKey) {
+    const currentState = state.collapsed_tables.get(tableKey) || false;
+    state.collapsed_tables.set(tableKey, !currentState);
+}
+
+/**
+ * Check if table is collapsed
+ * @param {string} tableKey - Unique key for table
+ * @returns {boolean} True if collapsed
+ */
+function isTableCollapsed(tableKey) {
+    return state.collapsed_tables.get(tableKey) || false;
+}
+
+/**
+ * Get column count for a table (for display when collapsed)
+ * @param {Array} columns - Array of column objects
+ * @returns {number} Column count
+ */
+function getColumnCount(columns) {
+    return columns?.length || 0;
+}
+
+/**
+ * Collapse all tables
+ */
+function collapseAllTables() {
+    const tablesWithAliases = getTablesWithAliases();
+    tablesWithAliases.forEach(tableOrAlias => {
+        const key = `${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`;
+        state.collapsed_tables.set(key, true);
+    });
+}
+
+/**
+ * Expand all tables
+ */
+function expandAllTables() {
+    state.collapsed_tables.clear();
+}
+
+/**
+ * Check if all tables are currently collapsed
+ */
+const allTablesCollapsed = computed(() => {
+    const tablesWithAliases = getTablesWithAliases();
+    if (tablesWithAliases.length === 0) return false;
+    
+    return tablesWithAliases.every(tableOrAlias => {
+        const key = `${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`;
+        return state.collapsed_tables.get(key) === true;
+    });
+});
+
+/**
+ * Check if all tables are currently expanded
+ */
+const allTablesExpanded = computed(() => {
+    const tablesWithAliases = getTablesWithAliases();
+    if (tablesWithAliases.length === 0) return true;
+    
+    return tablesWithAliases.every(tableOrAlias => {
+        const key = `${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`;
+        return !state.collapsed_tables.get(key);
+    });
+});
+
+/**
  * Check if data model has multiple tables (JOINs needed)
  */
 function hasMultipleTables() {
@@ -1382,6 +1613,7 @@ function getColumnsForTable(tableName, tableAlias = null, dataSourceId = null) {
  */
 function openJoinDialog() {
     if (props.readOnly) return;
+    state.editing_join_index = null; // Clear edit mode
     state.join_form = {
         left_table: '',
         left_table_alias: null,
@@ -1398,10 +1630,57 @@ function openJoinDialog() {
 }
 
 /**
+ * Open dialog to edit existing JOIN condition
+ */
+function editJoinCondition(joinIndex) {
+    if (props.readOnly) return;
+    
+    const join = state.join_conditions[joinIndex];
+    state.editing_join_index = joinIndex;
+    
+    // Construct table keys with schema.table format (and alias if present)
+    const leftTableKey = join.left_table_alias 
+        ? `${join.left_table_schema}.${join.left_table_name}::${join.left_table_alias}`
+        : `${join.left_table_schema}.${join.left_table_name}`;
+    
+    const rightTableKey = join.right_table_alias
+        ? `${join.right_table_schema}.${join.right_table_name}::${join.right_table_alias}`
+        : `${join.right_table_schema}.${join.right_table_name}`;
+    
+    // If cross-source, include data source ID
+    const leftKey = props.isCrossSource && join.left_data_source_id
+        ? `${leftTableKey}::${join.left_data_source_id}`
+        : leftTableKey;
+    
+    const rightKey = props.isCrossSource && join.right_data_source_id
+        ? `${rightTableKey}::${join.right_data_source_id}`
+        : rightTableKey;
+    
+    // Populate form with existing JOIN data
+    state.join_form = {
+        left_table: leftKey,
+        left_table_alias: join.left_table_alias,
+        left_column: join.left_column_name,
+        right_table: rightKey,
+        right_table_alias: join.right_table_alias,
+        right_column: join.right_column_name,
+        join_type: join.join_type || 'INNER',
+        primary_operator: join.primary_operator || '=',
+        join_logic: join.join_logic || 'AND',
+        additional_conditions: join.additional_conditions ? [...join.additional_conditions] : []
+    };
+    
+    state.show_join_dialog = true;
+    
+    console.log('[editJoinCondition] Editing JOIN at index', joinIndex, 'Form:', state.join_form);
+}
+
+/**
  * Close JOIN creation dialog
  */
 function closeJoinDialog() {
     state.show_join_dialog = false;
+    state.editing_join_index = null; // Clear edit mode
 }
 
 /**
@@ -1461,7 +1740,7 @@ function getJoinFormPreview() {
 }
 
 /**
- * Create new JOIN condition
+ * Create new JOIN condition (or update if editing)
  */
 async function createJoinCondition() {
     if (!isJoinFormValid()) {
@@ -1475,9 +1754,16 @@ async function createJoinCondition() {
 
     const leftInfo = parseTableKey(state.join_form.left_table);
     const rightInfo = parseTableKey(state.join_form.right_table);
+    
+    const isEditing = state.editing_join_index !== null;
 
-    // Check for duplicate JOIN
-    const isDuplicate = state.join_conditions.some(join => {
+    // Check for duplicate JOIN (skip current join if editing)
+    const isDuplicate = state.join_conditions.some((join, index) => {
+        // Skip duplicate check for the join being edited
+        if (isEditing && index === state.editing_join_index) {
+            return false;
+        }
+        
         const leftSourceMatch = !props.isCrossSource ||
             !leftInfo.dataSourceId ||
             join.left_data_source_id === leftInfo.dataSourceId;
@@ -1504,9 +1790,8 @@ async function createJoinCondition() {
         return;
     }
 
-    // Add new JOIN condition
-    const newJoin = {
-        id: Date.now(),
+    // Build JOIN object
+    const joinData = {
         left_table_schema: leftInfo.schema,
         left_table_name: leftInfo.table,
         left_table_alias: leftInfo.alias,
@@ -1522,26 +1807,48 @@ async function createJoinCondition() {
         join_type: state.join_form.join_type,
         primary_operator: state.join_form.primary_operator || '=',
         join_logic: state.join_form.join_logic || 'AND',
-        is_auto_detected: false,
-        additional_conditions: []
+        additional_conditions: state.join_form.additional_conditions || []
     };
-
-    state.join_conditions.push(newJoin);
+    
+    if (isEditing) {
+        // Update existing JOIN
+        const existingJoin = state.join_conditions[state.editing_join_index];
+        Object.assign(existingJoin, joinData);
+        
+        console.log('[createJoinCondition] Updated JOIN at index', state.editing_join_index);
+        
+        $swal.fire({
+            icon: 'success',
+            title: 'JOIN Updated',
+            timer: 1500,
+            showConfirmButton: false
+        });
+    } else {
+        // Add new JOIN condition
+        const newJoin = {
+            id: Date.now(),
+            is_auto_detected: false,
+            ...joinData
+        };
+        
+        state.join_conditions.push(newJoin);
+        
+        console.log('[createJoinCondition] Created new JOIN:', newJoin);
+        
+        $swal.fire({
+            icon: 'success',
+            title: 'JOIN Created',
+            timer: 1500,
+            showConfirmButton: false
+        });
+    }
     
     // CRITICAL: Immediately sync to data_table before query execution
     // This ensures JOINs are included in the query JSON sent to backend
     state.data_table.join_conditions = [...state.join_conditions];
 
-    console.log('[createJoinCondition] Created new JOIN:', newJoin);
     console.log('[createJoinCondition] Total JOINs now:', state.join_conditions.length);
     console.log('[createJoinCondition] Synced to data_table.join_conditions');
-
-    $swal.fire({
-        icon: 'success',
-        title: 'JOIN Created',
-        timer: 1500,
-        showConfirmButton: false
-    });
 
     closeJoinDialog();
     await executeQueryOnExternalDataSource();
@@ -2177,7 +2484,26 @@ function isColumnUsedInAggregate(columnName, schema, tableName) {
 
     // Check if used in aggregate functions
     const aggregateFunctions = state.data_table.query_options?.group_by?.aggregate_functions || [];
-    return aggregateFunctions.some(aggFunc => aggFunc.column === columnPath);
+    const inAggregateFunctions = aggregateFunctions.some(aggFunc => aggFunc.column === columnPath);
+    
+    if (inAggregateFunctions) {
+        return true;
+    }
+    
+    // Check if used in aggregate expressions
+    const aggregateExpressions = state.data_table.query_options?.group_by?.aggregate_expressions || [];
+    return aggregateExpressions.some(aggExpr => {
+        if (!aggExpr.expression) return false;
+        
+        // Check if full path appears in expression
+        if (aggExpr.expression.includes(columnPath)) {
+            return true;
+        }
+        
+        // Check if just column name appears (after schema.table prefix was stripped)
+        const columnNamePattern = new RegExp(`\\b${columnName}\\b`);
+        return columnNamePattern.test(aggExpr.expression);
+    });
 }
 
 /**
@@ -2527,13 +2853,21 @@ function addQueryOption(queryOption) {
     state.show_dialog = false;
 }
 function addAggregateExpression() {
-    if (!state?.data_table?.query_options?.group_by?.aggregate_expressions) {
+    // Initialize GROUP BY object ONLY if it doesn't exist (minimal structure)
+    if (!state?.data_table?.query_options?.group_by) {
+        state.data_table.query_options.group_by = {};
+    }
+    
+    // Initialize ONLY aggregate_expressions array (don't touch other GROUP BY properties)
+    if (!state.data_table.query_options.group_by.aggregate_expressions) {
         state.data_table.query_options.group_by.aggregate_expressions = [];
     }
 
+    // Add new aggregate expression
     state.data_table.query_options.group_by.aggregate_expressions.push({
         expression: '',
         column_alias_name: '',
+        column_data_type: 'text', // Default to text, will be inferred from expression
     });
     
     // Sync GROUP BY columns after adding expression
@@ -2544,6 +2878,44 @@ function removeAggregateExpression(index) {
     
     // Sync GROUP BY columns after removing expression
     syncGroupByColumns();
+}
+
+/**
+ * Add a column to group_by_columns from dropdown selection
+ */
+function addGroupByColumn(event) {
+    const columnRef = event.target.value;
+    if (!columnRef) return;
+    
+    // Initialize arrays if needed
+    if (!state.data_table.query_options.group_by) {
+        state.data_table.query_options.group_by = {};
+    }
+    if (!state.data_table.query_options.group_by.group_by_columns) {
+        state.data_table.query_options.group_by.group_by_columns = [];
+    }
+    
+    // Don't add duplicates
+    if (!state.data_table.query_options.group_by.group_by_columns.includes(columnRef)) {
+        state.data_table.query_options.group_by.group_by_columns.push(columnRef);
+        
+        // Ensure GROUP BY name flag is set for SQL generation
+        if (!state.data_table.query_options.group_by.name) {
+            state.data_table.query_options.group_by.name = 'GROUP BY';
+        }
+    }
+    
+    // Reset dropdown
+    event.target.value = '';
+}
+
+/**
+ * Remove a column from group_by_columns by index
+ */
+function removeGroupByColumn(index) {
+    if (state.data_table.query_options?.group_by?.group_by_columns) {
+        state.data_table.query_options.group_by.group_by_columns.splice(index, 1);
+    }
 }
 function onTransformChange(element, event) {
     const selectedFunc = state.transform_functions.find(f => f.value === event.target.value);
@@ -2594,6 +2966,87 @@ function deleteCalculatedColumnOperation(index) {
         });
     }
 }
+
+/**
+ * Recursively expand calculated column references in an expression
+ * Replaces calculated column aliases with their full expressions
+ * @param {string} expression - The expression to expand
+ * @returns {string} - Fully expanded expression with all calculated columns inlined
+ */
+function expandCalculatedColumnReferences(expression) {
+    if (!expression || typeof expression !== 'string') {
+        return expression;
+    }
+    
+    let expandedExpression = expression;
+    let changed = true;
+    let iterations = 0;
+    const maxIterations = 10; // Prevent infinite loops
+    
+    // Keep expanding until no more calculated column references found
+    while (changed && iterations < maxIterations) {
+        changed = false;
+        iterations++;
+        
+        // Check each calculated column to see if it's referenced in the expression
+        state.data_table.calculated_columns?.forEach(calcCol => {
+            if (!calcCol.column_name || !calcCol.expression) return;
+            
+            // Create regex to match the column name as a whole word
+            const columnNameRegex = new RegExp(`\\b${calcCol.column_name}\\b`, 'g');
+            
+            if (columnNameRegex.test(expandedExpression)) {
+                // Replace all occurrences with the expression (wrapped in parentheses)
+                expandedExpression = expandedExpression.replace(columnNameRegex, `(${calcCol.expression})`);
+                changed = true;
+                console.log(`[expandCalculatedColumnReferences] Replaced ${calcCol.column_name} with (${calcCol.expression})`);
+            }
+        });
+    }
+    
+    if (iterations >= maxIterations) {
+        console.warn('[expandCalculatedColumnReferences] Max iterations reached, possible circular reference');
+    }
+    
+    return expandedExpression;
+}
+
+/**
+ * Check for circular references in calculated columns
+ * @param {string} newColumnName - Name of the calculated column being created
+ * @param {Array} selectedColumns - Array of column references in the expression
+ * @param {Set} visited - Set of visited column names (for recursion)
+ * @returns {boolean} - True if circular reference detected
+ */
+function hasCircularReference(newColumnName, selectedColumns, visited = new Set()) {
+    if (visited.has(newColumnName)) {
+        console.log('[hasCircularReference] Circular reference detected:', newColumnName);
+        return true;
+    }
+    visited.add(newColumnName);
+
+    // Check each column reference in the expression
+    for (const colRef of selectedColumns) {
+        if (colRef.type === 'column') {
+            // Find if this is a calculated column
+            const referencedCalcCol = state.data_table.calculated_columns?.find(c => c.column_name === colRef.column_name);
+            
+            if (referencedCalcCol) {
+                // Parse the referenced calculated column's expression to find its dependencies
+                const referencedColDeps = state.calculated_column.columns
+                    .filter(c => c.type === 'column' && referencedCalcCol.expression.includes(c.column_name));
+                
+                // Recursively check for circular references
+                if (hasCircularReference(colRef.column_name, referencedColDeps, new Set(visited))) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
 async function addCalculatedColumn() {
     console.log('[DEBUG addCalculatedColumn] Function called');
     console.log('[DEBUG addCalculatedColumn] state.calculated_column:', JSON.stringify(state.calculated_column, null, 2));
@@ -2657,6 +3110,19 @@ async function addCalculatedColumn() {
     }
     console.log('[DEBUG addCalculatedColumn] Validation 4 passed: aggregate usage valid');
     
+    // Validation 5: Check for circular references
+    console.log('[DEBUG addCalculatedColumn] Checking for circular references...');
+    if (hasCircularReference(state.calculated_column.column_name, state.calculated_column.columns)) {
+        console.log('[DEBUG addCalculatedColumn] VALIDATION FAILED: Circular reference detected');
+        $swal.fire({
+            icon: 'error',
+            title: `Circular Reference Detected!`,
+            text: `This calculated column creates a circular reference. Calculated columns cannot reference themselves directly or indirectly.`,
+        });
+        return;
+    }
+    console.log('[DEBUG addCalculatedColumn] Validation 5 passed: no circular references');
+    
     let expression = "";
     console.log('[DEBUG addCalculatedColumn] Building expression...');
     for (let i = 0; i < state.calculated_column.columns.length; i++) {
@@ -2666,7 +3132,7 @@ async function addCalculatedColumn() {
         
         console.log(`[DEBUG addCalculatedColumn] Processing column ${i}:`, { column_name: column.column_name, operator, type });
 
-        // Get the proper column reference (fully qualified for base columns, alias for aggregates)
+        // Get the proper column reference (fully qualified for base columns, alias for others)
         let columnRef = column.column_name;
         if (type === 'column') {
             const colInfo = numericColumnsWithAggregates.value.find(c => c.value === column.column_name);
@@ -2680,7 +3146,8 @@ async function addCalculatedColumn() {
                 columnRef = `${colInfo.schema}.${colInfo.table_name}.${colInfo.column_name}`;
                 console.log(`[DEBUG addCalculatedColumn] Using qualified name:`, columnRef);
             }
-            // For aggregates, use the alias (column.column_name is already the alias)
+            // For aggregates and calculated columns, use the alias name
+            // Calculated column references will be expanded later via expandCalculatedColumnReferences()
         }
 
         if (i === 0) {
@@ -2705,18 +3172,30 @@ async function addCalculatedColumn() {
         }
     }
     
+    // Expand any calculated column references in the expression
+    console.log('[DEBUG addCalculatedColumn] Expression before expansion:', expression);
+    const expandedExpression = expandCalculatedColumnReferences(expression);
+    console.log('[DEBUG addCalculatedColumn] Expression after expansion:', expandedExpression);
+    
     const finalColumn = {
         column_name: state.calculated_column.column_name,
-        expression: `ROUND(${expression}, 2)`,
+        expression: `ROUND(${expandedExpression}, 2)`,
         column_data_type: state.calculated_column.column_data_type,
     };
-    console.log('[DEBUG addCalculatedColumn] Final expression:', expression);
+    console.log('[DEBUG addCalculatedColumn] Final expression:', expandedExpression);
     console.log('[DEBUG addCalculatedColumn] Final column object to push:', finalColumn);
     console.log('[DEBUG addCalculatedColumn] Pushing to state.data_table.calculated_columns...');
     
     state.data_table.calculated_columns.push(finalColumn);
     
     console.log('[DEBUG addCalculatedColumn] After push, calculated_columns:', state.data_table.calculated_columns);
+    
+    // Sync GROUP BY to include calculated column expressions
+    if (state.data_table.query_options?.group_by?.aggregate_functions?.length > 0 ||
+        state.data_table.query_options?.group_by?.aggregate_expressions?.length > 0) {
+        syncGroupByColumns();
+    }
+    
     console.log('[DEBUG addCalculatedColumn] Closing dialog...');
     state.show_calculated_column_dialog = false;
     console.log('[DEBUG addCalculatedColumn] Calling executeQueryOnExternalDataSource...');
@@ -2725,6 +3204,13 @@ async function addCalculatedColumn() {
 }
 async function deleteCalculatedColumn(index) {
     state.data_table.calculated_columns.splice(index, 1);
+    
+    // Sync GROUP BY to remove deleted calculated column
+    if (state.data_table.query_options?.group_by?.aggregate_functions?.length > 0 ||
+        state.data_table.query_options?.group_by?.aggregate_expressions?.length > 0) {
+        syncGroupByColumns();
+    }
+    
     await executeQueryOnExternalDataSource();
 }
 function buildSQLQuery(silent = false) {
@@ -3089,6 +3575,26 @@ function buildSQLQuery(silent = false) {
                 aggregateColumns.add(aggFunc.column);
             }
         });
+        
+        // Also track columns used in aggregate expressions
+        state?.data_table?.query_options?.group_by?.aggregate_expressions?.forEach((aggExpr) => {
+            if (aggExpr.expression) {
+                // Extract full column paths (schema.table.column)
+                const fullPathMatches = aggExpr.expression.match(/\w+\.\w+\.\w+/g);
+                if (fullPathMatches) {
+                    fullPathMatches.forEach(col => aggregateColumns.add(col));
+                }
+                
+                // Also check for just column names and match to full paths
+                state.data_table.columns.forEach(col => {
+                    const fullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
+                    const columnNamePattern = new RegExp(`\\b${col.column_name}\\b`);
+                    if (columnNamePattern.test(aggExpr.expression)) {
+                        aggregateColumns.add(fullPath);
+                    }
+                });
+            }
+        });
 
         console.log('[buildSQLQuery] Columns used in aggregates:', Array.from(aggregateColumns));
 
@@ -3110,6 +3616,17 @@ function buildSQLQuery(silent = false) {
             const orderB = tableOrderMap.get(keyB) ?? 999;
             return orderA - orderB;
         });
+        
+        // Check for columns that are selected but will be hidden by aggregates
+        const hiddenByAggregates = orderedColumns.filter(col => {
+            const columnFullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
+            return col.is_selected_column && aggregateColumns.has(columnFullPath);
+        });
+        
+        if (hiddenByAggregates.length > 0) {
+            console.warn('[buildSQLQuery] ⚠️ The following columns are selected but will NOT appear in results (used in aggregates):', 
+                hiddenByAggregates.map(col => `${col.schema}.${col.table_name}.${col.column_name}`));
+        }
 
         sqlQuery = `SELECT ${orderedColumns.filter((column) => {
             // Exclude columns that are ONLY used in aggregates (not for grouping)
@@ -3146,6 +3663,19 @@ function buildSQLQuery(silent = false) {
             return `${columnRef} AS ${aliasName}`;
         }).join(', ')}`;
     }
+    
+    // Track if we have any base columns in SELECT to handle comma placement
+    const hasBaseColumns = state.data_table.columns.some(col => {
+        const columnFullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
+        const aggregateColumns = new Set();
+        state?.data_table?.query_options?.group_by?.aggregate_functions?.forEach((aggFunc) => {
+            if (aggFunc.column && aggFunc.aggregate_function !== '') {
+                aggregateColumns.add(aggFunc.column);
+            }
+        });
+        return col.is_selected_column && !aggregateColumns.has(columnFullPath);
+    });
+    
     state?.data_table?.query_options?.group_by?.aggregate_functions?.forEach((aggregate_function) => {
         if (aggregate_function.aggregate_function !== '' && aggregate_function.column !== '') {
             const distinctKeyword = aggregate_function.use_distinct ? 'DISTINCT ' : '';
@@ -3159,16 +3689,25 @@ function buildSQLQuery(silent = false) {
                 aliasName = `${aggregateFunc.toLowerCase()}_${columnName}`;
             }
 
-            sqlQuery += `, ${aggregateFunc}(${distinctKeyword}${aggregate_function.column}) AS ${aliasName}`;
+            // Add comma only if there are base columns or previous aggregates
+            const needsComma = hasBaseColumns || sqlQuery.includes(' AS ');
+            sqlQuery += `${needsComma ? ', ' : ''}${aggregateFunc}(${distinctKeyword}${aggregate_function.column}) AS ${aliasName}`;
         }
     });
 
     state?.data_table?.query_options?.group_by?.aggregate_expressions?.forEach((agg_expr) => {
         if (agg_expr.expression && agg_expr.expression.trim() !== '') {
             // Clean up expression: remove square brackets (invalid PostgreSQL syntax from AI)
-            const cleanExpression = agg_expr.expression.replace(/\[\[/g, '').replace(/\]\]/g, '').replace(/\[/g, '').replace(/\]/g, '');
+            let cleanExpression = agg_expr.expression.replace(/\[\[/g, '').replace(/\]\]/g, '').replace(/\[/g, '').replace(/\]/g, '');
+            
+            // Remove schema.table prefixes from column references (e.g., dra_excel.ds75_e922dab5.balance_remaining -> balance_remaining)
+            // This regex matches patterns like schema.table.column and replaces with just column
+            cleanExpression = cleanExpression.replace(/(\w+)\.(\w+)\.(\w+)/g, '$3');
+            
             const aliasName = agg_expr?.column_alias_name && agg_expr.column_alias_name !== '' ? ` AS ${agg_expr.column_alias_name}` : '';
-            sqlQuery += `, ${cleanExpression}${aliasName}`;
+            // Add comma only if there are previous columns/aggregates in SELECT
+            const needsComma = sqlQuery.includes(' AS ');
+            sqlQuery += `${needsComma ? ', ' : ''}${cleanExpression}${aliasName}`;
         }
     });
 
@@ -3242,10 +3781,18 @@ function buildSQLQuery(silent = false) {
         }
     });
     if (showGroupByClause.value) {
-        // Use group_by_columns if available (AI-generated string array), otherwise build from selected columns
-        const groupByColumns = state.data_table.query_options?.group_by?.group_by_columns?.length > 0
-            ? state.data_table.query_options.group_by.group_by_columns
-            : state.data_table.columns.filter((column) => column.is_selected_column).map((column) => {
+        // CRITICAL: Respect synced group_by_columns array
+        // If group_by_columns exists (even if empty), use it - DO NOT fallback to selected columns
+        // Empty array = aggregate-only query with no grouping
+        // Undefined/null = legacy query, fallback to selected columns
+        let groupByColumns;
+        if (state.data_table.query_options?.group_by?.group_by_columns !== undefined && 
+            state.data_table.query_options?.group_by?.group_by_columns !== null) {
+            // group_by_columns exists (synced by syncGroupByColumns) - use as-is
+            groupByColumns = state.data_table.query_options.group_by.group_by_columns;
+        } else {
+            // Legacy fallback: build from selected columns
+            groupByColumns = state.data_table.columns.filter((column) => column.is_selected_column).map((column) => {
                 let columnRef = `${column.schema}.${column.table_name}.${column.column_name}`;
 
                 if (column.transform_function) {
@@ -3255,8 +3802,12 @@ function buildSQLQuery(silent = false) {
 
                 return columnRef;
             });
+        }
 
-        sqlQuery += ` GROUP BY ${groupByColumns.join(', ')}`;
+        // Only add GROUP BY if there are columns to group by
+        if (groupByColumns.length > 0) {
+            sqlQuery += ` GROUP BY ${groupByColumns.join(', ')}`;
+        }
         state?.data_table?.query_options?.group_by?.having_conditions?.forEach((clause, index) => {
             // CRITICAL: PostgreSQL requires full aggregate expressions in HAVING, not aliases
             // Replace aggregate alias with full expression
@@ -3371,225 +3922,234 @@ async function saveDataModel() {
     state.is_saving_model = true;
     
     try {
-        // VALIDATION: Check if this is truly cross-source or same-source with multiple tables
-        if (props.isCrossSource) {
-            const uniqueDataSourceIds = new Set(
-                state.data_table.columns
-                    .filter(col => col.data_source_id)
-                    .map(col => col.data_source_id)
-            );
+        if (isMongoDB.value) {
+            // MongoDB specific save logic
+            state.sql_query = state.mongo_query.pipeline; // Use pipeline as headers/query representation
             
-            console.log('[saveDataModel] Cross-source validation - Unique data sources:', Array.from(uniqueDataSourceIds));
+            // Build the data model
+            const token = getAuthToken();
+            let url = `${baseUrl()}/data-source/build-data-model-on-query`;
+            if (props.isEditDataModel) {
+                url = `${baseUrl()}/data-model/update-data-model-on-query`;
+            }
+
+            const responseData = await $fetch(url, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+                body: {
+                    data_source_id: props.isCrossSource ? null : route.params.datasourceid,
+                    project_id: props.isCrossSource ? props.projectId : null,
+                    query: state.mongo_query.pipeline, // Send pipeline string as query
+                    query_json: JSON.stringify({
+                        collection: state.mongo_query.collection,
+                        pipeline: JSON.parse(state.mongo_query.pipeline)
+                    }),
+                    data_model_name: state.data_table.table_name,
+                    data_model_id: props.isEditDataModel ? props.dataModel.id : null,
+                    is_cross_source: false, // MongoDB doesn't support cross-source yet
+                }
+            });
             
-            if (uniqueDataSourceIds.size === 1) {
-                const result = await $swal.fire({
-                    icon: 'warning',
-                    title: 'Same Data Source Detected',
-                    html: `All columns are from the same data source (ID: ${Array.from(uniqueDataSourceIds)[0]}). Cross-source mode is designed for combining data from <strong>different</strong> data sources.<br /><br />This may cause resolution issues. Continue anyway?`,
-                    showCancelButton: true,
-                    confirmButtonColor: '#3C8DBC',
-                    cancelButtonColor: '#DD4B39',
-                    confirmButtonText: 'Continue Anyway',
-                    cancelButtonText: 'Cancel'
-                });
+             $swal.fire({
+                icon: 'success',
+                title: `Data Model Saved!`,
+                text: 'Your MongoDB data model has been successfully saved.',
+                timer: 1500,
+                showConfirmButton: false
+            });
+
+             router.push(`/projects/${route.params.projectid}/data-sources/${route.params.datasourceid}/data-models`);
+        } else {
+            // Existing SQL Save Logic
+            // VALIDATION: Check if this is truly cross-source or same-source with multiple tables
+            if (props.isCrossSource) {
+                const uniqueDataSourceIds = new Set(
+                    state.data_table.columns
+                        .filter(col => col.data_source_id)
+                        .map(col => col.data_source_id)
+                );
                 
-                if (!result.isConfirmed) {
-                    state.is_saving_model = false;
-                    return;
+                console.log('[saveDataModel] Cross-source validation - Unique data sources:', Array.from(uniqueDataSourceIds));
+                
+                if (uniqueDataSourceIds.size === 1) {
+                    const result = await $swal.fire({
+                        icon: 'warning',
+                        title: 'Same Data Source Detected',
+                        html: `All columns are from the same data source (ID: ${Array.from(uniqueDataSourceIds)[0]}). Cross-source mode is designed for combining data from <strong>different</strong> data sources.<br /><br />This may cause resolution issues. Continue anyway?`,
+                        showCancelButton: true,
+                        confirmButtonColor: '#3C8DBC',
+                        cancelButtonColor: '#DD4B39',
+                        confirmButtonText: 'Continue Anyway',
+                        cancelButtonText: 'Cancel'
+                    });
+                    
+                    if (!result.isConfirmed) {
+                        state.is_saving_model = false;
+                        return;
+                    }
                 }
             }
-        }
-        
-        // Ensure JOIN conditions and table aliases are synced to data_table before save
-        state.data_table.join_conditions = [...state.join_conditions];
-        state.data_table.table_aliases = [...state.table_aliases];
-        
-        // CRITICAL FIX: Auto-sync group_by_columns when aggregate functions exist
-        // This ensures manually selected columns are included in GROUP BY clause
-        const hasAggregates = state.data_table.query_options?.group_by?.aggregate_functions?.length > 0 ||
-                             state.data_table.query_options?.group_by?.aggregate_expressions?.length > 0;
-    
-    if (hasAggregates && state.data_table.query_options?.group_by) {
-        // Build set of columns used ONLY in aggregates (not in regular SELECT)
-        const aggregatedColumns = new Set();
-        
-        state.data_table.query_options.group_by.aggregate_functions?.forEach(aggFunc => {
-            if (aggFunc.column) {
-                aggregatedColumns.add(aggFunc.column);
-            }
-        });
-        
-        // Rebuild group_by_columns from currently selected non-aggregate columns
-        state.data_table.query_options.group_by.group_by_columns = state.data_table.columns
-            .filter(col => col.is_selected_column === true)
-            .map(col => {
-                const fullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
-                // Only include if NOT used exclusively in aggregate functions
-                if (!aggregatedColumns.has(fullPath)) {
-                    return fullPath;
-                }
-                return null;
-            })
-            .filter(path => path !== null);
-        
-        console.log('[saveDataModel] Auto-synced group_by_columns:', state.data_table.query_options.group_by.group_by_columns);
-    }
-    
-    console.log('[saveDataModel] Synced to data_table before save:', {
-        join_conditions: state.data_table.join_conditions.length,
-        table_aliases: state.data_table.table_aliases.length,
-        group_by_columns: state.data_table.query_options?.group_by?.group_by_columns?.length || 0
-    });
-
-    let offsetStr = 'OFFSET 0';
-    let limitStr = 'LIMIT 5';
-    let sqlQuery = buildSQLQuery();
-
-    if (state.data_table.query_options.offset > -1) {
-        offsetStr = `OFFSET ${state.data_table.query_options.offset}`;
-    } else {
-        offsetStr = 'OFFSET 0';
-    }
-    if (state.data_table.query_options.limit > -1) {
-        // CRITICAL: Enforce tier limit - never allow exceeding user's allowed limit
-        const tierLimit = subscriptionStore.subscription?.subscription_tier?.max_rows_per_data_model || 100000;
-        const effectiveLimit = tierLimit === -1 ? state.data_table.query_options.limit : Math.min(state.data_table.query_options.limit, tierLimit);
-        
-        if (state.data_table.query_options.limit > tierLimit && tierLimit !== -1) {
-            console.warn(`[saveDataModel] User attempted to set limit ${state.data_table.query_options.limit} exceeding tier limit ${tierLimit}. Capping to tier limit.`);
-            state.data_table.query_options.limit = tierLimit;
-        }
-        
-        limitStr = `LIMIT ${effectiveLimit}`;
-    } else {
-        // Use user's tier limit as default
-        const userRowLimit = subscriptionStore.subscription?.subscription_tier?.max_rows_per_data_model || 100000;
-        limitStr = `LIMIT ${userRowLimit}`;
-    }
-    sqlQuery += ` ${limitStr} ${offsetStr}`;
-    state.sql_query = sqlQuery;
-    
-    // Show confirmation dialog before saving
-    $swal.fire({
-        icon: 'success',
-        title: `Generated SQL Query!`,
-        text: sqlQuery,
-    });
-    const { value: confirmDelete } = await $swal.fire({
-        icon: "success",
-        title: "SQL Query Generated!",
-        html: `Your SQL query has been generated and is a follows:<br /><br /> <span style='font-weight: bold;'>${sqlQuery}</span><br /><br /> Do you want to proceed with this SQL query to build your data model?`,
-        showCancelButton: true,
-        confirmButtonColor: "#3C8DBC",
-        cancelButtonColor: "#DD4B39",
-        confirmButtonText: "Yes, build my model now!",
-    });
-    if (!confirmDelete) {
-        // User cancelled, clear the flag and return
-        state.is_saving_model = false;
-        return;
-    }
-    
-    //build the data model
-    const token = getAuthToken();
-    let url = `${baseUrl()}/data-source/build-data-model-on-query`;
-    if (props.isEditDataModel) {
-        url = `${baseUrl()}/data-model/update-data-model-on-query`;
-    }
-
-    // Filter to include selected columns AND hidden referenced columns (aggregates, GROUP BY, WHERE, etc.)
-    const dataTableForSave = {
-        ...state.data_table,
-        columns: state.data_table.columns.filter(col => {
-            // Include if selected for display
-            if (col.is_selected_column) return true;
             
-            // Include if tracked as hidden reference (aggregate, GROUP BY, WHERE, HAVING, ORDER BY, etc.)
-            const isTracked = state.data_table.hidden_referenced_columns?.some(
-                tracked => tracked.schema === col.schema &&
-                           tracked.table_name === col.table_name &&
-                           tracked.column_name === col.column_name
-            );
-            return isTracked;
-        })
-    };
+            // Ensure JOIN conditions and table aliases are synced to data_table before save
+            state.data_table.join_conditions = [...state.join_conditions];
+            state.data_table.table_aliases = [...state.table_aliases];
+            
+            // Sync group_by_columns before save using the canonical sync function
+            // This preserves manually-added GROUP BY columns while ensuring
+            // auto-derived columns are up to date
+            syncGroupByColumns();
+            console.log('[saveDataModel] Synced group_by_columns via syncGroupByColumns:', state.data_table.query_options?.group_by?.group_by_columns);
+        
+            console.log('[saveDataModel] Synced to data_table before save:', {
+                join_conditions: state.data_table.join_conditions.length,
+                table_aliases: state.data_table.table_aliases.length,
+                group_by_columns: state.data_table.query_options?.group_by?.group_by_columns?.length || 0
+            });
 
-    console.log('[saveDataModel] Filtered columns for save:', {
-        total: state.data_table.columns.length,
-        selected: state.data_table.columns.filter(c => c.is_selected_column).length,
-        hiddenTracked: state.data_table.hidden_referenced_columns?.length || 0,
-        saved: dataTableForSave.columns.length
-    });
+            let offsetStr = 'OFFSET 0';
+            let limitStr = 'LIMIT 5';
+            let sqlQuery = buildSQLQuery();
 
-    const responseData = await $fetch(url, {
-        method: "POST",
-        headers: {
-            "Authorization": `Bearer ${token}`,
-            "Authorization-Type": "auth",
-        },
-        body: {
-            data_source_id: props.isCrossSource ? null : route.params.datasourceid,
-            project_id: props.isCrossSource ? props.projectId : null,
-            query: state.sql_query,
-            query_json: JSON.stringify(dataTableForSave),
-            data_model_name: state.data_table.table_name,
-            data_model_id: props.isEditDataModel ? props.dataModel.id : null,
-            is_cross_source: props.isCrossSource || false,
-        }
-    });
-    
-    // Save AI conversation if one exists
-    if (aiDataModelerStore.conversationId && aiDataModelerStore.messages.length > 0) {
-        try {
-            const dataModelId = props.isEditDataModel
-                ? props.dataModel.id
-                : responseData.data_model_id;
-
-            if (dataModelId) {
-                // Ensure currentDataSourceId is set before saving (it should be from initializeConversation)
-                // But set it as fallback in case the drawer was closed
-                if (!aiDataModelerStore.currentDataSourceId) {
-                    aiDataModelerStore.currentDataSourceId = Number(route.params.datasourceid);
+            if (state.data_table.query_options.offset > -1) {
+                offsetStr = `OFFSET ${state.data_table.query_options.offset}`;
+            } else {
+                offsetStr = 'OFFSET 0';
+            }
+            if (state.data_table.query_options.limit > -1) {
+                // CRITICAL: Enforce tier limit - never allow exceeding user's allowed limit
+                const tierLimit = subscriptionStore.subscription?.subscription_tier?.max_rows_per_data_model || 100000;
+                const effectiveLimit = tierLimit === -1 ? state.data_table.query_options.limit : Math.min(state.data_table.query_options.limit, tierLimit);
+                
+                if (state.data_table.query_options.limit > tierLimit && tierLimit !== -1) {
+                    console.warn(`[saveDataModel] User attempted to set limit ${state.data_table.query_options.limit} exceeding tier limit ${tierLimit}. Capping to tier limit.`);
+                    state.data_table.query_options.limit = tierLimit;
                 }
+                
+                limitStr = `LIMIT ${effectiveLimit}`;
+            } else {
+                // Use user's tier limit as default
+                const userRowLimit = subscriptionStore.subscription?.subscription_tier?.max_rows_per_data_model || 100000;
+                limitStr = `LIMIT ${userRowLimit}`;
+            }
+            sqlQuery += ` ${limitStr} ${offsetStr}`;
+            state.sql_query = sqlQuery;
+            const { value: confirmDelete } = await $swal.fire({
+                icon: "success",
+                title: "SQL Query Generated!",
+                html: `Your SQL query has been generated and is a follows:<br /><br /> <span style='font-weight: bold;'>${sqlQuery}</span><br /><br /> Do you want to proceed with this SQL query to build your data model?`,
+                showCancelButton: true,
+                confirmButtonColor: "#3C8DBC",
+                cancelButtonColor: "#DD4B39",
+                confirmButtonText: "Yes, build my model now!",
+            });
+            if (!confirmDelete) {
+                // User cancelled, clear the flag and return
+                state.is_saving_model = false;
+                return;
+            }
+            //build the data model
+            const token = getAuthToken();
+            let url = `${baseUrl()}/data-source/build-data-model-on-query`;
+            if (props.isEditDataModel) {
+                url = `${baseUrl()}/data-model/update-data-model-on-query`;
+            }
 
-                console.log('Saving AI conversation with:', {
-                    dataSourceId: aiDataModelerStore.currentDataSourceId,
-                    dataModelId,
-                    title: state.data_table.table_name || 'AI Generated Model',
+            // CRITICAL FIX: Send ALL columns with their is_selected_column state preserved
+            // Backend will filter for table creation, but preserve full array in query JSON
+            // This prevents permanent loss of unchecked columns
+            const dataTableForSave = {
+                ...state.data_table,
+                columns: state.data_table.columns // Send ALL columns - don't filter!
+            };
+
+            console.log('[saveDataModel] Sending ALL columns to preserve full model definition:', {
+                total: state.data_table.columns.length,
+                selected: state.data_table.columns.filter(c => c.is_selected_column).length,
+                unselected: state.data_table.columns.filter(c => !c.is_selected_column).length,
+                hiddenTracked: state.data_table.hidden_referenced_columns?.length || 0
+            });
+
+            const responseData = await $fetch(url, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+                body: {
+                    data_source_id: props.isCrossSource ? null : route.params.datasourceid,
+                    project_id: props.isCrossSource ? props.projectId : null,
+                    query: state.sql_query,
+                    query_json: JSON.stringify(dataTableForSave),
+                    data_model_name: state.data_table.table_name,
+                    data_model_id: props.isEditDataModel ? props.dataModel.id : null,
+                    is_cross_source: props.isCrossSource || false,
+                }
+            });
+            
+            // Save AI conversation if one exists
+            if (aiDataModelerStore.conversationId && aiDataModelerStore.messages.length > 0) {
+                try {
+                    const dataModelId = props.isEditDataModel
+                        ? props.dataModel.id
+                        : responseData.data_model_id;
+
+                    if (dataModelId) {
+                        // Ensure currentDataSourceId is set before saving (it should be from initializeConversation)
+                        // But set it as fallback in case the drawer was closed
+                        if (!aiDataModelerStore.currentDataSourceId) {
+                            aiDataModelerStore.currentDataSourceId = Number(route.params.datasourceid);
+                        }
+
+                        console.log('Saving AI conversation with:', {
+                            dataSourceId: aiDataModelerStore.currentDataSourceId,
+                            dataModelId,
+                            title: state.data_table.table_name || 'AI Generated Model',
+                            messagesCount: aiDataModelerStore.messages.length
+                        });
+
+                        const saved = await aiDataModelerStore.saveConversation(
+                            dataModelId,
+                            state.data_table.table_name || 'AI Generated Model'
+                        );
+
+                        if (saved) {
+                            console.log('AI conversation saved successfully');
+                        } else {
+                            console.warn('AI conversation save returned false');
+                        }
+                    }
+                } catch (error) {
+                    // Log error but don't block the data model save success
+                    console.error('Failed to save AI conversation:', error);
+                }
+            } else {
+                console.log('No AI conversation to save:', {
+                    hasConversationId: !!aiDataModelerStore.conversationId,
                     messagesCount: aiDataModelerStore.messages.length
                 });
-
-                const saved = await aiDataModelerStore.saveConversation(
-                    dataModelId,
-                    state.data_table.table_name || 'AI Generated Model'
-                );
-
-                if (saved) {
-                    console.log('AI conversation saved successfully');
-                } else {
-                    console.warn('AI conversation save returned false');
-                }
             }
-        } catch (error) {
-            // Log error but don't block the data model save success
-            console.error('Failed to save AI conversation:', error);
-        }
-    } else {
-        console.log('No AI conversation to save:', {
-            hasConversationId: !!aiDataModelerStore.conversationId,
-            messagesCount: aiDataModelerStore.messages.length
-        });
-    }
 
-    // enableRefreshDataFlag('clearDataModels');
-    router.push(`/projects/${route.params.projectid}/data-sources/${route.params.datasourceid}/data-models`);
+            // enableRefreshDataFlag('clearDataModels');
+            router.push(`/projects/${route.params.projectid}/data-sources/${route.params.datasourceid}/data-models`);
+        }
     } catch (error) {
         console.error('[saveDataModel] Error:', error);
-        $swal.fire({
-            icon: 'error',
-            title: `Error! `,
-            text: 'Unfortunately, we encountered an error! Please refresh the page and try again.',
-        });
+        
+        // Parse and display SQL error prominently
+        state.sqlError = parseBackendError(error);
+        
+        // Scroll to error alert on client
+        if (import.meta.client) {
+            nextTick(() => {
+                const errorElement = document.querySelector('.sql-error-alert');
+                if (errorElement) {
+                    errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            });
+        }
     } finally {
         // Always clear the flag
         state.is_saving_model = false;
@@ -3648,58 +4208,79 @@ async function executeQueryOnExternalDataSource() {
         state.response_from_external_data_source_columns = [];
         state.response_from_external_data_source_rows = [];
         
-        // CRITICAL: For cross-source models, ensure all columns have data_source_id
-        // This is needed for backend's resolveTableNamesForCrossSource() to work
-        if (props.isCrossSource) {
-            console.log('[executeQuery] Cross-source model detected, validating data_source_id for all columns');
-            let missingCount = 0;
-            state.data_table.columns.forEach(col => {
-                if (!col.data_source_id) {
-                    // Backfill from state.tables metadata
-                    const sourceTable = state.tables.find(t => 
-                        t.table_name === col.table_name && t.schema === col.schema
-                    );
-                    if (sourceTable?.data_source_id) {
-                        col.data_source_id = sourceTable.data_source_id;
-                        missingCount++;
-                        console.log(`[executeQuery] Backfilled data_source_id for ${col.schema}.${col.table_name}.${col.column_name}`);
-                    } else {
-                        console.error(`[executeQuery] CRITICAL: Cannot find data_source_id for ${col.schema}.${col.table_name}.${col.column_name}`);
+        let url = `${baseUrl()}/data-source/execute-query-on-external-data-source`;
+        let requestBody = {};
+        
+        if (isMongoDB.value) {
+            // MongoDB Execution Path
+            state.sql_query = state.mongo_query.pipeline; // For display/debug
+            
+            requestBody = {
+                 data_source_id: route.params.datasourceid,
+                 query: state.mongo_query.pipeline, // Send pipeline string for compatibility/logging
+                 query_json: JSON.stringify({
+                     collection: state.mongo_query.collection,
+                     pipeline: JSON.parse(state.mongo_query.pipeline)
+                 })
+            };
+
+            // Basic client-side validation for MongoDB
+            if (!state.mongo_query.collection) {
+                 console.log('[executeQuery] MongoDB: No collection selected, skipping.');
+                 state.is_executing_query = false;
+                 return;
+            }
+        } else {
+            // SQL Execution Path
+            
+            // CRITICAL: For cross-source models, ensure all columns have data_source_id
+            if (props.isCrossSource) {
+                console.log('[executeQuery] Cross-source model detected, validating data_source_id for all columns');
+                let missingCount = 0;
+                state.data_table.columns.forEach(col => {
+                    if (!col.data_source_id) {
+                        // Backfill from state.tables metadata
+                        const sourceTable = state.tables.find(t => 
+                            t.table_name === col.table_name && t.schema === col.schema
+                        );
+                        if (sourceTable?.data_source_id) {
+                            col.data_source_id = sourceTable.data_source_id;
+                            missingCount++;
+                            console.log(`[executeQuery] Backfilled data_source_id for ${col.schema}.${col.table_name}.${col.column_name}`);
+                        } else {
+                            console.error(`[executeQuery] CRITICAL: Cannot find data_source_id for ${col.schema}.${col.table_name}.${col.column_name}`);
+                        }
                     }
+                });
+                if (missingCount > 0) {
+                    console.log(`[executeQuery] Backfilled ${missingCount} columns with missing data_source_id`);
                 }
-            });
-            if (missingCount > 0) {
-                console.log(`[executeQuery] Backfilled ${missingCount} columns with missing data_source_id`);
+            }
+            
+            // CRITICAL: Sync JOIN conditions to data_table before building query
+            state.data_table.join_conditions = [...state.join_conditions];
+            state.data_table.table_aliases = [...state.table_aliases];
+            
+            console.log('[executeQuery] Building SQL with calculated_columns:', state.data_table.calculated_columns);
+            state.sql_query = buildSQLQuery();
+            state.sql_query += ` LIMIT 5 OFFSET 0`;
+            console.log('[Data Model Builder - executeQueryOnExternalDataSource] SQL Query being sent:', state.sql_query);
+            console.log('[Data Model Builder - executeQueryOnExternalDataSource] JSON Query being sent:', JSON.stringify(state.data_table));
+            
+            requestBody = {
+                query: state.sql_query,
+                query_json: JSON.stringify(state.data_table),
+            };
+
+            if (props.isCrossSource) {
+                requestBody.project_id = props.projectId;
+                requestBody.is_cross_source = true;
+            } else {
+                requestBody.data_source_id = route.params.datasourceid;
             }
         }
-        
-        // CRITICAL: Sync JOIN conditions to data_table before building query
-        // This ensures the JSON sent to backend includes all JOINs
-        state.data_table.join_conditions = [...state.join_conditions];
-        state.data_table.table_aliases = [...state.table_aliases];
-        
-        console.log('[executeQuery] Building SQL with calculated_columns:', state.data_table.calculated_columns);
-        state.sql_query = buildSQLQuery(true); // true = silent mode, no modals
-        state.sql_query += ` LIMIT 5 OFFSET 0`;
-        console.log('[Data Model Builder - executeQueryOnExternalDataSource] SQL Query being sent:', state.sql_query);
-        console.log('[Data Model Builder - executeQueryOnExternalDataSource] JSON Query being sent:', JSON.stringify(state.data_table));
+
         const token = getAuthToken();
-        const url = `${baseUrl()}/data-source/execute-query-on-external-data-source`;
-        // For cross-source, we need to use the federated query endpoint
-        const requestBody = {
-            query: state.sql_query,
-            query_json: JSON.stringify(state.data_table),
-        };
-
-        if (props.isCrossSource) {
-            // In cross-source mode, send project_id instead of data_source_id
-            requestBody.project_id = props.projectId;
-            requestBody.is_cross_source = true;
-        } else {
-            // In single-source mode, use data_source_id from route
-            requestBody.data_source_id = route.params.datasourceid;
-        }
-
         const response = await $fetch(url, {
             method: "POST",
             headers: {
@@ -3717,36 +4298,193 @@ async function executeQueryOnExternalDataSource() {
         const data = response.results || response;
         
         if (data && data.length) {
-            // Check for array values in result (indicates potential cartesian product)
-            const hasArrayValues = data.some(row =>
-                Object.values(row).some(value => Array.isArray(value))
-            );
+            if (!isMongoDB.value) {
+                // Check for array values (only applicable to SQL cartesian products usually)
+                const hasArrayValues = data.some(row =>
+                    Object.values(row).some(value => Array.isArray(value))
+                );
 
-            if (hasArrayValues) {
-                const errorAlert = {
-                    type: 'error',
-                    message: 'The query result contains array values, which may indicate a cartesian product or improper join. Please review your table and column selections.'
-                };
-                if (!state.alerts.find(a => a.type === 'error' && a.message.includes('array values'))) {
-                    state.alerts.push(errorAlert);
+                if (hasArrayValues) {
+                    const errorAlert = {
+                        type: 'error',
+                        message: 'The query result contains array values, which may indicate a cartesian product or improper join. Please review your table and column selections.'
+                    };
+                    if (!state.alerts.find(a => a.type === 'error' && a.message.includes('array values'))) {
+                        state.alerts.push(errorAlert);
+                    }
+                } else {
+                    state.alerts = state.alerts.filter(a => !(a.type === 'error' && a.message.includes('array values')));
                 }
-            } else {
-                // Remove array error if it exists and no longer applies
-                state.alerts = state.alerts.filter(a => !(a.type === 'error' && a.message.includes('array values')));
             }
 
             const columns = Object.keys(data[0]);
             console.log('[executeQuery] Columns from query result:', columns);
             console.log('[executeQuery] Number of rows returned:', data.length);
-            console.log('[executeQuery] Calculated columns in state:', state.data_table.calculated_columns);
+            
             state.response_from_external_data_source_columns = columns;
             state.response_from_external_data_source_rows = data;
         }
     } catch (error) {
         console.error('[executeQuery] Error:', error);
+        
+        // Parse and display SQL error
+        state.sqlError = parseBackendError(error);
+        
+        // Scroll to error alert on client
+        if (import.meta.client) {
+            nextTick(() => {
+                const errorElement = document.querySelector('.sql-error-alert');
+                if (errorElement) {
+                    errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            });
+        }
     } finally {
         state.is_executing_query = false;
     }
+}
+
+/**
+ * Parses backend SQL errors and returns user-friendly error object
+ * @param {Error} error - The caught error from API call
+ * @returns {Object} Formatted error object
+ */
+function parseBackendError(error) {
+    const errorObj = {
+        type: 'error',
+        title: 'Query Error',
+        message: '',
+        technicalMessage: '',
+        suggestions: [],
+        dismissible: true
+    };
+    
+    // Extract error message
+    const errorMessage = error?.data?.message || error?.message || 'Unknown error occurred';
+    errorObj.technicalMessage = errorMessage;
+    
+    // Pattern matching for common SQL errors
+    
+    // 1. GROUP BY errors
+    if (errorMessage.includes('must appear in GROUP BY clause')) {
+        const columnMatch = errorMessage.match(/column "([^"]+)"/i);
+        const columnName = columnMatch ? columnMatch[1] : 'a column';
+        
+        errorObj.title = 'Missing GROUP BY Column';
+        errorObj.message = `The column "${columnName}" needs to be included in the GROUP BY section or used with an aggregate function (SUM, AVG, COUNT, etc.).`;
+        errorObj.suggestions = [
+            'Add this column to the "Group By Columns" section',
+            'Remove this column from the query',
+            'Apply an aggregate function (SUM, AVG, COUNT, MIN, MAX) to this column'
+        ];
+    }
+    
+    // 2. Column does not exist
+    else if (errorMessage.includes('column') && errorMessage.includes('does not exist')) {
+        const columnMatch = errorMessage.match(/column "([^"]+)"/i);
+        const columnName = columnMatch ? columnMatch[1] : 'unknown';
+        
+        errorObj.title = 'Column Not Found';
+        errorObj.message = `The column "${columnName}" doesn't exist in your data source.`;
+        errorObj.suggestions = [
+            'Check the column name for typos',
+            'Verify the column exists in the selected table',
+            'Refresh your data source schema if it was recently modified'
+        ];
+    }
+    
+    // 3. Table does not exist
+    else if (errorMessage.includes('relation') && errorMessage.includes('does not exist')) {
+        const tableMatch = errorMessage.match(/relation "([^"]+)"/i);
+        const tableName = tableMatch ? tableMatch[1] : 'unknown';
+        
+        errorObj.title = 'Table Not Found';
+        errorObj.message = `The table "${tableName}" doesn't exist or isn't accessible.`;
+        errorObj.suggestions = [
+            'Verify the table exists in your data source',
+            'Check if you have permission to access this table',
+            'Refresh your data source connection'
+        ];
+    }
+    
+    // 4. Invalid ORDER BY reference
+    else if (errorMessage.includes('ORDER BY') || errorMessage.includes('for SELECT DISTINCT, ORDER BY')) {
+        errorObj.title = 'Invalid ORDER BY Column';
+        errorObj.message = 'You cannot order by a column that is not in the SELECT clause.';
+        errorObj.suggestions = [
+            'Add the column to your query results',
+            'Remove it from the ORDER BY section',
+            'Use an alias if ordering by a calculated or aggregate column'
+        ];
+    }
+    
+    // 5. Type mismatch errors
+    else if ((errorMessage.includes('type') || errorMessage.includes('datatype')) && (errorMessage.includes('cannot') || errorMessage.includes('invalid'))) {
+        errorObj.title = 'Data Type Mismatch';
+        errorObj.message = 'There is a data type incompatibility in your query.';
+        errorObj.suggestions = [
+            'Cast columns to the correct type using the transform functions',
+            'Check filters for matching data types (numbers vs text)',
+            'Verify aggregate functions are used with numeric columns'
+        ];
+    }
+    
+    // 6. Division by zero
+    else if (errorMessage.includes('division by zero')) {
+        errorObj.title = 'Division by Zero';
+        errorObj.message = 'Your calculation attempts to divide by zero.';
+        errorObj.suggestions = [
+            'Add a WHERE clause to filter out zero values',
+            'Modify calculated columns to handle zero divisors',
+            'Add conditional logic to handle zero values'
+        ];
+    }
+    
+    // 7. Syntax errors
+    else if (errorMessage.includes('syntax error')) {
+        errorObj.title = 'SQL Syntax Error';
+        errorObj.message = 'There is a syntax error in the generated SQL query.';
+        errorObj.suggestions = [
+            'Check calculated column expressions for errors',
+            'Verify all filter values are properly formatted',
+            'Review join conditions for correctness'
+        ];
+    }
+    
+    // 8. Permission errors
+    else if (errorMessage.includes('permission denied') || errorMessage.includes('access denied')) {
+        errorObj.title = 'Permission Denied';
+        errorObj.message = 'You do not have permission to access this data.';
+        errorObj.suggestions = [
+            'Contact your database administrator',
+            'Verify you have SELECT permission on the table',
+            'Check if the data source credentials are correct'
+        ];
+    }
+    
+    // 9. Aggregate function errors
+    else if (errorMessage.includes('aggregate function')) {
+        errorObj.title = 'Aggregate Function Error';
+        errorObj.message = 'There is an issue with how aggregate functions are being used.';
+        errorObj.suggestions = [
+            'Aggregate functions (SUM, AVG, COUNT, etc.) can only be used with appropriate column types',
+            'Ensure all non-aggregate columns are in the GROUP BY section',
+            'Check for nested aggregate functions (not allowed)'
+        ];
+    }
+    
+    // 10. Generic fallback
+    else {
+        errorObj.title = 'Query Execution Error';
+        errorObj.message = 'An error occurred while executing your query.';
+        errorObj.suggestions = [
+            'Review your query configuration for any issues',
+            'Check the technical error message below for details',
+            'Try simplifying your query to isolate the issue'
+        ];
+    }
+    
+    return errorObj;
 }
 async function toggleColumnInDataModel(column, tableName, tableAlias = null) {
     const identifier = tableAlias || tableName;
@@ -4129,6 +4867,141 @@ async function applyAIGeneratedModel(model) {
 }
 
 /**
+ * Normalize schema name from AI response
+ * AI returns schemas like "dra_excel.ds72_xxxx" but we need just "dra_excel"
+ * 
+ * @param schema - Raw schema from AI (may include table name)
+ * @returns Normalized schema name
+ */
+function normalizeSchemaName(schema) {
+    if (!schema || !schema.includes('.')) {
+        return schema;
+    }
+    
+    const parts = schema.split('.');
+    // For Excel/PDF/Google services, schema is the first part
+    if (parts[0] === 'dra_excel' || parts[0] === 'dra_pdf' || 
+        parts[0] === 'dra_google_analytics' || parts[0] === 'dra_google_ad_manager' || 
+        parts[0] === 'dra_google_ads') {
+        return parts[0];
+    }
+    
+    // For regular databases, keep as-is
+    return schema;
+}
+
+/**
+ * Infer column data type from SQL expression
+ * Analyzes CASE expressions, functions, and literals to determine the correct type
+ * 
+ * @param {string} expression - SQL expression to analyze
+ * @returns {string} - PostgreSQL data type (text, numeric, boolean, timestamp, etc.)
+ */
+function inferDataTypeFromExpression(expression) {
+    if (!expression || typeof expression !== 'string') {
+        return 'numeric'; // Default fallback
+    }
+    
+    const expr = expression.trim();
+    const exprUpper = expr.toUpperCase();
+    
+    // Check for CASE expressions - analyze THEN/ELSE clauses
+    if (exprUpper.includes('CASE')) {
+        // More robust pattern that captures quoted strings with spaces
+        // Pattern: THEN 'value' or THEN "value" or THEN value
+        const thenPattern = /THEN\s+('[^']*'|"[^"]*"|\S+)/gi;
+        const elsePattern = /ELSE\s+('[^']*'|"[^"]*"|\S+)/i;
+        
+        const thenMatches = [];
+        let match;
+        while ((match = thenPattern.exec(expr)) !== null) {
+            thenMatches.push(match[1]);
+        }
+        
+        const elseMatch = expr.match(elsePattern);
+        const allClauses = [
+            ...thenMatches,
+            ...(elseMatch ? [elseMatch[1]] : [])
+        ];
+        
+        console.log(`[inferDataTypeFromExpression] CASE clauses found:`, allClauses);
+        
+        if (allClauses.length > 0) {
+            // If any clause is a string literal (quoted), it returns text
+            const hasStringLiteral = allClauses.some(clause => {
+                const trimmed = clause.trim();
+                return (trimmed.startsWith("'") && trimmed.endsWith("'")) || 
+                       (trimmed.startsWith('"') && trimmed.endsWith('"'));
+            });
+            
+            if (hasStringLiteral) {
+                console.log(`[inferDataTypeFromExpression] Detected string literal in CASE → text`);
+                return 'text';
+            }
+            
+            // If all clauses are numeric literals or NULL, it's numeric
+            const allNumericOrNull = allClauses.every(clause => {
+                const trimmed = clause.trim().toUpperCase();
+                if (trimmed === 'NULL') return true;
+                // Remove quotes if present
+                const unquoted = trimmed.replace(/^['"]|['"]$/g, '');
+                return !isNaN(Number(unquoted));
+            });
+            
+            if (allNumericOrNull) {
+                console.log(`[inferDataTypeFromExpression] All CASE clauses numeric → numeric`);
+                return 'numeric';
+            }
+            
+            // Mixed or unknown - default to text for safety
+            console.log(`[inferDataTypeFromExpression] Mixed CASE types → text (safe default)`);
+            return 'text';
+        }
+    }
+    
+    // Check for string functions (return text)
+    const stringFunctions = ['CONCAT', 'SUBSTRING', 'UPPER', 'LOWER', 'TRIM', 'REPLACE', 'LEFT', 'RIGHT'];
+    if (stringFunctions.some(func => expr.includes(func + '('))) {
+        return 'text';
+    }
+    
+    // Check for date functions (return date/timestamp)
+    const dateFunctions = ['DATE', 'CURRENT_DATE', 'CURRENT_TIMESTAMP', 'NOW', 'DATE_TRUNC', 'EXTRACT'];
+    if (dateFunctions.some(func => expr.includes(func))) {
+        return 'timestamp without time zone';
+    }
+    
+    // Check for aggregate functions (usually numeric)
+    const aggregateFunctions = ['SUM', 'AVG', 'COUNT', 'MIN', 'MAX'];
+    if (aggregateFunctions.some(func => expr.includes(func + '('))) {
+        // COUNT always returns integer
+        if (expr.includes('COUNT')) {
+            return 'bigint';
+        }
+        return 'numeric';
+    }
+    
+    // Check for boolean expressions
+    const booleanKeywords = ['TRUE', 'FALSE', 'AND', 'OR', 'NOT'];
+    if (booleanKeywords.some(keyword => expr.includes(keyword))) {
+        return 'boolean';
+    }
+    
+    // Check for string literals
+    if (expr.startsWith("'") || expr.startsWith('"')) {
+        return 'text';
+    }
+    
+    // Check for numeric literals
+    if (!isNaN(Number(expr))) {
+        return 'numeric';
+    }
+    
+    // Default to numeric for unknown expressions
+    return 'numeric';
+}
+
+/**
  * Validate and transform AI model to builder format
  * 
  * This function performs critical transformations:
@@ -4333,7 +5206,7 @@ function validateAndTransformAIModel(aiModel) {
 
         console.log('[DEBUG - AI Model Validation] Available tables in state:', state.tables?.length || 0);
         state.tables?.forEach(t => {
-            console.log(`  - ${t.table_name} (${t.schema}): ${t.columns?.length || 0} columns`);
+            console.log(`  - ${t.table_name} (${t.schema}) [logical: ${t.logical_name || 'NOT SET'}]: ${t.columns?.length || 0} columns`);
             console.log(`    Columns:`, t.columns?.map(c => c.column_name).join(', '));
         });
 
@@ -4360,25 +5233,40 @@ function validateAndTransformAIModel(aiModel) {
                 continue;
             }
 
+            // CRITICAL FIX: AI returns schema as "dra_excel.ds72_xxxx" but we need just "dra_excel"
+            // Normalize the schema name to handle combined schema.table references
+            const schemaToMatch = normalizeSchemaName(col.schema);
+            if (schemaToMatch !== col.schema) {
+                console.log(`[DEBUG - AI Model Validation] Normalized schema from "${col.schema}" to "${schemaToMatch}"`);
+            }
+
             // Check if this column exists in the available tables
             const availableTables = state.tables || [];
             
             // CRITICAL FIX: Support both physical and logical table names
-            // AI models use logical names (e.g., "user_acquisition")
-            // while state.tables uses physical names (e.g., "ds52_2b702ce5")
+            // AI models use logical names (e.g., "user_acquisition", "loans")
+            // while state.tables uses physical names (e.g., "ds52_2b702ce5", "ds72_1d68512e")
+            console.log(`[DEBUG - AI Model Validation] Searching for table: schema="${schemaToMatch}", table_name="${col.table_name}"`);
+            
             const sourceTable = availableTables.find(t => {
                 if (props.isCrossSource && col.data_source_id && t.data_source_id !== col.data_source_id) {
                     return false;
                 }
+                
+                console.log(`[DEBUG - AI Model Validation]   Checking table: physical="${t.table_name}", logical="${t.logical_name}", schema="${t.schema}"`);
+                
                 // Match by physical name (backwards compatible)
-                if (t.table_name === col.table_name && t.schema === col.schema) {
+                if (t.table_name === col.table_name && t.schema === schemaToMatch) {
+                    console.log(`[DEBUG - AI Model Validation]   ✓ Matched by physical name: ${col.table_name}`);
                     return true;
                 }
-                // Match by logical name (supports AI-generated models)
-                if (t.logical_name === col.table_name && t.schema === col.schema) {
+                // Match by logical name (supports AI-generated models with human-readable names)
+                if (t.logical_name === col.table_name && t.schema === schemaToMatch) {
                     console.log(`[DEBUG - AI Model Validation] ✓ Matched by logical name: ${col.table_name} -> ${t.table_name}`);
                     // IMPORTANT: Update col.table_name to physical name for subsequent processing
                     col.table_name = t.table_name;
+                    // Also update col.schema to the normalized schema
+                    col.schema = schemaToMatch;
                     if (props.isCrossSource && !col.data_source_id && t.data_source_id) {
                         col.data_source_id = t.data_source_id;
                     }
@@ -4388,8 +5276,8 @@ function validateAndTransformAIModel(aiModel) {
             });
 
             if (!sourceTable) {
-                console.warn(`[DEBUG - AI Model Validation] ⚠️ Table not found: ${col.schema}.${col.table_name}`);
-                columnErrors.push(`Column ${colIndex}: Table ${col.schema}.${col.table_name} does not exist in data source`);
+                console.warn(`[DEBUG - AI Model Validation] ⚠️ Table not found: ${schemaToMatch}.${col.table_name}`);
+                columnErrors.push(`Column ${colIndex}: Table ${schemaToMatch}.${col.table_name} does not exist in data source`);
                 continue;
             }
 
@@ -4465,10 +5353,28 @@ function validateAndTransformAIModel(aiModel) {
                 // CRITICAL: AI returns left_table/right_table (no schema), but validation needs schema
                 // Extract schema from column metadata if not present in JOIN
                 if (!join.left_table_schema || !join.left_table_name) {
-                    const leftColumn = aiModel.columns.find(col =>
+                    // First, try to find in columns array
+                    let leftColumn = aiModel.columns.find(col =>
                         col.table_name === join.left_table && col.column_name === join.left_column
                     );
-                    if (leftColumn) {
+                    
+                    // If not found in columns, search in state.tables
+                    if (!leftColumn) {
+                        const leftTable = state.tables?.find(t => 
+                            t.table_name === join.left_table || t.logical_name === join.left_table
+                        );
+                        if (leftTable) {
+                            const leftTableColumn = leftTable.columns?.find(c => 
+                                c.column_name === join.left_column
+                            );
+                            if (leftTableColumn) {
+                                join.left_table_schema = leftTable.schema;
+                                join.left_table_name = leftTable.table_name;
+                                join.left_column_name = join.left_column;
+                                console.log(`[Data Model Builder] Resolved left JOIN schema from state.tables: ${leftTable.schema}.${leftTable.table_name}`);
+                            }
+                        }
+                    } else {
                         join.left_table_schema = leftColumn.schema;
                         join.left_table_name = leftColumn.table_name;
                         join.left_column_name = leftColumn.column_name;
@@ -4476,15 +5382,66 @@ function validateAndTransformAIModel(aiModel) {
                 }
                 
                 if (!join.right_table_schema || !join.right_table_name) {
-                    const rightColumn = aiModel.columns.find(col =>
+                    // First, try to find in columns array
+                    let rightColumn = aiModel.columns.find(col =>
                         col.table_name === join.right_table && col.column_name === join.right_column
                     );
-                    if (rightColumn) {
+                    
+                    // If not found in columns, search in state.tables
+                    if (!rightColumn) {
+                        const rightTable = state.tables?.find(t => 
+                            t.table_name === join.right_table || t.logical_name === join.right_table
+                        );
+                        if (rightTable) {
+                            const rightTableColumn = rightTable.columns?.find(c => 
+                                c.column_name === join.right_column
+                            );
+                            if (rightTableColumn) {
+                                join.right_table_schema = rightTable.schema;
+                                join.right_table_name = rightTable.table_name;
+                                join.right_column_name = join.right_column;
+                                console.log(`[Data Model Builder] Resolved right JOIN schema from state.tables: ${rightTable.schema}.${rightTable.table_name}`);
+                            }
+                        }
+                    } else {
                         join.right_table_schema = rightColumn.schema;
                         join.right_table_name = rightColumn.table_name;
                         join.right_column_name = rightColumn.column_name;
                     }
                 }
+                
+                // CRITICAL: Skip JOIN if we couldn't resolve schema information
+                if (!join.left_table_schema || !join.left_table_name || !join.left_column_name) {
+                    console.error(`[Data Model Builder] Could not resolve left side of JOIN ${index + 1}:`, {
+                        left_table: join.left_table,
+                        left_column: join.left_column,
+                        resolved_schema: join.left_table_schema,
+                        resolved_table: join.left_table_name,
+                        resolved_column: join.left_column_name
+                    });
+                    joinErrors.push(
+                        `JOIN ${index + 1}: Could not resolve left table metadata for ${join.left_table}.${join.left_column}`
+                    );
+                    return;
+                }
+                
+                if (!join.right_table_schema || !join.right_table_name || !join.right_column_name) {
+                    console.error(`[Data Model Builder] Could not resolve right side of JOIN ${index + 1}:`, {
+                        right_table: join.right_table,
+                        right_column: join.right_column,
+                        resolved_schema: join.right_table_schema,
+                        resolved_table: join.right_table_name,
+                        resolved_column: join.right_column_name
+                    });
+                    joinErrors.push(
+                        `JOIN ${index + 1}: Could not resolve right table metadata for ${join.right_table}.${join.right_column}`
+                    );
+                    return;
+                }
+                
+                // CRITICAL FIX: Normalize schemas (they may be combined like "dra_excel.ds72_xxxx")
+                join.left_table_schema = normalizeSchemaName(join.left_table_schema);
+                join.right_table_schema = normalizeSchemaName(join.right_table_schema);
                 
                 console.log(`[Data Model Builder] Validating JOIN ${index + 1}:`, {
                     left: `${join.left_table_schema}.${join.left_table_name}.${join.left_column_name}`,
@@ -4733,17 +5690,23 @@ function validateAndTransformAIModel(aiModel) {
                 });
             }
 
-                // CRITICAL: If group_by has aggregate_functions or aggregate_expressions, set the name flag
+                // CRITICAL: If group_by has aggregate_functions, set the name flag
                 // This flag is required for the UI to show the GROUP BY section
                 // 
                 // IMPORTANT: aggregate_function uses numeric indices:
                 // 0 = SUM, 1 = AVG, 2 = COUNT, 3 = MIN, 4 = MAX
                 // DO NOT use falsy checks (!) on aggregate_function as 0 (SUM) is valid!
+                // 
+                // Set GROUP BY name flag when ANY aggregation is present (functions OR expressions)
+                // This flag controls UI visibility and SQL generation
                 if (aiModel.query_options.group_by &&
                     (aiModel.query_options.group_by.aggregate_functions?.length > 0 ||
-                        aiModel.query_options.group_by.aggregate_expressions?.length > 0)) {
+                     aiModel.query_options.group_by.aggregate_expressions?.some(
+                         (expr) => expr.expression && expr.expression !== ''
+                     ) ||
+                     aiModel.query_options.group_by.group_by_columns?.length > 0)) {
                     aiModel.query_options.group_by.name = 'GROUP BY';
-                    console.log('[Data Model Builder] Set group_by.name flag for UI visibility');                // CRITICAL: Translate logical table names to physical in aggregate functions
+                    console.log('[Data Model Builder] Set group_by.name flag for GROUP BY section visibility (functions OR expressions)');                // CRITICAL: Translate logical table names to physical in aggregate functions
                 // Aggregate functions reference columns like "schema.table.column"
                 // where table might still be a logical name that needs translation
                 
@@ -4856,6 +5819,12 @@ function validateAndTransformAIModel(aiModel) {
                         if (!aggExpr.column_alias_name) {
                             aggExpr.column_alias_name = `expr_${index}`;
                             console.log(`[Data Model Builder] Generated alias for aggregate expression: ${aggExpr.column_alias_name}`);
+                        }
+                        
+                        // CRITICAL: Infer data type from expression (especially for CASE statements)
+                        if (!aggExpr.column_data_type) {
+                            aggExpr.column_data_type = inferDataTypeFromExpression(aggExpr.expression);
+                            console.log(`[Data Model Builder] Inferred data type for ${aggExpr.column_alias_name}: ${aggExpr.column_data_type} from expression: ${aggExpr.expression.substring(0, 50)}...`);
                         }
                         
                         validAggregateExpressions.push(aggExpr);
@@ -5412,6 +6381,13 @@ onBeforeUnmount(() => {
             data model section to the right.
         </div>
 
+        <!-- SQL Error Alert (Prominent) -->
+        <SQLErrorAlert 
+            :error="state.sqlError" 
+            @dismiss="state.sqlError = null"
+            class="sticky top-20 z-40"
+        />
+        
         <!-- Alerts Section -->
         <div v-if="state.alerts && state.alerts.length > 0" class="flex flex-col mb-5">
             <div v-for="(alert, index) in state.alerts" :key="index"
@@ -5472,8 +6448,24 @@ onBeforeUnmount(() => {
             <div class="w-full h-1 bg-blue-300 mt-5 mb-5"></div>
         </div>
 
-        <!-- View Mode Toggle -->
-        <div class="flex justify-end mb-4">
+        <!-- MongoDB Query Editor (Replaces SQL Builder for MongoDB) -->
+        <div v-if="isMongoDB" class="m-10">
+            <div class="flex flex-row justify-center bg-gray-300 text-center font-bold p-1 mb-2 rounded-lg">
+                 <h4 class="w-full font-bold">
+                     <input type="text" class="border border-primary-blue-100 border-solid p-2 rounded w-1/2"
+                         placeholder="Enter Data Model Name" v-model="state.data_table.table_name" />
+                 </h4>
+            </div>
+            <MongoDBQueryEditor
+                :modelValue="{ collection: state.mongo_query.collection, pipeline: state.mongo_query.pipeline }"
+                :collections="collectionNames"
+                @update:modelValue="onMongoQueryUpdate"
+                @run-query="onRunMongoQuery"
+            />
+        </div>
+
+        <!-- View Mode Toggle (Only for SQL) -->
+        <div v-if="!isMongoDB" class="flex justify-end mb-4">
             <div class="inline-flex items-center gap-2">
                 <div class="inline-flex shadow-sm" role="group">
                     <button type="button" @click="state.viewMode = 'simple'" :disabled="readOnly" :class="[
@@ -5505,7 +6497,7 @@ onBeforeUnmount(() => {
             </div>
         </div>
 
-        <div class="flex flex-row m-10">
+        <div v-if="!isMongoDB" class="flex flex-row m-10">
             <div class="w-1/2 flex flex-col pr-5 mr-5 border-r-2 border-primary-blue-100">
                 <!-- Table Alias Manager -->
                 <div v-if="state.viewMode === 'advanced'" class="mb-6 p-4 border-2 border-blue-200 bg-blue-50 rounded-lg">
@@ -5733,13 +6725,24 @@ onBeforeUnmount(() => {
                                         </button>
                                     </div>
 
-                                    <button @click="removeJoinCondition(joinIndex)" :disabled="readOnly"
-                                        :class="[
-                                            'px-3 py-1 text-sm transition-colors ml-2 rounded-lg',
-                                            readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-red-500 text-white hover:bg-red-600 cursor-pointer'
-                                        ]">
-                                        Remove
-                                    </button>
+                                    <div class="flex gap-2">
+                                        <button @click="editJoinCondition(joinIndex)" :disabled="readOnly"
+                                            :class="[
+                                                'px-3 py-1 text-sm transition-colors rounded-lg flex items-center gap-1',
+                                                readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-500 text-white hover:bg-blue-600 cursor-pointer'
+                                            ]"
+                                            v-tippy="{ content: 'Edit this JOIN condition', placement: 'top' }">
+                                            <font-awesome icon="fas fa-edit" />
+                                            Edit
+                                        </button>
+                                        <button @click="removeJoinCondition(joinIndex)" :disabled="readOnly"
+                                            :class="[
+                                                'px-3 py-1 text-sm transition-colors rounded-lg',
+                                                readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-red-500 text-white hover:bg-red-600 cursor-pointer'
+                                            ]">
+                                            Remove
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </template>
@@ -5755,7 +6758,28 @@ onBeforeUnmount(() => {
                     </button>
                 </div>
 
-                <h2 class="font-bold text-center mb-5">Tables</h2>
+                <div class="flex items-center mb-5">
+                    <div class="flex-1"></div>
+                    <h2 class="font-bold">Tables</h2>
+                    <div class="flex-1 flex gap-2 justify-end">
+                        <button 
+                            @click="collapseAllTables"
+                            class="px-3 py-1 text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg transition-all cursor-pointer flex items-center gap-1"
+                            :class="{ 'invisible': allTablesCollapsed }"
+                            v-tippy="{ content: 'Collapse all tables to hide columns', placement: 'top' }">
+                            <font-awesome icon="fas fa-compress-alt" class="text-xs" />
+                            Collapse All
+                        </button>
+                        <button 
+                            @click="expandAllTables"
+                            class="px-3 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-all cursor-pointer flex items-center gap-1"
+                            :class="{ 'invisible': allTablesExpanded }"
+                            v-tippy="{ content: 'Expand all tables to show columns', placement: 'top' }">
+                            <font-awesome icon="fas fa-expand-alt" class="text-xs" />
+                            Expand All
+                        </button>
+                    </div>
+                </div>
 
                 <!-- Aggregate-Only Columns Info Box -->
                 <div v-if="getAggregateOnlyColumns().length > 0"
@@ -5788,21 +6812,43 @@ onBeforeUnmount(() => {
                             'border-green-400 bg-green-50': tableOrAlias.isJoinedOrAggregate && !tableOrAlias.isAlias,
                             'border-primary-blue-100': !tableOrAlias.isAlias && !tableOrAlias.isJoinedOrAggregate
                         }">
-                        <h4 class="text-center font-bold p-1 mb-2 overflow-clip text-ellipsis wrap-anywhere" :class="{
-                            'bg-blue-200': tableOrAlias.isAlias,
-                            'bg-green-200': tableOrAlias.isJoinedOrAggregate && !tableOrAlias.isAlias,
-                            'bg-gray-300': !tableOrAlias.isAlias && !tableOrAlias.isJoinedOrAggregate
-                        }">
-                            {{ tableOrAlias.display_name }}
-                            <span v-if="tableOrAlias.isAlias" class="text-xs text-blue-700 block mt-1">
-                                (Alias of {{ tableOrAlias.original_table }})
-                            </span>
-                            <span v-if="tableOrAlias.isJoinedOrAggregate && !tableOrAlias.isAlias"
-                                class="text-xs text-green-800 block mt-1 flex items-center justify-center gap-1">
-                                <font-awesome icon="fas fa-link" class="text-xs" />
-                                Joined/Aggregate Table
-                            </span>
-                        </h4>
+                        <!-- Clickable header with collapse toggle -->
+                        <div @click="toggleTableCollapse(`${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`)"
+                            class="cursor-pointer hover:opacity-80 transition-opacity duration-150"
+                            :aria-expanded="!isTableCollapsed(`${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`)"
+                            role="button">
+                            <h4 class="text-center font-bold p-1 mb-2 overflow-clip text-ellipsis wrap-anywhere flex items-center justify-between" :class="{
+                                'bg-blue-200': tableOrAlias.isAlias,
+                                'bg-green-200': tableOrAlias.isJoinedOrAggregate && !tableOrAlias.isAlias,
+                                'bg-gray-300': !tableOrAlias.isAlias && !tableOrAlias.isJoinedOrAggregate
+                            }">
+                                <span class="flex-1">
+                                    {{ tableOrAlias.display_name }}
+                                    <span v-if="tableOrAlias.isAlias" class="text-xs text-blue-700 block mt-1">
+                                        (Alias of {{ tableOrAlias.original_table }})
+                                    </span>
+                                    <span v-if="tableOrAlias.isJoinedOrAggregate && !tableOrAlias.isAlias"
+                                        class="text-xs text-green-800 block mt-1 flex items-center justify-center gap-1">
+                                        <font-awesome icon="fas fa-link" class="text-xs" />
+                                        Joined/Aggregate Table
+                                    </span>
+                                    <!-- Show column count when collapsed -->
+                                    <span v-if="isTableCollapsed(`${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`)" 
+                                        class="text-xs text-gray-600 block mt-1">
+                                        {{ getColumnCount(tableOrAlias.columns) }} column{{ getColumnCount(tableOrAlias.columns) !== 1 ? 's' : '' }}
+                                    </span>
+                                </span>
+                                <!-- Caret icon -->
+                                <font-awesome 
+                                    :icon="isTableCollapsed(`${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`) 
+                                        ? 'fas fa-caret-down' 
+                                        : 'fas fa-caret-up'" 
+                                    class="text-lg mr-2 flex-shrink-0 cursor-pointer text-gray-600 hover:text-gray-800 transition-colors"
+                                />
+                            </h4>
+                        </div>
+                        
+                        <!-- Table metadata (always visible) -->
                         <div class="p-1 m-2 p-2 wrap-anywhere rounded-lg"
                             :class="tableOrAlias.isAlias ? 'bg-blue-100' : 'bg-gray-300'">
                             Table Schema: {{ tableOrAlias.schema }} <br />
@@ -5814,11 +6860,15 @@ onBeforeUnmount(() => {
                                 <br />Alias: <strong class="text-blue-700">{{ tableOrAlias.table_alias }}</strong>
                             </span>
                         </div>
-                        <draggable :list="(tableOrAlias && tableOrAlias.columns) ? tableOrAlias.columns : []" :group="{
-                            name: 'tables',
-                            pull: readOnly ? false : 'clone',
-                            put: false,
-                        }" itemKey="name">
+                        
+                        <!-- Collapsible columns section with smooth transition -->
+                        <Transition name="collapse">
+                            <div v-show="!isTableCollapsed(`${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`)">
+                                <draggable :list="(tableOrAlias && tableOrAlias.columns) ? tableOrAlias.columns : []" :group="{
+                                    name: 'tables',
+                                    pull: readOnly ? false : 'clone',
+                                    put: false,
+                                }" itemKey="name">
                             <template v-if="!tableOrAlias.columns || tableOrAlias.columns.length === 0" #header>
                                 <div class="p-6 text-center text-gray-500 italic">
                                     <font-awesome icon="fas fa-inbox" class="text-4xl mb-3 text-gray-400" />
@@ -5871,6 +6921,8 @@ onBeforeUnmount(() => {
                                 </div>
                             </template>
                         </draggable>
+                            </div>
+                        </Transition>
                     </div>
                 </div>
             </div>
@@ -5982,7 +7034,8 @@ onBeforeUnmount(() => {
                                                                     readOnly ? 'cursor-not-allowed opacity-50' : ''
                                                                 ]"
                                                                 placeholder="Enter Column Alias Name"
-                                                                v-model="element.alias_name" />
+                                                                v-model="element.alias_name"
+                                                                @input="element.alias_name = element.alias_name.replace(/\s/g, '_').toLowerCase()" />
                                                         </td>
                                                         <td
                                                             class="border border-primary-blue-100 border-solid p-2 text-center">
@@ -5991,6 +7044,15 @@ onBeforeUnmount(() => {
                                                                     :class="readOnly ? 'cursor-not-allowed scale-150 mb-2' : 'cursor-pointer scale-150 mb-2'"
                                                                     v-model="element.is_selected_column"
                                                                     v-tippy="{ content: element.is_selected_column ? 'Uncheck to prevent the column from being added to the data model' : 'Check to add the column to the data model', placement: 'top' }" />
+                                                                
+                                                                <!-- Warning for columns selected but hidden by aggregates -->
+                                                                <div v-if="element.is_selected_column && isColumnUsedInAggregate(element.column_name, element.schema, element.table_name)"
+                                                                    class="flex flex-col items-center mb-2">
+                                                                    <span class="text-xs px-2 py-1 rounded-md font-semibold bg-orange-100 text-orange-800 border border-orange-300"
+                                                                        v-tippy="{ content: 'This column is used in an aggregate function and will NOT appear as a regular column in results. Only aggregated values will be shown.', placement: 'top' }">
+                                                                        ⚠️ HIDDEN BY AGGREGATE
+                                                                    </span>
+                                                                </div>
                                                                 
                                                                 <!-- Usage badges for hidden columns -->
                                                                 <div v-if="!element.is_selected_column && getColumnUsages(element).length > 0" 
@@ -6055,6 +7117,74 @@ onBeforeUnmount(() => {
                                         </div>
 
                                     </div>
+                                    
+                                    <!-- Aggregate Expressions Section - Separate from GROUP BY -->
+                                    <div v-if="state.data_table.query_options?.group_by?.aggregate_expressions?.length > 0" class="w-full flex flex-col mt-5">
+                                        <h3 class="font-bold mb-2">Aggregate Expressions</h3>
+                                        <div class="bg-purple-50 border-l-4 border-purple-400 p-4 mb-4 rounded-r-lg">
+                                            <div class="flex items-start">
+                                                <svg class="h-5 w-5 text-purple-400 mt-0.5 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                <div>
+                                                    <p class="text-sm text-purple-700 font-medium">
+                                                        <strong>Complex Aggregates:</strong> Create custom aggregate calculations from expressions (e.g., SUM(quantity * price), COUNT(CASE WHEN...))
+                                                    </p>
+                                                    <p class="text-xs text-purple-600 mt-1">
+                                                        Use this for aggregates that involve multiple columns or conditional logic.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="flex flex-col bg-gray-100 p-5 rounded-lg">
+                                            <!-- Show existing aggregate expressions -->
+                                            <div v-if="state.data_table.query_options.group_by?.aggregate_expressions && state.data_table.query_options.group_by.aggregate_expressions.length > 0">
+                                                <div v-for="(expr, index) in state.data_table.query_options.group_by.aggregate_expressions"
+                                                    :key="index"
+                                                    class="bg-white p-3 mb-3 rounded-lg border border-gray-300 shadow-sm">
+                                                    <div class="flex flex-row justify-between items-start">
+                                                        <div class="flex flex-col w-3/5 mr-2">
+                                                            <h5 class="font-bold mb-2">Expression</h5>
+                                                            <input type="text" :disabled="readOnly"
+                                                                :class="[
+                                                                    'w-full border border-primary-blue-100 border-solid p-2 rounded-lg',
+                                                                    readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                                                                ]"
+                                                                v-model="expr.expression"
+                                                                placeholder="e.g., SUM(quantity * price) or COUNT(CASE WHEN status = 'active' THEN 1 END)" />
+                                                            <span class="text-xs text-gray-600 mt-1">
+                                                                Complete SQL expression including aggregate function (SUM, AVG, COUNT, MIN, MAX, etc.)
+                                                            </span>
+                                                        </div>
+
+                                                        <div class="flex flex-col w-2/5 mr-2">
+                                                            <h5 class="font-bold mb-2">Alias</h5>
+                                                            <input type="text" :disabled="readOnly"
+                                                                :class="[
+                                                                    'w-full border border-primary-blue-100 border-solid p-2 rounded-lg',
+                                                                    readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                                                                ]"
+                                                                v-model="expr.column_alias_name"
+                                                                @input="expr.column_alias_name = expr.column_alias_name.replace(/\s/g, '_').toLowerCase()"
+                                                                placeholder="e.g., total_revenue" />
+                                                        </div>
+
+                                                        <div class="flex items-center pt-8">
+                                                            <div :class="[
+                                                                    'h-10 flex items-center px-5 py-2 font-bold rounded-lg whitespace-nowrap',
+                                                                    readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-red-500 hover:bg-red-300 cursor-pointer text-white'
+                                                                ]"
+                                                                @click="!readOnly && removeAggregateExpression(index)">
+                                                                Delete
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
                                     <div v-if="showWhereClause" class="w-full flex flex-col mt-5">
                                         <h3 class="font-bold mb-2">Where</h3>
                                         <div class="flex flex-col bg-gray-100 p-5 rounded-lg">
@@ -6136,8 +7266,66 @@ onBeforeUnmount(() => {
                                             </div>
                                         </div>
                                     </div>
+                                    
+                                    <!-- GROUP BY Columns Section -->
                                     <div v-if="showGroupByClause" class="w-full flex flex-col mt-5">
-                                        <h3 class="font-bold mb-2">Group By</h3>
+                                        <h3 class="font-bold mb-2">GROUP BY Columns</h3>
+                                        <div class="bg-green-50 border-l-4 border-green-400 p-4 mb-4 rounded-r-lg">
+                                            <div class="flex items-start">
+                                                <svg class="h-5 w-5 text-green-400 mt-0.5 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                <div>
+                                                    <p class="text-sm text-green-700 font-medium">
+                                                        <strong>GROUP BY:</strong> Columns that your results will be grouped by. Each unique combination of these columns will produce one row in the output.
+                                                    </p>
+                                                    <p class="text-xs text-green-600 mt-1">
+                                                        These columns are auto-detected from your selected columns, but you can manually add or remove them.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="flex flex-col bg-gray-100 p-5 rounded-lg">
+                                            <!-- Current GROUP BY columns -->
+                                            <div v-if="state.data_table.query_options?.group_by?.group_by_columns?.length > 0" class="flex flex-wrap gap-2 mb-3">
+                                                <div v-for="(col, index) in state.data_table.query_options.group_by.group_by_columns"
+                                                    :key="index"
+                                                    class="flex items-center bg-white border border-green-300 rounded-lg px-3 py-2 shadow-sm">
+                                                    <span class="text-sm text-gray-700 mr-2">{{ col.split('.').pop() }}</span>
+                                                    <span class="text-xs text-gray-400 mr-2" :title="col">{{ col }}</span>
+                                                    <div v-if="!readOnly"
+                                                        class="text-red-400 hover:text-red-600 cursor-pointer ml-1 font-bold"
+                                                        @click="removeGroupByColumn(index)"
+                                                        title="Remove from GROUP BY">
+                                                        &times;
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div v-else class="text-sm text-gray-500 mb-3 italic">
+                                                No GROUP BY columns added. Add columns below to group your results.
+                                            </div>
+                                            
+                                            <!-- Add column dropdown -->
+                                            <div class="flex flex-row items-center gap-2">
+                                                <select :disabled="readOnly || availableGroupByColumns.length === 0"
+                                                    :class="[
+                                                        'flex-1 border border-green-300 border-solid p-2 rounded-lg',
+                                                        readOnly || availableGroupByColumns.length === 0 ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                                                    ]"
+                                                    @change="addGroupByColumn($event)">
+                                                    <option value="" selected>+ Add column to GROUP BY...</option>
+                                                    <option v-for="col in availableGroupByColumns"
+                                                        :key="col.value"
+                                                        :value="col.value">
+                                                        {{ col.display }}
+                                                    </option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div v-if="showGroupByClause" class="w-full flex flex-col mt-5">
+                                        <h3 class="font-bold mb-2">Aggregate Functions</h3>
                                         <!-- Aggregate Function Disclaimer -->
                                         <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-4 rounded-r-lg">
                                             <div class="flex items-start">
@@ -6198,7 +7386,8 @@ onBeforeUnmount(() => {
                                                                     readOnly ? 'cursor-not-allowed opacity-50' : ''
                                                                 ]"
                                                                 placeholder="Enter Column Alias Name"
-                                                                v-model="clause.column_alias_name" />
+                                                                v-model="clause.column_alias_name"
+                                                                @input="clause.column_alias_name = clause.column_alias_name.replace(/\s/g, '_').toLowerCase()" />
                                                         </div>
                                                         <Transition
                                                             enter-active-class="transition-all duration-300 ease-out"
@@ -6238,90 +7427,18 @@ onBeforeUnmount(() => {
                                                     </div>
                                                 </div>
                                             </div>
-
-                                            <!-- Aggregate Expressions Section -->
-                                            <Transition enter-active-class="transition-all duration-300 ease-out"
-                                                leave-active-class="transition-all duration-200 ease-in"
-                                                enter-from-class="opacity-0 -translate-x-4"
-                                                enter-to-class="opacity-100 translate-x-0"
-                                                leave-from-class="opacity-100 translate-x-0"
-                                                leave-to-class="opacity-0 translate-x-4">
-                                                <div v-if="state.viewMode === 'advanced' && state.data_table.query_options.group_by.aggregate_expressions && state.data_table.query_options.group_by.aggregate_expressions.length > 0"
-                                                    class="mt-4">
-                                                    <h4 class="font-bold mb-2">Aggregate Expressions</h4>
-                                                    <div class="text-sm text-gray-600 mb-2">
-                                                        Create aggregates from expressions (e.g., SUM(quantity * price))
-                                                    </div>
-
-                                                    <div v-for="(expr, index) in state.data_table.query_options.group_by.aggregate_expressions"
-                                                        :key="index"
-                                                        class="bg-gray-50 p-3 mb-2 rounded-lg border border-gray-300">
-                                                        <div class="flex flex-row justify-between items-start">
-                                                            <div class="flex flex-col w-3/5 mr-2">
-                                                                <h5 class="font-bold mb-2">Expression</h5>
-                                                                <input type="text" :disabled="readOnly"
-                                                                    :class="[
-                                                                        'w-full border border-primary-blue-100 border-solid p-2 rounded-lg',
-                                                                        readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
-                                                                    ]"
-                                                                    v-model="expr.expression"
-                                                                    placeholder="e.g., SUM(quantity * price) or AVG(DISTINCT column)" />
-                                                                <span class="text-xs text-gray-600 mt-1">
-                                                                    Complete SQL expression including aggregate function (SUM, AVG, COUNT, etc.)
-                                                                </span>
-                                                            </div>
-
-                                                            <div class="flex flex-col w-2/5 mr-2">
-                                                                <h5 class="font-bold mb-2">Alias</h5>
-                                                                <input type="text" :disabled="readOnly"
-                                                                    :class="[
-                                                                        'w-full border border-primary-blue-100 border-solid p-2 rounded-lg',
-                                                                        readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
-                                                                    ]"
-                                                                    v-model="expr.column_alias_name"
-                                                                    placeholder="e.g., total_revenue" />
-                                                            </div>
-
-                                                            <div class="flex items-center pt-8">
-                                                                <div :class="[
-                                                                        'h-10 flex items-center px-5 py-2 font-bold rounded-lg whitespace-nowrap',
-                                                                        readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-red-500 hover:bg-red-300 cursor-pointer text-white'
-                                                                    ]"
-                                                                    @click="!readOnly && removeAggregateExpression(index)">
-                                                                    Delete
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    <div :class="[
-                                                            'w-full border border-blue-400 border-dashed h-10 flex items-center justify-center font-bold text-blue-600 rounded-lg',
-                                                            readOnly ? 'cursor-not-allowed bg-gray-50 text-gray-400' : 'cursor-pointer hover:bg-blue-50'
-                                                        ]"
-                                                        @click="!readOnly && addAggregateExpression()">
-                                                        + Add Aggregate Expression
-                                                    </div>
+                                            
+                                            <!-- Add first aggregate function button - shows when list is empty -->
+                                            <div v-if="!state.data_table.query_options.group_by.aggregate_functions || state.data_table.query_options.group_by.aggregate_functions.length === 0"
+                                                class="flex justify-center mt-2">
+                                                <div :class="[
+                                                        'h-10 flex items-center self-center p-5 font-bold rounded-lg border-2 border-dashed',
+                                                        readOnly ? 'border-gray-300 text-gray-500 cursor-not-allowed' : 'border-blue-400 text-blue-500 hover:bg-blue-50 cursor-pointer'
+                                                    ]"
+                                                    @click="!readOnly && addQueryOption('GROUP BY')">
+                                                    + Add Aggregate Function
                                                 </div>
-                                            </Transition>
-
-                                            <!-- Show button to add first expression if none exist -->
-                                            <Transition enter-active-class="transition-all duration-300 ease-out"
-                                                leave-active-class="transition-all duration-200 ease-in"
-                                                enter-from-class="opacity-0 -translate-x-4"
-                                                enter-to-class="opacity-100 translate-x-0"
-                                                leave-from-class="opacity-100 translate-x-0"
-                                                leave-to-class="opacity-0 translate-x-4">
-                                                <div v-if="state.viewMode === 'advanced' && state.data_table.query_options.group_by.name && (!state.data_table.query_options.group_by.aggregate_expressions || state.data_table.query_options.group_by.aggregate_expressions.length === 0)"
-                                                    class="mt-4">
-                                                    <div :class="[
-                                                            'w-full border border-blue-400 border-dashed h-12 flex items-center justify-center font-bold text-blue-600 rounded',
-                                                            readOnly ? 'cursor-not-allowed bg-gray-50 text-gray-400' : 'cursor-pointer hover:bg-blue-50'
-                                                        ]"
-                                                        @click="!readOnly && addAggregateExpression()">
-                                                        + Add Aggregate Expression (e.g., SUM(quantity * price))
-                                                    </div>
-                                                </div>
-                                            </Transition>
+                                            </div>
 
                                             <!-- HAVING Section - Always show when GROUP BY exists -->
                                             <div v-if="showGroupByClause" class="mt-4">
@@ -6436,16 +7553,28 @@ onBeforeUnmount(() => {
                                                             'w-full border border-primary-blue-100 border-solid p-2 rounded-lg',
                                                             readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
                                                         ]"
-                                                        v-model="clause.column">
-                                                        <optgroup label="Base Columns">
-                                                            <option v-for="col in whereColumns" :key="col.value"
+                                                        v-model="clause.column"
+                                                        @change="handleQueryOptionChanged('order-by-column')">
+                                                        <option value="">Select column to order by</option>
+                                                        <optgroup label="Regular Columns">
+                                                            <option v-for="col in orderByColumns.filter(c => !c.is_aggregate && c.type !== 'calculated_column')" 
+                                                                :key="col.value"
                                                                 :value="col.value">
                                                                 {{ col.display }}
                                                             </option>
                                                         </optgroup>
-                                                        <optgroup v-if="havingColumns.length > 0"
-                                                            label="Aggregate Columns">
-                                                            <option v-for="col in havingColumns" :key="col.value"
+                                                        <optgroup v-if="orderByColumns.filter(c => c.type === 'calculated_column').length > 0"
+                                                            label="Calculated Columns">
+                                                            <option v-for="col in orderByColumns.filter(c => c.type === 'calculated_column')" 
+                                                                :key="col.value"
+                                                                :value="col.value">
+                                                                {{ col.display }}
+                                                            </option>
+                                                        </optgroup>
+                                                        <optgroup v-if="orderByColumns.filter(c => c.is_aggregate).length > 0"
+                                                            label="Aggregates">
+                                                            <option v-for="col in orderByColumns.filter(c => c.is_aggregate)" 
+                                                                :key="col.value"
                                                                 :value="col.value">
                                                                 {{ col.display }}
                                                             </option>
@@ -6459,7 +7588,8 @@ onBeforeUnmount(() => {
                                                             'w-full border border-primary-blue-100 border-solid p-2 rounded-lg',
                                                             readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
                                                         ]"
-                                                        v-model="clause.order">
+                                                        v-model="clause.order"
+                                                        @change="handleQueryOptionChanged('order-by-order')">
                                                         <option v-for="(order, index) in state.order" :key="index"
                                                             :value="index">{{ order }}</option>
                                                     </select>
@@ -6565,6 +7695,14 @@ onBeforeUnmount(() => {
                                         @click="!readOnly && openCalculatedColumnDialog()">
                                         + Add Calculated Column/Field
                                     </div>
+                                    <div v-if="showDataModelControls"
+                                        :class="[
+                                            'w-full border border-purple-400 border-dashed h-15 flex items-center justify-center mb-5 mt-5 font-bold rounded-lg',
+                                            readOnly ? 'cursor-not-allowed bg-gray-100 text-gray-400' : 'cursor-pointer hover:bg-purple-50'
+                                        ]"
+                                        @click="!readOnly && addAggregateExpression()">
+                                        + Add Aggregate Expression
+                                    </div>
                                     <template v-if="showDataModelControls && saveButtonEnabled && hasTableData">
                                         <div v-if="showDataModelControls"
                                             class="w-full justify-center text-center items-center self-center mb-5 p-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 cursor-pointer font-bold shadow-md select-none"
@@ -6623,13 +7761,13 @@ onBeforeUnmount(() => {
                     <!-- Helper text -->
                     <div class="text-sm text-gray-600 bg-blue-50 border border-blue-200 p-3 rounded-lg mt-2 mb-2">
                         <font-awesome icon="fas fa-info-circle" class="mr-2 text-blue-600" />
-                        <strong>Tip:</strong> You can use both base columns and aggregate columns in calculations.
-                        Example: Calculate tax as <code class="bg-gray-200 px-1 rounded">total_revenue * 0.15</code>
+                        <strong>Tip:</strong> You can use base columns, aggregate columns, and other calculated columns in calculations.
+                        Example: Calculate margin as <code class="bg-gray-200 px-1 rounded">profit / revenue * 100</code> where profit is another calculated column.
                     </div>
 
                     <h5 class="font-bold mb-2 mt-2">Operations<font-awesome icon="fas fa-circle-info"
                             class="text-lg text-black cursor-pointer ml-1"
-                            :v-tippy-content="'You can select base columns and aggregate columns. Aggregates must be defined first in GROUP BY section.'" />
+                            :v-tippy-content="'You can select base columns, aggregate columns, and other calculated columns. Aggregates must be defined first in GROUP BY section.'" />
                     </h5>
                     <div v-for="(column, index) in state.calculated_column.columns">
                         <div v-if="index > 0" class="flex flex-col w-full mr-2">
@@ -6661,11 +7799,21 @@ onBeforeUnmount(() => {
                                     </option>
                                 </optgroup>
                                 <optgroup
-                                    v-if="numericColumnsWithAggregates.filter(c => c.type !== 'base_column').length > 0"
+                                    v-if="numericColumnsWithAggregates.filter(c => ['aggregate_function', 'aggregate_expression'].includes(c.type)).length > 0"
                                     label="Aggregate Columns">
                                     <option
-                                        v-for="(col, index) in numericColumnsWithAggregates.filter(c => c.type !== 'base_column')"
+                                        v-for="(col, index) in numericColumnsWithAggregates.filter(c => ['aggregate_function', 'aggregate_expression'].includes(c.type))"
                                         :key="'agg_' + index" :value="col.value">
+                                        {{ col.display }}
+                                    </option>
+                                </optgroup>
+                                <optgroup
+                                    v-if="numericColumnsWithAggregates.filter(c => c.type === 'calculated_column').length > 0"
+                                    label="Calculated Columns">
+                                    <option
+                                        v-for="(col, index) in numericColumnsWithAggregates.filter(c => c.type === 'calculated_column')"
+                                        :key="'calc_' + index" :value="col.value"
+                                        :title="`Expression: ${col.expression}`">
                                         {{ col.display }}
                                     </option>
                                 </optgroup>
@@ -6729,7 +7877,7 @@ onBeforeUnmount(() => {
             <div class="bg-white p-6 w-[600px] shadow-2xl max-h-[90vh] overflow-y-auto">
                 <h3 class="text-xl font-bold mb-4 text-gray-800 flex items-center">
                     <font-awesome icon="fas fa-link" class="mr-2 text-green-600" />
-                    Create JOIN Condition
+                    {{ state.editing_join_index !== null ? 'Edit JOIN Condition' : 'Create JOIN Condition' }}
                 </h3>
 
                 <p class="text-sm text-gray-600 mb-4">
@@ -6839,7 +7987,7 @@ onBeforeUnmount(() => {
                     </button>
                     <button @click="createJoinCondition()" :disabled="!isJoinFormValid()"
                         class="px-4 py-2 bg-green-600 text-white hover:bg-green-700 transition-colors cursor-pointer disabled:bg-gray-400 disabled:cursor-not-allowed">
-                        Create JOIN
+                        {{ state.editing_join_index !== null ? 'Save Changes' : 'Create JOIN' }}
                     </button>
                 </div>
             </div>
@@ -6977,3 +8125,25 @@ onBeforeUnmount(() => {
         </overlay-dialog>
     </div>
 </template>
+
+<style scoped>
+/* Smooth collapse/expand transition for table columns */
+.collapse-enter-active,
+.collapse-leave-active {
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+
+.collapse-enter-from,
+.collapse-leave-to {
+    opacity: 0;
+    max-height: 0;
+    transform: translateY(-10px);
+}
+
+.collapse-enter-to,
+.collapse-leave-from {
+    opacity: 1;
+    max-height: 2000px; /* Arbitrary large value for smooth animation */
+}
+</style>

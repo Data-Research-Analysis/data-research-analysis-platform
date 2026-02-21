@@ -5,6 +5,7 @@ import { DRAProject } from './DRAProject.js';
 import { DRAAIDataModelConversation } from './DRAAIDataModelConversation.js';
 import { DRADataModelSource } from './DRADataModelSource.js';
 import { DRATableMetadata } from './DRATableMetadata.js';
+import { DRAMongoDBSyncHistory } from './DRAMongoDBSyncHistory.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { IDBConnectionDetails, IConnectionDetails } from '../types/IDBConnectionDetails.js';
 import { EncryptionService } from '../services/EncryptionService.js';
@@ -84,6 +85,40 @@ export class DRADataSource {
     data_type!: EDataSourceType;
     @Column({ type: 'jsonb', transformer: connectionDetailsTransformer })
     connection_details!: IConnectionDetails
+    
+    /**
+     * MongoDB connection string (e.g., mongodb+srv://...)
+     * Used as alternative to individual connection fields in connection_details
+     * Automatically encrypted via string-specific transformer
+     */
+    @Column({ type: 'text', nullable: true, transformer: {
+        to(value: string | null | undefined): any {
+            if (!value) return null;
+            const encryptionService = EncryptionService.getInstance();
+            if (process.env.ENCRYPTION_ENABLED !== 'false') {
+                try {
+                    return encryptionService.encryptString(value);
+                } catch (error) {
+                    throw error;
+                }
+            }
+            return value;
+        },
+        from(value: any): string | null {
+            if (!value) return null;
+            const encryptionService = EncryptionService.getInstance();
+            if (encryptionService.isEncrypted(value)) {
+                try {
+                    return encryptionService.decryptString(value);
+                } catch (error) {
+                    throw error;
+                }
+            }
+            return value;
+        }
+    }})
+    connection_string?: string | null;
+    
     @Column({ type: 'timestamp', nullable: true })
     created_at!: Date
     
@@ -99,6 +134,22 @@ export class DRADataSource {
     
     @Column({ type: 'timestamp', nullable: true })
     next_scheduled_sync!: Date | null
+
+    // MongoDB sync tracking fields
+    @Column({ type: 'varchar', length: 50, nullable: true })
+    sync_status!: string | null; // 'pending' | 'in_progress' | 'completed' | 'failed'
+
+    @Column({ type: 'timestamp', nullable: true })
+    last_sync_at!: Date | null;
+
+    @Column({ type: 'text', nullable: true })
+    sync_error_message!: string | null;
+
+    @Column({ type: 'integer', default: 0 })
+    total_records_synced!: number;
+
+    @Column({ type: 'jsonb', nullable: true })
+    sync_config!: Record<string, any> | null; // Sync configuration: schedule, batch size, incremental settings
 
     @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.data_sources)
     @JoinColumn({ name: 'users_platform_id', referencedColumnName: 'id' })
@@ -119,5 +170,8 @@ export class DRADataSource {
     
     @OneToMany(() => DRATableMetadata, (metadata) => metadata.data_source, { cascade: ["remove", "update"] })
     table_metadata!: Relation<DRATableMetadata>[];
+    
+    @OneToMany(() => DRAMongoDBSyncHistory, (history) => history.dataSource, { cascade: ["remove"] })
+    sync_history!: Relation<DRAMongoDBSyncHistory>[];
     
 }

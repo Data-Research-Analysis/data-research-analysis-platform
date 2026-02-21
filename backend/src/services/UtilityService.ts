@@ -367,18 +367,25 @@ export class UtilityService {
         baseType: string; 
         size?: number;
     } {
-        //text, email, url, boolean, number
+        //text, email, url, boolean, number, integer, decimal, date
         const normalizedType = dataType.trim().toUpperCase();
-        if (normalizedType === 'EMAIL' || normalizedType === 'URL') {
+        if (normalizedType === 'EMAIL') {
             return { baseType: 'VARCHAR', size: 512 };
+        } else if (normalizedType === 'URL') {
+            return { baseType: 'VARCHAR', size: 1024 };
         } else if (normalizedType === 'TEXT') {
             return { baseType: 'VARCHAR', size: 1024 };
         } else if (normalizedType === 'BOOLEAN') {
             return { baseType: 'BOOLEAN' };
-        } else if (normalizedType === 'NUMBER') {
+        } else if (normalizedType === 'NUMBER' || normalizedType === 'DECIMAL') {
             return { baseType: 'NUMERIC' };
+        } else if (normalizedType === 'INTEGER' || normalizedType === 'INT') {
+            return { baseType: 'INTEGER' };
         } else if (normalizedType === 'DATE') {
             return { baseType: 'DATE' };
+        } else {
+            // Default to text for unknown Excel data types
+            return { baseType: 'VARCHAR', size: 1024 };
         }
     }
 

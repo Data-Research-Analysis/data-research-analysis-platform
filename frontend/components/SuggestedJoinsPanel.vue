@@ -157,10 +157,11 @@ function formatColumnDisplay(schema: string, table: string, column: string, tabl
                 </span>
             </div>
             <button 
-                class="text-gray-500 hover:text-gray-700 transition-colors"
+                class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-800 transition-all duration-200 cursor-pointer"
                 :class="{ 'rotate-180': isPanelOpen }"
+                :title="isPanelOpen ? 'Click to collapse panel' : 'Click to expand panel'"
             >
-                <i class="fas fa-chevron-down"></i>
+                <font-awesome icon="fas fa-chevron-down" class="text-sm" />
             </button>
         </div>
 
@@ -203,10 +204,15 @@ function formatColumnDisplay(schema: string, table: string, column: string, tabl
                             ({{ highConfidenceSuggestions.length }} suggestions)
                         </span>
                     </div>
-                    <i 
-                        class="fas fa-chevron-down text-green-700 transition-transform"
-                        :class="{ 'rotate-180': isSectionExpanded('high') }"
-                    ></i>
+                    <button
+                        class="flex items-center justify-center w-8 h-8 rounded-lg bg-green-100 hover:bg-green-200 transition-all duration-200 cursor-pointer"
+                        :title="isSectionExpanded('high') ? 'Click to collapse' : 'Click to expand'"
+                    >
+                        <font-awesome 
+                            icon="fas fa-chevron-down" 
+                            :class="isSectionExpanded('high') ? 'text-green-700 text-sm transition-transform rotate-180' : 'text-green-700 text-sm transition-transform'"
+                        />
+                    </button>
                 </div>
 
                 <div v-show="isSectionExpanded('high')" class="section-content mt-2 space-y-2">
@@ -313,10 +319,15 @@ function formatColumnDisplay(schema: string, table: string, column: string, tabl
                             ({{ mediumConfidenceSuggestions.length }} suggestions)
                         </span>
                     </div>
-                    <i 
-                        class="fas fa-chevron-down text-yellow-700 transition-transform"
-                        :class="{ 'rotate-180': isSectionExpanded('medium') }"
-                    ></i>
+                    <button
+                        class="flex items-center justify-center w-8 h-8 rounded-lg bg-yellow-100 hover:bg-yellow-200 transition-all duration-200 cursor-pointer"
+                        :title="isSectionExpanded('medium') ? 'Click to collapse' : 'Click to expand'"
+                    >
+                        <font-awesome 
+                            icon="fas fa-chevron-down" 
+                            :class="isSectionExpanded('medium') ? 'text-yellow-700 text-sm transition-transform rotate-180' : 'text-yellow-700 text-sm transition-transform'"
+                        />
+                    </button>
                 </div>
 
                 <div v-show="isSectionExpanded('medium')" class="section-content mt-2 space-y-2">
@@ -429,10 +440,15 @@ function formatColumnDisplay(schema: string, table: string, column: string, tabl
                             ({{ lowConfidenceSuggestions.length }} suggestions)
                         </span>
                     </div>
-                    <i 
-                        class="fas fa-chevron-down text-orange-700 transition-transform"
-                        :class="{ 'rotate-180': isSectionExpanded('low') }"
-                    ></i>
+                    <button
+                        class="flex items-center justify-center w-8 h-8 rounded-lg bg-orange-100 hover:bg-orange-200 transition-all duration-200 cursor-pointer"
+                        :title="isSectionExpanded('low') ? 'Click to collapse' : 'Click to expand'"
+                    >
+                        <font-awesome 
+                            icon="fas fa-chevron-down" 
+                            :class="isSectionExpanded('low') ? 'text-orange-700 text-sm transition-transform rotate-180' : 'text-orange-700 text-sm transition-transform'"
+                        />
+                    </button>
                 </div>
 
                 <div v-show="isSectionExpanded('low')" class="section-content mt-2 space-y-2">

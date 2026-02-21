@@ -1,0 +1,294 @@
+@startuml Attribution_Sequence_Diagram
+title Data Research Analysis Platform - Marketing Attribution Engine
+
+participant "Frontend\n(Vue/Nuxt)" as Frontend
+participant "Auth MW +\nTier Check" as AuthMW
+participant "Express Router\n/attribution" as AttrRouter
+participant "Attribution\nProcessor" as AttrProc
+participant "Attribution\nCalculator\nService" as CalcService
+participant "Channel\nTracking\nService" as ChannelService
+participant "Funnel\nAnalysis\nService" as FunnelService
+participant "Rate Limiter\n(expensive ops)" as RateLimiter
+participant "Database\n(PostgreSQL)" as DB
+
+' ============================================
+' FLOW 1: Track Attribution Event
+' ============================================
+
+== Flow 1: Track Attribution Event ==
+
+Frontend -> AttrRouter: POST /attribution/track\nAuthorization: Bearer {JWT}\n{ projectId, eventType: 'conversion',\n  channel: 'google_ads',\n  campaign_id: 'camp_123',\n  source: 'google', medium: 'cpc',\n  value: 49.99, currency: 'USD',\n  user_session_id, timestamp,\n  custom_properties: { product_id: 'ABC' } }
+activate AttrRouter
+
+AttrRouter -> AuthMW: validateJWT + tierCheck('attribution')
+AuthMW --> AttrRouter: ✅ tier=professional
+
+AttrRouter -> AttrProc: trackEvent(projectId, eventData, userId)
+activate AttrProc
+
+AttrProc -> DB: SELECT * FROM dra_projects WHERE id = projectId\nAND owner_id = userId (or member)
+activate DB
+DB --> AttrProc: project validated
+deactivate DB
+
+AttrProc -> DB: INSERT INTO dra_attribution_events\n{ project_id, event_type, channel,\n  campaign_id, source, medium,\n  event_value, currency,\n  session_id, user_fingerprint,\n  timestamp, custom_properties (jsonb) }
+activate DB
+DB --> AttrProc: event.id = 5001
+deactivate DB
+
+AttrProc -> ChannelService: recordChannelTouch(projectId, session_id,\n  channel, timestamp, campaign_id)
+activate ChannelService
+ChannelService -> DB: INSERT INTO dra_attribution_touchpoints\n{ project_id, session_id, channel,\n  campaign_id, touch_time, position_in_path }
+activate DB
+DB --> ChannelService: touchpoint stored
+deactivate DB
+ChannelService --> AttrProc: touchpointId
+deactivate ChannelService
+
+AttrProc --> AttrRouter: { eventId: 5001, tracked: true }
+deactivate AttrProc
+
+AttrRouter --> Frontend: HTTP 200 OK\n{ eventId: 5001, tracked: true }
+deactivate AttrRouter
+
+' ============================================
+' FLOW 2: Generate Attribution Report
+' ============================================
+
+== Flow 2: Generate Attribution Report ==
+
+Frontend -> AttrRouter: POST /attribution/reports\nAuthorization: Bearer {JWT}\n{ projectId,\n  dateRange: { start: '2024-01-01', end: '2024-01-31' },\n  model: 'linear' | 'first_touch' | 'last_touch' |\n         'time_decay' | 'position_based',\n  channels: ['google_ads', 'organic', 'email'],\n  groupBy: 'channel' | 'campaign' | 'day' }
+activate AttrRouter
+
+AttrRouter -> RateLimiter: checkExpensiveOpsLimit(userId)
+activate RateLimiter
+RateLimiter --> AttrRouter: ✅ Within 30 req/15min
+deactivate RateLimiter
+
+AttrRouter -> AuthMW: validateJWT + tierCheck('attribution')
+AuthMW --> AttrRouter: ✅
+
+AttrRouter -> AttrProc: generateReport(projectId, params, userId)
+activate AttrProc
+
+AttrProc -> CalcService: calculateAttributionModel(\n  projectId, dateRange, model, channels)
+activate CalcService
+
+CalcService -> DB: SELECT e.*, tp.channel, tp.campaign_id,\n       tp.touch_time, tp.position_in_path\nFROM dra_attribution_events e\nJOIN dra_attribution_touchpoints tp\n  ON e.session_id = tp.session_id\nWHERE e.project_id = projectId\n  AND e.timestamp BETWEEN ? AND ?\n  AND e.event_type = 'conversion'
+activate DB
+DB --> CalcService: conversion paths data
+deactivate DB
+
+alt model = 'linear'
+    CalcService -> CalcService: Distribute conversion value\nevenly across all touchpoints in path\n(e.g., path: email → organic → google_ads\n → $49.99 / 3 = $16.66 each)
+else model = 'first_touch'
+    CalcService -> CalcService: 100% credit to first\ntouchpoint in conversion path
+else model = 'last_touch'
+    CalcService -> CalcService: 100% credit to last\ntouchpoint before conversion
+else model = 'time_decay'
+    CalcService -> CalcService: More recent touchpoints\nreceive exponentially higher credit\n(decay half-life: 7 days)
+else model = 'position_based'
+    CalcService -> CalcService: 40% first touch, 40% last touch\n20% distributed among middle touchpoints
+end
+
+CalcService -> CalcService: Aggregate attributed\nvalue per channel/campaign
+
+CalcService --> AttrProc: attributionResults\n{ channel_credits: [\n    { channel: 'google_ads', attributed_value: 350.50, conversions: 12 },\n    { channel: 'email', attributed_value: 201.33, conversions: 8 }\n  ] }
+deactivate CalcService
+
+AttrProc -> DB: INSERT INTO dra_attribution_reports\n{ project_id, user_id, model,\n  date_range, results_json, created_at }
+activate DB
+DB --> AttrProc: report.id = 77
+deactivate DB
+
+AttrProc --> AttrRouter: report
+deactivate AttrProc
+
+AttrRouter --> Frontend: HTTP 200 OK\n{ reportId: 77, model,\n  dateRange, channelCredits: [...],\n  totalConversionValue, totalConversions }
+deactivate AttrRouter
+
+' ============================================
+' FLOW 3: Channel Performance
+' ============================================
+
+== Flow 3: Channel Performance Analysis ==
+
+Frontend -> AttrRouter: POST /attribution/channel-performance\nAuthorization: Bearer {JWT}\n{ projectId, dateRange, channels }
+activate AttrRouter
+AttrRouter -> AuthMW: validateJWT + tierCheck
+AuthMW --> AttrRouter: ✅
+
+AttrRouter -> AttrProc: getChannelPerformance(projectId, params)
+activate AttrProc
+
+AttrProc -> ChannelService: aggregateChannelMetrics(projectId, dateRange)
+activate ChannelService
+
+ChannelService -> DB: SELECT channel,\n  COUNT(DISTINCT session_id) AS sessions,\n  COUNT(CASE WHEN event_type = 'conversion' THEN 1 END) AS conversions,\n  SUM(CASE WHEN event_type = 'conversion' THEN event_value ELSE 0 END) AS revenue,\n  SUM(ad_spend) AS spend\nFROM dra_attribution_events\nWHERE project_id = ? AND timestamp BETWEEN ? AND ?\nGROUP BY channel
+activate DB
+DB --> ChannelService: channelMetrics[]
+deactivate DB
+
+ChannelService -> ChannelService: Calculate:\n- conversion_rate = conversions / sessions\n- cpa = spend / conversions (Cost Per Acquisition)\n- roas = revenue / spend (Return on Ad Spend)\n- average_order_value = revenue / conversions
+
+ChannelService --> AttrProc: [\n  { channel: 'google_ads',\n    sessions: 1200, conversions: 45,\n    revenue: 2250, spend: 800,\n    conversion_rate: 3.75%,\n    cpa: 17.78, roas: 2.81 },\n  ...\n]
+deactivate ChannelService
+
+AttrProc --> AttrRouter: channelPerformance
+deactivate AttrProc
+
+AttrRouter --> Frontend: HTTP 200 OK\n{ channels: [...performance data] }
+deactivate AttrRouter
+
+' ============================================
+' FLOW 4: ROI Calculation
+' ============================================
+
+== Flow 4: ROI Calculation ==
+
+Frontend -> AttrRouter: POST /attribution/roi\nAuthorization: Bearer {JWT}\n{ projectId, dateRange, includeSpend: true }
+activate AttrRouter
+AttrRouter -> AttrProc: calculateROI(projectId, params)
+activate AttrProc
+
+AttrProc -> DB: SELECT\n  SUM(spend_data.cost) AS total_spend,\n  SUM(e.event_value) AS total_revenue\nFROM dra_attribution_events e\nLEFT JOIN dra_channel_spend_data sd ON ...\nWHERE e.project_id = projectId
+activate DB
+DB --> AttrProc: { total_spend: 5000, total_revenue: 18750 }
+deactivate DB
+
+AttrProc -> AttrProc: ROI = (total_revenue - total_spend) / total_spend * 100\n     = (18750 - 5000) / 5000 * 100 = 275%
+
+AttrProc --> AttrRouter: { roi: 275, revenue: 18750, spend: 5000, profit: 13750 }
+deactivate AttrProc
+AttrRouter --> Frontend: HTTP 200 OK ROI analysis
+deactivate AttrRouter
+
+' ============================================
+' FLOW 5: Compare Attribution Models
+' ============================================
+
+== Flow 5: Compare Multiple Attribution Models ==
+
+Frontend -> AttrRouter: POST /attribution/compare-models\nAuthorization: Bearer {JWT}\n{ projectId, dateRange,\n  models: ['first_touch', 'last_touch', 'linear'] }
+activate AttrRouter
+AttrRouter -> AttrProc: compareModels(projectId, params)
+activate AttrProc
+
+loop For each attribution model
+    AttrProc -> CalcService: calculateAttributionModel(projectId, dateRange, model)
+    CalcService --> AttrProc: modelResults
+end
+
+AttrProc -> AttrProc: Merge results side-by-side\nfor comparison table
+
+AttrProc --> AttrRouter: { comparison: [\n  { channel: 'google_ads',\n    first_touch: 40%, last_touch: 25%, linear: 33% },\n  ...\n] }
+deactivate AttrProc
+AttrRouter --> Frontend: HTTP 200 OK { comparison: [...] }
+deactivate AttrRouter
+
+' ============================================
+' FLOW 6: Funnel Analysis
+' ============================================
+
+== Flow 6: Analyze Conversion Funnel ==
+
+Frontend -> AttrRouter: POST /attribution/analyze-funnel\nAuthorization: Bearer {JWT}\n{ projectId, dateRange,\n  funnelSteps: ['awareness', 'consideration', 'purchase'],\n  stepMappings: { awareness: ['impression', 'page_view'], ... } }
+activate AttrRouter
+
+AttrRouter -> RateLimiter: checkExpensiveOpsLimit(userId)
+RateLimiter --> AttrRouter: ✅ Within limit
+
+AttrRouter -> AttrProc: analyzeFunnel(projectId, params)
+activate AttrProc
+
+AttrProc -> FunnelService: buildFunnelMetrics(projectId, funnelSteps, dateRange)
+activate FunnelService
+
+FunnelService -> DB: SELECT event_type,\n  COUNT(DISTINCT session_id) AS unique_users\nFROM dra_attribution_events\nWHERE project_id = ? AND timestamp BETWEEN ? AND ?\nGROUP BY event_type
+activate DB
+DB --> FunnelService: event counts per type
+deactivate DB
+
+FunnelService -> FunnelService: Map events to funnel steps:\nawareness:    page_view (users: 10000)\nconsideration: product_view (users: 3200)\npurchase:      conversion (users: 450)
+
+FunnelService -> FunnelService: Calculate drop-off rates:\nawareness → consideration: -68% (3200/10000)\nconsideration → purchase:   -86% (450/3200)\nOverall funnel rate: 4.5%
+
+FunnelService --> AttrProc: funnelAnalysis { steps, drop_off_rates, conversion_rate }
+deactivate FunnelService
+
+AttrProc --> AttrRouter: funnelData
+deactivate AttrProc
+
+AttrRouter --> Frontend: HTTP 200 OK\n{ funnel: { steps: [...],\n   overallConversionRate: 4.5%,\n   biggestDropOff: 'consideration → purchase' } }
+deactivate AttrRouter
+
+' ============================================
+' FLOW 7: Customer Journey Map
+' ============================================
+
+== Flow 7: Customer Journey Mapping ==
+
+Frontend -> AttrRouter: POST /attribution/journey-map\nAuthorization: Bearer {JWT}\n{ projectId, dateRange, segmentBy: 'channel' }
+activate AttrRouter
+AttrRouter -> AttrProc: getJourneyMap(projectId, params)
+activate AttrProc
+
+AttrProc -> DB: SELECT session_id,\n  ARRAY_AGG(channel ORDER BY touch_time) AS channel_path,\n  MAX(CASE WHEN event_type = 'conversion' THEN event_value END) AS conversion_value\nFROM dra_attribution_touchpoints tp\nJOIN dra_attribution_events e ON e.session_id = tp.session_id\nWHERE tp.project_id = projectId\nGROUP BY session_id
+activate DB
+DB --> AttrProc: sessionPaths[]
+deactivate DB
+
+AttrProc -> AttrProc: Group paths by sequence:\n[google_ads → organic] → 450 conversions\n[email → direct]        → 210 conversions\n[organic]               → 180 conversions\nCount frequency of each path
+
+AttrProc --> AttrRouter: { journeyPaths: [\n  { path: ['google_ads', 'organic'],\n    conversions: 450, value: 22500 },\n  ...\n], mostCommonPaths: [...] }
+deactivate AttrProc
+
+AttrRouter --> Frontend: HTTP 200 OK\n{ journeyMap: { paths: [...] } }
+deactivate AttrRouter
+
+' ============================================
+' FLOW 8: List Reports
+' ============================================
+
+== Flow 8: List Past Reports for a Project ==
+
+Frontend -> AttrRouter: GET /attribution/reports/{projectId}\nAuthorization: Bearer {JWT}
+activate AttrRouter
+AttrRouter -> AuthMW: validateJWT + tierCheck
+AuthMW --> AttrRouter: ✅
+AttrRouter -> AttrProc: listProjectReports(projectId, userId)
+activate AttrProc
+AttrProc -> DB: SELECT id, model, date_range,\n  created_at, results_summary\nFROM dra_attribution_reports\nWHERE project_id = ?\nORDER BY created_at DESC LIMIT 50
+activate DB
+DB --> AttrProc: reports[]
+deactivate DB
+AttrProc --> AttrRouter: reports
+deactivate AttrProc
+AttrRouter --> Frontend: HTTP 200 OK { reports: [...] }
+deactivate AttrRouter
+
+note over Frontend, DB
+  **Attribution Models Supported:**
+  - first_touch:    100% credit to first touchpoint
+  - last_touch:     100% credit to last touchpoint
+  - linear:         Equal credit across all touchpoints
+  - time_decay:     Exponential weight toward conversion
+  - position_based: 40% first + 40% last + 20% middle
+
+  **Tracked Event Types:**
+  - impression, page_view, click, add_to_cart,
+    checkout_start, conversion, email_open,
+    email_click, social_share, referral
+
+  **Processors/Services:**
+  - AttributionProcessor     → orchestration
+  - AttributionCalculatorService → model math
+  - ChannelTrackingService   → touchpoint recording + channel metrics
+  - FunnelAnalysisService    → funnel steps + drop-off
+  
+  **Rate Limiting:**
+  - generateReport, analyzeFunnel → expensiveOperationsLimiter (30 req/15min)
+  - All other attribution routes  → generalApiLimiter (1000 req/15min)
+end note
+
+@enduml

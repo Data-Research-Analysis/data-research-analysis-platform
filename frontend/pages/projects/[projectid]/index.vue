@@ -18,6 +18,7 @@ import googleAnalyticsImage from '/assets/images/google-analytics.png';
 import googleAdManagerImage from '/assets/images/google-ad-manager.png';
 import googleAdsImage from '/assets/images/google-ads.png';
 import metaAdsImage from '/assets/images/meta.png';
+import mongodbImage from '/assets/images/mongodb.png';
 
 const dataSourceStore = useDataSourceStore();
 const projectsStore = useProjectsStore();
@@ -145,6 +146,11 @@ const state = reactive({
             name: 'MariaDB',
             url: `${route.fullPath}/data-sources/connect/mariadb`,
             image_url: mariadbImage,
+        },
+        {
+            name: 'MongoDB',
+            url: `${route.fullPath}/data-sources/connect/mongodb`,
+            image_url: mongodbImage,
         },
     ],
     selected_tab: 'data_sources',

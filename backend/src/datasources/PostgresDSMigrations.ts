@@ -13,6 +13,7 @@ import { DRAProjectInvitation } from "../models/DRAProjectInvitation.js";
 import { DRADashboard } from "../models/DRADashboard.js";
 import { DRAArticle } from "../models/DRAArticle.js";
 import { DRAArticleCategory } from "../models/DRAArticleCategory.js";
+import { DRAArticleVersion } from "../models/DRAArticleVersion.js";
 import { DRACategory } from "../models/DRACategory.js";
 import { DRASitemapEntry } from "../models/DRASitemapEntry.js";
 import { DRADashboardExportMetaData } from "../models/DRADashboardExportMetaData.js";
@@ -23,6 +24,7 @@ import { DRASubscriptionTier } from "../models/DRASubscriptionTier.js";
 import { DRAUserSubscription } from "../models/DRAUserSubscription.js";
 import { DRAPlatformSettings } from "../models/DRAPlatformSettings.js";
 import { DRAAccountCancellation } from "../models/DRAAccountCancellation.js";
+import { DRAMongoDBSyncHistory } from "../models/DRAMongoDBSyncHistory.js";
 import { SyncHistory } from "../entities/SyncHistory.js";
 import dotenv from 'dotenv';
 dotenv.config();
@@ -43,7 +45,7 @@ export default new DataSource({
     database: database,
     synchronize: false,
     logging: true,
-    entities: [DRAUsersPlatform, DRAProject, DRAProjectMember, DRAProjectInvitation, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAPrivateBetaUsers, DRADashboard, DRAArticle, DRAArticleCategory, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRADataModelRefreshHistory, DRASubscriptionTier, DRAUserSubscription, DRAPlatformSettings, DRAAccountCancellation, SyncHistory],
+    entities: [DRAUsersPlatform, DRAProject, DRAProjectMember, DRAProjectInvitation, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAPrivateBetaUsers, DRADashboard, DRAArticle, DRAArticleCategory, DRAArticleVersion, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRADataModelRefreshHistory, DRASubscriptionTier, DRAUserSubscription, DRAPlatformSettings, DRAAccountCancellation, DRAMongoDBSyncHistory, SyncHistory],
     subscribers: [],
     migrations: ['./src/migrations/*.ts'],
 });

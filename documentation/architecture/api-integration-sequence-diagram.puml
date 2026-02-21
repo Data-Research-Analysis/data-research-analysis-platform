@@ -1,5 +1,4 @@
 @startuml API_Integration_Sequence_Diagram
-!theme aws-orange
 title Data Research Analysis Platform - API Integration with Authentication
 
 participant "Frontend\n(Vue/Nuxt)" as Frontend
