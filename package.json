@@ -12,6 +12,8 @@
     "setup:down": "node setup-cli.js --down",
     "setup:rebuild": "node setup-cli.js --rebuild",
     "setup:health": "node setup-cli.js --health",
+    "setup:migrate": "docker exec -e POSTGRESQL_HOST_MIGRATIONS=database.dataresearchanalysis.test -e POSTGRESQL_PORT_MIGRATIONS=5432 backend.dataresearchanalysis.test npm run migration:run",
+    "setup:seed": "docker exec -e POSTGRESQL_HOST_MIGRATIONS=database.dataresearchanalysis.test -e POSTGRESQL_PORT_MIGRATIONS=5432 backend.dataresearchanalysis.test npm run seed:run -- -d ./src/datasources/PostgresDSMigrations.ts src/seeders/*.ts",
     "setup:logs": "docker-compose logs",
     "setup:logs:follow": "docker-compose logs -f",
     "setup:logs:backend": "docker-compose logs backend",

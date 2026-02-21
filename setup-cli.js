@@ -37,6 +37,7 @@ const {
   rebuildDockerCompose
 } = require('./lib/cli/docker.js');
 const { runHealthCheck } = require('./lib/cli/health.js');
+const { runMigrations, runSeeders } = require('./lib/cli/database.js');
 
 // Parse command-line arguments
 function parseArguments() {
@@ -86,7 +87,9 @@ function showHelp() {
   console.log('  npm run setup:update           Update existing config');
   console.log('  npm run setup:down             Stop containers');
   console.log('  npm run setup:rebuild          Rebuild containers');
-  console.log('  npm run setup:health           Health check\n');
+  console.log('  npm run setup:health           Health check');
+  console.log('  npm run setup:migrate          Run database migrations');
+  console.log('  npm run setup:seed             Run database seeders\n');
   
   console.log(chalk.bold('OPTIONS:'));
   console.log('  --help, -h                     Show this help message');
@@ -106,7 +109,9 @@ function showHelp() {
   console.log('  npm run setup                  # Full interactive setup');
   console.log('  npm run setup:express          # Quick setup with defaults');
   console.log('  npm run setup:health           # Check system health');
-  console.log('  npm run setup:down             # Stop all containers\n');
+  console.log('  npm run setup:down             # Stop all containers');
+  console.log('  npm run setup:migrate          # Run database migrations');
+  console.log('  npm run setup:seed             # Run database seeders\n');
   
   console.log(chalk.yellow('💡 Tip: External Docker volumes are never automatically deleted.'));
   console.log(chalk.gray('   To remove volumes manually: docker volume rm <volume_name>\n'));
@@ -363,13 +368,26 @@ async function main() {
       // Step 7.4: Wait for services to be healthy
       const healthResult = await waitForServicesHealthy();
       
-      // Step 7.5: Database operations (Phase 5)
+      // Step 7.5: Database migrations
       if (!flags.skipMigrations) {
-        console.log(chalk.yellow('⚠️  Database migrations coming in Phase 5'));
+        const migrationResult = await runMigrations();
+        if (!migrationResult.success) {
+          console.log(chalk.yellow('⚠️  Migrations failed, but continuing setup'));
+          console.log(chalk.gray('  You can run migrations later with: docker exec backend.dataresearchanalysis.test npm run migration:run\n'));
+        }
+      } else {
+        console.log(chalk.gray('\n⏭  Skipping migrations (--skip-migrations flag)\n'));
       }
       
+      // Step 7.6: Database seeders
       if (!flags.skipSeeders) {
-        console.log(chalk.yellow('⚠️  Database seeders coming in Phase 5'));
+        const seederResult = await runSeeders();
+        if (!seederResult.success) {
+          console.log(chalk.yellow('⚠️  Seeders failed, but continuing setup'));
+          console.log(chalk.gray('  You can run seeders later with: docker exec backend.dataresearchanalysis.test npm run seed:run\n'));
+        }
+      } else {
+        console.log(chalk.gray('\n⏭  Skipping seeders (--skip-seeders flag)\n'));
       }
       
       // Success summary
