@@ -45,11 +45,22 @@ const reportTypeOptions = [
 
 // Check for OAuth callback on mount
 onMounted(async () => {
-    const code = route.query.code as string;
-    const state_param = route.query.state as string;
-
-    if (code && state_param) {
-        await handleOAuthCallback(code, state_param);
+    // Check if returning from OAuth callback page (token stored in localStorage)
+    if (import.meta.client) {
+        const storedToken = localStorage.getItem('meta_ads_oauth_token');
+        if (storedToken) {
+            try {
+                const tokenData = JSON.parse(storedToken);
+                localStorage.removeItem('meta_ads_oauth_token');
+                state.isAuthenticated = true;
+                state.accessToken = tokenData.access_token;
+                state.tokenExpiry = new Date(Date.now() + tokenData.expires_in * 1000).toISOString();
+                state.currentStep = 2;
+                await loadAdAccounts();
+            } catch (e) {
+                localStorage.removeItem('meta_ads_oauth_token');
+            }
+        }
     }
 });
 
@@ -61,7 +72,7 @@ async function initiateMetaOAuth() {
         state.loading = true;
         state.error = null;
 
-        await dataSourcesStore.initiateMetaOAuth();
+        await dataSourcesStore.initiateMetaOAuth(projectId);
     } catch (error: any) {
         state.error = error.message || 'Failed to start Meta OAuth';
         $swal.fire({

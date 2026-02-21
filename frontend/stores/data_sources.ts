@@ -533,7 +533,7 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     /**
      * Initiate Meta OAuth flow
      */
-    async function initiateMetaOAuth(): Promise<void> {
+    async function initiateMetaOAuth(projectId?: string | number): Promise<void> {
         const token = getAuthToken();
         if (!token) {
             throw new Error('Authentication required');
@@ -551,6 +551,10 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
             if (response.ok) {
                 const data = await response.json();
                 if (data.success && data.authUrl) {
+                    // Store projectId so the OAuth callback page can redirect back
+                    if (import.meta.client && projectId) {
+                        localStorage.setItem('meta_ads_pending_oauth', JSON.stringify({ projectId }));
+                    }
                     // Redirect to Meta OAuth
                     if (import.meta.client) {
                         window.location.href = data.authUrl;
