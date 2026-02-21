@@ -15,6 +15,19 @@ const ora = require('ora');
 const { DOCKER_VOLUMES, ENVIRONMENT_DEFAULTS } = require('./lib/cli/constants.js');
 const { detectEnvironment, loadExistingEnv, createBackup, buildConfiguration } = require('./lib/cli/utils.js');
 const { generateEncryptionKey, generateJWTSecret, generateSecurePassword } = require('./lib/cli/generators.js');
+const {
+  promptEnvironmentType,
+  promptSetupMode,
+  promptDatabaseConfig,
+  promptSecurityConfig,
+  promptEmailConfig,
+  promptServerConfig,
+  promptRedisConfig,
+  promptBackupConfig,
+  promptGoogleServices,
+  promptAWSConfig
+} = require('./lib/cli/prompts.js');
+const { writeAllEnvFiles } = require('./lib/cli/writers.js');
 
 // Parse command-line arguments
 function parseArguments() {
@@ -185,10 +198,14 @@ async function main() {
       }
     }
     
-    // Step 2: Determine mode and build configuration
-    let mode = 'development'; // Default
+    // Step 2: Determine mode and environment type
+    let environmentType = 'development';
+    let setupMode = 'express';
+    let isExpress = true;
+    
     if (flags.express) {
-      mode = 'express';
+      setupMode = 'express';
+      isExpress = true;
       console.log(chalk.cyan('\n⚡ Express mode - using sensible defaults\n'));
     } else if (flags.configOnly) {
       console.log(chalk.cyan('\n📝 Config-only mode\n'));
@@ -196,28 +213,41 @@ async function main() {
       console.log(chalk.cyan('\n🐋 Docker-only mode\n'));
       console.log(chalk.yellow('⚠️  Docker operations coming in Phase 4!\n'));
       return;
+    } else if (!env.isNew && flags.update) {
+      // Update mode - prompt for environment type
+      environmentType = await promptEnvironmentType();
+      setupMode = await promptSetupMode();
+      isExpress = setupMode === 'express';
+    } else if (env.isNew) {
+      // New setup - prompt for environment type and mode
+      environmentType = await promptEnvironmentType();
+      setupMode = await promptSetupMode();
+      isExpress = setupMode === 'express';
     }
     
-    // Step 3: Build configuration (Phase 3+ will prompt for values)
+    // Step 3: Collect configuration values
+    console.log(chalk.cyan('\n🔧 Collecting configuration values...\n'));
+    
+    const database = await promptDatabaseConfig(environmentType, isExpress);
+    const security = await promptSecurityConfig(isExpress);
+    const email = await promptEmailConfig(isExpress);
+    const server = await promptServerConfig(environmentType, isExpress);
+    const redis = await promptRedisConfig(environmentType, isExpress);
+    const backup = await promptBackupConfig(isExpress);
+    const google = await promptGoogleServices(isExpress);
+    const aws = await promptAWSConfig(isExpress);
+    
+    // Build complete configuration object
     const config = {
-      mode: mode === 'express' ? 'development' : mode,
-      database: {
-        host: 'database.dataresearchanalysis.test',
-        port: 5432,
-        name: 'data_research_analysis',
-        user: 'dra_user',
-        password: generateSecurePassword()
-      },
-      security: {
-        encryptionKey: generateEncryptionKey(),
-        jwtSecret: generateJWTSecret(),
-        sessionSecret: generateJWTSecret()
-      },
-      server: {
-        backendUrl: 'http://localhost:3002',
-        frontendUrl: 'http://localhost:3000',
-        apiPort: 3002
-      }
+      mode: environmentType,
+      database,
+      security,
+      email,
+      server,
+      redis,
+      backup,
+      google,
+      aws
     };
     
     // Step 4: Show configuration preview
@@ -249,19 +279,42 @@ async function main() {
       return;
     }
     
-    // Step 6: Actual implementation (Phase 3+)
-    console.log(chalk.yellow('⚠️  File generation coming in Phase 3!'));
-    console.log(chalk.gray('\nPhase 2 Complete - Core CLI structure implemented:'));
-    console.log(chalk.green('  ✓ Environment detection'));
-    console.log(chalk.green('  ✓ Configuration building'));
-    console.log(chalk.green('  ✓ Configuration preview'));
-    console.log(chalk.green('  ✓ Dry-run mode'));
-    console.log(chalk.green('  ✓ Error handling\n'));
+    // Step 6: Write environment files
+    if (!flags.dockerOnly) {
+      const writeResult = await writeAllEnvFiles(config, !env.isNew);
+      
+      if (!writeResult.success) {
+        console.log(chalk.red('❌ Some environment files failed to write'));
+        console.log(chalk.yellow('\n💡 Check the errors above and try again\n'));
+        process.exit(1);
+      }
+    } else {
+      // Docker-only mode - skip file writing
+      console.log(chalk.yellow('⚠️  Skipping file write in docker-only mode'));
+      console.log(chalk.gray('  Docker operations will use existing .env files\n'));
+    }
     
-    console.log(chalk.cyan('Next phases:'));
-    console.log(chalk.gray('  Phase 3: Environment file generation'));
-    console.log(chalk.gray('  Phase 4: Docker operations'));
-    console.log(chalk.gray('  Phase 5: Database operations\n'));
+    // Step 7: Next steps
+    if (flags.configOnly) {
+      console.log(chalk.green('✅ Configuration complete!\n'));
+      console.log(chalk.cyan('Next steps:'));
+      console.log(chalk.gray('  1. Review the generated .env files'));
+      console.log(chalk.gray('  2. Run setup without --config-only to start Docker'));
+      console.log(chalk.gray('  3. Or run: npm run setup:docker\n'));
+    } else {
+      console.log(chalk.green('✅ Environment files generated!\n'));
+      console.log(chalk.yellow('⚠️  Docker operations coming in Phase 4'));
+      console.log(chalk.gray('\nPhase 3 Complete - Environment file generation:'));
+      console.log(chalk.green('  ✓ Interactive prompts'));
+      console.log(chalk.green('  ✓ Configuration collection'));
+      console.log(chalk.green('  ✓ .env file generation'));
+      console.log(chalk.green('  ✓ Automatic backups\n'));
+      
+      console.log(chalk.cyan('Next phases:'));
+      console.log(chalk.gray('  Phase 4: Docker operations (volumes, build, up)'));
+      console.log(chalk.gray('  Phase 5: Database operations (migrations, seeders)'));
+      console.log(chalk.gray('  Phase 6: Health checks and monitoring\n'));
+    }
     
   } catch (error) {
     console.error(chalk.red.bold('\n❌ Setup Failed\n'));
