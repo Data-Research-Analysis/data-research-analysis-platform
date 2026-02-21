@@ -114,7 +114,8 @@ export class SchedulerService {
                     types: [
                         EDataSourceType.GOOGLE_ANALYTICS,
                         EDataSourceType.GOOGLE_AD_MANAGER,
-                        EDataSourceType.GOOGLE_ADS
+                        EDataSourceType.GOOGLE_ADS,
+                        EDataSourceType.META_ADS
                     ] 
                 })
                 .getMany();
@@ -206,6 +207,10 @@ export class SchedulerService {
 
                 case EDataSourceType.GOOGLE_ADS:
                     await processor.syncGoogleAdsDataSource(dataSource.id, user.id);
+                    break;
+
+                case EDataSourceType.META_ADS:
+                    await processor.syncMetaAdsDataSource(dataSource.id, user.id);
                     break;
 
                 default:

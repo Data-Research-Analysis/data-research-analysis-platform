@@ -603,9 +603,9 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     /**
      * Add Meta Ads data source
      */
-    async function addMetaAdsDataSource(config: IMetaSyncConfig, projectId: number): Promise<boolean> {
+    async function addMetaAdsDataSource(config: IMetaSyncConfig, projectId: number): Promise<number | null> {
         const token = getAuthToken();
-        if (!token) return false;
+        if (!token) return null;
 
         try {
             const response = await fetch(`${baseUrl()}/meta-ads/add`, {
@@ -626,13 +626,13 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                 if (data.success) {
                     // Refresh data sources list
                     await retrieveDataSources();
-                    return true;
+                    return data.dataSourceId || null;
                 }
             }
-            return false;
+            return null;
         } catch (error) {
             console.error('Error adding Meta Ads data source:', error);
-            return false;
+            return null;
         }
     }
 
@@ -682,7 +682,12 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
 
             if (response.ok) {
                 const data = await response.json();
-                return data.status || null;
+                if (data.success) {
+                    return {
+                        lastSyncTime: data.lastSyncTime,
+                        syncHistory: data.syncHistory || []
+                    } as IMetaSyncStatus;
+                }
             }
             return null;
         } catch (error) {

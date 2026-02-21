@@ -219,7 +219,9 @@ function getDataSourceImage(dataType) {
         'mysql': mysqlImage,
         'mariadb': mariadbImage,
         'pdf': pdfImage,
-        'excel': excelImage
+        'excel': excelImage,
+        'meta_ads': metaAdsImage,
+        'mongodb': mongodbImage
     };
     return images[dataType] || postgresqlImage;
 }

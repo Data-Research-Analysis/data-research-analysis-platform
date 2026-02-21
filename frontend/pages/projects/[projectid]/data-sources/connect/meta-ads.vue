@@ -237,21 +237,21 @@ async function connectDataSource() {
             endDate: endDate
         };
 
-        const success = await dataSourcesStore.addMetaAdsDataSource(syncConfig, parseInt(projectId));
+        const dataSourceId = await dataSourcesStore.addMetaAdsDataSource(syncConfig, parseInt(projectId));
 
-        if (success) {
+        if (dataSourceId) {
             $swal.fire({
                 title: 'Success!',
-                text: 'Meta Ads data source connected successfully',
+                text: 'Meta Ads data source connected. Initial sync is running in the background.',
                 icon: 'success',
-                timer: 2000,
+                timer: 2500,
                 showConfirmButton: false
             });
 
-            // Redirect back to data sources list
+            // Redirect to the new data source's settings page
             setTimeout(() => {
-                router.push(`/projects/${projectId}/data-sources`);
-            }, 2000);
+                router.push(`/projects/${projectId}/data-sources/${dataSourceId}`);
+            }, 2500);
         } else {
             throw new Error('Failed to create data source');
         }

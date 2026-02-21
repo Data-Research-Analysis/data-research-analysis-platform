@@ -177,6 +177,11 @@ router.post('/add', validateJWT, async (req, res) => {
                 dataSourceId: dataSourceId,
                 message: 'Meta Ads data source added successfully'
             });
+            
+            // Fire-and-forget: trigger initial sync to create tables and populate data
+            DataSourceProcessor.getInstance().syncMetaAdsDataSource(dataSourceId, user_id).catch((err: any) => {
+                console.error(`[Meta Ads] Initial sync failed for data source ${dataSourceId}:`, err);
+            });
         } else {
             throw new Error('Failed to create data source');
         }

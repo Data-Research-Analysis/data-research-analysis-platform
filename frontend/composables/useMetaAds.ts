@@ -57,8 +57,8 @@ export const useMetaAds = () => {
      */
     const addDataSource = async (config: IMetaSyncConfig, projectId: number): Promise<number | null> => {
         try {
-            const success = await dataSourceStore.addMetaAdsDataSource(config, projectId);
-            return success ? 1 : null;
+            const dataSourceId = await dataSourceStore.addMetaAdsDataSource(config, projectId);
+            return dataSourceId;
         } catch (error) {
             console.error('Failed to add Meta Ads data source:', error);
             return null;
