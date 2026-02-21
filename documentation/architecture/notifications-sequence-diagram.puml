@@ -1,0 +1,268 @@
+@startuml Notifications_Sequence_Diagram
+title Data Research Analysis Platform - Notifications System
+
+participant "Frontend\n(Vue/Nuxt)" as Frontend
+participant "Auth MW" as AuthMW
+participant "Express Router\n/notifications" as NotifRouter
+participant "Notification\nProcessor" as NotifProc
+participant "Notification\nHelperService" as NotifHelper
+participant "Socket.IO\nServer" as SocketServer
+participant "Socket.IO\nClient" as SocketClient
+participant "Database\n(PostgreSQL)" as DB
+participant "Other\nProcessors/Services\n(trigger notifications)" as OtherProcs
+
+' ============================================
+' FLOW 1: Notification Creation (Internal)
+' ============================================
+
+== Flow 1: Creating a Notification (Called by Any Processor) ==
+
+OtherProcs -> NotifHelper: createNotification({\n  userId: targetUserId,\n  type: 'data_sync_complete' | 'invitation_accepted' | ...,\n  title: 'Sync Complete',\n  message: 'Your data source has been synced (150 rows)',\n  metadata: { dataSourceId: 77 },\n  expiresAt: NOW() + 30d (optional)\n})
+activate NotifHelper
+
+NotifHelper -> DB: INSERT INTO dra_notifications\n{ user_id, type, title, message,\n  is_read: false, metadata (jsonb),\n  created_at, expires_at }
+activate DB
+DB --> NotifHelper: notification { id: 201 }
+deactivate DB
+
+NotifHelper -> SocketServer: emitToUser(targetUserId, 'notification', {\n  id: 201, type, title, message,\n  is_read: false, created_at, metadata\n})
+activate SocketServer
+SocketServer -> SocketServer: Lookup active socket\nfor userId in socket room map
+alt User is online (socket connected)
+    SocketServer -> SocketClient: socket.emit('notification', payload)\n(room: user:{userId})
+    SocketClient --> Frontend: Real-time notification received
+    Frontend -> Frontend: Notification badge count +1\nToast: "{title}: {message}"
+else User is offline
+    SocketServer -> SocketServer: Log: user not connected\nNotification stored in DB (persisted)
+    note right: Notification delivered\nwhen user next loads app\nor polls /unread-count
+end
+deactivate SocketServer
+
+NotifHelper --> OtherProcs: notification created (non-blocking)
+deactivate NotifHelper
+
+' ============================================
+' FLOW 2: Frontend Connects & Subscribes
+' ============================================
+
+== Flow 2: Frontend Socket Subscription on App Load ==
+
+Frontend -> SocketClient: Connect socket.io client\nurl: ${BACKEND_URL}\nauth: { token: JWT }
+activate SocketClient
+SocketClient -> SocketServer: CONNECT event + handshake
+activate SocketServer
+SocketServer -> SocketServer: Extract userId from JWT auth
+SocketServer -> SocketServer: .join(`user:${userId}`)\n(private room for targeted events)
+SocketServer --> SocketClient: CONNECT_ACK
+deactivate SocketServer
+
+SocketClient --> Frontend: Socket connected
+Frontend -> Frontend: Listen for 'notification' events\nUpdate Pinia notification store on receive
+deactivate SocketClient
+
+== SOCKET EVENTS EMITTED BY SERVER ==
+
+note over SocketServer, SocketClient
+  **Events emitted via emitToUser(userId, event, payload):**
+
+  | Event                  | Trigger                                       |
+  |------------------------|-----------------------------------------------|
+  | notification           | Any createNotification() call                 |
+  | backup-progress        | DatabaseBackupService during pg_dump          |
+  | restore-progress       | DatabaseBackupService during restore          |
+  | ga-sync-progress       | DataSourceProcessor Google Analytics sync     |
+  | pdf-parsing-progress   | PDFParserService during extraction            |
+  | excel-upload-progress  | ExcelUploadService during sheet processing    |
+  | ai-response            | GeminiService streaming AI response           |
+  | query-complete         | DataModelProcessor query execution done       |
+end note
+
+' ============================================
+' FLOW 3: Load Notifications (Page Load)
+' ============================================
+
+== Flow 3: Fetch Notifications (REST — Paginated) ==
+
+Frontend -> NotifRouter: GET /notifications?page=1&limit=20\nAuthorization: Bearer {JWT}
+activate NotifRouter
+
+NotifRouter -> AuthMW: validateJWT
+AuthMW --> NotifRouter: { userId }
+
+NotifRouter -> NotifProc: getUserNotifications(userId, page=1, limit=20)
+activate NotifProc
+
+NotifProc -> DB: SELECT *\nFROM dra_notifications\nWHERE user_id = ?\n  AND (expires_at IS NULL OR expires_at > NOW())\nORDER BY created_at DESC\nLIMIT 20 OFFSET 0
+activate DB
+DB --> NotifProc: notifications[] (max 20)
+deactivate DB
+
+NotifProc -> DB: SELECT COUNT(*) FROM dra_notifications\nWHERE user_id = ? AND is_read = false
+activate DB
+DB --> NotifProc: unreadCount = 5
+deactivate DB
+
+NotifProc --> NotifRouter: { notifications, total, unreadCount, page, limit }
+deactivate NotifProc
+
+NotifRouter --> Frontend: HTTP 200 OK {\n  notifications: [...],\n  pagination: { page: 1, limit: 20,\n               total: 47, totalPages: 3 },\n  unreadCount: 5\n}
+deactivate NotifRouter
+
+Frontend -> Frontend: Populate notification panel\nUpdate bell badge with unreadCount
+
+' ============================================
+' FLOW 4: Get Unread Count (Polling)
+' ============================================
+
+== Flow 4: Get Unread Count (Lightweight Poll) ==
+
+Frontend -> NotifRouter: GET /notifications/unread-count\nAuthorization: Bearer {JWT}
+activate NotifRouter
+NotifRouter -> AuthMW: validateJWT
+AuthMW --> NotifRouter: { userId }
+NotifRouter -> NotifProc: getUnreadCount(userId)
+activate NotifProc
+NotifProc -> DB: SELECT COUNT(*) FROM dra_notifications\nWHERE user_id = ? AND is_read = false\n  AND (expires_at IS NULL OR expires_at > NOW())
+activate DB
+DB --> NotifProc: count = 5
+deactivate DB
+NotifProc --> NotifRouter: 5
+deactivate NotifProc
+NotifRouter --> Frontend: HTTP 200 OK { count: 5 }
+deactivate NotifRouter
+
+Frontend -> Frontend: Update badge icon number\n(called from app header on route change)
+
+' ============================================
+' FLOW 5: Mark Single Notification as Read
+' ============================================
+
+== Flow 5: Mark One Notification as Read ==
+
+Frontend -> NotifRouter: PUT /notifications/{id}/read\nAuthorization: Bearer {JWT}
+activate NotifRouter
+
+NotifRouter -> AuthMW: validateJWT
+AuthMW --> NotifRouter: { userId }
+
+NotifRouter -> NotifProc: markAsRead(notificationId, userId)
+activate NotifProc
+
+NotifProc -> DB: UPDATE dra_notifications\nSET is_read = true, read_at = NOW()\nWHERE id = ? AND user_id = ?
+activate DB
+DB --> NotifProc: rowsAffected = 1
+deactivate DB
+
+NotifProc --> NotifRouter: { updated: true }
+deactivate NotifProc
+
+NotifRouter --> Frontend: HTTP 200 OK { updated: true }
+deactivate NotifRouter
+
+Frontend -> Frontend: Remove unread indicator from\nnotification item, decrement badge
+
+' ============================================
+' FLOW 6: Mark All as Read
+' ============================================
+
+== Flow 6: Mark All Notifications as Read ==
+
+Frontend -> NotifRouter: PUT /notifications/mark-all-read\nAuthorization: Bearer {JWT}
+activate NotifRouter
+NotifRouter -> AuthMW: validateJWT
+AuthMW --> NotifRouter: { userId }
+NotifRouter -> NotifProc: markAllAsRead(userId)
+activate NotifProc
+NotifProc -> DB: UPDATE dra_notifications\nSET is_read = true, read_at = NOW()\nWHERE user_id = ? AND is_read = false
+activate DB
+DB --> NotifProc: rowsAffected = 5
+deactivate DB
+NotifProc --> NotifRouter: { updated: 5 }
+deactivate NotifProc
+NotifRouter --> Frontend: HTTP 200 OK { updated: 5 }
+deactivate NotifRouter
+Frontend -> Frontend: Clear all unread indicators\nSet badge count to 0
+
+' ============================================
+' FLOW 7: Delete a Notification
+' ============================================
+
+== Flow 7: Delete a Notification ==
+
+Frontend -> NotifRouter: DELETE /notifications/{id}\nAuthorization: Bearer {JWT}
+activate NotifRouter
+NotifRouter -> AuthMW: validateJWT
+AuthMW --> NotifRouter: { userId }
+NotifRouter -> NotifProc: deleteNotification(notificationId, userId)
+activate NotifProc
+NotifProc -> DB: DELETE FROM dra_notifications\nWHERE id = ? AND user_id = ?
+activate DB
+DB --> NotifProc: deleted = 1
+deactivate DB
+NotifProc --> NotifRouter: { deleted: true }
+deactivate NotifProc
+NotifRouter --> Frontend: HTTP 200 OK { deleted: true }
+deactivate NotifRouter
+Frontend -> Frontend: Remove item from notification list
+
+' ============================================
+' FLOW 8: Cleanup Expired Notifications (Cron)
+' ============================================
+
+== Flow 8: Cleanup Expired Notifications (Admin Cron) ==
+
+Frontend -> NotifRouter: POST /notifications/cleanup-expired\nAuthorization: Bearer {JWT} (admin)
+activate NotifRouter
+NotifRouter -> AuthMW: validateJWT + isAdmin
+AuthMW --> NotifRouter: Authenticated admin
+
+NotifRouter -> NotifProc: cleanupExpiredNotifications()
+activate NotifProc
+
+NotifProc -> DB: DELETE FROM dra_notifications\nWHERE expires_at IS NOT NULL\n  AND expires_at < NOW()
+activate DB
+DB --> NotifProc: deletedCount = 84
+deactivate DB
+
+NotifProc --> NotifRouter: { deleted: 84 }
+deactivate NotifProc
+
+NotifRouter --> Frontend: HTTP 200 OK { deleted: 84, message: 'Expired notifications cleared' }
+deactivate NotifRouter
+
+' ============================================
+' FLOW 9: Notification Types Reference
+' ============================================
+
+== Notification Types Used Across Platform ==
+
+note over Frontend, DB
+  **Notification Types (type field values):**
+
+  | Type                          | Trigger                                      | Processor/Service             |
+  |-------------------------------|----------------------------------------------|-------------------------------|
+  | data_sync_complete            | Google Analytics/Ads sync finished           | DataSourceProcessor           |
+  | data_sync_failed              | Sync error occurred                          | DataSourceProcessor           |
+  | project_invitation_sent       | Invitation email sent                        | InvitationService             |
+  | project_invitation_accepted   | Invitee accepted invitation                  | InvitationService             |
+  | project_member_removed        | Member removed from project                  | RBACService                   |
+  | role_changed                  | User's project role updated                  | RBACService                   |
+  | backup_complete               | Database backup finished                     | DatabaseBackupService         |
+  | backup_failed                 | Backup job encountered error                 | DatabaseBackupService         |
+  | restore_complete              | Database restore finished                    | DatabaseBackupService         |
+  | account_cancellation_pending  | Cancellation grace period started            | AccountCancellationProcessor  |
+  | account_reactivated           | User reactivated account                     | AccountCancellationProcessor  |
+  | data_deletion_complete        | All user data deleted after grace period     | DataDeletionService           |
+  | ai_model_saved                | AI Data Modeler session saved to DB          | DataModelProcessor            |
+  | data_quality_complete         | Data quality analysis finished               | DataQualityProcessor          |
+  | export_ready                  | Data model CSV/Excel export ready            | DataModelExportService        |
+
+  **Delivery Architecture:**
+  - Primary: Socket.IO → emitToUser(userId, 'notification', payload) — real-time
+  - Fallback: REST polling → GET /notifications/unread-count (every 30s)
+  - Persistence: All notifications stored in dra_notifications (PostgreSQL)
+  - Expiry: configurable per notification type (default 30 days)
+  - Security: Users can only read/delete their own notifications (user_id check)
+end note
+
+@enduml

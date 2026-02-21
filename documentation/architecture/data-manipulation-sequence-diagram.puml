@@ -1,5 +1,4 @@
 @startuml Data_Manipulation_Sequence_Diagram
-!theme aws-orange
 title Data Research Analysis Platform - Data Manipulation Workflow
 
 participant "User" as User

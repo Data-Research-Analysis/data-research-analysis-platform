@@ -1,5 +1,4 @@
 @startuml PDF_Processing_Activity_Diagram
-!theme aws-orange
 title Data Research Analysis Platform - PDF Processing Workflow
 
 start

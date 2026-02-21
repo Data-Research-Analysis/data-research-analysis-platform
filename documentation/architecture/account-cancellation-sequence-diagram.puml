@@ -1,0 +1,281 @@
+@startuml Account_Cancellation_Sequence_Diagram
+title Data Research Analysis Platform - Account Cancellation & Lifecycle
+
+participant "Frontend\n(Vue/Nuxt)" as Frontend
+participant "Auth MW" as AuthMW
+participant "Express Router\n/account" as AccountRouter
+participant "Account\nCancellation\nProcessor" as CancelProc
+participant "DataDeletion\nService" as DeletionService
+participant "DataModel\nExport Service" as ExportService
+participant "Notification\nHelper" as NotifHelper
+participant "Email\nService" as EmailService
+participant "Scheduled\nDeletion Job\n(Cron)" as ScheduledJob
+participant "Database\n(PostgreSQL)" as DB
+participant "Filesystem\n(exports/)" as FS
+
+' ============================================
+' FLOW 1: Request Cancellation
+' ============================================
+
+== Flow 1: User Requests Account Cancellation ==
+
+Frontend -> AccountRouter: POST /account/cancel\nAuthorization: Bearer {JWT}\n{ reason: 'switching_to_competitor',\n  category: 'pricing',\n  feedback: 'Optional text...' }
+activate AccountRouter
+
+AccountRouter -> AuthMW: validateJWT
+AuthMW --> AccountRouter: { userId }
+
+AccountRouter -> CancelProc: requestCancellation(userId, { reason, category, feedback })
+activate CancelProc
+
+CancelProc -> DB: SELECT * FROM dra_users WHERE id = userId
+activate DB
+DB --> CancelProc: user { id, email, display_name, subscription_tier }
+deactivate DB
+
+CancelProc -> DB: SELECT * FROM dra_account_cancellations\nWHERE user_id = userId AND status != 'completed'
+activate DB
+DB --> CancelProc: null (no active cancellation request)
+deactivate DB
+
+CancelProc -> DB: INSERT INTO dra_account_cancellations\n{ user_id: userId,\n  reason, category, feedback,\n  status: 'pending',\n  grace_period_ends_at: NOW() + 30d,\n  requested_at: NOW() }
+activate DB
+DB --> CancelProc: cancellation { id: 55, grace_period_ends_at }
+deactivate DB
+
+CancelProc -> DB: UPDATE dra_users\nSET cancellation_status = 'pending',\n    scheduled_deletion_at = NOW() + 30d\nWHERE id = userId
+activate DB
+DB --> CancelProc: Updated
+deactivate DB
+
+CancelProc -> EmailService: sendCancellationConfirmationEmail({\n  to: user.email,\n  name: user.display_name,\n  gracePeriodEndsAt,\n  reactivateUrl: `${FRONTEND_URL}/account/reactivate`\n})
+activate EmailService
+EmailService --> CancelProc: Email queued
+deactivate EmailService
+
+CancelProc -> NotifHelper: createNotification(userId,\n  type: 'account_cancellation_pending',\n  title: 'Account Cancellation Scheduled',\n  message: 'Your account will be deleted on {gracePeriodEndsAt}.\n  You can reactivate before then.',\n  expiresAt: grace_period_ends_at)
+activate NotifHelper
+NotifHelper -> DB: INSERT INTO dra_notifications
+NotifHelper --> CancelProc: done
+deactivate NotifHelper
+
+CancelProc --> AccountRouter: { cancellationId: 55, gracePeriodEndsAt }
+deactivate CancelProc
+
+AccountRouter --> Frontend: HTTP 200 OK\n{ cancellationId: 55,\n  gracePeriodEndsAt: '2024-02-15T00:00:00Z',\n  message: 'Account marked for deletion. You have 30 days to reactivate.' }
+deactivate AccountRouter
+
+Frontend -> Frontend: Show cancellation confirmation page\nDisplay countdown to deletion date\nShow "Reactivate" prominently
+
+' ============================================
+' FLOW 2: Check Cancellation Status
+' ============================================
+
+== Flow 2: Poll Cancellation Status ==
+
+Frontend -> AccountRouter: GET /account/cancellation/status\nAuthorization: Bearer {JWT}
+activate AccountRouter
+AccountRouter -> AuthMW: validateJWT
+AuthMW --> AccountRouter: { userId }
+AccountRouter -> CancelProc: getStatus(userId)
+activate CancelProc
+CancelProc -> DB: SELECT c.*, u.cancellation_status, u.scheduled_deletion_at\nFROM dra_account_cancellations c\nJOIN dra_users u ON c.user_id = u.id\nWHERE c.user_id = ? AND c.status != 'completed'\nORDER BY c.requested_at DESC LIMIT 1
+activate DB
+DB --> CancelProc: { status: 'pending', gracePeriodEndsAt, daysRemaining: 22 }
+deactivate DB
+CancelProc --> AccountRouter: statusDetails
+deactivate CancelProc
+AccountRouter --> Frontend: HTTP 200 OK\n{ status: 'pending', daysRemaining: 22,\n  scheduledDeletionAt, canReactivate: true }
+deactivate AccountRouter
+
+' ============================================
+' FLOW 3: Reactivate Account
+' ============================================
+
+== Flow 3: User Reactivates During Grace Period ==
+
+Frontend -> AccountRouter: POST /account/reactivate\nAuthorization: Bearer {JWT}
+activate AccountRouter
+
+AccountRouter -> AuthMW: validateJWT
+AuthMW --> AccountRouter: { userId }
+
+AccountRouter -> CancelProc: reactivate(userId)
+activate CancelProc
+
+CancelProc -> DB: SELECT * FROM dra_account_cancellations\nWHERE user_id = ? AND status = 'pending'\n  AND grace_period_ends_at > NOW()
+activate DB
+DB --> CancelProc: cancellation (still within grace period)
+deactivate DB
+
+CancelProc -> DB: UPDATE dra_account_cancellations\nSET status = 'cancelled',\n    reactivated_at = NOW()\nWHERE id = cancellation.id
+activate DB
+DB --> CancelProc: Updated
+deactivate DB
+
+CancelProc -> DB: UPDATE dra_users\nSET cancellation_status = NULL,\n    scheduled_deletion_at = NULL\nWHERE id = userId
+activate DB
+DB --> CancelProc: Updated
+deactivate DB
+
+CancelProc -> EmailService: sendReactivationEmail(user.email, user.display_name)
+EmailService --> CancelProc: Sent
+
+CancelProc -> NotifHelper: createNotification(userId,\n  type: 'account_reactivated',\n  message: 'Welcome back! Your account is fully restored.')
+NotifHelper -> DB: INSERT INTO dra_notifications
+NotifHelper --> CancelProc: done
+
+CancelProc --> AccountRouter: { reactivated: true }
+deactivate CancelProc
+
+AccountRouter --> Frontend: HTTP 200 OK\n{ reactivated: true, message: 'Account successfully reactivated!' }
+deactivate AccountRouter
+
+Frontend -> Frontend: Clear cancellation notices\nRedirect to dashboard\nShow "Welcome back" toast
+
+' ============================================
+' FLOW 4: Export Data Before Deletion
+' ============================================
+
+== Flow 4: User Exports Data Before Account Deletion ==
+
+Frontend -> AccountRouter: POST /account/export-data\nAuthorization: Bearer {JWT}
+activate AccountRouter
+AccountRouter -> AuthMW: validateJWT
+AuthMW --> AccountRouter: { userId }
+AccountRouter -> DeletionService: estimateUserDataSize(userId)
+activate DeletionService
+DeletionService -> DB: COUNT projects, data_sources, data_models,\n        dashboards, notifications for userId
+activate DB
+DB --> DeletionService: { projects: 5, dataSources: 12,\n  dataModels: 8, totalRows: ~50000 }
+deactivate DB
+DeletionService --> AccountRouter: { estimatedSizeBytes, recordCounts }
+deactivate DeletionService
+AccountRouter --> Frontend: HTTP 200 OK\n{ estimatedSize: '12MB',\n  recordCounts: { projects: 5, ... } }
+deactivate AccountRouter
+
+Frontend -> AccountRouter: POST /account/data-model/export\nAuthorization: Bearer {JWT}\n{ dataModelId: 23, format: 'csv' }
+activate AccountRouter
+AccountRouter -> ExportService: exportDataModel(dataModelId, format, userId)
+activate ExportService
+ExportService -> DB: SELECT model data, query results
+activate DB
+DB --> ExportService: data rows
+deactivate DB
+ExportService -> FS: Write export_{userId}_{timestamp}.csv
+activate FS
+FS --> ExportService: filePath
+deactivate FS
+ExportService --> AccountRouter: { downloadUrl, filename }
+deactivate ExportService
+AccountRouter --> Frontend: HTTP 200 OK\n{ downloadUrl: '/exports/export_userId_ts.csv' }
+deactivate AccountRouter
+
+' ============================================
+' FLOW 5: Scheduled Deletion Job (Cron)
+' ============================================
+
+== Flow 5: Automated Data Deletion After Grace Period ==
+
+ScheduledJob -> ScheduledJob: Cron trigger\n(runs daily at 3:00 AM)
+activate ScheduledJob
+
+ScheduledJob -> DB: SELECT * FROM dra_account_cancellations\nWHERE status = 'pending'\n  AND grace_period_ends_at < NOW()
+activate DB
+DB --> ScheduledJob: [{ userId: 88, cancellation_id: 55 }, ...]
+deactivate DB
+
+loop For each expired cancellation
+    ScheduledJob -> EmailService: sendDeletionWarningEmail(user.email,\n  '24 hours until deletion')
+    note right: Warning at 7 days, 1 day before deletion
+    EmailService --> ScheduledJob: Sent
+end
+
+' Final deletion pass (after all warnings)
+ScheduledJob -> DB: SELECT * FROM dra_account_cancellations\nWHERE status = 'pending'\n  AND final_deletion_at < NOW()
+activate DB
+DB --> ScheduledJob: [{ userId: 88 }]
+deactivate DB
+
+loop For each user to delete
+    ScheduledJob -> DeletionService: deleteUserData(userId)
+    activate DeletionService
+
+    DeletionService -> DB: BEGIN TRANSACTION
+    activate DB
+
+    ' Cascade deletion — order matters for FKs
+    DeletionService -> DB: DELETE FROM dra_dashboard_charts WHERE project_id IN (user_projects)
+    DeletionService -> DB: DELETE FROM dra_dashboards WHERE project_id IN (user_projects)
+    DeletionService -> DB: DELETE FROM dra_data_models WHERE project_id IN (user_projects)
+    DeletionService -> DB: DELETE all dynamic schemas:\n  DROP SCHEMA IF EXISTS dra_postgresql_{id} CASCADE\n  DROP SCHEMA IF EXISTS dra_mysql_{id} CASCADE\n  DROP SCHEMA IF EXISTS dra_google_analytics_{id} CASCADE\n  (etc. for each data source)
+    DeletionService -> DB: DELETE FROM dra_data_sources WHERE project_id IN (user_projects)
+    DeletionService -> DB: DELETE FROM dra_project_members WHERE user_id = userId
+    DeletionService -> DB: DELETE FROM dra_project_invitations WHERE invited_by = userId\n  OR email = (user.email)
+    DeletionService -> DB: DELETE FROM dra_projects WHERE owner_id = userId
+    DeletionService -> DB: DELETE FROM dra_notifications WHERE user_id = userId
+    DeletionService -> DB: DELETE FROM dra_ai_data_model_conversations WHERE user_id = userId
+    DeletionService -> DB: DELETE FROM dra_account_cancellations WHERE user_id = userId
+    DeletionService -> DB: DELETE FROM dra_users WHERE id = userId
+
+    DeletionService -> DB: COMMIT
+    DB --> DeletionService: All data deleted
+    deactivate DB
+
+    DeletionService -> EmailService: sendDataDeletionConfirmationEmail(\n  user.email, user.display_name,\n  { deletedAt: NOW() }\n)
+    EmailService --> DeletionService: Confirmation email sent
+
+    DeletionService --> ScheduledJob: { deleted: true, userId }
+    deactivate DeletionService
+
+    ScheduledJob -> ScheduledJob: Log deletion in audit log
+end
+
+deactivate ScheduledJob
+
+' ============================================
+' ERROR / EDGE CASES
+' ============================================
+
+== Error Handling ==
+
+alt Reactivation after grace period expired
+    CancelProc -> DB: Check grace_period_ends_at < NOW()
+    DB --> CancelProc: Expired
+    CancelProc --> AccountRouter: throw Error: 'Grace period has expired'
+    AccountRouter --> Frontend: HTTP 410 Gone\n{ error: 'Grace period expired. Account data has been deleted.' }
+
+else Deletion job fails mid-way
+    DeletionService -> DB: ROLLBACK
+    ScheduledJob -> ScheduledJob: Log failure, retry next cron cycle
+    ScheduledJob -> NotifHelper: createNotification(adminUserId,\n  'Data deletion failed for userId: 88. Manual review needed.')
+
+else Cancellation already in progress
+    CancelProc -> DB: Find existing pending cancellation
+    DB --> CancelProc: cancellation already exists
+    CancelProc --> AccountRouter: HTTP 409 Conflict\n{ error: 'Account already pending cancellation' }
+end
+
+note over Frontend, FS
+  **Account Cancellation Lifecycle:**
+
+  pending (grace period active — can reactivate)
+    → cancelled (reactivated before deletion)
+    → data_deleted (grace period expired, data purged)
+
+  **Grace Period:** 30 days after cancellation request
+  **Warning Emails:** at 7 days remaining, 1 day remaining
+  **Data Deleted:** all user data, projects, data sources, models, dashboards
+  **Audit:** All events logged with timestamps
+
+  **AccountCancellationProcessor handles:**
+  - requestCancellation() → set status + email + notification
+  - getStatus()           → current lifecycle position
+  - reactivate()          → cancel the cancellation
+
+  **DataDeletionService handles:**
+  - estimateUserDataSize() → preview before export
+  - deleteUserData()       → full cascade delete (transactional)
+end note
+
+@enduml

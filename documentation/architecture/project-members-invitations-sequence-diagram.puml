@@ -1,0 +1,352 @@
+@startuml Project_Members_Invitations_Sequence_Diagram
+title Data Research Analysis Platform - Project Members & Invitations
+
+participant "Frontend\n(Vue/Nuxt)" as Frontend
+participant "Auth MW" as AuthMW
+participant "RBAC MW\nauthorize()" as RBACMW
+participant "Express Router\n/project-invitations" as InvRouter
+participant "Express Router\n/project-members" as MembRouter
+participant "Invitation\nService" as InvService
+participant "RBAC\nService" as RBACService
+participant "Notification\nHelper" as NotifHelper
+participant "Email\nService" as EmailService
+participant "Rate Limiter\n(invitationLimiter)" as RateLimiter
+participant "Database\n(PostgreSQL)" as DB
+participant "Socket.IO\nServer" as SocketServer
+
+' ============================================
+' FLOW 1: Send Project Invitation
+' ============================================
+
+== Flow 1: Owner Sends Invitation Email ==
+
+Frontend -> InvRouter: POST /project-invitations\nAuthorization: Bearer {JWT}\n{ projectId, email: "new.user@example.com",\n  role: "editor", invitedBy: userId }
+activate InvRouter
+
+InvRouter -> RateLimiter: checkInvitationLimit(ip, userId)
+activate RateLimiter
+RateLimiter --> InvRouter: ✅ Within limit
+deactivate RateLimiter
+
+InvRouter -> AuthMW: validateJWT
+AuthMW --> InvRouter: Authenticated { userId, role }
+
+InvRouter -> InvService: createInvitation({ projectId, email, role, invitedBy })
+activate InvService
+
+InvService -> DB: SELECT * FROM dra_projects WHERE id = projectId
+activate DB
+DB --> InvService: project { name, owner_id }
+deactivate DB
+
+InvService -> DB: SELECT * FROM dra_users WHERE email = inviteeEmail
+activate DB
+DB --> InvService: user (if exists — null for new user)
+deactivate DB
+
+InvService -> DB: SELECT * FROM dra_project_members\nWHERE project_id = ? AND user_id = inviteeId
+activate DB
+DB --> InvService: null (not already a member)
+deactivate DB
+
+InvService -> DB: SELECT * FROM dra_project_invitations\nWHERE project_id = ? AND email = ? AND status = 'pending'
+activate DB
+DB --> InvService: null (no duplicate)
+deactivate DB
+
+InvService -> InvService: Generate secure token\n= crypto.randomBytes(32).toString('hex')
+
+InvService -> DB: INSERT INTO dra_project_invitations\n{ project_id, email, role, token,\n  invited_by, expires_at: NOW() + 7d,\n  status: 'pending' }
+activate DB
+DB --> InvService: invitation.id = 42
+deactivate DB
+
+InvService -> EmailService: sendInvitationEmail({\n  to: email,\n  projectName,\n  inviterName,\n  role,\n  acceptUrl: `${FRONTEND_URL}/invitations?token={token}`\n})
+activate EmailService
+EmailService --> InvService: Email queued
+deactivate EmailService
+
+InvService -> NotifHelper: createNotification(invitedByUserId,\n  type: 'project_invitation_sent',\n  message: 'Invitation sent to new.user@example.com')
+activate NotifHelper
+NotifHelper -> DB: INSERT INTO dra_notifications
+DB --> NotifHelper: Notification saved
+NotifHelper -> SocketServer: emitToUser(invitedByUserId, 'notification', payload)
+SocketServer --> Frontend: Real-time notification (optional echo)
+NotifHelper --> InvService: done
+deactivate NotifHelper
+
+InvService --> InvRouter: invitation { id: 42, token, expires_at }
+deactivate InvService
+
+InvRouter --> Frontend: HTTP 201 Created\n{ invitation: { id: 42, email, role, expires_at } }
+deactivate InvRouter
+
+' ============================================
+' FLOW 2: Invitee Clicks Token Link (No Auth)
+' ============================================
+
+== Flow 2: Invitee Clicks Email Link (Token-based, No Auth Required) ==
+
+Frontend -> InvRouter: GET /project-invitations/token/{token}
+note right: No Authorization header needed\n(public endpoint — allows redirect before login)
+activate InvRouter
+
+InvRouter -> InvService: getInvitationByToken(token)
+activate InvService
+
+InvService -> DB: SELECT inv.*, proj.name AS project_name,\n       u.display_name AS inviter_name\nFROM dra_project_invitations inv\nJOIN dra_projects proj ON inv.project_id = proj.id\nJOIN dra_users u ON inv.invited_by = u.id\nWHERE inv.token = ? AND inv.status = 'pending'\n  AND inv.expires_at > NOW()
+activate DB
+DB --> InvService: invitationDetails
+deactivate DB
+
+InvService --> InvRouter: invitationDetails
+deactivate InvService
+
+InvRouter --> Frontend: HTTP 200 OK\n{ projectName, inviterName, role,\n  email, expires_at }
+
+deactivate InvRouter
+
+Frontend -> Frontend: Show invitation acceptance page:\n\"You've been invited to '{projectName}' as {role}\"\nButtons: Accept / Decline
+
+' ============================================
+' FLOW 3: Accept Invitation
+' ============================================
+
+== Flow 3: Invitee Accepts Invitation ==
+
+note over Frontend: User logs in (if not already)\nthen confirms acceptance
+
+Frontend -> InvRouter: POST /project-invitations/accept\nAuthorization: Bearer {JWT}\n{ token }
+activate InvRouter
+
+InvRouter -> AuthMW: validateJWT
+AuthMW --> InvRouter: { userId, email }
+
+InvRouter -> InvService: acceptInvitation({ token, userId })
+activate InvService
+
+InvService -> DB: SELECT * FROM dra_project_invitations\nWHERE token = ? AND status = 'pending'\n  AND expires_at > NOW()
+activate DB
+DB --> InvService: invitation
+deactivate DB
+
+InvService -> DB: Verify invitation.email == authenticated user's email
+DB --> InvService: ✅ Match confirmed
+
+InvService -> DB: INSERT INTO dra_project_members\n{ project_id, user_id: userId, role: invitation.role,\n  joined_at: NOW(), invited_by: invitation.invited_by }
+activate DB
+DB --> InvService: projectMember created
+deactivate DB
+
+InvService -> DB: UPDATE dra_project_invitations\nSET status = 'accepted', accepted_at = NOW()\nWHERE id = invitation.id
+activate DB
+DB --> InvService: Updated
+deactivate DB
+
+InvService -> NotifHelper: createNotification(invitation.invited_by,\n  type: 'project_invitation_accepted',\n  message: '{userName} accepted your invitation to {projectName}')
+activate NotifHelper
+NotifHelper -> DB: INSERT INTO dra_notifications
+DB --> NotifHelper: Saved
+NotifHelper -> SocketServer: emitToUser(invitedBy, 'notification', payload)
+SocketServer --> Frontend: Real-time notify (owner's browser)
+NotifHelper --> InvService: done
+deactivate NotifHelper
+
+InvService --> InvRouter: { projectId, role }
+deactivate InvService
+
+InvRouter --> Frontend: HTTP 200 OK\n{ projectId, role, message: 'You joined the project!' }
+deactivate InvRouter
+
+Frontend -> Frontend: Navigate to project dashboard\nLoad project data via Pinia store
+
+' ============================================
+' FLOW 4: Cancel / Resend Invitation
+' ============================================
+
+== Flow 4: Cancel Invitation ==
+
+Frontend -> InvRouter: DELETE /project-invitations/{invitationId}\nAuthorization: Bearer {JWT}
+activate InvRouter
+InvRouter -> AuthMW: validateJWT
+AuthMW --> InvRouter: Authenticated
+
+InvRouter -> InvService: cancelInvitation(invitationId, userId)
+activate InvService
+InvService -> DB: UPDATE dra_project_invitations\nSET status = 'cancelled'\nWHERE id = ? AND invited_by = userId
+activate DB
+DB --> InvService: Updated
+deactivate DB
+InvService --> InvRouter: success
+deactivate InvService
+InvRouter --> Frontend: HTTP 200 OK { cancelled: true }
+deactivate InvRouter
+
+== Flow 5: Resend Invitation ==
+
+Frontend -> InvRouter: POST /project-invitations/{invitationId}/resend\nAuthorization: Bearer {JWT}
+activate InvRouter
+InvRouter -> AuthMW: validateJWT
+AuthMW --> InvRouter: Authenticated
+
+InvRouter -> InvService: resendInvitation(invitationId, userId)
+activate InvService
+InvService -> DB: SELECT * FROM dra_project_invitations WHERE id = ?
+activate DB
+DB --> InvService: invitation (status = 'pending')
+deactivate DB
+InvService -> InvService: Regenerate token, extend expires_at + 7d
+InvService -> DB: UPDATE dra_project_invitations\nSET token = newToken, expires_at = newExpiry
+DB --> InvService: Updated
+InvService -> EmailService: sendInvitationEmail({ ...new token and URL })
+EmailService --> InvService: Sent
+InvService --> InvRouter: { resent: true, expires_at }
+deactivate InvService
+InvRouter --> Frontend: HTTP 200 OK { resent: true }
+deactivate InvRouter
+
+' ============================================
+' FLOW 6: RBAC — View/Manage Project Members
+' ============================================
+
+== Flow 6: Get Project Members (RBAC Guarded) ==
+
+Frontend -> MembRouter: GET /project-members/{projectId}/members\nAuthorization: Bearer {JWT}
+activate MembRouter
+
+MembRouter -> AuthMW: validateJWT
+AuthMW --> MembRouter: { userId }
+
+MembRouter -> RBACMW: authorize(Permission.PROJECT_VIEW)
+activate RBACMW
+RBACMW -> RBACService: getUserRole(projectId, userId)
+activate RBACService
+RBACService -> DB: SELECT role FROM dra_project_members\nWHERE project_id = ? AND user_id = ?
+activate DB
+DB --> RBACService: role = 'viewer'
+deactivate DB
+RBACService --> RBACMW: role
+deactivate RBACService
+RBACMW -> RBACMW: checkPermission(PROJECT_VIEW, 'viewer')
+note right: Permission matrix:\n**Owner**: all permissions\n**Editor**: view, edit, export\n**Viewer**: view, export\n**No role**: denied
+RBACMW --> MembRouter: ✅ Authorized
+deactivate RBACMW
+
+MembRouter -> RBACService: getProjectMembers(projectId)
+activate RBACService
+RBACService -> DB: SELECT pm.*, u.display_name, u.email\nFROM dra_project_members pm\nJOIN dra_users u ON pm.user_id = u.id\nWHERE pm.project_id = ?
+activate DB
+DB --> RBACService: members []
+deactivate DB
+RBACService --> MembRouter: members list
+deactivate RBACService
+
+MembRouter --> Frontend: HTTP 200 OK\n{ members: [{ userId, name, email, role, joined_at }] }
+deactivate MembRouter
+
+' ============================================
+' FLOW 7: Change Member Role (Owner Only)
+' ============================================
+
+== Flow 7: Update Member Role ==
+
+Frontend -> MembRouter: PUT /project-members/{projectId}/members/{targetUserId}\nAuthorization: Bearer {JWT}\n{ role: 'editor' }
+activate MembRouter
+
+MembRouter -> AuthMW: validateJWT
+AuthMW --> MembRouter: { userId }
+
+MembRouter -> RBACMW: authorize(Permission.PROJECT_MANAGE_MEMBERS)
+activate RBACMW
+RBACMW -> RBACService: getUserRole(projectId, userId)
+RBACService -> DB: SELECT role FROM dra_project_members WHERE ...
+DB --> RBACService: role = 'owner'
+RBACMW -> RBACMW: checkPermission(PROJECT_MANAGE_MEMBERS, 'owner')
+RBACMW --> MembRouter: ✅ Authorized (owner only)
+deactivate RBACMW
+
+MembRouter -> RBACService: updateMemberRole(projectId, targetUserId, 'editor', requesterId)
+activate RBACService
+RBACService -> DB: SELECT role FROM dra_project_members\nWHERE project_id = ? AND user_id = targetUserId
+activate DB
+DB --> RBACService: targetMember.role = 'viewer'
+deactivate DB
+RBACService -> DB: UPDATE dra_project_members\nSET role = 'editor'\nWHERE project_id = ? AND user_id = targetUserId
+activate DB
+DB --> RBACService: Updated
+deactivate DB
+RBACService -> NotifHelper: createNotification(targetUserId,\n  'Your role in {projectName} changed to Editor')
+activate NotifHelper
+NotifHelper -> DB: INSERT notification
+DB --> NotifHelper: Saved
+NotifHelper -> SocketServer: emitToUser(targetUserId, 'notification', ...)
+NotifHelper --> RBACService: done
+deactivate NotifHelper
+RBACService --> MembRouter: { updated: true }
+deactivate RBACService
+
+MembRouter --> Frontend: HTTP 200 OK { updated: true, role: 'editor' }
+deactivate MembRouter
+
+' ============================================
+' FLOW 8: Remove Member
+' ============================================
+
+== Flow 8: Remove Member from Project ==
+
+Frontend -> MembRouter: DELETE /project-members/{projectId}/members/{targetUserId}\nAuthorization: Bearer {JWT}
+activate MembRouter
+MembRouter -> RBACMW: authorize(Permission.PROJECT_MANAGE_MEMBERS)
+RBACMW -> RBACService: getUserRole(projectId, userId)
+RBACService -> DB: SELECT role ...
+DB --> RBACService: 'owner'
+RBACMW --> MembRouter: ✅ Authorized
+
+MembRouter -> RBACService: removeMember(projectId, targetUserId, requesterId)
+activate RBACService
+RBACService -> DB: DELETE FROM dra_project_members\nWHERE project_id = ? AND user_id = targetUserId
+activate DB
+DB --> RBACService: Deleted
+deactivate DB
+RBACService -> NotifHelper: createNotification(targetUserId,\n  'You were removed from {projectName}')
+NotifHelper -> DB: INSERT notification
+NotifHelper -> SocketServer: emitToUser(targetUserId, 'notification', ...)
+RBACService --> MembRouter: { removed: true }
+deactivate RBACService
+MembRouter --> Frontend: HTTP 200 OK { removed: true }
+deactivate MembRouter
+
+' ============================================
+' FLOW 9: Expire Old Invitations (Cron)
+' ============================================
+
+== Flow 9: Expire Old Invitations (Admin Cron) ==
+
+Frontend -> InvRouter: POST /project-invitations/expire-old\nAuthorization: Bearer {JWT} (admin)
+activate InvRouter
+InvRouter -> InvService: expireOldInvitations()
+activate InvService
+InvService -> DB: UPDATE dra_project_invitations\nSET status = 'expired'\nWHERE expires_at < NOW() AND status = 'pending'
+activate DB
+DB --> InvService: rowsUpdated: 12
+deactivate DB
+InvService --> InvRouter: { expired: 12 }
+deactivate InvService
+InvRouter --> Frontend: HTTP 200 OK { expired: 12 }
+deactivate InvRouter
+
+note over Frontend, SocketServer
+  **RBAC Permission Matrix:**
+
+  | Role     | VIEW | EDIT | EXPORT | MANAGE_MEMBERS | DELETE_PROJECT |
+  |----------|------|------|--------|----------------|----------------|
+  | owner    |  ✅  |  ✅  |   ✅   |      ✅        |       ✅       |
+  | editor   |  ✅  |  ✅  |   ✅   |      ❌        |       ❌       |
+  | viewer   |  ✅  |  ❌  |   ✅   |      ❌        |       ❌       |
+  | (none)   |  ❌  |  ❌  |   ❌   |      ❌        |       ❌       |
+
+  **Invitation Status Lifecycle:**
+  pending → accepted OR cancelled OR expired
+end note
+
+@enduml

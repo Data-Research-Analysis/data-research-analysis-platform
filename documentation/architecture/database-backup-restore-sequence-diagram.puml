@@ -1,0 +1,319 @@
+@startuml Database_Backup_Restore_Sequence_Diagram
+title Data Research Analysis Platform - Database Backup & Restore
+
+participant "Admin\n(Frontend)" as Admin
+participant "Auth MW +\nisAdmin" as AuthMW
+participant "Express Router\n/admin/database" as AdminRouter
+participant "Queue\nService (BullMQ)" as QueueService
+participant "BullMQ\nWorker" as Worker
+participant "DatabaseBackup\nService" as BackupService
+participant "Notification\nHelper" as NotifHelper
+participant "pg_dump /\npsql" as PGTools
+participant "Filesystem\n(backend/private/backups/)" as FS
+participant "Socket.IO\nServer" as SocketServer
+participant "Database\n(PostgreSQL)" as DB
+participant "Scheduled\nBackup Job" as ScheduledJob
+
+' ============================================
+' FLOW 1: Manual Backup Trigger
+' ============================================
+
+== Flow 1: Admin Triggers Manual Backup ==
+
+Admin -> AdminRouter: POST /admin/database/backup\nAuthorization: Bearer {JWT}
+activate AdminRouter
+
+AdminRouter -> AuthMW: validateJWT + isAdmin check
+activate AuthMW
+AuthMW -> DB: SELECT role FROM dra_users WHERE id = userId
+activate DB
+DB --> AuthMW: role = 'admin'
+deactivate DB
+AuthMW --> AdminRouter: ✅ Admin confirmed
+deactivate AuthMW
+
+AdminRouter -> QueueService: addDatabaseBackupJob(userId)
+activate QueueService
+QueueService -> QueueService: Create BullMQ job:\n{ type: 'database-backup', userId,\n  priority: 1, attempts: 3 }
+QueueService -> DB: INSERT INTO dra_backup_runs\n{ user_id: userId, status: 'queued',\n  initiated_at: NOW() }
+activate DB
+DB --> QueueService: backupRunId = 99
+deactivate DB
+QueueService --> AdminRouter: { jobId: 'backup-1234', backupRunId: 99 }
+deactivate QueueService
+
+AdminRouter --> Admin: HTTP 202 Accepted\n{ jobId, backupRunId, message: 'Backup queued' }
+deactivate AdminRouter
+
+Admin -> SocketServer: Listen for 'backup-progress' events\n(Socket.IO connection already open)
+
+' ============================================
+' FLOW 2: BullMQ Worker Executes Backup
+' ============================================
+
+== Flow 2: BullMQ Worker Processes Backup Job ==
+
+Worker -> Worker: Dequeue backup-1234 job
+activate Worker
+
+Worker -> BackupService: createBackup(userId)
+activate BackupService
+
+BackupService -> SocketServer: emitToUser(userId, 'backup-progress',\n{ progress: 5, message: 'Starting backup...' })
+SocketServer --> Admin: Real-time progress: 5%
+
+BackupService -> BackupService: Generate filename:\nbackup_{timestamp}_{randomId}.sql
+BackupService -> BackupService: Compose output paths:\n- sqlPath: backend/private/backups/backup_xxx.sql\n- zipPath: backend/private/backups/backup_xxx.zip\n- metaPath: backend/private/backups/backup_xxx_metadata.json
+
+BackupService -> SocketServer: emitToUser(userId, 'backup-progress',\n{ progress: 10, message: 'Running pg_dump...' })
+SocketServer --> Admin: Progress: 10%
+
+BackupService -> PGTools: Execute: pg_dump\n  -h DB_HOST -U DB_USER -d DB_NAME\n  --file={sqlPath} --format=plain\n  --no-password [via PGPASSWORD env]
+activate PGTools
+PGTools -> DB: Connect & dump all tables,\nschemas, data, sequences, constraints
+activate DB
+DB --> PGTools: SQL written to {sqlPath}
+deactivate DB
+PGTools --> BackupService: Exit 0 (success)\nSQL file size: ~45MB
+deactivate PGTools
+
+BackupService -> SocketServer: emitToUser(userId, 'backup-progress',\n{ progress: 60, message: 'pg_dump complete. Compressing...' })
+SocketServer --> Admin: Progress: 60%
+
+BackupService -> BackupService: Write metadata JSON:\n{ version: '1.0', timestamp,\n  database: DB_NAME,\n  platform: 'data_research_analysis',\n  userId, sqlFile: filename }
+
+BackupService -> FS: Create ZIP archive (backup_xxx.zip)\nContaining:\n- backup_xxx.sql\n- metadata.json
+activate FS
+FS --> BackupService: ZIP created (compressed ~12MB)
+deactivate FS
+
+BackupService -> SocketServer: emitToUser(userId, 'backup-progress',\n{ progress: 80, message: 'Archiving complete. Cleaning up...' })
+SocketServer --> Admin: Progress: 80%
+
+BackupService -> FS: Delete raw SQL file (sqlPath)\n(only ZIP retained)
+FS --> BackupService: Cleanup done
+
+BackupService -> DB: UPDATE dra_backup_runs\nSET status = 'completed',\n    filename = 'backup_xxx.zip',\n    file_size_bytes = 12MB,\n    completed_at = NOW()\nWHERE id = 99
+activate DB
+DB --> BackupService: Updated
+deactivate DB
+
+BackupService -> NotifHelper: createNotification(userId,\n  type: 'backup_complete',\n  message: 'Database backup created successfully')
+NotifHelper -> DB: INSERT INTO dra_notifications
+NotifHelper -> SocketServer: emitToUser(userId, 'notification', ...)
+SocketServer --> Admin: Toast: Backup complete
+
+BackupService -> SocketServer: emitToUser(userId, 'backup-progress',\n{ progress: 100, message: 'Backup ready for download', filename })
+SocketServer --> Admin: Progress: 100% — Download link visible
+
+BackupService --> Worker: { filename: 'backup_xxx.zip', sizeBytes }
+deactivate BackupService
+Worker --> Worker: Job completed — BullMQ removes from queue
+deactivate Worker
+
+' ============================================
+' FLOW 3: List Backups
+' ============================================
+
+== Flow 3: List Available Backups ==
+
+Admin -> AdminRouter: GET /admin/database/backups\nAuthorization: Bearer {JWT}
+activate AdminRouter
+AdminRouter -> AuthMW: validateJWT + isAdmin
+AuthMW --> AdminRouter: ✅ Admin
+
+AdminRouter -> BackupService: listBackups()
+activate BackupService
+BackupService -> FS: List backend/private/backups/*.zip
+activate FS
+FS --> BackupService: [backup_2024_01_15_abc.zip, backup_2024_01_10_xyz.zip, ...]
+deactivate FS
+BackupService -> BackupService: Parse each ZIP filename\nExtract timestamp, size from filesystem stats
+BackupService --> AdminRouter: [{ filename, sizeBytes, createdAt, canDownload }]
+deactivate BackupService
+
+AdminRouter --> Admin: HTTP 200 OK\n{ backups: [{ filename, size, created_at }] }
+deactivate AdminRouter
+
+' ============================================
+' FLOW 4: Download Backup
+' ============================================
+
+== Flow 4: Download Backup File ==
+
+Admin -> AdminRouter: GET /admin/database/backups/{filename}/download\nAuthorization: Bearer {JWT}
+activate AdminRouter
+AdminRouter -> AuthMW: validateJWT + isAdmin
+AuthMW --> AdminRouter: ✅ Admin
+AdminRouter -> FS: Stream backend/private/backups/{filename}
+activate FS
+FS --> AdminRouter: Readable file stream
+deactivate FS
+AdminRouter --> Admin: HTTP 200 OK\nContent-Type: application/zip\nContent-Disposition: attachment; filename={filename}\n[Binary ZIP stream]
+deactivate AdminRouter
+
+' ============================================
+' FLOW 5: Database Restore
+' ============================================
+
+== Flow 5: Admin Restores Database from Backup ==
+
+Admin -> AdminRouter: POST /admin/database/restore\nAuthorization: Bearer {JWT}\nContent-Type: multipart/form-data\n[ZIP file upload — max 500MB]
+activate AdminRouter
+
+AdminRouter -> AuthMW: validateJWT + isAdmin
+AuthMW --> AdminRouter: ✅ Admin
+
+note over AdminRouter: multer middleware processes\nfile upload to temp path
+
+AdminRouter -> BackupService: validateBackupFile(tempZipPath)
+activate BackupService
+BackupService -> FS: Extract ZIP to temp dir
+FS --> BackupService: (extracted files)
+BackupService -> BackupService: Check for:\n- *.sql file present\n- metadata.json present\n- metadata.platform == 'data_research_analysis'
+BackupService --> AdminRouter: ✅ Valid backup file
+deactivate BackupService
+
+AdminRouter -> QueueService: addDatabaseRestoreJob(zipFilePath, userId)
+activate QueueService
+QueueService -> QueueService: Create BullMQ restore job\n{ type: 'database-restore', zipPath, userId }
+QueueService -> DB: INSERT INTO dra_backup_runs\n{ type: 'restore', status: 'queued', user_id: userId }
+DB --> QueueService: restoreRunId = 100
+QueueService --> AdminRouter: { jobId: 'restore-5678', restoreRunId: 100 }
+deactivate QueueService
+
+AdminRouter --> Admin: HTTP 202 Accepted\n{ jobId, message: 'Restore queued — database will be unavailable briefly' }
+deactivate AdminRouter
+
+' ============================================
+' FLOW 6: BullMQ Worker Executes Restore
+' ============================================
+
+== Flow 6: BullMQ Worker Processes Restore Job ==
+
+Worker -> Worker: Dequeue restore-5678 job
+activate Worker
+
+Worker -> BackupService: restoreBackup(zipPath, userId)
+activate BackupService
+
+BackupService -> SocketServer: emitToUser(userId, 'restore-progress',\n{ progress: 5, message: 'Preparing restore...' })
+SocketServer --> Admin: Restore progress: 5%
+
+BackupService -> FS: Extract ZIP → get SQL file path
+FS --> BackupService: sqlFilePath (temp dir)
+
+BackupService -> SocketServer: emitToUser(userId, 'restore-progress',\n{ progress: 20, message: 'Dropping existing tables...' })
+SocketServer --> Admin: Progress: 20%
+
+BackupService -> DB: BEGIN TRANSACTION
+activate DB
+BackupService -> DB: SELECT tablename FROM pg_tables\nWHERE schemaname = 'public'
+DB --> BackupService: [table names list]
+
+loop For each table
+    BackupService -> DB: DROP TABLE IF EXISTS {table} CASCADE
+end
+
+BackupService -> SocketServer: emitToUser(userId, 'restore-progress',\n{ progress: 40, message: 'Restoring from backup...' })
+SocketServer --> Admin: Progress: 40%
+
+BackupService -> PGTools: Execute: psql\n  -h DB_HOST -U DB_USER -d DB_NAME\n  -f {sqlFilePath}
+activate PGTools
+PGTools -> DB: Execute SQL dump\n(recreates all tables, inserts all data,\n restores sequences, triggers, indexes)
+DB --> PGTools: Restore complete
+deactivate PGTools
+
+BackupService -> DB: COMMIT
+deactivate DB
+
+BackupService -> SocketServer: emitToUser(userId, 'restore-progress',\n{ progress: 90, message: 'Cleaning up temp files...' })
+
+BackupService -> FS: Delete temp extracted files
+FS --> BackupService: Cleaned
+
+BackupService -> DB: UPDATE dra_backup_runs\nSET status = 'completed', completed_at = NOW()\nWHERE id = 100
+activate DB
+DB --> BackupService: Updated
+deactivate DB
+
+BackupService -> NotifHelper: createNotification(userId,\n  type: 'restore_complete',\n  message: 'Database restored successfully')
+NotifHelper -> SocketServer: emitToUser(userId, 'notification', ...)
+SocketServer --> Admin: Toast: Restore complete
+
+BackupService -> SocketServer: emitToUser(userId, 'restore-progress',\n{ progress: 100, message: 'Database restore complete' })
+SocketServer --> Admin: Progress: 100%
+
+BackupService --> Worker: restoreSummary
+deactivate BackupService
+Worker --> Worker: Job complete
+deactivate Worker
+
+' ============================================
+' FLOW 7: Scheduled Backup (Cron)
+' ============================================
+
+== Flow 7: Automated Scheduled Backup (Cron Job) ==
+
+ScheduledJob -> ScheduledJob: Cron trigger\n(e.g., daily at 2:00 AM)
+activate ScheduledJob
+
+ScheduledJob -> QueueService: addDatabaseBackupJob(systemUserId)
+activate QueueService
+QueueService -> QueueService: Queue backup job
+QueueService --> ScheduledJob: jobId
+deactivate QueueService
+
+note over ScheduledJob: Worker picks up job\nand executes same backup flow\n(Flows 2 above)
+
+ScheduledJob -> ScheduledJob: Log scheduled run in\ndra_scheduled_backup_runs
+
+ScheduledJob -> NotifHelper: createNotification(adminUserIds,\n  type: 'backup_complete',\n  message: 'Scheduled backup completed')
+
+deactivate ScheduledJob
+
+' ============================================
+' ERROR HANDLING
+' ============================================
+
+== Error Handling ==
+
+alt pg_dump fails (disk full / DB connection error)
+    PGTools --> BackupService: Exit 1 (error)
+    BackupService -> DB: UPDATE dra_backup_runs\nSET status = 'failed', error_message = stderr
+    BackupService -> NotifHelper: createNotification(userId, type: 'backup_failed', ...)
+    NotifHelper -> SocketServer: emitToUser(userId, 'notification', failurePayload)
+    BackupService -> SocketServer: emitToUser(userId, 'backup-progress',\n{ progress: -1, error: 'Backup failed: disk full' })
+    SocketServer --> Admin: Error toast
+
+else Invalid backup file on restore
+    BackupService --> AdminRouter: throw ValidationError\n'Invalid backup: missing metadata.json'
+    AdminRouter --> Admin: HTTP 400 Bad Request\n{ error: 'Invalid backup file structure' }
+
+else Restore fails mid-way (SQL error)
+    PGTools --> BackupService: psql error output
+    BackupService -> DB: ROLLBACK
+    BackupService -> SocketServer: emitToUser(userId, 'restore-progress',\n{ error: 'Restore failed, database may be in partial state' })
+    SocketServer --> Admin: HTTP 500 level error\nManual intervention may be required
+end
+
+note over Admin, DB
+  **Backup Storage:**
+  - Location: backend/private/backups/{filename}.zip
+  - Format: ZIP containing {timestamp}.sql + metadata.json
+  - Rotation: Manually managed (list and delete via admin UI)
+  - Max upload for restore: 500MB (multer limit)
+
+  **BullMQ Job Queue:**
+  - Backup and restore run through separate job types
+  - Jobs use Redis as backing store for queue state
+  - Automatic retry: 3 attempts on transient failures
+  - Progress emitted via Socket.IO throughout execution
+
+  **Security:**
+  - Admin-only routes (isAdmin middleware)
+  - Database credentials via environment variables (never exposed)
+  - Backup files stored in private/ directory (not served statically)
+end note
+
+@enduml

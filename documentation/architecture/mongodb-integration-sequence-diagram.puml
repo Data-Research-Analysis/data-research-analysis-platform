@@ -1,0 +1,284 @@
+@startuml MongoDB_Integration_Sequence_Diagram
+title Data Research Analysis Platform - MongoDB Data Source Integration
+
+participant "Frontend\n(Vue/Nuxt)" as Frontend
+participant "Auth MW" as AuthMW
+participant "Express Router\n/data-sources" as DSRouter
+participant "DataSource\nProcessor" as DSProc
+participant "MongoDB\nNative Service" as MongoNative
+participant "MongoDB\nImport Service" as MongoImport
+participant "MongoDB\nQuery Translator" as MongoQuery
+participant "Sync\nHistory Service" as SyncHistory
+participant "Notification\nHelper" as NotifHelper
+participant "Socket.IO\nServer" as SocketServer
+participant "MongoDB\n(External DB)" as MongoDB
+participant "Database\n(PostgreSQL)" as PG
+
+' ============================================
+' FLOW 1: Add MongoDB Data Source
+' ============================================
+
+== Flow 1: Connect MongoDB Data Source ==
+
+Frontend -> DSRouter: POST /data-sources\nAuthorization: Bearer {JWT}\n{ projectId, name: 'Production MongoDB',\n  data_type: 'mongodb',\n  connection_details: {\n    host: 'cluster.mongodb.net',\n    port: 27017,\n    database: 'myapp',\n    username: 'dbreader',\n    password: 'secret',\n    auth_source: 'admin',\n    use_ssl: true,\n    connection_string: null  // OR provide full URI\n  }\n}
+activate DSRouter
+
+DSRouter -> AuthMW: validateJWT
+AuthMW --> DSRouter: { userId }
+
+DSRouter -> DSProc: addDataSource(projectId, connectionData, userId)
+activate DSProc
+
+DSProc -> PG: INSERT INTO dra_data_sources\n{ name, data_type: 'mongodb',\n  project_id, user_id,\n  connection_details: { ENCRYPTED via ValueTransformer },\n  status: 'connecting' }
+activate PG
+PG --> DSProc: dataSource.id = 33
+deactivate PG
+
+DSProc -> SocketServer: emitToUser(userId, 'datasource-progress',\n{ dataSourceId: 33, progress: 5,\n  message: 'Connecting to MongoDB...' })
+SocketServer --> Frontend: Progress: 5%
+
+DSProc -> MongoNative: testConnection(connectionDetails)
+activate MongoNative
+MongoNative -> MongoNative: Build MongoDB URI:\nmongodb+srv://username:password@host/database\n?authSource=admin&tls=true
+
+MongoNative -> MongoDB: new MongoClient(uri).connect()
+activate MongoDB
+MongoDB --> MongoNative: Connected (ping successful)
+deactivate MongoDB
+
+MongoNative --> DSProc: { connected: true, serverVersion: '6.0' }
+deactivate MongoNative
+
+DSProc -> SocketServer: emitToUser(userId, 'datasource-progress',\n{ progress: 15, message: 'Connection successful. Discovering collections...' })
+SocketServer --> Frontend: Progress: 15%
+
+' ---- Schema Discovery ----
+DSProc -> MongoNative: listCollections(database)
+activate MongoNative
+MongoNative -> MongoDB: db.listCollections().toArray()
+activate MongoDB
+MongoDB --> MongoNative: [{ name: 'users' }, { name: 'orders' },\n { name: 'products' }, { name: 'events' }]
+deactivate MongoDB
+MongoNative --> DSProc: collections[]
+deactivate MongoNative
+
+DSProc -> SocketServer: emitToUser(userId, 'datasource-progress',\n{ progress: 25, message: '4 collections found. Sampling schema...' })
+SocketServer --> Frontend: Progress: 25%
+
+' ---- Infer Schema from Sample Documents ----
+loop For each collection
+    DSProc -> MongoNative: inferCollectionSchema(collection, sampleSize=1000)
+    activate MongoNative
+    MongoNative -> MongoDB: db.collection.find({}).limit(1000).toArray()
+    activate MongoDB
+    MongoDB --> MongoNative: sampleDocuments[]
+    deactivate MongoDB
+    MongoNative -> MongoNative: Analyze document structure:\n- Infer field names and types\n- Detect nested objects → flatten to columns\n- Detect arrays → record as JSON type\n- Compute null rate, cardinality per field
+    MongoNative --> DSProc: inferredSchema { columns: [{name, type, nullPct, sampleValues}] }
+    deactivate MongoNative
+end
+
+DSProc -> SocketServer: emitToUser(userId, 'datasource-progress',\n{ progress: 40, message: 'Schema discovered. Creating PostgreSQL tables...' })
+SocketServer --> Frontend: Progress: 40%
+
+' ---- Create PostgreSQL Schema ----
+DSProc -> PG: CREATE SCHEMA IF NOT EXISTS dra_mongodb_33
+activate PG
+PG --> DSProc: Schema created
+deactivate PG
+
+loop For each collection
+    DSProc -> MongoNative: getMongoToPGTypeMap(inferredSchema)
+    MongoNative --> DSProc: typeMappings
+
+    DSProc -> PG: CREATE TABLE dra_mongodb_33.{collection_name}\n(\n  _id VARCHAR(24) PRIMARY KEY,\n  {field_1} {pg_type},\n  {field_2} {pg_type},\n  ...\n  _raw_document JSONB,  -- original MongoDB document\n  _imported_at TIMESTAMP DEFAULT NOW()\n)
+    activate PG
+    PG --> DSProc: Table created
+    deactivate PG
+end
+
+DSProc -> SocketServer: emitToUser(userId, 'datasource-progress',\n{ progress: 60, message: 'Tables ready. Importing data...' })
+SocketServer --> Frontend: Progress: 60%
+
+' ---- Import Data ----
+DSProc -> MongoImport: importAllCollections(33, connectionDetails)
+activate MongoImport
+
+loop For each collection (batched)
+    MongoImport -> MongoDB: db.collection.find({}).batchSize(500)
+    activate MongoDB
+    MongoDB --> MongoImport: Cursor (streaming documents)
+    deactivate MongoDB
+
+    loop For each batch of 500 documents
+        MongoImport -> MongoImport: Transform documents:\n- Flatten nested objects (address.city → address_city)\n- Convert ObjectId → string\n- Convert Date → ISO string\n- Arrays → JSON stringify
+        MongoImport -> PG: INSERT INTO dra_mongodb_33.{collection}\n(batch COPY via pg.copy stream for performance)
+        activate PG
+        PG --> MongoImport: Batch inserted
+        deactivate PG
+    end
+end
+
+MongoImport --> DSProc: { totalDocuments: 125000, collections: 4 }
+deactivate MongoImport
+
+DSProc -> PG: UPDATE dra_data_sources\nSET status = 'connected',\n    row_count = 125000,\n    last_synced_at = NOW()\nWHERE id = 33
+activate PG
+PG --> DSProc: Updated
+deactivate PG
+
+DSProc -> SyncHistory: recordSync(33, 'FULL', 125000, 'COMPLETED')
+activate SyncHistory
+SyncHistory -> PG: INSERT INTO dra_mongodb_sync_history\n{ data_source_id: 33, sync_type: 'FULL',\n  records_synced: 125000,\n  status: 'COMPLETED', completed_at: NOW() }
+PG --> SyncHistory: Stored
+SyncHistory --> DSProc: done
+deactivate SyncHistory
+
+DSProc -> NotifHelper: createNotification(userId,\n  type: 'data_sync_complete',\n  message: 'MongoDB data source ready: 125,000 documents imported from 4 collections')
+NotifHelper -> PG: INSERT notification
+NotifHelper -> SocketServer: emitToUser(userId, 'notification', ...)
+SocketServer --> Frontend: Toast: Data source ready
+
+DSProc -> SocketServer: emitToUser(userId, 'datasource-progress',\n{ progress: 100, message: 'Import complete!' })
+SocketServer --> Frontend: Progress: 100%
+
+DSProc --> DSRouter: { dataSourceId: 33, collections: 4, totalRows: 125000 }
+deactivate DSProc
+
+DSRouter --> Frontend: HTTP 200 OK\n{ dataSourceId: 33, collections: 4,\n  tables: ['users', 'orders', 'products', 'events'],\n  totalRows: 125000 }
+deactivate DSRouter
+
+' ============================================
+' FLOW 2: Incremental Sync (Delta)
+' ============================================
+
+== Flow 2: Incremental Sync (Delta Update) ==
+
+Frontend -> DSRouter: POST /data-sources/sync/{dataSourceId}\nAuthorization: Bearer {JWT}\n{ syncType: 'incremental',\n  sinceTimestamp: '2024-01-15T00:00:00Z' }
+activate DSRouter
+DSRouter -> AuthMW: validateJWT
+AuthMW --> DSRouter: ✅
+
+DSRouter -> DSProc: syncDataSource(33, userId, 'incremental', sinceTimestamp)
+activate DSProc
+
+DSProc -> PG: LOAD dra_data_sources WHERE id = 33\n(auto-decrypt connection_details)
+activate PG
+PG --> DSProc: dataSource + decrypted credentials
+deactivate PG
+
+DSProc -> MongoImport: syncDelta(33, connectionDetails, sinceTimestamp)
+activate MongoImport
+
+MongoImport -> MongoDB: db.users.find({ updatedAt: { $gte: sinceTimestamp } }).batchSize(500)
+MongoDB --> MongoImport: Updated documents (since last sync)
+
+MongoImport -> PG: INSERT INTO dra_mongodb_33.users ... ON CONFLICT (_id)\nDO UPDATE SET {all columns} = EXCLUDED.{all columns}
+activate PG
+PG --> MongoImport: 1247 rows upserted
+deactivate PG
+
+MongoImport --> DSProc: { synced: 1247, collections: ['users', 'orders'] }
+deactivate MongoImport
+
+DSProc -> PG: UPDATE dra_data_sources\nSET last_synced_at = NOW()\nWHERE id = 33
+PG --> DSProc: Updated
+
+DSProc -> SyncHistory: recordSync(33, 'INCREMENTAL', 1247, 'COMPLETED')
+SyncHistory -> PG: INSERT INTO dra_mongodb_sync_history
+PG --> SyncHistory: Stored
+
+DSProc --> DSRouter: { synced: 1247 }
+deactivate DSProc
+DSRouter --> Frontend: HTTP 200 OK\n{ synced: 1247, lastSyncedAt }
+deactivate DSRouter
+
+' ============================================
+' FLOW 3: Cross-Source Query (MongoDB + PostgreSQL)
+' ============================================
+
+== Flow 3: Cross-Source Query Translation ==
+
+Frontend -> DSRouter: POST /data-models/{modelId}/query\nAuthorization: Bearer {JWT}\n{ sql: 'SELECT u.name, SUM(o.amount) as total\n        FROM mongodb_users u\n        JOIN postgresql_transactions t ON u._id = t.user_ref\n        GROUP BY u.name\n        ORDER BY total DESC LIMIT 10' }
+activate DSRouter
+
+DSRouter -> DSProc: executeQuery(modelId, sql, userId)
+activate DSProc
+
+DSProc -> MongoQuery: translateAndExecute(sql, dataModel)
+activate MongoQuery
+
+MongoQuery -> MongoQuery: Parse SQL AST:\n- Identify MongoDB source tables\n  (dra_mongodb_{id} schema)\n- Identify PostgreSQL source tables\n- Detect JOIN conditions
+
+MongoQuery -> PG: Execute query against PostgreSQL\nwith MongoDB data materialized in\ndra_mongodb_{id} schema\n(MongoDB data was imported to PG — uniform SQL!)
+activate PG
+PG --> MongoQuery: Result rows
+deactivate PG
+
+MongoQuery --> DSProc: queryResults (rows, columns, executionTime)
+deactivate MongoQuery
+
+DSProc --> DSRouter: queryResults
+deactivate DSProc
+
+DSRouter --> Frontend: HTTP 200 OK\n{ rows: [...], columns: [...],\n  totalRows: 10, executionTimeMs: 245 }
+deactivate DSRouter
+
+note right: **Key Design Decision:**\nMongoDB documents are imported into\nPostgreSQL schemas. This enables:\n- Standard SQL queries across all sources\n- JOINs between MongoDB and any other source\n- No separate MongoDB query engine needed at query time\n- MongoDBQueryTranslator only needed for schema mapping
+
+' ============================================
+' FLOW 4: Delete MongoDB Data Source
+' ============================================
+
+== Flow 4: Delete MongoDB Data Source ==
+
+Frontend -> DSRouter: DELETE /data-sources/{dataSourceId}\nAuthorization: Bearer {JWT}
+activate DSRouter
+DSRouter -> DSProc: deleteDataSource(33, userId)
+activate DSProc
+
+DSProc -> PG: BEGIN TRANSACTION
+activate PG
+DSProc -> PG: DELETE FROM dra_mongodb_sync_history WHERE data_source_id = 33
+DSProc -> PG: DROP SCHEMA dra_mongodb_33 CASCADE\n(deletes all imported collection tables)
+DSProc -> PG: DELETE FROM dra_data_sources WHERE id = 33
+DSProc -> PG: COMMIT
+PG --> DSProc: All deleted
+deactivate PG
+
+DSProc --> DSRouter: { deleted: true }
+deactivate DSProc
+DSRouter --> Frontend: HTTP 200 OK { deleted: true }
+deactivate DSRouter
+
+note over Frontend, PG
+  **MongoDB Type Mapping to PostgreSQL:**
+
+  | MongoDB Type       | PostgreSQL Type          |
+  |--------------------|--------------------------|
+  | ObjectId           | VARCHAR(24)              |
+  | String             | TEXT                     |
+  | Number (int)       | INTEGER or BIGINT        |
+  | Number (float)     | DOUBLE PRECISION         |
+  | Boolean            | BOOLEAN                  |
+  | Date               | TIMESTAMP WITH TIME ZONE |
+  | Array              | JSONB                    |
+  | Nested Document    | Flattened as {parent}_{child} columns or JSONB |
+  | null               | NULL                     |
+
+  **MongoDB Services:**
+  - MongoDBNativeService    → connection, listCollections, inferSchema
+  - MongoDBImportService    → full import, delta sync, streaming insert
+  - MongoDBQueryTranslator  → schema mapping for cross-source queries
+
+  **Schema Naming:**
+  - dra_mongodb_{dataSourceId} in PostgreSQL
+  - Table per MongoDB collection
+  - _raw_document JSONB column preserves original doc
+
+  **Sync Tracking:**
+  - dra_mongodb_sync_history — per-sync metadata
+  - Supports: FULL, INCREMENTAL sync types
+end note
+
+@enduml

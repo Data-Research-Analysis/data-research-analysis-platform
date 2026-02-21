@@ -1,0 +1,282 @@
+@startuml Data_Quality_Sequence_Diagram
+title Data Research Analysis Platform - Data Quality Analysis & Cleaning
+
+participant "Frontend\n(Vue/Nuxt)" as Frontend
+participant "Auth MW +\nTier Check" as AuthMW
+participant "Express Router\n/data-quality" as DQRouter
+participant "DataQuality\nProcessor" as DQProc
+participant "DataQuality\nExecution\nService" as DQExecSvc
+participant "DataQuality\nHistory\nService" as DQHistSvc
+participant "Notification\nHelper" as NotifHelper
+participant "Socket.IO\nServer" as SocketServer
+participant "Database\n(PostgreSQL)" as DB
+
+' ============================================
+' FLOW 1: Analyze Data Model Quality
+' ============================================
+
+== Flow 1: Run Data Quality Analysis ==
+
+Frontend -> DQRouter: POST /data-quality/analyze/{data_model_id}\nAuthorization: Bearer {JWT}\n{ checks: ['null_values', 'duplicates', 'outliers',\n           'type_consistency', 'referential_integrity'],\n  options: { sample_size: 10000, threshold: 0.05 } }
+activate DQRouter
+
+DQRouter -> AuthMW: validateJWT + tierCheck('data_quality')
+AuthMW --> DQRouter: ✅ tier=starter+
+
+DQRouter -> DQProc: analyze(dataModelId, userId, checks, options)
+activate DQProc
+
+DQProc -> DB: SELECT dm.*, ds.data_type, ds.connection_details\nFROM dra_data_models dm\nJOIN dra_data_sources ds ON dm.data_source_id = ds.id\nWHERE dm.id = ? AND dm.project_id IN (user_projects)
+activate DB
+DB --> DQProc: dataModel + dataSource details
+deactivate DB
+
+DQProc -> DB: INSERT INTO dra_data_quality_reports\n{ data_model_id, user_id, status: 'running',\n  checks_requested: checks,\n  started_at: NOW() }
+activate DB
+DB --> DQProc: report.id = 201
+deactivate DB
+
+DQProc -> SocketServer: emitToUser(userId, 'dq-analysis-progress',\n{ reportId: 201, progress: 5,\n  message: 'Starting data quality analysis...' })
+SocketServer --> Frontend: Progress: 5%
+
+DQProc -> DQExecSvc: runChecks(dataModel, checks, options, reportId)
+activate DQExecSvc
+
+' ---- Check 1: Null values ----
+DQExecSvc -> DQExecSvc: Run null_values check
+DQExecSvc -> DB: SELECT column_name,\n  COUNT(*) AS total_rows,\n  COUNT(column_name) AS non_null_rows,\n  COUNT(*) - COUNT(column_name) AS null_count,\n  ROUND(100.0 * (COUNT(*) - COUNT(column_name)) / COUNT(*), 2) AS null_pct\nFROM {dynamic_schema}.{table}\nGROUP BY ... (per column)
+activate DB
+DB --> DQExecSvc: nullStats per column
+deactivate DB
+
+DQExecSvc -> SocketServer: emitToUser(userId, 'dq-analysis-progress',\n{ progress: 25, message: 'Null check complete' })
+SocketServer --> Frontend: Progress: 25%
+
+' ---- Check 2: Duplicates ----
+DQExecSvc -> DQExecSvc: Run duplicates check
+DQExecSvc -> DB: SELECT *, COUNT(*) AS occurrences\nFROM {schema}.{table}\nGROUP BY {all_columns}\nHAVING COUNT(*) > 1
+activate DB
+DB --> DQExecSvc: duplicateStats { count, pct, sample_rows }
+deactivate DB
+
+DQExecSvc -> SocketServer: emitToUser(userId, 'dq-analysis-progress',\n{ progress: 45, message: 'Duplicate check complete' })
+SocketServer --> Frontend: Progress: 45%
+
+' ---- Check 3: Outliers ----
+DQExecSvc -> DQExecSvc: Run outliers check\n(for numeric columns only)
+DQExecSvc -> DB: SELECT column_name,\n  AVG(value) AS mean, STDDEV(value) AS stddev,\n  MIN(value), MAX(value),\n  PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY value) AS q1,\n  PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY value) AS q3\nFROM {table}
+activate DB
+DB --> DQExecSvc: distributions
+deactivate DB
+DQExecSvc -> DQExecSvc: Detect outliers:\n- Z-score method: |z| > 3\n- IQR method: value < Q1-1.5*IQR\n              or value > Q3+1.5*IQR
+
+DQExecSvc -> SocketServer: emitToUser(userId, 'dq-analysis-progress',\n{ progress: 65, message: 'Outlier detection complete' })
+SocketServer --> Frontend: Progress: 65%
+
+' ---- Check 4: Type Consistency ----
+DQExecSvc -> DQExecSvc: Run type_consistency check
+DQExecSvc -> DB: SELECT column_name,\n  data_type,\n  COUNT(*) FILTER (WHERE value !~ '^[0-9]+$'\n                  AND data_type = 'integer') AS type_violations\nFROM information_schema.columns ...
+activate DB
+DB --> DQExecSvc: typeViolations per column
+deactivate DB
+
+DQExecSvc -> SocketServer: emitToUser(userId, 'dq-analysis-progress',\n{ progress: 80, message: 'Type consistency check complete' })
+SocketServer --> Frontend: Progress: 80%
+
+' ---- Check 5: Referential Integrity ----
+DQExecSvc -> DQExecSvc: Run referential_integrity check
+DQExecSvc -> DB: SELECT COUNT(*) AS orphaned_records\nFROM {table} t\nWHERE t.foreign_key_col NOT IN\n  (SELECT id FROM {referenced_table}\n   WHERE id IS NOT NULL)
+activate DB
+DB --> DQExecSvc: integrityResults
+deactivate DB
+
+DQExecSvc -> DQExecSvc: Compile all check results into:\n{\n  null_values: { score: 85, issues: [...] },\n  duplicates: { score: 95, issues: [...] },\n  outliers: { score: 72, issues: [...] },\n  type_consistency: { score: 98, issues: [...] },\n  referential_integrity: { score: 100, issues: [] },\n  overall_quality_score: 90\n}
+
+DQExecSvc --> DQProc: analysisResults
+deactivate DQExecSvc
+
+DQProc -> SocketServer: emitToUser(userId, 'dq-analysis-progress',\n{ progress: 90, message: 'Saving results...' })
+SocketServer --> Frontend: Progress: 90%
+
+DQProc -> DB: UPDATE dra_data_quality_reports\nSET status = 'completed',\n    results_json = analysisResults,\n    overall_score = 90,\n    completed_at = NOW()\nWHERE id = 201
+activate DB
+DB --> DQProc: Updated
+deactivate DB
+
+DQProc -> DQHistSvc: recordHistoryEntry(data_model_id, reportId, overallScore)
+activate DQHistSvc
+DQHistSvc -> DB: INSERT INTO dra_data_quality_history\n{ data_model_id, report_id,\n  overall_score: 90, measured_at: NOW() }
+activate DB
+DB --> DQHistSvc: Stored
+deactivate DB
+DQHistSvc --> DQProc: done
+deactivate DQHistSvc
+
+DQProc -> NotifHelper: createNotification(userId,\n  type: 'data_quality_complete',\n  title: 'Data Quality Analysis Complete',\n  message: 'Your data model scored 90/100 overall quality')
+NotifHelper -> DB: INSERT notification
+NotifHelper -> SocketServer: emitToUser(userId, 'notification', ...)
+SocketServer --> Frontend: Toast notification
+
+DQProc -> SocketServer: emitToUser(userId, 'dq-analysis-progress',\n{ progress: 100, reportId: 201, overallScore: 90 })
+SocketServer --> Frontend: Analysis complete — display results
+
+DQProc --> DQRouter: { reportId: 201, overallScore: 90, results: analysisResults }
+deactivate DQProc
+
+DQRouter --> Frontend: HTTP 200 OK\n{ reportId: 201, overallScore: 90,\n  checks: { null_values: {...}, duplicates: {...},\n            outliers: {...}, ... } }
+deactivate DQRouter
+
+' ============================================
+' FLOW 2: Clean Data Issues
+' ============================================
+
+== Flow 2: Apply Data Cleaning Operations ==
+
+Frontend -> DQRouter: POST /data-quality/clean/{data_model_id}\nAuthorization: Bearer {JWT}\n{ reportId: 201,\n  operations: [\n    { type: 'remove_duplicates', columns: ['all'] },\n    { type: 'fill_nulls', column: 'age', strategy: 'mean' },\n    { type: 'remove_outliers', column: 'revenue', method: 'iqr' }\n  ],\n  preview_only: false }
+activate DQRouter
+
+DQRouter -> AuthMW: validateJWT + tierCheck
+AuthMW --> DQRouter: ✅
+
+DQRouter -> DQProc: clean(dataModelId, userId, operations, previewOnly)
+activate DQProc
+
+DQProc -> DB: SELECT * FROM dra_data_quality_reports WHERE id = reportId
+activate DB
+DB --> DQProc: report (status=completed)
+deactivate DB
+
+alt previewOnly = true
+    DQProc -> DQExecSvc: previewCleaning(dataModel, operations)
+    activate DQExecSvc
+    DQExecSvc -> DB: Run cleaning logic on sample rows\n(no writes — ROLLBACK after SELECT)
+    DB --> DQExecSvc: preview { rowsAffected, sampleChanges }
+    DQExecSvc --> DQProc: preview results
+    deactivate DQExecSvc
+    DQProc --> DQRouter: { preview: true, rowsAffected, sampleChanges }
+    DQRouter --> Frontend: HTTP 200 OK { preview: { rowsAffected, changes } }
+else Apply operations
+    DQProc -> DB: BEGIN TRANSACTION
+    activate DB
+
+    loop For each cleaning operation
+        alt type = 'remove_duplicates'
+            DQProc -> DB: DELETE FROM {schema}.{table}\nWHERE id NOT IN (\n  SELECT MIN(id) FROM {table}\n  GROUP BY {all_columns}\n)
+            DB --> DQProc: deletedRows
+        else type = 'fill_nulls'
+            alt strategy = 'mean'
+                DQProc -> DB: UPDATE {table}\nSET {column} = (SELECT AVG({column}) FROM {table})\nWHERE {column} IS NULL
+            else strategy = 'median'
+                DQProc -> DB: UPDATE {table}\nSET {column} = PERCENTILE_CONT(0.5)...\nWHERE {column} IS NULL
+            else strategy = 'mode'
+                DQProc -> DB: UPDATE {table}\nSET {column} = (SELECT {column} FROM {table}\nGROUP BY {column} ORDER BY COUNT DESC LIMIT 1)\nWHERE {column} IS NULL
+            else strategy = 'constant'
+                DQProc -> DB: UPDATE {table}\nSET {column} = {fill_value}\nWHERE {column} IS NULL
+            end
+        else type = 'remove_outliers'
+            DQProc -> DB: DELETE FROM {table}\nWHERE {column} < (Q1 - 1.5 * IQR)\n   OR {column} > (Q3 + 1.5 * IQR)
+        else type = 'fix_type'
+            DQProc -> DB: ALTER COLUMN or CAST to proper type
+        end
+    end
+
+    DQProc -> DB: COMMIT
+    deactivate DB
+
+    DQProc -> DB: INSERT INTO dra_data_quality_cleaning_runs\n{ data_model_id, report_id, operations_json,\n  rows_affected, applied_at: NOW(), user_id }
+    DB --> DQProc: cleaningRun.id = 55
+
+    DQProc -> DQProc: Re-run quality checks to\nget new score after cleaning
+
+    DQProc --> DQRouter: { cleaned: true, operationsApplied: 3,\n  rowsModified: 47, newQualityScore: 97 }
+end
+
+DQProc --> DQRouter: cleaningResult
+deactivate DQProc
+
+DQRouter --> Frontend: HTTP 200 OK\n{ cleaned: true, rowsModified: 47, newScore: 97 }
+deactivate DQRouter
+
+' ============================================
+' FLOW 3: Get Latest Report
+' ============================================
+
+== Flow 3: Get Latest Quality Report ==
+
+Frontend -> DQRouter: GET /data-quality/report/{data_model_id}/latest\nAuthorization: Bearer {JWT}
+activate DQRouter
+DQRouter -> AuthMW: validateJWT + tierCheck
+AuthMW --> DQRouter: ✅
+
+DQRouter -> DQProc: getLatestReport(dataModelId, userId)
+activate DQProc
+DQProc -> DB: SELECT * FROM dra_data_quality_reports\nWHERE data_model_id = ?\nORDER BY created_at DESC\nLIMIT 1
+activate DB
+DB --> DQProc: report (status=completed)
+deactivate DB
+DQProc --> DQRouter: report
+deactivate DQProc
+DQRouter --> Frontend: HTTP 200 OK\n{ report: { id, overallScore, checks, completedAt } }
+deactivate DQRouter
+
+' ============================================
+' FLOW 4: Get Quality History (Trending)
+' ============================================
+
+== Flow 4: Get Quality Score History ==
+
+Frontend -> DQRouter: GET /data-quality/history/{data_model_id}\nAuthorization: Bearer {JWT}
+activate DQRouter
+DQRouter -> AuthMW: validateJWT + tierCheck
+AuthMW --> DQRouter: ✅
+
+DQRouter -> DQProc: getHistory(dataModelId, userId)
+activate DQProc
+DQProc -> DQHistSvc: getScoreHistory(dataModelId)
+activate DQHistSvc
+DQHistSvc -> DB: SELECT overall_score, measured_at, report_id\nFROM dra_data_quality_history\nWHERE data_model_id = ?\nORDER BY measured_at ASC
+activate DB
+DB --> DQHistSvc: historyPoints[]
+deactivate DB
+DQHistSvc --> DQProc: historyPoints
+deactivate DQHistSvc
+DQProc --> DQRouter: historyData
+deactivate DQProc
+DQRouter --> Frontend: HTTP 200 OK\n{ history: [\n    { score: 72, measured_at: '2024-01-01' },\n    { score: 85, measured_at: '2024-01-15' },\n    { score: 97, measured_at: '2024-01-20' }\n  ] }
+deactivate DQRouter
+
+Frontend -> Frontend: Render quality score trend chart\nShow improvement over time after cleaning
+
+note over Frontend, DB
+  **Data Quality Checks:**
+
+  | Check                  | Method                          | Severity    |
+  |------------------------|---------------------------------|-------------|
+  | null_values            | COUNT nulls per column          | Medium      |
+  | duplicates             | GROUP BY + HAVING COUNT > 1     | High        |
+  | outliers               | Z-score or IQR detection        | Medium      |
+  | type_consistency       | Regex/cast validation           | High        |
+  | referential_integrity  | Orphan record detection         | Critical    |
+
+  **Quality Score Calculation:**
+  - Each check produces 0-100 score
+  - Weighted average based on check severity
+  - Stored in dra_data_quality_history for trending
+
+  **Cleaning Operations:**
+  - remove_duplicates: keep MIN(id) variant
+  - fill_nulls: mean | median | mode | constant | forward_fill
+  - remove_outliers: IQR or z-score based
+  - fix_type: cast columns to target type
+  - trim_whitespace: TRIM() for text columns
+
+  **Tables:**
+  - dra_data_quality_reports    — per-analysis results
+  - dra_data_quality_history    — score over time
+  - dra_data_quality_cleaning_runs — cleaning audit trail
+
+  **Tier Requirements:**
+  - Data quality analysis requires starter tier or above
+end note
+
+@enduml

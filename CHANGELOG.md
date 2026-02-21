@@ -6,6 +6,465 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## 2026-02-21
+
+### Added - Article Versioning System ✅
+
+**Commits:**
+- feat(articles): add versioning system and fix 5 editor bugs (4e6fd43)
+
+**Article Versioning:**
+- Added DRAArticleVersion TypeORM entity with cascade delete, version number, title, content, change summary, and author tracking
+- Migration creates dra_article_versions table with composite index, fixes dra_articles_categories FK to ON DELETE CASCADE
+- Backfill migration automatically seeds all existing articles as version 1 using original created_at timestamps
+- ArticleProcessor: createVersion, getVersions, getVersion, restoreVersion methods
+- editArticle now auto-snapshots current state as a new version before every save
+- restoreVersion auto-snapshots current state before overwriting with historical content
+
+**New REST Routes:**
+- GET /admin/article/:id/versions — list all versions (newest first)
+- GET /admin/article/:id/versions/:n — fetch a specific version
+- POST /admin/article/:id/versions/:n/restore — restore article to a previous version
+
+**Frontend:**
+- IArticleVersion type interface (frontend + backend)
+- articles Pinia store: articleVersions ref, setArticleVersions, getArticleVersions, clearArticleVersions with localStorage sync
+- useArticleVersions SSR-safe composable following useAuthenticatedFetch pattern
+- article-version-preview-modal component for read-only version preview
+- Edit article page: collapsible version history panel between categories and editor, version badge (vN) in heading, Preview and Restore actions per row
+
+### Fixed - TipTap Editor Bugs ✅
+
+**Bug Fixes:**
+- Fixed saveAsDraft using response.status check which $fetch never returns; replaced with try/catch
+- Fixed deleteArticle and editArticle querying category mappings with {where: {article: entity}} which fails on composite PK join tables; changed to {where: {article_id: id}}
+- Removed EnterKeyFix custom Extension (priority 1000 was intercepting Enter before Markdown extension, breaking newlines)
+- Replaced window.prompt link dialog with inline reactive linkDialog to prevent editor selection loss
+- Fixed cursor jumping to end of document on every keypress using isInternalUpdate guard flag
+
+**Files Modified:**
+- backend/src/models/DRAArticleVersion.ts (new)
+- backend/src/types/IArticleVersion.ts (new)
+- backend/src/migrations/1771400000000-CreateArticleVersionsAndFixCascade.ts (new)
+- backend/src/models/DRAArticle.ts
+- backend/src/models/DRAArticleCategory.ts
+- backend/src/processors/ArticleProcessor.ts
+- backend/src/routes/admin/article.ts
+- backend/src/datasources/PostgresDataSource.ts
+- backend/src/datasources/PostgresDSMigrations.ts
+- frontend/types/IArticleVersion.ts (new)
+- frontend/stores/articles.ts
+- frontend/composables/useArticleVersions.ts (new)
+- frontend/components/article-version-preview-modal.vue (new)
+- frontend/pages/admin/articles/[articleid]/index.vue
+- frontend/pages/admin/articles/create.vue
+- frontend/components/text-editor.vue
+
+---
+
+## 2026-02-19
+
+### Fixed - Google Analytics (gtag) Tracking ✅
+
+**Commits:**
+- Working on fixing the google analytics (g-tag) tracking (6871f25)
+- Merge pull request #325 from Data-Research-Analysis/DRA-254-Google-Analytics-Tracking-Not-Working (ae82765)
+- Enabled gtag debug view (d336f7d)
+
+**Changes:**
+- Fixed Google Analytics gtag tracking that was not firing correctly
+- Enabled gtag debug view for tracking verification
+- Resolved timing issues affecting analytics event capture
+
+---
+
+## 2026-02-18
+
+### Added - AI Insights Feature ✅
+
+**Commits:**
+- fix: improve AI error handling and add insights feature (6d0a3e6)
+- Merge pull request #324 from Data-Research-Analysis/322-feature-request-add-ai-powered-analysis-insights-feature (5e900e2)
+- fix(insights): resolve insights generation and display bugs (f0d795b)
+
+**AI Insights:**
+- Added AI-powered data analysis that samples connected data sources and generates actionable insights using Google Gemini
+- Initialize insight sessions by selecting a project and one or more data sources
+- AI automatically analyzes sampled data and generates structured insight reports
+- Conversational follow-up chat allows users to ask deeper questions about their data
+- Save, view, and delete insight reports per project
+- Redis-based session persistence with dedicated insightsLimiter rate limiting
+- DRAAIInsightReport and DRAAIInsightMessage TypeORM entities
+- REST routes: POST /insights/session/initialize, POST /insights/session/generate, POST /insights/session/chat, GET /insights/session/:projectId, DELETE /insights/session/:projectId, POST /insights/reports/save, GET /insights/reports/project/:projectId, GET /insights/reports/:reportId, DELETE /insights/reports/:reportId
+- Fixed insights generation and display bugs post-merge
+
+**Files Modified:**
+- backend/src/models/DRAAIInsightReport.ts (new)
+- backend/src/models/DRAAIInsightMessage.ts (new)
+- backend/src/routes/insights.ts (new)
+- backend/src/controllers/InsightsController.ts (new)
+- backend/src/migrations/1771316935198-CreateAIInsightsTables.ts (new)
+
+### Fixed - Data Model Builder Group By Columns ✅
+
+**Commits:**
+- Fixed bug where a column added manually to the group by columns was not being added to the data model, and other small fixes (758572f)
+- Merge pull request #323 from Data-Research-Analysis/DRA-253-Data-Model-Builder-Group-By-Columns-Selected-Do-Not-Get-Added-When-Building-Final-SQL (ca9e862)
+
+**Changes:**
+- Fixed bug where manually added group by columns were not being included when building the final SQL query
+- Applied other minor fixes discovered during testing
+
+**Files Modified:**
+- frontend/components/data-model-builder.vue
+- backend/src/processors/DataSourceProcessor.ts
+
+---
+
+## 2026-02-16
+
+### Fixed - Google Analytics API Calls ✅
+
+**Commits:**
+- Fixed Google Analytics APIs calls (d086bb2)
+- Fixed issues found mentioned in the console log (a713a54)
+- Fixing google analytics timing issue (4de706a)
+
+**Changes:**
+- Fixed incorrect Google Analytics API calls that were failing
+- Resolved console log errors in the analytics integration
+- Fixed timing issue affecting google analytics data loading
+
+---
+
+## 2026-02-14
+
+### Fixed - Socket.IO Bugs and Type Errors ✅
+
+**Commits:**
+- Fixing socket io related bugs (f437abb)
+- Fixed type errors (eaf875b)
+- Removed files not needed (eace8e7)
+
+**Changes:**
+- Fixed Socket.IO connection and event handling bugs
+- Resolved TypeScript type errors across the codebase
+- Cleaned up unused files
+
+### Added - MongoDB Integration (Complete) ✅
+
+**Commits:**
+- Merge pull request #315 from Data-Research-Analysis/303-mongodb-integration (9fc25d1)
+- feat: implement AI persistence & UI improvements (19b6ef1)
+- fix(mongodb): Fix MongoDB synced data query execution and metadata tracking (a25c0ee)
+
+**MongoDB Integration:**
+- Completed full MongoDB integration with real-time sync progress
+- Fixed MongoDB synced data query execution
+- Fixed metadata tracking for MongoDB collections
+- Implemented AI persistence for MongoDB data sources
+- UI improvements for MongoDB data source management
+
+**Files Modified:**
+- backend/src/drivers/MongoDBDriver.ts
+- backend/src/processors/DataSourceProcessor.ts
+- frontend (MongoDB data source pages)
+
+---
+
+## 2026-02-13
+
+### Fixed - AI Data Modeler GROUP BY and Aggregate Expressions ✅
+
+**Commits:**
+- Merge pull request #320 from Data-Research-Analysis/DRA-250-AI-Data-Modeler-Aggregate-Expressions-Not-Handling-Group-By-Correctly (7b6c991)
+- fix: resolve GROUP BY errors when AI data modeler uses aggregate expressions (b1dcaea)
+- fix: resolve persistent DateTimeParseError and data population failures in data model INSERT (04d6a5e)
+- Fixing ai system prompt to handle group by correctly when aggregate expressions are added (79b5473)
+- Fixed ai system prompt to handle group by correctly when aggregate expressions are added (2e7d753)
+
+**Changes:**
+- Fixed GROUP BY errors occurring when AI data modeler generates models with aggregate expressions
+- Resolved persistent DateTimeParseError causing data population failures during data model INSERT operations
+- Updated AI system prompts to correctly handle GROUP BY when aggregate expressions are present
+- Fixed data model INSERT pipeline failures that blocked data from being saved
+
+**Files Modified:**
+- backend/src/processors/DataSourceProcessor.ts
+- backend/src/constants/system-prompts.ts
+
+---
+
+## 2026-02-12
+
+### Fixed - Dashboard Table Chart and SQL Error Display ✅
+
+**Commits:**
+- feat: add user-friendly SQL error display and enhanced ORDER BY dropdown (e44f9c1)
+- fix: remove hardcoded 20-row limit in dashboard table chart (4f3e127)
+- Fixed table chart in the dashboard and also removed three of the resize corner icons and have only left the bottom right corner to make it easy to use (9694846)
+- Fixed back ticks in the prompt file (743cd45)
+
+**Changes:**
+- Added user-friendly SQL error display so users see readable error messages instead of raw SQL errors
+- Enhanced ORDER BY dropdown with improved UX
+- Removed hardcoded 20-row limit in the dashboard table chart
+- Simplified table chart resize to single bottom-right corner handle for improved usability
+- Fixed back tick syntax in AI system prompt file
+
+### Fixed - MongoDB Hang and PostgreSQL Date Operations ✅
+
+**Commits:**
+- fix: resolve MongoDB hang and PostgreSQL date operations in AI modeler (b7b80a4)
+
+**Changes:**
+- Resolved MongoDB driver hanging on certain connection scenarios
+- Fixed PostgreSQL date operation handling in AI Data Modeler queries
+
+### Added - Large Excel File Upload with Server-Side Preview ✅
+
+**Commits:**
+- Merge pull request #319 from Data-Research-Analysis/DRA-249-Implement-Large-Excel-Files-Upload-Compatibility (6496dd1)
+- feat(excel-upload): implement server-side Excel preview with multi-sheet support (f9549fa)
+- feat(mongodb): Comprehensive MongoDB integration with real-time sync progress (1710ff3)
+
+**Changes:**
+- Implemented server-side Excel file preview supporting large files that exceed client-side memory limits
+- Multi-sheet support in server-side preview
+- Real-time sync progress for MongoDB integration via Socket.IO
+- Comprehensive MongoDB integration with connection pooling and error handling
+
+**Files Modified:**
+- backend/src/routes/excel.ts
+- backend/src/processors/DataSourceProcessor.ts
+- frontend/pages (Excel upload pages)
+
+---
+
+## 2026-02-11
+
+### Added - Copy Data Model Feature ✅
+
+**Commits:**
+- Merge pull request #318 from Data-Research-Analysis/DRA-56-Implement-Copy-Data-Model (fc72402)
+- feat(data-models): add copy model feature and fix aggregate expression query generation (d93deb5)
+- AI-generated data models with aggregate expressions will now correctly handle GROUP BY (649c07a)
+
+**Changes:**
+- Users can now copy/duplicate an existing data model to a new one
+- Fixed aggregate expression query generation in copied and AI-generated models
+- AI-generated data models with aggregate expressions now correctly include all required GROUP BY columns
+
+**Files Modified:**
+- backend/src/processors/DataModelProcessor.ts
+- backend/src/routes/data-model.ts
+- frontend/pages (data models pages)
+
+### Fixed - AI Data Modeler Schema/Table Validation ✅
+
+**Commits:**
+- Merge pull request #317 from Data-Research-Analysis/DRA-248-AI-Data-Modeler-Validation-Invalid-Schema-Validation (59f1bf1)
+- Fixed the bug where the ai data modeler was incorrectly picking the wrong schema and table while validating the model (f4bb337)
+
+**Changes:**
+- Fixed bug where AI Data Modeler validation was selecting incorrect schema/table combinations
+- Validation now correctly matches the intended table against the right schema during model verification
+
+**Files Modified:**
+- backend/src/controllers/AIDataModelerController.ts
+
+---
+
+## 2026-02-10
+
+### Added - MongoDB Data Import Pipeline ✅
+
+**Commits:**
+- feat: MongoDB data import pipeline and public dashboard SSR fixes (30afca7)
+
+**Changes:**
+- Implemented MongoDB data import pipeline for syncing collection data into the platform
+- Fixed public dashboard SSR rendering issues
+- Removed canvas info bar from dashboard display
+
+### Added - Calculated Columns in Calculated Column Expressions ✅
+
+**Commits:**
+- Merge pull request #316 from Data-Research-Analysis/DRA-247-Add-Support-For-Adding-Calculated-Columns-In-A-New-Calculated-Column (049586e)
+
+**Changes:**
+- Users can now reference existing calculated columns when building new calculated columns
+- Enables chained calculated field formulas for more complex derived metrics
+
+### Improved - Create/Edit Dashboard UI ✅
+
+**Commits:**
+- improved the create and edit dashboard, modernizing and cleaning it up (4e5c4fe)
+
+**Changes:**
+- Modernized and cleaned up the create and edit dashboard user interfaces
+- Improved layout, spacing, and visual consistency
+
+**Files Modified:**
+- frontend/pages/projects/[projectid]/dashboards/create.vue
+- frontend/pages/projects/[projectid]/dashboards/[dashboardid]/index.vue
+
+---
+
+## 2026-02-09
+
+### Improved - Data Model Builder and Public Dashboard ✅
+
+**Commits:**
+- feat: enhance data model builder and redesign public dashboard (e155586)
+
+**Changes:**
+- Enhanced data model builder with additional UX and functionality improvements
+- Redesigned public dashboard layout for improved readability and presentation
+- Improved table and chart display in public dashboard view
+
+**Files Modified:**
+- frontend/components/data-model-builder.vue
+- frontend/pages/projects/[projectid]/dashboards/[dashboardid]/public.vue
+
+---
+
+## 2026-02-08
+
+### Added - MongoDB Dual Connection Strategy ✅
+
+**Commits:**
+- feat(mongodb): implement dual connection strategy with native driver support (f6d6adc)
+
+**Changes:**
+- Implemented dual connection strategy for MongoDB: TypeORM + native MongoDB driver
+- Native driver support enables raw aggregation pipelines and collection-level operations
+- Fallback logic between connection strategies for improved reliability
+
+### Improved - Admin Articles List Sorting ✅
+
+**Commits:**
+- Implemented sorting buttons and functionality in the admin articles list (fac2dc1)
+- fixed the backend type fixes and also added existence checks in the seeders (285a516)
+
+**Changes:**
+- Added sort buttons to the admin articles list (sort by title, date, status)
+- Fixed backend TypeScript type errors
+- Added existence checks in database seeders to prevent duplicate seeding errors
+
+**Files Modified:**
+- frontend/pages/admin/articles/index.vue
+- backend/src/seeders/
+
+---
+
+## 2026-02-07
+
+### Added - Marketing Attribution Engine (Phase 1 & 2) ✅
+
+**Commits:**
+- Merge pull request #314 from Data-Research-Analysis/307-feature-request-data-quality-marketing-attribution-engine (efc2779)
+- feat(attribution): implement Phase 2 Marketing Attribution Engine + bug fixes (7455401)
+- feat(attribution): implement Phase 2 foundation - attribution tracking core (09d87af)
+- feat: complete marketing attribution Phase 1 - seed data and report generator (b4bed7c)
+- feat(attribution): Phase 2 - Channel initialization & comprehensive tests (2c32cea)
+- feat: implement conditional attribution tab visibility and refactor data model UI (7aee259)
+- Fixed tooltip size (afdc7a2)
+
+**Marketing Attribution Phase 1:**
+- Seed data for attribution channels (Google Ads, Meta Ads, Email, Organic, etc.)
+- Attribution report generator for multi-touch analysis
+- Attribution data models and database schema
+
+**Marketing Attribution Phase 2:**
+- Attribution tracking core: event capture, session tracking, touchpoint recording
+- Channel initialization with configurable attribution windows
+- Multi-touch attribution models: first-touch, last-touch, linear, time-decay
+- Conditional attribution tab visibility based on data model configuration
+- Comprehensive test suite for attribution engine
+- Refactored data model UI for attribution configuration
+
+**Files Modified:**
+- backend/src/migrations/ (attribution tables)
+- backend/src/models/ (attribution models)
+- backend/src/processors/AttributionProcessor.ts (new)
+- frontend/pages (attribution tab and configuration)
+- frontend/components/data-model-builder.vue
+
+---
+
+## 2026-02-05
+
+### Added - AI Join Suggestions for Cross-Data Source Builder ✅
+
+**Commits:**
+- Merge pull request #313 from Data-Research-Analysis/270-feature-request-ai-suggested-join-relationships-for-non-fk-tables (5dad95d)
+- Added support for join suggestions in cross data sources data model builder (b58293d)
+- Merge pull request #312 (c1bbd3c)
+- feat(ai-join-inference): regenerate inferred joins for Redis sessions + comprehensive architecture docs (f1d77ba)
+- feat(ai-data-modeler): integrate inferred joins into AI context for Excel/PDF sources (1be4490)
+- Fixed duplicate declaration bug (1283a29)
+
+**Changes:**
+- AI-powered join suggestions now work in the cross-data source data model builder
+- Inferred joins are regenerated for active Redis sessions to keep AI context up to date
+- Excel/PDF data source schemas now include inferred join context for the AI Data Modeler
+- Added comprehensive architecture documentation for the join inference system
+- Fixed duplicate variable declaration bug in join inference code
+
+**Files Modified:**
+- backend/src/services/AIJoinInferenceService.ts
+- backend/src/controllers/AIDataModelerController.ts
+- frontend/components/data-model-builder.vue
+- documentation/ai-data-modeler-join-architecture.md (new)
+
+---
+
+## 2026-02-04
+
+### Fixed - AI Data Modeler Crash on Excel Data Source ✅
+
+**Commits:**
+- Merge pull request #311 from Data-Research-Analysis/DRA-246-AI-Data-Modeler-Crashing-in-Excel-Data-Source (6990400)
+- Worked on fixing bug in the AI Data Modeler (4b9172b)
+
+**Changes:**
+- Fixed crash in AI Data Modeler when used with Excel data sources
+- Fixed AI Data Modeler drawer not closing correctly after model generation
+- Resolved issue where drawer not closing was causing the data model fields to not be populated properly
+
+**Files Modified:**
+- frontend/pages/projects/[projectid]/data-sources/[datasourceid]/data-models/create.vue
+- frontend/components/data-model-builder.vue
+
+---
+
+## 2026-02-03
+
+### Added - SEO, GEO, and AIEO Support ✅
+
+**Commits:**
+- Merge pull request #310 from Data-Research-Analysis/DRA-245-Implement-SEO-GEO-and-AIEO-Support-In-The-Website (eea8c12)
+- refactor(frontend): Extract FAQ section into reusable component (31c7233)
+- Fixed the other articles card height (792dae6)
+- perf(frontend): optimize initial page load performance (61e0321)
+
+**SEO/GEO/AIEO Improvements:**
+- Implemented SEO (Search Engine Optimization) improvements across the website
+- Added GEO (Generative Engine Optimization) metadata for AI search engine visibility
+- Added AIEO (AI Engine Optimization) structured data support
+- Extracted FAQ section into a reusable component for better maintainability
+- Fixed articles card height inconsistency
+- Optimized initial page load performance including lazy loading and code splitting improvements
+
+**Files Modified:**
+- frontend/pages/index.vue
+- frontend/components/faq.vue (new)
+- nuxt.config.ts
+- frontend/pages/articles/index.vue
+
+---
+
 ## 2026-01-31
 
 ### Fixed - Aggregate Expression SQL Generation ✅
@@ -41,6 +500,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Eliminates SQL errors: "ERROR: syntax error at or near [" 
 - Eliminates undefined() wrapper: "undefined(SUM([[column]] * [[column]]))"
 - Free-form aggregate expressions work correctly: "SUM(quantity * price) AS total_sales"
+
+### Fixed - Dashboard UI and Data Type Fixes ✅
+
+**Commits:**
+- Added advanced view features listing dialog and improved the overlay dialog (b65c8fc)
+- Fixed table chart z-index bug (7c0bc54)
+- feat: display logical table and clean column names throughout dashboard UI (b59c1e4)
+- Fixed the duplicate data type being appended bug (3f88e7a)
+- fix: prevent duplicate size specification in PostgreSQL data type conversion (abc29c7)
+
+**Changes:**
+- Added advanced view features listing dialog to the data model builder
+- Improved overlay dialog behavior and styling
+- Fixed table chart z-index issue causing it to render behind other elements
+- Dashboard now displays logical table names and clean column names (without prefixes) throughout the UI
+- Fixed bug where PostgreSQL data types were having their size specification appended twice
+
+**Files Modified:**
+- frontend/components/data-model-builder.vue
+- frontend/components/overlay-dialog.vue
+- frontend/components/charts/table-chart.vue
+- backend/src/processors/DataSourceProcessor.ts
 
 ---
 

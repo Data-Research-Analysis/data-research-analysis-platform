@@ -1,0 +1,355 @@
+@startuml AI_Data_Modeler_Sequence_Diagram
+ 
+title Data Research Analysis Platform - AI Data Modeler Flow (Gemini + Redis)
+
+participant "Frontend\n(Vue/Nuxt)" as Frontend
+participant "Auth / Rate\nLimit MW" as Middleware
+participant "Express Router\n/ai-data-modeler" as Router
+participant "AIDataModeler\nController" as Controller
+participant "SchemaCollector\nService" as SchemaCollector
+participant "DBDriver /\nExternal DB" as ExternalDB
+participant "RedisAI\nSessionService" as Redis
+participant "GeminiService\n(Gemini 2.0 Flash)" as Gemini
+participant "Database\n(PostgreSQL)" as DB
+participant "TierEnforcement\nService" as Tier
+
+' ============================================
+' FLOW 1: Single Data Source Session Init
+' ============================================
+
+== Session Initialization (Single Data Source) ==
+
+Frontend -> Router: POST /ai-data-modeler/session/initialize\nAuthorization: Bearer {JWT}\n{ dataSourceId: 42 }
+activate Router
+
+Router -> Middleware: validateJWT + aiOperationsLimiter
+activate Middleware
+Middleware --> Router: User authenticated (20 req/hour limit)
+deactivate Middleware
+
+Router -> Controller: initializeSession(req, res)
+activate Controller
+
+Controller -> DB: Find DRADataSource by id (with encryption auto-decrypt)
+activate DB
+DB --> Controller: DataSource entity\n(connection_details decrypted by ValueTransformer)
+deactivate DB
+
+Controller -> DB: Check for existing Redis session
+activate DB
+DB --> Controller: No active session
+deactivate DB
+
+Controller -> SchemaCollector: collectSchema(dataSource, schemaName)
+activate SchemaCollector
+
+SchemaCollector -> ExternalDB: CONNECT to external database\n(PostgreSQL / MySQL / MariaDB / MongoDB)
+activate ExternalDB
+SchemaCollector -> ExternalDB: SELECT table_name, column_name,\n  data_type FROM information_schema
+ExternalDB --> SchemaCollector: Raw schema rows
+deactivate ExternalDB
+
+SchemaCollector -> SchemaCollector: SchemaFormatter.formatSchemaToMarkdown(tables)
+note right: Formats as Markdown table\nfor optimal AI context ingestion\n\nExample:\n## users\n| column | type |\n|--------|------|
+
+SchemaCollector --> Controller: { markdown, tables[] }
+deactivate SchemaCollector
+
+Controller -> Redis: createSession(dataSourceId, userId, schema, 'datamodeler')
+activate Redis
+Redis -> Redis: Generate UUID conversationId
+Redis -> Redis: SET session:{conversationId} = { dataSourceId, userId,\n  tables, status: 'draft', messages: [] }\nEXPIRE 24h (86400s)
+Redis --> Controller: { conversationId: "uuid-xxxx", status: 'draft' }
+deactivate Redis
+
+Controller -> Gemini: initializeConversation(conversationId, schemaMarkdown, systemPrompt)
+activate Gemini
+Gemini -> Gemini: Initialize chat history with:\n- System prompt (AI Data Modeler expert)\n- Schema context as first user message
+Gemini --> Controller: Conversation initialized
+deactivate Gemini
+
+Controller --> Router: { conversationId, dataSourceId, status: 'draft' }
+Controller --> Frontend: HTTP 200 OK\n{ conversationId, schemaLoaded: true }
+deactivate Controller
+deactivate Router
+
+Frontend -> Frontend: Store conversationId in AI Data Modeler store\nShow chat interface + data source schema preview
+
+' ============================================
+' FLOW 2: Cross-Source Session (Multi DS)
+' ============================================
+
+== Session Initialization (Cross-Source, optional) ==
+
+Frontend -> Router: POST /ai-data-modeler/session/initialize-cross-source\n{ projectId: 5, dataSources: [42, 43, 44] }
+activate Router
+
+Router -> Middleware: validateJWT + aiOperationsLimiter
+Middleware --> Router: Authenticated
+
+Router -> Controller: initializeCrossSourceSession(req, res)
+activate Controller
+
+loop For each dataSourceId
+    Controller -> SchemaCollector: collectSchema(dataSource)
+    SchemaCollector -> ExternalDB: Introspect schema
+    ExternalDB --> SchemaCollector: Schema data
+    SchemaCollector --> Controller: Markdown schema fragment
+end
+
+Controller -> Controller: Merge schemas into combined markdown
+note right: Combined schema includes all\ndata source tables with\nclear source labeling
+
+Controller -> Redis: createSession(projectId, userId, combinedSchema, 'cross-source')
+Redis --> Controller: { conversationId: "uuid-yyyy" }
+
+Controller -> Gemini: initializeConversation(conversationId, combinedSchemaMarkdown, systemPrompt)
+Gemini --> Controller: Initialized
+
+Controller --> Frontend: HTTP 200 OK\n{ conversationId, isCrossSource: true, dataSources: [42,43,44] }
+deactivate Controller
+deactivate Router
+
+' ============================================
+' FLOW 3: Chat Interaction
+' ============================================
+
+== User Sends Message (Chat with AI) ==
+
+Frontend -> Router: POST /ai-data-modeler/session/chat\nAuthorization: Bearer {JWT}\n{ dataSourceId: 42, conversationId: "uuid-xxxx",\n  message: "Create a sales summary model with monthly totals" }
+activate Router
+
+Router -> Middleware: validateJWT + aiOperationsLimiter + enforceAIGenerationLimit
+activate Middleware
+
+Middleware -> DB: Check user's AI generation usage this month
+activate DB
+DB --> Middleware: Usage: 12 / 50 (within tier limit)
+deactivate DB
+
+Middleware --> Router: Allowed (tier: pro, 50/month)
+deactivate Middleware
+
+Router -> Controller: sendMessageWithRedis(req, res)
+activate Controller
+
+Controller -> Redis: getSession(conversationId)
+activate Redis
+Redis --> Controller: Session found (status: draft, messages: [])
+deactivate Redis
+
+Controller -> Redis: addMessage(conversationId, 'user', userMessage)
+Redis --> Controller: Message stored
+
+Controller -> Gemini: sendMessage(conversationId, userMessage)
+activate Gemini
+
+Gemini -> Gemini: Build prompt with full conversation history
+Gemini -> Gemini: Call Gemini 2.0 Flash API
+note right: Structured response format:\n\n## Analysis\nExplanation of approach\n\n## Recommended Models\nTable name, columns, rationale\n\n## SQL Query\n```sql\nSELECT ...\n```
+
+Gemini --> Controller: AI response (structured 3-section text)
+deactivate Gemini
+
+Controller -> Redis: addMessage(conversationId, 'assistant', aiResponse)
+Redis --> Controller: Stored
+
+Controller -> DB: UPDATE dra_ai_data_model_conversations (if exists)\nOR track in Redis only (draft state)
+
+Controller --> Frontend: HTTP 200 OK\n{ message: { role: 'assistant', content: "## Analysis..." },\n  conversationId, suggestedSQL: "SELECT ..." }
+deactivate Controller
+deactivate Router
+
+Frontend -> Frontend: Render AI response in chat panel\nParse SQL from response → populate query builder\nShow "Apply Model" button
+
+' ============================================
+' FLOW 4: Save Model Draft to Redis
+' ============================================
+
+== Apply / Update Model Draft ==
+
+Frontend -> Router: POST /ai-data-modeler/session/model-draft\n{ dataSourceId: 42,\n  modelState: { sql, queryJSON, name: "monthly_sales" } }
+activate Router
+
+Router -> Controller: updateModelDraft(req, res)
+activate Controller
+
+Controller -> Redis: saveModelDraft(conversationId, modelState)
+activate Redis
+Redis -> Redis: SET model_draft:{conversationId} = modelState\nEXPIRE 24h
+Redis --> Controller: Draft saved
+deactivate Redis
+
+Controller --> Frontend: HTTP 200 OK\n{ saved: true }
+deactivate Controller
+deactivate Router
+
+note right of Frontend: UI updates query builder with AI model.\nUser can further modify before saving.
+
+' ============================================
+' FLOW 5: Save to Database (Persist)
+' ============================================
+
+== Save Conversation to PostgreSQL ==
+
+Frontend -> Router: POST /ai-data-modeler/session/save\n{ dataSourceId: 42, dataModelName: "monthly_sales",\n  sqlQuery: "SELECT ...", queryJSON: {...} }
+activate Router
+
+Router -> Middleware: validateJWT
+Middleware --> Router: Authenticated
+
+Router -> Controller: saveSession(req, res)
+activate Controller
+
+Controller -> Redis: getSession(conversationId)
+activate Redis
+Redis --> Controller: Full session (messages, schema, model draft)
+deactivate Redis
+
+Controller -> DB: BEGIN TRANSACTION
+activate DB
+
+Controller -> DB: INSERT INTO dra_data_models\n  (name, sql_query, query, schema, data_source_id, user_id)
+DB --> Controller: dataModel.id = 99
+
+Controller -> DB: INSERT INTO dra_ai_data_model_conversations\n  (data_source_id, user_id, data_model_id,\n   title, status: 'saved', saved_at)
+DB --> Controller: conversation.id = 7
+
+loop For each message in Redis session
+    Controller -> DB: INSERT INTO dra_ai_data_model_messages\n  (conversation_id, role, content, metadata)
+    DB --> Controller: Message persisted
+end
+
+Controller -> DB: COMMIT TRANSACTION
+deactivate DB
+
+Controller -> DB: Execute SQL to CREATE TABLE in target schema
+activate DB
+note right: DataModelProcessor.updateDataModelOnQuery()\nCreates physical table from SQL query
+DB --> Controller: Physical table created
+deactivate DB
+
+Controller -> Redis: DELETE session:{conversationId}\nDELETE model_draft:{conversationId}
+activate Redis
+Redis --> Controller: Redis keys cleared
+deactivate Redis
+
+Controller --> Frontend: HTTP 200 OK\n{ dataModelId: 99, conversationId: 7, saved: true }
+deactivate Controller
+deactivate Router
+
+Frontend -> Frontend: Update data models store\nNavigate to data model view\nShow success notification
+
+' ============================================
+' FLOW 6: Restore Session (Returning User)
+' ============================================
+
+== Restore Existing Session ==
+
+Frontend -> Router: GET /ai-data-modeler/session/42
+activate Router
+
+Router -> Controller: getSession(req, res)
+activate Controller
+
+Controller -> Redis: getSession(dataSourceId, userId)
+activate Redis
+
+alt Redis session exists (within 24h)
+    Redis --> Controller: Session found\n{ conversationId, messages[], modelDraft, status: 'draft' }
+    deactivate Redis
+    Controller --> Frontend: HTTP 200 OK\n{ session: { messages, modelDraft, conversationId } }
+    Frontend -> Frontend: Restore chat history + query builder state
+    
+else Redis session expired or not found
+    Redis --> Controller: null
+    deactivate Redis
+    Controller --> Frontend: HTTP 200 OK\n{ session: null }
+    Frontend -> Frontend: Show "Start new session" prompt\nOR load from saved conversations
+end
+
+deactivate Controller
+deactivate Router
+
+' ============================================
+' FLOW 7: Load Saved Conversations
+' ============================================
+
+== Load Saved Conversation History ==
+
+Frontend -> Router: GET /ai-data-modeler/conversations/:dataSourceId
+activate Router
+Router -> Controller: getConversations(req, res)
+activate Controller
+Controller -> DB: SELECT * FROM dra_ai_data_model_conversations\n  WHERE data_source_id = 42, user_id = ?
+activate DB
+DB --> Controller: Conversations list (saved + archived)
+deactivate DB
+Controller --> Frontend: HTTP 200 OK\n{ conversations: [...] }
+deactivate Controller
+deactivate Router
+
+Frontend -> Router: GET /ai-data-modeler/conversation/:id/messages
+Router -> Controller: getConversationMessages(req, res)
+activate Controller
+Controller -> DB: SELECT * FROM dra_ai_data_model_messages\n  WHERE conversation_id = 7
+DB --> Controller: Full message history
+Controller --> Frontend: HTTP 200 OK\n{ messages: [...] }
+deactivate Controller
+
+' ============================================
+' ERROR HANDLING
+' ============================================
+
+== Error Handling ==
+
+alt Tier Limit Reached
+    Frontend -> Router: POST /ai-data-modeler/session/chat\n(user at 50/50 generations)
+    Router -> Middleware: enforceAIGenerationLimit
+    Middleware -> DB: Check monthly AI usage
+    DB --> Middleware: Usage: 50 / 50 (limit reached)
+    Middleware --> Frontend: HTTP 429 Too Many Requests\n{ error: "AI generation limit reached", tier: "pro", limit: 50 }
+    Frontend -> Frontend: Show upgrade prompt
+    
+else Gemini API Error
+    Controller -> Gemini: sendMessage(conversationId, message)
+    Gemini --> Controller: API error (rate limit / timeout)
+    Controller --> Frontend: HTTP 500\n{ error: "AI service temporarily unavailable" }
+    Frontend -> Frontend: Show retry option
+    
+else External DB Unreachable (schema collection)
+    Controller -> SchemaCollector: collectSchema(dataSource)
+    SchemaCollector -> ExternalDB: CONNECT
+    ExternalDB --> SchemaCollector: Connection refused
+    SchemaCollector --> Controller: Error
+    Controller --> Frontend: HTTP 400\n{ error: "Cannot connect to data source" }
+end
+
+note over Frontend, DB
+  **AI Data Modeler Architecture Summary:**
+  
+  **Session Lifecycle (Redis, 24h TTL):**
+  draft (Redis only) → saved (PostgreSQL + Redis cleared)
+  
+  **Redis Keys per Session:**
+  - session:{conversationId}         → messages, schema, metadata
+  - model_draft:{conversationId}     → current SQL/query builder state
+  
+  **Database Storage (on save):**
+  - dra_data_models                  → the generated data model
+  - dra_ai_data_model_conversations  → conversation metadata
+  - dra_ai_data_model_messages       → full message history
+  
+  **AI Integration:**
+  - Model: Gemini 2.0 Flash
+  - Context: Full DB schema as Markdown fed as system context
+  - Response: Structured 3-section format (Analysis / Models / SQL)
+  - Rate limit: 20 req/hour (aiOperationsLimiter)
+  - Tier limit: configurable AI generations/month per subscription
+  
+  **Cross-Source Support:**
+  - Multiple data sources combined into single schema context
+  - Joins suggested across data sources
+end note
+
+@enduml

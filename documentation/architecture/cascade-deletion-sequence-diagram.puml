@@ -1,5 +1,4 @@
 @startuml Cascade_Deletion_Sequence_Diagram
-!theme aws-orange
 title Data Research Analysis Platform - Cascade Deletion Detailed Flow
 
 participant "Frontend" as Frontend
@@ -319,7 +318,167 @@ deactivate Router
 
 Frontend -> Frontend: Remove from articles store
 
-== Error Handling and Rollback ==
+== MongoDB Data Source Deletion ==
+
+Frontend -> Router: DELETE /api/data-source/{dataSourceId}\n(data_type = 'mongodb')
+activate Router
+
+Router -> DSProc: deleteDataSource(dataSourceId, tokenDetails)
+activate DSProc
+
+DSProc -> DB: Validate user owns data source
+activate DB
+DB --> DSProc: User owns dataSource (data_type: 'mongodb')
+deactivate DB
+
+DSProc -> TxnMgr: BEGIN TRANSACTION
+activate TxnMgr
+
+loop For each data_model of MongoDB source
+    DSProc -> DB: Clean dashboard references referencing model
+    activate DB
+    DB --> DSProc: Dashboard JSONB updated
+    deactivate DB
+end
+
+DSProc -> DB: DROP SCHEMA IF EXISTS\n  dra_mongodb_{dataSourceId}\n  CASCADE
+activate DB
+note right: Removes all imported collection tables:\n- dra_mongodb_{id}.users\n- dra_mongodb_{id}.orders\n- dra_mongodb_{id}.{any collection}\n(created during MongoDB import)
+DB --> DSProc: Schema and all collection tables dropped
+deactivate DB
+
+DSProc -> DB: DELETE FROM dra_mongodb_sync_history\nWHERE data_source_id = ?
+activate DB
+DB --> DSProc: Sync history records deleted
+deactivate DB
+
+DSProc -> DB: DELETE FROM dra_data_sources WHERE id = ?
+activate DB
+note right: TypeORM cascade deletes:\n- dra_data_models (onDelete: CASCADE)\n- dra_ai_data_model_conversations (if any)
+DB --> DSProc: Data source and related entities deleted
+deactivate DB
+
+DSProc -> TxnMgr: COMMIT TRANSACTION
+deactivate TxnMgr
+
+DSProc --> Router: true (success)
+deactivate DSProc
+
+Router --> Frontend: HTTP 200 OK
+deactivate Router
+
+Frontend -> Frontend: Remove data source from store
+Frontend -> Frontend: Refresh data models list
+
+== Account Data Deletion (Account Cancellation Grace Period Expired) ==
+
+note over Router: Account deletion is triggered by\nScheduledDeletionJob cron (not direct user request)\nUser-facing: POST /account/cancel initiates the 30-day\ngrace period, after which this flow executes automatically
+
+Router -> DSProc: DataDeletionService.deleteUserData(userId)
+activate DSProc
+
+DSProc -> TxnMgr: BEGIN TRANSACTION
+activate TxnMgr
+
+DSProc -> DB: SELECT ds.id, ds.data_type FROM dra_data_sources ds\nJOIN dra_projects p ON ds.project_id = p.id\nWHERE p.owner_id = userId
+activate DB
+DB --> DSProc: [{ id: 33, data_type: 'mongodb' }, { id: 5, data_type: 'postgresql' }, ...]
+deactivate DB
+
+loop For each data source
+    alt data_type = 'mongodb'
+        DSProc -> DB: DROP SCHEMA IF EXISTS dra_mongodb_{id} CASCADE
+        DB --> DSProc: MongoDB schema dropped
+    else data_type = 'postgresql' | 'mysql' | 'mariadb'
+        DSProc -> DB: DROP SCHEMA IF EXISTS dra_postgresql_{id} CASCADE
+        DB --> DSProc: DB schema dropped
+    else data_type = 'excel'
+        DSProc -> DB: DROP SCHEMA IF EXISTS dra_excel_{id} CASCADE
+        DB --> DSProc: Excel schema dropped
+    else data_type = 'pdf'
+        DSProc -> DB: DROP SCHEMA IF EXISTS dra_pdf_{id} CASCADE
+        DB --> DSProc: PDF schema dropped
+    else data_type = 'google_analytics'
+        DSProc -> DB: DROP SCHEMA IF EXISTS dra_google_analytics_{id} CASCADE
+        DB --> DSProc: GA schema dropped
+    else data_type = 'google_ads'
+        DSProc -> DB: DROP SCHEMA IF EXISTS dra_google_ads_{id} CASCADE
+        DB --> DSProc: Ads schema dropped
+    end
+end
+
+DSProc -> DB: DELETE FROM dra_dashboard_export_meta_data\nWHERE dashboard_id IN (user_dashboard_ids)
+activate DB
+DB --> DSProc: Export metadata deleted
+deactivate DB
+
+DSProc -> DB: DELETE FROM dra_dashboards\nWHERE project_id IN (user_project_ids)
+activate DB
+DB --> DSProc: Dashboards deleted
+deactivate DB
+
+DSProc -> DB: DELETE FROM dra_data_models\nWHERE data_source_id IN (user_ds_ids)
+activate DB
+DB --> DSProc: Data models deleted
+deactivate DB
+
+DSProc -> DB: DELETE FROM dra_data_sources\nWHERE project_id IN (user_project_ids)
+activate DB
+DB --> DSProc: Data sources deleted
+deactivate DB
+
+DSProc -> DB: DELETE FROM dra_project_members\nWHERE user_id = userId
+activate DB
+DB --> DSProc: Project memberships deleted
+deactivate DB
+
+DSProc -> DB: DELETE FROM dra_project_invitations\nWHERE invited_by = userId OR email = user.email
+activate DB
+DB --> DSProc: Invitations deleted
+deactivate DB
+
+DSProc -> DB: DELETE FROM dra_ai_data_model_conversations\nWHERE user_id = userId
+activate DB
+DB --> DSProc: AI conversations deleted
+deactivate DB
+
+DSProc -> DB: DELETE FROM dra_notifications\nWHERE user_id = userId
+activate DB
+DB --> DSProc: Notifications deleted
+deactivate DB
+
+DSProc -> DB: DELETE FROM dra_attribution_events\nWHERE project_id IN (user_project_ids)
+activate DB
+DB --> DSProc: Attribution data deleted
+deactivate DB
+
+DSProc -> DB: DELETE FROM dra_projects\nWHERE owner_id = userId
+activate DB
+DB --> DSProc: Projects and relations deleted (cascade)
+deactivate DB
+
+DSProc -> DB: DELETE FROM dra_account_cancellations\nWHERE user_id = userId
+activate DB
+DB --> DSProc: Cancellation records deleted
+deactivate DB
+
+DSProc -> DB: DELETE FROM dra_users_platform\nWHERE id = userId
+activate DB
+note right: Final deletion — all foreign keys\nalready cleaned up above
+DB --> DSProc: User account permanently deleted
+deactivate DB
+
+DSProc -> TxnMgr: COMMIT TRANSACTION
+deactivate TxnMgr
+
+DSProc --> Router: { deleted: true, userId }
+deactivate DSProc
+
+note over Router, DB
+  Email sent to final email address\n(recorded before user deletion):\n"Your Data Research Analysis account\nand all data have been permanently deleted"
+end note
+
+
 
 Frontend -> Router: DELETE /api/project/{projectId}
 activate Router
@@ -362,6 +521,8 @@ note over Frontend, DB
   **Project → Data Sources → Data Models → Physical Tables**
   **Project → Dashboards → Export Metadata**
   **Article → Article Categories**
+  **MongoDB Source → dra_mongodb_{id} Schema (DROP CASCADE)**
+  **Account Cancellation → All User Data (full purge)**
   
   **Transaction Safety:**
   - All operations in single transaction
@@ -374,8 +535,10 @@ note over Frontend, DB
   
   **Physical Cleanup:**
   - DROP TABLE for data models
-  - DROP SCHEMA for Excel/PDF sources
-  - File system cleanup for uploads
+  - DROP SCHEMA for Excel/PDF/PostgreSQL/MySQL/MongoDB sources
+  - DROP SCHEMA for Google Analytics/Ads sources
+  - File system cleanup for uploaded files
+  - Full account purge: all 12 tables cleared in order
 end note
 
 @enduml
