@@ -37,7 +37,7 @@ import {
   rebuildDockerCompose
 } from './lib/cli/docker.js';
 import { runHealthCheck } from './lib/cli/health.js';
-import { runMigrations, runSeeders } from './lib/cli/database.js';
+import { runMigrations, runSeeders, installDependencies } from './lib/cli/database.js';
 import { runPreflightCheck, quickValidate } from './lib/cli/validate.js';
 import { 
   restartService, 
@@ -402,7 +402,13 @@ async function main() {
       // Full setup: Run Docker operations
       console.log(chalk.green('✅ Environment files generated!\n'));
       
-      // Step 7.1: Create external Docker volumes
+      // Step 7.1: Install npm dependencies in frontend and backend
+      const installResult = await installDependencies();
+      if (!installResult.success) {
+        console.log(chalk.yellow('⚠️  Dependency installation failed, continuing setup...'));
+      }
+
+      // Step 7.2: Create external Docker volumes
       const volumeResult = await createRequiredVolumes();
       if (!volumeResult.success) {
         console.log(chalk.red('❌ Failed to create Docker volumes'));
@@ -410,7 +416,7 @@ async function main() {
         process.exit(1);
       }
       
-      // Step 7.2: Build Docker images
+      // Step 7.3: Build Docker images
       const buildResult = await buildDockerCompose();
       if (!buildResult.success) {
         console.log(chalk.red('❌ Failed to build Docker images'));
@@ -418,7 +424,7 @@ async function main() {
         process.exit(1);
       }
       
-      // Step 7.3: Start Docker containers
+      // Step 7.4: Start Docker containers
       const startResult = await startDockerCompose(true);
       if (!startResult.success) {
         console.log(chalk.red('❌ Failed to start Docker containers'));
@@ -426,10 +432,10 @@ async function main() {
         process.exit(1);
       }
       
-      // Step 7.4: Wait for services to be healthy
+      // Step 7.5: Wait for services to be healthy
       const healthResult = await waitForServicesHealthy();
       
-      // Step 7.5: Database migrations
+      // Step 7.6: Database migrations
       if (!flags.skipMigrations) {
         const migrationResult = await runMigrations();
         if (!migrationResult.success) {
@@ -440,7 +446,7 @@ async function main() {
         console.log(chalk.gray('\n⏭  Skipping migrations (--skip-migrations flag)\n'));
       }
       
-      // Step 7.6: Database seeders
+      // Step 7.7: Database seeders
       if (!flags.skipSeeders) {
         const seederResult = await runSeeders();
         if (!seederResult.success) {
