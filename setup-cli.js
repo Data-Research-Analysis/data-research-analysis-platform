@@ -28,6 +28,15 @@ const {
   promptAWSConfig
 } = require('./lib/cli/prompts.js');
 const { writeAllEnvFiles } = require('./lib/cli/writers.js');
+const {
+  createRequiredVolumes,
+  buildDockerCompose,
+  startDockerCompose,
+  waitForServicesHealthy,
+  teardownDockerCompose,
+  rebuildDockerCompose
+} = require('./lib/cli/docker.js');
+const { runHealthCheck } = require('./lib/cli/health.js');
 
 // Parse command-line arguments
 function parseArguments() {
@@ -160,19 +169,41 @@ async function main() {
     
     // Health check mode
     if (flags.health) {
-      console.log(chalk.yellow('\n🏥 Health check mode - Coming soon in Phase 6!\n'));
-      return;
+      const healthResult = await runHealthCheck();
+      process.exit(healthResult.success ? 0 : 1);
     }
     
     // Teardown mode
     if (flags.down) {
-      console.log(chalk.yellow('\n🔽 Teardown mode - Coming soon in Phase 4!\n'));
+      const result = await teardownDockerCompose();
+      if (result.success) {
+        console.log(chalk.green('✅ Teardown complete\n'));
+      } else {
+        console.log(chalk.red('❌ Teardown failed\n'));
+        process.exit(1);
+      }
       return;
     }
     
     // Rebuild mode
     if (flags.rebuild) {
-      console.log(chalk.yellow('\n🔨 Rebuild mode - Coming soon in Phase 4!\n'));
+      const rebuildResult = await rebuildDockerCompose();
+      if (!rebuildResult.success) {
+        console.log(chalk.red('❌ Rebuild failed\n'));
+        process.exit(1);
+      }
+      
+      // After rebuild, start containers
+      const startResult = await startDockerCompose(true);
+      if (!startResult.success) {
+        console.log(chalk.red('❌ Failed to start containers after rebuild\n'));
+        process.exit(1);
+      }
+      
+      // Wait for services to be healthy
+      await waitForServicesHealthy();
+      
+      console.log(chalk.green('✅ Rebuild and restart complete!\n'));
       return;
     }
     
@@ -294,7 +325,7 @@ async function main() {
       console.log(chalk.gray('  Docker operations will use existing .env files\n'));
     }
     
-    // Step 7: Next steps
+    // Step 7: Docker operations
     if (flags.configOnly) {
       console.log(chalk.green('✅ Configuration complete!\n'));
       console.log(chalk.cyan('Next steps:'));
@@ -302,18 +333,63 @@ async function main() {
       console.log(chalk.gray('  2. Run setup without --config-only to start Docker'));
       console.log(chalk.gray('  3. Or run: npm run setup:docker\n'));
     } else {
+      // Full setup: Run Docker operations
       console.log(chalk.green('✅ Environment files generated!\n'));
-      console.log(chalk.yellow('⚠️  Docker operations coming in Phase 4'));
-      console.log(chalk.gray('\nPhase 3 Complete - Environment file generation:'));
-      console.log(chalk.green('  ✓ Interactive prompts'));
-      console.log(chalk.green('  ✓ Configuration collection'));
-      console.log(chalk.green('  ✓ .env file generation'));
-      console.log(chalk.green('  ✓ Automatic backups\n'));
       
-      console.log(chalk.cyan('Next phases:'));
-      console.log(chalk.gray('  Phase 4: Docker operations (volumes, build, up)'));
-      console.log(chalk.gray('  Phase 5: Database operations (migrations, seeders)'));
-      console.log(chalk.gray('  Phase 6: Health checks and monitoring\n'));
+      // Step 7.1: Create external Docker volumes
+      const volumeResult = await createRequiredVolumes();
+      if (!volumeResult.success) {
+        console.log(chalk.red('❌ Failed to create Docker volumes'));
+        console.log(chalk.yellow('\n💡 Ensure Docker is installed and running\n'));
+        process.exit(1);
+      }
+      
+      // Step 7.2: Build Docker images
+      const buildResult = await buildDockerCompose();
+      if (!buildResult.success) {
+        console.log(chalk.red('❌ Failed to build Docker images'));
+        console.log(chalk.yellow('\n💡 Check docker-compose.yml and Dockerfiles\n'));
+        process.exit(1);
+      }
+      
+      // Step 7.3: Start Docker containers
+      const startResult = await startDockerCompose(true);
+      if (!startResult.success) {
+        console.log(chalk.red('❌ Failed to start Docker containers'));
+        console.log(chalk.yellow('\n💡 Check .env files and Docker logs\n'));
+        process.exit(1);
+      }
+      
+      // Step 7.4: Wait for services to be healthy
+      const healthResult = await waitForServicesHealthy();
+      
+      // Step 7.5: Database operations (Phase 5)
+      if (!flags.skipMigrations) {
+        console.log(chalk.yellow('⚠️  Database migrations coming in Phase 5'));
+      }
+      
+      if (!flags.skipSeeders) {
+        console.log(chalk.yellow('⚠️  Database seeders coming in Phase 5'));
+      }
+      
+      // Success summary
+      console.log(chalk.green.bold('\n🎉 Setup Complete!\n'));
+      console.log(chalk.cyan('Your Data Research Analysis Platform is ready:\n'));
+      console.log(chalk.gray('  Frontend:  ') + chalk.cyan(config.server.frontendUrl));
+      console.log(chalk.gray('  Backend:   ') + chalk.cyan(config.server.backendUrl));
+      console.log(chalk.gray('  Database:  ') + chalk.cyan(`${config.database.host}:${config.database.port}`));
+      console.log();
+      
+      console.log(chalk.cyan('Next steps:'));
+      console.log(chalk.gray('  1. Access the frontend at ' + config.server.frontendUrl));
+      console.log(chalk.gray('  2. Check logs: docker-compose logs -f'));
+      console.log(chalk.gray('  3. Stop services: npm run setup:down'));
+      console.log(chalk.gray('  4. Rebuild: npm run setup:rebuild\n'));
+      
+      if (!healthResult.success) {
+        console.log(chalk.yellow('⚠️  Note: Some services may still be starting up'));
+        console.log(chalk.gray('   Run "npm run setup:health" to check status\n'));
+      }
     }
     
   } catch (error) {
