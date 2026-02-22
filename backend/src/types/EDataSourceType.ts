@@ -9,4 +9,5 @@ export enum EDataSourceType {
     GOOGLE_ANALYTICS = 'google_analytics',
     GOOGLE_AD_MANAGER = 'google_ad_manager',
     GOOGLE_ADS = 'google_ads',
+    META_ADS = 'meta_ads',
 }

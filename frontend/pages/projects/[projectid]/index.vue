@@ -6,6 +6,7 @@ import { useSubscriptionStore } from '@/stores/subscription';
 import { useGoogleAnalytics } from '@/composables/useGoogleAnalytics';
 import { useGoogleAdManager } from '@/composables/useGoogleAdManager';
 import { useGoogleAds } from '@/composables/useGoogleAds';
+import { useMetaAds } from '@/composables/useMetaAds';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import { useTruncation } from '@/composables/useTruncation';
 import pdfImage from '/assets/images/pdf.png';
@@ -16,6 +17,7 @@ import mariadbImage from '/assets/images/mariadb.png';
 import googleAnalyticsImage from '/assets/images/google-analytics.png';
 import googleAdManagerImage from '/assets/images/google-ad-manager.png';
 import googleAdsImage from '/assets/images/google-ads.png';
+import metaAdsImage from '/assets/images/meta.png';
 import mongodbImage from '/assets/images/mongodb.png';
 
 const dataSourceStore = useDataSourceStore();
@@ -25,6 +27,7 @@ const subscriptionStore = useSubscriptionStore();
 const analytics = useGoogleAnalytics();
 const gam = useGoogleAdManager();
 const ads = useGoogleAds();
+const metaAds = useMetaAds();
 const { $swal } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
@@ -112,7 +115,12 @@ const state = reactive({
         {
             name: 'Google Ads',
             url: `${route.fullPath}/data-sources/connect/google-ads`,
-            image_url: googleAdsImage, // Reusing GAM image for now
+            image_url: googleAdsImage,
+        },
+        {
+            name: 'Meta Ads',
+            url: `${route.fullPath}/data-sources/connect/meta-ads`,
+            image_url: metaAdsImage,
         },
         {
             name: 'PDF',
@@ -211,7 +219,9 @@ function getDataSourceImage(dataType) {
         'mysql': mysqlImage,
         'mariadb': mariadbImage,
         'pdf': pdfImage,
-        'excel': excelImage
+        'excel': excelImage,
+        'meta_ads': metaAdsImage,
+        'mongodb': mongodbImage
     };
     return images[dataType] || postgresqlImage;
 }
@@ -226,7 +236,8 @@ async function syncDataSource(dataSourceId) {
         const dataSource = state.data_sources.find(ds => ds.id === dataSourceId);
         const isGAM = dataSource?.data_type === 'google_ad_manager';
         const isAds = dataSource?.data_type === 'google_ads';
-        const serviceName = isAds ? 'Google Ads' : (isGAM ? 'Google Ad Manager' : 'Google Analytics');
+        const isMetaAds = dataSource?.data_type === 'meta_ads';
+        const serviceName = isMetaAds ? 'Meta Ads' : (isAds ? 'Google Ads' : (isGAM ? 'Google Ad Manager' : 'Google Analytics'));
 
         $swal.fire({
             title: 'Syncing...',
@@ -240,7 +251,7 @@ async function syncDataSource(dataSourceId) {
         });
 
         console.log('Starting sync for data source ID:', dataSourceId);
-        const success = isAds ? await ads.syncNow(dataSourceId) : (isGAM ? await gam.syncNow(dataSourceId) : await analytics.syncNow(dataSourceId));
+        const success = isMetaAds ? await metaAds.syncNow(dataSourceId) : (isAds ? await ads.syncNow(dataSourceId) : (isGAM ? await gam.syncNow(dataSourceId) : await analytics.syncNow(dataSourceId)));
 
         if (success) {
             await $swal.fire({
@@ -275,13 +286,13 @@ async function syncDataSource(dataSourceId) {
  */
 async function bulkSyncAllGoogleDataSources() {
     const googleDataSources = state.data_sources.filter(ds =>
-        ds.data_type === 'google_analytics' || ds.data_type === 'google_ad_manager' || ds.data_type === 'google_ads'
+        ds.data_type === 'google_analytics' || ds.data_type === 'google_ad_manager' || ds.data_type === 'google_ads' || ds.data_type === 'meta_ads'
     );
 
     if (googleDataSources.length === 0) {
         await $swal.fire({
             title: 'No Google Data Sources',
-            text: 'There are no Google Analytics or Ad Manager data sources to sync.',
+            text: 'There are no Google Analytics, Ad Manager, Ads, or Meta Ads data sources to sync.',
             icon: 'info'
         });
         return;
@@ -289,7 +300,7 @@ async function bulkSyncAllGoogleDataSources() {
 
     const { value: confirm } = await $swal.fire({
         title: `Sync ${googleDataSources.length} Data Source${googleDataSources.length > 1 ? 's' : ''}?`,
-        text: 'This will sync all Google Analytics, Ad Manager, and Ads data sources in this project.',
+        text: 'This will sync all Google Analytics, Ad Manager, Google Ads, and Meta Ads data sources in this project.',
         icon: 'question',
         showCancelButton: true,
         confirmButtonText: 'Yes, Sync All',
@@ -320,7 +331,8 @@ async function bulkSyncAllGoogleDataSources() {
 
         const isGAM = ds.data_type === 'google_ad_manager';
         const isAds = ds.data_type === 'google_ads';
-        const success = isAds ? await ads.syncNow(ds.id) : (isGAM ? await gam.syncNow(ds.id) : await analytics.syncNow(ds.id));
+        const isMetaAds = ds.data_type === 'meta_ads';
+        const success = isMetaAds ? await metaAds.syncNow(ds.id) : (isAds ? await ads.syncNow(ds.id) : (isGAM ? await gam.syncNow(ds.id) : await analytics.syncNow(ds.id)));
         if (success) {
             successCount++;
         } else {
@@ -346,6 +358,7 @@ async function viewSyncHistory(dataSourceId) {
     const dataSource = state.data_sources.find(ds => ds.id === dataSourceId);
     const isGAM = dataSource?.data_type === 'google_ad_manager';
     const isAds = dataSource?.data_type === 'google_ads';
+    const isMetaAds = dataSource?.data_type === 'meta_ads';
 
     try {
         // Show loading
@@ -360,7 +373,7 @@ async function viewSyncHistory(dataSourceId) {
             }
         });
 
-        const status = isAds ? await ads.getSyncStatus(dataSourceId) : (isGAM ? await gam.getSyncStatus(dataSourceId) : await analytics.getSyncStatus(dataSourceId));
+        const status = isMetaAds ? await metaAds.getSyncStatus(dataSourceId) : (isAds ? await ads.getSyncStatus(dataSourceId) : (isGAM ? await gam.getSyncStatus(dataSourceId) : await analytics.getSyncStatus(dataSourceId)));
 
         $swal.close();
 
@@ -398,29 +411,31 @@ function closeSyncHistoryDialog() {
  * Get last sync time formatted
  */
 function getLastSyncTime(dataSource) {
-    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager' && dataSource.data_type !== 'google_ads') return null;
+    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager' && dataSource.data_type !== 'google_ads' && dataSource.data_type !== 'meta_ads') return null;
     const lastSync = dataSource.connection_details?.api_connection_details?.api_config?.last_sync;
     const isGAM = dataSource.data_type === 'google_ad_manager';
     const isAds = dataSource.data_type === 'google_ads';
-    return lastSync ? (isAds ? ads.formatSyncTime(lastSync) : (isGAM ? gam.formatSyncTime(lastSync) : analytics.formatSyncTime(lastSync))) : 'Never';
+    const isMeta = dataSource.data_type === 'meta_ads';
+    return lastSync ? (isMeta ? metaAds.formatSyncTime(lastSync) : (isAds ? ads.formatSyncTime(lastSync) : (isGAM ? gam.formatSyncTime(lastSync) : analytics.formatSyncTime(lastSync)))) : 'Never';
 }
 
 /**
  * Get sync frequency text
  */
 function getSyncFrequency(dataSource) {
-    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager' && dataSource.data_type !== 'google_ads') return null;
+    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager' && dataSource.data_type !== 'google_ads' && dataSource.data_type !== 'meta_ads') return null;
     const frequency = dataSource.connection_details?.api_connection_details?.api_config?.sync_frequency || 'manual';
     const isGAM = dataSource.data_type === 'google_ad_manager';
+    const isMeta = dataSource.data_type === 'meta_ads';
     const isAds = dataSource.data_type === 'google_ads';
-    return isAds ? 'Manual' : (isGAM ? gam.getSyncFrequencyText(frequency) : analytics.getSyncFrequencyText(frequency));
+    return (isAds || isMeta) ? 'Manual' : (isGAM ? gam.getSyncFrequencyText(frequency) : analytics.getSyncFrequencyText(frequency));
 }
 
 /**
  * Check if data source was recently synced (within 24 hours)
  */
 function isRecentlySynced(dataSource) {
-    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager' && dataSource.data_type !== 'google_ads') return false;
+    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager' && dataSource.data_type !== 'google_ads' && dataSource.data_type !== 'meta_ads') return false;
     const lastSync = dataSource.connection_details?.api_connection_details?.api_config?.last_sync;
     if (!lastSync) return false;
     const diffHours = (new Date().getTime() - new Date(lastSync).getTime()) / (1000 * 60 * 60);
@@ -573,10 +588,10 @@ onMounted(async () => {
                     <div
                         v-for="dataSource in state.data_sources"
                         :key="dataSource.id"
-                        class="relative border border-gray-200 rounded-lg p-6 bg-white shadow-sm hover:shadow-lg hover:border-primary-blue-100 transition-all duration-200 group">
+                        class="relative border border-gray-200 rounded-lg p-6 bg-white shadow-sm hover:shadow-lg hover:border-primary-blue-100 transition-all duration-200 group flex flex-col">
                         
                         <!-- Clickable area -->
-                        <div class="cursor-pointer" @click="goToDataSource(dataSource.id)">
+                        <div class="cursor-pointer flex flex-col flex-1" @click="goToDataSource(dataSource.id)">
                             <!-- Header -->
                             <div class="flex items-start gap-4 mb-4">
                                 <img 
@@ -587,7 +602,7 @@ onMounted(async () => {
                                     <h3 
                                         :ref="`dataSourceTitle-${dataSource.id}`"
                                         :data-source-title="dataSource.id"
-                                        class="text-lg font-semibold text-gray-900 truncate"
+                                        class="w-4/5 text-lg font-semibold text-gray-900 break-words"
                                         v-tippy="isTitleTruncated(dataSource.id, 'data-source-title') ? { content: dataSource.name } : undefined"
                                     >
                                         {{ dataSource.name }}
@@ -598,8 +613,8 @@ onMounted(async () => {
                                 </div>
                             </div>
 
-                            <!-- Sync Status (for Google sources) -->
-                            <div v-if="['google_analytics', 'google_ad_manager', 'google_ads'].includes(dataSource.data_type)"
+                            <!-- Sync Status (for Google and Meta sources) -->
+                            <div v-if="['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads'].includes(dataSource.data_type)"
                                 class="mb-4">
                                 <div class="flex items-center justify-between mb-2">
                                     <span class="text-sm text-gray-600">Status</span>
@@ -636,7 +651,7 @@ onMounted(async () => {
                             <!-- Action Button -->
                             <button
                                 @click.stop="goToDataSource(dataSource.id)"
-                                class="w-full px-4 py-2 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 hover:text-white transition-all duration-200 flex items-center justify-center gap-2 group-hover:bg-primary-blue-300 group-hover:text-white cursor-pointer">
+                                class="mt-auto w-full px-4 py-2 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 hover:text-white transition-all duration-200 flex items-center justify-center gap-2 group-hover:bg-primary-blue-300 group-hover:text-white cursor-pointer">
                                 <font-awesome icon="fas fa-arrow-right" />
                                 View Details
                             </button>
@@ -663,9 +678,9 @@ onMounted(async () => {
                                 <font-awesome icon="fas fa-pen" class="text-sm text-white" />
                             </NuxtLink>
 
-                            <!-- Sync Button (for Google sources) -->
+                            <!-- Sync Button (for Google and Meta sources) -->
                             <button
-                                v-if="permissions.canUpdate.value && ['google_analytics', 'google_ad_manager', 'google_ads'].includes(dataSource.data_type)"
+                                v-if="permissions.canUpdate.value && ['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads'].includes(dataSource.data_type)"
                                 @click.stop="syncDataSource(dataSource.id)"
                                 :disabled="state.syncing[dataSource.id]"
                                 class="bg-primary-blue-100 hover:bg-primary-blue-300 border border-primary-blue-100 rounded-full w-10 h-10 flex items-center justify-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors z-10"
@@ -676,9 +691,9 @@ onMounted(async () => {
                                     class="text-sm text-white" />
                             </button>
 
-                            <!-- Sync History Button (for Google sources) -->
+                            <!-- Sync History Button (for Google and Meta sources) -->
                             <button
-                                v-if="['google_analytics', 'google_ad_manager', 'google_ads'].includes(dataSource.data_type)"
+                                v-if="['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads'].includes(dataSource.data_type)"
                                 @click.stop="viewSyncHistory(dataSource.id)"
                                 class="bg-gray-500 hover:bg-gray-600 border border-gray-500 rounded-full w-10 h-10 flex items-center justify-center cursor-pointer transition-colors z-10"
                                 v-tippy="{ content: 'View Sync History' }">
@@ -691,17 +706,20 @@ onMounted(async () => {
             <!-- Connect Data Source Dialog -->
             <overlay-dialog v-if="state.show_dialog" @close="closeDialog" :yOffset="90" :enable-scrolling="false">
                 <template #overlay>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                        <template v-for="dataSource in state.available_data_sources" :key="dataSource.name">
-                            <NuxtLink :to="dataSource.url"
-                                class="w-full border border-primary-blue-100 border-solid p-10 font-bold text-center hover:bg-gray-200 shadow-md cursor-pointer select-none">
-                                <div class="flex flex-col">
-                                    <img :src="dataSource.image_url" :alt="dataSource.name"
-                                        class="mx-auto mb-3 h-[100px]" />
-                                    {{ dataSource.name }}
-                                </div>
-                            </NuxtLink>
-                        </template>
+                    <div class="max-h-[calc(80vh-120px)] overflow-y-auto">
+                        <h2 class="text-2xl font-bold mb-6 text-gray-900">Connect Data Source</h2>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                            <template v-for="dataSource in state.available_data_sources" :key="dataSource.name">
+                                <NuxtLink :to="dataSource.url"
+                                    class="w-full border border-primary-blue-100 border-solid p-10 font-bold text-center hover:bg-gray-200 shadow-md cursor-pointer select-none">
+                                    <div class="flex flex-col">
+                                        <img :src="dataSource.image_url" :alt="dataSource.name"
+                                            class="mx-auto mb-3 h-[100px]" />
+                                        {{ dataSource.name }}
+                                    </div>
+                                </NuxtLink>
+                            </template>
+                        </div>
                     </div>
                 </template>
             </overlay-dialog>

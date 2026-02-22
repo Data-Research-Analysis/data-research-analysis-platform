@@ -190,12 +190,20 @@ export const useDatabaseBackup = () => {
         $socketio.on('database-backup-complete', (data: string) => {
             const parsed = JSON.parse(data);
             console.log('Backup complete:', parsed);
-            
-            backupProgress.value = 100;
-            backupStatus.value = 'Backup completed successfully!';
-            backupComplete.value = true;
-            backupMetadata.value = parsed;
+
             isBackupInProgress.value = false;
+
+            if (!parsed.success) {
+                backupProgress.value = 0;
+                backupStatus.value = 'Backup failed. Please check the server logs.';
+                backupComplete.value = false;
+                backupMetadata.value = null;
+            } else {
+                backupProgress.value = 100;
+                backupStatus.value = 'Backup completed successfully!';
+                backupComplete.value = true;
+                backupMetadata.value = parsed;
+            }
 
             if (onComplete) {
                 onComplete(parsed);

@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { SchemaCollectorService } from '../services/SchemaCollectorService.js';
 import { SchemaFormatterUtility } from '../utilities/SchemaFormatter.js';
 import { getGeminiService } from '../services/GeminiService.js';
-import { RedisAISessionService } from '../services/RedisAISessionService.js';
+import { RedisAISessionService, AIMessage } from '../services/RedisAISessionService.js';
 import { DataQualityService } from '../services/DataQualityService.js';
 import { DataQualityExecutionService } from '../services/DataQualityExecutionService.js';
 import { SQLValidationService } from '../services/SQLValidationService.js';
@@ -106,7 +106,7 @@ export class AIDataModelerController {
 
                             const welcomeMessage = `Welcome! I've analyzed your database schema with **${schemaSummary.tableCount} tables** and **${schemaSummary.totalColumns} columns**.\n\nI can help you:\n• Identify analytical bottlenecks in your current schema\n• Propose optimized data models (Star Schema, OBT, etc.)\n• Suggest SQL implementation strategies\n• Recommend indexing for better query performance\n\nWhat would you like to analyze?`;
                             
-                            const initialMessage = await redisService.addMessage(
+                            const initialMessage: AIMessage = await redisService.addMessage(
                                 dataSourceId,
                                 userId,
                                 'assistant',
@@ -1281,6 +1281,7 @@ Keep it concise - aim for 200-300 words total.`;
             'google_analytics': 'dra_google_analytics',
             'google_ad_manager': 'dra_google_ad_manager',
             'google_ads': 'dra_google_ads',
+            'meta_ads': 'dra_meta_ads',
             'excel': 'dra_excel',
             'pdf': 'dra_pdf',
             'mongodb': 'dra_mongodb'
@@ -1348,6 +1349,7 @@ Keep it concise - aim for 200-300 words total.`;
             case 'google_analytics':  // Google Analytics data stored in PostgreSQL
             case 'google_ad_manager': // Google Ad Manager data stored in PostgreSQL
             case 'google_ads':        // Google Ads data stored in PostgreSQL
+            case 'meta_ads':          // Meta Ads data stored in PostgreSQL (dra_meta_ads schema)
             case 'excel':             // Excel data stored in PostgreSQL (dra_excel schema)
             case 'pdf':               // PDF data stored in PostgreSQL (dra_pdf schema)
             case 'mongodb':           // MongoDB data stored in PostgreSQL (dra_mongodb schema)
@@ -1823,6 +1825,10 @@ Keep it concise - aim for 200-300 words total.`;
                 return 'dra_google_ads';
             case 'google_ad_manager':
                 return 'dra_google_ad_manager';
+            case 'meta_ads':
+                return 'dra_meta_ads';
+            case 'mongodb':
+                return 'dra_mongodb';
             case 'excel':
             case 'csv':
             case 'pdf':

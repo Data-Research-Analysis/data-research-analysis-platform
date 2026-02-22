@@ -4,6 +4,10 @@ import { validateJWT } from '../middleware/authenticate.js';
 import { authorize } from '../middleware/authorize.js';
 import { Permission } from '../constants/permissions.js';
 
+interface AuthenticatedRequest extends Request {
+    tokenDetails?: any;
+}
+
 const router = Router();
 
 /**
@@ -20,7 +24,7 @@ router.post(
     '/analyze/:data_model_id',
     validateJWT,
     authorize(Permission.DATA_MODEL_VIEW),
-    async (req: Request, res: Response) => {
+    async (req: AuthenticatedRequest, res: Response) => {
         try {
             const dataModelId = parseInt(req.params.data_model_id);
             
@@ -52,7 +56,7 @@ router.post(
     '/clean/:data_model_id',
     validateJWT,
     authorize(Permission.DATA_MODEL_EDIT),
-    async (req: Request, res: Response) => {
+    async (req: AuthenticatedRequest, res: Response) => {
         try {
             const dataModelId = parseInt(req.params.data_model_id);
             

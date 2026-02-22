@@ -11,6 +11,11 @@ import type {
     IGoogleAdsSyncConfig,
     IGoogleAdsSyncStatus
 } from '~/types/IGoogleAds';
+import type {
+    IMetaAdAccount,
+    IMetaSyncConfig,
+    IMetaSyncStatus
+} from '~/types/IMetaAds';
 
 let dataSourcesInitialized = false;
 
@@ -525,6 +530,172 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         return syncErrors.value.get(dataSourceId) || null;
     }
 
+    /**
+     * Initiate Meta OAuth flow
+     */
+    async function initiateMetaOAuth(projectId?: string | number): Promise<void> {
+        const token = getAuthToken();
+        if (!token) {
+            throw new Error('Authentication required');
+        }
+
+        try {
+            const response = await fetch(`${baseUrl()}/meta-ads/connect`, {
+                method: "GET",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success && data.authUrl) {
+                    // Store projectId so the OAuth callback page can redirect back
+                    if (import.meta.client && projectId) {
+                        localStorage.setItem('meta_ads_pending_oauth', JSON.stringify({ projectId }));
+                    }
+                    // Redirect to Meta OAuth
+                    if (import.meta.client) {
+                        window.location.href = data.authUrl;
+                    }
+                } else {
+                    throw new Error(data.error || 'Failed to initiate OAuth');
+                }
+            } else {
+                throw new Error('Failed to connect to backend');
+            }
+        } catch (error) {
+            console.error('Error initiating Meta OAuth:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * List Meta Ad accounts accessible to the user
+     */
+    async function listMetaAdAccounts(accessToken: string): Promise<IMetaAdAccount[]> {
+        const token = getAuthToken();
+        if (!token) return [];
+
+        try {
+            const response = await fetch(`${baseUrl()}/meta-ads/accounts`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+                body: JSON.stringify({ accessToken })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                return data.accounts || [];
+            }
+            return [];
+        } catch (error) {
+            console.error('Error listing Meta ad accounts:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Add Meta Ads data source
+     */
+    async function addMetaAdsDataSource(config: IMetaSyncConfig, projectId: number): Promise<number | null> {
+        const token = getAuthToken();
+        if (!token) return null;
+
+        try {
+            const response = await fetch(`${baseUrl()}/meta-ads/add`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+                body: JSON.stringify({
+                    syncConfig: config,
+                    projectId: projectId
+                })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    // Refresh data sources list
+                    await retrieveDataSources();
+                    return data.dataSourceId || null;
+                }
+            }
+            return null;
+        } catch (error) {
+            console.error('Error adding Meta Ads data source:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Trigger manual sync for Meta Ads data source
+     */
+    async function syncMetaAds(dataSourceId: number): Promise<boolean> {
+        const token = getAuthToken();
+        if (!token) return false;
+
+        try {
+            const response = await fetch(`${baseUrl()}/meta-ads/sync/${dataSourceId}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                return data.success;
+            }
+            return false;
+        } catch (error) {
+            console.error('Error syncing Meta Ads data:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Get sync status and history for Meta Ads data source
+     */
+    async function getMetaAdsSyncStatus(dataSourceId: number): Promise<IMetaSyncStatus | null> {
+        const token = getAuthToken();
+        if (!token) return null;
+
+        try {
+            const response = await fetch(`${baseUrl()}/meta-ads/sync-status/${dataSourceId}`, {
+                method: "GET",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    return {
+                        lastSyncTime: data.lastSyncTime,
+                        syncHistory: data.syncHistory || []
+                    } as IMetaSyncStatus;
+                }
+            }
+            return null;
+        } catch (error) {
+            console.error('Error getting Meta Ads sync status:', error);
+            return null;
+        }
+    }
+
     return {
         dataSources,
         selectedDataSource,
@@ -563,6 +734,12 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         clearSyncStatus,
         setSyncError,
         getSyncError,
+        // Meta Ads methods
+        initiateMetaOAuth,
+        listMetaAdAccounts,
+        addMetaAdsDataSource,
+        syncMetaAds,
+        getMetaAdsSyncStatus,
     }
     
     // Initialize from localStorage once on client

@@ -5,6 +5,7 @@ import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import { useGoogleAnalytics } from '@/composables/useGoogleAnalytics';
 import { useGoogleAdManager } from '@/composables/useGoogleAdManager';
 import { useGoogleAds } from '@/composables/useGoogleAds';
+import { useMetaAds } from '@/composables/useMetaAds';
 import { useReCaptcha } from "vue-recaptcha-v3";
 import googleAnalyticsImage from '/assets/images/google-analytics.png';
 import googleAdManagerImage from '/assets/images/google-ad-manager.png';
@@ -14,6 +15,7 @@ import mysqlImage from '/assets/images/mysql.png';
 import mariadbImage from '/assets/images/mariadb.png';
 import pdfImage from '/assets/images/pdf.png';
 import excelImage from '/assets/images/excel.png';
+import metaImage from '/assets/images/meta.png';
 import mongodbImage from '/assets/images/mongodb.png';
 
 const dataSourceStore = useDataSourceStore();
@@ -21,6 +23,7 @@ const projectsStore = useProjectsStore();
 const analytics = useGoogleAnalytics();
 const gam = useGoogleAdManager();
 const ads = useGoogleAds();
+const metaAds = useMetaAds();
 const recaptcha = useReCaptcha();
 const nuxtApp = useNuxtApp();
 const $swal = nuxtApp.$swal as any;
@@ -39,6 +42,7 @@ const state = reactive({
     syncing: false,
     loadingSyncHistory: false,
     sync_history: [] as any[],
+    metaSyncStatus: null as any,
     show_schedule_modal: false,
     dataSource: null as any | null,
     // Edit form fields
@@ -83,6 +87,7 @@ function getDataSourceIcon(dataType: string) {
         'mariadb': mariadbImage,
         'excel': excelImage,
         'pdf': pdfImage,
+        'meta_ads': metaImage,
         'mongodb': mongodbImage
     };
     return icons[dataType] || postgresqlImage;
@@ -91,13 +96,25 @@ function getDataSourceIcon(dataType: string) {
 // Get sync status
 function getSyncStatus() {
     if (!state.dataSource) return { status: 'idle', text: 'Idle', color: 'gray' };
-    if (!['google_analytics', 'google_ad_manager', 'google_ads'].includes(state.dataSource.data_type)) {
+    if (!['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads'].includes(state.dataSource.data_type)) {
         return { status: 'n/a', text: 'Not applicable', color: 'gray' };
     }
 
     // Check real-time status from store first
     if (realtimeSyncStatus.value.status === 'syncing' || state.syncing) {
         return { status: 'syncing', text: 'Syncing...', color: 'blue' };
+    }
+
+    // Meta Ads uses its own sync status structure
+    if (state.dataSource.data_type === 'meta_ads') {
+        const lastSync = state.metaSyncStatus?.lastSyncTime;
+        if (!lastSync) {
+            return { status: 'never', text: 'Never synced', color: 'yellow' };
+        }
+        const diffHours = (new Date().getTime() - new Date(lastSync).getTime()) / (1000 * 60 * 60);
+        if (diffHours < 24) return { status: 'up-to-date', text: 'Up to date', color: 'green' };
+        if (diffHours < 48) return { status: 'stale', text: 'Needs sync', color: 'yellow' };
+        return { status: 'very-stale', text: 'Outdated', color: 'red' };
     }
 
     const lastSync = state.dataSource.connection_details?.api_connection_details?.api_config?.last_sync;
@@ -120,7 +137,11 @@ function getSyncStatus() {
 // Get last sync time formatted
 function getLastSyncTime() {
     if (!state.dataSource) return 'Never';
-    const lastSync = state.dataSource.connection_details?.api_connection_details?.api_config?.last_sync;
+    // Meta Ads uses its own sync status structure
+    const rawLastSync = state.dataSource.data_type === 'meta_ads'
+        ? state.metaSyncStatus?.lastSyncTime
+        : state.dataSource.connection_details?.api_connection_details?.api_config?.last_sync;
+    const lastSync = rawLastSync;
     if (!lastSync) return 'Never';
     
     const now = new Date();
@@ -164,11 +185,14 @@ async function triggerSync() {
     try {
         const isGAM = state.dataSource.data_type === 'google_ad_manager';
         const isAds = state.dataSource.data_type === 'google_ads';
-        const serviceName = isAds ? 'Google Ads' : (isGAM ? 'Google Ad Manager' : 'Google Analytics');
+        const isMeta = state.dataSource.data_type === 'meta_ads';
+        const serviceName = isMeta ? 'Meta Ads' : (isAds ? 'Google Ads' : (isGAM ? 'Google Ad Manager' : 'Google Analytics'));
 
-        const success = isAds 
-            ? await ads.syncNow(dataSourceId) 
-            : (isGAM ? await gam.syncNow(dataSourceId) : await analytics.syncNow(dataSourceId));
+        const success = isMeta
+            ? await metaAds.syncNow(dataSourceId)
+            : (isAds 
+                ? await ads.syncNow(dataSourceId) 
+                : (isGAM ? await gam.syncNow(dataSourceId) : await analytics.syncNow(dataSourceId)));
 
         if (success) {
             await $swal.fire({
@@ -202,22 +226,37 @@ async function triggerSync() {
 // Load sync history
 async function loadSyncHistory() {
     if (!state.dataSource) return;
-    if (!['google_analytics', 'google_ad_manager', 'google_ads'].includes(state.dataSource.data_type)) return;
+    if (!['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads'].includes(state.dataSource.data_type)) return;
 
     state.loadingSyncHistory = true;
 
     try {
         const isGAM = state.dataSource.data_type === 'google_ad_manager';
         const isAds = state.dataSource.data_type === 'google_ads';
+        const isMeta = state.dataSource.data_type === 'meta_ads';
 
-        const status = isAds 
-            ? await ads.getSyncStatus(dataSourceId) 
-            : (isGAM ? await gam.getSyncStatus(dataSourceId) : await analytics.getSyncStatus(dataSourceId));
-
-        if (status && 'sync_history' in status && status.sync_history) {
-            state.sync_history = status.sync_history;
+        if (isMeta) {
+            const status = await metaAds.getSyncStatus(dataSourceId);
+            state.metaSyncStatus = status;
+            // Transform to SyncHistoryTable format (handle both camelCase from TypeORM and snake_case)
+            state.sync_history = (status?.syncHistory || []).map((s: any) => ({
+                id: s.id || Math.random(),
+                sync_started_at: s.startedAt || s.started_at,
+                sync_completed_at: s.completedAt || s.completed_at || null,
+                status: (s.status || 'pending').toLowerCase(),
+                rows_synced: s.recordsSynced ?? s.records_synced ?? 0,
+                error_message: s.errorMessage || s.error_message || null,
+            }));
         } else {
-            state.sync_history = [];
+            const status = isAds 
+                ? await ads.getSyncStatus(dataSourceId) 
+                : (isGAM ? await gam.getSyncStatus(dataSourceId) : await analytics.getSyncStatus(dataSourceId));
+
+            if (status && 'sync_history' in status && status.sync_history) {
+                state.sync_history = (status as any).sync_history;
+            } else {
+                state.sync_history = [];
+            }
         }
     } catch (error) {
         console.error('Failed to fetch sync history:', error);
@@ -528,8 +567,8 @@ onMounted(async () => {
         state.loading = true;
         await loadDataSource();
         
-        // Load sync history for Google sources
-        if (state.dataSource && ['google_analytics', 'google_ad_manager', 'google_ads'].includes(state.dataSource.data_type)) {
+        // Load sync history for Google and Meta sources
+        if (state.dataSource && ['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads'].includes(state.dataSource.data_type)) {
             await loadSyncHistory();
         }
     } catch (error) {
@@ -561,7 +600,7 @@ onMounted(async () => {
             </div>
             <div class="flex items-center gap-3">
                 <button
-                    v-if="permissions.canUpdate.value && ['google_analytics', 'google_ad_manager', 'google_ads'].includes(state.dataSource.data_type)"
+                    v-if="permissions.canUpdate.value && ['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads'].includes(state.dataSource.data_type)"
                     @click="openScheduleModal"
                     class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors duration-200 flex items-center gap-2 cursor-pointer">
                     <font-awesome icon="fas fa-calendar" />
@@ -577,8 +616,8 @@ onMounted(async () => {
             </div>
         </div>
 
-        <!-- Sync Controls (Google sources only) -->
-        <div v-if="['google_analytics', 'google_ad_manager', 'google_ads'].includes(state.dataSource.data_type)"
+        <!-- Sync Controls (Google and Meta sources) -->
+        <div v-if="['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads'].includes(state.dataSource.data_type)"
             class="bg-white border border-gray-200 rounded-lg p-6 mb-6">
             <h2 class="text-xl font-semibold text-gray-900 mb-4">Sync Controls</h2>
             
@@ -647,8 +686,8 @@ onMounted(async () => {
             </button>
         </div>
 
-        <!-- Sync History (Google sources only) -->
-        <div v-if="['google_analytics', 'google_ad_manager', 'google_ads'].includes(state.dataSource.data_type)"
+        <!-- Sync History (Google and Meta sources) -->
+        <div v-if="['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads'].includes(state.dataSource.data_type)"
             class="bg-white border border-gray-200 rounded-lg p-6">
             <h2 class="text-xl font-semibold text-gray-900 mb-4">Sync History</h2>
 

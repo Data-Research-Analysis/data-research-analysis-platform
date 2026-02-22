@@ -637,6 +637,25 @@ export class DataSourceProcessor {
                     }
                 }
 
+                // Delete Meta Ads schema tables
+                if (dataSource.data_type === EDataSourceType.META_ADS) {
+                    if (!dbConnector) {
+                        return resolve(false);
+                    }
+                    try {
+                        const query = `SELECT table_name FROM information_schema.tables WHERE table_schema = 'dra_meta_ads' AND table_name LIKE 'ds${dataSource.id}_%'`;
+                        const tables = await dbConnector.query(query);
+
+                        for (const table of tables) {
+                            const tableName = table.table_name;
+                            await dbConnector.query(`DROP TABLE IF EXISTS dra_meta_ads.${tableName}`);
+                            console.log('Dropped Meta Ads table:', tableName);
+                        }
+                    } catch (error) {
+                        console.error('Error dropping Meta Ads tables:', error);
+                    }
+                }
+
                 // Delete MongoDB schema tables
                 if (dataSource.data_type === EDataSourceType.MONGODB) {
                     if (!dbConnector) {
@@ -1037,8 +1056,16 @@ export class DataSourceProcessor {
                 console.log('[DEBUG - DataSourceProcessor] Connecting to data source ID:', dataSource.id);
                 console.log('[DEBUG - DataSourceProcessor] Data source type:', dataSource.data_type);
 
+                // API-integrated sources store their data in internal PostgreSQL under dedicated schemas
+                const isApiIntegratedSource = (
+                    dataSource.data_type === EDataSourceType.GOOGLE_ANALYTICS ||
+                    dataSource.data_type === EDataSourceType.GOOGLE_AD_MANAGER ||
+                    dataSource.data_type === EDataSourceType.GOOGLE_ADS ||
+                    (dataSource.data_type as string) === EDataSourceType.META_ADS
+                );
+
                 // Determine schema name based on data source type
-                // For API-based sources (Google Analytics, Ads, Ad Manager), connection_details doesn't have 'schema'
+                // For API-based sources (Google Analytics, Ads, Ad Manager, Meta Ads), connection_details doesn't have 'schema'
                 // We need to derive it from the data_type instead
                 let schemaName: string;
                 if (dataSource.data_type === EDataSourceType.GOOGLE_ANALYTICS) {
@@ -1047,6 +1074,8 @@ export class DataSourceProcessor {
                     schemaName = 'dra_google_ad_manager';
                 } else if (dataSource.data_type === EDataSourceType.GOOGLE_ADS) {
                     schemaName = 'dra_google_ads';
+                } else if ((dataSource.data_type as string) === EDataSourceType.META_ADS) {
+                    schemaName = 'dra_meta_ads';
                 } else if (dataSource.data_type === EDataSourceType.EXCEL) {
                     schemaName = 'dra_excel';
                 } else if (dataSource.data_type === EDataSourceType.PDF) {
@@ -1065,9 +1094,7 @@ export class DataSourceProcessor {
                     console.log('[DEBUG - DataSourceProcessor] OAuth source detected, checking for synced tables');
                 }
 
-                const dataSourceType = dataSource.data_type === EDataSourceType.GOOGLE_ANALYTICS ||
-                    dataSource.data_type === EDataSourceType.GOOGLE_AD_MANAGER ||
-                    dataSource.data_type === EDataSourceType.GOOGLE_ADS
+                const dataSourceType = isApiIntegratedSource
                     ? EDataSourceType.POSTGRESQL  // API sources are synced to PostgreSQL
                     : UtilityService.getInstance().getDataSourceType(connection.data_source_type);
 
@@ -1135,6 +1162,8 @@ export class DataSourceProcessor {
                         query += ` AND tb.table_name LIKE '%_${dataSource.id}'`;
                     } else if (schemaName === 'dra_google_ads') {
                         query += ` AND tb.table_name LIKE '%_${dataSource.id}'`;
+                    } else if (schemaName === 'dra_meta_ads') {
+                        query += ` AND tb.table_name LIKE 'ds${dataSource.id}_%'`;
                     } else {
                         // For PostgreSQL, MySQL, MariaDB - no additional filter needed
                         // The schema filter in getTablesColumnDetails() is sufficient
@@ -2044,8 +2073,8 @@ export class DataSourceProcessor {
                     let columnName;
                     if (column.alias_name && column.alias_name !== '') {
                         columnName = column.alias_name;
-                    } else if (column && (column.schema === 'dra_excel' || column.schema === 'dra_pdf' || column.schema === 'dra_google_analytics' || column.schema === 'dra_google_ad_manager' || column.schema === 'dra_google_ads')) {
-                        // For special schemas (Excel, PDF, GA, GAM, Google Ads), always use table_name regardless of aliases
+                    } else if (column && (column.schema === 'dra_excel' || column.schema === 'dra_pdf' || column.schema === 'dra_google_analytics' || column.schema === 'dra_google_ad_manager' || column.schema === 'dra_google_ads' || column.schema === 'dra_mongodb' || column.schema === 'dra_meta_ads')) {
+                        // For special schemas (Excel, PDF, GA, GAM, Google Ads, MongoDB, Meta Ads), always use table_name regardless of aliases
                         // This preserves datasource IDs in table names (e.g., device_15, sheet_123, revenue_12345_7)
                         columnName = `${column.table_name}`.length > 20 ? `${column.table_name}`.slice(-20) + `_${column.column_name}` : `${column.table_name}` + `_${column.column_name}`;
                     } else {
@@ -2165,8 +2194,8 @@ export class DataSourceProcessor {
                     let columnName;
                     if (column.alias_name && column.alias_name !== '') {
                         columnName = column.alias_name;
-                    } else if (column && (column.schema === 'dra_excel' || column.schema === 'dra_pdf' || column.schema === 'dra_google_analytics' || column.schema === 'dra_google_ad_manager' || column.schema === 'dra_google_ads')) {
-                        // For special schemas (Excel, PDF, GA, GAM, Google Ads), always use table_name regardless of aliases
+                    } else if (column && (column.schema === 'dra_excel' || column.schema === 'dra_pdf' || column.schema === 'dra_google_analytics' || column.schema === 'dra_google_ad_manager' || column.schema === 'dra_google_ads' || column.schema === 'dra_mongodb' || column.schema === 'dra_meta_ads')) {
+                        // For special schemas (Excel, PDF, GA, GAM, Google Ads, MongoDB, Meta Ads), always use table_name regardless of aliases
                         columnName = `${column.table_name}`.length > 20 ? `${column.table_name}`.slice(-20) + `_${column.column_name}` : `${column.table_name}` + `_${column.column_name}`;
                     } else {
                         columnName = `${column.schema}_${column.table_name}_${column.column_name}`;
@@ -2228,8 +2257,8 @@ export class DataSourceProcessor {
                         if (column.alias_name && column.alias_name !== '') {
                             rowKey = column.alias_name;
                             columnName = column.alias_name;
-                        } else if (column && (column.schema === 'dra_excel' || column.schema === 'dra_pdf' || column.schema === 'dra_google_analytics' || column.schema === 'dra_google_ad_manager' || column.schema === 'dra_google_ads')) {
-                            // For special schemas (Excel, PDF, GA, GAM, Google Ads), always use table_name regardless of aliases
+                        } else if (column && (column.schema === 'dra_excel' || column.schema === 'dra_pdf' || column.schema === 'dra_google_analytics' || column.schema === 'dra_google_ad_manager' || column.schema === 'dra_google_ads' || column.schema === 'dra_mongodb' || column.schema === 'dra_meta_ads')) {
+                            // For special schemas (Excel, PDF, GA, GAM, Google Ads, MongoDB, Meta Ads), always use table_name regardless of aliases
                             // This preserves datasource IDs in table names and ensures frontend-backend consistency
                             columnName = `${column.table_name}`.length > 20 ? `${column.table_name}`.slice(-20) + `_${column.column_name}` : `${column.table_name}` + `_${column.column_name}`;
                             rowKey = columnName;
@@ -2440,7 +2469,7 @@ export class DataSourceProcessor {
                     };
                     dataSource.name = dataSourceName;
                     dataSource.connection_details = connection;
-                    dataSource.data_type = UtilityService.getInstance().getDataSourceType('postgresql');
+                    dataSource.data_type = EDataSourceType.EXCEL;
                     dataSource.project = project;
                     dataSource.users_platform = user;
                     dataSource.created_at = new Date();
@@ -2776,7 +2805,7 @@ export class DataSourceProcessor {
 
                     dataSource.name = dataSourceName;
                     dataSource.connection_details = connection;
-                    dataSource.data_type = UtilityService.getInstance().getDataSourceType('postgresql');
+                    dataSource.data_type = EDataSourceType.EXCEL;
                     dataSource.project = project;
                     dataSource.users_platform = user;
                     dataSource.created_at = new Date();
@@ -3008,7 +3037,7 @@ export class DataSourceProcessor {
                     };
                     dataSource.name = `${dataSourceName}_${new Date().getTime()}`;
                     dataSource.connection_details = connection;
-                    dataSource.data_type = UtilityService.getInstance().getDataSourceType('postgresql');
+                    dataSource.data_type = EDataSourceType.PDF;
                     dataSource.project = project;
                     dataSource.users_platform = user;
                     dataSource.created_at = new Date();
@@ -3350,7 +3379,7 @@ export class DataSourceProcessor {
                         let aliasName: string;
                         if (column?.alias_name && column.alias_name !== '') {
                             aliasName = column.alias_name;
-                        } else if (column.schema === 'dra_excel' || column.schema === 'dra_pdf' || column.schema === 'dra_google_analytics' || column.schema === 'dra_google_ad_manager' || column.schema === 'dra_google_ads') {
+                        } else if (column.schema === 'dra_excel' || column.schema === 'dra_pdf' || column.schema === 'dra_google_analytics' || column.schema === 'dra_google_ad_manager' || column.schema === 'dra_google_ads' || column.schema === 'dra_mongodb' || column.schema === 'dra_meta_ads') {
                             // Special schemas: match INSERT loop's truncation logic
                             aliasName = `${column.table_name}`.length > 20 
                                 ? `${column.table_name}`.slice(-20) + `_${column.column_name}` 
@@ -4320,5 +4349,141 @@ export class DataSourceProcessor {
                 nextRun.setHours(0, 0, 0, 0);
                 return nextRun;
         }
+    }
+
+    /**
+     * Add Meta Ads data source
+     */
+    public async addMetaAdsDataSource(
+        name: string,
+        connectionDetails: IAPIConnectionDetails,
+        tokenDetails: ITokenDetails,
+        projectId: number
+    ): Promise<number | null> {
+        return new Promise<number | null>(async (resolve, reject) => {
+            const { user_id } = tokenDetails;
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                return resolve(null);
+            }
+            const dbConnector = await driver.getConcreteDriver();
+            const manager = dbConnector.manager;
+            if (!manager) {
+                return resolve(null);
+            }
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!user) {
+                return resolve(null);
+            }
+            const project: DRAProject|null = await manager.findOne(DRAProject, {where: {id: projectId, users_platform: user}});
+            if (project) {
+                // Create schema for Meta Ads data
+                const schemaName = 'dra_meta_ads';
+                await manager.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+                
+                // Get internal database connection details
+                const host = UtilityService.getInstance().getConstants('POSTGRESQL_HOST');
+                const port = UtilityService.getInstance().getConstants('POSTGRESQL_PORT');
+                const database = UtilityService.getInstance().getConstants('POSTGRESQL_DB_NAME');
+                const username = UtilityService.getInstance().getConstants('POSTGRESQL_USERNAME');
+                const password = UtilityService.getInstance().getConstants('POSTGRESQL_PASSWORD');
+                
+                // Create hybrid connection details: database connection + API connection
+                const hybridConnection: IDBConnectionDetails = {
+                    data_source_type: EDataSourceType.META_ADS,
+                    host: host,
+                    port: parseInt(port),
+                    schema: schemaName,
+                    database: database,
+                    username: username,
+                    password: password,
+                    api_connection_details: connectionDetails
+                };
+                
+                const dataSource = new DRADataSource();
+                dataSource.name = name;
+                dataSource.connection_details = hybridConnection;
+                dataSource.data_type = EDataSourceType.META_ADS;
+                dataSource.project = project;
+                dataSource.users_platform = user;
+                dataSource.created_at = new Date();
+                const savedDataSource = await manager.save(dataSource);
+                
+                console.log('✅ Meta Ads data source added successfully with ID:', savedDataSource.id);
+                return resolve(savedDataSource.id);
+            }
+            return resolve(null);
+        });
+    }
+
+    /**
+     * Sync Meta Ads data source
+     */
+    public async syncMetaAdsDataSource(
+        dataSourceId: number,
+        user_id: number
+    ): Promise<boolean> {
+        return new Promise<boolean>(async (resolve, reject) => {
+            if (!dataSourceId || isNaN(dataSourceId) || !Number.isInteger(dataSourceId) || dataSourceId < 1) {
+                console.error('[syncMetaAdsDataSource] Invalid data source ID:', dataSourceId);
+                return resolve(false);
+            }
+            
+            console.log('[syncMetaAdsDataSource] Starting sync for data source ID:', dataSourceId);
+            
+            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                console.error('[syncMetaAdsDataSource] Database driver not available');
+                return resolve(false);
+            }
+            const manager = (await driver.getConcreteDriver()).manager;
+            if (!manager) {
+                console.error('[syncMetaAdsDataSource] Database manager not available');
+                return resolve(false);
+            }
+            
+            // Get user
+            console.log('[syncMetaAdsDataSource] Fetching user with ID:', user_id);
+            const user = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
+            if (!user) {
+                console.error('[syncMetaAdsDataSource] User not found:', user_id);
+                return resolve(false);
+            }
+            
+            // Get data source
+            console.log('[syncMetaAdsDataSource] Fetching data source with ID:', dataSourceId);
+            const dataSource = await manager.findOne(DRADataSource, {
+                where: {id: dataSourceId, users_platform: user, data_type: EDataSourceType.META_ADS}
+            });
+            
+            if (!dataSource) {
+                console.error('Data source not found or not a Meta Ads source');
+                return resolve(false);
+            }
+            
+            // Get connection details - extract API connection from hybrid structure
+            const connection = dataSource.connection_details;
+            if (!connection.api_connection_details) {
+                console.error('API connection details not found in data source');
+                return resolve(false);
+            }
+            
+            const apiConnectionDetails = connection.api_connection_details;
+            
+            // Trigger sync
+            const { MetaAdsDriver } = await import('../drivers/MetaAdsDriver.js');
+            const metaAdsDriver = MetaAdsDriver.getInstance();
+            const syncResult = await metaAdsDriver.syncToDatabase(dataSourceId, user.id, apiConnectionDetails);
+            
+            if (syncResult) {
+                // Update last sync time in API connection details
+                apiConnectionDetails.api_config.last_sync = new Date();
+                connection.api_connection_details = apiConnectionDetails;
+                dataSource.connection_details = connection;
+                await manager.save(dataSource);
+            }
+            
+            return resolve(syncResult);
+        });
     }
 }
