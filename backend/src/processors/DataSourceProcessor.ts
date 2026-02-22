@@ -2440,7 +2440,7 @@ export class DataSourceProcessor {
                     };
                     dataSource.name = dataSourceName;
                     dataSource.connection_details = connection;
-                    dataSource.data_type = UtilityService.getInstance().getDataSourceType('postgresql');
+                    dataSource.data_type = EDataSourceType.EXCEL;
                     dataSource.project = project;
                     dataSource.users_platform = user;
                     dataSource.created_at = new Date();
@@ -2776,7 +2776,7 @@ export class DataSourceProcessor {
 
                     dataSource.name = dataSourceName;
                     dataSource.connection_details = connection;
-                    dataSource.data_type = UtilityService.getInstance().getDataSourceType('postgresql');
+                    dataSource.data_type = EDataSourceType.EXCEL;
                     dataSource.project = project;
                     dataSource.users_platform = user;
                     dataSource.created_at = new Date();
@@ -3008,7 +3008,7 @@ export class DataSourceProcessor {
                     };
                     dataSource.name = `${dataSourceName}_${new Date().getTime()}`;
                     dataSource.connection_details = connection;
-                    dataSource.data_type = UtilityService.getInstance().getDataSourceType('postgresql');
+                    dataSource.data_type = EDataSourceType.PDF;
                     dataSource.project = project;
                     dataSource.users_platform = user;
                     dataSource.created_at = new Date();

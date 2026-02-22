@@ -411,29 +411,31 @@ function closeSyncHistoryDialog() {
  * Get last sync time formatted
  */
 function getLastSyncTime(dataSource) {
-    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager' && dataSource.data_type !== 'google_ads') return null;
+    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager' && dataSource.data_type !== 'google_ads' && dataSource.data_type !== 'meta_ads') return null;
     const lastSync = dataSource.connection_details?.api_connection_details?.api_config?.last_sync;
     const isGAM = dataSource.data_type === 'google_ad_manager';
     const isAds = dataSource.data_type === 'google_ads';
-    return lastSync ? (isAds ? ads.formatSyncTime(lastSync) : (isGAM ? gam.formatSyncTime(lastSync) : analytics.formatSyncTime(lastSync))) : 'Never';
+    const isMeta = dataSource.data_type === 'meta_ads';
+    return lastSync ? (isMeta ? metaAds.formatSyncTime(lastSync) : (isAds ? ads.formatSyncTime(lastSync) : (isGAM ? gam.formatSyncTime(lastSync) : analytics.formatSyncTime(lastSync)))) : 'Never';
 }
 
 /**
  * Get sync frequency text
  */
 function getSyncFrequency(dataSource) {
-    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager' && dataSource.data_type !== 'google_ads') return null;
+    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager' && dataSource.data_type !== 'google_ads' && dataSource.data_type !== 'meta_ads') return null;
     const frequency = dataSource.connection_details?.api_connection_details?.api_config?.sync_frequency || 'manual';
     const isGAM = dataSource.data_type === 'google_ad_manager';
+    const isMeta = dataSource.data_type === 'meta_ads';
     const isAds = dataSource.data_type === 'google_ads';
-    return isAds ? 'Manual' : (isGAM ? gam.getSyncFrequencyText(frequency) : analytics.getSyncFrequencyText(frequency));
+    return (isAds || isMeta) ? 'Manual' : (isGAM ? gam.getSyncFrequencyText(frequency) : analytics.getSyncFrequencyText(frequency));
 }
 
 /**
  * Check if data source was recently synced (within 24 hours)
  */
 function isRecentlySynced(dataSource) {
-    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager' && dataSource.data_type !== 'google_ads') return false;
+    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager' && dataSource.data_type !== 'google_ads' && dataSource.data_type !== 'meta_ads') return false;
     const lastSync = dataSource.connection_details?.api_connection_details?.api_config?.last_sync;
     if (!lastSync) return false;
     const diffHours = (new Date().getTime() - new Date(lastSync).getTime()) / (1000 * 60 * 60);
@@ -586,10 +588,10 @@ onMounted(async () => {
                     <div
                         v-for="dataSource in state.data_sources"
                         :key="dataSource.id"
-                        class="relative border border-gray-200 rounded-lg p-6 bg-white shadow-sm hover:shadow-lg hover:border-primary-blue-100 transition-all duration-200 group">
+                        class="relative border border-gray-200 rounded-lg p-6 bg-white shadow-sm hover:shadow-lg hover:border-primary-blue-100 transition-all duration-200 group flex flex-col">
                         
                         <!-- Clickable area -->
-                        <div class="cursor-pointer" @click="goToDataSource(dataSource.id)">
+                        <div class="cursor-pointer flex flex-col flex-1" @click="goToDataSource(dataSource.id)">
                             <!-- Header -->
                             <div class="flex items-start gap-4 mb-4">
                                 <img 
@@ -600,7 +602,7 @@ onMounted(async () => {
                                     <h3 
                                         :ref="`dataSourceTitle-${dataSource.id}`"
                                         :data-source-title="dataSource.id"
-                                        class="text-lg font-semibold text-gray-900 truncate"
+                                        class="w-4/5 text-lg font-semibold text-gray-900 break-words"
                                         v-tippy="isTitleTruncated(dataSource.id, 'data-source-title') ? { content: dataSource.name } : undefined"
                                     >
                                         {{ dataSource.name }}
@@ -611,8 +613,8 @@ onMounted(async () => {
                                 </div>
                             </div>
 
-                            <!-- Sync Status (for Google sources) -->
-                            <div v-if="['google_analytics', 'google_ad_manager', 'google_ads'].includes(dataSource.data_type)"
+                            <!-- Sync Status (for Google and Meta sources) -->
+                            <div v-if="['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads'].includes(dataSource.data_type)"
                                 class="mb-4">
                                 <div class="flex items-center justify-between mb-2">
                                     <span class="text-sm text-gray-600">Status</span>
@@ -649,7 +651,7 @@ onMounted(async () => {
                             <!-- Action Button -->
                             <button
                                 @click.stop="goToDataSource(dataSource.id)"
-                                class="w-full px-4 py-2 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 hover:text-white transition-all duration-200 flex items-center justify-center gap-2 group-hover:bg-primary-blue-300 group-hover:text-white cursor-pointer">
+                                class="mt-auto w-full px-4 py-2 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 hover:text-white transition-all duration-200 flex items-center justify-center gap-2 group-hover:bg-primary-blue-300 group-hover:text-white cursor-pointer">
                                 <font-awesome icon="fas fa-arrow-right" />
                                 View Details
                             </button>
@@ -676,9 +678,9 @@ onMounted(async () => {
                                 <font-awesome icon="fas fa-pen" class="text-sm text-white" />
                             </NuxtLink>
 
-                            <!-- Sync Button (for Google sources) -->
+                            <!-- Sync Button (for Google and Meta sources) -->
                             <button
-                                v-if="permissions.canUpdate.value && ['google_analytics', 'google_ad_manager', 'google_ads'].includes(dataSource.data_type)"
+                                v-if="permissions.canUpdate.value && ['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads'].includes(dataSource.data_type)"
                                 @click.stop="syncDataSource(dataSource.id)"
                                 :disabled="state.syncing[dataSource.id]"
                                 class="bg-primary-blue-100 hover:bg-primary-blue-300 border border-primary-blue-100 rounded-full w-10 h-10 flex items-center justify-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors z-10"
@@ -689,9 +691,9 @@ onMounted(async () => {
                                     class="text-sm text-white" />
                             </button>
 
-                            <!-- Sync History Button (for Google sources) -->
+                            <!-- Sync History Button (for Google and Meta sources) -->
                             <button
-                                v-if="['google_analytics', 'google_ad_manager', 'google_ads'].includes(dataSource.data_type)"
+                                v-if="['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads'].includes(dataSource.data_type)"
                                 @click.stop="viewSyncHistory(dataSource.id)"
                                 class="bg-gray-500 hover:bg-gray-600 border border-gray-500 rounded-full w-10 h-10 flex items-center justify-center cursor-pointer transition-colors z-10"
                                 v-tippy="{ content: 'View Sync History' }">
