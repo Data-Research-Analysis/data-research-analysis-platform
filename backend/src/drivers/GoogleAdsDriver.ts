@@ -141,6 +141,7 @@ export class GoogleAdsDriver implements IAPIDriver {
                         manager,
                         schemaName,
                         dataSourceId,
+                        usersPlatformId,
                         reportType,
                         startDate,
                         endDate,
@@ -188,6 +189,7 @@ export class GoogleAdsDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         reportTypeString: string,
         startDate: string,
         endDate: string,
@@ -197,13 +199,13 @@ export class GoogleAdsDriver implements IAPIDriver {
 
         switch (reportType) {
             case GoogleAdsReportType.CAMPAIGN:
-                return await this.syncCampaignData(manager, schemaName, dataSourceId, startDate, endDate, connectionDetails);
+                return await this.syncCampaignData(manager, schemaName, dataSourceId, usersPlatformId, startDate, endDate, connectionDetails);
             case GoogleAdsReportType.KEYWORD:
-                return await this.syncKeywordData(manager, schemaName, dataSourceId, startDate, endDate, connectionDetails);
+                return await this.syncKeywordData(manager, schemaName, dataSourceId, usersPlatformId, startDate, endDate, connectionDetails);
             case GoogleAdsReportType.GEOGRAPHIC:
-                return await this.syncGeographicData(manager, schemaName, dataSourceId, startDate, endDate, connectionDetails);
+                return await this.syncGeographicData(manager, schemaName, dataSourceId, usersPlatformId, startDate, endDate, connectionDetails);
             case GoogleAdsReportType.DEVICE:
-                return await this.syncDeviceData(manager, schemaName, dataSourceId, startDate, endDate, connectionDetails);
+                return await this.syncDeviceData(manager, schemaName, dataSourceId, usersPlatformId, startDate, endDate, connectionDetails);
             default:
                 console.warn(`⚠️  Unsupported report type: ${reportType}`);
                 return { recordsSynced: 0, recordsFailed: 0 };
@@ -217,6 +219,7 @@ export class GoogleAdsDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
@@ -251,6 +254,7 @@ export class GoogleAdsDriver implements IAPIDriver {
                         manager,
                         schemaName,
                         dataSourceId,
+                        usersPlatformId,
                         clientId,
                         startDate,
                         endDate,
@@ -272,6 +276,7 @@ export class GoogleAdsDriver implements IAPIDriver {
             manager,
             schemaName,
             dataSourceId,
+            usersPlatformId,
             customerId,
             startDate,
             endDate,
@@ -286,6 +291,7 @@ export class GoogleAdsDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         customerId: string,
         startDate: string,
         endDate: string,
@@ -357,6 +363,18 @@ export class GoogleAdsDriver implements IAPIDriver {
         // Upsert for deduplication
         await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'campaign_id']);
         
+        // Store table metadata
+        await tableMetadataService.storeTableMetadata(manager, {
+            dataSourceId,
+            usersPlatformId,
+            schemaName,
+            physicalTableName,
+            logicalTableName,
+            originalSheetName: logicalTableName,
+            fileId: customerId,
+            tableType: 'google_ads'
+        });
+        
         console.log(`✅ Synced ${transformedData.length} campaign records for account ${customerId}`);
         return { recordsSynced: transformedData.length, recordsFailed: 0 };
     }
@@ -368,6 +386,7 @@ export class GoogleAdsDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
@@ -402,6 +421,7 @@ export class GoogleAdsDriver implements IAPIDriver {
                         manager,
                         schemaName,
                         dataSourceId,
+                        usersPlatformId,
                         clientId,
                         startDate,
                         endDate,
@@ -423,6 +443,7 @@ export class GoogleAdsDriver implements IAPIDriver {
             manager,
             schemaName,
             dataSourceId,
+            usersPlatformId,
             customerId,
             startDate,
             endDate,
@@ -437,6 +458,7 @@ export class GoogleAdsDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         customerId: string,
         startDate: string,
         endDate: string,
@@ -504,6 +526,18 @@ export class GoogleAdsDriver implements IAPIDriver {
         await this.bulkUpsert(manager, fullTableName, transformedData, 
             ['date', 'keyword_text', 'match_type', 'campaign_name', 'ad_group_name']);
         
+        // Store table metadata
+        await tableMetadataService.storeTableMetadata(manager, {
+            dataSourceId,
+            usersPlatformId,
+            schemaName,
+            physicalTableName,
+            logicalTableName,
+            originalSheetName: logicalTableName,
+            fileId: customerId,
+            tableType: 'google_ads'
+        });
+        
         console.log(`✅ Synced ${transformedData.length} keyword records for account ${customerId}`);
         return { recordsSynced: transformedData.length, recordsFailed: 0 };
     }
@@ -515,6 +549,7 @@ export class GoogleAdsDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
@@ -549,6 +584,7 @@ export class GoogleAdsDriver implements IAPIDriver {
                         manager,
                         schemaName,
                         dataSourceId,
+                        usersPlatformId,
                         clientId,
                         startDate,
                         endDate,
@@ -570,6 +606,7 @@ export class GoogleAdsDriver implements IAPIDriver {
             manager,
             schemaName,
             dataSourceId,
+            usersPlatformId,
             customerId,
             startDate,
             endDate,
@@ -584,6 +621,7 @@ export class GoogleAdsDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         customerId: string,
         startDate: string,
         endDate: string,
@@ -638,6 +676,18 @@ export class GoogleAdsDriver implements IAPIDriver {
         const transformedData = this.transformGeographicData(reportResult.data, customerId);
         await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'country', 'region', 'city']);
         
+        // Store table metadata
+        await tableMetadataService.storeTableMetadata(manager, {
+            dataSourceId,
+            usersPlatformId,
+            schemaName,
+            physicalTableName,
+            logicalTableName,
+            originalSheetName: logicalTableName,
+            fileId: customerId,
+            tableType: 'google_ads'
+        });
+        
         console.log(`✅ Synced ${transformedData.length} geographic records for account ${customerId}`);
         return { recordsSynced: transformedData.length, recordsFailed: 0 };
     }
@@ -649,6 +699,7 @@ export class GoogleAdsDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         startDate: string,
         endDate: string,
         connectionDetails: IAPIConnectionDetails
@@ -683,6 +734,7 @@ export class GoogleAdsDriver implements IAPIDriver {
                         manager,
                         schemaName,
                         dataSourceId,
+                        usersPlatformId,
                         clientId,
                         startDate,
                         endDate,
@@ -704,6 +756,7 @@ export class GoogleAdsDriver implements IAPIDriver {
             manager,
             schemaName,
             dataSourceId,
+            usersPlatformId,
             customerId,
             startDate,
             endDate,
@@ -718,6 +771,7 @@ export class GoogleAdsDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         customerId: string,
         startDate: string,
         endDate: string,
@@ -771,6 +825,18 @@ export class GoogleAdsDriver implements IAPIDriver {
         
         const transformedData = this.transformDeviceData(reportResult.data, customerId);
         await this.bulkUpsert(manager, fullTableName, transformedData, ['date', 'device']);
+        
+        // Store table metadata
+        await tableMetadataService.storeTableMetadata(manager, {
+            dataSourceId,
+            usersPlatformId,
+            schemaName,
+            physicalTableName,
+            logicalTableName,
+            originalSheetName: logicalTableName,
+            fileId: customerId,
+            tableType: 'google_ads'
+        });
         
         console.log(`✅ Synced ${transformedData.length} device records for account ${customerId}`);
         return { recordsSynced: transformedData.length, recordsFailed: 0 };

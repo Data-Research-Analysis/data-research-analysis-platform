@@ -643,13 +643,28 @@ export class DataSourceProcessor {
                         return resolve(false);
                     }
                     try {
-                        const query = `SELECT table_name FROM information_schema.tables WHERE table_schema = 'dra_meta_ads' AND table_name LIKE 'ds${dataSource.id}_%'`;
-                        const tables = await dbConnector.query(query);
+                        // First drop tables tracked in dra_table_metadata (new ds{id}_{hash} naming)
+                        const metadataQuery = `
+                            SELECT physical_table_name FROM dra_table_metadata
+                            WHERE schema_name = 'dra_meta_ads' AND data_source_id = $1
+                        `;
+                        const metadataResults = await dbConnector.query(metadataQuery, [dataSource.id]);
 
-                        for (const table of tables) {
+                        console.log(`Found ${metadataResults.length} Meta Ads metadata-tracked tables to delete for data source ${dataSource.id}`);
+                        for (const row of metadataResults) {
+                            const tableName = row.physical_table_name;
+                            await dbConnector.query(`DROP TABLE IF EXISTS dra_meta_ads.${tableName}`);
+                            console.log(`Dropped Meta Ads table (metadata): ${tableName}`);
+                        }
+
+                        // Also drop legacy tables using old {type}_{id} naming (e.g. campaigns_78, ads_78)
+                        const legacyQuery = `SELECT table_name FROM information_schema.tables WHERE table_schema = 'dra_meta_ads' AND table_name LIKE '%_${dataSource.id}'`;
+                        const legacyTables = await dbConnector.query(legacyQuery);
+
+                        for (const table of legacyTables) {
                             const tableName = table.table_name;
                             await dbConnector.query(`DROP TABLE IF EXISTS dra_meta_ads.${tableName}`);
-                            console.log('Dropped Meta Ads table:', tableName);
+                            console.log(`Dropped Meta Ads table (legacy): ${tableName}`);
                         }
                     } catch (error) {
                         console.error('Error dropping Meta Ads tables:', error);
@@ -1051,7 +1066,7 @@ export class DataSourceProcessor {
                     console.error('[DataSourceProcessor] Error getting MongoDB tables from PostgreSQL:', error);
                     return resolve(null);
                 }
-            } else if (dataSource.data_type === EDataSourceType.POSTGRESQL || dataSource.data_type === EDataSourceType.MYSQL || dataSource.data_type === EDataSourceType.MARIADB || dataSource.data_type === EDataSourceType.EXCEL || dataSource.data_type === EDataSourceType.PDF || dataSource.data_type === EDataSourceType.GOOGLE_ANALYTICS || dataSource.data_type === EDataSourceType.GOOGLE_AD_MANAGER || dataSource.data_type === EDataSourceType.GOOGLE_ADS) {
+            } else if (dataSource.data_type === EDataSourceType.POSTGRESQL || dataSource.data_type === EDataSourceType.MYSQL || dataSource.data_type === EDataSourceType.MARIADB || dataSource.data_type === EDataSourceType.EXCEL || dataSource.data_type === EDataSourceType.PDF || dataSource.data_type === EDataSourceType.GOOGLE_ANALYTICS || dataSource.data_type === EDataSourceType.GOOGLE_AD_MANAGER || dataSource.data_type === EDataSourceType.GOOGLE_ADS || dataSource.data_type === EDataSourceType.META_ADS) {
                 const connection = dataSource.connection_details;
                 console.log('[DEBUG - DataSourceProcessor] Connecting to data source ID:', dataSource.id);
                 console.log('[DEBUG - DataSourceProcessor] Data source type:', dataSource.data_type);
@@ -1163,7 +1178,7 @@ export class DataSourceProcessor {
                     } else if (schemaName === 'dra_google_ads') {
                         query += ` AND tb.table_name LIKE '%_${dataSource.id}'`;
                     } else if (schemaName === 'dra_meta_ads') {
-                        query += ` AND tb.table_name LIKE 'ds${dataSource.id}_%'`;
+                        query += ` AND tb.table_name LIKE '%_${dataSource.id}'`;
                     } else {
                         // For PostgreSQL, MySQL, MariaDB - no additional filter needed
                         // The schema filter in getTablesColumnDetails() is sufficient

@@ -131,6 +131,7 @@ export class MetaAdsDriver implements IAPIDriver {
                     manager,
                     schemaName,
                     dataSourceId,
+                    usersPlatformId,
                     syncType,
                     connectionDetails,
                     { startDate, endDate }
@@ -174,19 +175,20 @@ export class MetaAdsDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         entityType: string,
         connectionDetails: IAPIConnectionDetails,
         dateRange: { startDate: string; endDate: string }
     ): Promise<number> {
         switch (entityType.toLowerCase()) {
             case 'campaigns':
-                return await this.syncCampaigns(manager, schemaName, dataSourceId, connectionDetails, dateRange);
+                return await this.syncCampaigns(manager, schemaName, dataSourceId, usersPlatformId, connectionDetails, dateRange);
             case 'adsets':
-                return await this.syncAdSets(manager, schemaName, dataSourceId, connectionDetails);
+                return await this.syncAdSets(manager, schemaName, dataSourceId, usersPlatformId, connectionDetails);
             case 'ads':
-                return await this.syncAds(manager, schemaName, dataSourceId, connectionDetails);
+                return await this.syncAds(manager, schemaName, dataSourceId, usersPlatformId, connectionDetails);
             case 'insights':
-                return await this.syncInsights(manager, schemaName, dataSourceId, connectionDetails, dateRange);
+                return await this.syncInsights(manager, schemaName, dataSourceId, usersPlatformId, connectionDetails, dateRange);
             default:
                 console.warn(`⚠️ Unknown sync type: ${entityType}`);
                 return 0;
@@ -200,10 +202,13 @@ export class MetaAdsDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         connectionDetails: IAPIConnectionDetails,
         dateRange: { startDate: string; endDate: string }
     ): Promise<number> {
-        const tableName = `campaigns_${dataSourceId}`;
+        const tableMetadataService = TableMetadataService.getInstance();
+        const logicalTableName = 'campaigns';
+        const tableName = tableMetadataService.generatePhysicalTableName(dataSourceId, logicalTableName);
         const adAccountId = connectionDetails.api_config?.ad_account_id!;
         
         // Create table if not exists
@@ -233,6 +238,16 @@ export class MetaAdsDriver implements IAPIDriver {
             totalInserted += batch.length;
         }
         
+        // Store table metadata
+        await tableMetadataService.storeTableMetadata(manager, {
+            dataSourceId,
+            usersPlatformId,
+            schemaName,
+            physicalTableName: tableName,
+            logicalTableName,
+            originalSheetName: logicalTableName,
+            tableType: 'meta_ads'
+        });
 
         return totalInserted;
     }
@@ -244,9 +259,12 @@ export class MetaAdsDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         connectionDetails: IAPIConnectionDetails
     ): Promise<number> {
-        const tableName = `adsets_${dataSourceId}`;
+        const tableMetadataService = TableMetadataService.getInstance();
+        const logicalTableName = 'adsets';
+        const tableName = tableMetadataService.generatePhysicalTableName(dataSourceId, logicalTableName);
         const adAccountId = connectionDetails.api_config?.ad_account_id!;
         
         // Create table if not exists
@@ -275,6 +293,17 @@ export class MetaAdsDriver implements IAPIDriver {
             totalInserted += batch.length;
         }
         
+        // Store table metadata
+        await tableMetadataService.storeTableMetadata(manager, {
+            dataSourceId,
+            usersPlatformId,
+            schemaName,
+            physicalTableName: tableName,
+            logicalTableName,
+            originalSheetName: logicalTableName,
+            tableType: 'meta_ads'
+        });
+        
         return totalInserted;
     }
     
@@ -285,9 +314,12 @@ export class MetaAdsDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         connectionDetails: IAPIConnectionDetails
     ): Promise<number> {
-        const tableName = `ads_${dataSourceId}`;
+        const tableMetadataService = TableMetadataService.getInstance();
+        const logicalTableName = 'ads';
+        const tableName = tableMetadataService.generatePhysicalTableName(dataSourceId, logicalTableName);
         const adAccountId = connectionDetails.api_config?.ad_account_id!;
         
         // Create table if not exists
@@ -316,6 +348,17 @@ export class MetaAdsDriver implements IAPIDriver {
             totalInserted += batch.length;
         }
         
+        // Store table metadata
+        await tableMetadataService.storeTableMetadata(manager, {
+            dataSourceId,
+            usersPlatformId,
+            schemaName,
+            physicalTableName: tableName,
+            logicalTableName,
+            originalSheetName: logicalTableName,
+            tableType: 'meta_ads'
+        });
+        
         return totalInserted;
     }
     
@@ -326,10 +369,13 @@ export class MetaAdsDriver implements IAPIDriver {
         manager: any,
         schemaName: string,
         dataSourceId: number,
+        usersPlatformId: number,
         connectionDetails: IAPIConnectionDetails,
         dateRange: { startDate: string; endDate: string }
     ): Promise<number> {
-        const tableName = `insights_${dataSourceId}`;
+        const tableMetadataService = TableMetadataService.getInstance();
+        const logicalTableName = 'insights';
+        const tableName = tableMetadataService.generatePhysicalTableName(dataSourceId, logicalTableName);
         const adAccountId = connectionDetails.api_config?.ad_account_id!;
         
         // Create table if not exists
@@ -377,6 +423,17 @@ export class MetaAdsDriver implements IAPIDriver {
             await this.batchUpsert(manager, schemaName, tableName, records, ['date_start', 'date_stop']);
             totalInserted += batch.length;
         }
+        
+        // Store table metadata
+        await tableMetadataService.storeTableMetadata(manager, {
+            dataSourceId,
+            usersPlatformId,
+            schemaName,
+            physicalTableName: tableName,
+            logicalTableName,
+            originalSheetName: logicalTableName,
+            tableType: 'meta_ads'
+        });
         
         return totalInserted;
     }
@@ -634,12 +691,14 @@ export class MetaAdsDriver implements IAPIDriver {
     public async getSchema(dataSourceId: number, connectionDetails: IAPIConnectionDetails): Promise<any> {
         const syncTypes = connectionDetails.api_config?.report_types || ['campaigns', 'adsets', 'ads', 'insights'];
         const schemaName = 'dra_meta_ads';
+        const tableMetadataService = TableMetadataService.getInstance();
         
         const tables = syncTypes.map((syncType: string) => {
-            const tableName = `${syncType}_${dataSourceId}`;
+            const physicalTableName = tableMetadataService.generatePhysicalTableName(dataSourceId, syncType);
             return {
                 schema: schemaName,
-                table: tableName,
+                table: physicalTableName,
+                logicalName: syncType,
                 columns: this.getTableColumns(syncType),
             };
         });
