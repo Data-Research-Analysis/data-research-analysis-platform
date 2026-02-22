@@ -528,8 +528,22 @@ export class DataSamplingService {
             context.data_source_name = dataSource.name;
             context.data_source_type = dataSource.data_type;
 
-            // Connect to external data source
-            const driver = await DBDriver.getInstance().getDriver(dataSource.data_type);
+            // API-integrated sources store their data in internal PostgreSQL under dedicated schemas
+            const apiIntegratedSchemas: Record<string, string> = {
+                'google_analytics': 'dra_google_analytics',
+                'google_ad_manager': 'dra_google_ad_manager',
+                'google_ads': 'dra_google_ads',
+                'meta_ads': 'dra_meta_ads',
+                'excel': 'dra_excel',
+                'pdf': 'dra_pdf',
+                'mongodb': 'dra_mongodb'
+            };
+            const isApiIntegrated = apiIntegratedSchemas[dataSource.data_type] !== undefined;
+
+            // Connect to external data source (use internal PG driver for API-integrated sources)
+            const driver = await DBDriver.getInstance().getDriver(
+                isApiIntegrated ? EDataSourceType.POSTGRESQL : dataSource.data_type
+            );
             const connectionDetails = dataSource.connection_details as IDBConnectionDetails;
             
             // For MongoDB, use connection_string if available
@@ -542,7 +556,9 @@ export class DataSamplingService {
 
             // Collect schema
             const schemaCollector = new SchemaCollectorService();
-            const schemaName = connectionDetails.schema || connectionDetails.database || 'public';
+            const schemaName = isApiIntegrated
+                ? apiIntegratedSchemas[dataSource.data_type]
+                : (connectionDetails.schema || connectionDetails.database || 'public');
             const tableSchemas = await schemaCollector.collectSchema(
                 await driver.getConcreteDriver() as DataSource,
                 schemaName

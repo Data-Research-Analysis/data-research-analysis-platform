@@ -1281,6 +1281,7 @@ Keep it concise - aim for 200-300 words total.`;
             'google_analytics': 'dra_google_analytics',
             'google_ad_manager': 'dra_google_ad_manager',
             'google_ads': 'dra_google_ads',
+            'meta_ads': 'dra_meta_ads',
             'excel': 'dra_excel',
             'pdf': 'dra_pdf',
             'mongodb': 'dra_mongodb'
@@ -1348,6 +1349,7 @@ Keep it concise - aim for 200-300 words total.`;
             case 'google_analytics':  // Google Analytics data stored in PostgreSQL
             case 'google_ad_manager': // Google Ad Manager data stored in PostgreSQL
             case 'google_ads':        // Google Ads data stored in PostgreSQL
+            case 'meta_ads':          // Meta Ads data stored in PostgreSQL (dra_meta_ads schema)
             case 'excel':             // Excel data stored in PostgreSQL (dra_excel schema)
             case 'pdf':               // PDF data stored in PostgreSQL (dra_pdf schema)
             case 'mongodb':           // MongoDB data stored in PostgreSQL (dra_mongodb schema)
@@ -1823,6 +1825,10 @@ Keep it concise - aim for 200-300 words total.`;
                 return 'dra_google_ads';
             case 'google_ad_manager':
                 return 'dra_google_ad_manager';
+            case 'meta_ads':
+                return 'dra_meta_ads';
+            case 'mongodb':
+                return 'dra_mongodb';
             case 'excel':
             case 'csv':
             case 'pdf':
