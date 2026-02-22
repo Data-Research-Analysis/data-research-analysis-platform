@@ -657,6 +657,17 @@ export class DataSourceProcessor {
                             console.log(`Dropped Meta Ads table (metadata): ${tableName}`);
                         }
 
+                        // Also drop new-format tables (ds{id}_{hash}) that may lack metadata rows
+                        // (created before storeTableMetadata fix was deployed)
+                        const newFormatQuery = `SELECT table_name FROM information_schema.tables WHERE table_schema = 'dra_meta_ads' AND table_name LIKE 'ds${dataSource.id}_%'`;
+                        const newFormatTables = await dbConnector.query(newFormatQuery);
+
+                        for (const table of newFormatTables) {
+                            const tableName = table.table_name;
+                            await dbConnector.query(`DROP TABLE IF EXISTS dra_meta_ads.${tableName}`);
+                            console.log(`Dropped Meta Ads table (new-format, no metadata): ${tableName}`);
+                        }
+
                         // Also drop legacy tables using old {type}_{id} naming (e.g. campaigns_78, ads_78)
                         const legacyQuery = `SELECT table_name FROM information_schema.tables WHERE table_schema = 'dra_meta_ads' AND table_name LIKE '%_${dataSource.id}'`;
                         const legacyTables = await dbConnector.query(legacyQuery);

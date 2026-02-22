@@ -304,7 +304,12 @@ async function deleteDataSource() {
     if (!confirm) return;
 
     try {
-        // TODO: Implement delete data source API call
+        const success = await dataSourceStore.deleteDataSource(dataSourceId);
+
+        if (!success) {
+            throw new Error('Delete request failed');
+        }
+
         await $swal.fire({
             title: 'Deleted!',
             text: 'Data source has been deleted',

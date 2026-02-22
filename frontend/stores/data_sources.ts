@@ -696,6 +696,34 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         }
     }
 
+    async function deleteDataSource(dataSourceId: number): Promise<boolean> {
+        const token = getAuthToken();
+        if (!token) return false;
+
+        try {
+            const response = await fetch(`${baseUrl()}/data-source/delete/${dataSourceId}`, {
+                method: "DELETE",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                }
+            });
+
+            if (response.ok) {
+                // Remove from local store state
+                dataSources.value = dataSources.value.filter(ds => ds.id !== dataSourceId);
+                if (import.meta.client) {
+                    localStorage.setItem('dataSources', JSON.stringify(dataSources.value));
+                }
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.error('Error deleting data source:', error);
+            return false;
+        }
+    }
+
     return {
         dataSources,
         selectedDataSource,
@@ -740,6 +768,8 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         addMetaAdsDataSource,
         syncMetaAds,
         getMetaAdsSyncStatus,
+        // Data source management
+        deleteDataSource,
     }
     
     // Initialize from localStorage once on client
