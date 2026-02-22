@@ -214,6 +214,17 @@ export class MetaAdsDriver implements IAPIDriver {
         // Create table if not exists
         await this.createCampaignsTable(manager, schemaName, tableName);
         
+        // Store table metadata immediately after table creation (regardless of data availability)
+        await tableMetadataService.storeTableMetadata(manager, {
+            dataSourceId,
+            usersPlatformId,
+            schemaName,
+            physicalTableName: tableName,
+            logicalTableName,
+            originalSheetName: logicalTableName,
+            tableType: 'meta_ads'
+        });
+
         // Fetch campaigns from Meta API
         const campaigns = await this.metaAdsService.getCampaigns(
             adAccountId,
@@ -237,17 +248,6 @@ export class MetaAdsDriver implements IAPIDriver {
             await this.batchUpsert(manager, schemaName, tableName, records, ['id']);
             totalInserted += batch.length;
         }
-        
-        // Store table metadata
-        await tableMetadataService.storeTableMetadata(manager, {
-            dataSourceId,
-            usersPlatformId,
-            schemaName,
-            physicalTableName: tableName,
-            logicalTableName,
-            originalSheetName: logicalTableName,
-            tableType: 'meta_ads'
-        });
 
         return totalInserted;
     }
@@ -269,6 +269,17 @@ export class MetaAdsDriver implements IAPIDriver {
         
         // Create table if not exists
         await this.createAdSetsTable(manager, schemaName, tableName);
+        
+        // Store table metadata immediately after table creation (regardless of data availability)
+        await tableMetadataService.storeTableMetadata(manager, {
+            dataSourceId,
+            usersPlatformId,
+            schemaName,
+            physicalTableName: tableName,
+            logicalTableName,
+            originalSheetName: logicalTableName,
+            tableType: 'meta_ads'
+        });
         
         // Fetch ad sets from Meta API
         const adsets = await this.metaAdsService.getAdSets(
@@ -293,17 +304,6 @@ export class MetaAdsDriver implements IAPIDriver {
             totalInserted += batch.length;
         }
         
-        // Store table metadata
-        await tableMetadataService.storeTableMetadata(manager, {
-            dataSourceId,
-            usersPlatformId,
-            schemaName,
-            physicalTableName: tableName,
-            logicalTableName,
-            originalSheetName: logicalTableName,
-            tableType: 'meta_ads'
-        });
-        
         return totalInserted;
     }
     
@@ -324,6 +324,17 @@ export class MetaAdsDriver implements IAPIDriver {
         
         // Create table if not exists
         await this.createAdsTable(manager, schemaName, tableName);
+        
+        // Store table metadata immediately after table creation (regardless of data availability)
+        await tableMetadataService.storeTableMetadata(manager, {
+            dataSourceId,
+            usersPlatformId,
+            schemaName,
+            physicalTableName: tableName,
+            logicalTableName,
+            originalSheetName: logicalTableName,
+            tableType: 'meta_ads'
+        });
         
         // Fetch ads from Meta API
         const ads = await this.metaAdsService.getAds(
@@ -348,17 +359,6 @@ export class MetaAdsDriver implements IAPIDriver {
             totalInserted += batch.length;
         }
         
-        // Store table metadata
-        await tableMetadataService.storeTableMetadata(manager, {
-            dataSourceId,
-            usersPlatformId,
-            schemaName,
-            physicalTableName: tableName,
-            logicalTableName,
-            originalSheetName: logicalTableName,
-            tableType: 'meta_ads'
-        });
-        
         return totalInserted;
     }
     
@@ -380,6 +380,17 @@ export class MetaAdsDriver implements IAPIDriver {
         
         // Create table if not exists
         await this.createInsightsTable(manager, schemaName, tableName);
+        
+        // Store table metadata immediately after table creation (regardless of data availability)
+        await tableMetadataService.storeTableMetadata(manager, {
+            dataSourceId,
+            usersPlatformId,
+            schemaName,
+            physicalTableName: tableName,
+            logicalTableName,
+            originalSheetName: logicalTableName,
+            tableType: 'meta_ads'
+        });
         
         // Fetch insights at campaign level
         const insightsParams: IInsightsParams = {
@@ -423,17 +434,6 @@ export class MetaAdsDriver implements IAPIDriver {
             await this.batchUpsert(manager, schemaName, tableName, records, ['date_start', 'date_stop']);
             totalInserted += batch.length;
         }
-        
-        // Store table metadata
-        await tableMetadataService.storeTableMetadata(manager, {
-            dataSourceId,
-            usersPlatformId,
-            schemaName,
-            physicalTableName: tableName,
-            logicalTableName,
-            originalSheetName: logicalTableName,
-            tableType: 'meta_ads'
-        });
         
         return totalInserted;
     }

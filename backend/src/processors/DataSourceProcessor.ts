@@ -1076,7 +1076,7 @@ export class DataSourceProcessor {
                     dataSource.data_type === EDataSourceType.GOOGLE_ANALYTICS ||
                     dataSource.data_type === EDataSourceType.GOOGLE_AD_MANAGER ||
                     dataSource.data_type === EDataSourceType.GOOGLE_ADS ||
-                    (dataSource.data_type as string) === EDataSourceType.META_ADS
+                    dataSource.data_type === EDataSourceType.META_ADS
                 );
 
                 // Determine schema name based on data source type
@@ -1089,7 +1089,7 @@ export class DataSourceProcessor {
                     schemaName = 'dra_google_ad_manager';
                 } else if (dataSource.data_type === EDataSourceType.GOOGLE_ADS) {
                     schemaName = 'dra_google_ads';
-                } else if ((dataSource.data_type as string) === EDataSourceType.META_ADS) {
+                } else if (dataSource.data_type === EDataSourceType.META_ADS) {
                     schemaName = 'dra_meta_ads';
                 } else if (dataSource.data_type === EDataSourceType.EXCEL) {
                     schemaName = 'dra_excel';
