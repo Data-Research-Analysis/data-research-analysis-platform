@@ -19,6 +19,7 @@
                             <img src="/assets/images/google-ads.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-5 mt-5 m-auto rounded-lg" alt="Google Ads" title="Google Ads" />
                             <img src="/assets/images/google-ad-manager.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg mt-5 p-5 m-auto rounded-lg" alt="Google Ad Manager" title="Google Ad Manager" />
                             <img src="/assets/images/meta.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg mt-5 p-5 m-auto rounded-lg" alt="Meta Ads Manager" title="Meta Ads Manager" />
+                            <img src="/assets/images/linkedin.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg mt-5 p-5 m-auto rounded-lg" alt="LinkedIn Ads" title="LinkedIn Ads" />
                             <img src="/assets/images/excel.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-5 mt-5 m-auto rounded-lg" alt="Excel" title="Excel" />
                             <img src="/assets/images/pdf.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-5 mt-5 m-auto rounded-lg" alt="PDF" title="PDF" />
                             <img src="/assets/images/postgresql.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-5 mt-5 m-auto rounded-lg" alt="PostgreSQL" title="PostgreSQL" />
@@ -39,6 +40,7 @@
                         <img src="/assets/images/google-ads.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="Google Ads" title="Google Ads" />
                         <img src="/assets/images/google-ad-manager.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="Google Ad Manager" title="Google Ad Manager" />
                         <img src="/assets/images/meta.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-5 m-auto rounded-lg" alt="Meta Ads Manager" title="Meta Ads Manager" />
+                        <img src="/assets/images/linkedin.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="LinkedIn Ads" title="LinkedIn Ads" />
                         <img src="/assets/images/excel.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="Excel" title="Excel" />
                         <img src="/assets/images/pdf.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="PDF" title="PDF" />
                         <img src="/assets/images/postgresql.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="PostgreSQL" title="PostgreSQL" />

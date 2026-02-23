@@ -58,6 +58,8 @@ const colorClasses = computed(() => {
     'google_analytics': 'bg-purple-100 text-purple-800',
     'google_ad_manager': 'bg-red-100 text-red-800',
     'google_ads': 'bg-blue-200 text-blue-900',
+    'meta_ads': 'bg-blue-100 text-blue-900',
+    'linkedin_ads': 'bg-sky-100 text-sky-900',
     'pdf': 'bg-red-50 text-red-700',
     'mongodb': 'bg-green-200 text-green-900'
   };
@@ -74,6 +76,8 @@ const sourceIcon = computed(() => {
     'google_analytics': 'mdi-google-analytics',
     'google_ad_manager': 'mdi-google-ads',
     'google_ads': 'mdi-google-ads',
+    'meta_ads': 'mdi-facebook',
+    'linkedin_ads': 'mdi-linkedin',
     'pdf': 'mdi-file-pdf-box',
     'mongodb': 'mdi-database'
   };
