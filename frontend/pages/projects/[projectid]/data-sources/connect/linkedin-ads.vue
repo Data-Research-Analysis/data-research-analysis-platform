@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useDataSourceStore } from '@/stores/data_sources';
-import type { IMetaAdAccount, IMetaSyncConfig } from '~/types/IMetaAds';
+import type { ILinkedInAdAccount, ILinkedInOAuthSyncConfig } from '~/types/ILinkedInAds';
 
 const route = useRoute();
 const router = useRouter();
@@ -16,16 +16,16 @@ const state = reactive({
     // OAuth state
     isAuthenticated: false,
     accessToken: '',
-    tokenExpiry: '',
+    refreshToken: '',
+    expiresAt: 0,
 
     // Account selection
-    accounts: [] as IMetaAdAccount[],
-    selectedAccount: null as IMetaAdAccount | null,
+    accounts: [] as ILinkedInAdAccount[],
+    selectedAccount: null as ILinkedInAdAccount | null,
     loadingAccounts: false,
 
     // Configuration
     dataSourceName: '',
-    selectedReportTypes: ['campaigns', 'adsets', 'ads', 'insights'] as string[],
     dateRange: 'last_30_days' as string,
     customStartDate: '',
     customEndDate: '',
@@ -33,48 +33,43 @@ const state = reactive({
     // UI state
     loading: false,
     error: null as string | null,
-    connecting: false
+    connecting: false,
+    hasTestAccounts: false,
 });
 
-const reportTypeOptions = [
-    { id: 'campaigns', name: 'Campaigns', description: 'Campaign-level data (name, status, budget, objective)' },
-    { id: 'adsets', name: 'Ad Sets', description: 'Ad set-level data (targeting, schedule, bid strategy)' },
-    { id: 'ads', name: 'Ads', description: 'Individual ads (creative, status, preview URL)' },
-    { id: 'insights', name: 'Insights', description: 'Performance metrics (impressions, clicks, spend, conversions)' }
-];
-
-// Check for OAuth callback on mount
+// Check for OAuth token stored by /connect/linkedin-ads landing page
 onMounted(async () => {
-    // Check if returning from OAuth callback page (token stored in localStorage)
     if (import.meta.client) {
-        const storedToken = localStorage.getItem('meta_ads_oauth_token');
+        const storedToken = localStorage.getItem('linkedin_ads_oauth_token');
         if (storedToken) {
             try {
                 const tokenData = JSON.parse(storedToken);
-                localStorage.removeItem('meta_ads_oauth_token');
+                localStorage.removeItem('linkedin_ads_oauth_token');
                 state.isAuthenticated = true;
                 state.accessToken = tokenData.access_token;
-                state.tokenExpiry = new Date(Date.now() + tokenData.expires_in * 1000).toISOString();
+                state.refreshToken = tokenData.refresh_token || '';
+                state.expiresAt = tokenData.expires_at || 0;
                 state.currentStep = 2;
                 await loadAdAccounts();
             } catch (e) {
-                localStorage.removeItem('meta_ads_oauth_token');
+                localStorage.removeItem('linkedin_ads_oauth_token');
             }
         }
     }
 });
 
 /**
- * Step 1: Initiate Meta OAuth
+ * Step 1: Initiate LinkedIn OAuth
  */
-async function initiateMetaOAuth() {
+async function initiateLinkedInOAuth() {
     try {
         state.loading = true;
         state.error = null;
 
-        await dataSourcesStore.initiateMetaOAuth(projectId);
+        await dataSourcesStore.initiateLinkedInOAuth(projectId);
+        // Execution stops here — the browser navigates to LinkedIn's OAuth page.
     } catch (error: any) {
-        state.error = error.message || 'Failed to start Meta OAuth';
+        state.error = error.message || 'Failed to start LinkedIn OAuth';
         $swal.fire({
             title: 'Authentication Error',
             text: state.error,
@@ -86,67 +81,23 @@ async function initiateMetaOAuth() {
 }
 
 /**
- * Handle OAuth callback from Meta
- */
-async function handleOAuthCallback(code: string, state_param: string) {
-    try {
-        state.loading = true;
-        state.error = null;
-
-        // Exchange code for tokens via backend
-        const response = await $fetch('/meta-ads/callback', {
-            method: 'GET',
-            baseURL: useRuntimeConfig().public.BACKEND_URL,
-            query: { code, state: state_param }
-        }) as any;
-
-        if (response.success) {
-            state.isAuthenticated = true;
-            state.accessToken = response.access_token;
-            state.tokenExpiry = new Date(Date.now() + response.expires_in * 1000).toISOString();
-
-            // Move to account selection step
-            state.currentStep = 2;
-            await loadAdAccounts();
-
-            // Clean URL
-            router.replace({
-                path: route.path,
-                query: {}
-            });
-        } else {
-            throw new Error(response.error || 'Failed to complete OAuth');
-        }
-    } catch (error: any) {
-        state.error = error.message || 'Failed to handle OAuth callback';
-        $swal.fire({
-            title: 'OAuth Error',
-            text: state.error,
-            icon: 'error'
-        });
-    } finally {
-        state.loading = false;
-    }
-}
-
-/**
- * Step 2: Load Meta Ad Accounts
+ * Step 2: Load LinkedIn Ad Accounts
  */
 async function loadAdAccounts() {
     try {
         state.loadingAccounts = true;
         state.error = null;
 
-        const accounts = await dataSourcesStore.listMetaAdAccounts(state.accessToken);
-        state.accounts = accounts;
+        const result = await dataSourcesStore.listLinkedInAdAccounts(state.accessToken);
+        state.accounts = result.accounts || [];
+        state.hasTestAccounts = result.hasTestAccounts;
 
-        if (accounts.length === 0) {
-            state.error = 'No Meta ad accounts found. Please ensure you have access to at least one account in Business Manager.';
+        if (result.accounts.length === 0) {
+            state.error = 'No LinkedIn ad accounts found. Please ensure you have access to at least one account.';
             $swal.fire({
                 title: 'No Accounts Found',
-                text: state.error,
                 icon: 'warning',
-                html: '<p>Please ensure you:</p><ul class="text-left ml-4 mt-2"><li>• Have a Business Manager account</li><li>• Have at least one ad account</li><li>• Have granted ads_read and business_management permissions</li></ul>'
+                html: '<p>Please ensure you:</p><ul class="text-left ml-4 mt-2"><li>• Have a LinkedIn Campaign Manager account</li><li>• Have at least one ad account with active campaigns</li><li>• Have granted the required <code>r_ads</code> and <code>r_ads_reporting</code> permissions</li></ul>'
             });
         }
     } catch (error: any) {
@@ -164,48 +115,33 @@ async function loadAdAccounts() {
 /**
  * Step 3: Select account and proceed to configuration
  */
-function selectAccount(account: IMetaAdAccount) {
+function selectAccount(account: ILinkedInAdAccount) {
     state.selectedAccount = account;
-    state.dataSourceName = `Meta Ads - ${account.name}`;
+    state.dataSourceName = `LinkedIn Ads - ${account.name}`;
     state.currentStep = 3;
 }
 
 /**
- * Toggle report type selection
+ * Calculate the ISO date range based on the preset selector
  */
-function toggleReportType(reportId: string) {
-    const index = state.selectedReportTypes.indexOf(reportId);
-    if (index > -1) {
-        state.selectedReportTypes.splice(index, 1);
-    } else {
-        state.selectedReportTypes.push(reportId);
-    }
-}
-
-/**
- * Calculate date range based on preset
- */
-function getDateRange() {
+function getDateRange(): { startDate: string; endDate: string } {
     const today = new Date();
     const endDate = today.toISOString().split('T')[0];
-    let startDate: string;
 
-    switch (state.dateRange) {
-        case 'last_7_days':
-            startDate = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-            break;
-        case 'last_30_days':
-            startDate = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-            break;
-        case 'last_90_days':
-            startDate = new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-            break;
-        case 'custom':
-            startDate = state.customStartDate;
-            return { startDate, endDate: state.customEndDate };
-        default:
-            startDate = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    if (state.dateRange === 'custom') {
+        return { startDate: state.customStartDate, endDate: state.customEndDate };
     }
+
+    const daysMap: Record<string, number> = {
+        last_7_days: 7,
+        last_30_days: 30,
+        last_90_days: 90,
+    };
+
+    const days = daysMap[state.dateRange] ?? 30;
+    const startDate = new Date(today.getTime() - days * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .split('T')[0];
 
     return { startDate, endDate };
 }
@@ -219,36 +155,33 @@ async function connectDataSource() {
             throw new Error('No account selected');
         }
 
-        if (state.selectedReportTypes.length === 0) {
-            throw new Error('Please select at least one report type');
-        }
-
         state.connecting = true;
         state.error = null;
 
         const { startDate, endDate } = getDateRange();
 
-        const syncConfig: IMetaSyncConfig = {
+        const syncConfig: ILinkedInOAuthSyncConfig = {
             name: state.dataSourceName,
-            adAccountId: state.selectedAccount.id,
             accessToken: state.accessToken,
-            syncTypes: state.selectedReportTypes,
-            startDate: startDate,
-            endDate: endDate
+            refreshToken: state.refreshToken,
+            expiresAt: state.expiresAt,
+            adAccountId: state.selectedAccount.id,
+            adAccountName: state.selectedAccount.name,
+            startDate,
+            endDate,
         };
 
-        const dataSourceId = await dataSourcesStore.addMetaAdsDataSource(syncConfig, parseInt(projectId));
+        const dataSourceId = await dataSourcesStore.addLinkedInAdsDataSource(syncConfig, parseInt(projectId));
 
         if (dataSourceId) {
             $swal.fire({
                 title: 'Success!',
-                text: 'Meta Ads data source connected. Initial sync is running in the background.',
+                text: 'LinkedIn Ads data source connected. Initial sync is running in the background.',
                 icon: 'success',
                 timer: 2500,
                 showConfirmButton: false
             });
 
-            // Redirect to the new data source's settings page
             setTimeout(() => {
                 router.push(`/projects/${projectId}/data-sources/${dataSourceId}`);
             }, 2500);
@@ -268,7 +201,7 @@ async function connectDataSource() {
 }
 
 /**
- * Go back to previous step
+ * Navigate back one step (or to the data sources list on step 1)
  */
 function goBack() {
     if (state.currentStep > 1) {
@@ -276,6 +209,18 @@ function goBack() {
     } else {
         router.push(`/projects/${projectId}/data-sources`);
     }
+}
+
+// Human-readable currency/status helpers
+function formatAccountStatus(status: string): string {
+    const map: Record<string, string> = {
+        ACTIVE: 'Active',
+        CANCELED: 'Canceled',
+        DRAFT: 'Draft',
+        PENDING_DELETION: 'Pending Deletion',
+        REMOVED: 'Removed',
+    };
+    return map[status] ?? status;
 }
 
 definePageMeta({
@@ -291,10 +236,11 @@ definePageMeta({
         </button>
 
         <div class="text-center mb-10">
-            <h1 class="text-4xl font-bold text-gray-900 mb-2">Connect Meta (Facebook) Ads</h1>
-            <p class="text-base text-gray-600">Connect your Meta Ads account to sync campaigns, ads, and performance data</p>
+            <h1 class="text-4xl font-bold text-gray-900 mb-2">Connect LinkedIn Ads</h1>
+            <p class="text-base text-gray-600">Connect your LinkedIn Campaign Manager account to sync campaigns, creatives, and performance data</p>
         </div>
 
+        <!-- Progress Steps -->
         <!-- Step Indicator -->
         <div class="flex items-center justify-center mb-12 sm:mb-8">
             <div class="flex flex-col items-center gap-2" :class="{ 'text-indigo-600': state.currentStep >= 1 }">
@@ -325,40 +271,42 @@ definePageMeta({
             </div>
         </div>
 
-        <!-- Step 1: Authentication -->
+        <!-- ─── Step 1: Authenticate ──────────────────────────────────────────── -->
         <div v-if="state.currentStep === 1" class="bg-white rounded-lg shadow-sm border border-indigo-200 p-8">
             <div class="text-center max-w-2xl mx-auto">
                 <div class="mb-6">
                     <font-awesome-icon :icon="['fas', 'lock']" class="mx-auto h-16 w-16 text-indigo-600" />
                 </div>
 
-                <h2 class="text-2xl font-bold text-gray-900 mb-4">Connect to Meta</h2>
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Connect to LinkedIn</h2>
                 <p class="text-gray-600 mb-8">
-                    Sign in with your Meta (Facebook) account to access your ad accounts.<br />
-                    We'll request permissions to read your ads and performance data.
+                    Sign in with your LinkedIn account to access your Campaign Manager data.<br />
+                    We request read-only permissions to your ads and reporting data.
                 </p>
 
                 <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8 text-left">
                     <h3 class="font-semibold text-blue-900 mb-2">Required Permissions:</h3>
                     <ul class="text-sm text-blue-800 space-y-1">
-                        <li>• <strong>ads_read:</strong> Read access to your ads, campaigns, and performance data</li>
-                        <li>• <strong>business_management:</strong> Access to ad accounts in Business Manager</li>
+                        <li>• <strong>r_ads:</strong> Read access to your ad campaigns, campaign groups, and creatives</li>
+                        <li>• <strong>r_ads_reporting:</strong> Read access to performance metrics and analytics data</li>
                     </ul>
                 </div>
 
-                <button @click="initiateMetaOAuth" :disabled="state.loading" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                <button @click="initiateLinkedInOAuth" :disabled="state.loading"
+                    class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-[#0077B5] hover:bg-[#005f91] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
                     <span v-if="state.loading">
-                        <font-awesome-icon :icon="['fas', 'spinner']" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" />
+                        <font-awesome-icon icon="spinner" class="animate-spin h-5 w-5 text-white" />
                         Connecting...
                     </span>
-                    <span v-else>
-                        Connect with Meta
+                    <span v-else class="flex items-center gap-2">
+                        <span class="font-bold text-sm leading-none bg-white text-[#0077B5] rounded px-1">in</span>
+                        Connect with LinkedIn
                     </span>
                 </button>
             </div>
         </div>
 
-        <!-- Step 2: Account Selection -->
+        <!-- ─── Step 2: Select Ad Account ─────────────────────────────────────── -->
         <div v-if="state.currentStep === 2" class="bg-white rounded-lg shadow-sm border border-indigo-200 p-8">
             <h2 class="text-2xl font-bold text-gray-900 mb-6">Select Ad Account</h2>
 
@@ -367,20 +315,31 @@ definePageMeta({
                 <p class="text-gray-600 mt-4">Loading ad accounts...</p>
             </div>
 
-            <div v-else-if="state.accounts.length > 0" class="space-y-4">
-                <div v-for="account in state.accounts" :key="account.id" @click="selectAccount(account)" class="border border-gray-300 rounded-lg p-6 hover:border-indigo-500 hover:shadow-md cursor-pointer transition-all">
+            <div v-else-if="state.accounts?.length > 0" class="space-y-4">
+                <!-- Development Tier notice when only test accounts are available -->
+                <div v-if="state.hasTestAccounts" class="bg-amber-50 border border-amber-300 rounded-lg p-4 text-sm text-amber-800">
+                    <strong>Development Tier:</strong> Your LinkedIn Advertising API access is currently in sandbox mode. Only test accounts are available until LinkedIn approves production access. You can complete the setup with a test account now.
+                </div>
+
+                <div v-for="account in state.accounts" :key="account.id"
+                    @click="selectAccount(account)"
+                    class="border border-gray-300 rounded-lg p-6 hover:border-indigo-500 hover:shadow-md cursor-pointer transition-all">
                     <div class="flex items-center justify-between">
                         <div>
-                            <h3 class="text-lg font-semibold text-gray-900">{{ account.name }}</h3>
-                            <p class="text-sm text-gray-500 mt-1">ID: {{ account.account_id }}</p>
+                            <div class="flex items-center gap-2">
+                                <h3 class="text-lg font-semibold text-gray-900">{{ account.name }}</h3>
+                                <span v-if="account.test" class="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Test Account</span>
+                            </div>
+                            <p class="text-sm text-gray-500 mt-1">Account ID: {{ account.id }}</p>
                             <div class="flex items-center mt-2 space-x-4">
                                 <span :class="{
-                                    'text-green-600': account.account_status === 1,
-                                    'text-red-600': account.account_status !== 1
+                                    'text-green-600': account.status === 'ACTIVE',
+                                    'text-red-600': account.status !== 'ACTIVE'
                                 }" class="text-sm font-medium">
-                                    {{ account.account_status === 1 ? 'Active' : 'Inactive' }}
+                                    {{ formatAccountStatus(account.status) }}
                                 </span>
                                 <span class="text-sm text-gray-600">{{ account.currency }}</span>
+                                <span class="text-sm text-gray-500 capitalize">{{ account.type?.toLowerCase().replace('_', ' ') }}</span>
                             </div>
                         </div>
                         <font-awesome-icon :icon="['fas', 'chevron-right']" class="w-6 h-6 text-indigo-600" />
@@ -393,7 +352,7 @@ definePageMeta({
             </div>
         </div>
 
-        <!-- Step 3: Configuration -->
+        <!-- ─── Step 3: Configure ──────────────────────────────────────────────── -->
         <div v-if="state.currentStep === 3" class="bg-white rounded-lg shadow-sm border border-indigo-200 p-8">
             <h2 class="text-2xl font-bold text-gray-900 mb-6">Configure Data Source</h2>
 
@@ -401,32 +360,37 @@ definePageMeta({
                 <!-- Data Source Name -->
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Data Source Name</label>
-                    <input v-model="state.dataSourceName" type="text" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" placeholder="e.g. Meta Ads - My Account" />
+                    <input v-model="state.dataSourceName" type="text"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                        placeholder="e.g. LinkedIn Ads - My Company" />
                 </div>
 
-                <!-- Report Types -->
+                <!-- Selected Account Summary -->
+                <div v-if="state.selectedAccount" class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <h4 class="font-semibold text-gray-800 mb-1">Selected Account</h4>
+                    <p class="text-sm text-gray-600">{{ state.selectedAccount.name }}</p>
+                    <p class="text-xs text-gray-500 mt-1">ID: {{ state.selectedAccount.id }} · {{ state.selectedAccount.currency }}</p>
+                </div>
+
+                <!-- What gets synced -->
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Data to Sync</label>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div v-for="reportType in reportTypeOptions" :key="reportType.id" @click="toggleReportType(reportType.id)" :class="{
-                            'border-indigo-500 bg-indigo-50': state.selectedReportTypes.includes(reportType.id),
-                            'border-gray-300': !state.selectedReportTypes.includes(reportType.id)
-                        }" class="border-2 rounded-lg p-4 cursor-pointer hover:shadow-md transition-all">
-                            <div class="flex items-start">
-                                <input type="checkbox" :checked="state.selectedReportTypes.includes(reportType.id)" class="mt-1 mr-3" />
-                                <div>
-                                    <h4 class="font-semibold text-gray-900">{{ reportType.name }}</h4>
-                                    <p class="text-sm text-gray-600 mt-1">{{ reportType.description }}</p>
-                                </div>
-                            </div>
-                        </div>
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800 space-y-1">
+                        <p class="font-medium text-blue-900 mb-1">All of the following will be synced:</p>
+                        <li>Ad Accounts — account details, currency, and status</li>
+                        <li>Campaign Groups — objective groups with budgets</li>
+                        <li>Campaigns — campaign structure and targeting info</li>
+                        <li>Creatives — ad creative types and references</li>
+                        <li>Campaign Analytics — daily performance metrics (impressions, clicks, spend, conversions)</li>
+                        <li>Account Analytics — account-level aggregated performance</li>
                     </div>
                 </div>
 
                 <!-- Date Range -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Date Range</label>
-                    <select v-model="state.dateRange" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Historical Data Range</label>
+                    <select v-model="state.dateRange"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500">
                         <option value="last_7_days">Last 7 Days</option>
                         <option value="last_30_days">Last 30 Days</option>
                         <option value="last_90_days">Last 90 Days</option>
@@ -438,24 +402,26 @@ definePageMeta({
                 <div v-if="state.dateRange === 'custom'" class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
-                        <input v-model="state.customStartDate" type="date" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
+                        <input v-model="state.customStartDate" type="date"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">End Date</label>
-                        <input v-model="state.customEndDate" type="date" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
+                        <input v-model="state.customEndDate" type="date"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
                     </div>
                 </div>
 
                 <!-- Connect Button -->
                 <div class="pt-6 border-t border-gray-200">
-                    <button @click="connectDataSource" :disabled="state.connecting || !state.dataSourceName || state.selectedReportTypes.length === 0" class="w-full px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">
-                        <span v-if="state.connecting">
-                            <font-awesome-icon :icon="['fas', 'spinner']" class="animate-spin inline-block -ml-1 mr-3 h-5 w-5 text-white" />
+                    <button @click="connectDataSource"
+                        :disabled="state.connecting || !state.dataSourceName"
+                        class="w-full px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <span v-if="state.connecting" class="flex flex-row items-center justify-center gap-2">
+                            <font-awesome-icon icon="spinner" class="animate-spin h-5 w-5 text-white" />
                             Connecting...
                         </span>
-                        <span v-else>
-                            Connect Data Source
-                        </span>
+                        <span v-else>Connect Data Source</span>
                     </button>
                 </div>
             </div>

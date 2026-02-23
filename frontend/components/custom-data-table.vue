@@ -1475,10 +1475,7 @@ onUnmounted(() => {
           @click="removeSelectedRows"
           class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 text-sm font-medium transition-colors duration-200 flex items-center gap-2"
         >
-          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" clip-rule="evenodd"/>
-            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v4a1 1 0 102 0V5z" clip-rule="evenodd"/>
-          </svg>
+          <font-awesome-icon :icon="['fas', 'trash']" class="w-4 h-4" />
           Remove Selected ({{ selectedRows.size }})
         </button>
         <button 
@@ -1609,31 +1606,21 @@ onUnmounted(() => {
                 
                 <!-- Sort Indicator -->
                 <div v-if="column.sortable" class="mr-2 flex-shrink-0">
-                  <svg 
+                  <font-awesome-icon
                     v-if="sortColumn === column.key && sortDirection === 'asc'"
+                    :icon="['fas', 'chevron-down']"
                     class="w-4 h-4 text-blue-500"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                  </svg>
-                  <svg 
+                  />
+                  <font-awesome-icon
                     v-else-if="sortColumn === column.key && sortDirection === 'desc'"
+                    :icon="['fas', 'chevron-up']"
                     class="w-4 h-4 text-blue-500"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path fill-rule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clip-rule="evenodd"/>
-                  </svg>
-                  <svg 
+                  />
+                  <font-awesome-icon
                     v-else
+                    :icon="['fas', 'sort']"
                     class="w-4 h-4 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/>
-                  </svg>
+                  />
                 </div>
               </div>
               
@@ -1643,9 +1630,7 @@ onUnmounted(() => {
                 @click.stop="toggleColumnMenu(column.id, $event)"
                 :class="{ 'bg-blue-200 opacity-100': showColumnMenu === column.id }"
               >
-                <svg class="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/>
-                </svg>
+                <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" class="w-4 h-4 text-gray-600" />
               </div>
             </th>
             
@@ -1656,9 +1641,7 @@ onUnmounted(() => {
                 class="w-8 h-8 rounded-full bg-green-500 hover:bg-green-600 text-white flex items-center justify-center transition-colors duration-200"
                 title="Add New Column (Ctrl+Alt++)"
               >
-                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/>
-                </svg>
+                <font-awesome-icon :icon="['fas', 'plus']" class="w-4 h-4" />
               </button>
             </th>
           </tr>
@@ -1756,9 +1739,7 @@ onUnmounted(() => {
           <tr v-if="tableState.rows.length === 0">
             <td :colspan="visibleColumns.length + 1" class="text-center p-8 text-gray-500">
               <div class="flex flex-col items-center gap-2">
-                <svg class="w-12 h-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                </svg>
+                <font-awesome-icon :icon="['fas', 'file-lines']" class="w-12 h-12 text-gray-300" />
                 <p class="text-lg font-medium">No data available</p>
                 <p class="text-sm">Upload a file or add data to get started</p>
               </div>
@@ -1774,9 +1755,7 @@ onUnmounted(() => {
           class="w-full h-10 rounded-lg bg-green-500 hover:bg-green-600 text-white flex items-center justify-center gap-2 transition-colors duration-200"
           title="Add New Row (Ctrl+Alt+R)"
         >
-          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/>
-          </svg>
+          <font-awesome-icon :icon="['fas', 'plus']" class="w-4 h-4" />
           Add Row
         </button>
       </div>
@@ -1800,18 +1779,14 @@ onUnmounted(() => {
           @click="sortColumnByDirection(showColumnMenu, 'asc')" 
           class="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm flex items-center gap-2 transition-colors duration-150"
         >
-          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-          </svg>
+          <font-awesome-icon :icon="['fas', 'chevron-down']" class="w-4 h-4" />
           Sort Ascending
         </button>
         <button 
           @click="sortColumnByDirection(showColumnMenu, 'desc')" 
           class="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm flex items-center gap-2 transition-colors duration-150"
         >
-          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clip-rule="evenodd"/>
-          </svg>
+          <font-awesome-icon :icon="['fas', 'chevron-up']" class="w-4 h-4" />
           Sort Descending
         </button>
         <hr class="my-1 border-gray-200">
@@ -1820,9 +1795,7 @@ onUnmounted(() => {
           @click="fillSelectionGaps(); tableState.showColumnMenu = null;" 
           class="w-full text-left px-4 py-2 hover:bg-orange-50 text-orange-600 text-sm flex items-center gap-2 transition-colors duration-150"
         >
-          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/>
-          </svg>
+          <font-awesome-icon :icon="['fas', 'bars']" class="w-4 h-4" />
           Fill Selection Gaps
         </button>
         <hr class="my-1 border-gray-200">
@@ -1830,28 +1803,21 @@ onUnmounted(() => {
           @click="insertColumnAt(getColumnIndex(showColumnMenu)); tableState.showColumnMenu = null;" 
           class="w-full text-left px-4 py-2 hover:bg-green-50 text-green-600 text-sm flex items-center gap-2 transition-colors duration-150"
         >
-          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/>
-          </svg>
+          <font-awesome-icon :icon="['fas', 'plus']" class="w-4 h-4" />
           Insert Column Before
         </button>
         <button 
           @click="insertColumnAt(getColumnIndex(showColumnMenu) + 1); tableState.showColumnMenu = null;" 
           class="w-full text-left px-4 py-2 hover:bg-green-50 text-green-600 text-sm flex items-center gap-2 transition-colors duration-150"
         >
-          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/>
-          </svg>
+          <font-awesome-icon :icon="['fas', 'plus']" class="w-4 h-4" />
           Insert Column After
         </button>
         <button 
           @click="duplicateColumn(showColumnMenu); tableState.showColumnMenu = null;" 
           class="w-full text-left px-4 py-2 hover:bg-green-50 text-green-600 text-sm flex items-center gap-2 transition-colors duration-150"
         >
-          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M4 2a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2V4a2 2 0 00-2-2H4zm0 2h8v8H4V4z" clip-rule="evenodd"/>
-            <path fill-rule="evenodd" d="M8 6a2 2 0 012-2h4a2 2 0 012 2v8a2 2 0 01-2 2h-4a2 2 0 01-2-2V6z" clip-rule="evenodd"/>
-          </svg>
+          <font-awesome-icon :icon="['fas', 'copy']" class="w-4 h-4" />
           Duplicate Column
         </button>
         <hr class="my-1 border-gray-200">
@@ -1859,19 +1825,14 @@ onUnmounted(() => {
           @click="startColumnEdit(showColumnMenu)" 
           class="w-full text-left px-4 py-2 hover:bg-blue-50 text-blue-600 text-sm flex items-center gap-2 transition-colors duration-150"
         >
-          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/>
-          </svg>
+          <font-awesome-icon :icon="['fas', 'pen']" class="w-4 h-4" />
           Rename Column
         </button>
         <button 
           @click="removeColumn(showColumnMenu)" 
           class="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 text-sm flex items-center gap-2 transition-colors duration-150"
         >
-          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" clip-rule="evenodd"/>
-            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v4a1 1 0 102 0V5z" clip-rule="evenodd"/>
-          </svg>
+          <font-awesome-icon :icon="['fas', 'trash']" class="w-4 h-4" />
           Remove Column
         </button>        
       </div>
@@ -1895,28 +1856,21 @@ onUnmounted(() => {
           @click="insertRowAt(showRowMenu); tableState.showRowMenu = null;" 
           class="w-full text-left px-4 py-2 hover:bg-green-50 text-green-600 text-sm flex items-center gap-2 transition-colors duration-150"
         >
-          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/>
-          </svg>
+          <font-awesome-icon :icon="['fas', 'plus']" class="w-4 h-4" />
           Insert Row Above
         </button>
         <button 
           @click="insertRowAt(showRowMenu + 1); tableState.showRowMenu = null;" 
           class="w-full text-left px-4 py-2 hover:bg-green-50 text-green-600 text-sm flex items-center gap-2 transition-colors duration-150"
         >
-          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/>
-          </svg>
+          <font-awesome-icon :icon="['fas', 'plus']" class="w-4 h-4" />
           Insert Row Below
         </button>
         <button 
           @click="duplicateRow(tableState.rows[showRowMenu]?.id); tableState.showRowMenu = null;" 
           class="w-full text-left px-4 py-2 hover:bg-green-50 text-green-600 text-sm flex items-center gap-2 transition-colors duration-150"
         >
-          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M4 2a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2V4a2 2 0 00-2-2H4zm0 2h8v8H4V4z" clip-rule="evenodd"/>
-            <path fill-rule="evenodd" d="M8 6a2 2 0 012-2h4a2 2 0 012 2v8a2 2 0 01-2 2h-4a2 2 0 01-2-2V6z" clip-rule="evenodd"/>
-          </svg>
+          <font-awesome-icon :icon="['fas', 'copy']" class="w-4 h-4" />
           Duplicate Row
         </button>
         <hr class="my-1 border-gray-200">
@@ -1924,10 +1878,7 @@ onUnmounted(() => {
           @click="removeRowByIndex(showRowMenu); tableState.showRowMenu = null;" 
           class="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 text-sm flex items-center gap-2 transition-colors duration-150"
         >
-          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" clip-rule="evenodd"/>
-            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v4a1 1 0 102 0V5z" clip-rule="evenodd"/>
-          </svg>
+          <font-awesome-icon :icon="['fas', 'trash']" class="w-4 h-4" />
           Delete Row
         </button>        
       </div>
@@ -1981,9 +1932,7 @@ onUnmounted(() => {
                   class="ml-2 w-4 h-4 rounded hover:bg-red-100 hover:text-red-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                   title="Close sheet"
                 >
-                  <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                  </svg>
+                  <font-awesome-icon :icon="['fas', 'xmark']" class="w-3 h-3" />
                 </button>
                 
                 <!-- Menu Trigger -->
@@ -1992,9 +1941,7 @@ onUnmounted(() => {
                   class="ml-1 w-4 h-4 rounded hover:bg-gray-200 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 sheet-menu-trigger"
                   title="Sheet options"
                 >
-                  <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/>
-                  </svg>
+                  <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" class="w-3 h-3" />
                 </button>
               </div>
             </div>
@@ -2006,9 +1953,7 @@ onUnmounted(() => {
               class="flex items-center justify-center w-8 h-8 border border-gray-300 bg-white hover:bg-gray-50 transition-colors duration-200 rounded"
               title="Add new sheet (Ctrl+T)"
             >
-              <svg class="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/>
-              </svg>
+              <font-awesome-icon :icon="['fas', 'plus']" class="w-4 h-4 text-gray-600" />
             </button>
           </div>
         </div>
@@ -2040,19 +1985,14 @@ onUnmounted(() => {
           @click="startSheetRename(sheetsState.showSheetMenu); sheetsState.showSheetMenu = null;" 
           class="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm flex items-center gap-2 transition-colors duration-150"
         >
-          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/>
-          </svg>
+          <font-awesome-icon :icon="['fas', 'pen']" class="w-4 h-4" />
           Rename Sheet
         </button>
         <button 
           @click="duplicateSheet(sheetsState.showSheetMenu); sheetsState.showSheetMenu = null;" 
           class="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm flex items-center gap-2 transition-colors duration-150"
         >
-          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
-            <path fill-rule="evenodd" d="M4 5a2 2 0 012-2v1a1 1 0 001 1h1a1 1 0 001-1V3a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/>
-          </svg>
+          <font-awesome-icon :icon="['fas', 'clipboard-list']" class="w-4 h-4" />
           Duplicate Sheet
         </button>
         <hr class="my-1 border-gray-200">
@@ -2061,10 +2001,7 @@ onUnmounted(() => {
           @click="deleteSheet(sheetsState.showSheetMenu); sheetsState.showSheetMenu = null;" 
           class="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 text-sm flex items-center gap-2 transition-colors duration-150"
         >
-          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" clip-rule="evenodd"/>
-            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v4a1 1 0 102 0V5z" clip-rule="evenodd"/>
-          </svg>
+          <font-awesome-icon :icon="['fas', 'trash']" class="w-4 h-4" />
           Delete Sheet
         </button>
       </div>

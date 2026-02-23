@@ -15,7 +15,7 @@ onMounted(() => {
             'Terms and Conditions',
             'Terms and conditions for using Data Research Analysis platform. Understand your rights, responsibilities, and service agreements.',
             `${siteUrl}/terms-conditions`,
-            '2025-12-24'
+            '2026-02-23'
         );
         
         const breadcrumbSchema = getBreadcrumbSchema([
@@ -58,9 +58,9 @@ useHead({
         <header>
             <h1 itemprop="headline">Terms and Conditions</h1>
         
-            <meta itemprop="dateModified" content="2025-12-24" />
+            <meta itemprop="dateModified" content="2026-02-23" />
             <p class="text-sm text-gray-600 mt-2">
-                <strong>Last updated:</strong> <time datetime="2025-12-24">December 24, 2025</time>
+                <strong>Last updated:</strong> <time datetime="2026-02-23">February 23, 2026</time>
             </p>
         </header>
         
@@ -111,7 +111,7 @@ useHead({
             </li>
             <li>
                 <p>
-                    <strong>Connected Services</strong> refers to third-party services and data sources that You authorize to integrate with Our Service, including but not limited to Google Analytics, Google Ad Manager, Google Ads, database systems, and API-based data sources.
+                    <strong>Connected Services</strong> refers to third-party services and data sources that You authorize to integrate with Our Service, including but not limited to Google Analytics, Google Ad Manager, Google Ads, Meta Ads, LinkedIn Ads, database systems, and API-based data sources.
                 </p>
             </li>
             <li>
@@ -168,7 +168,7 @@ useHead({
         <h3>Authorization and Access</h3>
 
         <p>
-            Our Service allows You to connect third-party services, including Google Analytics, Google Ad Manager, and Google Ads, to import and analyze Your data. By connecting these services:
+            Our Service allows You to connect third-party services, including Google Analytics, Google Ad Manager, Google Ads, Meta Ads, and LinkedIn Ads, to import and analyze Your data. By connecting these services:
         </p>
 
         <ul>
@@ -220,6 +220,39 @@ useHead({
             <li>You remain responsible for Your Google Ads account and its compliance with Google's Terms of Service</li>
             <li>We are not responsible for any changes, interruptions, or termination of Google Ads services</li>
             <li>You understand that We access campaign performance data, ad metrics, and cost information from Your selected customer accounts</li>
+        </ul>
+
+        <h3>Meta Ads Integration</h3>
+
+        <p>
+            When You connect Your Meta Ads account (Facebook Ads Manager):
+        </p>
+
+        <ul>
+            <li>You grant Us read-only access to Your Meta Ads data via Meta OAuth 2.0</li>
+            <li>You acknowledge that We store encrypted OAuth access tokens to maintain the integration</li>
+            <li>You can disconnect the integration at any time through Your account settings or via <a href="https://www.facebook.com/settings?tab=business_tools" target="_blank" rel="noopener">Meta Business Integrations settings</a></li>
+            <li>You remain responsible for Your Meta Ads account and its compliance with Meta's Terms of Service and Advertising Policies</li>
+            <li>We are not responsible for any changes, interruptions, suspension, or termination of Meta Ads services or API access</li>
+            <li>You understand that We access campaign performance data, ad spend, creative metrics, and audience insights from Your authorized ad accounts</li>
+            <li>You represent that You are an authorized user of the Meta Ads accounts You connect</li>
+        </ul>
+
+        <h3>LinkedIn Ads Integration</h3>
+
+        <p>
+            When You connect Your LinkedIn Ads account:
+        </p>
+
+        <ul>
+            <li>You grant Us read-only access to Your LinkedIn Ads data via LinkedIn OAuth 2.0 using the <code>r_ads</code> and <code>r_ads_reporting</code> scopes</li>
+            <li>You acknowledge that We store encrypted OAuth access and refresh tokens (valid for 60 days and 1 year respectively) to maintain the integration</li>
+            <li>You can disconnect the integration at any time through Your account settings or via <a href="https://www.linkedin.com/psettings/permitted-services" target="_blank" rel="noopener">LinkedIn Permitted Services settings</a></li>
+            <li>You remain responsible for Your LinkedIn Ads account and its compliance with LinkedIn's User Agreement and Marketing API Terms</li>
+            <li>We are not responsible for any changes, interruptions, suspension, or termination of LinkedIn Ads API services</li>
+            <li>You understand that We access campaign groups, campaigns, creatives, performance analytics, and aggregated demographic data from Your authorized ad accounts</li>
+            <li>You represent that You are an authorized user of the LinkedIn Ads accounts You connect</li>
+            <li>You acknowledge that LinkedIn demographic analytics are always aggregated; no individual member data is ever accessed or stored</li>
         </ul>
 
         <h3>Data Sync and Storage</h3>

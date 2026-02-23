@@ -258,6 +258,10 @@ async function createDataSource() {
     
     router.push(`/projects/${route.params.projectid}`);
 }
+
+function goBack() {
+    router.push(`/projects/${route.params.projectid}/data-sources`);
+}
 function isValidFile(file) {
   const validExtensions = ['.xlsx', '.xls', '.csv']
   const validTypes = [
@@ -630,7 +634,17 @@ onMounted(async () => {
 });
 </script>
 <template>
-    <div>
+    <div class="max-w-[900px] mx-auto py-10 px-5 sm:py-6 sm:px-4">
+        <button @click="goBack" class="text-indigo-600 hover:text-indigo-800 mb-4 flex items-center cursor-pointer">
+            <font-awesome-icon :icon="['fas', 'chevron-left']" class="w-5 h-5 mr-2" />
+            Back
+        </button>
+
+        <div class="text-center mb-10">
+            <h1 class="text-4xl font-bold text-gray-900 mb-2">Connect Excel / CSV Data Source</h1>
+            <p class="text-base text-gray-600">Upload your Excel or CSV files to import and analyze data.</p>
+        </div>
+
         <div class="flex flex-col justify-center">
             <div class="flex flex-row justify-center">
                 <input type="text" class="w-3/4 border border-primary-blue-100 border-solid p-2 cursor-pointer margin-auto mt-10 rounded-lg" placeholder="Data Source Name" v-model="state.data_source_name"/>

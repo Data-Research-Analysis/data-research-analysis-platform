@@ -3,12 +3,15 @@ import { useDataSourceStore } from '@/stores/data_sources';
 import { useProjectsStore } from '@/stores/projects';
 import { useDashboardsStore } from '~/stores/dashboards';
 import { useSubscriptionStore } from '@/stores/subscription';
+import { useLoggedInUserStore } from '@/stores/logged_in_user';
 import { useGoogleAnalytics } from '@/composables/useGoogleAnalytics';
 import { useGoogleAdManager } from '@/composables/useGoogleAdManager';
 import { useGoogleAds } from '@/composables/useGoogleAds';
 import { useMetaAds } from '@/composables/useMetaAds';
+import { useLinkedInAds } from '@/composables/useLinkedInAds';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import { useTruncation } from '@/composables/useTruncation';
+import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import pdfImage from '/assets/images/pdf.png';
 import excelImage from '/assets/images/excel.png';
 import postgresqlImage from '/assets/images/postgresql.png';
@@ -19,15 +22,18 @@ import googleAdManagerImage from '/assets/images/google-ad-manager.png';
 import googleAdsImage from '/assets/images/google-ads.png';
 import metaAdsImage from '/assets/images/meta.png';
 import mongodbImage from '/assets/images/mongodb.png';
+import linkedInAdsImage from '/assets/images/linkedin.png';
 
 const dataSourceStore = useDataSourceStore();
 const projectsStore = useProjectsStore();
 const dashboardsStore = useDashboardsStore();
 const subscriptionStore = useSubscriptionStore();
+const loggedInUserStore = useLoggedInUserStore();
 const analytics = useGoogleAnalytics();
 const gam = useGoogleAdManager();
 const ads = useGoogleAds();
 const metaAds = useMetaAds();
+const linkedInAds = useLinkedInAds();
 const { $swal } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
@@ -121,6 +127,13 @@ const state = reactive({
             name: 'Meta Ads',
             url: `${route.fullPath}/data-sources/connect/meta-ads`,
             image_url: metaAdsImage,
+            coming_soon: !FEATURE_FLAGS.META_ADS_ENABLED,
+        },
+        {
+            name: 'LinkedIn Ads',
+            url: `${route.fullPath}/data-sources/connect/linkedin-ads`,
+            image_url: linkedInAdsImage,
+            coming_soon: !FEATURE_FLAGS.LINKEDIN_ADS_ENABLED,
         },
         {
             name: 'PDF',
@@ -158,6 +171,11 @@ const state = reactive({
 
 const project = computed(() => {
     return projectsStore.getSelectedProject();
+});
+
+// Admin users bypass all feature flags and see full functionality.
+const isAdmin = computed(() => {
+    return loggedInUserStore.getLoggedInUser()?.user_type === 'admin';
 });
 
 function openDialog() {
@@ -221,6 +239,7 @@ function getDataSourceImage(dataType) {
         'pdf': pdfImage,
         'excel': excelImage,
         'meta_ads': metaAdsImage,
+        'linkedin_ads': linkedInAdsImage,
         'mongodb': mongodbImage
     };
     return images[dataType] || postgresqlImage;
@@ -237,7 +256,8 @@ async function syncDataSource(dataSourceId) {
         const isGAM = dataSource?.data_type === 'google_ad_manager';
         const isAds = dataSource?.data_type === 'google_ads';
         const isMetaAds = dataSource?.data_type === 'meta_ads';
-        const serviceName = isMetaAds ? 'Meta Ads' : (isAds ? 'Google Ads' : (isGAM ? 'Google Ad Manager' : 'Google Analytics'));
+        const isLinkedInAds = dataSource?.data_type === 'linkedin_ads';
+        const serviceName = isLinkedInAds ? 'LinkedIn Ads' : (isMetaAds ? 'Meta Ads' : (isAds ? 'Google Ads' : (isGAM ? 'Google Ad Manager' : 'Google Analytics')));
 
         $swal.fire({
             title: 'Syncing...',
@@ -251,7 +271,7 @@ async function syncDataSource(dataSourceId) {
         });
 
         console.log('Starting sync for data source ID:', dataSourceId);
-        const success = isMetaAds ? await metaAds.syncNow(dataSourceId) : (isAds ? await ads.syncNow(dataSourceId) : (isGAM ? await gam.syncNow(dataSourceId) : await analytics.syncNow(dataSourceId)));
+        const success = isLinkedInAds ? await linkedInAds.syncNow(dataSourceId) : (isMetaAds ? await metaAds.syncNow(dataSourceId) : (isAds ? await ads.syncNow(dataSourceId) : (isGAM ? await gam.syncNow(dataSourceId) : await analytics.syncNow(dataSourceId))));
 
         if (success) {
             await $swal.fire({
@@ -286,13 +306,13 @@ async function syncDataSource(dataSourceId) {
  */
 async function bulkSyncAllGoogleDataSources() {
     const googleDataSources = state.data_sources.filter(ds =>
-        ds.data_type === 'google_analytics' || ds.data_type === 'google_ad_manager' || ds.data_type === 'google_ads' || ds.data_type === 'meta_ads'
+        ds.data_type === 'google_analytics' || ds.data_type === 'google_ad_manager' || ds.data_type === 'google_ads' || ds.data_type === 'meta_ads' || ds.data_type === 'linkedin_ads'
     );
 
     if (googleDataSources.length === 0) {
         await $swal.fire({
-            title: 'No Google Data Sources',
-            text: 'There are no Google Analytics, Ad Manager, Ads, or Meta Ads data sources to sync.',
+            title: 'No API Data Sources',
+            text: 'There are no Google Analytics, Ad Manager, Ads, Meta Ads, or LinkedIn Ads data sources to sync.',
             icon: 'info'
         });
         return;
@@ -300,7 +320,7 @@ async function bulkSyncAllGoogleDataSources() {
 
     const { value: confirm } = await $swal.fire({
         title: `Sync ${googleDataSources.length} Data Source${googleDataSources.length > 1 ? 's' : ''}?`,
-        text: 'This will sync all Google Analytics, Ad Manager, Google Ads, and Meta Ads data sources in this project.',
+        text: 'This will sync all Google Analytics, Ad Manager, Google Ads, Meta Ads, and LinkedIn Ads data sources in this project.',
         icon: 'question',
         showCancelButton: true,
         confirmButtonText: 'Yes, Sync All',
@@ -332,7 +352,8 @@ async function bulkSyncAllGoogleDataSources() {
         const isGAM = ds.data_type === 'google_ad_manager';
         const isAds = ds.data_type === 'google_ads';
         const isMetaAds = ds.data_type === 'meta_ads';
-        const success = isMetaAds ? await metaAds.syncNow(ds.id) : (isAds ? await ads.syncNow(ds.id) : (isGAM ? await gam.syncNow(ds.id) : await analytics.syncNow(ds.id)));
+        const isLinkedInAds = ds.data_type === 'linkedin_ads';
+        const success = isLinkedInAds ? await linkedInAds.syncNow(ds.id) : (isMetaAds ? await metaAds.syncNow(ds.id) : (isAds ? await ads.syncNow(ds.id) : (isGAM ? await gam.syncNow(ds.id) : await analytics.syncNow(ds.id))));
         if (success) {
             successCount++;
         } else {
@@ -359,6 +380,7 @@ async function viewSyncHistory(dataSourceId) {
     const isGAM = dataSource?.data_type === 'google_ad_manager';
     const isAds = dataSource?.data_type === 'google_ads';
     const isMetaAds = dataSource?.data_type === 'meta_ads';
+    const isLinkedInAds = dataSource?.data_type === 'linkedin_ads';
 
     try {
         // Show loading
@@ -373,7 +395,7 @@ async function viewSyncHistory(dataSourceId) {
             }
         });
 
-        const status = isMetaAds ? await metaAds.getSyncStatus(dataSourceId) : (isAds ? await ads.getSyncStatus(dataSourceId) : (isGAM ? await gam.getSyncStatus(dataSourceId) : await analytics.getSyncStatus(dataSourceId)));
+        const status = isLinkedInAds ? await linkedInAds.getSyncStatus(dataSourceId) : (isMetaAds ? await metaAds.getSyncStatus(dataSourceId) : (isAds ? await ads.getSyncStatus(dataSourceId) : (isGAM ? await gam.getSyncStatus(dataSourceId) : await analytics.getSyncStatus(dataSourceId))));
 
         $swal.close();
 
@@ -411,31 +433,33 @@ function closeSyncHistoryDialog() {
  * Get last sync time formatted
  */
 function getLastSyncTime(dataSource) {
-    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager' && dataSource.data_type !== 'google_ads' && dataSource.data_type !== 'meta_ads') return null;
+    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager' && dataSource.data_type !== 'google_ads' && dataSource.data_type !== 'meta_ads' && dataSource.data_type !== 'linkedin_ads') return null;
     const lastSync = dataSource.connection_details?.api_connection_details?.api_config?.last_sync;
     const isGAM = dataSource.data_type === 'google_ad_manager';
     const isAds = dataSource.data_type === 'google_ads';
     const isMeta = dataSource.data_type === 'meta_ads';
-    return lastSync ? (isMeta ? metaAds.formatSyncTime(lastSync) : (isAds ? ads.formatSyncTime(lastSync) : (isGAM ? gam.formatSyncTime(lastSync) : analytics.formatSyncTime(lastSync)))) : 'Never';
+    const isLinkedIn = dataSource.data_type === 'linkedin_ads';
+    return lastSync ? (isLinkedIn ? linkedInAds.formatSyncTime(lastSync) : (isMeta ? metaAds.formatSyncTime(lastSync) : (isAds ? ads.formatSyncTime(lastSync) : (isGAM ? gam.formatSyncTime(lastSync) : analytics.formatSyncTime(lastSync))))) : 'Never';
 }
 
 /**
  * Get sync frequency text
  */
 function getSyncFrequency(dataSource) {
-    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager' && dataSource.data_type !== 'google_ads' && dataSource.data_type !== 'meta_ads') return null;
+    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager' && dataSource.data_type !== 'google_ads' && dataSource.data_type !== 'meta_ads' && dataSource.data_type !== 'linkedin_ads') return null;
     const frequency = dataSource.connection_details?.api_connection_details?.api_config?.sync_frequency || 'manual';
     const isGAM = dataSource.data_type === 'google_ad_manager';
     const isMeta = dataSource.data_type === 'meta_ads';
     const isAds = dataSource.data_type === 'google_ads';
-    return (isAds || isMeta) ? 'Manual' : (isGAM ? gam.getSyncFrequencyText(frequency) : analytics.getSyncFrequencyText(frequency));
+    const isLinkedIn = dataSource.data_type === 'linkedin_ads';
+    return (isAds || isMeta || isLinkedIn) ? 'Manual' : (isGAM ? gam.getSyncFrequencyText(frequency) : analytics.getSyncFrequencyText(frequency));
 }
 
 /**
  * Check if data source was recently synced (within 24 hours)
  */
 function isRecentlySynced(dataSource) {
-    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager' && dataSource.data_type !== 'google_ads' && dataSource.data_type !== 'meta_ads') return false;
+    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager' && dataSource.data_type !== 'google_ads' && dataSource.data_type !== 'meta_ads' && dataSource.data_type !== 'linkedin_ads') return false;
     const lastSync = dataSource.connection_details?.api_connection_details?.api_config?.last_sync;
     if (!lastSync) return false;
     const diffHours = (new Date().getTime() - new Date(lastSync).getTime()) / (1000 * 60 * 60);
@@ -614,7 +638,7 @@ onMounted(async () => {
                             </div>
 
                             <!-- Sync Status (for Google and Meta sources) -->
-                            <div v-if="['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads'].includes(dataSource.data_type)"
+                            <div v-if="['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads', 'linkedin_ads'].includes(dataSource.data_type)"
                                 class="mb-4">
                                 <div class="flex items-center justify-between mb-2">
                                     <span class="text-sm text-gray-600">Status</span>
@@ -680,7 +704,7 @@ onMounted(async () => {
 
                             <!-- Sync Button (for Google and Meta sources) -->
                             <button
-                                v-if="permissions.canUpdate.value && ['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads'].includes(dataSource.data_type)"
+                                v-if="permissions.canUpdate.value && ['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads', 'linkedin_ads'].includes(dataSource.data_type)"
                                 @click.stop="syncDataSource(dataSource.id)"
                                 :disabled="state.syncing[dataSource.id]"
                                 class="bg-primary-blue-100 hover:bg-primary-blue-300 border border-primary-blue-100 rounded-full w-10 h-10 flex items-center justify-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors z-10"
@@ -693,7 +717,7 @@ onMounted(async () => {
 
                             <!-- Sync History Button (for Google and Meta sources) -->
                             <button
-                                v-if="['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads'].includes(dataSource.data_type)"
+                                v-if="['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads', 'linkedin_ads'].includes(dataSource.data_type)"
                                 @click.stop="viewSyncHistory(dataSource.id)"
                                 class="bg-gray-500 hover:bg-gray-600 border border-gray-500 rounded-full w-10 h-10 flex items-center justify-center cursor-pointer transition-colors z-10"
                                 v-tippy="{ content: 'View Sync History' }">
@@ -710,7 +734,21 @@ onMounted(async () => {
                         <h2 class="text-2xl font-bold mb-6 text-gray-900">Connect Data Source</h2>
                         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                             <template v-for="dataSource in state.available_data_sources" :key="dataSource.name">
-                                <NuxtLink :to="dataSource.url"
+                                <!-- Coming Soon: shown to non-admin users when the integration is under review -->
+                                <div v-if="dataSource.coming_soon && !isAdmin"
+                                    class="relative w-full border border-gray-200 border-solid p-10 font-bold text-center shadow-md select-none opacity-60 cursor-not-allowed"
+                                    :title="`${dataSource.name} is under review and will be available soon`">
+                                    <div class="flex flex-col">
+                                        <img :src="dataSource.image_url" :alt="dataSource.name"
+                                            class="mx-auto mb-3 h-[100px] grayscale" />
+                                        {{ dataSource.name }}
+                                        <span class="mt-2 inline-block mx-auto px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-700 border border-amber-300">
+                                            Coming Soon
+                                        </span>
+                                    </div>
+                                </div>
+                                <!-- Normal: fully clickable card -->
+                                <NuxtLink v-else :to="dataSource.url"
                                     class="w-full border border-primary-blue-100 border-solid p-10 font-bold text-center hover:bg-gray-200 shadow-md cursor-pointer select-none">
                                     <div class="flex flex-col">
                                         <img :src="dataSource.image_url" :alt="dataSource.name"

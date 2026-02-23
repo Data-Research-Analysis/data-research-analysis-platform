@@ -318,7 +318,9 @@ function getSourceColor(sourceType: string) {
         'pdf': 'red',
         'google_analytics': 'purple',
         'google_ad_manager': 'indigo',
-        'google_ads': 'pink'
+        'google_ads': 'pink',
+        'meta_ads': 'blue',
+        'linkedin_ads': 'cyan'
     };
     return colors[sourceType?.toLowerCase()] || 'grey';
 }

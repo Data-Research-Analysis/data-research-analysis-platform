@@ -15,7 +15,7 @@ onMounted(() => {
             'Privacy Policy',
             'Comprehensive privacy policy for Data Research Analysis platform. Learn how we collect, use, protect, and manage your personal data and information.',
             `${siteUrl}/privacy-policy`,
-            '2025-12-24'
+            '2026-02-23'
         );
         
         const breadcrumbSchema = getBreadcrumbSchema([
@@ -58,9 +58,9 @@ useHead({
         <header>
             <h1 itemprop="headline">Privacy Policy</h1>
         
-            <meta itemprop="dateModified" content="2025-12-24" />
+            <meta itemprop="dateModified" content="2026-02-23" />
             <p class="text-sm text-gray-600 mt-2">
-                <strong>Last updated:</strong> <time datetime="2025-12-24">December 24, 2025</time>
+                <strong>Last updated:</strong> <time datetime="2026-02-23">February 23, 2026</time>
             </p>
         </header>
         
@@ -263,7 +263,17 @@ useHead({
             </li>
             <li>
                 <p>
-                    <strong>Third-Party Services</strong> refers to external services and APIs that We integrate with, including Google Analytics, Google Ad Manager, Google Ads, Google OAuth, and other third-party data sources that You connect to Our Service.
+                    <strong>Meta Ads Data</strong> refers to advertising data that You authorize Us to access from Your Meta Ads (Facebook Ads) account, including but not limited to campaign performance metrics, ad spend, impressions, clicks, conversions, audience insights, and creative performance data.
+                </p>
+            </li>
+            <li>
+                <p>
+                    <strong>LinkedIn Ads Data</strong> refers to advertising data that You authorize Us to access from Your LinkedIn Ads account, including but not limited to campaign groups, campaigns, creatives, ad performance metrics, impressions, clicks, spend, and demographic analytics.
+                </p>
+            </li>
+            <li>
+                <p>
+                    <strong>Third-Party Services</strong> refers to external services and APIs that We integrate with, including Google Analytics, Google Ad Manager, Google Ads, Meta Ads, LinkedIn Ads, and other third-party data sources that You connect to Our Service.
                 </p>
             </li>
             <li>
@@ -315,7 +325,7 @@ useHead({
                 <p>Usage Data</p>
             </li>
             <li>
-                <p><strong>Third-Party Service Credentials:</strong> When You connect external services like Google Analytics, We collect and securely store encrypted OAuth tokens and service identifiers required to maintain the integration.</p>
+                <p><strong>Third-Party Service Credentials:</strong> When You connect external services like Google Analytics, Meta Ads, or LinkedIn Ads, We collect and securely store encrypted OAuth tokens and service identifiers required to maintain the integration.</p>
             </li>
             <li>
                 <p><strong>Database Connection Credentials:</strong> When You connect external databases (PostgreSQL, MySQL, MariaDB, MongoDB), We collect and securely store encrypted connection credentials (host, port, database name, username, password) that You provide.</p>
@@ -551,19 +561,149 @@ useHead({
             </li>
         </ul>
 
-        <h3>Revoking Access to Google Services</h3>
+        <h3>Meta Ads Integration</h3>
 
         <p>
-            You can revoke Our access to Your Google Analytics, Google Ad Manager, or Google Ads data at any time through:
+            Our Service allows You to connect Your Meta Ads account (Facebook Ads Manager) to import and analyze Your advertising campaign data. When You choose to connect Meta Ads:
         </p>
 
         <ul>
-            <li>Our Service: Navigate to Account Settings → Connected Services → Disconnect the respective Google service</li>
-            <li>Google Account: Visit <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">Google Account Permissions</a> and remove "Data Research Analysis" access</li>
+            <li>
+                <p>
+                    <strong>OAuth Authorization:</strong> We use Meta OAuth 2.0 to securely authenticate Your Meta account. We only request read-only access to Your Meta Ads data.
+                </p>
+            </li>
+            <li>
+                <p>
+                    <strong>Data Access:</strong> We access the following data from Your Meta Ads account with Your explicit permission:
+                </p>
+                <ul>
+                    <li>Ad account and business information</li>
+                    <li>Campaign performance metrics (impressions, clicks, reach, frequency)</li>
+                    <li>Ad spend, cost-per-click, and return on ad spend data</li>
+                    <li>Ad set and individual ad performance statistics</li>
+                    <li>Audience segment and targeting performance data</li>
+                    <li>Creative performance and engagement metrics</li>
+                    <li>Conversion and pixel event data you have authorized</li>
+                </ul>
+            </li>
+            <li>
+                <p>
+                    <strong>Token Storage:</strong> We store encrypted OAuth access tokens to maintain ongoing access to Your Meta Ads data. These tokens are:
+                </p>
+                <ul>
+                    <li>Encrypted using industry-standard encryption (AES-256)</li>
+                    <li>Stored securely in our database</li>
+                    <li>Only used to access Your authorized Meta Ads data</li>
+                    <li>Can be revoked by You at any time through Your account settings or Meta Business settings</li>
+                </ul>
+            </li>
+            <li>
+                <p>
+                    <strong>Data Processing:</strong> Advertising data imported from Your Meta Ads account is:
+                </p>
+                <ul>
+                    <li>Stored in our secure database for the duration You choose</li>
+                    <li>Used solely to provide analysis, reporting, and visualization features</li>
+                    <li>Not shared with third parties except as described in this Privacy Policy</li>
+                    <li>Processed in accordance with Meta's Platform Terms and Developer Policies</li>
+                </ul>
+            </li>
+            <li>
+                <p>
+                    <strong>Your Control:</strong> You maintain full control over Your Meta Ads integration:
+                </p>
+                <ul>
+                    <li>You can disconnect Your Meta Ads account at any time</li>
+                    <li>You can configure sync settings and data retention</li>
+                    <li>You can delete imported advertising data from Your projects</li>
+                    <li>Disconnecting removes our access but does not delete data already imported</li>
+                    <li>You can also revoke access via <a href="https://www.facebook.com/settings?tab=business_tools" target="_blank" rel="noopener">Meta Business Integrations settings</a></li>
+                </ul>
+            </li>
+        </ul>
+
+        <h3>LinkedIn Ads Integration</h3>
+
+        <p>
+            Our Service allows You to connect Your LinkedIn Ads account to import and analyze Your advertising campaign data. When You choose to connect LinkedIn Ads:
+        </p>
+
+        <ul>
+            <li>
+                <p>
+                    <strong>OAuth Authorization:</strong> We use LinkedIn OAuth 2.0 to securely authenticate Your LinkedIn account. We request the <code>r_ads</code> and <code>r_ads_reporting</code> scopes to access read-only advertising data.
+                </p>
+            </li>
+            <li>
+                <p>
+                    <strong>Data Access:</strong> We access the following data from Your LinkedIn Ads account with Your explicit permission:
+                </p>
+                <ul>
+                    <li>Ad account metadata and billing currency</li>
+                    <li>Campaign group and campaign configuration data</li>
+                    <li>Creative and ad metadata</li>
+                    <li>Campaign-level and account-level performance analytics (impressions, clicks, spend, conversions)</li>
+                    <li>Video engagement metrics (views, completions, watch time)</li>
+                    <li>Demographic analytics (member country, seniority, job function — aggregated only)</li>
+                    <li>Daily and monthly time-series performance data</li>
+                </ul>
+            </li>
+            <li>
+                <p>
+                    <strong>Token Storage:</strong> We store encrypted OAuth access and refresh tokens to maintain ongoing access to Your LinkedIn Ads data. These tokens are:
+                </p>
+                <ul>
+                    <li>Encrypted using industry-standard encryption (AES-256)</li>
+                    <li>Stored securely in our database</li>
+                    <li>Automatically refreshed before expiry (LinkedIn access tokens are valid for 60 days)</li>
+                    <li>Can be revoked by You at any time through Your account settings or LinkedIn account permissions</li>
+                </ul>
+            </li>
+            <li>
+                <p>
+                    <strong>Data Processing:</strong> Advertising data imported from Your LinkedIn Ads account is:
+                </p>
+                <ul>
+                    <li>Stored in our secure database for the duration You choose</li>
+                    <li>Used solely to provide analysis, reporting, and visualization features</li>
+                    <li>Not shared with third parties except as described in this Privacy Policy</li>
+                    <li>Processed in accordance with LinkedIn's API Terms of Use and Developer Policies</li>
+                </ul>
+            </li>
+            <li>
+                <p>
+                    <strong>Privacy Note on Demographic Data:</strong> LinkedIn demographic analytics are always aggregated and anonymized by LinkedIn. Individual member identities are never exposed. LinkedIn automatically suppresses data where fewer than 3 members would be identifiable.
+                </p>
+            </li>
+            <li>
+                <p>
+                    <strong>Your Control:</strong> You maintain full control over Your LinkedIn Ads integration:
+                </p>
+                <ul>
+                    <li>You can disconnect Your LinkedIn Ads account at any time</li>
+                    <li>You can configure date ranges and data retention settings</li>
+                    <li>You can delete imported advertising data from Your projects</li>
+                    <li>Disconnecting removes our access but does not delete data already imported</li>
+                    <li>You can also revoke access via <a href="https://www.linkedin.com/psettings/permitted-services" target="_blank" rel="noopener">LinkedIn Permitted Services settings</a></li>
+                </ul>
+            </li>
+        </ul>
+
+        <h3>Revoking Access to Connected Services</h3>
+
+        <p>
+            You can revoke Our access to Your connected advertising and analytics accounts at any time:
+        </p>
+
+        <ul>
+            <li><strong>Google Services (Analytics, Ad Manager, Ads):</strong> Our Service → Account Settings → Connected Services → Disconnect, or visit <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">Google Account Permissions</a> and remove "Data Research Analysis" access</li>
+            <li><strong>Meta Ads:</strong> Our Service → Account Settings → Connected Services → Disconnect, or visit <a href="https://www.facebook.com/settings?tab=business_tools" target="_blank" rel="noopener">Meta Business Integrations</a> and remove "Data Research Analysis" access</li>
+            <li><strong>LinkedIn Ads:</strong> Our Service → Account Settings → Connected Services → Disconnect, or visit <a href="https://www.linkedin.com/psettings/permitted-services" target="_blank" rel="noopener">LinkedIn Permitted Services</a> and remove "Data Research Analysis" access</li>
         </ul>
 
         <p>
-            After revoking access, We will no longer be able to sync new data from Your Google accounts. Previously imported data will remain in Your projects unless You manually delete it.
+            After revoking access, We will no longer be able to sync new data from the disconnected account. Previously imported data will remain in Your projects unless You manually delete it.
         </p>
 
         <h3>Database and File Upload Data Handling</h3>

@@ -6,21 +6,7 @@
     </div>
 
     <div v-else-if="state.error" class="error-state">
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="64"
-        height="64"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <circle cx="12" cy="12" r="10"></circle>
-        <line x1="12" y1="8" x2="12" y2="12"></line>
-        <line x1="12" y1="16" x2="12.01" y2="16"></line>
-      </svg>
+      <font-awesome-icon :icon="['fas', 'circle-info']" class="w-16 h-16" />
       <h3>Error Loading Report</h3>
       <p>{{ state.error }}</p>
       <button class="btn-primary" @click="router.push(`/projects/${projectId}/insights`)">
@@ -32,20 +18,7 @@
       <!-- Header -->
       <div class="report-header">
         <button class="btn-back" @click="router.push(`/projects/${projectId}/insights`)">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <line x1="19" y1="12" x2="5" y2="12"></line>
-            <polyline points="12 19 5 12 12 5"></polyline>
-          </svg>
+          <font-awesome-icon :icon="['fas', 'arrow-left']" class="w-5 h-5" />
           Back to Reports
         </button>
 
@@ -56,20 +29,7 @@
             :disabled="!canDelete"
             title="Delete Report"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <polyline points="3 6 5 6 21 6"></polyline>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-            </svg>
+              <font-awesome-icon :icon="['fas', 'trash']" class="w-5 h-5" />
             Delete
           </button>
         </div>
@@ -80,56 +40,15 @@
         <h1>{{ state.report.title }}</h1>
         <div class="report-meta">
           <span class="meta-item">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-              <line x1="16" y1="2" x2="16" y2="6"></line>
-              <line x1="8" y1="2" x2="8" y2="6"></line>
-              <line x1="3" y1="10" x2="21" y2="10"></line>
-            </svg>
+            <font-awesome-icon :icon="['fas', 'calendar']" class="w-4 h-4" />
             Created {{ formatDate(state.report.created_at) }}
           </span>
           <span class="meta-item">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-              <circle cx="12" cy="7" r="4"></circle>
-            </svg>
+            <font-awesome-icon :icon="['fas', 'user']" class="w-4 h-4" />
             {{ state.report.data_source_ids.length }} data source{{ state.report.data_source_ids.length !== 1 ? 's' : '' }}
           </span>
           <span class="meta-item">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <circle cx="12" cy="12" r="10"></circle>
-              <polyline points="12 6 12 12 16 14"></polyline>
-            </svg>
+            <font-awesome-icon :icon="['fas', 'clock']" class="w-4 h-4" />
             {{ countInsights(state.report.insights_summary) }} insights
           </span>
         </div>
@@ -141,21 +60,7 @@
 
         <!-- Sampling Disclaimer -->
         <div v-if="state.report?.insights_summary?.sampling_info" class="sampling-disclaimer">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="16" x2="12" y2="12"></line>
-            <line x1="12" y1="8" x2="12.01" y2="8"></line>
-          </svg>
+          <font-awesome-icon :icon="['fas', 'circle-info']" class="w-5 h-5" />
           <p>
             <strong>Data Sample Analysis:</strong> This analysis is based on a sample of 
             <strong>{{ state.report.insights_summary.sampling_info.total_rows_sampled.toLocaleString() }}</strong> rows 
@@ -167,20 +72,7 @@
         <!-- Trends -->
         <div v-if="state.report.insights_summary.trends?.length > 0" class="insight-category">
           <div class="category-header">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
-              <polyline points="17 6 23 6 23 12"></polyline>
-            </svg>
+            <font-awesome-icon :icon="['fas', 'arrow-trend-up']" class="w-6 h-6" />
             <h3>Trends</h3>
           </div>
           <div class="insights-list">
@@ -202,21 +94,7 @@
         <!-- Anomalies -->
         <div v-if="state.report.insights_summary.anomalies?.length > 0" class="insight-category">
           <div class="category-header">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-              <line x1="12" y1="9" x2="12" y2="13"></line>
-              <line x1="12" y1="17" x2="12.01" y2="17"></line>
-            </svg>
+            <font-awesome-icon :icon="['fas', 'triangle-exclamation']" class="w-6 h-6" />
             <h3>Anomalies</h3>
           </div>
           <div class="insights-list">
@@ -238,23 +116,7 @@
         <!-- Correlations -->
         <div v-if="state.report.insights_summary.correlations?.length > 0" class="insight-category">
           <div class="category-header">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <circle cx="18" cy="5" r="3"></circle>
-              <circle cx="6" cy="12" r="3"></circle>
-              <circle cx="18" cy="19" r="3"></circle>
-              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
-            </svg>
+            <font-awesome-icon :icon="['fas', 'share-nodes']" class="w-6 h-6" />
             <h3>Correlations</h3>
           </div>
           <div class="insights-list">
@@ -276,21 +138,7 @@
         <!-- Distributions -->
         <div v-if="state.report.insights_summary.distributions?.length > 0" class="insight-category">
           <div class="category-header">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <line x1="18" y1="20" x2="18" y2="10"></line>
-              <line x1="12" y1="20" x2="12" y2="4"></line>
-              <line x1="6" y1="20" x2="6" y2="14"></line>
-            </svg>
+            <font-awesome-icon :icon="['fas', 'chart-bar']" class="w-6 h-6" />
             <h3>Distributions</h3>
           </div>
           <div class="insights-list">
@@ -312,21 +160,7 @@
         <!-- Recommendations -->
         <div v-if="state.report.insights_summary.recommendations?.length > 0" class="insight-category">
           <div class="category-header">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
-              <polyline points="2 17 12 22 22 17"></polyline>
-              <polyline points="2 12 12 17 22 12"></polyline>
-            </svg>
+            <font-awesome-icon :icon="['fas', 'layer-group']" class="w-6 h-6" />
             <h3>Recommendations</h3>
           </div>
           <div class="insights-list">

@@ -1,5 +1,6 @@
 import express from 'express';
 import { validateJWT } from '../middleware/authenticate.js';
+import { requiresProductionAccess } from '../middleware/requiresProductionAccess.js';
 import { DataSourceProcessor } from '../processors/DataSourceProcessor.js';
 import { MetaAdsService } from '../services/MetaAdsService.js';
 import { MetaOAuthService } from '../services/MetaOAuthService.js';
@@ -124,7 +125,7 @@ router.post('/accounts', validateJWT, async (req, res) => {
  * Add Meta Ads data source
  * POST /api/meta-ads/add
  */
-router.post('/add', validateJWT, async (req, res) => {
+router.post('/add', validateJWT, requiresProductionAccess, async (req, res) => {
     try {
         const user_id = req.body?.tokenDetails?.user_id;
         
@@ -198,7 +199,7 @@ router.post('/add', validateJWT, async (req, res) => {
  * Trigger sync for Meta Ads data source
  * POST /api/meta-ads/sync/:id
  */
-router.post('/sync/:id', validateJWT, async (req, res) => {
+router.post('/sync/:id', validateJWT, requiresProductionAccess, async (req, res) => {
     try {
         const user_id = req.body?.tokenDetails?.user_id;
         

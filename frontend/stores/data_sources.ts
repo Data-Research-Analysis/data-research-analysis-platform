@@ -16,6 +16,11 @@ import type {
     IMetaSyncConfig,
     IMetaSyncStatus
 } from '~/types/IMetaAds';
+import type {
+    ILinkedInAdAccount,
+    ILinkedInOAuthSyncConfig,
+    ILinkedInSyncStatus
+} from '~/types/ILinkedInAds';
 
 let dataSourcesInitialized = false;
 
@@ -696,6 +701,173 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         }
     }
 
+    /**
+     * Initiate LinkedIn OAuth flow
+     */
+    async function initiateLinkedInOAuth(projectId?: string | number): Promise<void> {
+        const token = getAuthToken();
+        if (!token) {
+            throw new Error('Authentication required');
+        }
+
+        try {
+            const response = await fetch(`${baseUrl()}/linkedin-ads/connect`, {
+                method: "GET",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success && data.authUrl) {
+                    if (import.meta.client && projectId) {
+                        localStorage.setItem('linkedin_ads_pending_oauth', JSON.stringify({ projectId }));
+                    }
+                    if (import.meta.client) {
+                        window.location.href = data.authUrl;
+                    }
+                } else {
+                    throw new Error(data.error || 'Failed to initiate OAuth');
+                }
+            } else {
+                throw new Error('Failed to connect to backend');
+            }
+        } catch (error) {
+            console.error('Error initiating LinkedIn OAuth:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * List LinkedIn Ad accounts accessible by the access token
+     */
+    async function listLinkedInAdAccounts(accessToken: string): Promise<{ accounts: ILinkedInAdAccount[]; hasTestAccounts: boolean }> {
+        const token = getAuthToken();
+        if (!token) return { accounts: [], hasTestAccounts: false };
+
+        const data = await $fetch<{ success: boolean; accounts: ILinkedInAdAccount[]; hasTestAccounts: boolean; error?: string }>(
+            `${baseUrl()}/linkedin-ads/accounts`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                    'Authorization-Type': 'auth',
+                },
+                body: { accessToken },
+            }
+        );
+
+        return {
+            accounts: data.accounts || [],
+            hasTestAccounts: data.hasTestAccounts ?? false,
+        };
+    }
+
+    /**
+     * Add LinkedIn Ads data source
+     */
+    async function addLinkedInAdsDataSource(config: ILinkedInOAuthSyncConfig, projectId: number): Promise<number | null> {
+        const token = getAuthToken();
+        if (!token) return null;
+
+        try {
+            const response = await fetch(`${baseUrl()}/linkedin-ads/add`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                },
+                body: JSON.stringify({
+                    name: config.name,
+                    accessToken: config.accessToken,
+                    refreshToken: config.refreshToken,
+                    expiresAt: config.expiresAt,
+                    adAccountId: config.adAccountId,
+                    adAccountName: config.adAccountName,
+                    projectId,
+                    startDate: config.startDate,
+                    endDate: config.endDate
+                })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    await retrieveDataSources();
+                    return data.dataSourceId || null;
+                }
+            }
+            return null;
+        } catch (error) {
+            console.error('Error adding LinkedIn Ads data source:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Trigger manual sync for LinkedIn Ads data source
+     */
+    async function syncLinkedInAds(dataSourceId: number): Promise<boolean> {
+        const token = getAuthToken();
+        if (!token) return false;
+
+        try {
+            const response = await fetch(`${baseUrl()}/linkedin-ads/sync/${dataSourceId}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                return data.success;
+            }
+            return false;
+        } catch (error) {
+            console.error('Error syncing LinkedIn Ads data:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Get sync status and history for LinkedIn Ads data source
+     */
+    async function getLinkedInAdsSyncStatus(dataSourceId: number): Promise<ILinkedInSyncStatus | null> {
+        const token = getAuthToken();
+        if (!token) return null;
+
+        try {
+            const response = await fetch(`${baseUrl()}/linkedin-ads/sync-status/${dataSourceId}`, {
+                method: "GET",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    return {
+                        lastSyncTime: data.lastSyncTime,
+                        syncHistory: data.syncHistory || []
+                    } as ILinkedInSyncStatus;
+                }
+            }
+            return null;
+        } catch (error) {
+            console.error('Error getting LinkedIn Ads sync status:', error);
+            return null;
+        }
+    }
+
     async function deleteDataSource(dataSourceId: number): Promise<boolean> {
         const token = getAuthToken();
         if (!token) return false;
@@ -768,6 +940,12 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         addMetaAdsDataSource,
         syncMetaAds,
         getMetaAdsSyncStatus,
+        // LinkedIn Ads methods
+        initiateLinkedInOAuth,
+        listLinkedInAdAccounts,
+        addLinkedInAdsDataSource,
+        syncLinkedInAds,
+        getLinkedInAdsSyncStatus,
         // Data source management
         deleteDataSource,
     }

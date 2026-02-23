@@ -164,17 +164,26 @@ async function connectDataSource() {
         state.loading = false;
     }
 }
+
+function goBack() {
+    router.push(`/projects/${route.params.projectid}/data-sources`);
+}
 </script>
 <template>
-    <div class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md">
-        <div class="font-bold text-2xl mb-5">
-            Connect MySQL Data Source
+    <div class="max-w-[900px] mx-auto py-10 px-5 sm:py-6 sm:px-4">
+        <button @click="goBack" class="text-indigo-600 hover:text-indigo-800 mb-4 flex items-center cursor-pointer">
+            <font-awesome-icon :icon="['fas', 'chevron-left']" class="w-5 h-5 mr-2" />
+            Back
+        </button>
+
+        <div class="text-center mb-10">
+            <h1 class="text-4xl font-bold text-gray-900 mb-2">Connect MySQL Data Source</h1>
+            <p class="text-base text-gray-600">Enter the connection details for your MySQL database.</p>
         </div>
-        <div class="text-md mb-10">
-            Enter the connection details for your MySQL data source.
-        </div>
+
+        <div class="bg-white rounded-xl p-8 shadow-sm border border-indigo-200 sm:p-6 flex flex-col">
         <div v-if="state.showAlert"
-            class="w-3/4 self-center text-lg p-5 mb-5 font-bold text-black rounded-lg"
+            class="mb-6 rounded-lg p-4 text-base font-bold text-black"
             :class="{ 'bg-green-400': state.connectionSuccess, 'bg-red-400': !state.connectionSuccess }">
             <div v-if="state.connectionSuccess" class="text-2xl">Success!</div>
             <div v-else class="text-2xl">Error!</div>
@@ -264,7 +273,7 @@ async function connectDataSource() {
             </div>
         </div>
         
-        <div class="flex flex-row self-center w-1/2 gap-5 mt-6">
+        <div class="flex gap-3 justify-center mt-6">
             <div
                 @click="!state.loading && testConnection()"
                 class="h-10 text-center items-center self-center p-2 font-bold shadow-md select-none bg-gray-500 hover:bg-gray-600 cursor-pointer text-white flex-1 rounded-lg"
@@ -277,6 +286,7 @@ async function connectDataSource() {
                 :class="{ 'opacity-50 cursor-not-allowed': state.loading }">
                 Connect Data Source
             </div>
+        </div>
         </div>
     </div>
 </template>

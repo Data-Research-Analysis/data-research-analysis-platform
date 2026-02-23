@@ -375,7 +375,7 @@ function goBack() {
  */
 function cancel() {
     state.navigating = true;
-    router.push(`/projects/${projectId}`);
+    router.push(`/projects/${projectId}/data-sources`);
 }
 </script>
 
@@ -403,6 +403,11 @@ function cancel() {
 
     <!-- Main Content -->
     <div v-else class="max-w-[900px] mx-auto py-10 px-5 sm:py-6 sm:px-4">
+        <button @click="cancel" class="text-indigo-600 hover:text-indigo-800 mb-4 flex items-center cursor-pointer">
+            <font-awesome-icon :icon="['fas', 'chevron-left']" class="w-5 h-5 mr-2" />
+            Back
+        </button>
+
         <div class="text-center mb-10">
             <h1 class="text-4xl font-bold text-gray-900 mb-2">Connect Google Ads</h1>
             <p class="text-base text-gray-600">Import your Google Ads campaign data for analysis</p>
@@ -413,19 +418,19 @@ function cancel() {
             <div class="flex flex-col items-center gap-2" :class="{ 'text-indigo-600': state.currentStep >= 1 }">
                 <div class="w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300" 
                      :class="state.currentStep > 1 ? 'bg-green-500 text-white' : state.currentStep >= 1 ? 'bg-primary-blue-100 text-white' : 'bg-gray-300 text-gray-600'">1</div>
-                <div class="text-sm font-medium sm:text-xs" :class="state.currentStep >= 1 ? 'text-primary-blue-100' : 'text-gray-600'">Authenticate</div>
+                <div class="text-sm font-medium sm:text-xs" :class="state.currentStep >= 1 ? 'text-indigo-600' : 'text-gray-600'">Authenticate</div>
             </div>
             <div class="w-20 h-0.5 mx-4 transition-all duration-300 sm:w-10" :class="state.currentStep > 1 ? 'bg-green-500' : 'bg-gray-300'"></div>
             <div class="flex flex-col items-center gap-2" :class="{ 'text-indigo-600': state.currentStep >= 2 }">
                 <div class="w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300" 
                      :class="state.currentStep > 2 ? 'bg-green-500 text-white' : state.currentStep >= 2 ? 'bg-primary-blue-100 text-white' : 'bg-gray-300 text-gray-600'">2</div>
-                <div class="text-sm font-medium sm:text-xs" :class="state.currentStep >= 2 ? 'text-primary-blue-100' : 'text-gray-600'">Select Account</div>
+                <div class="text-sm font-medium sm:text-xs" :class="state.currentStep >= 2 ? 'text-indigo-600' : 'text-gray-600'">Select Account</div>
             </div>
             <div class="w-20 h-0.5 mx-4 transition-all duration-300 sm:w-10" :class="state.currentStep > 2 ? 'bg-green-500' : 'bg-gray-300'"></div>
             <div class="flex flex-col items-center gap-2" :class="{ 'text-indigo-600': state.currentStep >= 3 }">
                 <div class="w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300" 
                      :class="state.currentStep >= 3 ? 'bg-primary-blue-100 text-white' : 'bg-gray-300 text-gray-600'">3</div>
-                <div class="text-sm font-medium sm:text-xs" :class="state.currentStep >= 3 ? 'text-primary-blue-100' : 'text-gray-600'">Configure</div>
+                <div class="text-sm font-medium sm:text-xs" :class="state.currentStep >= 3 ? 'text-indigo-600' : 'text-gray-600'">Configure</div>
             </div>
         </div>
 
@@ -433,7 +438,7 @@ function cancel() {
 
         <!-- Step 1: Authentication -->
         <div v-if="state.currentStep === 1" class="animate-fade-in">
-            <div class="bg-white rounded-xl p-8 shadow-sm sm:p-6">
+            <div class="bg-white rounded-xl p-8 shadow-sm border border-indigo-200 sm:p-6">
                 <h2 class="text-2xl font-semibold text-gray-900 mb-6">Step 1: Authenticate with Google</h2>
                 
                 <div class="mb-8">
@@ -449,27 +454,17 @@ function cancel() {
                 <button @click="initiateGoogleSignIn" 
                     class="flex items-center justify-center gap-3 w-full max-w-[300px] mx-auto mb-6 px-6 py-4 bg-white border-2 border-gray-300 rounded-lg text-base font-semibold text-gray-700 cursor-pointer transition-all duration-200 hover:border-gray-400 hover:shadow-lg hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed"
                     :disabled="state.loading">
-                    <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-                        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-                        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-                        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-                        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-                    </svg>
+                    <font-awesome-icon :icon="['fab', 'google']" class="w-6 h-6 text-[#4285F4]" />
                     <span v-if="!state.loading">Sign in with Google</span>
                     <span v-else>Redirecting...</span>
                 </button>
 
-                <div class="flex gap-3 justify-end mt-8 sm:flex-col">
-                    <button @click="cancel" class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 sm:w-full rounded-lg">
-                        Cancel
-                    </button>
-                </div>
             </div>
         </div>
 
         <!-- Step 2: Account Selection -->
         <div v-if="state.currentStep === 2" class="animate-fade-in">
-            <div class="bg-white rounded-xl p-8 shadow-sm sm:p-6">
+            <div class="bg-white rounded-xl p-8 shadow-sm border border-indigo-200 sm:p-6">
                 <h2 class="text-2xl font-semibold text-gray-900 mb-6">Step 2: Select Google Ads Account</h2>
 
                 <div v-if="state.loadingAccounts" class="text-center py-12 px-6">
@@ -502,10 +497,7 @@ function cancel() {
                                 </p>
                             </div>
                             <div v-if="!account.isManager">
-                                <svg v-if="state.selectedAccount?.customerId === account.customerId && !state.selectedClientAccount" 
-                                    class="w-6 h-6 text-indigo-600 stroke-[3]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                    <polyline points="20 6 9 17 4 12"></polyline>
-                                </svg>
+                                <font-awesome-icon v-if="state.selectedAccount?.customerId === account.customerId && !state.selectedClientAccount" :icon="['fas', 'check']" class="w-6 h-6 text-indigo-600" />
                             </div>
                         </div>
 
@@ -525,10 +517,7 @@ function cancel() {
                                         <p class="text-xs text-gray-600 m-0">ID: {{ client.customerId }}</p>
                                     </div>
                                     <div>
-                                        <svg v-if="state.selectedClientAccount === client.customerId" 
-                                            class="w-5 h-5 text-indigo-600 stroke-[3]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                            <polyline points="20 6 9 17 4 12"></polyline>
-                                        </svg>
+                                        <font-awesome-icon v-if="state.selectedClientAccount === client.customerId" :icon="['fas', 'check']" class="w-5 h-5 text-indigo-600" />
                                     </div>
                                 </div>
                             </div>
@@ -546,7 +535,7 @@ function cancel() {
 
         <!-- Step 3: Configuration -->
         <div v-if="state.currentStep === 3" class="animate-fade-in">
-            <div class="bg-white rounded-xl p-8 shadow-sm sm:p-6">
+            <div class="bg-white rounded-xl p-8 shadow-sm border border-indigo-200 sm:p-6">
                 <h2 class="text-2xl font-semibold text-gray-900 mb-6">Step 3: Configure Data Sync</h2>
 
                 <!-- Data Source Name -->
@@ -619,9 +608,6 @@ function cancel() {
                 <div class="flex gap-3 justify-end mt-8 sm:flex-col">
                     <button @click="goBack" class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-60 disabled:cursor-not-allowed sm:w-full rounded-lg" :disabled="state.connecting">
                         ← Back
-                    </button>
-                    <button @click="cancel" class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-60 disabled:cursor-not-allowed sm:w-full rounded-lg" :disabled="state.connecting">
-                        Cancel
                     </button>
                     <button @click="connectDataSource" class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed bg-primary-blue-100 text-white hover:bg-primary-blue-300 hover:-translate-y-0.5 hover:shadow-lg sm:w-full rounded-lg" :disabled="state.connecting">
                         <span v-if="!state.connecting">Connect & Sync →</span>

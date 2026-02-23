@@ -172,9 +172,7 @@ const dashboardUsage = computed(() => {
                     @click="handleUpgrade"
                     class="w-full flex items-center justify-center px-4 py-2 bg-gradient-to-r from-primary-blue-100 to-primary-blue-300 hover:from-primary-blue-200 hover:to-primary-blue-400 text-white text-sm font-medium rounded-md transition-all shadow-sm"
                 >
-                    <svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                    </svg>
+                    <font-awesome-icon :icon="['fas', 'arrow-trend-up']" class="mr-2 h-4 w-4" />
                     Upgrade Plan
                 </button>
             </div>

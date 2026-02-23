@@ -122,10 +122,7 @@ function getServiceTypeFromState(stateParam: string): 'analytics' | 'ad_manager'
             <!-- Success State -->
             <div v-else-if="state.success" class="flex flex-col items-center gap-5">
                 <div class="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center animate-bounce">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2" class="w-10 h-10 text-white">
-                        <polyline points="20 6 9 17 4 12"></polyline>
-                    </svg>
+                    <font-awesome-icon :icon="['fas', 'check']" class="w-10 h-10 text-white" />
                 </div>
                 <h2 class="text-2xl font-semibold text-gray-900 m-0 sm:text-xl">Authentication Successful!</h2>
                 <p class="text-base text-gray-600 m-0 sm:text-sm">Redirecting to property selection...</p>
@@ -134,12 +131,7 @@ function getServiceTypeFromState(stateParam: string): 'analytics' | 'ad_manager'
             <!-- Error State -->
             <div v-else-if="state.error" class="flex flex-col items-center gap-5">
                 <div class="w-20 h-20 bg-red-500 rounded-full flex items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2" class="w-10 h-10 text-white">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <line x1="15" y1="9" x2="9" y2="15"></line>
-                        <line x1="9" y1="9" x2="15" y2="15"></line>
-                    </svg>
+                    <font-awesome-icon :icon="['fas', 'circle-xmark']" class="w-10 h-10 text-white" />
                 </div>
                 <h2 class="text-2xl font-semibold text-gray-900 m-0 sm:text-xl">Authentication Failed</h2>
                 <p class="text-base text-gray-600 m-0 sm:text-sm">{{ state.error }}</p>
