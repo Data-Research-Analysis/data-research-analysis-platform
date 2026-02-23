@@ -30,7 +30,14 @@ export interface IAPIConnectionDetails {
         
         // Meta Ads specific
         ad_account_id?: string;
-        
+
+        // LinkedIn Ads specific
+        linkedin_ads_account_id?: number;       // Long integer (not URN) — LinkedIn adAccount id field
+        linkedin_ads_account_name?: string;     // Display name for the selected ad account
+        linkedin_ads_organization_id?: string;  // Optional org URN (urn:li:organization:{id})
+        linkedin_ads_token_expires_at?: number; // Unix timestamp (ms) when access token expires
+        linkedin_ads_refresh_token?: string;    // Stored separately from oauth_refresh_token for LinkedIn
+
         // Additional metadata
         account_name?: string;
         last_sync?: Date;
