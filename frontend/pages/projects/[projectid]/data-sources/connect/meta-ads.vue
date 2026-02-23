@@ -331,7 +331,7 @@ definePageMeta({
         </div>
 
         <!-- Step 1: Authentication -->
-        <tab-content-panel v-if="state.currentStep === 1" class="bg-white rounded-lg shadow-sm p-8">
+        <div v-if="state.currentStep === 1" class="bg-white rounded-lg shadow-sm border border-indigo-200 p-8">
             <div class="text-center max-w-2xl mx-auto">
                 <div class="mb-6">
                     <font-awesome-icon :icon="['fas', 'lock']" class="mx-auto h-16 w-16 text-indigo-600" />
@@ -361,10 +361,10 @@ definePageMeta({
                     </span>
                 </button>
             </div>
-        </tab-content-panel>
+        </div>
 
         <!-- Step 2: Account Selection -->
-        <tab-content-panel v-if="state.currentStep === 2" class="bg-white rounded-lg shadow-sm p-8">
+        <div v-if="state.currentStep === 2" class="bg-white rounded-lg shadow-sm border border-indigo-200 p-8">
             <h2 class="text-2xl font-bold text-gray-900 mb-6">Select Ad Account</h2>
 
             <div v-if="state.loadingAccounts" class="text-center py-12">
@@ -396,10 +396,10 @@ definePageMeta({
             <div v-else class="text-center py-12 text-gray-500">
                 <p>No ad accounts found</p>
             </div>
-        </tab-content-panel>
+        </div>
 
         <!-- Step 3: Configuration -->
-        <tab-content-panel v-if="state.currentStep === 3" class="bg-white rounded-lg shadow-sm p-8">
+        <div v-if="state.currentStep === 3" class="bg-white rounded-lg shadow-sm border border-indigo-200 p-8">
             <h2 class="text-2xl font-bold text-gray-900 mb-6">Configure Data Source</h2>
 
             <div class="space-y-6">
@@ -464,6 +464,6 @@ definePageMeta({
                     </button>
                 </div>
             </div>
-        </tab-content-panel>
+        </div>
     </div>
 </template>
