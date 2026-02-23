@@ -33,7 +33,8 @@ const state = reactive({
     // UI state
     loading: false,
     error: null as string | null,
-    connecting: false
+    connecting: false,
+    hasTestAccounts: false,
 });
 
 // Check for OAuth token stored by /connect/linkedin-ads landing page
@@ -87,14 +88,14 @@ async function loadAdAccounts() {
         state.loadingAccounts = true;
         state.error = null;
 
-        const accounts = await dataSourcesStore.listLinkedInAdAccounts(state.accessToken);
-        state.accounts = accounts;
+        const result = await dataSourcesStore.listLinkedInAdAccounts(state.accessToken);
+        state.accounts = result.accounts;
+        state.hasTestAccounts = result.hasTestAccounts;
 
-        if (accounts.length === 0) {
+        if (result.accounts.length === 0) {
             state.error = 'No LinkedIn ad accounts found. Please ensure you have access to at least one account.';
             $swal.fire({
                 title: 'No Accounts Found',
-                text: state.error,
                 icon: 'warning',
                 html: '<p>Please ensure you:</p><ul class="text-left ml-4 mt-2"><li>• Have a LinkedIn Campaign Manager account</li><li>• Have at least one ad account with active campaigns</li><li>• Have granted the required <code>r_ads</code> and <code>r_ads_reporting</code> permissions</li></ul>'
             });
@@ -338,12 +339,20 @@ definePageMeta({
             </div>
 
             <div v-else-if="state.accounts.length > 0" class="space-y-4">
+                <!-- Development Tier notice when only test accounts are available -->
+                <div v-if="state.hasTestAccounts" class="bg-amber-50 border border-amber-300 rounded-lg p-4 text-sm text-amber-800">
+                    <strong>Development Tier:</strong> Your LinkedIn Advertising API access is currently in sandbox mode. Only test accounts are available until LinkedIn approves production access. You can complete the setup with a test account now.
+                </div>
+
                 <div v-for="account in state.accounts" :key="account.id"
                     @click="selectAccount(account)"
                     class="border border-gray-300 rounded-lg p-6 hover:border-indigo-500 hover:shadow-md cursor-pointer transition-all">
                     <div class="flex items-center justify-between">
                         <div>
-                            <h3 class="text-lg font-semibold text-gray-900">{{ account.name }}</h3>
+                            <div class="flex items-center gap-2">
+                                <h3 class="text-lg font-semibold text-gray-900">{{ account.name }}</h3>
+                                <span v-if="account.test" class="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Test Account</span>
+                            </div>
                             <p class="text-sm text-gray-500 mt-1">Account ID: {{ account.id }}</p>
                             <div class="flex items-center mt-2 space-x-4">
                                 <span :class="{

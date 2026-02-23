@@ -743,30 +743,31 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     /**
      * List LinkedIn Ad accounts accessible by the access token
      */
-    async function listLinkedInAdAccounts(accessToken: string): Promise<ILinkedInAdAccount[]> {
+    async function listLinkedInAdAccounts(accessToken: string): Promise<{ accounts: ILinkedInAdAccount[]; hasTestAccounts: boolean }> {
         const token = getAuthToken();
-        if (!token) return [];
+        if (!token) return { accounts: [], hasTestAccounts: false };
 
-        try {
-            const response = await fetch(`${baseUrl()}/linkedin-ads/accounts`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${token}`,
-                    "Authorization-Type": "auth",
-                },
-                body: JSON.stringify({ accessToken })
-            });
+        const response = await fetch(`${baseUrl()}/linkedin-ads/accounts`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`,
+                "Authorization-Type": "auth",
+            },
+            body: JSON.stringify({ accessToken })
+        });
 
-            if (response.ok) {
-                const data = await response.json();
-                return data.accounts || [];
-            }
-            return [];
-        } catch (error) {
-            console.error('Error listing LinkedIn ad accounts:', error);
-            return [];
+        const data = await response.json();
+
+        if (!response.ok) {
+            // Surface the real API error rather than silently returning []
+            throw new Error(data.error || `Failed to list LinkedIn ad accounts (HTTP ${response.status})`);
         }
+
+        return {
+            accounts: data.accounts || [],
+            hasTestAccounts: data.hasTestAccounts ?? false,
+        };
     }
 
     /**

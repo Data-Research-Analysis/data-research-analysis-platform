@@ -120,15 +120,26 @@ router.post('/accounts', validateJWT, async (req, res) => {
         const service = LinkedInAdsService.getInstance();
         const accounts = await service.listAdAccounts(accessToken);
 
-        // Filter out test accounts by default
+        // Separate live vs test accounts — in LinkedIn's Development Tier only
+        // test accounts are available. We include both so the setup wizard works
+        // during development/sandbox. Test accounts are labelled in the response.
         const liveAccounts = accounts.filter(a => !a.test);
+        const testAccounts = accounts.filter(a => a.test);
 
-        console.log(`✅ [LinkedIn Ads] Found ${liveAccounts.length} live ad account(s)`);
+        // Return live accounts when available, otherwise fall back to test accounts
+        // so developers can complete the OAuth wizard before production approval.
+        const returnedAccounts = liveAccounts.length > 0 ? liveAccounts : testAccounts;
+
+        console.log(
+            `✅ [LinkedIn Ads] Found ${liveAccounts.length} live account(s) and ` +
+            `${testAccounts.length} test account(s). Returning ${returnedAccounts.length}.`
+        );
 
         res.json({
             success: true,
-            accounts: liveAccounts,
-            total: liveAccounts.length,
+            accounts: returnedAccounts,
+            total: returnedAccounts.length,
+            hasTestAccounts: testAccounts.length > 0 && liveAccounts.length === 0,
         });
     } catch (error: any) {
         console.error('[LinkedIn Ads] Failed to list ad accounts:', error);
