@@ -534,6 +534,7 @@ export class DataSamplingService {
                 'google_ad_manager': 'dra_google_ad_manager',
                 'google_ads': 'dra_google_ads',
                 'meta_ads': 'dra_meta_ads',
+                'linkedin_ads': 'dra_linkedin_ads',
                 'excel': 'dra_excel',
                 'pdf': 'dra_pdf',
                 'mongodb': 'dra_mongodb'
