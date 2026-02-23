@@ -229,22 +229,15 @@ definePageMeta({
 </script>
 
 <template>
-    <div class="container mx-auto p-6">
-        <!-- Header -->
-        <div class="mb-8">
-            <button @click="goBack" class="text-indigo-600 hover:text-indigo-800 mb-4 flex items-center cursor-pointer">
-                <font-awesome-icon :icon="['fas', 'chevron-left']" class="w-5 h-5 mr-2" />
-                Back
-            </button>
+    <div class="max-w-[900px] mx-auto py-10 px-5 sm:py-6 sm:px-4">
+        <button @click="goBack" class="text-indigo-600 hover:text-indigo-800 mb-4 flex items-center cursor-pointer">
+            <font-awesome-icon :icon="['fas', 'chevron-left']" class="w-5 h-5 mr-2" />
+            Back
+        </button>
 
-            <div class="flex items-center gap-4 mb-2">
-                <!-- LinkedIn logo mark (simplified square) -->
-                <div class="w-10 h-10 bg-[#0077B5] rounded-md flex items-center justify-center">
-                    <span class="text-white font-bold text-lg leading-none">in</span>
-                </div>
-                <h1 class="text-3xl font-bold text-gray-900">Connect LinkedIn Ads</h1>
-            </div>
-            <p class="text-gray-600 mt-1">Connect your LinkedIn Campaign Manager account to sync campaigns, creatives, and performance data</p>
+        <div class="text-center mb-10">
+            <h1 class="text-4xl font-bold text-gray-900 mb-2">Connect LinkedIn Ads</h1>
+            <p class="text-base text-gray-600">Connect your LinkedIn Campaign Manager account to sync campaigns, creatives, and performance data</p>
         </div>
 
         <!-- Progress Steps -->
