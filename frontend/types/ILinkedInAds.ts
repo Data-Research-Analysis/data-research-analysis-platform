@@ -89,6 +89,21 @@ export type TLinkedInAnalyticsPivot =
 
 // ─── Sync Config & Status ─────────────────────────────────────────────────────
 
+/**
+ * Full OAuth-based config for adding a LinkedIn Ads data source.
+ * Used by the connect wizard and store when calling POST /linkedin-ads/add.
+ */
+export interface ILinkedInOAuthSyncConfig {
+    name: string;
+    accessToken: string;
+    refreshToken: string;
+    expiresAt: number;
+    adAccountId: number;
+    adAccountName: string;
+    startDate?: string;   // ISO YYYY-MM-DD (optional)
+    endDate?: string;     // ISO YYYY-MM-DD (optional)
+}
+
 export interface ILinkedInSyncConfig {
     adAccountId: number;
     startDate: ILinkedInDate;
@@ -112,10 +127,13 @@ export interface ILinkedInSyncResult {
 }
 
 export interface ILinkedInSyncStatus {
-    lastSync: Date | null;
-    status: 'success' | 'failed' | 'running' | null;
-    syncResult: ILinkedInSyncResult | null;
-    errorMessage?: string;
+    lastSyncTime: string | null;
+    syncHistory: Array<{
+        timestamp: string;
+        status: string;
+        recordCount?: number;
+        error?: string;
+    }>;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
