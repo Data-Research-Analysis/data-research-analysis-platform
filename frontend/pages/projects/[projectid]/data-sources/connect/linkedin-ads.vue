@@ -89,7 +89,7 @@ async function loadAdAccounts() {
         state.error = null;
 
         const result = await dataSourcesStore.listLinkedInAdAccounts(state.accessToken);
-        state.accounts = result.accounts;
+        state.accounts = result.accounts || [];
         state.hasTestAccounts = result.hasTestAccounts;
 
         if (result.accounts.length === 0) {
@@ -338,7 +338,7 @@ definePageMeta({
                 <p class="text-gray-600 mt-4">Loading ad accounts...</p>
             </div>
 
-            <div v-else-if="state.accounts.length > 0" class="space-y-4">
+            <div v-else-if="state.accounts?.length > 0" class="space-y-4">
                 <!-- Development Tier notice when only test accounts are available -->
                 <div v-if="state.hasTestAccounts" class="bg-amber-50 border border-amber-300 rounded-lg p-4 text-sm text-amber-800">
                     <strong>Development Tier:</strong> Your LinkedIn Advertising API access is currently in sandbox mode. Only test accounts are available until LinkedIn approves production access. You can complete the setup with a test account now.

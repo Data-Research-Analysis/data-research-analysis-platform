@@ -747,22 +747,18 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         const token = getAuthToken();
         if (!token) return { accounts: [], hasTestAccounts: false };
 
-        const response = await fetch(`${baseUrl()}/linkedin-ads/accounts`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`,
-                "Authorization-Type": "auth",
-            },
-            body: JSON.stringify({ accessToken })
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            // Surface the real API error rather than silently returning []
-            throw new Error(data.error || `Failed to list LinkedIn ad accounts (HTTP ${response.status})`);
-        }
+        const data = await $fetch<{ success: boolean; accounts: ILinkedInAdAccount[]; hasTestAccounts: boolean; error?: string }>(
+            `${baseUrl()}/linkedin-ads/accounts`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                    'Authorization-Type': 'auth',
+                },
+                body: { accessToken },
+            }
+        );
 
         return {
             accounts: data.accounts || [],
