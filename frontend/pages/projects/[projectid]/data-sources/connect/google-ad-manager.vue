@@ -355,6 +355,11 @@ async function connect() {
 
     <!-- Main Content -->
     <div v-else class="max-w-[900px] mx-auto py-10 px-5 sm:py-6 sm:px-4">
+        <button @click="goBack" class="text-indigo-600 hover:text-indigo-800 mb-4 flex items-center cursor-pointer">
+            <font-awesome-icon :icon="['fas', 'chevron-left']" class="w-5 h-5 mr-2" />
+            Back
+        </button>
+
         <div class="text-center mb-10">
             <h1 class="text-4xl font-bold text-gray-900 mb-2">Connect Google Ad Manager</h1>
             <p class="text-base text-gray-600">Import your ad revenue and performance data</p>
