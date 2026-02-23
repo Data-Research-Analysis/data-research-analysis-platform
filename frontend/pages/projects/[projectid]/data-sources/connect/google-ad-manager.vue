@@ -404,7 +404,7 @@ async function connect() {
 
         <!-- Step 1: Authentication -->
         <div v-if="state.currentStep === 1" class="animate-fade-in">
-            <div class="bg-white rounded-xl p-8 shadow-sm sm:p-6">
+            <div class="bg-white rounded-xl p-8 shadow-sm border border-indigo-200 sm:p-6">
                 <h2 class="text-2xl font-semibold text-gray-900 mb-6">Step 1: Authenticate with Google</h2>
 
                 <div class="mb-8">
@@ -430,7 +430,7 @@ async function connect() {
 
         <!-- Step 2: Network Selection -->
         <div v-if="state.currentStep === 2" class="animate-fade-in">
-            <div class="bg-white rounded-xl p-8 shadow-sm sm:p-6">
+            <div class="bg-white rounded-xl p-8 shadow-sm border border-indigo-200 sm:p-6">
                 <h2 class="text-2xl font-semibold text-gray-900 mb-6">Step 2: Select Ad Manager Network</h2>
 
                 <NetworkSelector :networks="state.networks" :is-loading="state.loadingNetworks" :error="state.error"
@@ -448,7 +448,7 @@ async function connect() {
 
         <!-- Step 3: Configuration -->
         <div v-if="state.currentStep === 3" class="animate-fade-in">
-            <div class="bg-white rounded-xl p-8 shadow-sm sm:p-6">
+            <div class="bg-white rounded-xl p-8 shadow-sm border border-indigo-200 sm:p-6">
                 <h2 class="text-2xl font-semibold text-gray-900 mb-6">Step 3: Configure Data Sync</h2>
 
                 <!-- Data Source Name -->
@@ -548,7 +548,7 @@ async function connect() {
 
         <!-- Step 4: Confirmation -->
         <div v-if="state.currentStep === 4" class="animate-fade-in">
-            <div class="bg-white rounded-xl p-8 shadow-sm sm:p-6">
+            <div class="bg-white rounded-xl p-8 shadow-sm border border-indigo-200 sm:p-6">
                 <h2 class="text-2xl font-semibold text-gray-900 mb-6">Step 4: Review & Confirm</h2>
 
                 <div class="space-y-6 mb-8">

@@ -276,7 +276,7 @@ function handleProgressModalClose() {
             <p class="text-base text-gray-600">Connect using your MongoDB connection string. Supports Atlas, self-hosted, AWS, Azure, GCP, and more.</p>
         </div>
 
-        <div class="bg-white rounded-xl p-8 shadow-sm sm:p-6 flex flex-col">
+        <div class="bg-white rounded-xl p-8 shadow-sm border border-indigo-200 sm:p-6 flex flex-col">
         
         <div v-if="state.showAlert"
             class="mb-6 rounded-lg p-4 text-base font-bold text-black"

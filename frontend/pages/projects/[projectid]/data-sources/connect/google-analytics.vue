@@ -294,7 +294,7 @@ function cancel() {
 
         <!-- Step 1: Authentication -->
         <div v-if="state.currentStep === 1" class="animate-fade-in">
-            <div class="bg-white rounded-xl p-8 shadow-sm sm:p-6">
+            <div class="bg-white rounded-xl p-8 shadow-sm border border-indigo-200 sm:p-6">
                 <h2 class="text-2xl font-semibold text-gray-900 mb-6">Step 1: Authenticate with Google</h2>
                 
                 <div class="mb-8">
@@ -322,7 +322,7 @@ function cancel() {
 
         <!-- Step 2: Property Selection -->
         <div v-if="state.currentStep === 2" class="animate-fade-in">
-            <div class="bg-white rounded-xl p-8 shadow-sm sm:p-6">
+            <div class="bg-white rounded-xl p-8 shadow-sm border border-indigo-200 sm:p-6">
                 <h2 class="text-2xl font-semibold text-gray-900 mb-6">Step 2: Select Analytics Property</h2>
 
                 <div v-if="state.loadingProperties" class="text-center py-12 px-6">
@@ -368,7 +368,7 @@ function cancel() {
 
         <!-- Step 3: Configuration -->
         <div v-if="state.currentStep === 3" class="animate-fade-in">
-            <div class="bg-white rounded-xl p-8 shadow-sm sm:p-6">
+            <div class="bg-white rounded-xl p-8 shadow-sm border border-indigo-200 sm:p-6">
                 <h2 class="text-2xl font-semibold text-gray-900 mb-6">Step 3: Configure Data Sync</h2>
 
                 <div class="mb-6">
