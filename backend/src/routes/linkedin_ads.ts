@@ -1,5 +1,6 @@
 import express from 'express';
 import { validateJWT } from '../middleware/authenticate.js';
+import { requiresProductionAccess } from '../middleware/requiresProductionAccess.js';
 import { DataSourceProcessor } from '../processors/DataSourceProcessor.js';
 import { LinkedInAdsService } from '../services/LinkedInAdsService.js';
 import { LinkedInOAuthService } from '../services/LinkedInOAuthService.js';
@@ -156,7 +157,7 @@ router.post('/accounts', validateJWT, async (req, res) => {
 // Body: { name, accessToken, refreshToken, expiresAt, adAccountId, adAccountName,
 //         projectId, startDate?, endDate? }
 // ─────────────────────────────────────────────────────────────────────────────
-router.post('/add', validateJWT, async (req, res) => {
+router.post('/add', validateJWT, requiresProductionAccess, async (req, res) => {
     try {
         const userId = req.body?.tokenDetails?.user_id;
 
@@ -240,7 +241,7 @@ router.post('/add', validateJWT, async (req, res) => {
 // POST /linkedin-ads/sync/:id
 // Trigger a manual sync for an existing LinkedIn Ads data source.
 // ─────────────────────────────────────────────────────────────────────────────
-router.post('/sync/:id', validateJWT, async (req, res) => {
+router.post('/sync/:id', validateJWT, requiresProductionAccess, async (req, res) => {
     try {
         const userId = req.body?.tokenDetails?.user_id;
 

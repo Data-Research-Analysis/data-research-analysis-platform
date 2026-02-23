@@ -3,6 +3,7 @@ import { useDataSourceStore } from '@/stores/data_sources';
 import { useProjectsStore } from '@/stores/projects';
 import { useDashboardsStore } from '~/stores/dashboards';
 import { useSubscriptionStore } from '@/stores/subscription';
+import { useLoggedInUserStore } from '@/stores/logged_in_user';
 import { useGoogleAnalytics } from '@/composables/useGoogleAnalytics';
 import { useGoogleAdManager } from '@/composables/useGoogleAdManager';
 import { useGoogleAds } from '@/composables/useGoogleAds';
@@ -10,6 +11,7 @@ import { useMetaAds } from '@/composables/useMetaAds';
 import { useLinkedInAds } from '@/composables/useLinkedInAds';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import { useTruncation } from '@/composables/useTruncation';
+import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import pdfImage from '/assets/images/pdf.png';
 import excelImage from '/assets/images/excel.png';
 import postgresqlImage from '/assets/images/postgresql.png';
@@ -26,6 +28,7 @@ const dataSourceStore = useDataSourceStore();
 const projectsStore = useProjectsStore();
 const dashboardsStore = useDashboardsStore();
 const subscriptionStore = useSubscriptionStore();
+const loggedInUserStore = useLoggedInUserStore();
 const analytics = useGoogleAnalytics();
 const gam = useGoogleAdManager();
 const ads = useGoogleAds();
@@ -124,11 +127,13 @@ const state = reactive({
             name: 'Meta Ads',
             url: `${route.fullPath}/data-sources/connect/meta-ads`,
             image_url: metaAdsImage,
+            coming_soon: !FEATURE_FLAGS.META_ADS_ENABLED,
         },
         {
             name: 'LinkedIn Ads',
             url: `${route.fullPath}/data-sources/connect/linkedin-ads`,
             image_url: linkedInAdsImage,
+            coming_soon: !FEATURE_FLAGS.LINKEDIN_ADS_ENABLED,
         },
         {
             name: 'PDF',
@@ -166,6 +171,11 @@ const state = reactive({
 
 const project = computed(() => {
     return projectsStore.getSelectedProject();
+});
+
+// Admin users bypass all feature flags and see full functionality.
+const isAdmin = computed(() => {
+    return loggedInUserStore.getLoggedInUser()?.user_type === 'admin';
 });
 
 function openDialog() {
@@ -724,7 +734,21 @@ onMounted(async () => {
                         <h2 class="text-2xl font-bold mb-6 text-gray-900">Connect Data Source</h2>
                         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                             <template v-for="dataSource in state.available_data_sources" :key="dataSource.name">
-                                <NuxtLink :to="dataSource.url"
+                                <!-- Coming Soon: shown to non-admin users when the integration is under review -->
+                                <div v-if="dataSource.coming_soon && !isAdmin"
+                                    class="relative w-full border border-gray-200 border-solid p-10 font-bold text-center shadow-md select-none opacity-60 cursor-not-allowed"
+                                    :title="`${dataSource.name} is under review and will be available soon`">
+                                    <div class="flex flex-col">
+                                        <img :src="dataSource.image_url" :alt="dataSource.name"
+                                            class="mx-auto mb-3 h-[100px] grayscale" />
+                                        {{ dataSource.name }}
+                                        <span class="mt-2 inline-block mx-auto px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-700 border border-amber-300">
+                                            Coming Soon
+                                        </span>
+                                    </div>
+                                </div>
+                                <!-- Normal: fully clickable card -->
+                                <NuxtLink v-else :to="dataSource.url"
                                     class="w-full border border-primary-blue-100 border-solid p-10 font-bold text-center hover:bg-gray-200 shadow-md cursor-pointer select-none">
                                     <div class="flex flex-col">
                                         <img :src="dataSource.image_url" :alt="dataSource.name"
