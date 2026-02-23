@@ -244,7 +244,7 @@ function validate(): boolean {
  */
 function cancel() {
     state.navigating = true;
-    router.push(`/projects/${projectId}`);
+    router.push(`/projects/${projectId}/data-sources`);
 }
 
 /**
@@ -355,7 +355,7 @@ async function connect() {
 
     <!-- Main Content -->
     <div v-else class="max-w-[900px] mx-auto py-10 px-5 sm:py-6 sm:px-4">
-        <button @click="goBack" class="text-indigo-600 hover:text-indigo-800 mb-4 flex items-center cursor-pointer">
+        <button @click="cancel" class="text-indigo-600 hover:text-indigo-800 mb-4 flex items-center cursor-pointer">
             <font-awesome-icon :icon="['fas', 'chevron-left']" class="w-5 h-5 mr-2" />
             Back
         </button>
@@ -425,12 +425,6 @@ async function connect() {
                     <span v-else>Redirecting...</span>
                 </button>
 
-                <div class="flex gap-3 justify-end mt-8 sm:flex-col">
-                    <button @click="cancel"
-                        class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 sm:w-full rounded-lg">
-                        Cancel
-                    </button>
-                </div>
             </div>
         </div>
 
@@ -544,10 +538,6 @@ async function connect() {
                         class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 sm:w-full rounded-lg">
                         ← Back
                     </button>
-                    <button @click="cancel"
-                        class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 sm:w-full rounded-lg">
-                        Cancel
-                    </button>
                     <button @click="nextStep"
                         class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-primary-blue-100 text-white hover:bg-primary-blue-300 hover:-translate-y-0.5 hover:shadow-lg sm:w-full rounded-lg">
                         Continue →
@@ -619,11 +609,6 @@ async function connect() {
                         class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-60 disabled:cursor-not-allowed sm:w-full rounded-lg"
                         :disabled="state.connecting">
                         ← Back
-                    </button>
-                    <button @click="cancel"
-                        class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-60 disabled:cursor-not-allowed sm:w-full rounded-lg"
-                        :disabled="state.connecting">
-                        Cancel
                     </button>
                     <button @click="connect"
                         class="px-6 py-3 text-base font-medium border-0 cursor-pointer transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed bg-primary-blue-100 text-white hover:bg-primary-blue-300 hover:-translate-y-0.5 hover:shadow-lg sm:w-full rounded-lg"
