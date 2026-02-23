@@ -295,26 +295,21 @@ definePageMeta({
             <p class="text-base text-gray-600">Connect your Meta Ads account to sync campaigns, ads, and performance data</p>
         </div>
 
-        <!-- Progress Steps -->
-        <div class="mb-8">
-            <div class="flex items-center justify-center space-x-4">
-                <div v-for="step in 3" :key="step" class="flex items-center">
-                    <div :class="{
-                        'bg-indigo-600 text-white': state.currentStep >= step,
-                        'bg-gray-300 text-gray-600': state.currentStep < step
-                    }" class="w-10 h-10 rounded-full flex items-center justify-center font-semibold">
-                        {{ step }}
-                    </div>
-                    <div v-if="step < 3" class="w-16 h-1" :class="{
-                        'bg-indigo-600': state.currentStep > step,
-                        'bg-gray-300': state.currentStep <= step
-                    }"></div>
-                </div>
+        <!-- Step Indicator -->
+        <div class="flex items-center justify-center mb-12 sm:mb-8">
+            <div class="flex flex-col items-center gap-2" :class="{ 'text-indigo-600': state.currentStep >= 1 }">
+                <div class="w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300" :class="state.currentStep > 1 ? 'bg-green-500 text-white' : state.currentStep >= 1 ? 'bg-primary-blue-100 text-white' : 'bg-gray-300 text-gray-600'">1</div>
+                <div class="text-sm font-medium sm:text-xs" :class="state.currentStep >= 1 ? 'text-indigo-600' : 'text-gray-600'">Authenticate</div>
             </div>
-            <div class="flex justify-center mt-4 space-x-28">
-                <span class="text-sm font-medium">Authenticate</span>
-                <span class="text-sm font-medium">Select Account</span>
-                <span class="text-sm font-medium">Configure</span>
+            <div class="w-20 h-0.5 mx-4 transition-all duration-300 sm:w-10" :class="state.currentStep > 1 ? 'bg-green-500' : 'bg-gray-300'"></div>
+            <div class="flex flex-col items-center gap-2" :class="{ 'text-indigo-600': state.currentStep >= 2 }">
+                <div class="w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300" :class="state.currentStep > 2 ? 'bg-green-500 text-white' : state.currentStep >= 2 ? 'bg-primary-blue-100 text-white' : 'bg-gray-300 text-gray-600'">2</div>
+                <div class="text-sm font-medium sm:text-xs" :class="state.currentStep >= 2 ? 'text-indigo-600' : 'text-gray-600'">Select Account</div>
+            </div>
+            <div class="w-20 h-0.5 mx-4 transition-all duration-300 sm:w-10" :class="state.currentStep > 2 ? 'bg-green-500' : 'bg-gray-300'"></div>
+            <div class="flex flex-col items-center gap-2" :class="{ 'text-indigo-600': state.currentStep >= 3 }">
+                <div class="w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300" :class="state.currentStep >= 3 ? 'bg-primary-blue-100 text-white' : 'bg-gray-300 text-gray-600'">3</div>
+                <div class="text-sm font-medium sm:text-xs" :class="state.currentStep >= 3 ? 'text-indigo-600' : 'text-gray-600'">Configure</div>
             </div>
         </div>
 

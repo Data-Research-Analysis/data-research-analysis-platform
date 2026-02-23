@@ -418,19 +418,19 @@ function cancel() {
             <div class="flex flex-col items-center gap-2" :class="{ 'text-indigo-600': state.currentStep >= 1 }">
                 <div class="w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300" 
                      :class="state.currentStep > 1 ? 'bg-green-500 text-white' : state.currentStep >= 1 ? 'bg-primary-blue-100 text-white' : 'bg-gray-300 text-gray-600'">1</div>
-                <div class="text-sm font-medium sm:text-xs" :class="state.currentStep >= 1 ? 'text-primary-blue-100' : 'text-gray-600'">Authenticate</div>
+                <div class="text-sm font-medium sm:text-xs" :class="state.currentStep >= 1 ? 'text-indigo-600' : 'text-gray-600'">Authenticate</div>
             </div>
             <div class="w-20 h-0.5 mx-4 transition-all duration-300 sm:w-10" :class="state.currentStep > 1 ? 'bg-green-500' : 'bg-gray-300'"></div>
             <div class="flex flex-col items-center gap-2" :class="{ 'text-indigo-600': state.currentStep >= 2 }">
                 <div class="w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300" 
                      :class="state.currentStep > 2 ? 'bg-green-500 text-white' : state.currentStep >= 2 ? 'bg-primary-blue-100 text-white' : 'bg-gray-300 text-gray-600'">2</div>
-                <div class="text-sm font-medium sm:text-xs" :class="state.currentStep >= 2 ? 'text-primary-blue-100' : 'text-gray-600'">Select Account</div>
+                <div class="text-sm font-medium sm:text-xs" :class="state.currentStep >= 2 ? 'text-indigo-600' : 'text-gray-600'">Select Account</div>
             </div>
             <div class="w-20 h-0.5 mx-4 transition-all duration-300 sm:w-10" :class="state.currentStep > 2 ? 'bg-green-500' : 'bg-gray-300'"></div>
             <div class="flex flex-col items-center gap-2" :class="{ 'text-indigo-600': state.currentStep >= 3 }">
                 <div class="w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all duration-300" 
                      :class="state.currentStep >= 3 ? 'bg-primary-blue-100 text-white' : 'bg-gray-300 text-gray-600'">3</div>
-                <div class="text-sm font-medium sm:text-xs" :class="state.currentStep >= 3 ? 'text-primary-blue-100' : 'text-gray-600'">Configure</div>
+                <div class="text-sm font-medium sm:text-xs" :class="state.currentStep >= 3 ? 'text-indigo-600' : 'text-gray-600'">Configure</div>
             </div>
         </div>
 
