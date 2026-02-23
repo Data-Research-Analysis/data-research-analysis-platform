@@ -129,36 +129,79 @@ export class LinkedInAdsDriver implements IAPIDriver {
             );
 
             // ── Sync structural entities ──────────────────────────────────
-            const accountsCount = await this.syncAdAccounts(
-                manager, dataSourceId, usersPlatformId, accessToken
-            );
-            totalSynced += accountsCount;
+            // Each step is independently fault-tolerant: a failure in one step
+            // is logged as a warning and the sync continues, preserving any
+            // records already written. Analytics steps are especially prone to
+            // 404s in LinkedIn's Development Tier (sandbox) before the app is
+            // approved for Production access.
 
-            const groupsCount = await this.syncCampaignGroups(
-                manager, dataSourceId, usersPlatformId, accessToken, adAccountId
-            );
-            totalSynced += groupsCount;
+            try {
+                const accountsCount = await this.syncAdAccounts(
+                    manager, dataSourceId, usersPlatformId, accessToken
+                );
+                totalSynced += accountsCount;
+            } catch (err: any) {
+                console.warn(`⚠️  [LinkedIn Ads] syncAdAccounts skipped: ${err.message}`);
+                totalFailed++;
+            }
 
-            const campaignsCount = await this.syncCampaigns(
-                manager, dataSourceId, usersPlatformId, accessToken, adAccountId
-            );
-            totalSynced += campaignsCount;
+            try {
+                const groupsCount = await this.syncCampaignGroups(
+                    manager, dataSourceId, usersPlatformId, accessToken, adAccountId
+                );
+                totalSynced += groupsCount;
+            } catch (err: any) {
+                console.warn(`⚠️  [LinkedIn Ads] syncCampaignGroups skipped: ${err.message}`);
+                totalFailed++;
+            }
 
-            const creativesCount = await this.syncCreatives(
-                manager, dataSourceId, usersPlatformId, accessToken, adAccountId
-            );
-            totalSynced += creativesCount;
+            try {
+                const campaignsCount = await this.syncCampaigns(
+                    manager, dataSourceId, usersPlatformId, accessToken, adAccountId
+                );
+                totalSynced += campaignsCount;
+            } catch (err: any) {
+                console.warn(`⚠️  [LinkedIn Ads] syncCampaigns skipped: ${err.message}`);
+                totalFailed++;
+            }
 
-            // ── Sync analytics ────────────────────────────────────────────
-            const campaignAnalyticsCount = await this.syncCampaignAnalytics(
-                manager, dataSourceId, usersPlatformId, accessToken, adAccountId, dateRange
-            );
-            totalSynced += campaignAnalyticsCount;
+            try {
+                const creativesCount = await this.syncCreatives(
+                    manager, dataSourceId, usersPlatformId, accessToken, adAccountId
+                );
+                totalSynced += creativesCount;
+            } catch (err: any) {
+                console.warn(`⚠️  [LinkedIn Ads] syncCreatives skipped: ${err.message}`);
+                totalFailed++;
+            }
 
-            const accountAnalyticsCount = await this.syncAccountAnalytics(
-                manager, dataSourceId, usersPlatformId, accessToken, adAccountId, dateRange
-            );
-            totalSynced += accountAnalyticsCount;
+            // ── Sync analytics ─────────────────────────────────────────────
+            // NOTE: adAnalytics requires Production-tier API access.
+            // In LinkedIn's Development Tier these calls return 404
+            // "No virtual resource found". We log a warning and skip rather
+            // than failing the entire sync so structural data is preserved.
+            try {
+                const campaignAnalyticsCount = await this.syncCampaignAnalytics(
+                    manager, dataSourceId, usersPlatformId, accessToken, adAccountId, dateRange
+                );
+                totalSynced += campaignAnalyticsCount;
+            } catch (err: any) {
+                console.warn(`⚠️  [LinkedIn Ads] syncCampaignAnalytics skipped: ${err.message}`);
+                if (err.message?.includes('404')) {
+                    console.warn('   ℹ️  adAnalytics requires Production API access — not available in Development Tier');
+                }
+                totalFailed++;
+            }
+
+            try {
+                const accountAnalyticsCount = await this.syncAccountAnalytics(
+                    manager, dataSourceId, usersPlatformId, accessToken, adAccountId, dateRange
+                );
+                totalSynced += accountAnalyticsCount;
+            } catch (err: any) {
+                console.warn(`⚠️  [LinkedIn Ads] syncAccountAnalytics skipped: ${err.message}`);
+                totalFailed++;
+            }
 
             // Record success
             await this.syncHistoryService.completeSyncRecord(syncRecord.id, totalSynced, totalFailed);
