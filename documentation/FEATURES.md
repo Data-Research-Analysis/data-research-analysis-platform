@@ -40,7 +40,7 @@ The features that have been marked as check have been implemented while those th
     - [x] Google Ads
     - [x] Google Ad Manager
     - [-] Meta Ads
-    - [ ] Linkedin Ads
+    - [x] LinkedIn Ads (OAuth 2.0, campaign/creative sync, daily & monthly analytics)
     - [x] PDF Files (Includes multiple pages support; data in the form of tables and paragraph text are supported)
     - [x] Excel Files (Includes multiple sheets support)
     - [x] PostgreSQL
