@@ -71,12 +71,8 @@ const progressBar = computed(() => props.isBlocking ? 'bg-red-600' : 'bg-yellow-
     >
         <div class="flex items-start">
             <div class="flex-shrink-0">
-                <svg v-if="!isBlocking" class="h-5 w-5" :class="iconColor" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
-                </svg>
-                <svg v-else class="h-5 w-5" :class="iconColor" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M10 1.944A11.954 11.954 0 012.166 5C2.056 5.649 2 6.319 2 7c0 5.225 3.34 9.67 8 11.317C14.66 16.67 18 12.225 18 7c0-.682-.057-1.35-.166-2.001A11.954 11.954 0 0110 1.944zM11 14a1 1 0 11-2 0 1 1 0 012 0zm0-7a1 1 0 10-2 0v3a1 1 0 102 0V7z" clip-rule="evenodd" />
-                </svg>
+                <font-awesome-icon v-if="!isBlocking" :icon="['fas', 'triangle-exclamation']" class="h-5 w-5" :class="iconColor" />
+                <font-awesome-icon v-else :icon="['fas', 'shield']" class="h-5 w-5" :class="iconColor" />
             </div>
             <div class="ml-3 flex-1">
                 <h3 class="text-sm font-medium" :class="textColor">
@@ -111,9 +107,7 @@ const progressBar = computed(() => props.isBlocking ? 'bg-red-600' : 'bg-yellow-
                             buttonColor
                         ]"
                     >
-                        <svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                        </svg>
+                        <font-awesome-icon :icon="['fas', 'arrow-trend-up']" class="mr-2 h-4 w-4" />
                         Upgrade Plan
                     </button>
                 </div>

@@ -287,10 +287,8 @@ definePageMeta({
     <div class="container mx-auto p-6">
         <!-- Header -->
         <div class="mb-8">
-            <button @click="goBack" class="text-indigo-600 hover:text-indigo-800 mb-4 flex items-center">
-                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-                </svg>
+            <button @click="goBack" class="text-indigo-600 hover:text-indigo-800 mb-4 flex items-center cursor-pointer">
+                <font-awesome-icon :icon="['fas', 'chevron-left']" class="w-5 h-5 mr-2" />
                 Back
             </button>
 
@@ -325,9 +323,7 @@ definePageMeta({
         <div v-if="state.error" class="mb-6 bg-red-50 border-l-4 border-red-400 p-4">
             <div class="flex">
                 <div class="flex-shrink-0">
-                    <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-                    </svg>
+                    <font-awesome-icon :icon="['fas', 'circle-xmark']" class="h-5 w-5 text-red-400" />
                 </div>
                 <div class="ml-3">
                     <p class="text-sm text-red-700">{{ state.error }}</p>
@@ -339,9 +335,7 @@ definePageMeta({
         <tab-content-panel v-if="state.currentStep === 1" class="bg-white rounded-lg shadow-sm p-8">
             <div class="text-center max-w-2xl mx-auto">
                 <div class="mb-6">
-                    <svg class="mx-auto h-16 w-16 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
+                    <font-awesome-icon :icon="['fas', 'lock']" class="mx-auto h-16 w-16 text-indigo-600" />
                 </div>
 
                 <h2 class="text-2xl font-bold text-gray-900 mb-4">Connect to Meta</h2>
@@ -360,10 +354,7 @@ definePageMeta({
 
                 <button @click="initiateMetaOAuth" :disabled="state.loading" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
                     <span v-if="state.loading">
-                        <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
+                        <font-awesome-icon :icon="['fas', 'spinner']" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" />
                         Connecting...
                     </span>
                     <span v-else>
@@ -378,10 +369,7 @@ definePageMeta({
             <h2 class="text-2xl font-bold text-gray-900 mb-6">Select Ad Account</h2>
 
             <div v-if="state.loadingAccounts" class="text-center py-12">
-                <svg class="animate-spin h-12 w-12 mx-auto text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
+                <font-awesome-icon :icon="['fas', 'spinner']" class="animate-spin h-12 w-12 mx-auto text-indigo-600" />
                 <p class="text-gray-600 mt-4">Loading ad accounts...</p>
             </div>
 
@@ -401,9 +389,7 @@ definePageMeta({
                                 <span class="text-sm text-gray-600">{{ account.currency }}</span>
                             </div>
                         </div>
-                        <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                        </svg>
+                        <font-awesome-icon :icon="['fas', 'chevron-right']" class="w-6 h-6 text-indigo-600" />
                     </div>
                 </div>
             </div>
@@ -470,10 +456,7 @@ definePageMeta({
                 <div class="pt-6 border-t border-gray-200">
                     <button @click="connectDataSource" :disabled="state.connecting || !state.dataSourceName || state.selectedReportTypes.length === 0" class="w-full px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">
                         <span v-if="state.connecting">
-                            <svg class="animate-spin inline-block -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
+                            <font-awesome-icon :icon="['fas', 'spinner']" class="animate-spin inline-block -ml-1 mr-3 h-5 w-5 text-white" />
                             Connecting...
                         </span>
                         <span v-else>

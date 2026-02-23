@@ -15,20 +15,7 @@
             @click="startNewAnalysis"
             :disabled="!canCreate"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <line x1="12" y1="5" x2="12" y2="19"></line>
-              <line x1="5" y1="12" x2="19" y2="12"></line>
-            </svg>
+            <font-awesome-icon :icon="['fas', 'plus']" class="w-5 h-5" />
             New Analysis
           </button>
           <template #fallback>
@@ -36,20 +23,7 @@
               class="inline-flex items-center gap-2 px-6 py-3 bg-blue-500 text-white rounded-lg font-medium transition-all hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               disabled
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
+              <font-awesome-icon :icon="['fas', 'plus']" class="w-5 h-5" />
               New Analysis
             </button>
           </template>
@@ -62,22 +36,7 @@
       </div>
 
       <div v-else-if="insightsStore.reports.length === 0" class="flex flex-col items-center justify-center py-16 px-8 text-center">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="64"
-          height="64"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          class="text-gray-300 mb-4"
-        >
-          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-          <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-          <line x1="12" y1="22.08" x2="12" y2="12"></line>
-        </svg>
+        <font-awesome-icon :icon="['fas', 'box']" class="w-16 h-16 text-gray-300 mb-4" />
         <h3 class="text-xl font-semibold text-gray-800 mb-2">No insights yet</h3>
         <p class="text-gray-600 mb-6">Create your first analysis to discover insights from your data</p>
         <ClientOnly>
@@ -123,20 +82,7 @@
             @click.stop="confirmDeleteReport(report.id)"
             :disabled="!canDelete"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <polyline points="3 6 5 6 21 6"></polyline>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-            </svg>
+            <font-awesome-icon :icon="['fas', 'trash']" class="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -146,20 +92,7 @@
     <div v-else>
       <div class="flex justify-between items-center mb-8">
         <button class="inline-flex items-center gap-2 px-4 py-2 bg-transparent text-gray-700 rounded-lg transition-all hover:bg-gray-50 cursor-pointer" @click="backToReports">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <line x1="19" y1="12" x2="5" y2="12"></line>
-            <polyline points="12 19 5 12 12 5"></polyline>
-          </svg>
+          <font-awesome-icon :icon="['fas', 'arrow-left']" class="w-5 h-5" />
           Back to Reports
         </button>
 
@@ -216,21 +149,7 @@
             @click="generateInsights"
             :disabled="state.selectedDataSourceIds.length === 0 || insightsStore.isGenerating"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <circle cx="12" cy="12" r="10"></circle>
-              <polyline points="8 12 12 16 16 12"></polyline>
-              <line x1="12" y1="8" x2="12" y2="16"></line>
-            </svg>
+            <font-awesome-icon :icon="['fas', 'circle-down']" class="w-5 h-5" />
             Generate Insights
           </button>
         </div>
@@ -272,22 +191,7 @@
         <!-- Sampling Disclaimer -->
         <div v-if="insightsStore.samplingInfo" class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <div class="flex items-start gap-3">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              class="text-blue-600 flex-shrink-0 mt-0.5"
-            >
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x1="12" y1="16" x2="12" y2="12"></line>
-              <line x1="12" y1="8" x2="12.01" y2="8"></line>
-            </svg>
+            <font-awesome-icon :icon="['fas', 'circle-info']" class="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
             <div class="flex-1">
               <p class="text-sm text-blue-900">
                 <strong>Data Sample Analysis:</strong> This analysis is based on a sample of 
@@ -302,21 +206,7 @@
         <!-- Trends -->
         <div v-if="insightsStore.currentInsights.trends?.length > 0" class="mb-10">
           <div class="flex items-center gap-3 mb-4">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              class="text-blue-500"
-            >
-              <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
-              <polyline points="17 6 23 6 23 12"></polyline>
-            </svg>
+            <font-awesome-icon :icon="['fas', 'arrow-trend-up']" class="w-6 h-6 text-blue-500" />
             <h3 class="text-xl font-semibold text-gray-800">Trends</h3>
           </div>
           <div class="flex flex-col gap-4">
@@ -342,22 +232,7 @@
         <!-- Anomalies -->
         <div v-if="insightsStore.currentInsights.anomalies?.length > 0" class="mb-10">
           <div class="flex items-center gap-3 mb-4">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              class="text-blue-500"
-            >
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-              <line x1="12" y1="9" x2="12" y2="13"></line>
-              <line x1="12" y1="17" x2="12.01" y2="17"></line>
-            </svg>
+            <font-awesome-icon :icon="['fas', 'triangle-exclamation']" class="w-6 h-6 text-blue-500" />
             <h3 class="text-xl font-semibold text-gray-800">Anomalies</h3>
           </div>
           <div class="flex flex-col gap-4">
@@ -383,24 +258,7 @@
         <!-- Correlations -->
         <div v-if="insightsStore.currentInsights.correlations?.length > 0" class="mb-10">
           <div class="flex items-center gap-3 mb-4">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              class="text-blue-500"
-            >
-              <circle cx="18" cy="5" r="3"></circle>
-              <circle cx="6" cy="12" r="3"></circle>
-              <circle cx="18" cy="19" r="3"></circle>
-              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
-            </svg>
+            <font-awesome-icon :icon="['fas', 'share-nodes']" class="w-6 h-6 text-blue-500" />
             <h3 class="text-xl font-semibold text-gray-800">Correlations</h3>
           </div>
           <div class="flex flex-col gap-4">
@@ -426,22 +284,7 @@
         <!-- Distributions -->
         <div v-if="insightsStore.currentInsights.distributions?.length > 0" class="mb-10">
           <div class="flex items-center gap-3 mb-4">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              class="text-blue-500"
-            >
-              <line x1="18" y1="20" x2="18" y2="10"></line>
-              <line x1="12" y1="20" x2="12" y2="4"></line>
-              <line x1="6" y1="20" x2="6" y2="14"></line>
-            </svg>
+            <font-awesome-icon :icon="['fas', 'chart-bar']" class="w-6 h-6 text-blue-500" />
             <h3 class="text-xl font-semibold text-gray-800">Distributions</h3>
           </div>
           <div class="flex flex-col gap-4">
@@ -467,22 +310,7 @@
         <!-- Recommendations -->
         <div v-if="insightsStore.currentInsights.recommendations?.length > 0" class="mb-10">
           <div class="flex items-center gap-3 mb-4">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              class="text-blue-500"
-            >
-              <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
-              <polyline points="2 17 12 22 22 17"></polyline>
-              <polyline points="2 12 12 17 22 12"></polyline>
-            </svg>
+            <font-awesome-icon :icon="['fas', 'layer-group']" class="w-6 h-6 text-blue-500" />
             <h3 class="text-xl font-semibold text-gray-800">Recommendations</h3>
           </div>
           <div class="flex flex-col gap-4">

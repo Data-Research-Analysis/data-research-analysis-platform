@@ -28,9 +28,7 @@
 
     <!-- Empty state -->
     <div v-else-if="networks.length === 0" class="py-8 text-center">
-      <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-      </svg>
+      <font-awesome-icon :icon="['fas', 'inbox']" class="mx-auto h-12 w-12 text-gray-400" />
       <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">No networks found</p>
       <p class="mt-1 text-xs text-gray-500 dark:text-gray-500">
         Make sure you have access to at least one Google Ad Manager network
@@ -78,15 +76,11 @@
                 </p>
                 <div v-if="network.timeZone || network.currencyCode" class="flex gap-4 mt-2">
                   <span v-if="network.timeZone" class="text-xs text-gray-500 dark:text-gray-400">
-                    <svg class="inline w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+                    <font-awesome-icon :icon="['fas', 'clock']" class="inline w-3 h-3 mr-1" />
                     {{ network.timeZone }}
                   </span>
                   <span v-if="network.currencyCode" class="text-xs text-gray-500 dark:text-gray-400">
-                    <svg class="inline w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+                    <font-awesome-icon :icon="['fas', 'coins']" class="inline w-3 h-3 mr-1" />
                     {{ network.currencyCode }}
                   </span>
                 </div>
@@ -94,9 +88,7 @@
             </div>
           </div>
           <div v-if="selectedNetwork?.networkCode === network.networkCode" class="ml-4">
-            <svg class="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-            </svg>
+            <font-awesome-icon :icon="['fas', 'circle-check']" class="w-6 h-6 text-blue-600" />
           </div>
         </div>
       </div>

@@ -24,9 +24,7 @@ const goHome = () => {
     <div class="flex items-center justify-center min-h-screen bg-gray-50">
         <div class="max-w-md w-full bg-white rounded-xl p-8 shadow-sm text-center">
             <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg class="w-8 h-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <font-awesome-icon :icon="['fas', 'xmark']" class="w-8 h-8 text-red-600" />
             </div>
             
             <h1 class="text-2xl font-bold text-gray-900 mb-4">Authentication Failed</h1>

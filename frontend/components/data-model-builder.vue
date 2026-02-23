@@ -7123,9 +7123,7 @@ onBeforeUnmount(() => {
                                         <h3 class="font-bold mb-2">Aggregate Expressions</h3>
                                         <div class="bg-purple-50 border-l-4 border-purple-400 p-4 mb-4 rounded-r-lg">
                                             <div class="flex items-start">
-                                                <svg class="h-5 w-5 text-purple-400 mt-0.5 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                </svg>
+                                                <font-awesome-icon :icon="['fas', 'circle-info']" class="h-5 w-5 text-purple-400 mt-0.5 mr-3 flex-shrink-0" />
                                                 <div>
                                                     <p class="text-sm text-purple-700 font-medium">
                                                         <strong>Complex Aggregates:</strong> Create custom aggregate calculations from expressions (e.g., SUM(quantity * price), COUNT(CASE WHEN...))
@@ -7272,9 +7270,7 @@ onBeforeUnmount(() => {
                                         <h3 class="font-bold mb-2">GROUP BY Columns</h3>
                                         <div class="bg-green-50 border-l-4 border-green-400 p-4 mb-4 rounded-r-lg">
                                             <div class="flex items-start">
-                                                <svg class="h-5 w-5 text-green-400 mt-0.5 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                </svg>
+                                                <font-awesome-icon :icon="['fas', 'circle-info']" class="h-5 w-5 text-green-400 mt-0.5 mr-3 flex-shrink-0" />
                                                 <div>
                                                     <p class="text-sm text-green-700 font-medium">
                                                         <strong>GROUP BY:</strong> Columns that your results will be grouped by. Each unique combination of these columns will produce one row in the output.
@@ -7329,9 +7325,7 @@ onBeforeUnmount(() => {
                                         <!-- Aggregate Function Disclaimer -->
                                         <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-4 rounded-r-lg">
                                             <div class="flex items-start">
-                                                <svg class="h-5 w-5 text-blue-400 mt-0.5 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                </svg>
+                                                <font-awesome-icon :icon="['fas', 'circle-info']" class="h-5 w-5 text-blue-400 mt-0.5 mr-3 flex-shrink-0" />
                                                 <div>
                                                     <p class="text-sm text-blue-700 font-medium">
                                                         <strong>Note:</strong> Columns used in aggregate functions (SUM, AVG, COUNT, etc.) will not appear as individual values in your results.

@@ -203,6 +203,33 @@ Multiple limiters defined in [middleware/rateLimit.ts](backend/src/middleware/ra
 - `oauthCallbackLimiter`: 10 req/15min
 - `aiOperationsLimiter`: 20 req/hour
 
+### Icon Usage
+**CRITICAL**: Inline `<svg>` blocks are **forbidden** in `.vue` files. Always use the globally registered `<font-awesome-icon>` component.
+
+**Setup**: `frontend/plugins/fontawesome.ts` registers the full `fas` (solid), `far` (regular), and `fab` (brands) libraries globally.
+
+```vue
+<!-- ❌ WRONG - Inline SVG is forbidden -->
+<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+  <path d="M6 18L18 6M6 6l12 12" />
+</svg>
+
+<!-- ✅ CORRECT - Use font-awesome-icon -->
+<font-awesome-icon :icon="['fas', 'xmark']" class="w-5 h-5" />
+```
+
+**Common icon mappings**:
+- Close/X → `['fas', 'xmark']`
+- Back arrow → `['fas', 'arrow-left']`
+- Forward arrow → `['fas', 'arrow-right']`
+- Loading spinner → `['fas', 'spinner']` + `class="animate-spin"`
+- Checkmark → `['fas', 'check']`
+- Warning triangle → `['fas', 'triangle-exclamation']`
+- Info circle → `['fas', 'circle-info']`
+- Trash/Delete → `['fas', 'trash']`
+- Plus/Add → `['fas', 'plus']`
+- Google logo → `['fab', 'google']`
+
 ### TypeScript ES Modules
 **Important**: Backend uses ES modules (`"type": "module"` in package.json). All imports must include `.js` extension:
 ```typescript
@@ -308,3 +335,4 @@ See [ai-data-modeler-implementation.md](documentation/ai-data-modeler-implementa
 7. **Forgetting to run migrations after model changes** - schema mismatch
 8. **Missing `useRuntimeConfig().public.apiBase` in API calls** - calls frontend instead of backend
 9. **Adding `/api/` prefix to API routes** - backend routes don't use this prefix
+10. **Using inline `<svg>` blocks in `.vue` files** - forbidden; use `<font-awesome-icon>` instead (see Icon Usage)
