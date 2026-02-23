@@ -4512,4 +4512,130 @@ export class DataSourceProcessor {
             return resolve(syncResult);
         });
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // LinkedIn Ads
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Create a new LinkedIn Ads data source record in the database.
+     */
+    public async addLinkedInAdsDataSource(
+        name: string,
+        connectionDetails: IAPIConnectionDetails,
+        tokenDetails: ITokenDetails,
+        projectId: number
+    ): Promise<number | null> {
+        return new Promise<number | null>(async (resolve, _reject) => {
+            const { user_id } = tokenDetails;
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) return resolve(null);
+            const dbConnector = await driver.getConcreteDriver();
+            const manager = dbConnector.manager;
+            if (!manager) return resolve(null);
+
+            const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
+            if (!user) return resolve(null);
+
+            const project: DRAProject | null = await manager.findOne(DRAProject, {
+                where: { id: projectId, users_platform: user },
+            });
+            if (!project) return resolve(null);
+
+            const schemaName = 'dra_linkedin_ads';
+            await manager.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+
+            const host = UtilityService.getInstance().getConstants('POSTGRESQL_HOST');
+            const port = UtilityService.getInstance().getConstants('POSTGRESQL_PORT');
+            const database = UtilityService.getInstance().getConstants('POSTGRESQL_DB_NAME');
+            const username = UtilityService.getInstance().getConstants('POSTGRESQL_USERNAME');
+            const password = UtilityService.getInstance().getConstants('POSTGRESQL_PASSWORD');
+
+            const hybridConnection: IDBConnectionDetails = {
+                data_source_type: EDataSourceType.LINKEDIN_ADS,
+                host,
+                port: parseInt(port),
+                schema: schemaName,
+                database,
+                username,
+                password,
+                api_connection_details: connectionDetails,
+            };
+
+            const dataSource = new DRADataSource();
+            dataSource.name = name;
+            dataSource.connection_details = hybridConnection;
+            dataSource.data_type = EDataSourceType.LINKEDIN_ADS;
+            dataSource.project = project;
+            dataSource.users_platform = user;
+            dataSource.created_at = new Date();
+
+            const saved = await manager.save(dataSource);
+            console.log('✅ LinkedIn Ads data source added successfully with ID:', saved.id);
+            return resolve(saved.id);
+        });
+    }
+
+    /**
+     * Trigger a sync for an existing LinkedIn Ads data source.
+     */
+    public async syncLinkedInAdsDataSource(
+        dataSourceId: number,
+        user_id: number
+    ): Promise<boolean> {
+        return new Promise<boolean>(async (resolve, _reject) => {
+            if (!dataSourceId || isNaN(dataSourceId) || !Number.isInteger(dataSourceId) || dataSourceId < 1) {
+                console.error('[syncLinkedInAdsDataSource] Invalid data source ID:', dataSourceId);
+                return resolve(false);
+            }
+
+            console.log('[syncLinkedInAdsDataSource] Starting sync for data source ID:', dataSourceId);
+
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                console.error('[syncLinkedInAdsDataSource] Database driver not available');
+                return resolve(false);
+            }
+            const manager = (await driver.getConcreteDriver()).manager;
+            if (!manager) {
+                console.error('[syncLinkedInAdsDataSource] Database manager not available');
+                return resolve(false);
+            }
+
+            const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
+            if (!user) {
+                console.error('[syncLinkedInAdsDataSource] User not found:', user_id);
+                return resolve(false);
+            }
+
+            const dataSource = await manager.findOne(DRADataSource, {
+                where: { id: dataSourceId, users_platform: user, data_type: EDataSourceType.LINKEDIN_ADS },
+            });
+            if (!dataSource) {
+                console.error('[syncLinkedInAdsDataSource] Data source not found or not a LinkedIn Ads source');
+                return resolve(false);
+            }
+
+            const connection = dataSource.connection_details;
+            if (!connection.api_connection_details) {
+                console.error('[syncLinkedInAdsDataSource] API connection details not found');
+                return resolve(false);
+            }
+
+            const apiConnectionDetails = connection.api_connection_details;
+
+            const { LinkedInAdsDriver } = await import('../drivers/LinkedInAdsDriver.js');
+            const linkedInDriver = LinkedInAdsDriver.getInstance();
+            const syncResult = await linkedInDriver.syncToDatabase(dataSourceId, user.id, apiConnectionDetails);
+
+            if (syncResult) {
+                apiConnectionDetails.api_config.last_sync = new Date();
+                connection.api_connection_details = apiConnectionDetails;
+                dataSource.connection_details = connection;
+                await manager.save(dataSource);
+            }
+
+            return resolve(syncResult);
+        });
+    }
 }
