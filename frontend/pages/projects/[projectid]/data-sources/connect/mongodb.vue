@@ -251,17 +251,26 @@ async function connectDataSource() {
     }
 }
 
+function goBack() {
+    router.push(`/projects/${route.params.projectid}/data-sources`);
+}
+
 function handleProgressModalClose() {
     showProgressModal.value = false;
     
-    // Navigate back to project page if sync completed successfully
+    // Navigate back to data sources page if sync completed successfully
     if (syncProgress.value?.status === 'completed') {
-        router.push(`/projects/${route.params.projectid}`);
+        router.push(`/projects/${route.params.projectid}/data-sources`);
     }
 }
 </script>
 <template>
     <div class="min-h-100 flex flex-col ml-4 mr-4 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md">
+        <button @click="goBack" class="text-indigo-600 hover:text-indigo-800 mb-4 flex items-center cursor-pointer self-start">
+            <font-awesome-icon :icon="['fas', 'chevron-left']" class="w-5 h-5 mr-2" />
+            Back
+        </button>
+
         <div class="font-bold text-2xl mb-5">
             Connect MongoDB Data Source
         </div>
