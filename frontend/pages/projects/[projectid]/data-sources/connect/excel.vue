@@ -258,6 +258,10 @@ async function createDataSource() {
     
     router.push(`/projects/${route.params.projectid}`);
 }
+
+function goBack() {
+    router.push(`/projects/${route.params.projectid}/data-sources`);
+}
 function isValidFile(file) {
   const validExtensions = ['.xlsx', '.xls', '.csv']
   const validTypes = [
@@ -631,6 +635,11 @@ onMounted(async () => {
 </script>
 <template>
     <div>
+        <button @click="goBack" class="text-indigo-600 hover:text-indigo-800 mb-4 flex items-center cursor-pointer ml-4 mt-4">
+            <font-awesome-icon :icon="['fas', 'chevron-left']" class="w-5 h-5 mr-2" />
+            Back
+        </button>
+
         <div class="flex flex-col justify-center">
             <div class="flex flex-row justify-center">
                 <input type="text" class="w-3/4 border border-primary-blue-100 border-solid p-2 cursor-pointer margin-auto mt-10 rounded-lg" placeholder="Data Source Name" v-model="state.data_source_name"/>
