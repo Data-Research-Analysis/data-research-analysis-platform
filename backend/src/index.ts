@@ -47,6 +47,7 @@ import subscription from './routes/subscription.js';
 import email_preferences from './routes/email_preferences.js';
 import notifications from './routes/notifications.js';
 import account from './routes/account.js';
+import campaigns from './routes/campaigns.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -239,6 +240,7 @@ app.use('/subscription', subscription);
 app.use('/email-preferences', email_preferences);
 app.use('/notifications', notifications);
 app.use('/account', account);
+app.use('/campaigns', campaigns);
 
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 app.use('/', express.static(path.join(__dirname, '../public')));
