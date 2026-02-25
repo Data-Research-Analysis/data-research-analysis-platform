@@ -11,4 +11,5 @@ export interface IDataSource {
     user_platform_id: number;
     project?: IProject; // Loaded via relation
     DataModels: IDataModel[];
+    classification?: string | null;
 }

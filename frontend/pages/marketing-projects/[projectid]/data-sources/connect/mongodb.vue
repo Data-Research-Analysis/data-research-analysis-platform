@@ -29,6 +29,8 @@ const state = reactive({
     showAlert: false,
     errorMessages: [],
     connectionSuccess: false,
+    showClassificationModal: false,
+    selectedClassification: null,
 })
 
 // Initialize Socket.IO connection
@@ -184,7 +186,7 @@ async function testConnection() {
     state.loading = false;
 }
 
-async function connectDataSource() {
+async function connectDataSource(classification?: string) {
     state.loading = true;
     state.showAlert = false;
     state.errorMessages = [];
@@ -204,6 +206,7 @@ async function connectDataSource() {
             data_source_type: "mongodb",
             connection_string: state.connection_string,
             schema: "dra_mongodb",
+            classification: classification || state.selectedClassification,
         };
         
         const requestOptions = {
@@ -251,6 +254,15 @@ async function connectDataSource() {
     } else {
         state.loading = false;
     }
+}
+
+function handleConnectClick() {
+    validateFields();
+    if (state.connection_string_error) {
+        state.showAlert = true;
+        return;
+    }
+    state.showClassificationModal = true;
 }
 
 function goBack() {
@@ -319,7 +331,7 @@ function handleProgressModalClose() {
                 Test Connection
             </div>
             <div
-                @click="!state.loading && connectDataSource()"
+                @click="!state.loading && handleConnectClick()"
                 class="h-10 text-center items-center self-center p-2 font-bold shadow-md select-none bg-primary-blue-100 hover:bg-primary-blue-200 cursor-pointer text-white flex-1 rounded-lg"
                 :class="{ 'opacity-50 cursor-not-allowed': state.loading }">
                 Connect Data Source
@@ -328,6 +340,14 @@ function handleProgressModalClose() {
         </div>
     </div>
     
+    <data-source-classification-modal
+        v-if="state.showClassificationModal"
+        v-model="state.showClassificationModal"
+        :loading="state.loading"
+        @confirm="(c) => { state.selectedClassification = c; connectDataSource(c); }"
+        @cancel="state.showClassificationModal = false"
+    />
+
     <!-- Progress Modal -->
     <MongoDBSyncProgress
         :is-visible="showProgressModal"

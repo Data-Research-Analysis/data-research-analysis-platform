@@ -15,6 +15,9 @@ export interface IDBConnectionDetails {
     
     // Optional: For API-based sources that store data in database (e.g., Google Analytics)
     api_connection_details?: IAPIConnectionDetails;
+
+    // Optional: User-selected data classification
+    classification?: string;
 }
 
 // Use IDBConnectionDetails for all connection types

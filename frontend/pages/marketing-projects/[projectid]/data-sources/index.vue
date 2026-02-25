@@ -14,6 +14,7 @@ import { useLinkedInAds } from '@/composables/useLinkedInAds';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import { useTruncation } from '@/composables/useTruncation';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
+import { DATA_SOURCE_CLASSIFICATIONS } from '@/utils/dataSourceClassifications';
 import pdfImage from '/assets/images/pdf.png';
 import excelImage from '/assets/images/excel.png';
 import postgresqlImage from '/assets/images/postgresql.png';
@@ -91,6 +92,10 @@ const state = reactive({
     loading: true,
     showTierLimitModal: false,
     tierLimitError: null,
+    classificationFilter: null,
+    showClassifyModal: false,
+    classifyTargetId: null,
+    classifyLoading: false,
     data_sources: computed(() => {
         const allDataSources = dataSourceStore.getDataSources();
         // Filter data sources by project ID
@@ -107,64 +112,69 @@ const state = reactive({
                 user_id: dataSource.user_platform_id,
                 project_id: dataSource.project_id,
                 dataModels: dataSource.DataModels?.length || 0,
-            }));
+                classification: dataSource.classification ?? null,
+            }))
+            .filter((ds) => {
+                if (!state.classificationFilter) return true;
+                return ds.classification === state.classificationFilter;
+            });
     }),
     available_data_sources: [
         {
             name: 'Google Analytics',
-            url: `${route.fullPath}/data-sources/connect/google-analytics`,
+            url: `${route.fullPath}/connect/google-analytics`,
             image_url: googleAnalyticsImage,
         },
         {
             name: 'Google Ad Manager',
-            url: `${route.fullPath}/data-sources/connect/google-ad-manager`,
+            url: `${route.fullPath}/connect/google-ad-manager`,
             image_url: googleAdManagerImage,
         },
         {
             name: 'Google Ads',
-            url: `${route.fullPath}/data-sources/connect/google-ads`,
+            url: `${route.fullPath}/connect/google-ads`,
             image_url: googleAdsImage,
         },
         {
             name: 'Meta Ads',
-            url: `${route.fullPath}/data-sources/connect/meta-ads`,
+            url: `${route.fullPath}/connect/meta-ads`,
             image_url: metaAdsImage,
             coming_soon: !FEATURE_FLAGS.META_ADS_ENABLED,
         },
         {
             name: 'LinkedIn Ads',
-            url: `${route.fullPath}/data-sources/connect/linkedin-ads`,
+            url: `${route.fullPath}/connect/linkedin-ads`,
             image_url: linkedInAdsImage,
             coming_soon: !FEATURE_FLAGS.LINKEDIN_ADS_ENABLED,
         },
         {
             name: 'PDF',
-            url: `${route.fullPath}/data-sources/connect/pdf`,
+            url: `${route.fullPath}/connect/pdf`,
             image_url: pdfImage,
         },
         {
             name: 'Excel File',
-            url: `${route.fullPath}/data-sources/connect/excel`,
+            url: `${route.fullPath}/connect/excel`,
             image_url: excelImage,
         },
         {
             name: 'PostgreSQL',
-            url: `${route.fullPath}/data-sources/connect/postgresql`,
+            url: `${route.fullPath}/connect/postgresql`,
             image_url: postgresqlImage,
         },
         {
             name: 'MySQL',
-            url: `${route.fullPath}/data-sources/connect/mysql`,
+            url: `${route.fullPath}/connect/mysql`,
             image_url: mysqlImage,
         },
         {
             name: 'MariaDB',
-            url: `${route.fullPath}/data-sources/connect/mariadb`,
+            url: `${route.fullPath}/connect/mariadb`,
             image_url: mariadbImage,
         },
         {
             name: 'MongoDB',
-            url: `${route.fullPath}/data-sources/connect/mongodb`,
+            url: `${route.fullPath}/connect/mongodb`,
             image_url: mongodbImage,
         },
     ],
@@ -485,6 +495,43 @@ onMounted(async () => {
         state.loading = false;
     });
 });
+
+/**
+ * Open classification modal for a specific (unclassified) data source
+ */
+function openClassifyModal(dataSourceId) {
+    if (import.meta.client) {
+        state.classifyTargetId = dataSourceId;
+        state.showClassifyModal = true;
+    }
+}
+
+/**
+ * Save classification for an existing data source via the API
+ */
+async function saveClassification(classification) {
+    if (!state.classifyTargetId) return;
+    state.classifyLoading = true;
+    const config = useRuntimeConfig();
+    const token = getAuthToken();
+    try {
+        await $fetch(`${config.public.apiBase}/data-source/${state.classifyTargetId}/classification`, {
+            method: 'PATCH',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Authorization-Type': 'auth',
+            },
+            body: { classification },
+        });
+        await dataSourceStore.retrieveDataSources();
+        state.showClassifyModal = false;
+        state.classifyTargetId = null;
+    } catch (error) {
+        $swal.fire({ icon: 'error', title: 'Error', text: 'Failed to update classification.' });
+    } finally {
+        state.classifyLoading = false;
+    }
+}
 </script>
 <template>
     <div class="flex flex-col">
@@ -583,13 +630,32 @@ onMounted(async () => {
             <!-- Actual content -->
             <div v-if="!state.loading">
                 <!-- Header Section with Button -->
-                <button
-                    v-if="permissions.canCreate.value && state.data_sources.length"
-                    @click="openDialog"
-                    class="px-6 py-3 mb-4 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 transition-colors duration-200 inline-flex items-center gap-2 cursor-pointer">
-                    <font-awesome icon="fas fa-plus" />
-                    Connect Data Source
-                </button>
+                <div class="flex flex-wrap items-center gap-3 mb-4">
+                    <button
+                        v-if="permissions.canCreate.value && state.data_sources.length"
+                        @click="openDialog"
+                        class="px-6 py-3 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 transition-colors duration-200 inline-flex items-center gap-2 cursor-pointer">
+                        <font-awesome icon="fas fa-plus" />
+                        Connect Data Source
+                    </button>
+
+                    <!-- Classification filter -->
+                    <div v-if="state.data_sources.length || state.classificationFilter" class="flex items-center gap-2">
+                        <label class="text-sm text-gray-600 whitespace-nowrap">Filter by type:</label>
+                        <select
+                            v-model="state.classificationFilter"
+                            class="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-primary-blue-100 focus:border-transparent cursor-pointer"
+                        >
+                            <option :value="null">All classifications</option>
+                            <option :value="''">Unclassified</option>
+                            <option
+                                v-for="c in DATA_SOURCE_CLASSIFICATIONS"
+                                :key="c.value"
+                                :value="c.value"
+                            >{{ c.label }}</option>
+                        </select>
+                    </div>
+                </div>
 
                 <!-- Empty State -->
                 <div v-if="!state.data_sources || state.data_sources.length === 0"
@@ -635,6 +701,19 @@ onMounted(async () => {
                                     <p class="text-sm text-gray-500 capitalize">
                                         {{ dataSource.data_type.replace('_', ' ') }}
                                     </p>
+                                    <!-- Classification badge -->
+                                    <div class="mt-2 flex items-center gap-2 flex-wrap">
+                                        <classification-badge :classification="dataSource.classification" />
+                                        <button
+                                            v-if="!dataSource.classification && permissions.canUpdate.value"
+                                            @click.stop="openClassifyModal(dataSource.id)"
+                                            class="inline-flex items-center gap-1 text-xs text-primary-blue-100 hover:text-primary-blue-300 hover:underline cursor-pointer"
+                                            v-tippy="{ content: 'Add a classification for this data source' }"
+                                        >
+                                            <font-awesome-icon :icon="['fas', 'tag']" class="text-[10px]" />
+                                            Classify
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -844,4 +923,14 @@ onMounted(async () => {
             </overlay-dialog>
         </tab-content-panel>
     </div>
+
+    <!-- Re-classify existing data source modal -->
+    <data-source-classification-modal
+        v-if="state.showClassifyModal"
+        v-model="state.showClassifyModal"
+        confirm-label="Save Classification"
+        :loading="state.classifyLoading"
+        @confirm="saveClassification"
+        @cancel="state.classifyTargetId = null"
+    />
 </template>

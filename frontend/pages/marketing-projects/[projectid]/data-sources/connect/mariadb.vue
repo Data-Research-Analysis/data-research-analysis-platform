@@ -27,6 +27,8 @@ const state = reactive({
     errorMessages: [],
     connectionSuccess: false,
     showPassword: false,
+    showClassificationModal: false,
+    selectedClassification: null,
 })
 
 function validateFields() {
@@ -114,7 +116,7 @@ async function testConnection() {
     state.loading = false;
 }
 
-async function connectDataSource() {
+async function connectDataSource(classification?: string) {
     state.loading = true;
     state.showAlert = false;
     state.errorMessages = [];
@@ -142,6 +144,7 @@ async function connectDataSource() {
                 database_name: state.database_name,
                 username: state.username,
                 password: state.password,
+                classification: classification || state.selectedClassification,
             },
         };
         try {
@@ -165,6 +168,15 @@ async function connectDataSource() {
     } else {
         state.loading = false;
     }
+}
+
+function handleConnectClick() {
+    validateFields();
+    if (state.host_error || state.port_error || state.database_name_error || state.username_error || state.password_error) {
+        state.showAlert = true;
+        return;
+    }
+    state.showClassificationModal = true;
 }
 
 function goBack() {
@@ -283,7 +295,7 @@ function goBack() {
                 Test Connection
             </div>
             <div
-                @click="!state.loading && connectDataSource()"
+                @click="!state.loading && handleConnectClick()"
                 class="h-10 text-center items-center self-center p-2 font-bold shadow-md select-none bg-primary-blue-100 hover:bg-primary-blue-200 cursor-pointer text-white flex-1 rounded-lg"
                 :class="{ 'opacity-50 cursor-not-allowed': state.loading }">
                 Connect Data Source
@@ -291,4 +303,12 @@ function goBack() {
         </div>
         </div>
     </div>
+
+    <data-source-classification-modal
+        v-if="state.showClassificationModal"
+        v-model="state.showClassificationModal"
+        :loading="state.loading"
+        @confirm="(c) => { state.selectedClassification = c; connectDataSource(c); }"
+        @cancel="state.showClassificationModal = false"
+    />
 </template>
