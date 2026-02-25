@@ -336,6 +336,7 @@ See [ai-data-modeler-implementation.md](documentation/ai-data-modeler-implementa
 8. **Missing `useRuntimeConfig().public.apiBase` in API calls** - calls frontend instead of backend
 9. **Adding `/api/` prefix to API routes** - backend routes don't use this prefix
 10. **Using inline `<svg>` blocks in `.vue` files** - forbidden; use `<font-awesome-icon>` instead (see Icon Usage)
+11. **Writing custom CSS in `<style>` blocks** - forbidden; use only TailwindCSS utility classes for all styling in `.vue` files; never add `<style scoped>` or `<style>` blocks
 
 ## Pull Request Template
 

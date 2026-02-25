@@ -21,23 +21,32 @@ import { useUserManagementStore } from '@/stores/user_management';
 
 // Route pattern matching functions
 function isProjectListRoute(path: string): boolean {
-  return path === '/projects';
+  return path === '/projects' || path === '/marketing-projects';
 }
 
 function isProjectDetailRoute(path: string): boolean {
-  return /^\/projects\/\d+$/.test(path);
+  return /^\/projects\/\d+$/.test(path) || /^\/marketing-projects\/\d+$/.test(path);
 }
 
 function isDataSourceRoute(path: string): boolean {
-  return /^\/projects\/\d+\/data-sources/.test(path);
+  return /^\/projects\/\d+\/data-sources/.test(path) || /^\/marketing-projects\/\d+\/data-sources/.test(path);
 }
 
 function isDashboardRoute(path: string): boolean {
-  return /^\/projects\/\d+\/dashboards/.test(path);
+  return /^\/projects\/\d+\/dashboards/.test(path) || /^\/marketing-projects\/\d+\/dashboards/.test(path);
 }
 
 function isInsightsRoute(path: string): boolean {
-  return /^\/projects\/\d+\/insights/.test(path);
+  return /^\/projects\/\d+\/insights/.test(path) || /^\/marketing-projects\/\d+\/insights/.test(path);
+}
+
+function isDataModelsRoute(path: string): boolean {
+  return /^\/projects\/\d+\/data-models/.test(path) || /^\/marketing-projects\/\d+\/data-models/.test(path);
+}
+
+// Catch-all for marketing-projects sub-routes not covered by specific matchers
+function isMarketingSubRoute(path: string): boolean {
+  return /^\/marketing-projects\/\d+\/(campaigns|marketing)/.test(path);
 }
 
 function isAdminRoute(path: string): boolean {
@@ -234,6 +243,39 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
               markDataLoaded('dataSources');
             })()
           );
+        } else if (isDataModelsRoute(to.path)) {
+          // Load projects + data sources + data models for data-model routes
+          if (shouldRefreshData('projects')) {
+            loadTasks.push(
+              (async () => {
+                await projectsStore.retrieveProjects();
+                markDataLoaded('projects');
+              })()
+            );
+          }
+          const projectId = to.params.projectid ? parseInt(String(to.params.projectid), 10) : undefined;
+          loadTasks.push(
+            (async () => {
+              await dataSourceStore.retrieveDataSources();
+              markDataLoaded('dataSources');
+            })(),
+            (async () => {
+              if (projectId && !isNaN(projectId)) {
+                await dataModelsStore.retrieveDataModels(projectId);
+                markDataLoaded('dataModels');
+              }
+            })()
+          );
+        } else if (isMarketingSubRoute(to.path)) {
+          // Load projects for campaigns / marketing hub sub-routes
+          if (shouldRefreshData('projects')) {
+            loadTasks.push(
+              (async () => {
+                await projectsStore.retrieveProjects();
+                markDataLoaded('projects');
+              })()
+            );
+          }
         }
         
         // === ADMIN ROUTES ===

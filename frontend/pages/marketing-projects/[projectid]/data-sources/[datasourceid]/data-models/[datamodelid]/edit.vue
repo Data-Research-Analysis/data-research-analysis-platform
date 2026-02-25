@@ -1,4 +1,6 @@
 <script setup lang="ts">
+
+definePageMeta({ layout: 'marketing-project' });
 import { useProjectsStore } from '@/stores/projects';
 import { useDataModelsStore } from '@/stores/data_models';
 import { useDataSourceStore } from '@/stores/data_sources';
@@ -191,7 +193,7 @@ async function copyDataModel() {
         await dataModelsStore.retrieveDataModels(projectId.value);
         
         // Navigate to the new model's edit page
-        navigateTo(`/projects/${projectId.value}/data-sources/${route.params.datasourceid}/data-models/${newModel.id}/edit`);
+        navigateTo(`/marketing-projects/${projectId.value}/data-sources/${route.params.datasourceid}/data-models/${newModel.id}/edit`);
         
     } catch (error: any) {
         await $swal.fire({
@@ -205,7 +207,6 @@ async function copyDataModel() {
 </script>
 <template>
     <div v-if="project" class="min-h-screen bg-gray-50">
-        <tabs :project-id="project.id"/>
         <tab-content-panel :corners="['top-right', 'bottom-left', 'bottom-right']">
             <div class="container mx-auto px-4 py-6">
                 <!-- Header -->

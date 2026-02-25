@@ -35,4 +35,7 @@ export class DRAProjectMember {
     @ManyToOne(() => DRAUsersPlatform, { nullable: true })
     @JoinColumn({ name: 'invited_by_user_id' })
     invited_by!: Relation<DRAUsersPlatform> | null;
+
+    @Column({ type: 'varchar', length: 20, nullable: true, comment: "Optional marketing persona: 'cmo' | 'manager' | 'analyst'" })
+    marketing_role!: string | null; // 'cmo' | 'manager' | 'analyst'
 }
