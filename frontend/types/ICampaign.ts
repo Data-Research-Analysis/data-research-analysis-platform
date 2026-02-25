@@ -8,6 +8,48 @@ export interface ICampaignChannel {
     created_at: string;
 }
 
+export interface IOfflineDataEntry {
+    id: number;
+    campaign_channel_id: number;
+    entry_date: string;
+    actual_spend: number;
+    impressions_estimated: number | null;
+    leads_generated: number | null;
+    pipeline_value: number | null;
+    notes: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface IOfflineDataEntryPayload {
+    entry_date: string;
+    actual_spend: number;
+    impressions_estimated?: number | null;
+    leads_generated?: number | null;
+    pipeline_value?: number | null;
+    notes?: string | null;
+}
+
+export interface IOfflineChannelSummary {
+    channel_id: number;
+    channel_type: string;
+    channel_name: string | null;
+    total_spend: number;
+    total_leads: number;
+    total_impressions: number;
+    total_pipeline_value: number;
+    cpl: number | null;
+}
+
+export interface IOfflineCampaignSummary {
+    total_spend: number;
+    total_leads: number;
+    total_impressions: number;
+    total_pipeline_value: number;
+    offline_cpl: number | null;
+    by_channel: IOfflineChannelSummary[];
+}
+
 export interface ICampaign {
     id: number;
     project_id: number;

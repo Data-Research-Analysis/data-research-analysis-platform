@@ -12,6 +12,8 @@ const projectId = computed(() => parseInt(String(route.params.projectid)));
 const loading = ref(false);
 const showCreateModal = ref(false);
 const search = ref('');
+const deleteConfirmId = ref<number | null>(null);
+const deleting = ref<number | null>(null);
 
 const filteredCampaigns = computed(() => {
     const q = search.value.toLowerCase();
@@ -69,10 +71,20 @@ async function onCampaignCreated() {
         loading.value = false;
     }
 }
+
+async function confirmDelete(campaignId: number) {
+    deleteConfirmId.value = null;
+    deleting.value = campaignId;
+    try {
+        await campaignStore.deleteCampaign(campaignId);
+    } finally {
+        deleting.value = null;
+    }
+}
 </script>
 
 <template>
-    <div class="p-6 min-h-screen bg-gray-50">
+    <div class="p-6 min-h-screen bg-gray-50" @click="deleteConfirmId = null">
         <!-- Page header -->
         <div class="flex items-center justify-between mb-6">
             <div>
@@ -155,12 +167,41 @@ async function onCampaignCreated() {
                     <h3 class="text-base font-semibold text-gray-900 leading-snug line-clamp-2 flex-1 mr-2">
                         {{ campaign.name }}
                     </h3>
-                    <span
-                        class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0"
-                        :class="statusClasses(campaign.status)"
-                    >
-                        {{ getStatusConfig(campaign.status).label }}
-                    </span>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <span
+                            class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                            :class="statusClasses(campaign.status)"
+                        >
+                            {{ getStatusConfig(campaign.status).label }}
+                        </span>
+                        <!-- Delete controls -->
+                        <template v-if="deleteConfirmId === campaign.id">
+                            <button
+                                type="button"
+                                class="text-xs text-red-600 font-medium hover:text-red-800 transition-colors whitespace-nowrap cursor-pointer"
+                                @click.prevent.stop="confirmDelete(campaign.id)"
+                            >
+                                <font-awesome-icon v-if="deleting === campaign.id" :icon="['fas', 'spinner']" class="animate-spin" />
+                                <template v-else>Confirm</template>
+                            </button>
+                            <button
+                                type="button"
+                                class="text-xs text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+                                @click.prevent.stop="deleteConfirmId = null"
+                            >
+                                Cancel
+                            </button>
+                        </template>
+                        <button
+                            v-else
+                            type="button"
+                            class="text-gray-300 hover:text-red-500 transition-colors cursor-pointer"
+                            title="Delete campaign"
+                            @click.prevent.stop="deleteConfirmId = campaign.id"
+                        >
+                            <font-awesome-icon :icon="['fas', 'trash']" class="text-xs" />
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Objective badge -->

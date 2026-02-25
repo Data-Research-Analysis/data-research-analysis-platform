@@ -6,6 +6,186 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## 2026-02-25
+
+### Added — Marketing Projects Navigation Architecture ✅
+
+**Commits:**
+- feat: add marketing-projects section with sidebar layout and full page routing (6ca1024d)
+- Merge pull request #341 from Data-Research-Analysis/330-marketing-project-navigation-architecture-overhaul (aa12cae3)
+
+**Changes:**
+- Introduced `/marketing-projects` as the primary route replacing `/projects`, with full redirect rules in `nuxt.config.ts`
+- New `marketing-project.vue` layout wrapping every project sub-page with the project sidebar
+- New `marketing-project-sidebar.vue` with 7 navigation sections: Overview, Campaigns, Marketing Hub (Performance, Attribution, Reports), Data Connectivity (Data Sources, Data Models), Dashboards, AI Insights, Project Settings
+- Sidebar supports collapsible sections, icon-only collapsed mode on mobile, and localStorage-persisted expand state
+- Role-based default routing in `marketing-projects/[projectid]/index.vue`: `cmo` → Overview, `manager` → Campaigns, `analyst`/default → Data Sources
+- New migration `1772000000000-AddMarketingRoleToProjectMembers.ts` adds `marketing_role` column (`cmo` | `manager` | `analyst`) to `dra_project_members`
+- All existing project sub-pages (data-sources, data-models, dashboards, insights) moved to new `/marketing-projects/[id]/` paths with `definePageMeta({ layout: 'marketing-project' })` on every page
+- Header nav updated: "Projects" label renamed to "Marketing Projects" linking to `/marketing-projects`
+- Marketing Hub sub-pages scaffolded: `marketing/index.vue` (Performance), `marketing/attribution/`, `marketing/reports/`
+
+---
+
+### Added — Campaign Entity & Campaign Manager ✅
+
+**Commits:**
+- feat: [PHASE 0] Campaign entity & Campaign Manager (7e07b998)
+- Merge pull request #342 from Data-Research-Analysis/331-campaign-entity-campaign-manager (199583fa)
+
+**Changes:**
+- New `DRACampaign` TypeORM entity and migration for `dra_campaigns` table with fields: name, objective, status, budget, currency, start/end dates, description, project FK with CASCADE delete
+- New `DRACampaignChannel` entity and migration for `dra_campaign_channels` table linking campaigns to digital/offline channel types
+- `CampaignProcessor` singleton with full CRUD: `createCampaign`, `getCampaigns`, `getCampaign`, `updateCampaign`, `deleteCampaign`, `addChannel`, `removeChannel`
+- REST routes under `/campaigns`: GET/POST list, GET/PUT/DELETE by ID, POST/DELETE channel endpoints — all behind `validateJWT`
+- Frontend `campaigns` Pinia store with localStorage sync: `retrieveCampaigns`, `retrieveCampaign`, `createCampaign`, `updateCampaign`, `deleteCampaign`, `addChannel`, `removeChannel`
+- `ICampaign`, `ICampaignChannel`, `ICreateCampaignPayload`, `IUpdateCampaignPayload`, `IAddChannelPayload` TypeScript interfaces
+- `CAMPAIGN_OBJECTIVES` and `CAMPAIGN_STATUSES` constant arrays
+- `marketing-projects/[projectid]/campaigns/index.vue`: campaign list with search/filter, objective and status badges, budget display, delete with inline confirm
+- `marketing-projects/[projectid]/campaigns/[campaignid]/index.vue`: campaign detail with 5-tab layout (Summary, Audience, Content, Offline, Performance)
+- `CreateCampaignModal` component for new campaign creation
+
+---
+
+### Added — Offline Marketing Channel Tracking & ROI ✅
+
+**Commits:**
+- feat: [PHASE 0] Offline Marketing Channel Tracking & ROI (b9c651f8)
+
+**Changes:**
+- New `DRACampaignOfflineData` TypeORM entity and migration `1772300000000-CreateCampaignOfflineDataTable.ts` with UNIQUE constraint on `(campaign_channel_id, entry_date)` and CASCADE FK
+- `OfflineTrackingProcessor` singleton: `addEntry`, `updateEntry`, `deleteEntry`, `getEntriesForChannel`, `getOfflineSummaryForCampaign`, `getOfflineSpendByDate`
+- REST routes under `/campaigns`: `GET /:id/offline/summary`, `GET /channels/:id/offline`, `POST /channels/:id/offline` (409 on duplicate date), `PUT /offline/:id`, `DELETE /offline/:id`
+- Frontend offline store actions: `retrieveOfflineSummary`, `retrieveOfflineEntriesForChannel`, `addOfflineEntry`, `updateOfflineEntry`, `deleteOfflineEntry`, `clearOfflineSummaryCache`
+- New `offline-data-entry-modal.vue` component: 6-field form (date, spend, impressions, leads, pipeline value, notes) with client-side validation and campaign date-range enforcement
+- New `budget-comparison-chart.vue`: CSS stacked bar chart showing Digital / Offline / Remaining budget segments, no charting library dependency
+- Campaign detail Offline tab: per-channel entry tables with totals row, add/edit/delete entries with inline confirm
+- Campaign detail Summary tab: Offline KPI cards (Total Spend, Total Leads, Offline CPL), channel management UI (add/remove channels with type badges), `BudgetComparisonChart` integration
+
+---
+
+## 2026-02-24
+
+### Refactored — Data Source Connect Pages UI ✅
+
+**Commits:**
+- refactor(frontend): standardize layout across all data source connect pages (71c953db)
+- refactor(frontend): standardize step indicators across all data source connect pages (ed2adc73)
+- feat(frontend): add indigo border to content cards on all data source connect pages (315cfd7a)
+- refactor(frontend): replace all inline SVGs with font-awesome-icon components (eebf3a1d)
+
+**Changes:**
+- Unified layout, spacing, and card styles across all data source connect pages (PostgreSQL, MySQL, MariaDB, MongoDB, Excel, PDF, Google Ads, Google Analytics, Google Ad Manager, Meta Ads, LinkedIn Ads)
+- Standardized step indicator components across all connect wizards
+- Added consistent indigo left-border accent to content cards
+- Replaced all remaining inline `<svg>` blocks with `<font-awesome-icon>` components
+
+### Fixed — Data Source Connect Pages Navigation ✅
+
+**Commits:**
+- feat(frontend): add back button to Google connect pages (e21acc14)
+- feat(frontend): add back button to MongoDB connect page (9f12a29e)
+- feat(frontend): add back button to remaining data source connect pages (f72ffd92)
+- fix(frontend): fix back button navigation and remove cancel buttons on Google connect pages (0b87d335)
+- fix(frontend): replace tab-content-panel with plain divs in meta-ads connect page (3b7a1e69)
+
+**Changes:**
+- Added back button navigation to all data source connect pages
+- Fixed back button routing on Google connect pages and removed redundant cancel buttons
+- Replaced `tab-content-panel` wrapper with plain divs on meta-ads connect page to fix layout
+
+---
+
+## 2026-02-23
+
+### Added — LinkedIn Ads Data Source Integration ✅
+
+**Commits:**
+- feat(linkedin-ads): Phases 2–13 (631234bd → 9828af5d)
+- feat: Gate Meta Ads and LinkedIn Ads behind feature flags until production API approval (9854150c)
+- test(linkedin-ads): Phase 12 — Add unit tests for LinkedInOAuthService, LinkedInAdsService, LinkedInAdsDriver (1c93eef6)
+- Merge pull request #329 from Data-Research-Analysis/291-feature-request-linkedin-ads-manager-data-source-integration (7a1b53e3)
+
+**Backend:**
+- `LinkedInOAuthService` — OAuth 2.0 PKCE flow with token refresh
+- `LinkedInAdsService` (API v202601) — ad accounts, campaigns, creatives, analytics
+- `LinkedInAdsDriver` — TypeORM-based data persistence and sync logic
+- Backend routes and `DataSourceProcessor` methods for LinkedIn Ads CRUD and sync
+- Migration for LinkedIn Ads connection details schema
+- Integration with `DataModelProcessor` and `DataSamplingService` for AI Data Modeler support
+
+**Frontend:**
+- LinkedIn Ads connect wizard with OAuth callback page
+- `LinkedInAdsSyncPanel` component
+- Pinia store methods and `useLinkedInAds` composable
+
+**Fixed:**
+- Un-encode commas, parens, and colons in LinkedIn API query strings
+- Show LinkedIn test accounts in Development Tier and surface real API errors
+- Prevent spinner freeze when loading LinkedIn ad accounts
+- Make each sync step fault-tolerant to survive Development Tier 404s
+
+**Other:**
+- Meta Ads and LinkedIn Ads gated behind feature flags pending production API approval
+- Added LinkedIn Ads credentials to `backend/.env.example`
+- Unit tests for `LinkedInOAuthService`, `LinkedInAdsService`, `LinkedInAdsDriver`
+- Implementation documentation added; `FEATURES.md` and `.env.example` updated
+
+### Updated — Legal Documents ✅
+
+**Commits:**
+- docs: Add Meta Ads and LinkedIn Ads sections to Privacy Policy and Terms & Conditions; update last modified date to Feb 23 2026 (cf647f6c)
+
+**Changes:**
+- Added Meta Ads and LinkedIn Ads data usage sections to Privacy Policy
+- Added corresponding sections to Terms & Conditions
+- Updated last modified date on both documents to February 23, 2026
+
+---
+
+## 2026-02-22
+
+### Added — Meta Ads Data Source Integration ✅
+
+**Commits:**
+- Merge pull request #328 from Data-Research-Analysis/256-meta-ads-data-source-integration---feature-implementation-plan (e35ba770)
+
+**Backend:**
+- Meta Ads data source add and sync implementation (backend + frontend store) (3a195593)
+- Frontend redirect URL for Meta OAuth flow (359d0351)
+- Implemented syncing in Meta Ads data source (9da928d1)
+- Integrated Meta Ads data into data modelling and AI Insights pipelines (ab10fd88)
+- Fixed `user_platform.id` variable bug in platform resolution (c90fa3ce)
+- Upgraded PostgreSQL version in backend codebase (02939b61)
+
+**Frontend:**
+- Fixed data source logos display (2c0de1a6)
+- Fixed table metadata naming conventions (7582fd42)
+- Fixed issues found when adding data to table metadata (fea74fd9)
+- Implemented missing delete data source functionality on the data sources page (4c9077b0)
+
+---
+
+## 2026-02-21
+
+### Added — Setup CLI Tool ✅
+
+**Commits:**
+- Merge pull request #327 from Data-Research-Analysis/DRA-125-Simplify-Local-Deployment-Process (8f412f55)
+
+**Changes:**
+- New interactive `setup-cli.js` tool for simplified local deployment
+- Phase 2: Core CLI structure with argument parsing and help mode
+- Phase 3: Interactive prompts, `.env` file templates, and safe file writers with backups
+- Phase 4: Docker operations (build, start, stop) and service health check system
+- Phase 5: Database migrations and seeders integrated into CLI flow
+- Phase 6: Environment validation module, service management module, and full Phase 6 integration into main CLI
+- Added `npm run setup` and `npm run help` scripts to root `package.json`
+- Added npm install step with improved service health checks
+- Comprehensive `SETUP.md` documentation and CLI implementation plan
+
+---
+
 ## 2026-02-21
 
 ### Added - Article Versioning System ✅

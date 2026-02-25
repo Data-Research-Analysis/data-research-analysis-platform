@@ -28,6 +28,7 @@ import { DRAMongoDBSyncHistory } from "../models/DRAMongoDBSyncHistory.js";
 import { SyncHistory } from "../entities/SyncHistory.js";
 import { DRACampaign } from '../models/DRACampaign.js';
 import { DRACampaignChannel } from '../models/DRACampaignChannel.js';
+import { DRACampaignOfflineData } from '../models/DRACampaignOfflineData.js';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -47,7 +48,7 @@ export default new DataSource({
     database: database,
     synchronize: false,
     logging: true,
-    entities: [DRAUsersPlatform, DRAProject, DRAProjectMember, DRAProjectInvitation, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAPrivateBetaUsers, DRADashboard, DRAArticle, DRAArticleCategory, DRAArticleVersion, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRADataModelRefreshHistory, DRASubscriptionTier, DRAUserSubscription, DRAPlatformSettings, DRAAccountCancellation, DRAMongoDBSyncHistory, SyncHistory, DRACampaign, DRACampaignChannel],
+    entities: [DRAUsersPlatform, DRAProject, DRAProjectMember, DRAProjectInvitation, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAPrivateBetaUsers, DRADashboard, DRAArticle, DRAArticleCategory, DRAArticleVersion, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRADataModelRefreshHistory, DRASubscriptionTier, DRAUserSubscription, DRAPlatformSettings, DRAAccountCancellation, DRAMongoDBSyncHistory, SyncHistory, DRACampaign, DRACampaignChannel, DRACampaignOfflineData],
     subscribers: [],
     migrations: ['./src/migrations/*.ts'],
 });
