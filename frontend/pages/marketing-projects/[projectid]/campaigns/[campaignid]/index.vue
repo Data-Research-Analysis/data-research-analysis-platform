@@ -1,7 +1,28 @@
 <script setup lang="ts">
 import { useCampaignsStore } from '@/stores/campaigns';
 import { CAMPAIGN_OBJECTIVES, CAMPAIGN_STATUSES } from '~/types/ICampaign';
-import type { ICampaign } from '~/types/ICampaign';
+import type { ICampaign, ICampaignChannel, IOfflineDataEntry, IOfflineCampaignSummary, IAddChannelPayload } from '~/types/ICampaign';
+
+const OFFLINE_CHANNEL_TYPES: { value: string; label: string }[] = [
+    { value: 'events', label: 'Events' },
+    { value: 'print', label: 'Print' },
+    { value: 'out_of_home', label: 'Out of Home' },
+    { value: 'direct_mail', label: 'Direct Mail' },
+    { value: 'tv', label: 'TV' },
+    { value: 'radio', label: 'Radio' },
+    { value: 'pr', label: 'PR' },
+    { value: 'sponsorship', label: 'Sponsorship' },
+    { value: 'other', label: 'Other' },
+];
+
+const DIGITAL_CHANNEL_TYPES: { value: string; label: string }[] = [
+    { value: 'google_ads', label: 'Google Ads' },
+    { value: 'meta_ads', label: 'Meta Ads' },
+    { value: 'linkedin_ads', label: 'LinkedIn Ads' },
+    { value: 'tiktok_ads', label: 'TikTok Ads' },
+    { value: 'google_analytics', label: 'Google Analytics' },
+    { value: 'google_ad_manager', label: 'Google Ad Manager' },
+];
 
 definePageMeta({ layout: 'marketing-project' });
 
@@ -28,6 +49,25 @@ const statusUpdating = ref(false);
 const statusDropdownOpen = ref(false);
 const campaign = ref<ICampaign | null>(null);
 
+// Channel management state
+const showAddChannelPanel = ref(false);
+const newChannelType = ref('');
+const newChannelName = ref('');
+const addChannelSaving = ref(false);
+const addChannelError = ref('');
+const deleteConfirmChannelId = ref<number | null>(null);
+const channelRemoving = ref<number | null>(null);
+
+// Offline tab state
+const offlineSummary = ref<IOfflineCampaignSummary | null>(null);
+const offlineEntries = ref<Record<number, IOfflineDataEntry[]>>({});
+const offlineEntriesLoading = ref<Record<number, boolean>>({});
+const showEntryModal = ref(false);
+const entryModalChannelId = ref<number | null>(null);
+const entryModalChannelName = ref('');
+const entryModalEditEntry = ref<IOfflineDataEntry | null>(null);
+const deleteConfirmEntryId = ref<number | null>(null);
+
 function getObjectiveLabel(value: string): string {
     return CAMPAIGN_OBJECTIVES.find((o) => o.value === value)?.label ?? value;
 }
@@ -53,11 +93,35 @@ function formatCurrency(val: number | null | undefined): string {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(val));
 }
 
+function formatCPL(spend: number, leads: number): string {
+    if (leads === 0) return '—';
+    return formatCurrency(spend / leads);
+}
+
+function formatNumber(val: number | null | undefined): string {
+    if (val === null || val === undefined) return '—';
+    return new Intl.NumberFormat('en-US').format(Number(val));
+}
+
+function channelTypeLabel(type: string): string {
+    const map: Record<string, string> = {
+        events: 'Events', print: 'Print', out_of_home: 'Out of Home',
+        direct_mail: 'Direct Mail', tv: 'TV', radio: 'Radio',
+        pr: 'PR', sponsorship: 'Sponsorship', other: 'Other',
+    };
+    return map[type] ?? type;
+}
+
+const offlineChannels = computed((): ICampaignChannel[] => {
+    return (campaign.value?.channels ?? []).filter((ch) => ch.is_offline);
+});
+
 onMounted(async () => {
     loading.value = true;
     try {
         const c = await campaignStore.retrieveCampaignById(campaignId.value);
         campaign.value = c;
+        await loadOfflineSummary();
     } finally {
         loading.value = false;
     }
@@ -67,6 +131,138 @@ watch(campaignStore.campaigns, () => {
     const c = campaignStore.campaigns.find((x) => x.id === campaignId.value) ?? null;
     if (c) campaign.value = c;
 });
+
+watch(activeTab, async (tab) => {
+    if (tab === 'offline' || tab === 'summary') {
+        await loadOfflineSummary();
+    }
+    if (tab === 'offline') {
+        await loadAllOfflineEntries();
+    }
+});
+
+async function loadOfflineSummary() {
+    if (!campaign.value) return;
+    try {
+        offlineSummary.value = await campaignStore.retrieveOfflineSummary(campaignId.value);
+    } catch {
+        // non-critical
+    }
+}
+
+async function loadAllOfflineEntries() {
+    const channels = offlineChannels.value;
+    for (const ch of channels) {
+        if (!offlineEntries.value[ch.id]) {
+            await loadEntriesForChannel(ch.id);
+        }
+    }
+}
+
+async function loadEntriesForChannel(channelId: number) {
+    offlineEntriesLoading.value[channelId] = true;
+    try {
+        offlineEntries.value[channelId] = await campaignStore.retrieveOfflineEntriesForChannel(channelId);
+    } finally {
+        offlineEntriesLoading.value[channelId] = false;
+    }
+}
+
+function openAddEntryModal(channel: ICampaignChannel) {
+    entryModalChannelId.value = channel.id;
+    entryModalChannelName.value = channel.channel_name ?? channelTypeLabel(channel.channel_type);
+    entryModalEditEntry.value = null;
+    showEntryModal.value = true;
+}
+
+function openEditEntryModal(channel: ICampaignChannel, entry: IOfflineDataEntry) {
+    entryModalChannelId.value = channel.id;
+    entryModalChannelName.value = channel.channel_name ?? channelTypeLabel(channel.channel_type);
+    entryModalEditEntry.value = entry;
+    showEntryModal.value = true;
+}
+
+async function onEntrySaved(entry: IOfflineDataEntry) {
+    showEntryModal.value = false;
+    const channelId = entry.campaign_channel_id;
+    await loadEntriesForChannel(channelId);
+    await loadOfflineSummary();
+}
+
+async function confirmDeleteEntry(entryId: number, channelId: number) {
+    deleteConfirmEntryId.value = null;
+    await campaignStore.deleteOfflineEntry(entryId);
+    await loadEntriesForChannel(channelId);
+    await loadOfflineSummary();
+}
+
+function channelEntryTotal(channelId: number): { spend: number; impressions: number; leads: number; pipeline: number } {
+    const entries = offlineEntries.value[channelId] ?? [];
+    return {
+        spend: entries.reduce((s, e) => s + Number(e.actual_spend), 0),
+        impressions: entries.reduce((s, e) => s + (Number(e.impressions_estimated) || 0), 0),
+        leads: entries.reduce((s, e) => s + (Number(e.leads_generated) || 0), 0),
+        pipeline: entries.reduce((s, e) => s + (Number(e.pipeline_value) || 0), 0),
+    };
+}
+
+// -----------------------------------------------------------------------
+// Channel management
+// -----------------------------------------------------------------------
+
+const isOfflineType = (type: string) =>
+    OFFLINE_CHANNEL_TYPES.some((t) => t.value === type);
+
+function allChannelTypeLabel(type: string): string {
+    return (
+        OFFLINE_CHANNEL_TYPES.find((t) => t.value === type)?.label ??
+        DIGITAL_CHANNEL_TYPES.find((t) => t.value === type)?.label ??
+        type
+    );
+}
+
+async function submitAddChannel() {
+    addChannelError.value = '';
+    if (!newChannelType.value) {
+        addChannelError.value = 'Please select a channel type';
+        return;
+    }
+    addChannelSaving.value = true;
+    try {
+        const payload: IAddChannelPayload = {
+            channel_type: newChannelType.value,
+            channel_name: newChannelName.value.trim() || null,
+            is_offline: isOfflineType(newChannelType.value),
+        };
+        await campaignStore.addChannel(campaignId.value, payload);
+        // Refresh campaign to get updated channels list
+        const c = await campaignStore.retrieveCampaignById(campaignId.value);
+        campaign.value = c;
+        newChannelType.value = '';
+        newChannelName.value = '';
+        showAddChannelPanel.value = false;
+        await loadOfflineSummary();
+    } catch (e: any) {
+        addChannelError.value = e?.data?.error ?? e?.message ?? 'Failed to add channel';
+    } finally {
+        addChannelSaving.value = false;
+    }
+}
+
+async function confirmRemoveChannel(channelId: number) {
+    deleteConfirmChannelId.value = null;
+    channelRemoving.value = channelId;
+    try {
+        await campaignStore.removeChannel(channelId);
+        const c = await campaignStore.retrieveCampaignById(campaignId.value);
+        campaign.value = c;
+        // Clear any cached entries for removed channel
+        delete offlineEntries.value[channelId];
+        await loadOfflineSummary();
+    } finally {
+        channelRemoving.value = null;
+    }
+}
 
 async function setStatus(status: string) {
     statusDropdownOpen.value = false;
@@ -155,7 +351,7 @@ async function setStatus(status: string) {
                         v-for="tab in tabs"
                         :key="tab.id"
                         type="button"
-                        class="flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors"
+                        class="flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors cursor-pointer"
                         :class="
                             activeTab === tab.id
                                 ? 'border-primary-blue-100 text-primary-blue-100'
@@ -241,6 +437,173 @@ async function setStatus(status: string) {
                             </div>
                         </div>
                     </div>
+
+                    <!-- Offline KPI cards -->
+                    <div v-if="offlineSummary">
+                        <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Offline Performance</h2>
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            <div class="bg-white rounded-xl border border-gray-200 p-4">
+                                <p class="text-xs text-gray-400 uppercase tracking-wide mb-1">Total Offline Spend</p>
+                                <p class="text-xl font-bold text-gray-900">{{ formatCurrency(offlineSummary.total_spend) }}</p>
+                            </div>
+                            <div class="bg-white rounded-xl border border-gray-200 p-4">
+                                <p class="text-xs text-gray-400 uppercase tracking-wide mb-1">Total Offline Leads</p>
+                                <p class="text-xl font-bold text-gray-900">{{ formatNumber(offlineSummary.total_leads) }}</p>
+                            </div>
+                            <div class="bg-white rounded-xl border border-gray-200 p-4">
+                                <p class="text-xs text-gray-400 uppercase tracking-wide mb-1">Offline CPL</p>
+                                <p class="text-xl font-bold text-gray-900">
+                                    {{ offlineSummary.offline_cpl !== null ? formatCurrency(offlineSummary.offline_cpl) : '—' }}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Budget vs Spend chart -->
+                    <BudgetComparisonChart
+                        :budget-total="campaign.budget_total"
+                        :digital-spend="0"
+                        :offline-spend="offlineSummary?.total_spend ?? 0"
+                    />
+
+                    <!-- Channels panel -->
+                    <div class="bg-white rounded-xl border border-gray-200">
+                        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+                            <h2 class="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                                <font-awesome-icon :icon="['fas', 'layer-group']" class="text-gray-400" />
+                                Channels
+                                <span class="text-xs font-normal text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">
+                                    {{ campaign.channels?.length ?? 0 }}
+                                </span>
+                            </h2>
+                            <button
+                                type="button"
+                                class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-blue-100 text-white text-xs font-medium rounded-lg hover:bg-primary-blue-200 transition-colors cursor-pointer"
+                                @click="showAddChannelPanel = !showAddChannelPanel; addChannelError = ''"
+                            >
+                                <font-awesome-icon :icon="['fas', 'plus']" />
+                                Add Channel
+                            </button>
+                        </div>
+
+                        <!-- Inline add channel form -->
+                        <div v-if="showAddChannelPanel" class="px-5 py-4 bg-blue-50 border-b border-blue-100">
+                            <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">New Channel</p>
+                            <div class="flex flex-col sm:flex-row gap-3">
+                                <div class="flex-1">
+                                    <label class="block text-xs font-medium text-gray-600 mb-1">
+                                        Channel Type <span class="text-red-500">*</span>
+                                    </label>
+                                    <select
+                                        v-model="newChannelType"
+                                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-blue-100"
+                                    >
+                                        <option value="" disabled>Select type…</option>
+                                        <optgroup label="Offline Channels">
+                                            <option v-for="t in OFFLINE_CHANNEL_TYPES" :key="t.value" :value="t.value">
+                                                {{ t.label }}
+                                            </option>
+                                        </optgroup>
+                                        <optgroup label="Digital Channels">
+                                            <option v-for="t in DIGITAL_CHANNEL_TYPES" :key="t.value" :value="t.value">
+                                                {{ t.label }}
+                                            </option>
+                                        </optgroup>
+                                    </select>
+                                </div>
+                                <div class="flex-1">
+                                    <label class="block text-xs font-medium text-gray-600 mb-1">Display Name (optional)</label>
+                                    <input
+                                        v-model="newChannelName"
+                                        type="text"
+                                        placeholder="e.g. TV Q1, Spring Fair…"
+                                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue-100"
+                                    />
+                                </div>
+                                <div class="flex items-end gap-2">
+                                    <button
+                                        type="button"
+                                        :disabled="addChannelSaving"
+                                        class="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-blue-100 text-white text-sm font-medium rounded-lg hover:bg-primary-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                                        @click="submitAddChannel"
+                                    >
+                                        <font-awesome-icon v-if="addChannelSaving" :icon="['fas', 'spinner']" class="animate-spin" />
+                                        {{ addChannelSaving ? 'Saving…' : 'Save' }}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors cursor-pointer"
+                                        @click="showAddChannelPanel = false; addChannelError = ''"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                            <p v-if="addChannelError" class="mt-2 text-xs text-red-600 flex items-center gap-1.5">
+                                <font-awesome-icon :icon="['fas', 'triangle-exclamation']" />
+                                {{ addChannelError }}
+                            </p>
+                        </div>
+
+                        <!-- Channels list -->
+                        <div v-if="!campaign.channels || campaign.channels.length === 0" class="px-5 py-8 text-center text-sm text-gray-400">
+                            No channels yet — click "Add Channel" to attach data sources to this campaign.
+                        </div>
+                        <ul v-else class="divide-y divide-gray-100">
+                            <li
+                                v-for="ch in campaign.channels"
+                                :key="ch.id"
+                                class="flex items-center justify-between px-5 py-3"
+                            >
+                                <div class="flex items-center gap-2 min-w-0">
+                                    <span
+                                        class="text-xs font-medium px-2 py-0.5 rounded-full"
+                                        :class="ch.is_offline ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'"
+                                    >
+                                        {{ ch.is_offline ? 'Offline' : 'Digital' }}
+                                    </span>
+                                    <span class="text-sm text-gray-800 truncate">
+                                        {{ ch.channel_name ?? allChannelTypeLabel(ch.channel_type) }}
+                                    </span>
+                                    <span v-if="ch.channel_name" class="text-xs text-gray-400">
+                                        ({{ allChannelTypeLabel(ch.channel_type) }})
+                                    </span>
+                                </div>
+                                <div class="flex items-center gap-2 shrink-0 ml-4">
+                                    <font-awesome-icon
+                                        v-if="channelRemoving === ch.id"
+                                        :icon="['fas', 'spinner']"
+                                        class="animate-spin text-gray-400 text-xs"
+                                    />
+                                    <template v-else-if="deleteConfirmChannelId === ch.id">
+                                        <button
+                                            type="button"
+                                            class="text-xs text-red-600 font-medium hover:text-red-800 transition-colors cursor-pointer"
+                                            @click="confirmRemoveChannel(ch.id)"
+                                        >
+                                            Confirm remove
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="text-xs text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+                                            @click="deleteConfirmChannelId = null"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </template>
+                                    <button
+                                        v-else
+                                        type="button"
+                                        class="text-gray-300 hover:text-red-500 transition-colors text-xs cursor-pointer"
+                                        title="Remove channel"
+                                        @click="deleteConfirmChannelId = ch.id"
+                                    >
+                                        <font-awesome-icon :icon="['fas', 'trash']" />
+                                    </button>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
                 </div>
 
                 <!-- ======================== DIGITAL TAB ==================== -->
@@ -251,10 +614,173 @@ async function setStatus(status: string) {
                 </div>
 
                 <!-- ======================== OFFLINE TAB ==================== -->
-                <div v-else-if="activeTab === 'offline'" class="flex flex-col items-center justify-center py-20 text-center">
-                    <font-awesome-icon :icon="['fas', 'store']" class="text-5xl text-gray-300 mb-4" />
-                    <h2 class="text-xl font-semibold text-gray-700 mb-2">Offline Channels</h2>
-                    <p class="text-sm text-gray-400 max-w-sm">Track offline channels. Coming in a future update. (Issue 03)</p>
+                <div v-else-if="activeTab === 'offline'" class="space-y-6">
+                    <!-- Empty state: no offline channels -->
+                    <div v-if="offlineChannels.length === 0" class="flex flex-col items-center justify-center py-20 text-center">
+                        <font-awesome-icon :icon="['fas', 'store']" class="text-5xl text-gray-300 mb-4" />
+                        <h2 class="text-lg font-semibold text-gray-700 mb-2">No Offline Channels</h2>
+                        <p class="text-sm text-gray-400 max-w-sm mb-4">
+                            Add offline channels (TV, Events, Print, etc.) in the campaign settings to start tracking spend and leads.
+                        </p>
+                        <button
+                            type="button"
+                            class="inline-flex items-center gap-2 px-4 py-2 bg-primary-blue-100 text-white text-sm font-medium rounded-lg hover:bg-primary-blue-200 transition-colors"
+                            @click="activeTab = 'summary'"
+                        >
+                            <font-awesome-icon :icon="['fas', 'arrow-left']" />
+                            Go to Summary to add channels
+                        </button>
+                    </div>
+
+                    <!-- Per-channel sections -->
+                    <template v-else>
+                        <div
+                            v-for="channel in offlineChannels"
+                            :key="channel.id"
+                            class="bg-white rounded-xl border border-gray-200 overflow-hidden"
+                        >
+                            <!-- Channel header -->
+                            <div class="flex items-center justify-between px-5 py-4 bg-gray-50 border-b border-gray-200">
+                                <div class="flex items-center gap-2">
+                                    <font-awesome-icon :icon="['fas', 'store']" class="text-orange-400 text-sm" />
+                                    <span class="text-sm font-semibold text-gray-800">
+                                        {{ channel.channel_name ?? channelTypeLabel(channel.channel_type) }}
+                                    </span>
+                                    <span class="text-xs text-gray-400 bg-gray-200 rounded-full px-2 py-0.5">
+                                        {{ channelTypeLabel(channel.channel_type) }}
+                                    </span>
+                                </div>
+                                <button
+                                    type="button"
+                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-blue-100 text-white text-xs font-medium rounded-lg hover:bg-primary-blue-200 transition-colors cursor-pointer"
+                                    @click="openAddEntryModal(channel)"
+                                >
+                                    <font-awesome-icon :icon="['fas', 'plus']" />
+                                    Add Entry
+                                </button>
+                            </div>
+
+                            <!-- Loading -->
+                            <div v-if="offlineEntriesLoading[channel.id]" class="px-5 py-8 text-center text-sm text-gray-400">
+                                <font-awesome-icon :icon="['fas', 'spinner']" class="animate-spin mr-2" />
+                                Loading entries...
+                            </div>
+
+                            <!-- Empty entries -->
+                            <div
+                                v-else-if="!offlineEntries[channel.id] || offlineEntries[channel.id].length === 0"
+                                class="px-5 py-8 text-center text-sm text-gray-400"
+                            >
+                                No entries yet — click "Add Entry" to record spend and leads for this channel.
+                            </div>
+
+                            <!-- Entries table -->
+                            <template v-else>
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-sm">
+                                        <thead>
+                                            <tr class="border-b border-gray-100">
+                                                <th class="text-left text-xs font-medium text-gray-400 px-5 py-2.5 uppercase tracking-wide">Date</th>
+                                                <th class="text-right text-xs font-medium text-gray-400 px-5 py-2.5 uppercase tracking-wide">Spend</th>
+                                                <th class="text-right text-xs font-medium text-gray-400 px-5 py-2.5 uppercase tracking-wide">Impressions</th>
+                                                <th class="text-right text-xs font-medium text-gray-400 px-5 py-2.5 uppercase tracking-wide">Leads</th>
+                                                <th class="text-right text-xs font-medium text-gray-400 px-5 py-2.5 uppercase tracking-wide">CPL</th>
+                                                <th class="text-right text-xs font-medium text-gray-400 px-5 py-2.5 uppercase tracking-wide">Pipeline</th>
+                                                <th class="px-5 py-2.5"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr
+                                                v-for="entry in offlineEntries[channel.id]"
+                                                :key="entry.id"
+                                                class="border-b border-gray-50 hover:bg-gray-50 transition-colors"
+                                            >
+                                                <td class="px-5 py-3 text-gray-700">{{ entry.entry_date.slice(0, 10) }}</td>
+                                                <td class="px-5 py-3 text-right text-gray-900 font-medium">{{ formatCurrency(entry.actual_spend) }}</td>
+                                                <td class="px-5 py-3 text-right text-gray-600">{{ formatNumber(entry.impressions_estimated) }}</td>
+                                                <td class="px-5 py-3 text-right text-gray-600">{{ formatNumber(entry.leads_generated) }}</td>
+                                                <td class="px-5 py-3 text-right text-gray-600">
+                                                    {{ formatCPL(Number(entry.actual_spend), Number(entry.leads_generated) || 0) }}
+                                                </td>
+                                                <td class="px-5 py-3 text-right text-gray-600">{{ formatCurrency(entry.pipeline_value) }}</td>
+                                                <td class="px-5 py-3 text-right">
+                                                    <div class="flex items-center justify-end gap-2">
+                                                        <button
+                                                            type="button"
+                                                            class="text-gray-400 hover:text-primary-blue-100 transition-colors text-xs cursor-pointer"
+                                                            :title="'Edit entry'"
+                                                            @click="openEditEntryModal(channel, entry)"
+                                                        >
+                                                            <font-awesome-icon :icon="['fas', 'pen']" />
+                                                        </button>
+                                                        <button
+                                                            v-if="deleteConfirmEntryId !== entry.id"
+                                                            type="button"
+                                                            class="text-gray-400 hover:text-red-500 transition-colors text-xs"
+                                                            :title="'Delete entry'"
+                                                            @click="deleteConfirmEntryId = entry.id"
+                                                        >
+                                                            <font-awesome-icon :icon="['fas', 'trash']" />
+                                                        </button>
+                                                        <template v-else>
+                                                            <button
+                                                                type="button"
+                                                                class="text-xs text-red-600 font-medium hover:text-red-800 transition-colors"
+                                                                @click="confirmDeleteEntry(entry.id, channel.id)"
+                                                            >
+                                                                Confirm
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                class="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                                                                @click="deleteConfirmEntryId = null"
+                                                            >
+                                                                Cancel
+                                                            </button>
+                                                        </template>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                        <!-- Totals row -->
+                                        <tfoot>
+                                            <tr class="bg-gray-50 border-t border-gray-200">
+                                                <td class="px-5 py-2.5 text-xs font-semibold text-gray-600 uppercase tracking-wide">Total</td>
+                                                <td class="px-5 py-2.5 text-right text-sm font-bold text-gray-900">
+                                                    {{ formatCurrency(channelEntryTotal(channel.id).spend) }}
+                                                </td>
+                                                <td class="px-5 py-2.5 text-right text-sm font-semibold text-gray-700">
+                                                    {{ formatNumber(channelEntryTotal(channel.id).impressions) }}
+                                                </td>
+                                                <td class="px-5 py-2.5 text-right text-sm font-semibold text-gray-700">
+                                                    {{ formatNumber(channelEntryTotal(channel.id).leads) }}
+                                                </td>
+                                                <td class="px-5 py-2.5 text-right text-sm font-semibold text-gray-700">
+                                                    {{ formatCPL(channelEntryTotal(channel.id).spend, channelEntryTotal(channel.id).leads) }}
+                                                </td>
+                                                <td class="px-5 py-2.5 text-right text-sm font-semibold text-gray-700">
+                                                    {{ formatCurrency(channelEntryTotal(channel.id).pipeline) }}
+                                                </td>
+                                                <td class="px-5 py-2.5"></td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+
+                    <!-- Entry modal -->
+                    <OfflineDataEntryModal
+                        v-if="showEntryModal && entryModalChannelId !== null"
+                        :channel-id="entryModalChannelId"
+                        :channel-name="entryModalChannelName"
+                        :campaign-start-date="campaign?.start_date ?? null"
+                        :campaign-end-date="campaign?.end_date ?? null"
+                        :edit-entry="entryModalEditEntry"
+                        @saved="onEntrySaved"
+                        @close="showEntryModal = false"
+                    />
                 </div>
 
                 <!-- ======================== ATTRIBUTION TAB ================ -->

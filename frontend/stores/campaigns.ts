@@ -5,6 +5,9 @@ import type {
     IUpdateCampaignPayload,
     IAddChannelPayload,
     ICampaignChannel,
+    IOfflineDataEntry,
+    IOfflineDataEntryPayload,
+    IOfflineCampaignSummary,
 } from '~/types/ICampaign';
 
 let campaignsInitialized = false;
@@ -223,6 +226,82 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
         return campaigns.value.filter((c) => c.project_id === projectId).length;
     }
 
+    // -------------------------------------------------------------------------
+    // Offline tracking
+    // -------------------------------------------------------------------------
+
+    const offlineSummaryCache = ref<Record<number, IOfflineCampaignSummary>>({});
+
+    async function retrieveOfflineSummary(campaignId: number): Promise<IOfflineCampaignSummary> {
+        const token = getAuthToken();
+        if (!token) throw new Error('Not authenticated');
+        const data = await $fetch(`${baseUrl()}/campaigns/${campaignId}/offline/summary`, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Authorization-Type': 'auth',
+            },
+        }) as IOfflineCampaignSummary;
+        offlineSummaryCache.value[campaignId] = data;
+        return data;
+    }
+
+    async function retrieveOfflineEntriesForChannel(channelId: number): Promise<IOfflineDataEntry[]> {
+        const token = getAuthToken();
+        if (!token) throw new Error('Not authenticated');
+        return await $fetch(`${baseUrl()}/campaigns/channels/${channelId}/offline`, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Authorization-Type': 'auth',
+            },
+        }) as IOfflineDataEntry[];
+    }
+
+    async function addOfflineEntry(channelId: number, payload: IOfflineDataEntryPayload): Promise<IOfflineDataEntry> {
+        const token = getAuthToken();
+        if (!token) throw new Error('Not authenticated');
+        return await $fetch(`${baseUrl()}/campaigns/channels/${channelId}/offline`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Authorization-Type': 'auth',
+            },
+            body: payload,
+        }) as IOfflineDataEntry;
+    }
+
+    async function updateOfflineEntry(entryId: number, payload: Partial<IOfflineDataEntryPayload>): Promise<IOfflineDataEntry> {
+        const token = getAuthToken();
+        if (!token) throw new Error('Not authenticated');
+        return await $fetch(`${baseUrl()}/campaigns/offline/${entryId}`, {
+            method: 'PUT',
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Authorization-Type': 'auth',
+            },
+            body: payload,
+        }) as IOfflineDataEntry;
+    }
+
+    async function deleteOfflineEntry(entryId: number): Promise<void> {
+        const token = getAuthToken();
+        if (!token) return;
+        await $fetch(`${baseUrl()}/campaigns/offline/${entryId}`, {
+            method: 'DELETE',
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Authorization-Type': 'auth',
+            },
+        });
+    }
+
+    function clearOfflineSummaryCache(campaignId?: number) {
+        if (campaignId !== undefined) {
+            delete offlineSummaryCache.value[campaignId];
+        } else {
+            offlineSummaryCache.value = {};
+        }
+    }
+
     // Hydrate from localStorage on client (run once)
     if (import.meta.client && !campaignsInitialized && localStorage.getItem('campaigns')) {
         campaigns.value = JSON.parse(localStorage.getItem('campaigns') || '[]');
@@ -247,5 +326,12 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
         addChannel,
         removeChannel,
         projectCampaignsCount,
+        offlineSummaryCache,
+        retrieveOfflineSummary,
+        retrieveOfflineEntriesForChannel,
+        addOfflineEntry,
+        updateOfflineEntry,
+        deleteOfflineEntry,
+        clearOfflineSummaryCache,
     };
 });
