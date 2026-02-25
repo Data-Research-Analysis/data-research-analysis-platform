@@ -416,6 +416,14 @@ export class DataSourceProcessor {
                 if (connection.connection_string) {
                     dataSource.connection_string = connection.connection_string;
                 }
+
+                // Set classification: auto-classify advertising platform sources
+                const autoClassifiedTypes = ['google_ads', 'meta_ads', 'linkedin_ads', 'google_analytics', 'google_ad_manager', 'tiktok_ads'];
+                if (autoClassifiedTypes.includes(connection.data_source_type as string)) {
+                    dataSource.classification = 'marketing_campaign_data';
+                } else {
+                    dataSource.classification = connection.classification || null;
+                }
                 
                 const savedDataSource = await manager.save(dataSource);
 
@@ -501,6 +509,34 @@ export class DataSourceProcessor {
 
             await manager.save(dataSource);
             return resolve(true);
+        });
+    }
+
+    /**
+     * Update only the classification field of a data source.
+     * Can be called for any source type.
+     */
+    public async updateDataSourceClassification(dataSourceId: number, classification: string | null, tokenDetails: ITokenDetails): Promise<boolean> {
+        return new Promise<boolean>(async (resolve, reject) => {
+            try {
+                const { user_id } = tokenDetails;
+                const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+                if (!driver) return resolve(false);
+                const manager = (await driver.getConcreteDriver()).manager;
+                if (!manager) return resolve(false);
+                const user = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
+                if (!user) return resolve(false);
+                const dataSource = await manager.findOne(DRADataSource, {
+                    where: { id: dataSourceId }
+                });
+                if (!dataSource) return resolve(false);
+                dataSource.classification = classification;
+                await manager.save(dataSource);
+                return resolve(true);
+            } catch (error) {
+                console.error('[DataSourceProcessor] updateDataSourceClassification error:', error);
+                return resolve(false);
+            }
         });
     }
 
@@ -2450,7 +2486,7 @@ export class DataSourceProcessor {
         });
     }
 
-    public async addExcelDataSource(dataSourceName: string, fileId: string, data: string, tokenDetails: ITokenDetails, projectId: number, dataSourceId: number = null, sheetInfo?: any): Promise<IExcelDataSourceReturn> {
+    public async addExcelDataSource(dataSourceName: string, fileId: string, data: string, tokenDetails: ITokenDetails, projectId: number, dataSourceId: number = null, sheetInfo?: any, classification?: string | null): Promise<IExcelDataSourceReturn> {
         return new Promise<IExcelDataSourceReturn>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -2499,6 +2535,7 @@ export class DataSourceProcessor {
                     dataSource.project = project;
                     dataSource.users_platform = user;
                     dataSource.created_at = new Date();
+                    dataSource.classification = classification || null;
                     dataSource = await manager.save(dataSource);
                 } else {
                     dataSource = await manager.findOne(DRADataSource, { where: { id: dataSourceId, project: project, users_platform: user } });

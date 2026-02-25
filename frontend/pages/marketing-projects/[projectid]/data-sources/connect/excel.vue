@@ -17,6 +17,8 @@ const state = reactive({
     selected_file: null,
     loading: false,
     upload_id: 0,
+    showClassificationModal: false,
+    selectedClassification: null,
 });
 
 // Computed properties for button state management
@@ -157,7 +159,7 @@ function removeFile(fileId) {
         state.show_table_dialog = false;
     }
 }
-async function createDataSource() {
+async function createDataSource(classification = null) {
     // Prevent execution if button should be disabled
     if (buttonDisabled.value) {
         return;
@@ -233,6 +235,7 @@ async function createDataSource() {
                 data_source_name: `${state.data_source_name}`.replace(/\s/g,'_').toLowerCase(),
                 project_id: route.params.projectid,
                 data_source_id: dataSourceId ? dataSourceId : null,
+                classification: dataSourceId ? null : (classification || state.selectedClassification),
                 sheet_info: {
                     sheet_id: sheet.id,
                     sheet_name: sheet.name,
@@ -259,6 +262,11 @@ async function createDataSource() {
     });
     
     router.push(`/marketing-projects/${route.params.projectid}`);
+}
+
+function handleCreateClick() {
+    if (buttonDisabled.value) return;
+    state.showClassificationModal = true;
 }
 
 function goBack() {
@@ -803,9 +811,18 @@ onMounted(async () => {
                      'bg-primary-blue-100 hover:bg-primary-blue-200 cursor-pointer text-white': !buttonDisabled,
                      'bg-gray-300 cursor-not-allowed text-gray-500': buttonDisabled
                  }"
-                 @click="createDataSource">
+                 @click="handleCreateClick">
                 Create Data Source
             </div>
         </div>
     </div>
+
+    <data-source-classification-modal
+        v-if="state.showClassificationModal"
+        v-model="state.showClassificationModal"
+        :loading="state.loading"
+        confirm-label="Create Data Source"
+        @confirm="(c) => { state.selectedClassification = c; createDataSource(c); }"
+        @cancel="state.showClassificationModal = false"
+    />
 </template>

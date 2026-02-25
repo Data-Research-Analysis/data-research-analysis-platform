@@ -151,6 +151,14 @@ export class DRADataSource {
     @Column({ type: 'jsonb', nullable: true })
     sync_config!: Record<string, any> | null; // Sync configuration: schedule, batch size, incremental settings
 
+    /**
+     * User-selected data classification category.
+     * Auto-set to 'marketing_campaign_data' for advertising platform sources.
+     * Values: 'marketing_campaign_data' | 'crm_sales' | 'budget_finance' | 'offline_marketing' | 'brand_research' | 'general_analytics'
+     */
+    @Column({ type: 'varchar', length: 50, nullable: true })
+    classification!: string | null;
+
     @ManyToOne(() => DRAUsersPlatform, (usersPlatform) => usersPlatform.data_sources)
     @JoinColumn({ name: 'users_platform_id', referencedColumnName: 'id' })
     users_platform!: Relation<DRAUsersPlatform>

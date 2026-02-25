@@ -152,9 +152,10 @@ router.post('/add-data-source', async (req: Request, res: Response, next: any) =
     body('username').optional().trim().escape(),
     body('password').optional().trim().escape(), 
     body('project_id').notEmpty().trim().escape(),
+    body('classification').optional().trim().escape(),
 ]), requireProjectPermission(EAction.CREATE, 'project_id'),
 async (req: Request, res: Response) => {
-    let { data_source_type, connection_string, host, port, schema, database_name, username, password, project_id } = matchedData(req);
+    let { data_source_type, connection_string, host, port, schema, database_name, username, password, project_id, classification } = matchedData(req);
     
     // For MongoDB, require connection_string
     if (data_source_type === 'mongodb') {
@@ -186,6 +187,7 @@ async (req: Request, res: Response) => {
         database: database_name || '',
         username: username || '',
         password: password || '',
+        classification: classification || undefined,
     };
     try {
         const response = await DataSourceProcessor.getInstance().connectToDataSource(connection);
@@ -252,6 +254,35 @@ async (req: Request, res: Response) => {
         res.status(200).send({message: 'The data source has been deleted.'});        
     } else {
         res.status(400).send({message: 'The data source could not be deleted.'});
+    }
+});
+
+/**
+ * PATCH /data-source/:data_source_id/classification
+ * Update only the classification field of a data source. Works for all source types.
+ */
+router.patch('/:data_source_id/classification', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, validate([
+    param('data_source_id').notEmpty().trim().escape().toInt(),
+    body('classification').optional({ nullable: true }).trim().escape(),
+]), requireDataSourcePermission(EAction.UPDATE, 'data_source_id'),
+async (req: Request, res: Response) => {
+    const { data_source_id, classification } = matchedData(req);
+    try {
+        const result = await DataSourceProcessor.getInstance().updateDataSourceClassification(
+            data_source_id,
+            classification || null,
+            req.body.tokenDetails
+        );
+        if (result) {
+            res.status(200).send({ message: 'Classification updated successfully.' });
+        } else {
+            res.status(400).send({ message: 'Could not update classification.' });
+        }
+    } catch (error) {
+        console.error('Error updating classification:', error);
+        res.status(500).send({ message: 'An error occurred while updating classification.' });
     }
 });
 
@@ -389,10 +420,11 @@ router.post('/add-excel-data-source', expensiveOperationsLimiter, async (req: Re
     body('data').notEmpty(), 
     body('project_id').notEmpty().trim().escape(), 
     body('data_source_id').optional().trim().escape(),
-    body('sheet_info').optional()
+    body('sheet_info').optional(),
+    body('classification').optional().trim().escape(),
 ]), requireProjectPermission(EAction.CREATE, 'project_id'),
 async (req: Request, res: Response) => {
-    const { data_source_name, file_id, data, project_id, data_source_id, sheet_info } = matchedData(req);
+    const { data_source_name, file_id, data, project_id, data_source_id, sheet_info, classification } = matchedData(req);
     if (data?.columns && data.columns.length > 0) {
         console.log('Sample columns from request:', data.columns.slice(0, 2));
     }
@@ -415,7 +447,8 @@ async (req: Request, res: Response) => {
             req.body.tokenDetails, 
             project_id, 
             data_source_id, 
-            sheet_info
+            sheet_info,
+            classification || null
         );
         res.status(200).send({message: 'Excel data source created successfully.', result});
     } catch (error) {

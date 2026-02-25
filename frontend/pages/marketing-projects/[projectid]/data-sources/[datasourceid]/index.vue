@@ -75,6 +75,9 @@ const state = reactive({
     sync_enabled: true,
     sync_schedule: 'manual',
     sync_schedule_time: '02:00',
+    // Classification
+    showClassifyModal: false,
+    classifyLoading: false,
 });
 
 // Get real-time sync status from store
@@ -562,6 +565,31 @@ function goToDataModels() {
     router.push(`/marketing-projects/${projectId}/data-sources/${dataSourceId}/data-models`);
 }
 
+// Update classification for this data source
+async function updateClassification(classification: string) {
+    state.classifyLoading = true;
+    const config = useRuntimeConfig();
+    const token = getAuthToken();
+    try {
+        await $fetch(`${config.public.apiBase}/data-source/${dataSourceId}/classification`, {
+            method: 'PATCH',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Authorization-Type': 'auth',
+            },
+            body: { classification },
+        });
+        await dataSourceStore.retrieveDataSources();
+        await loadDataSource();
+        state.showClassifyModal = false;
+        await $swal.fire({ title: 'Updated!', text: 'Classification saved.', icon: 'success', timer: 2000, showConfirmButton: false });
+    } catch (error) {
+        await $swal.fire({ title: 'Error', text: 'Failed to update classification.', icon: 'error' });
+    } finally {
+        state.classifyLoading = false;
+    }
+}
+
 // Load data source
 async function loadDataSource() {
     try {
@@ -625,6 +653,9 @@ onMounted(async () => {
                     <p class="text-gray-600 capitalize mt-1">
                         {{ state.dataSource.data_type.replace('_', ' ') }}
                     </p>
+                    <div class="mt-2">
+                        <classification-badge :classification="state.dataSource.classification" />
+                    </div>
                 </div>
             </div>
             <div class="flex items-center gap-3">
@@ -726,9 +757,29 @@ onMounted(async () => {
                 :max-rows="20" />
         </div>
 
+        <!-- Classification Section -->
+        <div class="bg-white border border-gray-200 rounded-lg p-6 mt-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-semibold text-gray-900">Data Classification</h2>
+                <button
+                    v-if="permissions.canUpdate.value && !state.showClassifyModal"
+                    @click="state.showClassifyModal = true"
+                    class="px-4 py-2 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 transition-colors duration-200 flex items-center gap-2 cursor-pointer">
+                    <font-awesome-icon :icon="['fas', 'tag']" />
+                    {{ state.dataSource.classification ? 'Change Classification' : 'Classify' }}
+                </button>
+            </div>
+            <div class="flex items-center gap-3">
+                <classification-badge :classification="state.dataSource.classification" />
+                <p v-if="!state.dataSource.classification" class="text-sm text-gray-500">
+                    No classification set. Classifying this source improves AI suggestions and navigation.
+                </p>
+            </div>
+        </div>
+
         <!-- Connection Settings (for database sources) -->
         <div v-if="['postgresql', 'mysql', 'mariadb'].includes(state.dataSource.data_type)"
-            class="bg-white border border-gray-200 rounded-lg p-6">
+            class="bg-white border border-gray-200 rounded-lg p-6 mt-6">
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-xl font-semibold text-gray-900">Connection Settings</h2>
                 <button
@@ -971,4 +1022,14 @@ onMounted(async () => {
             </div>
         </template>
     </overlay-dialog>
+
+    <!-- Classification modal -->
+    <data-source-classification-modal
+        v-if="state.showClassifyModal"
+        v-model="state.showClassifyModal"
+        confirm-label="Save Classification"
+        :loading="state.classifyLoading"
+        @confirm="updateClassification"
+        @cancel="state.showClassifyModal = false"
+    />
 </template>
