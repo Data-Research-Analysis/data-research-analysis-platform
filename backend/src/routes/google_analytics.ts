@@ -1,13 +1,16 @@
 import express, { Request, Response } from 'express';
 import { validateJWT } from '../middleware/authenticate.js';
 import { validate } from '../middleware/validator.js';
-import { body, param, matchedData } from 'express-validator';
+import { body, param, query, matchedData } from 'express-validator';
 import { GoogleAnalyticsService } from '../services/GoogleAnalyticsService.js';
 import { GoogleAnalyticsDriver } from '../drivers/GoogleAnalyticsDriver.js';
 import { DataSourceProcessor } from '../processors/DataSourceProcessor.js';
 import { IAPIConnectionDetails } from '../types/IAPIConnectionDetails.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { expensiveOperationsLimiter, oauthCallbackLimiter } from '../middleware/rateLimit.js';
+import { AppDataSource } from '../datasources/PostgresDS.js';
+import { DRADataSource } from '../models/DRADataSource.js';
+import { TableMetadataService } from '../services/TableMetadataService.js';
 
 const router = express.Router();
 
@@ -303,6 +306,68 @@ router.get('/sync-status/:dataSourceId',
             res.status(500).send({
                 message: 'Failed to retrieve sync status'
             });
+        }
+    }
+);
+
+/**
+ * Get total web sessions for a project from GA4 traffic_overview data
+ * GET /google-analytics/sessions-summary/:projectId
+ */
+router.get('/sessions-summary/:projectId',
+    validateJWT,
+    validate([
+        param('projectId').notEmpty().isInt({ min: 1 }).toInt(),
+        query('startDate').optional().isDate(),
+        query('endDate').optional().isDate(),
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const { projectId } = matchedData(req);
+            const startDate = req.query.startDate as string | undefined;
+            const endDate = req.query.endDate as string | undefined;
+
+            const manager = AppDataSource.manager;
+            const tmService = TableMetadataService.getInstance();
+
+            // Find all GA4 data sources for this project
+            const dataSources = await manager.find(DRADataSource, {
+                where: {
+                    project_id: projectId,
+                    data_type: EDataSourceType.GOOGLE_ANALYTICS as any,
+                } as any,
+            });
+
+            if (!dataSources.length) {
+                return res.status(200).json({ success: true, data: null });
+            }
+
+            let totalSessions = 0;
+
+            for (const ds of dataSources) {
+                const physicalName = await tmService.getPhysicalTableName(manager, ds.id, 'traffic_overview');
+                if (!physicalName) continue;
+
+                const fullTableName = `dra_google_analytics.${physicalName}`;
+                const params: any[] = [];
+                let whereClause = '';
+
+                if (startDate && endDate) {
+                    whereClause = 'WHERE date >= $1 AND date <= $2';
+                    params.push(startDate, endDate);
+                }
+
+                const result = await manager.query(
+                    `SELECT COALESCE(SUM(sessions), 0) AS total_sessions FROM ${fullTableName} ${whereClause}`,
+                    params
+                );
+                totalSessions += parseInt(result[0]?.total_sessions ?? '0', 10);
+            }
+
+            res.status(200).json({ success: true, data: { totalSessions } });
+        } catch (error) {
+            console.error('[GA] Error getting sessions summary:', error);
+            res.status(500).json({ success: false, error: 'Failed to retrieve sessions summary' });
         }
     }
 );

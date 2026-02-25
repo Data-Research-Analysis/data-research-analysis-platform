@@ -39,12 +39,13 @@ const isInInvitationAccept = computed(() => {
 
 <template>
     <div class="relative flex flex-col min-h-screen data-research-analysis">
-        <header-nav />
+        <header-nav class="print:hidden" />
         <breadcrumbs
             v-if="state.authenticated && !isInPublicDashboard && !isInOauthCallback && !isInInvitationAccept"
+            class="print:hidden"
         />
         <!-- Mobile top bar: hamburger to open the sidebar drawer -->
-        <div class="md:hidden flex items-center gap-3 px-4 py-2 bg-primary-blue-300 border-b border-primary-blue-400">
+        <div class="md:hidden print:hidden flex items-center gap-3 px-4 py-2 bg-primary-blue-300 border-b border-primary-blue-400">
             <button
                 @click="mobileNavOpen = true"
                 type="button"
@@ -55,13 +56,13 @@ const isInInvitationAccept = computed(() => {
             </button>
             <span class="text-white text-sm font-medium">Navigation</span>
         </div>
-        <div class="flex flex-grow flex-row">
-            <marketing-project-sidebar />
-            <div class="flex-1 min-w-0">
+        <div class="flex flex-grow flex-row print:block">
+            <marketing-project-sidebar class="print:hidden" />
+            <div class="flex-1 min-w-0 print:w-full">
                 <slot />
             </div>
         </div>
-        <footer-nav />
-        <cookie-disclaimer-banner />
+        <footer-nav class="print:hidden" />
+        <cookie-disclaimer-banner class="print:hidden" />
     </div>
 </template>

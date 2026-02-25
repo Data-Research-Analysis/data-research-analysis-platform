@@ -43,6 +43,8 @@ export default defineNuxtConfig({
   routeRules: {
     '/projects': { redirect: '/marketing-projects' },
     '/projects/**': { redirect: '/marketing-projects/**' },
+    '/attribution': { redirect: '/marketing-projects' },
+    '/attribution/**': { redirect: '/marketing-projects' },
   },
   components: [
     {

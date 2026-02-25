@@ -323,32 +323,79 @@ router.post('/attribution/roi', validateJWT, async (req: Request, res: Response)
 });
 
 /**
- * Compare attribution models for a channel
+ * Compare attribution models across all channels (or a single channel when channelId is supplied)
  * POST /attribution/compare-models
  */
 router.post('/attribution/compare-models', validateJWT, async (req: Request, res: Response): Promise<void> => {
     try {
-        const { projectId, channelId, startDate, endDate } = req.body;
+        const { projectId, channelId, startDate, endDate, campaign_id } = req.body;
 
-        if (!projectId || !channelId || !startDate || !endDate) {
+        if (!projectId || !startDate || !endDate) {
             res.status(400).json({
                 success: false,
-                error: 'Missing required fields: projectId, channelId, startDate, endDate'
+                error: 'Missing required fields: projectId, startDate, endDate'
             });
             return;
         }
 
-        const comparison = await attributionProcessor.compareModels(
-            projectId,
-            channelId,
-            new Date(startDate),
-            new Date(endDate)
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+
+        if (channelId) {
+            // ── Single-channel comparison (legacy usage) ──────────────────────
+            const comparison = await attributionProcessor.compareModels(
+                Number(projectId),
+                Number(channelId),
+                start,
+                end
+            );
+            res.status(200).json({ success: true, data: comparison });
+            return;
+        }
+
+        // ── All-channels comparison → IModelComparisonResult[] ───────────────
+        const channels = await attributionProcessor.getProjectChannels(Number(projectId));
+
+        if (!channels.length) {
+            res.status(200).json({ success: true, data: [] });
+            return;
+        }
+
+        // Fetch each channel's per-model breakdown in parallel
+        const rawResults = await Promise.all(
+            channels.map(async (ch) => {
+                const comparison = await attributionProcessor.compareModels(
+                    Number(projectId),
+                    ch.id,
+                    start,
+                    end
+                );
+                return { channel: ch, comparison };
+            })
         );
 
-        res.status(200).json({
-            success: true,
-            data: comparison
-        });
+        // Compute per-model totals so we can express attribution as a % share
+        const modelTotals: Record<string, number> = {};
+        for (const { comparison } of rawResults) {
+            for (const [model, data] of Object.entries(comparison)) {
+                modelTotals[model] = (modelTotals[model] ?? 0) + (data as any).conversions;
+            }
+        }
+
+        const data = rawResults.map(({ channel, comparison }) => ({
+            channelId: channel.id,
+            channelName: channel.name,
+            models: Object.entries(comparison).map(([model, d]) => ({
+                model,
+                attributionCredit: modelTotals[model]
+                    ? ((d as any).conversions / modelTotals[model]) * 100
+                    : 0,
+                conversions: (d as any).conversions,
+                revenue: (d as any).revenue,
+            })),
+        }));
+
+        res.status(200).json({ success: true, data });
 
     } catch (error) {
         console.error('[AttributionRoutes] Error comparing models:', error);

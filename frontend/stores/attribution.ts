@@ -151,6 +151,17 @@ export interface IAttributionChannel {
 
 export type AttributionModel = 'first_touch' | 'last_touch' | 'linear' | 'time_decay' | 'u_shaped';
 
+export interface IModelComparisonResult {
+    channelId: number;
+    channelName: string;
+    models: {
+        model: AttributionModel;
+        attributionCredit: number;
+        conversions: number;
+        revenue: number;
+    }[];
+}
+
 export const useAttributionStore = defineStore('attributionDRA', () => {
     const reports = ref<IAttributionReport[]>([])
     const selectedReport = ref<IAttributionReport>()
@@ -161,6 +172,8 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
     const customerJourneys = ref<ICustomerJourney[]>([])
     const channels = ref<IAttributionChannel[]>([])
     const conversionPaths = ref<IConversionPath[]>([])
+    const modelComparison = ref<IModelComparisonResult[]>([])
+    const ga4Sessions = ref<number | null>(null)
     
     // Loading states
     const loading = ref({
@@ -169,7 +182,9 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
         roi: false,
         funnels: false,
         journeys: false,
-        channels: false
+        channels: false,
+        modelComparison: false,
+        ga4Sessions: false,
     })
 
     // ===== Reports Management =====
@@ -323,7 +338,8 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
         projectId: number,
         attributionModel: AttributionModel,
         startDate: string,
-        endDate: string
+        endDate: string,
+        campaignId?: number
     ) {
         loading.value.channelPerformance = true;
         try {
@@ -347,7 +363,8 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
                         projectId,
                         attributionModel,
                         startDate,
-                        endDate
+                        endDate,
+                        ...(campaignId ? { campaign_id: campaignId } : {})
                     })
                 }
             );
@@ -377,7 +394,8 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
         attributionModel: AttributionModel,
         startDate: string,
         endDate: string,
-        channelSpend?: Record<number, number>
+        channelSpend?: Record<number, number>,
+        campaignId?: number
     ) {
         loading.value.roi = true;
         try {
@@ -402,7 +420,8 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
                         attributionModel,
                         startDate,
                         endDate,
-                        channelSpend
+                        channelSpend,
+                        ...(campaignId ? { campaign_id: campaignId } : {})
                     })
                 }
             );
@@ -439,7 +458,8 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
         funnelName: string,
         funnelSteps: IFunnelStep[],
         dateRangeStart: string,
-        dateRangeEnd: string
+        dateRangeEnd: string,
+        campaignId?: number
     ): Promise<{ success: boolean; data?: IConversionFunnel; error?: string }> {
         loading.value.funnels = true;
         try {
@@ -463,7 +483,8 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
                         funnelName,
                         funnelSteps,
                         dateRangeStart,
-                        dateRangeEnd
+                        dateRangeEnd,
+                        ...(campaignId ? { campaign_id: campaignId } : {})
                     })
                 }
             );
@@ -496,7 +517,8 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
         dateRangeStart: string,
         dateRangeEnd: string,
         userIdentifier?: string,
-        limit?: number
+        limit?: number,
+        campaignId?: number
     ): Promise<{ success: boolean; totalJourneys: number; error?: string }> {
         loading.value.journeys = true;
         try {
@@ -526,7 +548,8 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
                         dateRangeStart,
                         dateRangeEnd,
                         userIdentifier,
-                        limit
+                        limit,
+                        ...(campaignId ? { campaign_id: campaignId } : {})
                     })
                 }
             );
@@ -542,6 +565,57 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
             return { success: false, totalJourneys: 0, error: error instanceof Error ? error.message : 'Unknown error' };
         } finally {
             loading.value.journeys = false;
+        }
+    }
+
+    // ===== Model Comparison =====
+
+    function setModelComparison(data: IModelComparisonResult[]) {
+        modelComparison.value = data;
+    }
+
+    async function compareModels(
+        projectId: number,
+        startDate: string,
+        endDate: string,
+        campaignId?: number
+    ): Promise<{ success: boolean; error?: string }> {
+        loading.value.modelComparison = true;
+        try {
+            const token = getAuthToken();
+            if (!token) {
+                modelComparison.value = [];
+                return { success: false, error: 'Not authenticated' };
+            }
+            const config = useRuntimeConfig();
+            const result = await $fetch<{ success: boolean; data?: IModelComparisonResult[]; error?: string }>(
+                `${config.public.apiBase}/attribution/compare-models`,
+                {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Authorization-Type': 'auth',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        projectId,
+                        startDate,
+                        endDate,
+                        ...(campaignId ? { campaign_id: campaignId } : {})
+                    })
+                }
+            );
+            if (result.success && result.data) {
+                setModelComparison(result.data);
+            }
+            return { success: result.success, error: result.error };
+        } catch (error) {
+            console.error('Error comparing attribution models:', error);
+            modelComparison.value = [];
+            return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+        } finally {
+            loading.value.modelComparison = false;
         }
     }
 
@@ -707,6 +781,7 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
         customerJourneys.value = [];
         channels.value = [];
         conversionPaths.value = [];
+        modelComparison.value = [];
         
         if (import.meta.client) {
             localStorage.removeItem('attributionReports');
@@ -721,6 +796,34 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
         }
     }
 
+    // ===== GA4 Web Sessions =====
+
+    async function retrieveGA4Sessions(
+        projectId: number,
+        startDate: string,
+        endDate: string
+    ): Promise<void> {
+        loading.value.ga4Sessions = true;
+        try {
+            const config = useRuntimeConfig();
+            const token = getAuthToken();
+            const result = await $fetch<{ success: boolean; data: { totalSessions: number } | null }>(
+                `${config.public.apiBase}/google-analytics/sessions-summary/${projectId}?startDate=${startDate}&endDate=${endDate}`,
+                {
+                    credentials: 'include',
+                    headers: token
+                        ? { 'Authorization': `Bearer ${token}`, 'Authorization-Type': 'auth' }
+                        : {},
+                }
+            );
+            ga4Sessions.value = result.success && result.data ? result.data.totalSessions : null;
+        } catch {
+            ga4Sessions.value = null;
+        } finally {
+            loading.value.ga4Sessions = false;
+        }
+    }
+
     return {
         // State
         reports,
@@ -732,6 +835,8 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
         customerJourneys,
         channels,
         conversionPaths,
+        modelComparison,
+        ga4Sessions,
         loading,
         
         // Reports
@@ -771,6 +876,15 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
         // Event Tracking
         trackEvent,
         
+        // Model Comparison
+        setModelComparison,
+        compareModels,
+        modelComparison,
+
+        // GA4 Sessions
+        ga4Sessions,
+        retrieveGA4Sessions,
+
         // Clear
         clearReports,
         clearAll
