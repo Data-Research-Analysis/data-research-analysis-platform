@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { useProjectsStore } from '@/stores/projects';
+import { useCampaignsStore } from '@/stores/campaigns';
 
 const route = useRoute();
 const projectsStore = useProjectsStore();
+const campaignsStore = useCampaignsStore();
 
 // Mobile drawer state injected from the layout
 const mobileNavOpen = inject<Ref<boolean>>('mobileNavOpen', ref(false));
@@ -102,6 +104,10 @@ function baseUrl(suffix = '') {
 
 const isOverviewActive = computed(() => isExactActive(baseUrl()));
 const isCampaignsActive = computed(() => isPrefixActive(baseUrl('/campaigns')));
+
+const campaignsCount = computed(() =>
+    projectId.value ? campaignsStore.projectCampaignsCount(projectId.value) : 0,
+);
 const isMarketingHubActive = computed(() => isPrefixActive(baseUrl('/marketing')));
 const isPerformanceActive = computed(() => isExactActive(baseUrl('/marketing')));
 const isAttributionActive = computed(() => isPrefixActive(baseUrl('/marketing/attribution')));
@@ -216,6 +222,10 @@ function tip(label: string) {
                         <span class="flex items-center gap-3">
                             <font-awesome-icon :icon="['fas', 'bullhorn']" class="w-4 h-4 shrink-0" />
                             Campaigns
+                            <span
+                                v-if="campaignsCount > 0"
+                                class="ml-auto inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full bg-primary-blue-400 text-white text-xs font-semibold"
+                            >{{ campaignsCount }}</span>
                         </span>
                         <font-awesome-icon
                             :icon="['fas', 'chevron-down']"
