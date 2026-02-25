@@ -99,7 +99,7 @@ function closeDrawer() {
                     <NuxtLink to="/admin">Admin</NuxtLink>
                 </div>
                 <div class="text-xl font-bold mt-2 hover:text-gray-300 cursor-pointer" @click="closeDrawer">
-                    <NuxtLink to="/projects">Projects</NuxtLink>
+                    <NuxtLink to="/marketing-projects">Marketing Projects</NuxtLink>
                 </div>
                 <div class="w-3/4 h-1 bg-white m-auto mt-5"></div>
                 <div class="flex flex-row mt-5 items-center">

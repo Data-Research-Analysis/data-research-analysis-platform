@@ -6360,8 +6360,8 @@ onBeforeUnmount(() => {
             </div>
         </div>
         
-        <div class="flex flex-row justify-between items-center mb-5">
-            <div class="font-bold text-2xl">
+        <div class="flex flex-row flex-wrap justify-between items-center gap-2 mb-5">
+            <div class="font-bold text-xl md:text-2xl">
                 Create A Data Model from the Connected Data Source(s)
             </div>
             <button v-if="(props.dataSource && props.dataSource.id) || (props.isCrossSource && props.projectId)" @click="openAIDataModelerDebounced"
@@ -6376,7 +6376,7 @@ onBeforeUnmount(() => {
                 Build with AI
             </button>
         </div>
-        <div class="text-md mb-10">
+        <div class="text-sm md:text-base mb-4 md:mb-10">
             You can create a new data model from the tables given below by dragging into the empty block shown in the
             data model section to the right.
         </div>
@@ -6497,8 +6497,8 @@ onBeforeUnmount(() => {
             </div>
         </div>
 
-        <div v-if="!isMongoDB" class="flex flex-row m-10">
-            <div class="w-1/2 flex flex-col pr-5 mr-5 border-r-2 border-primary-blue-100">
+        <div v-if="!isMongoDB" class="flex flex-col md:flex-row mx-2 my-4 md:m-10">
+            <div class="w-full md:w-1/2 flex flex-col md:pr-5 md:mr-5 border-b-2 md:border-b-0 md:border-r-2 border-primary-blue-100 pb-5 md:pb-0">
                 <!-- Table Alias Manager -->
                 <div v-if="state.viewMode === 'advanced'" class="mb-6 p-4 border-2 border-blue-200 bg-blue-50 rounded-lg">
                     <h3 class="font-bold mb-3 flex items-center text-blue-800">
@@ -6861,8 +6861,15 @@ onBeforeUnmount(() => {
                             </span>
                         </div>
                         
-                        <!-- Collapsible columns section with smooth transition -->
-                        <Transition name="collapse">
+                        <!-- Collapsible columns section -->
+                        <Transition
+                            enter-active-class="transition-all duration-300 ease-out"
+                            leave-active-class="transition-all duration-200 ease-in"
+                            enter-from-class="opacity-0 -translate-y-2"
+                            enter-to-class="opacity-100 translate-y-0"
+                            leave-from-class="opacity-100 translate-y-0"
+                            leave-to-class="opacity-0 -translate-y-2"
+                        >
                             <div v-show="!isTableCollapsed(`${tableOrAlias.schema}.${tableOrAlias.table_name}.${tableOrAlias.table_alias || 'base'}`)">
                                 <draggable :list="(tableOrAlias && tableOrAlias.columns) ? tableOrAlias.columns : []" :group="{
                                     name: 'tables',
@@ -6926,7 +6933,7 @@ onBeforeUnmount(() => {
                     </div>
                 </div>
             </div>
-            <div class="w-1/2 flex h-full flex-col">
+            <div class="w-full md:w-1/2 flex h-full flex-col">
                 <h2 class="font-bold text-center mb-5">Data Model</h2>
                 <div class="w-full border border-primary-blue-100 border-solid draggable rounded-lg" id="data-model-container">
                     <div class="flex flex-col p-5">
@@ -7187,7 +7194,7 @@ onBeforeUnmount(() => {
                                         <h3 class="font-bold mb-2">Where</h3>
                                         <div class="flex flex-col bg-gray-100 p-5 rounded-lg">
                                             <div v-for="(clause, index) in state.data_table.query_options.where"
-                                                class="flex flex-row justify-between">
+                                                class="flex flex-col sm:flex-row flex-wrap gap-x-2 mb-3 last:mb-0">
                                                 <div v-if="index > 0" class="flex flex-col w-full mr-2">
                                                     <h5 class="font-bold mb-2">Condition</h5>
                                                     <select :disabled="readOnly"
@@ -7247,7 +7254,7 @@ onBeforeUnmount(() => {
                                                     </span>
                                                 </div>
                                                 <div :class="[
-                                                        'h-10 flex items-center self-center mr-2 p-5 font-bold mt-8 rounded-lg',
+                                                        'h-10 flex items-center self-center mr-2 p-5 font-bold sm:mt-8 rounded-lg',
                                                         readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-red-500 hover:bg-red-300 cursor-pointer text-white'
                                                     ]"
                                                     @click="!readOnly && removeQueryOption('WHERE', index)">
@@ -7255,7 +7262,7 @@ onBeforeUnmount(() => {
                                                 </div>
                                                 <div v-if="index === state.data_table.query_options.where.length - 1"
                                                     :class="[
-                                                        'h-10 flex items-center self-center mr-2 p-5 font-bold mt-8 rounded-lg',
+                                                        'h-10 flex items-center self-center mr-2 p-5 font-bold sm:mt-8 rounded-lg',
                                                         readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-300 cursor-pointer text-white'
                                                     ]"
                                                     @click="!readOnly && addQueryOption('WHERE')">
@@ -7340,8 +7347,8 @@ onBeforeUnmount(() => {
                                             <div
                                                 v-for="(clause, index) in state.data_table.query_options.group_by.aggregate_functions">
                                                 <div class="flex flex-col">
-                                                    <div class="flex flex-row justify-between">
-                                                        <div class="flex flex-col w-1/3 mr-2">
+                                                    <div class="flex flex-col sm:flex-row flex-wrap gap-x-2">
+                                                        <div class="flex flex-col w-full sm:w-1/3 mr-2">
                                                             <h5 class="font-bold mb-2">Aggregate Function</h5>
                                                             <select :disabled="readOnly"
                                                                 :class="[
@@ -7356,7 +7363,7 @@ onBeforeUnmount(() => {
                                                                 </option>
                                                             </select>
                                                         </div>
-                                                        <div class="flex flex-col w-1/3 mr-2">
+                                                        <div class="flex flex-col w-full sm:w-1/3 mr-2">
                                                             <h5 class="font-bold mb-2">Column</h5>
                                                             <select :disabled="readOnly"
                                                                 :class="[
@@ -7372,7 +7379,7 @@ onBeforeUnmount(() => {
                                                                 </option>
                                                             </select>
                                                         </div>
-                                                        <div class="flex flex-col w-1/4 mr-2">
+                                                        <div class="flex flex-col w-full sm:w-1/4 mr-2">
                                                             <h5 class="font-bold mb-2">Column Alias Name</h5>
                                                             <input type="text" :disabled="readOnly"
                                                                 :class="[
@@ -7446,8 +7453,8 @@ onBeforeUnmount(() => {
                                                 <div v-if="state.data_table.query_options.group_by.having_conditions && state.data_table.query_options.group_by.having_conditions.length > 0"
                                                     v-for="(clause, index) in state.data_table.query_options.group_by.having_conditions">
                                                     <div class="flex flex-col">
-                                                        <div class="flex flex-row justify-between">
-                                                            <div v-if="index > 0" class="flex flex-col w-full mr-2">
+                                                        <div class="flex flex-col sm:flex-row flex-wrap gap-x-2">
+                                                            <div v-if="index > 0" class="flex flex-col w-full sm:w-auto mr-2">
                                                                 <h5 class="font-bold mb-2">Condition</h5>
                                                                 <select
                                                                     class="w-full border border-primary-blue-100 border-solid p-2 cursor-pointer rounded-lg"
@@ -7539,7 +7546,7 @@ onBeforeUnmount(() => {
                                         <h3 class="font-bold mb-2">Order By</h3>
                                         <div class="flex flex-col bg-gray-100 p-5 rounded-lg">
                                             <div v-for="(clause, index) in state.data_table.query_options.order_by"
-                                                class="flex flex-row justify-between">
+                                                class="flex flex-col sm:flex-row flex-wrap gap-x-2 mb-3 last:mb-0">
                                                 <div class="flex flex-col w-full mr-2">
                                                     <h5 class="font-bold mb-2">Column</h5>
                                                     <select :disabled="readOnly"
@@ -7589,7 +7596,7 @@ onBeforeUnmount(() => {
                                                     </select>
                                                 </div>
                                                 <div :class="[
-                                                        'h-10 flex items-center self-center mr-2 p-5 font-bold mt-8 rounded-lg',
+                                                        'h-10 flex items-center self-center mr-2 p-5 font-bold sm:mt-8 rounded-lg',
                                                         readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-red-500 hover:bg-red-300 cursor-pointer text-white'
                                                     ]"
                                                     @click="!readOnly && removeQueryOption('ORDER BY', index)">
@@ -7597,7 +7604,7 @@ onBeforeUnmount(() => {
                                                 </div>
                                                 <div v-if="index === state.data_table.query_options.order_by.length - 1"
                                                     :class="[
-                                                        'h-10 flex items-center self-center mr-2 p-5 font-bold mt-8 rounded-lg',
+                                                        'h-10 flex items-center self-center mr-2 p-5 font-bold sm:mt-8 rounded-lg',
                                                         readOnly ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-300 cursor-pointer text-white'
                                                     ]"
                                                     @click="!readOnly && addQueryOption('ORDER BY')">
@@ -8120,24 +8127,3 @@ onBeforeUnmount(() => {
     </div>
 </template>
 
-<style scoped>
-/* Smooth collapse/expand transition for table columns */
-.collapse-enter-active,
-.collapse-leave-active {
-    transition: all 0.3s ease;
-    overflow: hidden;
-}
-
-.collapse-enter-from,
-.collapse-leave-to {
-    opacity: 0;
-    max-height: 0;
-    transform: translateY(-10px);
-}
-
-.collapse-enter-to,
-.collapse-leave-from {
-    opacity: 1;
-    max-height: 2000px; /* Arbitrary large value for smooth animation */
-}
-</style>

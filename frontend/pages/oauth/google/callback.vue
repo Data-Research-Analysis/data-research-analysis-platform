@@ -27,7 +27,7 @@ onMounted(async () => {
         // Redirect back to data sources after 3 seconds
         setTimeout(() => {
             const projectId = getProjectIdFromState(stateOAuth);
-            router.push(`/projects/${projectId}`);
+            router.push(`/marketing-projects/${projectId}`);
         }, 3000);
         return;
     }
@@ -58,12 +58,12 @@ onMounted(async () => {
             // Redirect based on service type
             setTimeout(() => {
                 if (serviceType === 'ad_manager') {
-                    router.push(`/projects/${projectId}/data-sources/connect/google-ad-manager?step=2`);
+                    router.push(`/marketing-projects/${projectId}/data-sources/connect/google-ad-manager?step=2`);
                 } else if (serviceType === 'google_ads') {
-                    router.push(`/projects/${projectId}/data-sources/connect/google-ads?step=2`);
+                    router.push(`/marketing-projects/${projectId}/data-sources/connect/google-ads?step=2`);
                 } else {
                     // Default to analytics
-                    router.push(`/projects/${projectId}/data-sources/connect/google-analytics?step=2`);
+                    router.push(`/marketing-projects/${projectId}/data-sources/connect/google-analytics?step=2`);
                 }
             }, 1500);
         } else {

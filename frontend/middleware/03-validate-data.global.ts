@@ -89,7 +89,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     const project = projectsStore.getProjects().find((p) => p.id === projectId);
     
     if (!project) {
-      return navigateTo('/projects');
+      return navigateTo('/marketing-projects');
     }
     
     // Set selected project
@@ -104,7 +104,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     
     if (!dataSource) {
       const projectId = to.params.projectid;
-      return navigateTo(`/projects/${projectId}`);
+      return navigateTo(`/marketing-projects/${projectId}`);
     }
     
     // Validate data source belongs to the current project
@@ -112,7 +112,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     const dsProjectId = dataSource.project_id || dataSource.project?.id;
     
     if (dsProjectId !== projectId) {
-      return navigateTo(`/projects/${projectId}`);
+      return navigateTo(`/marketing-projects/${projectId}`);
     }
     
     // Set selected data source
@@ -126,7 +126,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     
     if (!dashboard) {
       const projectId = to.params.projectid;
-      return navigateTo(`/projects/${projectId}/dashboards`);
+      return navigateTo(`/marketing-projects/${projectId}/dashboards`);
     }
     
     // Validate dashboard belongs to the current project
@@ -134,7 +134,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     const dashboardProjectId = dashboard.project_id || dashboard.project?.id;
     
     if (dashboardProjectId !== projectId) {
-      return navigateTo(`/projects/${projectId}/dashboards`);
+      return navigateTo(`/marketing-projects/${projectId}/dashboards`);
     }
     
     // Set selected dashboard
@@ -170,9 +170,9 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
   // === SPECIFIC ROUTE VALIDATIONS ===
   
   // Creating dashboard requires data models
-  if (to.name === 'projects-projectid-dashboards-create') {
+  if (to.name === 'marketing-projects-projectid-dashboards-create') {
     if (!dataModelsStore.getDataModelTables()?.length) {
-      return navigateTo(`/projects/${to.params.projectid}`);
+      return navigateTo(`/marketing-projects/${to.params.projectid}`);
     }
   }
 });

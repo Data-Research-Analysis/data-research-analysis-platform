@@ -69,10 +69,10 @@ onMounted(() => {
 })
 </script>
 <template>
-    <div class="grid grid-cols-3 md:flex md:flex-row bg-primary-blue-100 p-1 h-20">
-        <span v-for="(path, index) in state.paths" class="text-md lg:text-lg text-white capitalize mt-10" :key="path.path">
-             &nbsp; <NuxtLink :to="path.url" class="font-bold hover:text-gray-300">{{ path.breadCrumbText }}</NuxtLink> &nbsp; <template v-if="index < state.paths.length - 1">/</template>
+    <div class="min-h-20 flex flex-row items-center flex-wrap bg-primary-blue-100 px-4 py-3 pt-8 gap-y-1">
+        <span v-for="(path, index) in state.paths" :key="path.path" class="flex items-center text-sm md:text-base lg:text-lg text-white capitalize">
+            <NuxtLink :to="path.url" class="font-bold hover:text-gray-300 px-1">{{ path.breadCrumbText }}</NuxtLink>
+            <span v-if="index < state.paths.length - 1" class="text-blue-200 pr-1">/</span>
         </span>
-
     </div>
 </template>

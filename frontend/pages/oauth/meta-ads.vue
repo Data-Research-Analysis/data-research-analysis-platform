@@ -52,7 +52,7 @@ onMounted(async () => {
             const projectId = parsed.projectId;
             if (projectId) {
                 localStorage.removeItem('meta_ads_pending_oauth');
-                await router.push(`/projects/${projectId}/data-sources/connect/meta-ads`);
+                await router.push(`/marketing-projects/${projectId}/data-sources/connect/meta-ads`);
             } else {
                 statusMessage.value = 'Authentication successful. Please return to the data sources page.';
                 setTimeout(() => router.push('/'), 3000);
