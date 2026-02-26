@@ -38,6 +38,13 @@ export interface IAPIConnectionDetails {
         linkedin_ads_token_expires_at?: number; // Unix timestamp (ms) when access token expires
         linkedin_ads_refresh_token?: string;    // Stored separately from oauth_refresh_token for LinkedIn
 
+        // HubSpot CRM specific
+        hubspot_portal_id?: string;             // HubSpot portal (hub) ID
+        hubspot_token_expires_at?: number;      // Unix timestamp (ms) when HubSpot access token expires
+
+        // Klaviyo Email Marketing specific (API key auth — no OAuth)
+        klaviyo_api_key?: string;               // Private API key (stored encrypted)
+
         // Additional metadata
         account_name?: string;
         last_sync?: Date;

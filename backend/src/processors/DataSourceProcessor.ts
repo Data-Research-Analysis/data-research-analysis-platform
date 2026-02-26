@@ -216,7 +216,10 @@ export class DataSourceProcessor {
                 }
 
                 // Set classification: auto-classify advertising platform sources
-                const autoClassifiedTypes = ['google_ads', 'meta_ads', 'linkedin_ads', 'google_analytics', 'google_ad_manager', 'tiktok_ads'];
+                const autoClassifiedTypes = [
+                    'google_ads', 'meta_ads', 'linkedin_ads', 'google_analytics',
+                    'google_ad_manager', 'tiktok_ads', 'hubspot', 'klaviyo',
+                ];
                 if (autoClassifiedTypes.includes(connection.data_source_type as string)) {
                     dataSource.classification = 'marketing_campaign_data';
                 } else {
@@ -539,6 +542,38 @@ export class DataSourceProcessor {
                         }
                     } catch (error) {
                         console.error('Error dropping MongoDB tables:', error);
+                    }
+                }
+
+                // Delete HubSpot schema tables (data is keyed on data_source_id — CASCADE handles FK rows)
+                if (dataSource.data_type === EDataSourceType.HUBSPOT) {
+                    try {
+                        const tables = ['contacts', 'deals', 'pipeline_snapshot_daily'];
+                        for (const t of tables) {
+                            await dbConnector.query(
+                                `DELETE FROM dra_hubspot.${t} WHERE data_source_id = $1`,
+                                [dataSource.id]
+                            );
+                        }
+                        console.log(`Deleted dra_hubspot rows for data source ${dataSource.id}`);
+                    } catch (error) {
+                        console.error('Error deleting HubSpot rows:', error);
+                    }
+                }
+
+                // Delete Klaviyo schema tables
+                if (dataSource.data_type === EDataSourceType.KLAVIYO) {
+                    try {
+                        const tables = ['campaigns', 'campaign_metrics', 'flow_metrics'];
+                        for (const t of tables) {
+                            await dbConnector.query(
+                                `DELETE FROM dra_klaviyo.${t} WHERE data_source_id = $1`,
+                                [dataSource.id]
+                            );
+                        }
+                        console.log(`Deleted dra_klaviyo rows for data source ${dataSource.id}`);
+                    } catch (error) {
+                        console.error('Error deleting Klaviyo rows:', error);
                     }
                 }
 

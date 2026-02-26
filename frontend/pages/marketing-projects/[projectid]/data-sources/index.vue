@@ -11,6 +11,8 @@ import { useGoogleAdManager } from '@/composables/useGoogleAdManager';
 import { useGoogleAds } from '@/composables/useGoogleAds';
 import { useMetaAds } from '@/composables/useMetaAds';
 import { useLinkedInAds } from '@/composables/useLinkedInAds';
+import { useHubSpot } from '@/composables/useHubSpot';
+import { useKlaviyo } from '@/composables/useKlaviyo';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import { useTruncation } from '@/composables/useTruncation';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
@@ -26,6 +28,8 @@ import googleAdsImage from '/assets/images/google-ads.png';
 import metaAdsImage from '/assets/images/meta.png';
 import mongodbImage from '/assets/images/mongodb.png';
 import linkedInAdsImage from '/assets/images/linkedin.png';
+import hubspotImage from '/assets/images/hubspot.svg';
+import klaviyoImage from '/assets/images/klaviyo.svg';
 
 const dataSourceStore = useDataSourceStore();
 const projectsStore = useProjectsStore();
@@ -37,6 +41,8 @@ const gam = useGoogleAdManager();
 const ads = useGoogleAds();
 const metaAds = useMetaAds();
 const linkedInAds = useLinkedInAds();
+const hubspot = useHubSpot();
+const klaviyo = useKlaviyo();
 const { $swal } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
@@ -146,6 +152,18 @@ const state = reactive({
             url: `${route.fullPath}/connect/linkedin-ads`,
             image_url: linkedInAdsImage,
             coming_soon: !FEATURE_FLAGS.LINKEDIN_ADS_ENABLED,
+        },
+        {
+            name: 'HubSpot CRM',
+            url: `${route.fullPath}/connect/hubspot`,
+            image_url: hubspotImage,
+            coming_soon: !FEATURE_FLAGS.HUBSPOT_ENABLED,
+        },
+        {
+            name: 'Klaviyo Email',
+            url: `${route.fullPath}/connect/klaviyo`,
+            image_url: klaviyoImage,
+            coming_soon: !FEATURE_FLAGS.KLAVIYO_ENABLED,
         },
         {
             name: 'PDF',

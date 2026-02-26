@@ -22,4 +22,16 @@ export const FEATURE_FLAGS = {
      * Set to true once LinkedIn approves the Advertising API production access.
      */
     LINKEDIN_ADS_ENABLED: false,
+
+    /**
+     * HubSpot CRM integration.
+     * Set to true once HubSpot OAuth app is approved for production.
+     */
+    HUBSPOT_ENABLED: false,
+
+    /**
+     * Klaviyo Email Marketing integration.
+     * Set to true once the Klaviyo API key connector is ready for production.
+     */
+    KLAVIYO_ENABLED: false,
 } as const;
