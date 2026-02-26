@@ -22,7 +22,7 @@ const permissions = useProjectPermissions(projectId.value);
 const isReadOnly = computed(() => !permissions.canUpdate.value);
 const state = reactive({
     data_model_tables: [],
-    chart_mode: 'table',//table, pie, vertical_bar, horizontal_bar, vertical_bar_line, stacked_bar, multiline, heatmap, bubble, map
+    chart_mode: 'table',//table, pie, vertical_bar, horizontal_bar, vertical_bar_line, stacked_bar, multiline, heatmap, bubble, treemap, funnel_steps, map
     response_from_data_models_columns: [],
     response_from_data_models_rows: [],
     show_dialog: false,
@@ -80,6 +80,11 @@ const chartPlaceholders = {
     multiline: '/assets/images/chart-placeholders/multiline.png',
     treemap: '/assets/images/chart-placeholders/treemap.png',
     bubble: '/assets/images/chart-placeholders/bubble.png',
+    // Marketing template widget types — use nearest visual equivalent as placeholder
+    kpi_scorecard: '/assets/images/chart-placeholders/table.png',
+    budget_gauge: '/assets/images/chart-placeholders/donut.png',
+    channel_comparison_table: '/assets/images/chart-placeholders/table.png',
+    funnel_steps: '/assets/images/chart-placeholders/funnel_steps.png',
 };
 
 // Chart type labels
@@ -95,6 +100,10 @@ const chartTypeLabels = {
     multiline: 'Line Chart',
     treemap: 'Treemap',
     bubble: 'Bubble Chart',
+    kpi_scorecard: 'KPI Scorecard',
+    budget_gauge: 'Budget Gauge',
+    channel_comparison_table: 'Channel Comparison',
+    funnel_steps: 'Funnel Steps',
 };
 
 // Check if chart is empty (no columns configured)
@@ -182,7 +191,7 @@ function addChartToDashboard(chartType) {
         return;
     }
     
-    //table, pie, vertical_bar, horizontal_bar, vertical_bar_line, stacked_bar, multiline, heatmap, bubble, stacked_area, treemap, map
+    //table, pie, vertical_bar, horizontal_bar, vertical_bar_line, stacked_bar, multiline, heatmap, bubble, stacked_area, treemap, funnel_steps, map
     state.selected_chart = null;
     state.selected_div = null;
     state.is_dragging = false;
@@ -391,7 +400,7 @@ async function executeQueryOnDataModels(chartId) {
         const numericLineValues = [];
         let stackedValues = [];
         state.selected_chart.result_from_query = state.response_from_data_models_rows;
-        if (['pie', 'donut', 'vertical_bar', 'horizontal_bar', 'bubble'].includes(chart.chart_type)) {
+        if (['pie', 'donut', 'vertical_bar', 'horizontal_bar', 'bubble', 'funnel_steps'].includes(chart.chart_type)) {
             state.response_from_data_models_rows.forEach((row) =>{
                 const columns_data_types = chart.columns.filter((column, index) => index < 2 && Object.keys(row).includes(column.column_name)).map((column) => { return { column_name: column.column_name, data_type: column.data_type }});
                 columns_data_types.forEach((column, index) => {
@@ -1804,6 +1813,22 @@ onUnmounted(() => {
                                                     :enable-tooltips="true"
                                                     class="mt-2"
                                                 />
+                                                <funnel-chart
+                                                    v-if="chart.chart_type === 'funnel_steps'"
+                                                    :id="`chart-${chart.chart_id}`"
+                                                    :chart-id="`${chart.chart_id}`"
+                                                    :data="chart.data"
+                                                    :width="parseInt(chart.dimensions.widthDraggable.replace('px', '')) - 40"
+                                                    :height="parseInt(chart.dimensions.heightDraggable.replace('px', '')) - 80"
+                                                    :x-axis-label="chart.x_axis_label"
+                                                    :y-axis-label="chart.y_axis_label"
+                                                    :column-name="getChartColumnName(chart)"
+                                                    :category-column="getChartCategoryName(chart)"
+                                                    :enable-tooltips="true"
+                                                    @update:yAxisLabel="(label) => { chart.y_axis_label = label }"
+                                                    @update:xAxisLabel="(label) => { chart.x_axis_label = label }"
+                                                    class="mt-2"
+                                                />
                                             </div>
                                         </div>
                                     </template>
@@ -1931,6 +1956,13 @@ onUnmounted(() => {
                     >
                         <img src="/assets/images/chart-placeholders/bubble.png" alt="Bubble Chart" class="w-12 h-12 mb-1" />
                         <span class="text-xs font-medium text-gray-700">Bubble</span>
+                    </button>
+                    <button
+                        @click="addChartToDashboard('funnel_steps')"
+                        class="flex flex-col items-center p-2 bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-2 border-gray-200 hover:border-blue-400 cursor-pointer"
+                    >
+                        <img src="/assets/images/chart-placeholders/funnel_steps.png" alt="Funnel Chart" class="w-12 h-12 mb-1" />
+                        <span class="text-xs font-medium text-gray-700">Funnel</span>
                     </button>
                 </div>
             </div>
