@@ -61,6 +61,9 @@ const addChannelError = ref('');
 const deleteConfirmChannelId = ref<number | null>(null);
 const channelRemoving = ref<number | null>(null);
 
+// Digital spend (from MarketingReportProcessor)
+const digitalSpend = ref(0);
+
 // Offline tab state
 const offlineSummary = ref<IOfflineCampaignSummary | null>(null);
 const offlineEntries = ref<Record<number, IOfflineDataEntry[]>>({});
@@ -207,11 +210,40 @@ onMounted(async () => {
     try {
         const c = await campaignStore.retrieveCampaignById(campaignId.value);
         campaign.value = c;
-        await loadOfflineSummary();
+        await Promise.all([
+            loadOfflineSummary(),
+            loadDigitalSpend(),
+        ]);
     } finally {
         loading.value = false;
     }
 });
+
+async function loadDigitalSpend() {
+    try {
+        const today = new Date();
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(today.getDate() - 30);
+        const token = getAuthToken();
+        if (!token) return;
+        const qs = new URLSearchParams({
+            startDate: thirtyDaysAgo.toISOString().split('T')[0],
+            endDate: today.toISOString().split('T')[0],
+        }).toString();
+        const result = await $fetch<{ success: boolean; data: { digitalSpend: number } }>(
+            `${baseUrl()}/marketing/digital-spend/${campaignId.value}?${qs}`,
+            {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Authorization-Type': 'auth',
+                },
+            },
+        );
+        digitalSpend.value = result?.data?.digitalSpend ?? 0;
+    } catch {
+        // Non-critical — keep 0
+    }
+}
 
 watch(campaignStore.campaigns, () => {
     const c = campaignStore.campaigns.find((x) => x.id === campaignId.value) ?? null;
@@ -551,7 +583,7 @@ async function setStatus(status: string) {
                     <!-- Budget vs Spend chart -->
                     <BudgetComparisonChart
                         :budget-total="campaign.budget_total"
-                        :digital-spend="0"
+                        :digital-spend="digitalSpend"
                         :offline-spend="offlineSummary?.total_spend ?? 0"
                     />
 
