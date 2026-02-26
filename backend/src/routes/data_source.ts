@@ -3,6 +3,9 @@ import { validateJWT } from '../middleware/authenticate.js';
 import { validate } from '../middleware/validator.js';
 import { body, param, matchedData } from 'express-validator';
 import { DataSourceProcessor } from '../processors/DataSourceProcessor.js';
+import { QueryEngineProcessor } from '../processors/QueryEngineProcessor.js';
+import { ExcelDataSourceProcessor } from '../processors/ExcelDataSourceProcessor.js';
+import { PDFDataSourceProcessor } from '../processors/PDFDataSourceProcessor.js';
 import { IDBConnectionDetails } from '../types/IDBConnectionDetails.js';
 import multer from 'multer';
 import { IMulterRequest } from '../types/IMulterRequest.js';
@@ -291,7 +294,7 @@ router.get('/tables/:data_source_id', async (req: Request, res: Response, next: 
 }, validateJWT, validate([param('data_source_id').notEmpty().trim().escape().toInt()]), requireDataSourcePermission(EAction.READ, 'data_source_id'),
 async (req: Request, res: Response) => {
     const { data_source_id } = matchedData(req);
-    const tables = await DataSourceProcessor.getInstance().getTablesFromDataSource(data_source_id, req.body.tokenDetails);
+    const tables = await QueryEngineProcessor.getInstance().getTablesFromDataSource(data_source_id, req.body.tokenDetails);
     if (tables) {
         res.status(200).send(tables);
     } else {
@@ -335,7 +338,7 @@ async (req: Request, res: Response) => {
     }
     
     try {
-        const response = await DataSourceProcessor.getInstance().executeQueryOnExternalDataSource(
+        const response = await QueryEngineProcessor.getInstance().executeQueryOnExternalDataSource(
             data_source_id, 
             query, 
             req.body.tokenDetails, 
@@ -381,7 +384,7 @@ async (req: Request, res: Response) => {
     }
     
     try {
-        const result = await DataSourceProcessor.getInstance().buildDataModelOnQuery(
+        const result = await QueryEngineProcessor.getInstance().buildDataModelOnQuery(
             data_source_id, 
             query, 
             query_json, 
@@ -440,7 +443,7 @@ async (req: Request, res: Response) => {
             rowsCount: sanitizedData?.rows?.length || 0
         });
         
-        const result = await DataSourceProcessor.getInstance().addExcelDataSource(
+        const result = await ExcelDataSourceProcessor.getInstance().addExcelDataSource(
             data_source_name, 
             file_id, 
             JSON.stringify(sanitizedData), 
@@ -488,7 +491,7 @@ async (req: IMulterRequest, res: Response) => {
         });
         
         // Process the Excel file server-side
-        const result = await DataSourceProcessor.getInstance().addExcelDataSourceFromFile(
+        const result = await ExcelDataSourceProcessor.getInstance().addExcelDataSourceFromFile(
             data_source_name,
             file.filename,
             file.path,
@@ -534,7 +537,7 @@ async (req: Request, res: Response) => {
         // Sanitize boolean values in the data before processing
         const sanitizedData = UtilityService.getInstance().sanitizeDataForPostgreSQL(data);
         
-        const result = await DataSourceProcessor.getInstance().addPDFDataSource(
+        const result = await PDFDataSourceProcessor.getInstance().addPDFDataSource(
             data_source_name, 
             file_id, 
             JSON.stringify(sanitizedData), 

@@ -21,7 +21,7 @@
     <!-- Action Button (optional) -->
     <NuxtLink
       v-if="showAction"
-      to="/projects"
+      to="/marketing-projects"
       class="inline-flex items-center px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
     >
       <font-awesome-icon :icon="['fas', 'arrow-left']" class="mr-2" />

@@ -35,6 +35,18 @@ export interface IDataProfile {
 }
 
 /**
+ * A single violation found during consistency checking
+ */
+export interface IConsistencyViolation {
+    check: string;
+    description: string;
+    affectedColumns: string[];
+    violationCount: number;
+    totalChecked: number;
+    violationRate: number; // Percentage (0-100) of eligible rows that violate the rule
+}
+
+/**
  * Individual data quality issue detected
  */
 export interface IQualityIssue {
@@ -78,7 +90,7 @@ export interface IQualityReport {
  */
 export interface ICleaningConfig {
     dataModelId: number;
-    cleaningType: 'deduplicate' | 'standardize' | 'validate' | 'impute' | 'custom';
+    cleaningType: 'auto' | 'deduplicate' | 'standardize' | 'validate' | 'impute' | 'custom';
     affectedColumns: string[];
     configuration: {
         deduplication?: {

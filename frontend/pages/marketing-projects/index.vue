@@ -411,6 +411,7 @@ function closeMembersDialog() {
         :is-open="state.showMembersDialog"
         :user-role="state.selectedProjectRole"
         :members="selectedProjectMembers"
+        :show-marketing-role="true"
         @close="closeMembersDialog"
         @member-updated="projectsStore.retrieveProjects()"
     />

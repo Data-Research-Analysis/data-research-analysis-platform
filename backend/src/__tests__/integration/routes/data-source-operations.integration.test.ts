@@ -1,5 +1,8 @@
 import { jest } from '@jest/globals';
 import { DataSourceProcessor } from '../../../processors/DataSourceProcessor.js';
+import { QueryEngineProcessor } from '../../../processors/QueryEngineProcessor.js';
+import { ExcelDataSourceProcessor } from '../../../processors/ExcelDataSourceProcessor.js';
+import { PDFDataSourceProcessor } from '../../../processors/PDFDataSourceProcessor.js';
 import { TokenProcessor } from '../../../processors/TokenProcessor.js';
 import { UtilityService } from '../../../services/UtilityService.js';
 import { PDFService } from '../../../services/PDFService.js';
@@ -15,6 +18,9 @@ import { IDBConnectionDetails } from '../../../types/IDBConnectionDetails.js';
  */
 describe('Data Source Operations Integration Tests', () => {
     let mockDataSourceProcessor: any;
+    let mockQueryEngineProcessor: any;
+    let mockExcelProcessor: any;
+    let mockPDFProcessor: any;
     let mockTokenProcessor: any;
     let mockUtilityService: any;
     let mockPDFService: any;
@@ -47,13 +53,31 @@ describe('Data Source Operations Integration Tests', () => {
             addDataSource: jest.fn(),
             updateDataSource: jest.fn(),
             deleteDataSource: jest.fn(),
-            getTablesFromDataSource: jest.fn(),
-            executeQueryOnExternalDataSource: jest.fn(),
-            buildDataModelOnQuery: jest.fn(),
-            addExcelDataSource: jest.fn(),
-            addPDFDataSource: jest.fn()
+            updateDataSourceClassification: jest.fn(),
+            updateSyncSchedule: jest.fn()
         };
         jest.spyOn(DataSourceProcessor, 'getInstance').mockReturnValue(mockDataSourceProcessor);
+
+        // Setup QueryEngineProcessor mock
+        mockQueryEngineProcessor = {
+            getTablesFromDataSource: jest.fn(),
+            executeQueryOnExternalDataSource: jest.fn(),
+            buildDataModelOnQuery: jest.fn()
+        };
+        jest.spyOn(QueryEngineProcessor, 'getInstance').mockReturnValue(mockQueryEngineProcessor);
+
+        // Setup ExcelDataSourceProcessor mock
+        mockExcelProcessor = {
+            addExcelDataSource: jest.fn(),
+            addExcelDataSourceFromFile: jest.fn()
+        };
+        jest.spyOn(ExcelDataSourceProcessor, 'getInstance').mockReturnValue(mockExcelProcessor);
+
+        // Setup PDFDataSourceProcessor mock
+        mockPDFProcessor = {
+            addPDFDataSource: jest.fn()
+        };
+        jest.spyOn(PDFDataSourceProcessor, 'getInstance').mockReturnValue(mockPDFProcessor);
 
         // Setup UtilityService mock
         mockUtilityService = {
@@ -257,26 +281,26 @@ describe('Data Source Operations Integration Tests', () => {
                 { name: 'users', columns: ['id', 'name', 'email'] },
                 { name: 'products', columns: ['id', 'name', 'price'] }
             ];
-            mockDataSourceProcessor.getTablesFromDataSource.mockResolvedValue(mockTables);
+            mockQueryEngineProcessor.getTablesFromDataSource.mockResolvedValue(mockTables);
 
-            const result = await DataSourceProcessor.getInstance().getTablesFromDataSource(1, testTokenDetails);
+            const result = await QueryEngineProcessor.getInstance().getTablesFromDataSource(1, testTokenDetails);
 
             expect(result).toEqual(mockTables);
-            expect(mockDataSourceProcessor.getTablesFromDataSource).toHaveBeenCalledWith(1, testTokenDetails);
+            expect(mockQueryEngineProcessor.getTablesFromDataSource).toHaveBeenCalledWith(1, testTokenDetails);
         });
 
         it('should handle error when tables cannot be accessed', async () => {
-            mockDataSourceProcessor.getTablesFromDataSource.mockResolvedValue(null);
+            mockQueryEngineProcessor.getTablesFromDataSource.mockResolvedValue(null);
 
-            const result = await DataSourceProcessor.getInstance().getTablesFromDataSource(1, testTokenDetails);
+            const result = await QueryEngineProcessor.getInstance().getTablesFromDataSource(1, testTokenDetails);
 
             expect(result).toBeNull();
         });
 
         it('should return empty array for data source with no tables', async () => {
-            mockDataSourceProcessor.getTablesFromDataSource.mockResolvedValue([]);
+            mockQueryEngineProcessor.getTablesFromDataSource.mockResolvedValue([]);
 
-            const result = await DataSourceProcessor.getInstance().getTablesFromDataSource(1, testTokenDetails);
+            const result = await QueryEngineProcessor.getInstance().getTablesFromDataSource(1, testTokenDetails);
 
             expect(result).toEqual([]);
         });
@@ -285,9 +309,9 @@ describe('Data Source Operations Integration Tests', () => {
     describe('Query Execution', () => {
         it('should execute single-source query', async () => {
             const mockResult = { columns: ['id', 'name'], rows: [[1, 'Test']] };
-            mockDataSourceProcessor.executeQueryOnExternalDataSource.mockResolvedValue(mockResult);
+            mockQueryEngineProcessor.executeQueryOnExternalDataSource.mockResolvedValue(mockResult);
 
-            const result = await DataSourceProcessor.getInstance().executeQueryOnExternalDataSource(
+            const result = await QueryEngineProcessor.getInstance().executeQueryOnExternalDataSource(
                 1,
                 'SELECT * FROM users',
                 testTokenDetails,
@@ -301,9 +325,9 @@ describe('Data Source Operations Integration Tests', () => {
 
         it('should execute cross-source query', async () => {
             const mockResult = { columns: ['id', 'name'], rows: [[1, 'Test']] };
-            mockDataSourceProcessor.executeQueryOnExternalDataSource.mockResolvedValue(mockResult);
+            mockQueryEngineProcessor.executeQueryOnExternalDataSource.mockResolvedValue(mockResult);
 
-            const result = await DataSourceProcessor.getInstance().executeQueryOnExternalDataSource(
+            const result = await QueryEngineProcessor.getInstance().executeQueryOnExternalDataSource(
                 undefined,
                 'SELECT * FROM users JOIN products',
                 testTokenDetails,
@@ -316,12 +340,12 @@ describe('Data Source Operations Integration Tests', () => {
         });
 
         it('should handle query execution errors', async () => {
-            mockDataSourceProcessor.executeQueryOnExternalDataSource.mockRejectedValue(
+            mockQueryEngineProcessor.executeQueryOnExternalDataSource.mockRejectedValue(
                 new Error('Query syntax error')
             );
 
             await expect(
-                DataSourceProcessor.getInstance().executeQueryOnExternalDataSource(
+                QueryEngineProcessor.getInstance().executeQueryOnExternalDataSource(
                     1,
                     'INVALID SQL',
                     testTokenDetails,
@@ -335,9 +359,9 @@ describe('Data Source Operations Integration Tests', () => {
 
     describe('Data Model Building', () => {
         it('should build data model successfully', async () => {
-            mockDataSourceProcessor.buildDataModelOnQuery.mockResolvedValue(100);
+            mockQueryEngineProcessor.buildDataModelOnQuery.mockResolvedValue(100);
 
-            const result = await DataSourceProcessor.getInstance().buildDataModelOnQuery(
+            const result = await QueryEngineProcessor.getInstance().buildDataModelOnQuery(
                 1,
                 'SELECT * FROM users',
                 JSON.stringify({ table: 'users' }),
@@ -352,9 +376,9 @@ describe('Data Source Operations Integration Tests', () => {
         });
 
         it('should handle data model build failure', async () => {
-            mockDataSourceProcessor.buildDataModelOnQuery.mockResolvedValue(null);
+            mockQueryEngineProcessor.buildDataModelOnQuery.mockResolvedValue(null);
 
-            const result = await DataSourceProcessor.getInstance().buildDataModelOnQuery(
+            const result = await QueryEngineProcessor.getInstance().buildDataModelOnQuery(
                 1,
                 'INVALID SQL',
                 '{}',
@@ -369,9 +393,9 @@ describe('Data Source Operations Integration Tests', () => {
         });
 
         it('should support cross-source data models', async () => {
-            mockDataSourceProcessor.buildDataModelOnQuery.mockResolvedValue(101);
+            mockQueryEngineProcessor.buildDataModelOnQuery.mockResolvedValue(101);
 
-            const result = await DataSourceProcessor.getInstance().buildDataModelOnQuery(
+            const result = await QueryEngineProcessor.getInstance().buildDataModelOnQuery(
                 undefined,
                 'SELECT * FROM users JOIN products',
                 JSON.stringify({ tables: ['users', 'products'] }),
@@ -386,9 +410,9 @@ describe('Data Source Operations Integration Tests', () => {
         });
 
         it('should allow updating existing data model', async () => {
-            mockDataSourceProcessor.buildDataModelOnQuery.mockResolvedValue(50);
+            mockQueryEngineProcessor.buildDataModelOnQuery.mockResolvedValue(50);
 
-            const result = await DataSourceProcessor.getInstance().buildDataModelOnQuery(
+            const result = await QueryEngineProcessor.getInstance().buildDataModelOnQuery(
                 1,
                 'SELECT * FROM users WHERE active = true',
                 JSON.stringify({ table: 'users', filter: 'active' }),
@@ -410,9 +434,9 @@ describe('Data Source Operations Integration Tests', () => {
         };
 
         it('should add Excel data source successfully', async () => {
-            mockDataSourceProcessor.addExcelDataSource.mockResolvedValue({ id: 5 });
+            mockExcelProcessor.addExcelDataSource.mockResolvedValue({ id: 5 });
 
-            const result = await DataSourceProcessor.getInstance().addExcelDataSource(
+            const result = await ExcelDataSourceProcessor.getInstance().addExcelDataSource(
                 'Sales Data',
                 'excel_123',
                 JSON.stringify(validExcelData),
@@ -432,7 +456,7 @@ describe('Data Source Operations Integration Tests', () => {
             };
 
             mockUtilityService.sanitizeDataForPostgreSQL.mockReturnValue(dataWithBooleans);
-            mockDataSourceProcessor.addExcelDataSource.mockResolvedValue({ id: 6 });
+            mockExcelProcessor.addExcelDataSource.mockResolvedValue({ id: 6 });
 
             const sanitized = UtilityService.getInstance().sanitizeDataForPostgreSQL(dataWithBooleans);
             
@@ -441,10 +465,10 @@ describe('Data Source Operations Integration Tests', () => {
         });
 
         it('should handle Excel data source creation errors', async () => {
-            mockDataSourceProcessor.addExcelDataSource.mockRejectedValue(new Error('Excel processing failed'));
+            mockExcelProcessor.addExcelDataSource.mockRejectedValue(new Error('Excel processing failed'));
 
             await expect(
-                DataSourceProcessor.getInstance().addExcelDataSource(
+                ExcelDataSourceProcessor.getInstance().addExcelDataSource(
                     'Bad Data',
                     'excel_bad',
                     'invalid json',
@@ -464,9 +488,9 @@ describe('Data Source Operations Integration Tests', () => {
         };
 
         it('should add PDF data source successfully', async () => {
-            mockDataSourceProcessor.addPDFDataSource.mockResolvedValue({ id: 7 });
+            mockPDFProcessor.addPDFDataSource.mockResolvedValue({ id: 7 });
 
-            const result = await DataSourceProcessor.getInstance().addPDFDataSource(
+            const result = await PDFDataSourceProcessor.getInstance().addPDFDataSource(
                 'Report Data',
                 'pdf_456',
                 JSON.stringify(validPDFData),
@@ -488,10 +512,10 @@ describe('Data Source Operations Integration Tests', () => {
         });
 
         it('should handle PDF data source creation errors', async () => {
-            mockDataSourceProcessor.addPDFDataSource.mockRejectedValue(new Error('PDF processing failed'));
+            mockPDFProcessor.addPDFDataSource.mockRejectedValue(new Error('PDF processing failed'));
 
             await expect(
-                DataSourceProcessor.getInstance().addPDFDataSource(
+                PDFDataSourceProcessor.getInstance().addPDFDataSource(
                     'Bad PDF',
                     'pdf_bad',
                     'invalid',

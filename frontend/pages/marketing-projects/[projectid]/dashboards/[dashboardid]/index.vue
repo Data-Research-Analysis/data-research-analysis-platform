@@ -1,4 +1,6 @@
 <script setup>
+definePageMeta({ layout: 'marketing-project' });
+
 import { useProjectsStore } from '@/stores/projects';
 import { useDataModelsStore } from '@/stores/data_models';
 import { useDashboardsStore } from '@/stores/dashboards';
@@ -1050,11 +1052,6 @@ function onResize(event) {
             newWidthDraggable = state.initial_width_draggable + deltaX;
             newHeightDraggable = state.initial_height_draggable + deltaY;
         }
-        // Ensure minimum width and height
-        // newWidth = Math.max(100, newWidth > 350 ? 350 : newWidth);
-        // newHeight = Math.max(100, newHeight > 350 ? 350 : newHeight);
-        // newWidthDraggable = Math.max(100, newWidthDraggable > 350 ? 350 : newWidthDraggable);
-        // newHeightDraggable = Math.max(100, newHeightDraggable > 350 ? 350 : newHeightDraggable);
         
         //add a 100px margin to both the heights
         //do not allow the height of the div to be less than the height of the chart
@@ -1399,8 +1396,6 @@ function toggleSidebars(value) {
     state.sidebar_status = value;
 }
 onMounted(async () => {
-    //clear the selected dashboard
-    // dashboardsStore.clearSelectedDashboard();
     state.data_model_tables = []
     dataModelTables?.value?.forEach((dataModelTable) => {
         state.data_model_tables.push({
@@ -1938,15 +1933,6 @@ onUnmounted(() => {
                         <span class="text-xs font-medium text-gray-700">Bubble</span>
                     </button>
                 </div>
-                <!-- Commented out charts - can be added later -->
-                <!-- <div class="flex flex-row mb-2">
-                    <div class="mr-2" @click="addChartToDashboard('stacked_area')" v-tippy="{ content: 'Add Stacked Area Chart To Dashboard', placement: 'top' }">
-                        <img src="/assets/images/stacked_area_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Stacked Area Chart" />
-                    </div>
-                    <div class="mr-2" @click="addChartToDashboard('map')" v-tippy="{ content: 'Add Map To Dashboard', placement: 'top' }">
-                        <img src="/assets/images/map_chart.png" class="border-1 border-primary-blue-100 shadow-lg p-5 m-auto cursor-pointer hover:bg-gray-300" alt="Map Chart" />
-                    </div>
-                </div> -->
             </div>
         </div>
         <img src="/assets/images/resize-corner.svg" id="corner-image" class="bottom-right-corner-resize w-[15px] select-none hidden" alt="Resize Visualization" />

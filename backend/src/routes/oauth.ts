@@ -2,9 +2,7 @@ import express, { Request, Response } from 'express';
 import { validateJWT } from '../middleware/authenticate.js';
 import { validate } from '../middleware/validator.js';
 import { body, query, matchedData } from 'express-validator';
-import { GoogleOAuthService } from '../services/GoogleOAuthService.js';
-import { GoogleAnalyticsService } from '../services/GoogleAnalyticsService.js';
-import { OAuthSessionService } from '../services/OAuthSessionService.js';
+import { OAuthProcessor } from '../processors/OAuthProcessor.js';
 
 const router = express.Router();
 
@@ -26,24 +24,7 @@ router.get('/google/auth-url',
             const data = matchedData(req);
             const service = data.service;
             const projectId = data.project_id;
-            const oauthService = GoogleOAuthService.getInstance();
-            
-            if (!oauthService.isConfigured()) {
-                return res.status(500).send({
-                    message: 'Google OAuth not configured. Please contact administrator.'
-                });
-            }
-            
-            // Get appropriate scopes based on service
-            let scopes: string[] = [];
-            if (service === 'analytics') {
-                scopes = GoogleOAuthService.getGoogleAnalyticsScopes();
-            } else if (service === 'ad_manager') {
-                scopes = GoogleOAuthService.getGoogleAdManagerScopes();
-            } else if (service === 'google_ads') {
-                scopes = GoogleOAuthService.getGoogleAdsScopes();
-            }
-            
+
             // Generate state parameter for CSRF protection
             const state = Buffer.from(JSON.stringify({
                 user_id: req.body.tokenDetails.user_id,
@@ -51,11 +32,17 @@ router.get('/google/auth-url',
                 project_id: projectId,
                 timestamp: Date.now()
             })).toString('base64');
-            
-            const authUrl = oauthService.generateAuthUrl(scopes, state);
-            
+
+            const result = await OAuthProcessor.getInstance().generateGoogleOAuthUrl(service, state);
+
+            if (!result.configured) {
+                return res.status(500).send({
+                    message: 'Google OAuth not configured. Please contact administrator.'
+                });
+            }
+
             res.status(200).send({
-                auth_url: authUrl,
+                auth_url: result.authUrl,
                 message: 'Authorization URL generated successfully'
             });
         } catch (error) {
@@ -121,40 +108,30 @@ router.post('/google/callback',
     async (req: Request, res: Response) => {
         try {
             const { code, state } = matchedData(req);
-            const oauthService = GoogleOAuthService.getInstance();
-            
+
             // Validate state parameter
             if (state) {
                 try {
                     const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
                     if (stateData.user_id !== req.body.tokenDetails.user_id) {
-                        return res.status(400).send({
-                            message: 'Invalid state parameter'
-                        });
+                        return res.status(400).send({ message: 'Invalid state parameter' });
                     }
                 } catch (error) {
-                    return res.status(400).send({
-                        message: 'Invalid state parameter'
-                    });
+                    return res.status(400).send({ message: 'Invalid state parameter' });
                 }
             }
-            
-            // Exchange code for tokens
-            const tokens = await oauthService.exchangeCodeForTokens(code);
-            
-            // Store tokens securely in Redis
-            const oauthSessionService = OAuthSessionService.getInstance();
+
             const projectId = state ? JSON.parse(Buffer.from(state, 'base64').toString()).project_id : 0;
-            const sessionId = await oauthSessionService.storeTokens(
+            const { sessionId, expiresIn, tokenType } = await OAuthProcessor.getInstance().exchangeGoogleCode(
+                code,
                 req.body.tokenDetails.user_id,
-                parseInt(projectId) || 0,
-                tokens
+                parseInt(projectId) || 0
             );
-            
+
             res.status(200).send({
                 session_id: sessionId,
-                expires_in: tokens.expires_in,
-                token_type: tokens.token_type,
+                expires_in: expiresIn,
+                token_type: tokenType,
                 message: 'Authentication successful'
             });
         } catch (error) {
@@ -181,10 +158,8 @@ router.post('/google/refresh',
     async (req: Request, res: Response) => {
         try {
             const { refresh_token } = matchedData(req);
-            const oauthService = GoogleOAuthService.getInstance();
-            
-            const tokens = await oauthService.refreshAccessToken(refresh_token);
-            
+            const tokens = await OAuthProcessor.getInstance().refreshGoogleToken(refresh_token);
+
             res.status(200).send({
                 access_token: tokens.access_token,
                 refresh_token: tokens.refresh_token,
@@ -217,18 +192,12 @@ router.post('/google/revoke',
     async (req: Request, res: Response) => {
         try {
             const { access_token } = matchedData(req);
-            const oauthService = GoogleOAuthService.getInstance();
-            
-            const revoked = await oauthService.revokeToken(access_token);
-            
+            const revoked = await OAuthProcessor.getInstance().revokeGoogleToken(access_token);
+
             if (revoked) {
-                res.status(200).send({
-                    message: 'Token revoked successfully'
-                });
+                res.status(200).send({ message: 'Token revoked successfully' });
             } else {
-                res.status(500).send({
-                    message: 'Failed to revoke token'
-                });
+                res.status(500).send({ message: 'Failed to revoke token' });
             }
         } catch (error) {
             console.error('Error revoking token:', error);
@@ -251,16 +220,12 @@ router.get('/session/:sessionId',
     async (req: Request, res: Response) => {
         try {
             const { sessionId } = req.params;
-            const oauthSessionService = OAuthSessionService.getInstance();
-            
-            const tokens = await oauthSessionService.getTokens(sessionId);
-            
+            const tokens = await OAuthProcessor.getInstance().getOAuthSession(sessionId);
+
             if (!tokens) {
-                return res.status(404).send({
-                    message: 'Session not found or expired'
-                });
+                return res.status(404).send({ message: 'Session not found or expired' });
             }
-            
+
             res.status(200).send({
                 access_token: tokens.access_token,
                 refresh_token: tokens.refresh_token,
@@ -290,13 +255,8 @@ router.delete('/session/:sessionId',
     async (req: Request, res: Response) => {
         try {
             const { sessionId } = req.params;
-            const oauthSessionService = OAuthSessionService.getInstance();
-            
-            await oauthSessionService.deleteSession(sessionId);
-            
-            res.status(200).send({
-                message: 'Session deleted successfully'
-            });
+            await OAuthProcessor.getInstance().deleteOAuthSession(sessionId);
+            res.status(200).send({ message: 'Session deleted successfully' });
         } catch (error) {
             console.error('Error deleting OAuth session:', error);
             res.status(500).send({
@@ -319,16 +279,12 @@ router.get('/session/user/:projectId',
         try {
             const { projectId } = req.params;
             const userId = req.body.tokenDetails.user_id;
-            const oauthSessionService = OAuthSessionService.getInstance();
-            
-            const tokens = await oauthSessionService.getTokensByUser(userId, parseInt(projectId));
-            
+            const tokens = await OAuthProcessor.getInstance().getOAuthSessionByUser(userId, parseInt(projectId));
+
             if (!tokens) {
-                return res.status(404).send({
-                    message: 'Session not found or expired'
-                });
+                return res.status(404).send({ message: 'Session not found or expired' });
             }
-            
+
             res.status(200).send({
                 access_token: tokens.access_token,
                 refresh_token: tokens.refresh_token,

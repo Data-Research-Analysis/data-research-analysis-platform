@@ -2,16 +2,10 @@ import express, { Request, Response } from 'express';
 import { validateJWT } from '../middleware/authenticate.js';
 import { validate } from '../middleware/validator.js';
 import { param, matchedData } from 'express-validator';
-import { DataModelRefreshService } from '../services/DataModelRefreshService.js';
-import { RefreshQueueService } from '../services/RefreshQueueService.js';
+import { DataModelProcessor } from '../processors/DataModelProcessor.js';
 import { requireDataModelPermission } from '../middleware/rbacMiddleware.js';
 import { EAction } from '../services/PermissionService.js';
 import { rateLimit } from 'express-rate-limit';
-import { PostgresDataSource } from '../datasources/PostgresDataSource.js';
-import { DRADataModelRefreshHistory } from '../models/DRADataModelRefreshHistory.js';
-import dotenv from 'dotenv';
-
-dotenv.config();
 
 const router = express.Router();
 
@@ -45,47 +39,13 @@ router.get('/data-model/:id',
             const { id } = matchedData(req);
             const dataModelId = parseInt(String(id), 10);
 
-            // Get data source
-            const host = process.env.POSTGRESQL_HOST || 'localhost';
-            const port = parseInt(process.env.POSTGRESQL_PORT || '5432');
-            const database = process.env.POSTGRESQL_DB_NAME || 'dataresearchanalysisdb';
-            const username = process.env.POSTGRESQL_USERNAME || 'dataresearchanalysisuser';
-            const password = process.env.POSTGRESQL_PASSWORD || 'password';
-            const dataSource = PostgresDataSource.getInstance().getDataSource(host, port, database, username, password);
-
-            if (!dataSource.isInitialized) {
-                await dataSource.initialize();
-            }
-
-            // Get data model with refresh status
-            const dataModel = await dataSource
-                .getRepository('DRADataModel')
-                .createQueryBuilder('model')
-                .where('model.id = :id', { id: dataModelId })
-                .select([
-                    'model.id',
-                    'model.name',
-                    'model.refresh_status',
-                    'model.last_refreshed_at',
-                    'model.row_count',
-                    'model.last_refresh_duration_ms',
-                    'model.refresh_error',
-                    'model.auto_refresh_enabled'
-                ])
-                .getOne();
+            const { dataModel, queueStats } = await DataModelProcessor.getInstance().getDataModelRefreshStatus(dataModelId);
 
             if (!dataModel) {
                 return res.status(404).send({ message: 'Data model not found' });
             }
 
-            // Check queue status
-            const refreshQueue = RefreshQueueService.getInstance();
-            const queueStats = refreshQueue.getQueueStats();
-
-            res.status(200).send({
-                dataModel,
-                queueStats
-            });
+            res.status(200).send({ dataModel, queueStats });
         } catch (error: any) {
             console.error('[RefreshAPI] Error getting refresh status:', error);
             res.status(500).send({ message: 'Failed to get refresh status', error: error.message });
@@ -110,13 +70,7 @@ router.post('/data-model/:id',
 
             console.log(`[RefreshAPI] Manual refresh requested for data model ${dataModelId} by user ${userId}`);
 
-            // Queue the refresh job
-            const refreshQueue = RefreshQueueService.getInstance();
-            const jobId = await refreshQueue.addJob(dataModelId, {
-                triggeredBy: 'user',
-                triggerUserId: userId,
-                reason: 'Manual refresh triggered by user'
-            });
+            const jobId = await DataModelProcessor.getInstance().triggerDataModelRefresh(dataModelId, userId);
 
             res.status(202).send({
                 message: 'Refresh job queued successfully',
@@ -146,9 +100,7 @@ router.post('/cascade/:sourceId',
 
             console.log(`[RefreshAPI] Cascade refresh requested for data source ${dataSourceId} by user ${userId}`);
 
-            // Find dependent models
-            const refreshService = DataModelRefreshService.getInstance();
-            const modelIds = await refreshService.findDependentModels(dataSourceId);
+            const { modelIds, jobIds } = await DataModelProcessor.getInstance().triggerCascadeRefresh(dataSourceId, userId);
 
             if (modelIds.length === 0) {
                 return res.status(200).send({
@@ -157,15 +109,6 @@ router.post('/cascade/:sourceId',
                     modelCount: 0
                 });
             }
-
-            // Queue refresh jobs
-            const refreshQueue = RefreshQueueService.getInstance();
-            const jobIds = await refreshQueue.queueRefreshForModels(modelIds, {
-                triggeredBy: 'user',
-                triggerUserId: userId,
-                triggerSourceId: dataSourceId,
-                reason: `Manual cascade refresh for data source ${dataSourceId}`
-            });
 
             res.status(202).send({
                 message: `Cascade refresh queued for ${modelIds.length} models`,
@@ -194,31 +137,9 @@ router.get('/history/:id',
             const { id } = matchedData(req);
             const dataModelId = parseInt(String(id), 10);
 
-            // Get data source
-            const host = process.env.POSTGRESQL_HOST || 'localhost';
-            const port = parseInt(process.env.POSTGRESQL_PORT || '5432');
-            const database = process.env.POSTGRESQL_DB_NAME || 'dataresearchanalysisdb';
-            const username = process.env.POSTGRESQL_USERNAME || 'dataresearchanalysisuser';
-            const password = process.env.POSTGRESQL_PASSWORD || 'password';
-            const dataSource = PostgresDataSource.getInstance().getDataSource(host, port, database, username, password);
+            const history = await DataModelProcessor.getInstance().getDataModelRefreshHistory(dataModelId);
 
-            if (!dataSource.isInitialized) {
-                await dataSource.initialize();
-            }
-
-            // Get refresh history
-            const history = await dataSource
-                .getRepository(DRADataModelRefreshHistory)
-                .createQueryBuilder('history')
-                .where('history.data_model_id = :dataModelId', { dataModelId })
-                .orderBy('history.started_at', 'DESC')
-                .limit(20)
-                .getMany();
-
-            res.status(200).send({
-                dataModelId,
-                history
-            });
+            res.status(200).send({ dataModelId, history });
         } catch (error: any) {
             console.error('[RefreshAPI] Error getting refresh history:', error);
             res.status(500).send({ message: 'Failed to get refresh history', error: error.message });

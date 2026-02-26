@@ -319,4 +319,12 @@ export class DashboardProcessor {
             return resolve(null);
         });
     }
+
+    /**
+     * Execute a dynamic chart query for a dashboard widget.
+     */
+    public async executeChartQuery(dataModelId: number, query: string, queryParams?: any): Promise<any> {
+        const { DashboardQueryService } = await import('../services/DashboardQueryService.js');
+        return DashboardQueryService.getInstance().executeChartQuery(dataModelId, query, queryParams);
+    }
 }

@@ -127,6 +127,7 @@ export class ProjectProcessor {
                     members: {
                         id: true,
                         role: true,
+                        marketing_role: true,
                         added_at: true,
                         user: {
                             id: true,
@@ -301,5 +302,112 @@ export class ProjectProcessor {
                 return resolve(false);
             }
         });
+    }
+    /**
+     * Get all members of a project.
+     */
+    public async getProjectMembers(projectId: number): Promise<any[]> {
+        const { RBACService } = await import('../services/RBACService.js');
+        return RBACService.getInstance().getProjectMembers(projectId);
+    }
+
+    /**
+     * Add a member to a project with a specified role.
+     */
+    public async addProjectMember(projectId: number, userId: number, role: string, requestingUserId: number): Promise<any> {
+        const { RBACService } = await import('../services/RBACService.js');
+        return RBACService.getInstance().addMember(projectId, userId, role as any, requestingUserId);
+    }
+
+    /**
+     * Update a member's role in a project.
+     */
+    public async updateProjectMemberRole(projectId: number, memberUserId: number, role: string, requestingUserId: number): Promise<boolean> {
+        const { RBACService } = await import('../services/RBACService.js');
+        return RBACService.getInstance().updateMemberRole(projectId, memberUserId, role as any, requestingUserId);
+    }
+
+    /**
+     * Remove a member from a project.
+     */
+    public async removeProjectMember(projectId: number, memberUserId: number, requestingUserId: number): Promise<boolean> {
+        const { RBACService } = await import('../services/RBACService.js');
+        return RBACService.getInstance().removeMember(projectId, memberUserId, requestingUserId);
+    }
+
+    /**
+     * Get a user's role in a project.
+     */
+    public async getUserProjectRole(userId: number, projectId: number): Promise<string | null> {
+        const { RBACService } = await import('../services/RBACService.js');
+        return RBACService.getInstance().getUserRole(userId, projectId);
+    }
+
+    /**
+     * Set the marketing_role for a project member.
+     *
+     * Allowed values: 'cmo' | 'manager' | 'analyst' | null (clears the role).
+     * The requesting user must have PROJECT_MANAGE_MEMBERS permission.
+     */
+    public async setMarketingRole(
+        projectId: number,
+        userId: number,
+        marketingRole: string | null,
+        requestingUserId: number,
+    ): Promise<void> {
+        const { RBACService } = await import('../services/RBACService.js');
+        const { Permission } = await import('../constants/permissions.js');
+
+        const canManage = await RBACService.getInstance().hasPermission(
+            requestingUserId,
+            projectId,
+            Permission.PROJECT_MANAGE_MEMBERS,
+        );
+        if (!canManage) throw new Error('Insufficient permissions to set marketing role');
+
+        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+        if (!driver) throw new Error('PostgreSQL driver not available');
+
+        const concreteDriver = await driver.getConcreteDriver();
+        if (!concreteDriver) throw new Error('Failed to get PostgreSQL connection');
+
+        const manager = concreteDriver.manager;
+
+        const member = await manager.findOne(DRAProjectMember, {
+            where: { project: { id: projectId }, user: { id: userId } },
+        });
+        if (!member) throw new Error('Member not found in this project');
+
+        member.marketing_role = marketingRole;
+        await manager.save(member);
+    }
+
+    /**
+     * Get a user's full membership record for a project (includes marketing_role).
+     *
+     * Returns null if the user is not a member of the project.
+     */
+    public async getMyMembership(projectId: number, userId: number): Promise<{ role: string; marketing_role: string | null } | null> {
+        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+        if (!driver) throw new Error('PostgreSQL driver not available');
+
+        const concreteDriver = await driver.getConcreteDriver();
+        if (!concreteDriver) throw new Error('Failed to get PostgreSQL connection');
+
+        const manager = concreteDriver.manager;
+
+        const member = await manager.findOne(DRAProjectMember, {
+            where: {
+                project: { id: projectId },
+                user: { id: userId },
+            },
+        });
+
+        if (!member) return null;
+
+        return {
+            role: member.role,
+            marketing_role: member.marketing_role ?? null,
+        };
     }
 }

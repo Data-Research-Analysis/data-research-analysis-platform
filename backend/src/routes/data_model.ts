@@ -5,6 +5,7 @@ import { body, param, matchedData } from 'express-validator';
 import { DataModelProcessor } from '../processors/DataModelProcessor.js';
 import { CrossSourceJoinService } from '../services/CrossSourceJoinService.js';
 import { DataSourceProcessor } from '../processors/DataSourceProcessor.js';
+import { QueryEngineProcessor } from '../processors/QueryEngineProcessor.js';
 import { authorize } from '../middleware/authorize.js';
 import { Permission } from '../constants/permissions.js';
 import { 
@@ -123,7 +124,7 @@ async (req: Request, res: Response) => {
         
         // Fetch tables from each data source
         for (const dataSource of dataSources) {
-            const tables = await DataSourceProcessor.getInstance().getTablesFromDataSource(dataSource.id, req.body.tokenDetails);
+            const tables = await QueryEngineProcessor.getInstance().getTablesFromDataSource(dataSource.id, req.body.tokenDetails);
             
             if (tables && tables.length > 0) {
                  // Add metadata for each table indicating its source

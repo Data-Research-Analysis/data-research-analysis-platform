@@ -562,4 +562,36 @@ export class AccountCancellationProcessor {
             throw error;
         }
     }
+
+    /**
+     * Estimate data size for a user before deletion.
+     */
+    public async estimateUserDataSize(userId: number): Promise<any> {
+        const { DataDeletionService } = await import('../services/DataDeletionService.js');
+        return DataDeletionService.getInstance().estimateUserDataSize(userId);
+    }
+
+    /**
+     * Delete all data for a user.
+     */
+    public async deleteUserData(userId: number): Promise<void> {
+        const { DataDeletionService } = await import('../services/DataDeletionService.js');
+        return DataDeletionService.getInstance().deleteUserData(userId);
+    }
+
+    /**
+     * Export a single data model to a file buffer.
+     */
+    public async exportDataModel(dataModelId: number, options: { format: 'csv' | 'excel' | 'json'; includeMetadata: boolean; maxRows?: number }): Promise<any> {
+        const { DataModelExportService } = await import('../services/DataModelExportService.js');
+        return DataModelExportService.getInstance().exportDataModel(dataModelId, options);
+    }
+
+    /**
+     * Export multiple data models to a single Excel workbook.
+     */
+    public async exportMultipleDataModels(dataModelIds: number[], options: { includeMetadata: boolean; maxRows?: number }): Promise<any> {
+        const { DataModelExportService } = await import('../services/DataModelExportService.js');
+        return DataModelExportService.getInstance().exportMultipleToExcel(dataModelIds, { format: 'excel', ...options });
+    }
 }

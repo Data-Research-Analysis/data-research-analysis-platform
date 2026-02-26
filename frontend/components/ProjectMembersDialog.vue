@@ -78,6 +78,33 @@
                                 {{ member.role }}
                             </span>
                         </div>
+
+                        <!-- Marketing role column (only shown in marketing project context) -->
+                        <div v-if="showMarketingRole" class="min-w-[140px]">
+                            <select
+                                v-if="canManageMembers"
+                                v-model="member.marketing_role"
+                                @change="updateMarketingRole(member)"
+                                class="px-2.5 py-1.5 border border-gray-300 rounded text-sm cursor-pointer w-full"
+                            >
+                                <option :value="null">— No role —</option>
+                                <option value="cmo">CMO</option>
+                                <option value="manager">Manager</option>
+                                <option value="analyst">Analyst</option>
+                            </select>
+                            <span
+                                v-else-if="member.marketing_role"
+                                :class="[
+                                    'inline-block px-3 py-1.5 rounded text-sm font-medium capitalize',
+                                    member.marketing_role === 'cmo' ? 'bg-purple-100 text-purple-800' : '',
+                                    member.marketing_role === 'manager' ? 'bg-indigo-100 text-indigo-800' : '',
+                                    member.marketing_role === 'analyst' ? 'bg-cyan-100 text-cyan-800' : ''
+                                ]"
+                            >
+                                {{ member.marketing_role }}
+                            </span>
+                            <span v-else class="text-sm text-gray-400">—</span>
+                        </div>
                         
                         <button 
                             v-if="canManageMembers && member.role !== 'owner'"
@@ -147,6 +174,7 @@ import { ref, computed, watch, onMounted } from 'vue';
 interface Member {
     id: number;
     role: 'owner' | 'admin' | 'editor' | 'viewer';
+    marketing_role: string | null;
     user: {
         id: number;
         first_name: string;
@@ -172,6 +200,7 @@ const props = defineProps<{
     isOpen: boolean;
     userRole: 'owner' | 'admin' | 'editor' | 'viewer';
     members: Member[];
+    showMarketingRole?: boolean;
 }>();
 
 const emit = defineEmits(['close', 'memberUpdated']);
@@ -393,6 +422,30 @@ async function updateRole(member: Member) {
         }
     } catch (error) {
         console.error('Error updating role:', error);
+        localMembers.value = [...props.members];
+    }
+}
+
+async function updateMarketingRole(member: Member) {
+    try {
+        const data = await $fetch<{success: boolean, message: string}>(
+            `${baseUrl()}/project/${props.projectId}/members/${member.user.id}/marketing-role`,
+            {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': `Bearer ${getAuthToken()}`,
+                    'Authorization-Type': 'auth',
+                },
+                body: { marketing_role: member.marketing_role ?? null },
+            }
+        );
+
+        if (!data.success) {
+            console.error('Failed to update marketing role:', data.message);
+            localMembers.value = [...props.members];
+        }
+    } catch (error) {
+        console.error('Error updating marketing role:', error);
         localMembers.value = [...props.members];
     }
 }

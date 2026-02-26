@@ -1,4 +1,6 @@
 <script setup lang="ts">
+defineOptions({ inheritAttrs: false });
+
 import { useProjectsStore } from '@/stores/projects';
 import { useCampaignsStore } from '@/stores/campaigns';
 
@@ -138,6 +140,7 @@ function tip(label: string) {
     />
 
     <aside
+        v-bind="$attrs"
         class="flex flex-col bg-primary-blue-300 text-white shrink-0 transition-all duration-300 overflow-hidden
                fixed inset-y-0 left-0 z-40 w-72
                md:static md:z-auto md:translate-x-0 md:min-h-full"

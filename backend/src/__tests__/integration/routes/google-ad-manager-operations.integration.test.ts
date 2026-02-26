@@ -23,11 +23,18 @@ jest.mock('../../drivers/GoogleAdManagerDriver.js', () => ({
     }
 }));
 
+jest.mock('../../processors/GoogleAdManagerProcessor.js', () => ({
+    GoogleAdManagerProcessor: {
+        getInstance: jest.fn(() => ({
+            addGoogleAdManagerDataSource: jest.fn(),
+            syncGoogleAdManagerDataSource: jest.fn()
+        }))
+    }
+}));
+
 jest.mock('../../processors/DataSourceProcessor.js', () => ({
     DataSourceProcessor: {
         getInstance: jest.fn(() => ({
-            addGoogleAdManagerDataSource: jest.fn(),
-            syncGoogleAdManagerDataSource: jest.fn(),
             deleteDataSource: jest.fn()
         }))
     }
@@ -38,6 +45,7 @@ jest.mock('../../../processors/TokenProcessor.js');
 import { GoogleAdManagerService } from '../../../services/GoogleAdManagerService.js';
 import { GoogleAdManagerDriver } from '../../../drivers/GoogleAdManagerDriver.js';
 import { DataSourceProcessor } from '../../../processors/DataSourceProcessor.js';
+import { GoogleAdManagerProcessor } from '../../../processors/GoogleAdManagerProcessor.js';
 import { EUserType } from '../../../types/EUserType.js';
 
 describe('Google Ad Manager Operations Integration Tests', () => {
@@ -210,7 +218,7 @@ describe('Google Ad Manager Operations Integration Tests', () => {
 
         it('should successfully add GAM data source', async () => {
             const dsProcessor = DataSourceProcessor.getInstance();
-            (dsProcessor.addGoogleAdManagerDataSource as any).mockResolvedValue(123);
+            ((GoogleAdManagerProcessor.getInstance() as any).addGoogleAdManagerDataSource as any).mockResolvedValue(123);
             
             const response = await request(app)
                 .post('/api/google-ad-manager/add-data-source')
@@ -321,7 +329,7 @@ describe('Google Ad Manager Operations Integration Tests', () => {
 
         it('should accept valid sync_frequency values', async () => {
             const dsProcessor = DataSourceProcessor.getInstance();
-            (dsProcessor.addGoogleAdManagerDataSource as any).mockResolvedValue(124);
+            ((GoogleAdManagerProcessor.getInstance() as any).addGoogleAdManagerDataSource as any).mockResolvedValue(124);
             
             const frequencies = ['hourly', 'daily', 'weekly', 'manual'];
             
@@ -337,7 +345,7 @@ describe('Google Ad Manager Operations Integration Tests', () => {
 
         it('should handle creation failures', async () => {
             const dsProcessor = DataSourceProcessor.getInstance();
-            (dsProcessor.addGoogleAdManagerDataSource as any).mockResolvedValue(null);
+            ((GoogleAdManagerProcessor.getInstance() as any).addGoogleAdManagerDataSource as any).mockResolvedValue(null);
             
             const response = await request(app)
                 .post('/api/google-ad-manager/add-data-source')
@@ -349,7 +357,7 @@ describe('Google Ad Manager Operations Integration Tests', () => {
 
         it('should handle processor errors', async () => {
             const dsProcessor = DataSourceProcessor.getInstance();
-            (dsProcessor.addGoogleAdManagerDataSource as any).mockRejectedValue(
+            ((GoogleAdManagerProcessor.getInstance() as any).addGoogleAdManagerDataSource as any).mockRejectedValue(
                 new Error('Database connection failed')
             );
             
@@ -378,7 +386,7 @@ describe('Google Ad Manager Operations Integration Tests', () => {
     describe('POST /api/google-ad-manager/sync/:dataSourceId', () => {
         it('should successfully trigger sync', async () => {
             const dsProcessor = DataSourceProcessor.getInstance();
-            (dsProcessor.syncGoogleAdManagerDataSource as any).mockResolvedValue(true);
+            ((GoogleAdManagerProcessor.getInstance() as any).syncGoogleAdManagerDataSource as any).mockResolvedValue(true);
             
             const response = await request(app)
                 .post('/api/google-ad-manager/sync/123');
@@ -386,7 +394,7 @@ describe('Google Ad Manager Operations Integration Tests', () => {
             expect(response.status).toBe(200);
             expect(response.body.success).toBe(true);
             expect(response.body.message).toContain('successfully');
-            expect(dsProcessor.syncGoogleAdManagerDataSource).toHaveBeenCalledWith(
+            expect((GoogleAdManagerProcessor.getInstance() as any).syncGoogleAdManagerDataSource).toHaveBeenCalledWith(
                 123,
                 validTokenDetails
             );
@@ -415,7 +423,7 @@ describe('Google Ad Manager Operations Integration Tests', () => {
 
         it('should handle sync failures', async () => {
             const dsProcessor = DataSourceProcessor.getInstance();
-            (dsProcessor.syncGoogleAdManagerDataSource as any).mockResolvedValue(false);
+            ((GoogleAdManagerProcessor.getInstance() as any).syncGoogleAdManagerDataSource as any).mockResolvedValue(false);
             
             const response = await request(app)
                 .post('/api/google-ad-manager/sync/123');
@@ -427,7 +435,7 @@ describe('Google Ad Manager Operations Integration Tests', () => {
 
         it('should handle processor errors', async () => {
             const dsProcessor = DataSourceProcessor.getInstance();
-            (dsProcessor.syncGoogleAdManagerDataSource as any).mockRejectedValue(
+            ((GoogleAdManagerProcessor.getInstance() as any).syncGoogleAdManagerDataSource as any).mockRejectedValue(
                 new Error('Sync process crashed')
             );
             
@@ -656,7 +664,7 @@ describe('Google Ad Manager Operations Integration Tests', () => {
     describe('Security & Input Validation', () => {
         it('should sanitize SQL injection attempts in name field', async () => {
             const dsProcessor = DataSourceProcessor.getInstance();
-            (dsProcessor.addGoogleAdManagerDataSource as any).mockResolvedValue(125);
+            ((GoogleAdManagerProcessor.getInstance() as any).addGoogleAdManagerDataSource as any).mockResolvedValue(125);
             
             const maliciousData = {
                 name: "Test'; DROP TABLE dra_data_sources; --",
@@ -679,7 +687,7 @@ describe('Google Ad Manager Operations Integration Tests', () => {
 
         it('should sanitize XSS attempts in name field', async () => {
             const dsProcessor = DataSourceProcessor.getInstance();
-            (dsProcessor.addGoogleAdManagerDataSource as any).mockResolvedValue(126);
+            ((GoogleAdManagerProcessor.getInstance() as any).addGoogleAdManagerDataSource as any).mockResolvedValue(126);
             
             const xssData = {
                 name: '<script>alert("XSS")</script>',

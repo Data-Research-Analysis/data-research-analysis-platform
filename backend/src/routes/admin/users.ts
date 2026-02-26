@@ -70,12 +70,17 @@ router.get('/convert/:betaUserId', async (req: Request, res: Response, next: any
 router.get('/:user_id', async (req: Request, res: Response, next: any) => {
     next();
 }, validateJWT, validate([param('user_id').notEmpty().trim().toInt()]), async (req: Request, res: Response) => {
-    const { user_id } = matchedData(req);
-    const user = await UserManagementProcessor.getInstance().getUserById(user_id, req.body.tokenDetails);
-    if (user) {
-        res.status(200).send(user);
-    } else {
-        res.status(404).send({ message: 'User not found' });
+    try {
+        const { user_id } = matchedData(req);
+        const user = await UserManagementProcessor.getInstance().getUserById(user_id, req.body.tokenDetails);
+        if (user) {
+            res.status(200).send(user);
+        } else {
+            res.status(404).send({ message: 'User not found' });
+        }
+    } catch (error: any) {
+        console.error('Error fetching user by ID:', error);
+        res.status(500).send({ message: error.message || 'Failed to fetch user' });
     }
 });
 

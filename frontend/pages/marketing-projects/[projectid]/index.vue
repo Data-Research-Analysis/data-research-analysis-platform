@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useLoggedInUserStore } from '@/stores/logged_in_user';
 import { useProjectsStore } from '@/stores/projects';
+import { getAuthToken } from '~/composables/AuthToken';
 
 definePageMeta({ layout: 'marketing-project' });
 
@@ -19,10 +20,17 @@ onMounted(async () => {
         if (!loggedInUser?.id) return;
 
         // Fetch the current user's project-member record to check marketing_role
-        const member = await $fetch<{ marketing_role: string | null }>(
-            `${config.public.apiBase}/projects/${projectId}/members/me`,
-            { credentials: 'include' },
+        const response = await $fetch<{ success: boolean; data: { role: string; marketing_role: string | null } }>(
+            `${config.public.apiBase}/project/${projectId}/members/me`,
+            {
+                headers: {
+                    'Authorization': `Bearer ${getAuthToken()}`,
+                    'Authorization-Type': 'auth',
+                },
+            },
         ).catch(() => null);
+
+        const member = response?.data ?? null;
 
         if (member?.marketing_role === 'manager') {
             return navigateTo(`/marketing-projects/${projectId}/campaigns`);

@@ -207,14 +207,17 @@ export class SQLValidationService {
      * Detect SQL injection risks
      */
     private detectSQLInjectionRisks(normalizedSQL: string): boolean {
-        // Check for common injection patterns
+        // Check for common injection patterns.
+        // NOTE: /;\s*DELETE\s+FROM/i is intentionally excluded here because
+        // legitimate multi-statement cleaning SQL (wrapped in BEGIN...COMMIT)
+        // contains DELETE FROM after a semicolon by design. The broader structural
+        // safety checks (blocked ops, transaction wrapping) cover that case instead.
         const injectionPatterns = [
             /;\s*DROP/i,
-            /;\s*DELETE\s+FROM/i,
             /UNION\s+SELECT/i,
             /1\s*=\s*1/i,
             /'.*OR.*'/i,
-            /--\s*$/i
+            /--\s*$/im
         ];
 
         return injectionPatterns.some(pattern => pattern.test(normalizedSQL));

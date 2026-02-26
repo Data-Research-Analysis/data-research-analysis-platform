@@ -1,8 +1,6 @@
 import express from 'express';
 import { validateJWT } from '../middleware/authenticate.js';
-import { DataSourceProcessor } from '../processors/DataSourceProcessor.js';
-import { GoogleAdsService } from '../services/GoogleAdsService.js';
-import { GoogleAdsDriver } from '../drivers/GoogleAdsDriver.js';
+import { GoogleAdsProcessor } from '../processors/GoogleAdsProcessor.js';
 import { IGoogleAdsSyncConfig } from '../types/IGoogleAds.js';
 
 const router = express.Router();
@@ -22,8 +20,7 @@ router.post('/accounts', validateJWT, async (req, res) => {
             });
         }
         
-        const adsService = GoogleAdsService.getInstance();
-        const accounts = await adsService.listAccounts(accessToken);
+        const accounts = await GoogleAdsProcessor.getInstance().listGoogleAdsAccounts(accessToken);
         
         res.json({
             success: true,
@@ -118,7 +115,7 @@ router.post('/add', validateJWT, async (req, res) => {
             });
         }
         
-        const dataSourceId = await DataSourceProcessor.getInstance().addGoogleAdsDataSource(
+        const dataSourceId = await GoogleAdsProcessor.getInstance().addGoogleAdsDataSource(
             user_id,
             syncConfig
         );
@@ -162,7 +159,7 @@ router.post('/sync/:id', validateJWT, async (req, res) => {
         
         console.log(`[Google Ads Sync] Starting sync for data source ${dataSourceId}`);
         
-        const success = await DataSourceProcessor.getInstance().syncGoogleAdsDataSource(
+        const success = await GoogleAdsProcessor.getInstance().syncGoogleAdsDataSource(
             dataSourceId,
             user_id
         );
@@ -204,17 +201,7 @@ router.get('/status/:id', validateJWT, async (req, res) => {
             });
         }
         
-        const adsDriver = GoogleAdsDriver.getInstance();
-        const history = await adsDriver.getSyncHistory(dataSourceId, 10);
-        
-        const lastSync = history[0];
-        const status = {
-            lastSyncTime: lastSync?.completed_at || null,
-            status: lastSync?.status || 'IDLE',
-            recordsSynced: lastSync?.records_synced || 0,
-            recordsFailed: lastSync?.records_failed || 0,
-            error: lastSync?.error_message || undefined
-        };
+        const { status, history } = await GoogleAdsProcessor.getInstance().getGoogleAdsSyncStatus(dataSourceId);
         
         res.json({
             success: true,

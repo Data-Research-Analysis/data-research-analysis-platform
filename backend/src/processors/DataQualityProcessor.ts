@@ -5,6 +5,7 @@ import { DataQualityExecutionService } from '../services/DataQualityExecutionSer
 import { DataQualityHistoryService } from '../services/DataQualityHistoryService.js';
 import {
     IQualityReport,
+    IQualityIssue,
     IQualityAnalysisRequest,
     IQualityAnalysisResponse,
     ICleaningConfig,
@@ -82,6 +83,7 @@ export class DataQualityProcessor {
             
             // Detect outliers in numeric columns
             let outlierCount = 0;
+            const outliersByColumn = new Map<string, number>();
             for (const col of profile.columns) {
                 if (this.isNumericColumn(col.type)) {
                     try {
@@ -90,23 +92,105 @@ export class DataQualityProcessor {
                             col.name
                         );
                         outlierCount += outlierInfo.outlierCount;
+                        if (outlierInfo.outlierCount > 0) {
+                            outliersByColumn.set(col.name, outlierInfo.outlierCount);
+                        }
                     } catch (error) {
                         console.warn(`Could not detect outliers for column ${col.name}:`, error);
                     }
                 }
             }
             
+            // Check cross-column consistency (date ordering, negative values, casing, format mix)
+            const consistency = await this.dataQualityService.checkConsistency(dataModel, profile);
+
             // Calculate overall quality score (weighted average)
-            // Weights optimized for marketing industry:
-            // - Completeness (40%): Critical for targeting and segmentation
-            // - Validity (35%): Accurate contact info prevents wasted ad spend
-            // - Uniqueness (25%): Deduplication avoids duplicate customer outreach
+            // Completeness 35% | Validity 30% | Uniqueness 20% | Consistency 15%
             const overallScore = Math.round(
-                scores.completenessScore * 0.40 +
-                scores.validityScore * 0.35 +
-                scores.uniquenessScore * 0.25
+                scores.completenessScore * 0.35 +
+                scores.validityScore * 0.30 +
+                scores.uniquenessScore * 0.20 +
+                consistency.score * 0.15
             );
             
+            // Build issues array from detected problems
+            const issues: IQualityIssue[] = [];
+            let issueId = 1;
+
+            // Missing values issues — one entry per affected column
+            for (const col of profile.columns) {
+                if (col.nullCount > 0) {
+                    const pct = profile.totalRows > 0 ? (col.nullCount / profile.totalRows) * 100 : 0;
+                    issues.push({
+                        id: issueId++,
+                        severity: pct > 50 ? 'critical' : pct > 20 ? 'high' : pct > 5 ? 'medium' : 'low',
+                        type: 'missing_values',
+                        column: col.name,
+                        description: `"${col.name}" has ${col.nullCount.toLocaleString()} null value${col.nullCount === 1 ? '' : 's'} (${Math.round(pct)}% of rows)`,
+                        affectedRows: col.nullCount,
+                        affectedPercent: Math.round(pct * 100) / 100,
+                        recommendation: `Fill or remove null values in "${col.name}"`,
+                        estimatedImpact: pct > 20 ? 'High — large number of incomplete records' : 'Low — minor data gaps'
+                    });
+                }
+            }
+
+            // Duplicate rows issue
+            if (duplicateCount > 0) {
+                const pct = profile.totalRows > 0 ? (duplicateCount / profile.totalRows) * 100 : 0;
+                issues.push({
+                    id: issueId++,
+                    severity: pct > 20 ? 'high' : pct > 5 ? 'medium' : 'low',
+                    type: 'duplicates',
+                    description: `${duplicateCount.toLocaleString()} duplicate row${duplicateCount === 1 ? '' : 's'} detected (${Math.round(pct)}% of rows)`,
+                    affectedRows: duplicateCount,
+                    affectedPercent: Math.round(pct * 100) / 100,
+                    recommendation: 'Remove duplicate rows to ensure data accuracy',
+                    estimatedImpact: pct > 10 ? 'High — significant duplication detected' : 'Medium — some duplicate records'
+                });
+            }
+
+            // Outlier issues — one entry per affected numeric column (reuses results from detection loop above)
+            for (const [colName, colOutlierCount] of outliersByColumn.entries()) {
+                const pct = profile.totalRows > 0 ? (colOutlierCount / profile.totalRows) * 100 : 0;
+                issues.push({
+                    id: issueId++,
+                    severity: pct > 10 ? 'medium' : 'low',
+                    type: 'outliers',
+                    column: colName,
+                    description: `"${colName}" has ${colOutlierCount.toLocaleString()} outlier value${colOutlierCount === 1 ? '' : 's'} (${Math.round(pct)}% of rows)`,
+                    affectedRows: colOutlierCount,
+                    affectedPercent: Math.round(pct * 100) / 100,
+                    recommendation: `Review and cap outlier values in "${colName}"`,
+                    estimatedImpact: 'Medium — unusual values may skew analysis'
+                });
+            }
+
+            // Consistency issues from cross-column checks
+            const CONSISTENCY_SEVERITY: Record<string, 'critical' | 'high' | 'medium' | 'low'> = {
+                date_ordering:    'critical',
+                future_date:      'high',
+                implausible_date: 'high',
+                negative_value:   'high',
+                date_format_mix:  'medium',
+                mixed_case:       'low',
+            };
+            for (const v of consistency.violations) {
+                issues.push({
+                    id: issueId++,
+                    severity: CONSISTENCY_SEVERITY[v.check] ?? 'medium',
+                    type: 'inconsistent_format',
+                    column: v.affectedColumns.length === 1 ? v.affectedColumns[0] : undefined,
+                    description: v.description,
+                    affectedRows: v.violationCount,
+                    affectedPercent: v.violationRate,
+                    recommendation: `Fix consistency issue in: ${v.affectedColumns.join(', ')}`,
+                    estimatedImpact: v.violationRate > 20
+                        ? 'High — widespread data inconsistency'
+                        : 'Medium — isolated inconsistencies'
+                });
+            }
+
             // Save report to database
             const report = await this.saveQualityReport({
                 dataModelId,
@@ -115,12 +199,12 @@ export class DataQualityProcessor {
                 completenessScore: scores.completenessScore,
                 uniquenessScore: scores.uniquenessScore,
                 validityScore: scores.validityScore,
-                consistencyScore: null,
+                consistencyScore: consistency.score,
                 totalRows: profile.totalRows,
                 duplicateCount,
                 nullCount,
                 outlierCount,
-                issues: [],
+                issues,
                 recommendations: [],
                 status: 'completed',
                 createdAt: new Date(),
@@ -158,7 +242,7 @@ export class DataQualityProcessor {
             const dataModel = await this.getDataModel(dataModelId);
             
             // Generate cleaning SQL based on config type
-            const sql = await this.generateCleaningSQL(dataModel, cleaningConfig);
+            const sql = await this.generateCleaningSQL(dataModel, cleaningConfig, dataModelId);
             
             // Execute the SQL
             const result = await this.executionService.executeCleaningSQL(
@@ -306,13 +390,12 @@ export class DataQualityProcessor {
     /**
      * Helper: Generate cleaning SQL based on configuration
      */
-    private async generateCleaningSQL(
-        dataModel: DRADataModel,
-        config: ICleaningConfig
-    ): Promise<string> {
+    private async generateCleaningSQL(dataModel: DRADataModel, config: ICleaningConfig, dataModelId?: number): Promise<string> {
         const fullyQualifiedTable = `"${dataModel.schema}"."${dataModel.name}"`;
         
         switch (config.cleaningType) {
+            case 'auto':
+                return this.generateAutoCleanSQL(fullyQualifiedTable, dataModel, dataModelId);
             case 'deduplicate':
                 return this.generateDeduplicateSQL(fullyQualifiedTable, config);
             case 'standardize':
@@ -324,6 +407,46 @@ export class DataQualityProcessor {
             default:
                 throw new Error(`Unknown cleaning type: ${config.cleaningType}`);
         }
+    }
+
+    /**
+     * Generate automatic cleaning SQL from the latest quality report's issues
+     */
+    private async generateAutoCleanSQL(table: string, dataModel: DRADataModel, dataModelId?: number): Promise<string> {
+        const sqls: string[] = [];
+
+        if (dataModelId) {
+            const latestReport = await this.getLatestReport(dataModelId);
+            if (latestReport && latestReport.issues && latestReport.issues.length > 0) {
+                for (const issue of latestReport.issues) {
+                    if (issue.type === 'missing_values' && issue.column) {
+                        // Delete rows where this column is null
+                        sqls.push(`DELETE FROM ${table} WHERE "${issue.column}" IS NULL;`);
+                    } else if (issue.type === 'duplicates') {
+                        // Deduplicate by keeping the row with the lowest ctid for each identical row
+                        sqls.push(`DELETE FROM ${table} t1 USING ${table} t2 WHERE t1.ctid > t2.ctid AND t1 = t2;`);
+                    } else if (issue.type === 'outliers' && issue.column) {
+                        // Cap outliers to p5–p95 range
+                        sqls.push(`
+UPDATE ${table}
+SET "${issue.column}" = CASE
+    WHEN "${issue.column}" < (SELECT PERCENTILE_CONT(0.05) WITHIN GROUP (ORDER BY "${issue.column}") FROM ${table} WHERE "${issue.column}" IS NOT NULL)
+        THEN (SELECT PERCENTILE_CONT(0.05) WITHIN GROUP (ORDER BY "${issue.column}") FROM ${table} WHERE "${issue.column}" IS NOT NULL)
+    WHEN "${issue.column}" > (SELECT PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY "${issue.column}") FROM ${table} WHERE "${issue.column}" IS NOT NULL)
+        THEN (SELECT PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY "${issue.column}") FROM ${table} WHERE "${issue.column}" IS NOT NULL)
+    ELSE "${issue.column}"
+END
+WHERE "${issue.column}" IS NOT NULL;`.trim());
+                    }
+                }
+            }
+        }
+
+        if (sqls.length === 0) {
+            throw new Error('No fixable issues found in the latest quality report. Please run a new analysis first.');
+        }
+
+        return `BEGIN;\n\n${sqls.join('\n\n')}\n\nCOMMIT;`;
     }
 
     /**
