@@ -49,6 +49,7 @@ import notifications from './routes/notifications.js';
 import account from './routes/account.js';
 import campaigns from './routes/campaigns.js';
 import offlineTracking from './routes/offlineTracking.js';
+import marketing from './routes/marketing.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -243,6 +244,7 @@ app.use('/notifications', notifications);
 app.use('/account', account);
 app.use('/campaigns', campaigns);
 app.use('/campaigns', offlineTracking);
+app.use('/marketing', marketing);
 
 app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 app.use('/', express.static(path.join(__dirname, '../public')));
