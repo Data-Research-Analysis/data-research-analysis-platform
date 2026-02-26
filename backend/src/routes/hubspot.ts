@@ -35,7 +35,7 @@ router.get('/connect', validateJWT, (req, res) => {
 // the frontend connect page with token data.
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/callback', async (req, res) => {
-    const frontendUrl = process.env.SOCKETIO_CLIENT_URL || 'http://localhost:3000';
+    const frontendUrl = process.env.FRONTEND_URL || process.env.SOCKETIO_CLIENT_URL || 'http://localhost:3000';
 
     try {
         const code = req.query.code as string;

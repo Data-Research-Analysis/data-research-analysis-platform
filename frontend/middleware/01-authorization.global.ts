@@ -43,6 +43,7 @@ function isPublicRoute(path: string): boolean {
     /^\/verify-email\/.+$/,       // /verify-email/[code]
     /^\/forgot-password/,         // /forgot-password and /forgot-password/[code]
     /^\/unsubscribe\/.+$/,        // /unsubscribe/[code]
+    /^\/connect\/.+$/,            // /connect/[provider] — OAuth callback landing pages
   ];
   
   // Check exact matches
