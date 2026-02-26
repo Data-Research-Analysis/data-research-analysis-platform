@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useAttributionStore } from '@/stores/attribution';
 import { useCampaignsStore } from '@/stores/campaigns';
-import { useDataSourcesStore } from '@/stores/data_sources';
+import { useDataSourceStore } from '@/stores/data_sources';
 import type { AttributionModel, IConversionFunnel } from '@/stores/attribution';
 
 definePageMeta({ layout: 'marketing-project' });
@@ -10,7 +10,7 @@ const route = useRoute();
 const router = useRouter();
 const attributionStore = useAttributionStore();
 const campaignsStore = useCampaignsStore();
-const dataSourcesStore = useDataSourcesStore();
+const dataSourcesStore = useDataSourceStore();
 
 const projectId = computed(() => parseInt(String(route.params.projectid)));
 const campaignId = computed(() => {
