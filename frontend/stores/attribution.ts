@@ -879,10 +879,8 @@ export const useAttributionStore = defineStore('attributionDRA', () => {
         // Model Comparison
         setModelComparison,
         compareModels,
-        modelComparison,
 
         // GA4 Sessions
-        ga4Sessions,
         retrieveGA4Sessions,
 
         // Clear
