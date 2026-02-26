@@ -56,6 +56,8 @@ export const AUTO_CLASSIFIED_SOURCE_TYPES = [
     'google_analytics',
     'google_ad_manager',
     'tiktok_ads',
+    'hubspot',
+    'klaviyo',
 ] as const;
 
 /**

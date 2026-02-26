@@ -64,6 +64,8 @@ const AD_CHANNEL_TYPES = [
     EDataSourceType.META_ADS,
     EDataSourceType.LINKEDIN_ADS,
     EDataSourceType.GOOGLE_ANALYTICS,
+    EDataSourceType.HUBSPOT,
+    EDataSourceType.KLAVIYO,
 ] as string[];
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -71,6 +73,8 @@ const CHANNEL_LABELS: Record<string, string> = {
     meta_ads: 'Meta Ads',
     linkedin_ads: 'LinkedIn Ads',
     google_analytics: 'Google Analytics (GA4)',
+    hubspot: 'HubSpot CRM',
+    klaviyo: 'Klaviyo Email',
 };
 
 // ---------------------------------------------------------------------------
@@ -303,6 +307,10 @@ export class MarketingReportProcessor {
                     return await this.fetchLinkedInAdsMetrics(manager, source, start, end);
                 case EDataSourceType.GOOGLE_ANALYTICS:
                     return await this.fetchGA4Metrics(manager, source, start, end);
+                case EDataSourceType.HUBSPOT:
+                    return await this.fetchHubSpotMetrics(manager, source, start, end);
+                case EDataSourceType.KLAVIYO:
+                    return await this.fetchKlaviyoMetrics(manager, source, start, end);
                 default:
                     return null;
             }
@@ -463,6 +471,108 @@ export class MarketingReportProcessor {
             pipelineValue: 0,
             dataSourceId: source.id,
         };
+    }
+
+    /**
+     * Fetch HubSpot CRM channel metrics — pipeline value from open deals.
+     * Spend is always 0 (HubSpot is not a paid ad channel).
+     * pipelineValue maps to getCurrentPipelineValue() rather than a date range query
+     * because deal value represents current pipeline state, not spend for the period.
+     */
+    private async fetchHubSpotMetrics(
+        manager: any,
+        source: DRADataSource,
+        start: string,
+        end: string,
+    ): Promise<IChannelMetrics | null> {
+        try {
+            const rows = await manager.query(
+                `SELECT
+                    COUNT(*) FILTER (WHERE is_closed_won = FALSE) AS open_deals,
+                    COALESCE(SUM(amount) FILTER (WHERE is_closed_won = FALSE), 0) AS pipeline_value,
+                    COUNT(*) FILTER (WHERE is_closed_won = TRUE
+                        AND close_date BETWEEN $1 AND $2) AS closed_won_in_period,
+                    COALESCE(SUM(amount) FILTER (WHERE is_closed_won = TRUE
+                        AND close_date BETWEEN $1 AND $2), 0) AS revenue_in_period
+                 FROM dra_hubspot.deals
+                 WHERE data_source_id = $3`,
+                [start, end, source.id],
+            );
+
+            if (!rows?.[0]) return null;
+
+            const pipelineValue = Number(rows[0].pipeline_value) || 0;
+            const conversions = Number(rows[0].closed_won_in_period) || 0;
+            const revenue = Number(rows[0].revenue_in_period) || 0;
+
+            return {
+                channelType: EDataSourceType.HUBSPOT,
+                channelLabel: CHANNEL_LABELS[EDataSourceType.HUBSPOT],
+                spend: 0,
+                impressions: 0,
+                clicks: 0,
+                ctr: 0,
+                conversions,
+                cpl: 0,
+                roas: 0,
+                pipelineValue,
+                dataSourceId: source.id,
+            };
+        } catch {
+            return null;
+        }
+    }
+
+    /**
+     * Fetch Klaviyo Email Marketing channel metrics.
+     * spend is 0 (subscription cost not tracked per-campaign).
+     * impressions = sends, clicks = unique_clicks, conversions = placed_orders.
+     * roas is mapped to revenue but displayed as "N/A" by frontend when spend = 0.
+     */
+    private async fetchKlaviyoMetrics(
+        manager: any,
+        source: DRADataSource,
+        start: string,
+        end: string,
+    ): Promise<IChannelMetrics | null> {
+        try {
+            const rows = await manager.query(
+                `SELECT
+                    COALESCE(SUM(sends), 0)         AS sends,
+                    COALESCE(SUM(unique_opens), 0)   AS unique_opens,
+                    COALESCE(SUM(unique_clicks), 0)  AS unique_clicks,
+                    COALESCE(SUM(placed_orders), 0)  AS placed_orders,
+                    COALESCE(SUM(revenue), 0)        AS revenue
+                 FROM dra_klaviyo.campaign_metrics
+                 WHERE data_source_id = $1
+                   AND metric_date BETWEEN $2 AND $3`,
+                [source.id, start, end],
+            );
+
+            if (!rows?.[0]) return null;
+
+            const sends = Number(rows[0].sends) || 0;
+            const uniqueClicks = Number(rows[0].unique_clicks) || 0;
+            const placedOrders = Number(rows[0].placed_orders) || 0;
+            const revenue = Number(rows[0].revenue) || 0;
+            const uniqueOpens = Number(rows[0].unique_opens) || 0;
+
+            return {
+                channelType: EDataSourceType.KLAVIYO,
+                channelLabel: CHANNEL_LABELS[EDataSourceType.KLAVIYO],
+                spend: 0,
+                impressions: sends,
+                clicks: uniqueClicks,
+                ctr: sends > 0 ? uniqueClicks / sends : 0,
+                conversions: placedOrders,
+                cpl: 0,
+                roas: 0,       // "N/A" — no spend tracked; frontend renders accordingly
+                pipelineValue: revenue,   // revenue attributed from email → pipelineValue slot
+                dataSourceId: source.id,
+            };
+        } catch {
+            return null;
+        }
     }
 
     /**

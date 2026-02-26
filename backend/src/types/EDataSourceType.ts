@@ -11,4 +11,6 @@ export enum EDataSourceType {
     GOOGLE_ADS = 'google_ads',
     META_ADS = 'meta_ads',
     LINKEDIN_ADS = 'linkedin_ads',
+    HUBSPOT = 'hubspot',
+    KLAVIYO = 'klaviyo',
 }
