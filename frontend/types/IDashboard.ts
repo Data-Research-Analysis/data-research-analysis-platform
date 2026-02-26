@@ -42,12 +42,15 @@ export interface IDashboardDataStructure {
  */
 export interface IDashboard {
     id: number;
+    name?: string | null;
     data: IDashboardDataStructure;
     project: IProject;
     project_id?: number; // May not be serialized by TypeORM
     users_platform: IUsersPlatform;
     user_platform_id?: number; // May not be serialized by TypeORM
     export_meta_data: IDashboardDataExportMetaData[];
+    is_template?: boolean;
+    source_template_id?: number | null;
 }
 
 

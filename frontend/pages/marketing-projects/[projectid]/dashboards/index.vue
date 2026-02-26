@@ -25,14 +25,15 @@ const state = reactive({
 
 const dashboards = computed(() => {
     const allDashboards = dashboardsStore.getDashboards();
-    // Filter dashboards by project ID
+    // Filter dashboards by project ID, excluding templates
     return allDashboards
         .filter((d) => {
             const dProjectId = d.project_id || d.project?.id;
-            return dProjectId === projectId;
+            return dProjectId === projectId && !d.is_template;
         })
         .map((dashboardObj) => ({
             id: dashboardObj.id,
+            name: dashboardObj.name,
             dashboard: dashboardObj.data,
             project_id: dashboardObj.project_id,
             user_id: dashboardObj.user_platform_id,
@@ -148,6 +149,24 @@ function checkDashboardLimit() {
                 Dashboards are where you will be building your charts and visualizations based on your data models.
             </div>
 
+            <!-- Templates shortcut -->
+            <div class="mt-4 mb-2 p-4 bg-blue-50 border border-blue-100 rounded-lg flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-800">
+                        <font-awesome-icon :icon="['fas', 'layer-group']" class="mr-2 text-primary-blue-300" />
+                        Want a head start?
+                    </p>
+                    <p class="text-xs text-gray-500 mt-0.5">Use a pre-built marketing dashboard template instead of starting from scratch.</p>
+                </div>
+                <NuxtLink
+                    :to="`/marketing-projects/${project.id}/marketing/reports`"
+                    class="ml-4 shrink-0 inline-flex items-center px-3 py-2 bg-primary-blue-300 hover:bg-primary-blue-100 text-white text-sm rounded-lg transition-colors"
+                >
+                    <font-awesome-icon :icon="['fas', 'wand-magic-sparkles']" class="mr-2" />
+                    Browse Templates
+                </NuxtLink>
+            </div>
+
             <!-- Create Button -->
             <div v-if="permissions.canCreate.value" class="mb-6 mt-6">
                 <NuxtLink 
@@ -213,7 +232,7 @@ function checkDashboardLimit() {
                         <!-- Dashboard Name -->
                         <div>
                             <h3 class="text-lg font-semibold text-gray-900">
-                                Dashboard {{ dashboard.id }}
+                                {{ dashboard.name ?? `Dashboard ${dashboard.id}` }}
                             </h3>
                         </div>
 

@@ -298,6 +298,14 @@ function tip(label: string) {
                         >
                             Reports
                         </NuxtLink>
+                        <NuxtLink
+                            :to="baseUrl('/marketing/reports?tab=templates')"
+                            class="flex items-center gap-2 pl-4 pr-4 py-1.5 text-xs transition-colors"
+                            :class="isReportsActive ? 'text-blue-200' : 'text-blue-300 hover:text-white'"
+                        >
+                            <font-awesome-icon :icon="['fas', 'layer-group']" class="w-3 h-3" />
+                            Dashboard Templates
+                        </NuxtLink>
                     </div>
                 </template>
             </div>

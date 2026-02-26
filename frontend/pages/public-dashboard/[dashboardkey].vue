@@ -1182,6 +1182,21 @@ onMounted(async () => {
                                                     :enable-tooltips="true"
                                                     class="mt-1"
                                                 />
+                                                <funnel-chart
+                                                    v-if="chart.chart_type === 'funnel_steps'"
+                                                    :id="`chart-${chart.chart_id}`"
+                                                    :chart-id="`${chart.chart_id}`"
+                                                    :data="chart.data"
+                                                    :width="parseInt(chart.dimensions.widthDraggable.replace('px', '')) - 20"
+                                                    :height="parseInt(chart.dimensions.heightDraggable.replace('px', '')) - 30"
+                                                    :x-axis-label="chart.x_axis_label"
+                                                    :y-axis-label="chart.y_axis_label"
+                                                    :column-name="getChartColumnName(chart.chart_id)"
+                                                    :category-column="getChartCategoryName(chart.chart_id)"
+                                                    :editable-axis-labels="false"
+                                                    :enable-tooltips="true"
+                                                    class="mt-1"
+                                                />
                                             </div>
                                         </div>
                                     </template>
