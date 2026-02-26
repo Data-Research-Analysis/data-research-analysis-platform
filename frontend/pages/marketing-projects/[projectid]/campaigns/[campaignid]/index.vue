@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { useCampaignsStore } from '@/stores/campaigns';
+import { useAttributionStore } from '@/stores/attribution';
 import { CAMPAIGN_OBJECTIVES, CAMPAIGN_STATUSES } from '~/types/ICampaign';
 import type { ICampaign, ICampaignChannel, IOfflineDataEntry, IOfflineCampaignSummary, IAddChannelPayload } from '~/types/ICampaign';
+import type { AttributionModel, IConversionFunnel } from '@/stores/attribution';
 
 const OFFLINE_CHANNEL_TYPES: { value: string; label: string }[] = [
     { value: 'events', label: 'Events' },
@@ -29,6 +31,7 @@ definePageMeta({ layout: 'marketing-project' });
 const route = useRoute();
 const router = useRouter();
 const campaignStore = useCampaignsStore();
+const attributionStore = useAttributionStore();
 
 const projectId = computed(() => parseInt(String(route.params.projectid)));
 const campaignId = computed(() => parseInt(String(route.params.campaignid)));
@@ -116,6 +119,89 @@ const offlineChannels = computed((): ICampaignChannel[] => {
     return (campaign.value?.channels ?? []).filter((ch) => ch.is_offline);
 });
 
+// ─── Attribution tab state ────────────────────────────────────────────────────
+const attributionStartDate = ref('');
+const attributionEndDate = ref('');
+const attributionModel = ref<AttributionModel>('linear');
+const attributionLoaded = ref(false);
+const selectedFunnel = ref<IConversionFunnel | null>(null);
+const showCreateFunnel = ref(false);
+const isCreatingFunnel = ref(false);
+const funnelForm = ref({
+    name: '',
+    steps: [
+        { stepNumber: 1, stepName: '', eventType: 'pageview' },
+        { stepNumber: 2, stepName: '', eventType: 'interaction' },
+        { stepNumber: 3, stepName: '', eventType: 'conversion' },
+    ],
+});
+const isFunnelFormValid = computed(() =>
+    funnelForm.value.name.trim() !== '' && funnelForm.value.steps.every((s) => s.stepName.trim() !== '')
+);
+type AttributionSubTab = 'channel' | 'funnel' | 'journey' | 'roi' | 'model-comparison';
+const attributionSubTab = ref<AttributionSubTab>('roi');
+
+const attributionSubTabs: { id: AttributionSubTab; label: string; icon: string[] }[] = [
+    { id: 'roi', label: 'ROI', icon: ['fas', 'dollar-sign'] },
+    { id: 'channel', label: 'Channels', icon: ['fas', 'chart-bar'] },
+    { id: 'funnel', label: 'Funnel', icon: ['fas', 'filter'] },
+    { id: 'journey', label: 'Journeys', icon: ['fas', 'route'] },
+    { id: 'model-comparison', label: 'Model Comparison', icon: ['fas', 'diagram-project'] },
+];
+
+async function loadAttributionData() {
+    if (!campaign.value) return;
+    // Use campaign date range as defaults
+    attributionStartDate.value = (campaign.value.start_date ?? '').slice(0, 10) ||
+        new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    attributionEndDate.value = (campaign.value.end_date ?? '').slice(0, 10) ||
+        new Date().toISOString().split('T')[0];
+
+    await Promise.allSettled([
+        attributionStore.retrieveChannelPerformance(projectId.value, attributionModel.value, attributionStartDate.value, attributionEndDate.value, campaignId.value),
+        attributionStore.retrieveROIMetrics(projectId.value, attributionModel.value, attributionStartDate.value, attributionEndDate.value, undefined, campaignId.value),
+        attributionStore.retrieveJourneyMap(projectId.value, attributionStartDate.value, attributionEndDate.value, undefined, 20, campaignId.value),
+        attributionStore.compareModels(projectId.value, attributionStartDate.value, attributionEndDate.value, campaignId.value),
+    ]);
+    attributionLoaded.value = true;
+}
+
+async function createCampaignFunnel() {
+    if (!isFunnelFormValid.value) return;
+    isCreatingFunnel.value = true;
+    try {
+        const result = await attributionStore.analyzeFunnel(
+            projectId.value,
+            funnelForm.value.name,
+            funnelForm.value.steps,
+            attributionStartDate.value,
+            attributionEndDate.value,
+            campaignId.value
+        );
+        if (result.success && result.data) {
+            selectedFunnel.value = result.data;
+            showCreateFunnel.value = false;
+        }
+    } finally {
+        isCreatingFunnel.value = false;
+    }
+}
+
+function addFunnelStep() {
+    funnelForm.value.steps.push({ stepNumber: funnelForm.value.steps.length + 1, stepName: '', eventType: 'interaction' });
+}
+
+function removeFunnelStep(idx: number) {
+    funnelForm.value.steps.splice(idx, 1);
+    funnelForm.value.steps.forEach((s, i) => { s.stepNumber = i + 1; });
+}
+
+function exportAttributionPDF() {
+    if (import.meta.client) {
+        window.print();
+    }
+}
+
 onMounted(async () => {
     loading.value = true;
     try {
@@ -138,6 +224,9 @@ watch(activeTab, async (tab) => {
     }
     if (tab === 'offline') {
         await loadAllOfflineEntries();
+    }
+    if (tab === 'attribution' && !attributionLoaded.value) {
+        await loadAttributionData();
     }
 });
 
@@ -784,10 +873,190 @@ async function setStatus(status: string) {
                 </div>
 
                 <!-- ======================== ATTRIBUTION TAB ================ -->
-                <div v-else-if="activeTab === 'attribution'" class="flex flex-col items-center justify-center py-20 text-center">
-                    <font-awesome-icon :icon="['fas', 'diagram-project']" class="text-5xl text-gray-300 mb-4" />
-                    <h2 class="text-xl font-semibold text-gray-700 mb-2">Attribution</h2>
-                    <p class="text-sm text-gray-400 max-w-sm">Attribution analysis. Coming in a future update. (Issue 05)</p>
+                <div v-else-if="activeTab === 'attribution'" class="space-y-4">
+                    <!-- Toolbar -->
+                    <div class="flex flex-wrap items-center justify-between gap-3 bg-white rounded-xl border border-gray-200 px-4 py-3">
+                        <div class="flex flex-wrap items-center gap-3">
+                            <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">Date range</span>
+                            <input v-model="attributionStartDate" type="date" class="px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-blue-100" @change="loadAttributionData" />
+                            <span class="text-gray-400 text-sm">→</span>
+                            <input v-model="attributionEndDate" type="date" class="px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-blue-100" @change="loadAttributionData" />
+                            <div class="w-px h-5 bg-gray-200"></div>
+                            <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">Model</span>
+                            <select v-model="attributionModel" class="px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-blue-100" @change="loadAttributionData">
+                                <option value="linear">Linear</option>
+                                <option value="first_touch">First Touch</option>
+                                <option value="last_touch">Last Touch</option>
+                                <option value="time_decay">Time Decay</option>
+                                <option value="u_shaped">U-Shaped</option>
+                            </select>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <font-awesome-icon
+                                v-if="attributionStore.loading.roi || attributionStore.loading.channelPerformance"
+                                :icon="['fas', 'spinner']"
+                                class="animate-spin text-primary-blue-100 text-sm"
+                            />
+                            <button type="button" class="flex items-center gap-2 px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer" @click="exportAttributionPDF">
+                                <font-awesome-icon :icon="['fas', 'file-pdf']" class="text-xs" />
+                                PDF
+                            </button>
+                            <NuxtLink
+                                :to="`/marketing-projects/${projectId}/marketing/attribution?campaignId=${campaignId}`"
+                                class="flex items-center gap-2 px-3 py-1.5 text-sm text-primary-blue-100 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                            >
+                                <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" class="text-xs" />
+                                Full View
+                            </NuxtLink>
+                        </div>
+                    </div>
+
+                    <!-- Campaign filter badge -->
+                    <div v-if="campaign" class="inline-flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-full px-3 py-1 text-sm text-blue-700">
+                        <font-awesome-icon :icon="['fas', 'bullhorn']" class="text-xs" />
+                        Scoped to: <span class="font-semibold ml-1">{{ campaign.name }}</span>
+                        <span v-if="campaign.start_date && campaign.end_date" class="text-blue-500 ml-1">
+                            ({{ (campaign.start_date ?? '').slice(0, 10) }} → {{ (campaign.end_date ?? '').slice(0, 10) }})
+                        </span>
+                    </div>
+
+                    <!-- Sub-tab navigation -->
+                    <div class="bg-white rounded-xl border border-gray-200">
+                        <div class="border-b border-gray-100 px-4">
+                            <nav class="flex gap-1">
+                                <button
+                                    v-for="subTab in attributionSubTabs"
+                                    :key="subTab.id"
+                                    type="button"
+                                    class="flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-b-2 transition-colors cursor-pointer whitespace-nowrap"
+                                    :class="
+                                        attributionSubTab === subTab.id
+                                            ? 'border-primary-blue-100 text-primary-blue-100'
+                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    "
+                                    @click="attributionSubTab = subTab.id"
+                                >
+                                    <font-awesome-icon :icon="subTab.icon" class="text-xs" />
+                                    {{ subTab.label }}
+                                </button>
+                            </nav>
+                        </div>
+
+                        <div class="p-4">
+                            <!-- ROI -->
+                            <ROIDashboard
+                                v-if="attributionSubTab === 'roi'"
+                                :metrics="attributionStore.roiMetrics"
+                                :loading="attributionStore.loading.roi"
+                            />
+
+                            <!-- Channel Performance -->
+                            <channel-performance-overview
+                                v-else-if="attributionSubTab === 'channel' && attributionStore.channelPerformance.length > 0"
+                                :performance="attributionStore.channelPerformance"
+                                :loading="attributionStore.loading.channelPerformance"
+                            />
+                            <div v-else-if="attributionSubTab === 'channel'" class="py-10 text-center text-gray-400">
+                                <font-awesome-icon :icon="['fas', 'chart-bar']" class="text-3xl mb-2 text-gray-300" />
+                                <p class="text-sm text-gray-500">No channel performance data for this campaign.</p>
+                            </div>
+
+                            <!-- Funnel -->
+                            <div v-else-if="attributionSubTab === 'funnel'" class="space-y-4">
+                                <div class="flex justify-end">
+                                    <button
+                                        type="button"
+                                        class="flex items-center gap-2 px-3 py-1.5 text-sm bg-primary-blue-100 text-white rounded-lg hover:opacity-90 transition-opacity cursor-pointer"
+                                        @click="showCreateFunnel = true"
+                                    >
+                                        <font-awesome-icon :icon="['fas', 'plus']" class="text-xs" />
+                                        New Funnel
+                                    </button>
+                                </div>
+                                <FunnelChart
+                                    v-if="selectedFunnel"
+                                    :funnel="selectedFunnel"
+                                    :loading="attributionStore.loading.funnels"
+                                />
+                                <funnel-list
+                                    v-if="attributionStore.funnels.length > 0"
+                                    :funnels="attributionStore.funnels"
+                                    @select="(f) => { selectedFunnel = f; attributionStore.setSelectedFunnel(f); }"
+                                />
+                                <div v-else-if="!attributionStore.loading.funnels && !selectedFunnel" class="py-10 text-center text-gray-400">
+                                    <font-awesome-icon :icon="['fas', 'filter']" class="text-3xl mb-2 text-gray-300" />
+                                    <p class="text-sm text-gray-500">Create a funnel to analyse campaign conversion steps.</p>
+                                </div>
+                            </div>
+
+                            <!-- Journey Map -->
+                            <JourneyMap
+                                v-else-if="attributionSubTab === 'journey'"
+                                :journeys="attributionStore.customerJourneys"
+                                :loading="attributionStore.loading.journeys"
+                                :total-journeys="attributionStore.customerJourneys.length"
+                            />
+
+                            <!-- Model Comparison -->
+                            <ModelComparison
+                                v-else-if="attributionSubTab === 'model-comparison'"
+                                :data="attributionStore.modelComparison"
+                                :active-model="attributionModel"
+                                :loading="attributionStore.loading.modelComparison"
+                            />
+                        </div>
+                    </div>
+
+                    <!-- Create Funnel Modal -->
+                    <div v-if="showCreateFunnel" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" @click.self="showCreateFunnel = false">
+                        <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+                            <div class="flex items-center justify-between mb-5">
+                                <h3 class="text-lg font-bold text-gray-800">Create Conversion Funnel</h3>
+                                <button type="button" class="text-gray-400 hover:text-gray-600 cursor-pointer" @click="showCreateFunnel = false">
+                                    <font-awesome-icon :icon="['fas', 'xmark']" />
+                                </button>
+                            </div>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1.5">Funnel Name</label>
+                                    <input v-model="funnelForm.name" type="text" placeholder="Campaign Purchase Funnel" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-blue-100" />
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1.5">Funnel Steps</label>
+                                    <div class="space-y-2">
+                                        <div v-for="(step, idx) in funnelForm.steps" :key="idx" class="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+                                            <span class="w-5 text-center text-xs font-bold text-gray-500">{{ idx + 1 }}</span>
+                                            <input v-model="step.stepName" type="text" placeholder="Step name" class="flex-1 px-2 py-1.5 text-sm border border-gray-200 rounded-md focus:ring-1 focus:ring-primary-blue-100" />
+                                            <select v-model="step.eventType" class="px-2 py-1.5 text-sm border border-gray-200 rounded-md focus:ring-1 focus:ring-primary-blue-100">
+                                                <option value="pageview">Page View</option>
+                                                <option value="interaction">Interaction</option>
+                                                <option value="conversion">Conversion</option>
+                                            </select>
+                                            <button v-if="funnelForm.steps.length > 2" type="button" class="text-gray-400 hover:text-red-500 transition-colors cursor-pointer" @click="removeFunnelStep(idx)">
+                                                <font-awesome-icon :icon="['fas', 'trash']" class="text-xs" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <button type="button" class="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-primary-blue-100 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer" @click="addFunnelStep">
+                                        <font-awesome-icon :icon="['fas', 'plus']" class="text-xs" />
+                                        Add Step
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex justify-end gap-3 mt-6">
+                                <button type="button" class="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer" @click="showCreateFunnel = false">Cancel</button>
+                                <button
+                                    type="button"
+                                    class="px-4 py-2 text-sm bg-primary-blue-100 text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center gap-2"
+                                    :disabled="isCreatingFunnel || !isFunnelFormValid"
+                                    @click="createCampaignFunnel"
+                                >
+                                    <font-awesome-icon v-if="isCreatingFunnel" :icon="['fas', 'spinner']" class="animate-spin" />
+                                    {{ isCreatingFunnel ? 'Creating…' : 'Analyse Funnel' }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- ======================== AI ANALYSIS TAB ================ -->

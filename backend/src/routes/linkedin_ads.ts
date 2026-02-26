@@ -1,10 +1,7 @@
 import express from 'express';
 import { validateJWT } from '../middleware/authenticate.js';
 import { requiresProductionAccess } from '../middleware/requiresProductionAccess.js';
-import { DataSourceProcessor } from '../processors/DataSourceProcessor.js';
-import { LinkedInAdsService } from '../services/LinkedInAdsService.js';
-import { LinkedInOAuthService } from '../services/LinkedInOAuthService.js';
-import { IAPIConnectionDetails } from '../types/IAPIConnectionDetails.js';
+import { LinkedInAdsProcessor } from '../processors/LinkedInAdsProcessor.js';
 
 const router = express.Router();
 
@@ -15,31 +12,21 @@ const router = express.Router();
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/connect', validateJWT, async (req, res) => {
     try {
-        const oauthService = LinkedInOAuthService.getInstance();
+        const state = req.query.state as string || Math.random().toString(36).substring(7);
+        const result = await LinkedInAdsProcessor.getInstance().getLinkedInOAuthUrl(state);
 
-        if (!oauthService.isConfigured()) {
+        if (!result.configured) {
             return res.status(500).json({
                 success: false,
                 error: 'LinkedIn OAuth is not configured on this server. Please contact the administrator.',
             });
         }
 
-        const state = req.query.state as string || Math.random().toString(36).substring(7);
-        const authUrl = oauthService.generateAuthorizationUrl(state);
-
         console.log('[LinkedIn Ads] Generated authorization URL');
-
-        res.json({
-            success: true,
-            authUrl,
-            state,
-        });
+        res.json({ success: true, authUrl: result.authUrl, state });
     } catch (error: any) {
         console.error('[LinkedIn Ads] Failed to generate OAuth URL:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message || 'Failed to generate OAuth URL',
-        });
+        res.status(500).json({ success: false, error: error.message || 'Failed to generate OAuth URL' });
     }
 });
 
@@ -71,8 +58,7 @@ router.get('/callback', async (req, res) => {
         console.log('   - Code:', code.substring(0, 20) + '...');
         console.log('   - State:', state);
 
-        const oauthService = LinkedInOAuthService.getInstance();
-        const tokens = await oauthService.exchangeCodeForToken(code);
+        const tokens = await LinkedInAdsProcessor.getInstance().exchangeLinkedInCode(code);
 
         console.log('✅ [LinkedIn Ads] Token exchange completed successfully');
 
@@ -118,8 +104,7 @@ router.post('/accounts', validateJWT, async (req, res) => {
 
         console.log('[LinkedIn Ads] Listing ad accounts');
 
-        const service = LinkedInAdsService.getInstance();
-        const accounts = await service.listAdAccounts(accessToken);
+        const accounts = await LinkedInAdsProcessor.getInstance().listLinkedInAdsAccounts(accessToken);
 
         // Separate live vs test accounts — in LinkedIn's Development Tier only
         // test accounts are available. We include both so the setup wizard works
@@ -186,28 +171,20 @@ router.post('/add', validateJWT, requiresProductionAccess, async (req, res) => {
 
         console.log(`[LinkedIn Ads] Adding data source: ${name}`);
 
-        // Build IAPIConnectionDetails from request values
-        const tokenExpiresAt = expiresAt ? Number(expiresAt) : Date.now() + 60 * 24 * 60 * 60 * 1000; // 60 days default
+        const tokenExpiresAt = expiresAt ? Number(expiresAt) : Date.now() + 60 * 24 * 60 * 60 * 1000;
+        const defaultStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-        const apiConnectionDetails: IAPIConnectionDetails = {
-            oauth_access_token: accessToken,
-            oauth_refresh_token: refreshToken || '',
-            token_expiry: new Date(tokenExpiresAt),
-            api_config: {
-                linkedin_ads_account_id: Number(adAccountId),
-                linkedin_ads_account_name: adAccountName || '',
-                linkedin_ads_token_expires_at: tokenExpiresAt,
-                linkedin_ads_refresh_token: refreshToken || '',
-                start_date: startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                end_date: endDate || new Date().toISOString().split('T')[0],
-            },
-        };
-
-        const dataSourceId = await DataSourceProcessor.getInstance().addLinkedInAdsDataSource(
+        const dataSourceId = await LinkedInAdsProcessor.getInstance().addLinkedInAdsDataSourceFromParams(
             name,
-            apiConnectionDetails,
-            req.body.tokenDetails,
-            projectId
+            accessToken,
+            refreshToken || '',
+            tokenExpiresAt,
+            Number(adAccountId),
+            adAccountName || '',
+            projectId,
+            startDate || defaultStart,
+            endDate || new Date().toISOString().split('T')[0],
+            req.body.tokenDetails
         );
 
         if (!dataSourceId) {
@@ -223,7 +200,7 @@ router.post('/add', validateJWT, requiresProductionAccess, async (req, res) => {
         });
 
         // Fire-and-forget: kick off initial sync in the background
-        DataSourceProcessor.getInstance()
+        LinkedInAdsProcessor.getInstance()
             .syncLinkedInAdsDataSource(dataSourceId, userId)
             .catch((err: any) => {
                 console.error(`[LinkedIn Ads] Initial sync failed for data source ${dataSourceId}:`, err);
@@ -257,7 +234,7 @@ router.post('/sync/:id', validateJWT, requiresProductionAccess, async (req, res)
 
         console.log(`[LinkedIn Ads Sync] Starting sync for data source ${dataSourceId}`);
 
-        const success = await DataSourceProcessor.getInstance().syncLinkedInAdsDataSource(
+        const success = await LinkedInAdsProcessor.getInstance().syncLinkedInAdsDataSource(
             dataSourceId,
             userId
         );
@@ -295,17 +272,9 @@ router.get('/sync-status/:id', validateJWT, async (req, res) => {
             return res.status(400).json({ success: false, error: 'Invalid data source ID' });
         }
 
-        const { LinkedInAdsDriver } = await import('../drivers/LinkedInAdsDriver.js');
-        const driver = LinkedInAdsDriver.getInstance();
+        const { lastSyncTime, syncHistory } = await LinkedInAdsProcessor.getInstance().getLinkedInAdsSyncStatus(dataSourceId);
 
-        const lastSyncTime = await driver.getLastSyncTime(dataSourceId);
-        const syncHistory = await driver.getSyncHistory(dataSourceId, 10);
-
-        res.json({
-            success: true,
-            lastSyncTime,
-            syncHistory,
-        });
+        res.json({ success: true, lastSyncTime, syncHistory });
     } catch (error: any) {
         console.error('[LinkedIn Ads] Failed to get sync status:', error);
         res.status(500).json({

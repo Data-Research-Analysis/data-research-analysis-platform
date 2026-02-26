@@ -30,7 +30,7 @@
                         <span class="text-3xl text-gray-400">/100</span>
                     </div>
                     <p class="text-sm text-gray-600 mt-2">
-                        Weighted for marketing: completeness (40%), validity (35%), uniqueness (25%)
+                        Weighted: completeness (35%), validity (30%), uniqueness (20%), consistency (15%)
                     </p>
                     <p class="text-xs text-gray-500 mt-1">
                         Priorities: complete customer data for targeting, accurate contact info to prevent wasted spend, deduplicated records

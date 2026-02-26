@@ -65,4 +65,31 @@ export class PrivateBetaUserProcessor {
             return resolve(usersList);
         });
     }
+    /**
+     * Apply for private beta access.
+     * Returns null if email already registered, or the new user record.
+     */
+    public async applyForBeta(fields: {
+        first_name: string; last_name: string; phone_number: string;
+        business_email: string; company_name: string;
+        agree_to_receive_updates: boolean; country: string;
+    }): Promise<{ alreadyExists: boolean; email: string }> {
+        const { DBDriver } = await import('../drivers/DBDriver.js');
+        const { EDataSourceType } = await import('../types/EDataSourceType.js');
+        const { DRAPrivateBetaUsers } = await import('../models/DRAPrivateBetaUsers.js');
+        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+        const manager = (await driver.getConcreteDriver()).manager;
+        const existing = await manager.findOne(DRAPrivateBetaUsers, { where: { business_email: fields.business_email } });
+        if (existing) return { alreadyExists: true, email: fields.business_email };
+        const user = new DRAPrivateBetaUsers();
+        user.first_name = fields.first_name;
+        user.last_name = fields.last_name;
+        user.phone_number = fields.phone_number;
+        user.business_email = fields.business_email;
+        user.company_name = fields.company_name;
+        user.agree_to_receive_updates = fields.agree_to_receive_updates;
+        user.country = fields.country;
+        await manager.save(user);
+        return { alreadyExists: false, email: fields.business_email };
+    }
 }

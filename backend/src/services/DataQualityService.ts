@@ -4,7 +4,8 @@ import {
     IDataProfile,
     IColumnProfile,
     IQualityReport,
-    IQualityIssue
+    IQualityIssue,
+    IConsistencyViolation
 } from '../interfaces/IDataQuality.js';
 
 /**
@@ -371,6 +372,278 @@ export class DataQualityService {
             uniquenessScore: Math.round(uniquenessTotal / columnCount),
             validityScore: Math.round(validityTotal / columnCount)
         };
+    }
+
+    /**
+     * Run cross-column consistency checks and return a 0-100 score plus individual violations.
+     *
+     * Checks performed:
+     *   1. Date ordering — e.g. created_at must be <= updated_at
+     *   2. Future / implausible date plausibility — historical timestamps should not be in the future
+     *   3. Negative values in inherently positive columns — age, spend, price, etc.
+     *   4. Mixed casing in low-cardinality categorical text columns
+     *   5. Multiple date formats stored in the same date-like text column
+     */
+    public async checkConsistency(
+        dataModel: DRADataModel,
+        profile: IDataProfile
+    ): Promise<{ score: number; violations: IConsistencyViolation[] }> {
+        const qr = AppDataSource.createQueryRunner();
+        await qr.connect();
+
+        const table = `"${dataModel.schema}"."${dataModel.name}"`;
+        const violations: IConsistencyViolation[] = [];
+
+        try {
+            const dateColumns   = profile.columns.filter(c => this.isDateType(c.type));
+            const numericColumns = profile.columns.filter(c => this.isNumericType(c.type));
+            const textColumns   = profile.columns.filter(c => this.isTextType(c.type));
+
+            // ── Check 1: Date ordering between related column pairs ─────────────
+            const DATE_PAIRS: [string, string][] = [
+                ['created_at',   'updated_at'],
+                ['created_at',   'deleted_at'],
+                ['created_at',   'closed_at'],
+                ['created_at',   'resolved_at'],
+                ['created_at',   'completed_at'],
+                ['created_at',   'expires_at'],
+                ['start_date',   'end_date'],
+                ['start_at',     'end_at'],
+                ['begins_at',    'ends_at'],
+                ['opened_at',    'closed_at'],
+                ['started_at',   'ended_at'],
+                ['published_at', 'expires_at'],
+                ['birth_date',   'death_date'],
+                ['order_date',   'ship_date'],
+                ['order_date',   'delivery_date'],
+                ['registered_at','last_login_at'],
+            ];
+
+            for (const [beforeName, afterName] of DATE_PAIRS) {
+                const beforeCol = dateColumns.find(c => {
+                    const n = c.name.toLowerCase();
+                    return n === beforeName || n.endsWith(`_${beforeName}`);
+                });
+                const afterCol = dateColumns.find(c => {
+                    const n = c.name.toLowerCase();
+                    return n === afterName || n.endsWith(`_${afterName}`);
+                });
+                if (!beforeCol || !afterCol) continue;
+
+                try {
+                    const r = await qr.query(
+                        `SELECT
+                            COUNT(*) FILTER (WHERE "${beforeCol.name}" > "${afterCol.name}") AS violation_count,
+                            COUNT(*) FILTER (WHERE "${beforeCol.name}" IS NOT NULL AND "${afterCol.name}" IS NOT NULL) AS total_checked
+                         FROM ${table}`
+                    );
+                    const vc = parseInt(r[0].violation_count) || 0;
+                    const tc = parseInt(r[0].total_checked)   || 0;
+                    if (tc > 0 && vc > 0) {
+                        violations.push({
+                            check: 'date_ordering',
+                            description: `"${beforeCol.name}" is later than "${afterCol.name}" for ${vc.toLocaleString()} row${vc === 1 ? '' : 's'} — dates are logically out of order`,
+                            affectedColumns: [beforeCol.name, afterCol.name],
+                            violationCount: vc,
+                            totalChecked: tc,
+                            violationRate: Math.round((vc / tc) * 10000) / 100
+                        });
+                    }
+                } catch { /* columns may exist but be incompatible — skip */ }
+            }
+
+            // ── Check 2: Future / implausible date plausibility ─────────────────
+            const PAST_ONLY_PATTERNS = [
+                'created_at', 'created', 'registered_at', 'registered',
+                'purchase_date', 'order_date', 'birth_date', 'dob',
+                'joined_at', 'signup_at', 'first_seen', 'installed_at',
+                'activated_at', 'onboarded_at',
+            ];
+            for (const col of dateColumns) {
+                const lower = col.name.toLowerCase();
+                const isPastOnly = PAST_ONLY_PATTERNS.some(p => lower.includes(p));
+                if (!isPastOnly) continue;
+
+                try {
+                    const r = await qr.query(
+                        `SELECT
+                            COUNT(*) FILTER (WHERE "${col.name}" > NOW() + INTERVAL '1 day') AS future_count,
+                            COUNT(*) FILTER (WHERE "${col.name}" < '1900-01-01'::date)        AS ancient_count,
+                            COUNT("${col.name}")                                               AS total_checked
+                         FROM ${table}`
+                    );
+                    const futureVc  = parseInt(r[0].future_count)  || 0;
+                    const ancientVc = parseInt(r[0].ancient_count) || 0;
+                    const tc        = parseInt(r[0].total_checked) || 0;
+
+                    if (tc > 0 && futureVc > 0) {
+                        violations.push({
+                            check: 'future_date',
+                            description: `"${col.name}" has ${futureVc.toLocaleString()} value${futureVc === 1 ? '' : 's'} in the future — unexpected for a historical timestamp`,
+                            affectedColumns: [col.name],
+                            violationCount: futureVc,
+                            totalChecked: tc,
+                            violationRate: Math.round((futureVc / tc) * 10000) / 100
+                        });
+                    }
+                    if (tc > 0 && ancientVc > 0) {
+                        violations.push({
+                            check: 'implausible_date',
+                            description: `"${col.name}" has ${ancientVc.toLocaleString()} value${ancientVc === 1 ? '' : 's'} before 1900-01-01 — likely data entry errors`,
+                            affectedColumns: [col.name],
+                            violationCount: ancientVc,
+                            totalChecked: tc,
+                            violationRate: Math.round((ancientVc / tc) * 10000) / 100
+                        });
+                    }
+                } catch { /* skip */ }
+            }
+
+            // ── Check 3: Negative values in inherently positive columns ─────────
+            const POSITIVE_ONLY_PATTERNS = [
+                'age', 'count', 'quantity', 'qty', 'amount', 'price',
+                'revenue', 'spend', 'budget', 'clicks', 'impressions',
+                'conversions', 'sessions', 'views', 'visits', 'orders',
+                'units', 'cost', 'fee', 'total', 'duration', 'size',
+            ];
+            for (const col of numericColumns) {
+                const lower = col.name.toLowerCase();
+                const shouldBePositive = POSITIVE_ONLY_PATTERNS.some(p => lower.includes(p));
+                if (!shouldBePositive) continue;
+
+                try {
+                    const r = await qr.query(
+                        `SELECT
+                            COUNT(*) FILTER (WHERE "${col.name}" < 0) AS neg_count,
+                            COUNT("${col.name}")                       AS total_checked
+                         FROM ${table}`
+                    );
+                    const vc = parseInt(r[0].neg_count)      || 0;
+                    const tc = parseInt(r[0].total_checked)  || 0;
+                    if (tc > 0 && vc > 0) {
+                        violations.push({
+                            check: 'negative_value',
+                            description: `"${col.name}" has ${vc.toLocaleString()} negative value${vc === 1 ? '' : 's'} — this column is expected to always be positive`,
+                            affectedColumns: [col.name],
+                            violationCount: vc,
+                            totalChecked: tc,
+                            violationRate: Math.round((vc / tc) * 10000) / 100
+                        });
+                    }
+                } catch { /* skip */ }
+            }
+
+            // ── Check 4: Mixed casing in low-cardinality categorical text columns
+            for (const col of textColumns) {
+                if (col.distinctCount === 0 || col.distinctCount > 50) continue;
+
+                try {
+                    const r = await qr.query(
+                        `SELECT
+                            COUNT(*) FILTER (WHERE "${col.name}" = LOWER("${col.name}"))    AS lower_count,
+                            COUNT(*) FILTER (WHERE "${col.name}" = UPPER("${col.name}"))    AS upper_count,
+                            COUNT(*) FILTER (WHERE "${col.name}" = INITCAP("${col.name}"))  AS title_count,
+                            COUNT("${col.name}")                                             AS total_checked
+                         FROM ${table}
+                         WHERE "${col.name}" ~ '[a-zA-Z]'`
+                    );
+                    const lowerC = parseInt(r[0].lower_count) || 0;
+                    const upperC = parseInt(r[0].upper_count) || 0;
+                    const titleC = parseInt(r[0].title_count) || 0;
+                    const tc     = parseInt(r[0].total_checked) || 0;
+                    if (tc === 0) continue;
+
+                    const dominant = Math.max(lowerC, upperC, titleC);
+                    const inconsistentCount = tc - dominant;
+                    const inconsistentRate  = (inconsistentCount / tc) * 100;
+
+                    if (inconsistentRate > 5 && inconsistentCount > 0) {
+                        const dominantCase = lowerC === dominant ? 'lowercase'
+                            : upperC === dominant ? 'UPPERCASE' : 'Title Case';
+                        violations.push({
+                            check: 'mixed_case',
+                            description: `"${col.name}" has inconsistent casing — ${inconsistentCount.toLocaleString()} value${inconsistentCount === 1 ? '' : 's'} deviate from the dominant ${dominantCase} format`,
+                            affectedColumns: [col.name],
+                            violationCount: inconsistentCount,
+                            totalChecked: tc,
+                            violationRate: Math.round(inconsistentRate * 100) / 100
+                        });
+                    }
+                } catch { /* skip */ }
+            }
+
+            // ── Check 5: Multiple date formats in date-like text columns ────────
+            for (const col of textColumns) {
+                const lower = col.name.toLowerCase();
+                const isDateLike = lower.includes('date') || lower.includes('_at')
+                    || lower.includes('_on') || lower.includes('time');
+                if (!isDateLike) continue;
+
+                try {
+                    const r = await qr.query(
+                        `SELECT
+                            COUNT(*) FILTER (WHERE "${col.name}" ~  '^[0-9]{4}-[0-9]{2}-[0-9]{2}') AS iso_count,
+                            COUNT(*) FILTER (WHERE "${col.name}" ~  '^[0-9]{2}/[0-9]{2}/[0-9]{4}') AS us_count,
+                            COUNT(*) FILTER (WHERE "${col.name}" ~  '^[0-9]{2}-[0-9]{2}-[0-9]{4}') AS eu_count,
+                            COUNT(*) FILTER (WHERE "${col.name}" ~  '^[0-9]{2}\\.[0-9]{2}\\.[0-9]{4}') AS dot_count,
+                            COUNT("${col.name}")                                                     AS total_checked
+                         FROM ${table}
+                         WHERE "${col.name}" IS NOT NULL`
+                    );
+                    const fmts = [
+                        { name: 'ISO (YYYY-MM-DD)',  n: parseInt(r[0].iso_count)  || 0 },
+                        { name: 'US (MM/DD/YYYY)',   n: parseInt(r[0].us_count)   || 0 },
+                        { name: 'EU (DD-MM-YYYY)',   n: parseInt(r[0].eu_count)   || 0 },
+                        { name: 'dot (DD.MM.YYYY)',  n: parseInt(r[0].dot_count)  || 0 },
+                    ].filter(x => x.n > 0);
+                    const tc = parseInt(r[0].total_checked) || 0;
+
+                    if (fmts.length > 1 && tc > 0) {
+                        const dominant = Math.max(...fmts.map(f => f.n));
+                        const vc = tc - dominant;
+                        const fmtList = fmts.map(f => `${f.name}: ${f.n}`).join(', ');
+                        violations.push({
+                            check: 'date_format_mix',
+                            description: `"${col.name}" stores dates in multiple formats (${fmtList}) — should use one consistent format`,
+                            affectedColumns: [col.name],
+                            violationCount: vc,
+                            totalChecked: tc,
+                            violationRate: Math.round((vc / tc) * 10000) / 100
+                        });
+                    }
+                } catch { /* skip */ }
+            }
+
+            // ── Compute overall consistency score ────────────────────────────────
+            if (violations.length === 0) {
+                return { score: 100, violations: [] };
+            }
+
+            // Each check type carries a maximum deduction weight (points off 100)
+            const DEDUCTION_WEIGHTS: Record<string, number> = {
+                date_ordering:    20,
+                future_date:      15,
+                implausible_date: 12,
+                negative_value:   15,
+                mixed_case:        8,
+                date_format_mix:  10,
+            };
+
+            let totalDeduction = 0;
+            for (const v of violations) {
+                const weight = DEDUCTION_WEIGHTS[v.check] ?? 10;
+                // Scale by violation rate so 5% affected ≠ same penalty as 100% affected
+                totalDeduction += weight * (v.violationRate / 100);
+            }
+
+            return {
+                score: Math.max(0, Math.round(100 - totalDeduction)),
+                violations
+            };
+
+        } finally {
+            await qr.release();
+        }
     }
 
     /**

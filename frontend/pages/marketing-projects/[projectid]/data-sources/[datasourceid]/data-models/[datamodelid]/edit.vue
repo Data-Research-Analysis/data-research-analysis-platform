@@ -6,7 +6,6 @@ import { useDataModelsStore } from '@/stores/data_models';
 import { useDataSourceStore } from '@/stores/data_sources';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import DataQualityPanel from '~/components/DataQualityPanel.vue';
-import AttributionPanel from '~/components/AttributionPanel.vue';
 
 const dataModelsStore = useDataModelsStore();
 const projectsStore = useProjectsStore();
@@ -29,80 +28,10 @@ const dataModelId = computed(() => parseInt(route.params.datamodelid));
 const permissions = useProjectPermissions(projectId.value);
 
 // Tab management
-const activeTab = ref<'builder' | 'data-quality' | 'attribution'>('builder');
+const activeTab = ref<'builder' | 'data-quality'>('builder');
 let refreshInterval: NodeJS.Timeout | null = null;
 
-// Check if data model has columns suitable for attribution tracking
-const isAttributionCompatible = computed(() => {
-    if (!state.data_model?.query?.columns || !Array.isArray(state.data_model.query.columns)) {
-        return false;
-    }
 
-    const columns = state.data_model.query.columns.map((col: any) => 
-        (col.alias || col.column_name || '').toLowerCase()
-    );
-
-    // Required: User identifier column
-    const userIdentifierPatterns = ['user_id', 'userid', 'customer_id', 'customerid', 'email', 
-                                     'session_id', 'sessionid', 'visitor_id', 'visitorid', 'account_id'];
-    const hasUserIdentifier = columns.some((col: string) => 
-        userIdentifierPatterns.some(pattern => col.includes(pattern))
-    );
-
-    // Required: Timestamp column
-    const timestampPatterns = ['created_at', 'createdat', 'timestamp', 'date', 'event_date', 
-                               'event_time', 'occurred_at', 'time', 'datetime'];
-    const hasTimestamp = columns.some((col: string) => 
-        timestampPatterns.some(pattern => col.includes(pattern))
-    );
-
-    // Recommended: Event type column
-    const eventPatterns = ['event', 'action', 'activity', 'conversion', 'type'];
-    const hasEventType = columns.some((col: string) => 
-        eventPatterns.some(pattern => col.includes(pattern))
-    );
-
-    // Optional: Channel/source columns
-    const channelPatterns = ['utm_source', 'utm_medium', 'utm_campaign', 'channel', 'source', 'referrer', 'medium'];
-    const hasChannel = columns.some((col: string) => 
-        channelPatterns.some(pattern => col.includes(pattern))
-    );
-
-    // Must have user identifier AND timestamp
-    // Event type or channel columns are nice to have but not required
-    return hasUserIdentifier && hasTimestamp && (hasEventType || hasChannel);
-});
-
-// Tooltip message for why attribution is hidden
-const attributionTooltipMessage = computed(() => {
-    if (isAttributionCompatible.value) return '';
-    
-    if (!state.data_model?.query?.columns || !Array.isArray(state.data_model.query.columns)) {
-        return 'No columns defined in this data model';
-    }
-
-    const columns = state.data_model.query.columns.map((col: any) => 
-        (col.alias || col.column_name || '').toLowerCase()
-    );
-
-    const userIdentifierPatterns = ['user_id', 'userid', 'customer_id', 'customerid', 'email', 
-                                     'session_id', 'sessionid', 'visitor_id', 'visitorid', 'account_id'];
-    const hasUserIdentifier = columns.some((col: string) => 
-        userIdentifierPatterns.some(pattern => col.includes(pattern))
-    );
-
-    const timestampPatterns = ['created_at', 'createdat', 'timestamp', 'date', 'event_date', 
-                               'event_time', 'occurred_at', 'time', 'datetime'];
-    const hasTimestamp = columns.some((col: string) => 
-        timestampPatterns.some(pattern => col.includes(pattern))
-    );
-
-    const missing: string[] = [];
-    if (!hasUserIdentifier) missing.push('user identifier (user_id, customer_id, email, etc.)');
-    if (!hasTimestamp) missing.push('timestamp (created_at, date, timestamp, etc.)');
-
-    return `Attribution tracking requires: ${missing.join(' and ')}`;
-});
 
 async function getDataSourceTables(dataSourceId) {
     const token = getAuthToken();
@@ -138,13 +67,6 @@ onMounted(async () => {
     }, 10000);
 });
 
-// Watch for attribution tab access when model isn't compatible
-watch([activeTab, isAttributionCompatible], ([newTab, compatible]) => {
-    if (newTab === 'attribution' && !compatible) {
-        // Redirect to builder tab if attribution not compatible
-        activeTab.value = 'builder';
-    }
-});
 
 onUnmounted(() => {
   if (refreshInterval) {
@@ -272,33 +194,6 @@ async function copyDataModel() {
                                 <span>✅</span>
                                 <span>Data Quality</span>
                             </button>
-                            <button
-                                v-if="isAttributionCompatible"
-                                @click="activeTab = 'attribution'"
-                                :class="[
-                                    activeTab === 'attribution'
-                                        ? 'border-blue-500 text-blue-600'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
-                                    'whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors duration-200 flex items-center gap-2 cursor-pointer'
-                                ]"
-                            >
-                                <span>📊</span>
-                                <span>Marketing Attribution</span>
-                            </button>
-                            <div
-                                v-else
-                                class="whitespace-nowrap py-4 px-1 border-b-2 border-transparent text-gray-400 font-medium text-sm flex items-center gap-2 relative group"
-                                :title="attributionTooltipMessage"
-                            >
-                                <span class="opacity-50">📊</span>
-                                <span class="opacity-50">Marketing Attribution</span>
-                                <span class="text-xs ml-1">🔒</span>
-                                <!-- Tooltip on hover -->
-                                <div class="absolute hidden group-hover:block bottom-full left-0 mb-2 max-w-md bg-gray-900 text-white text-xs rounded py-2 px-3 z-10 whitespace-normal">
-                                    {{ attributionTooltipMessage }}
-                                    <div class="absolute top-full left-4 -mt-1 border-4 border-transparent border-t-gray-900"></div>
-                                </div>
-                            </div>
                         </nav>
                     </div>
                 </div>
@@ -327,11 +222,6 @@ async function copyDataModel() {
                 <!-- Data Quality Tab -->
                 <div v-else-if="activeTab === 'data-quality'" class="bg-white rounded-lg shadow p-6 mb-6">
                     <DataQualityPanel :data-model-id="dataModelId" />
-                </div>
-    
-                <!-- Attribution Tab -->
-                <div v-else-if="activeTab === 'attribution'" class="bg-white rounded-lg shadow p-6 mb-6">
-                    <AttributionPanel :data-model-id="dataModelId" :project-id="projectId" />
                 </div>
             </div>
         </tab-content-panel>

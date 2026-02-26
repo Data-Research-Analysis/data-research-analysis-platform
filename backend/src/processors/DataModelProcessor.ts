@@ -13,7 +13,7 @@ import { DRAProject } from "../models/DRAProject.js";
 import { DRAProjectMember } from "../models/DRAProjectMember.js";
 import { DRADataModelSource } from "../models/DRADataModelSource.js";
 import { NotificationHelperService } from "../services/NotificationHelperService.js";
-import { DataSourceProcessor } from "./DataSourceProcessor.js";
+import { DataSourceSQLHelpers } from './helpers/DataSourceSQLHelpers.js';
 
 export class DataModelProcessor {
     private static instance: DataModelProcessor;
@@ -27,234 +27,9 @@ export class DataModelProcessor {
         return DataModelProcessor.instance;
     }
 
-    /**
-     * Escape SQL string values to prevent SQL injection
-     * @param value - The value to escape
-     * @returns Escaped string or 'null' for null/undefined values
-     */
-    private escapeSQL(value: any): string {
-        if (value === null || value === undefined) {
-            return 'null';
-        }
-        // Escape single quotes by doubling them (SQL standard)
-        return String(value).replace(/'/g, "''");
-    }
 
-    /**
-     * Convert a value to a PostgreSQL boolean literal
-     */
-    private convertToPostgresBoolean(value: any): string {
-        if (value === null || value === undefined) {
-            return 'NULL';
-        }
-        
-        const stringValue = String(value).trim().toLowerCase();
-        
-        // Handle common true values
-        if (['true', '1', 'yes', 'y', 'on', 'active', 'enabled'].includes(stringValue)) {
-            return 'TRUE';
-        }
-        
-        // Handle common false values
-        if (['false', '0', 'no', 'n', 'off', 'inactive', 'disabled'].includes(stringValue)) {
-            return 'FALSE';
-        }
-        
-        // If we can't determine the boolean value, default to NULL
-        console.warn(`Unable to convert value "${value}" to boolean, using NULL`);
-        return 'NULL';
-    }
 
-    /**
-     * Format a date value for SQL insertion based on column data type
-     * @param value - The date value to format (Date object, string, or timestamp)
-     * @param columnType - The PostgreSQL date type
-     * @param columnName - The column name (for error logging)
-     * @returns Formatted SQL date string
-     */
-    private formatDateForSQL(value: any, columnType: string, columnName: string): string {
-        if (value === null || value === undefined) {
-            return 'null';
-        }
 
-        try {
-            let dateObj: Date;
-
-            // Convert value to Date object
-            if (value instanceof Date) {
-                dateObj = value;
-            } else if (typeof value === 'string') {
-                // Handle empty or invalid strings
-                if (value.trim() === '' || value === '0000-00-00' || value === '0000-00-00 00:00:00') {
-                    return 'null';
-                }
-                
-                // Handle JavaScript Date.toString() format
-                // e.g., "Sun Nov 23 2025 00:00:00 GMT+0000 (Coordinated Universal Time)"
-                if (value.includes('GMT')) {
-                    // Parse using Date constructor which handles this format
-                    dateObj = new Date(value);
-                    if (isNaN(dateObj.getTime())) {
-                        // If that fails, try to extract just the date portion
-                        const datePart = value.split(' GMT')[0];
-                        dateObj = new Date(datePart);
-                    }
-                } else {
-                    dateObj = new Date(value);
-                }
-            } else if (typeof value === 'number') {
-                // Unix timestamp
-                dateObj = new Date(value);
-            } else {
-                console.warn(`Unexpected date value type for column ${columnName}:`, typeof value, value);
-                return 'null';
-            }
-
-            // Validate Date object
-            if (isNaN(dateObj.getTime())) {
-                console.error(`Invalid date value for column ${columnName}:`, value);
-                return 'null';
-            }
-
-            const upperType = columnType.toUpperCase();
-
-            // Format based on column type
-            // CRITICAL: Check TIMESTAMP types BEFORE TIME types
-            // because 'TIMESTAMP WITHOUT TIME ZONE' contains 'TIME WITHOUT'
-            // and would incorrectly match the TIME handler, stripping the date portion
-            if (upperType === 'DATE') {
-                // DATE: YYYY-MM-DD format
-                const formatted = dateObj.toISOString().split('T')[0];
-                return `'${formatted}'`;
-            } 
-            else if (upperType === 'TIMESTAMP WITH TIME ZONE' || upperType === 'TIMESTAMPTZ' || upperType.includes('TIMESTAMPTZ')) {
-                // TIMESTAMP WITH TIME ZONE: ISO 8601 format with timezone
-                return `'${dateObj.toISOString()}'`;
-            } 
-            else if (upperType === 'TIMESTAMP' || upperType.startsWith('TIMESTAMP(') || upperType.includes('TIMESTAMP WITHOUT') || upperType.includes('TIMESTAMP ')) {
-                // TIMESTAMP: YYYY-MM-DD HH:MM:SS format (no timezone)
-                const formatted = dateObj.toISOString()
-                    .replace('T', ' ')
-                    .split('.')[0];
-                return `'${formatted}'`;
-            }
-            else if (upperType === 'TIME' || upperType.startsWith('TIME(') || upperType.includes('TIME WITHOUT')) {
-                // TIME: HH:MM:SS format (must come AFTER TIMESTAMP checks)
-                const timeString = dateObj.toISOString().split('T')[1].split('.')[0];
-                return `'${timeString}'`;
-            }
-
-            // Fallback: use ISO string for timestamp with timezone
-            return `'${dateObj.toISOString()}'`;
-
-        } catch (error) {
-            console.error(`Failed to format date for column ${columnName}:`, error, 'Value:', value);
-            return 'null';
-        }
-    }
-
-    /**
-     * Format a value for SQL insertion based on column data type
-     * @param value - The value to format
-     * @param columnType - The PostgreSQL column type
-     * @param columnName - The column name (for error logging)
-     * @returns Formatted SQL value string
-     */
-    private formatValueForSQL(value: any, columnType: string, columnName: string): string {
-        if (value === null || value === undefined) {
-            return 'null';
-        }
-
-        // Auto-detect Date objects regardless of declared column type
-        // External DB drivers may return Date objects for columns not recognized as date types
-        if (value instanceof Date) {
-            const upperType = columnType.toUpperCase();
-            const dateType = (upperType.includes('DATE') || upperType.includes('TIME') || upperType.includes('TIMESTAMP'))
-                ? upperType : 'TIMESTAMP';
-            return this.formatDateForSQL(value, dateType, columnName);
-        }
-
-        const upperType = columnType.toUpperCase();
-
-        // Handle DATE, TIME, and TIMESTAMP types
-        if (upperType.includes('DATE') || 
-            upperType.includes('TIME') || 
-            upperType.includes('TIMESTAMP')) {
-            return this.formatDateForSQL(value, upperType, columnName);
-        }
-
-        // Handle JSON and JSONB types
-        if (upperType === 'JSON' || upperType === 'JSONB') {
-            try {
-                // Check if value is already stringified as "[object Object]"
-                const valueStr = String(value);
-                if (valueStr === '[object Object]' || valueStr.startsWith('[object ')) {
-                    console.error(`Detected [object Object] for column ${columnName}. Value type: ${typeof value}`);
-                    if (typeof value === 'object') {
-                        const jsonString = JSON.stringify(value);
-                        return `'${this.escapeSQL(jsonString)}'`;
-                    }
-                    return 'null';
-                }
-
-                if (typeof value === 'object') {
-                    const jsonString = JSON.stringify(value);
-                    return `'${this.escapeSQL(jsonString)}'`;
-                } else if (typeof value === 'string') {
-                    if (value.trim().startsWith('{') || value.trim().startsWith('[')) {
-                        try {
-                            JSON.parse(value);
-                            return `'${this.escapeSQL(value)}'`;
-                        } catch {
-                            return `'${this.escapeSQL(JSON.stringify(value))}'`;
-                        }
-                    } else {
-                        return `'${this.escapeSQL(JSON.stringify(value))}'`;
-                    }
-                } else {
-                    return `'${JSON.stringify(value)}'`;
-                }
-            } catch (error) {
-                console.error(`Failed to serialize JSON for column ${columnName}:`, error, 'Value:', value, 'Type:', typeof value);
-                return 'null';
-            }
-        }
-
-        // Auto-detect date-like strings as safety net
-        // Catches JavaScript Date.toString() format ("Thu Nov 23 2025 00:00:00 GMT+0000...")
-        // that external DB drivers may return as strings instead of Date objects.
-        // Without this, such strings get inserted raw into DATE/TIMESTAMP columns,
-        // causing PostgreSQL DateTimeParseError (code 22007).
-        if (typeof value === 'string') {
-            const trimmed = value.trim();
-            if (trimmed.includes('GMT') || trimmed.includes('UTC') || trimmed.includes('Coordinated Universal Time')) {
-                const dateObj = new Date(trimmed);
-                if (!isNaN(dateObj.getTime())) {
-                    console.warn(`[formatValueForSQL] Auto-detected date string for column ${columnName} (declared ${columnType}): "${trimmed.substring(0, 60)}"`);
-                    return this.formatDateForSQL(trimmed, 'TIMESTAMP', columnName);
-                }
-            }
-        }
-
-        // Handle NUMERIC/INTEGER/REAL/FLOAT types - don't wrap numbers in quotes
-        if (upperType.includes('NUMERIC') || upperType.includes('INTEGER') || upperType.includes('INT') ||
-            upperType.includes('REAL') || upperType.includes('FLOAT') || upperType.includes('DOUBLE') ||
-            upperType.includes('DECIMAL') || upperType.includes('BIGINT') || upperType.includes('SMALLINT')) {
-            const numValue = Number(value);
-            if (!isNaN(numValue)) {
-                return `${numValue}`;
-            }
-            return 'null';
-        }
-
-        // Handle BOOLEAN type
-        if (upperType === 'BOOLEAN' || upperType === 'BOOL') {
-            return this.convertToPostgresBoolean(value);
-        }
-
-        // Handle all other types with proper escaping
-        return `'${this.escapeSQL(value)}'`;
-    }
 
     /**
      * Get the list of data models for a user in a specific project
@@ -798,7 +573,7 @@ export class DataModelProcessor {
                 // This also ensures proper GROUP BY inclusion from group_by_columns array.
                 let selectTableQuery: string;
                 try {
-                    selectTableQuery = DataSourceProcessor.getInstance().reconstructSQLFromJSON(queryJSON);
+                    selectTableQuery = DataSourceSQLHelpers.reconstructSQLFromJSON(queryJSON);
                     
                     // Preserve LIMIT/OFFSET from original query if not in reconstructed SQL
                     const limitMatch = query.match(/LIMIT\s+(\d+)/i);
@@ -1075,7 +850,7 @@ export class DataModelProcessor {
                             console.log(`Column ${columnName} (${columnType}):`, typeof row[rowKey], row[rowKey]);
                         }
                         
-                        const formattedValue = this.formatValueForSQL(row[rowKey], columnType, columnName);
+                        const formattedValue = DataSourceSQLHelpers.formatValueForSQL(row[rowKey], columnType, columnName);
                         
                         if (columnIndex < columnsForTableCreation.length - 1) {
                             values += `${formattedValue},`;
@@ -1088,7 +863,7 @@ export class DataModelProcessor {
                         values += ',';
                         sourceTable.calculated_columns.forEach((column: any, columnIndex: number) => {
                             const columnName = column.column_name;
-                            const formattedVal = this.formatValueForSQL(row[columnName], 'NUMERIC', columnName);
+                            const formattedVal = DataSourceSQLHelpers.formatValueForSQL(row[columnName], 'NUMERIC', columnName);
                             if (columnIndex < sourceTable.calculated_columns.length - 1) {
                                 values += `${formattedVal},`;
                             } else {
@@ -1121,7 +896,7 @@ export class DataModelProcessor {
                                     aliasName = `${funcName}_${columnName}`.toLowerCase();
                                 }
                                 
-                                const formattedVal = this.formatValueForSQL(row[rowKey], 'NUMERIC', aliasName);
+                                const formattedVal = DataSourceSQLHelpers.formatValueForSQL(row[rowKey], 'NUMERIC', aliasName);
                                 if (columnIndex < validAggFuncs.length - 1) {
                                     values += `${formattedVal},`;
                                 } else {
@@ -1143,7 +918,7 @@ export class DataModelProcessor {
                             validExpressions.forEach((expr: any, index: number) => {
                                 const aliasName = expr.column_alias_name;
                                 const exprDataType = columnDataTypes.get(aliasName) || 'NUMERIC';
-                                const formattedVal = this.formatValueForSQL(row[aliasName], exprDataType, aliasName);
+                                const formattedVal = DataSourceSQLHelpers.formatValueForSQL(row[aliasName], exprDataType, aliasName);
                                 
                                 if (index < validExpressions.length - 1) {
                                     values += `${formattedVal},`;
@@ -1555,5 +1330,66 @@ export class DataModelProcessor {
                 return resolve(false);
             }
         });
+    }
+
+    /**
+     * Get refresh status and queue stats for a data model.
+     */
+    public async getDataModelRefreshStatus(dataModelId: number): Promise<{ dataModel: any; queueStats: any }> {
+        const { RefreshQueueService } = await import('../services/RefreshQueueService.js');
+        const { AppDataSource } = await import('../datasources/PostgresDS.js');
+        const dataModel = await AppDataSource.manager
+            .getRepository('DRADataModel')
+            .createQueryBuilder('model')
+            .where('model.id = :id', { id: dataModelId })
+            .select(['model.id','model.name','model.refresh_status','model.last_refreshed_at',
+                     'model.row_count','model.last_refresh_duration_ms','model.refresh_error','model.auto_refresh_enabled'])
+            .getOne();
+        const queueStats = RefreshQueueService.getInstance().getQueueStats();
+        return { dataModel, queueStats };
+    }
+
+    /**
+     * Queue a manual refresh job for a data model.
+     */
+    public async triggerDataModelRefresh(dataModelId: number, userId: number): Promise<string> {
+        const { RefreshQueueService } = await import('../services/RefreshQueueService.js');
+        return RefreshQueueService.getInstance().addJob(dataModelId, {
+            triggeredBy: 'user',
+            triggerUserId: userId,
+            reason: 'Manual refresh triggered by user',
+        });
+    }
+
+    /**
+     * Queue cascade refresh for all data models dependent on a data source.
+     */
+    public async triggerCascadeRefresh(dataSourceId: number, userId: number): Promise<{ modelIds: number[]; jobIds: string[] }> {
+        const { DataModelRefreshService } = await import('../services/DataModelRefreshService.js');
+        const { RefreshQueueService } = await import('../services/RefreshQueueService.js');
+        const modelIds = await DataModelRefreshService.getInstance().findDependentModels(dataSourceId);
+        if (modelIds.length === 0) return { modelIds: [], jobIds: [] };
+        const jobIds = await RefreshQueueService.getInstance().queueRefreshForModels(modelIds, {
+            triggeredBy: 'user',
+            triggerUserId: userId,
+            triggerSourceId: dataSourceId,
+            reason: `Manual cascade refresh for data source ${dataSourceId}`,
+        });
+        return { modelIds, jobIds };
+    }
+
+    /**
+     * Get refresh history for a data model (last 20 records).
+     */
+    public async getDataModelRefreshHistory(dataModelId: number): Promise<any[]> {
+        const { AppDataSource } = await import('../datasources/PostgresDS.js');
+        const { DRADataModelRefreshHistory } = await import('../models/DRADataModelRefreshHistory.js');
+        return AppDataSource.manager
+            .getRepository(DRADataModelRefreshHistory)
+            .createQueryBuilder('history')
+            .where('history.data_model_id = :dataModelId', { dataModelId })
+            .orderBy('history.started_at', 'DESC')
+            .limit(20)
+            .getMany();
     }
 }

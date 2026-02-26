@@ -1,6 +1,7 @@
 import { jest } from '@jest/globals';
 import { DataModelProcessor } from '../../../processors/DataModelProcessor.js';
 import { DataSourceProcessor } from '../../../processors/DataSourceProcessor.js';
+import { QueryEngineProcessor } from '../../../processors/QueryEngineProcessor.js';
 import { CrossSourceJoinService } from '../../../services/CrossSourceJoinService.js';
 import { ITokenDetails } from '../../../types/ITokenDetails.js';
 import { EUserType } from '../../../types/EUserType.js';
@@ -13,6 +14,7 @@ import { EUserType } from '../../../types/EUserType.js';
 describe('Data Model Operations Integration Tests', () => {
     let mockDataModelProcessor: any;
     let mockDataSourceProcessor: any;
+    let mockQueryEngineProcessor: any;
     let mockCrossSourceJoinService: any;
     const testTokenDetails: ITokenDetails = {
         user_id: 1,
@@ -44,13 +46,19 @@ describe('Data Model Operations Integration Tests', () => {
 
         // Setup DataSourceProcessor mock
         const mockGetDataSourcesByProject: any = jest.fn();
-        const mockGetTablesFromDataSource: any = jest.fn();
 
         mockDataSourceProcessor = {
-            getDataSourcesByProject: mockGetDataSourcesByProject,
-            getTablesFromDataSource: mockGetTablesFromDataSource
+            getDataSourcesByProject: mockGetDataSourcesByProject
         };
         jest.spyOn(DataSourceProcessor, 'getInstance').mockReturnValue(mockDataSourceProcessor);
+
+        // Setup QueryEngineProcessor mock
+        const mockGetTablesFromDataSource: any = jest.fn();
+
+        mockQueryEngineProcessor = {
+            getTablesFromDataSource: mockGetTablesFromDataSource
+        };
+        jest.spyOn(QueryEngineProcessor, 'getInstance').mockReturnValue(mockQueryEngineProcessor);
 
         // Setup CrossSourceJoinService mock
         const mockGetCombinedSuggestions: any = jest.fn();
@@ -282,15 +290,15 @@ describe('Data Model Operations Integration Tests', () => {
             const mockTables2 = [{ name: 'products', columns: ['id', 'title'] }];
 
             mockDataSourceProcessor.getDataSourcesByProject.mockResolvedValue(mockDataSources);
-            mockDataSourceProcessor.getTablesFromDataSource
+            mockQueryEngineProcessor.getTablesFromDataSource
                 .mockResolvedValueOnce(mockTables1)
                 .mockResolvedValueOnce(mockTables2);
 
             const dataSources = await DataSourceProcessor.getInstance().getDataSourcesByProject(1, testTokenDetails);
             expect(dataSources).toEqual(mockDataSources);
 
-            const tables1 = await DataSourceProcessor.getInstance().getTablesFromDataSource(1, testTokenDetails);
-            const tables2 = await DataSourceProcessor.getInstance().getTablesFromDataSource(2, testTokenDetails);
+            const tables1 = await QueryEngineProcessor.getInstance().getTablesFromDataSource(1, testTokenDetails);
+            const tables2 = await QueryEngineProcessor.getInstance().getTablesFromDataSource(2, testTokenDetails);
 
             expect(tables1).toHaveLength(1);
             expect(tables2).toHaveLength(1);
@@ -314,10 +322,10 @@ describe('Data Model Operations Integration Tests', () => {
             ];
 
             mockDataSourceProcessor.getDataSourcesByProject.mockResolvedValue(mockDataSources);
-            mockDataSourceProcessor.getTablesFromDataSource.mockResolvedValue(mockTables);
+            mockQueryEngineProcessor.getTablesFromDataSource.mockResolvedValue(mockTables);
 
             await DataSourceProcessor.getInstance().getDataSourcesByProject(1, testTokenDetails);
-            const tables = await DataSourceProcessor.getInstance().getTablesFromDataSource(1, testTokenDetails);
+            const tables = await QueryEngineProcessor.getInstance().getTablesFromDataSource(1, testTokenDetails);
 
             expect(tables).toBeDefined();
             expect(tables[0].name).toBe('users');

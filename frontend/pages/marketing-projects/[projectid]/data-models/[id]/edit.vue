@@ -1,4 +1,6 @@
 <script setup lang="ts">
+definePageMeta({ layout: 'marketing-project' });
+
 import { useProjectsStore } from '@/stores/projects';
 import { useDataModelsStore } from '@/stores/data_models';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
@@ -124,8 +126,8 @@ async function copyDataModel() {
         // Reload data models
         await dataModelsStore.retrieveDataModels(projectId.value);
         
-        // Navigate to the new model's edit page (cross-source)
-        navigateTo(`/projects/${projectId.value}/data-models/${newModel.id}/edit`);
+        // Navigate to the new model's edit page
+        navigateTo(`/marketing-projects/${projectId.value}/data-models/${newModel.id}/edit`);
         
     } catch (error: any) {
         await $swal.fire({
@@ -197,7 +199,7 @@ async function copyDataModel() {
                     <p class="text-lg font-semibold text-gray-900">Unable to load data model</p>
                     <p class="text-sm text-gray-500 mt-2">The data model or project tables could not be loaded.</p>
                     <NuxtLink 
-                        :to="`/projects/${projectId}/data-models`"
+                        :to="`/marketing-projects/${projectId}/data-models`"
                         class="inline-block mt-4 px-4 py-2 bg-primary-blue-100 text-white font-medium hover:bg-primary-blue-200 cursor-pointer">
                         Back to Data Models
                     </NuxtLink>

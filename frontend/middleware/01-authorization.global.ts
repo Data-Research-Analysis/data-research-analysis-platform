@@ -168,18 +168,18 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
           if (currentUser.user_type === "admin") {
             return; // Allow admin access
           } else {
-            return navigateTo("/projects"); // Non-admin can't access admin pages
+            return navigateTo("/marketing-projects"); // Non-admin can't access admin pages
           }
         }
         
-        // If authenticated user tries to access login/register, redirect to projects
+        // If authenticated user tries to access login/register, redirect to marketing-projects
         if (to.path === "/login" || to.path === "/register") {
-          return navigateTo("/projects");
+          return navigateTo("/marketing-projects");
         }
         
-        // If authenticated user tries to access home page, redirect to projects
+        // If authenticated user tries to access home page, redirect to marketing-projects
         if (to.path === "/" && isPlatformEnabled()) {
-          return navigateTo("/projects");
+          return navigateTo("/marketing-projects");
         }
         
         // Allow access to all other pages when authenticated

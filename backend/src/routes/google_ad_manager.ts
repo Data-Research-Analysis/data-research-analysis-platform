@@ -2,10 +2,8 @@ import express, { Request, Response } from 'express';
 import { validateJWT } from '../middleware/authenticate.js';
 import { validate } from '../middleware/validator.js';
 import { body, param, matchedData } from 'express-validator';
-import { GoogleAdManagerService } from '../services/GoogleAdManagerService.js';
-import { GoogleAdManagerDriver } from '../drivers/GoogleAdManagerDriver.js';
 import { DataSourceProcessor } from '../processors/DataSourceProcessor.js';
-import { IAPIConnectionDetails } from '../types/IAPIConnectionDetails.js';
+import { GoogleAdManagerProcessor } from '../processors/GoogleAdManagerProcessor.js';
 import { expensiveOperationsLimiter } from '../middleware/rateLimit.js';
 
 const router = express.Router();
@@ -25,10 +23,9 @@ router.post('/networks',
     async (req: Request, res: Response) => {
         try {
             const { access_token } = matchedData(req);
-            const gamService = GoogleAdManagerService.getInstance();
             
             console.log('📊 Fetching GAM networks for user');
-            const networks = await gamService.listNetworks(access_token);
+            const networks = await GoogleAdManagerProcessor.getInstance().listGAMNetworks(access_token);
             
             res.status(200).send({
                 networks: networks,
@@ -148,35 +145,13 @@ router.post('/add-data-source',
                 sync_frequency
             } = matchedData(req);
             
-            console.log('📊 Adding GAM data source:', {
-                name,
-                network_code,
-                report_types,
-                project_id
-            });
+            console.log('📊 Adding GAM data source:', { name, network_code, report_types, project_id });
             
-            // Create connection details
-            const connectionDetails: IAPIConnectionDetails = {
-                oauth_access_token: access_token,
-                oauth_refresh_token: refresh_token,
-                token_expiry: new Date(token_expiry),
-                api_config: {
-                    network_code: network_code,
-                    network_id: network_id,
-                    network_name: network_name,
-                    report_types: report_types,
-                    start_date: start_date,
-                    end_date: end_date,
-                    sync_frequency: sync_frequency || 'manual'
-                }
-            };
-            
-            // Add data source using processor
-            const dataSourceId = await DataSourceProcessor.getInstance().addGoogleAdManagerDataSource(
-                name,
-                connectionDetails,
-                req.body.tokenDetails,
-                project_id
+            const dataSourceId = await GoogleAdManagerProcessor.getInstance().addGAMDataSourceFromParams(
+                name, network_code, network_id, network_name,
+                access_token, refresh_token, token_expiry,
+                project_id, report_types, start_date, end_date,
+                sync_frequency, req.body.tokenDetails
             );
             
             if (dataSourceId) {
@@ -235,7 +210,7 @@ router.post('/sync/:dataSourceId',
             console.log(`📊 [GAM Sync] Starting sync for data source ID: ${dataSourceId}`);
             
             // Trigger sync
-            const result = await DataSourceProcessor.getInstance().syncGoogleAdManagerDataSource(
+            const result = await GoogleAdManagerProcessor.getInstance().syncGoogleAdManagerDataSource(
                 dataSourceId,
                 req.body.tokenDetails
             );
@@ -291,24 +266,11 @@ router.get('/sync-status/:dataSourceId',
                 });
             }
             
-            const gamDriver = GoogleAdManagerDriver.getInstance();
-            
-            const lastSync = await gamDriver.getLastSyncTime(dataSourceId);
-            const history = await gamDriver.getSyncHistory(dataSourceId, 10);
-            
-            // Transform history to match frontend expectations
-            const transformedHistory = history.map((record: any) => ({
-                id: record.id,
-                sync_started_at: record.startedAt,
-                sync_completed_at: record.completedAt,
-                status: record.status?.toLowerCase() || 'idle',
-                rows_synced: record.recordsSynced,
-                error_message: record.errorMessage
-            }));
+            const { lastSync, history } = await GoogleAdManagerProcessor.getInstance().getGAMSyncStatus(dataSourceId);
             
             res.status(200).send({
                 last_sync: lastSync,
-                sync_history: transformedHistory,
+                sync_history: history,
                 message: 'Sync status retrieved successfully'
             });
         } catch (error) {
@@ -388,16 +350,11 @@ router.get('/rate-limit',
     validateJWT,
     async (req: Request, res: Response) => {
         try {
-            const gamService = GoogleAdManagerService.getInstance();
-            const status = gamService.getRateLimitStatus();
-            const stats = gamService.getRateLimitStats();
+            const { status, stats } = await GoogleAdManagerProcessor.getInstance().getGAMRateLimitStatus();
             
             res.status(200).send({
                 success: true,
-                data: {
-                    status,
-                    stats
-                }
+                data: { status, stats }
             });
         } catch (error) {
             console.error('❌ Error retrieving rate limit status:', error);

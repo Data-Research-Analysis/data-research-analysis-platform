@@ -68,43 +68,34 @@ export class UserManagementProcessor {
     }
 
     async getUserById(userId: number, tokenDetails: ITokenDetails): Promise<IUserManagement | null> {
-        return new Promise<IUserManagement | null>(async (resolve, reject) => {
-            const { user_id } = tokenDetails;
-            let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-            if (!driver) {
-                return resolve(null);
-            }
-            const manager = (await driver.getConcreteDriver()).manager;
-            if (!manager) {
-                return resolve(null);
-            }
-            const adminUser = await manager.findOne(DRAUsersPlatform, {where: {id: user_id}});
-            if (!adminUser || adminUser.user_type !== EUserType.ADMIN) {
-                return resolve(null);
-            }
+        const { user_id } = tokenDetails;
+        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+        if (!driver) return null;
 
-            const user = await manager.findOne(DRAUsersPlatform, {
-                where: { id: userId },
-                select: ['id', 'email', 'first_name', 'last_name', 'user_type', 'email_verified_at', 'unsubscribe_from_emails_at'],
-                relations: ['projects', 'data_sources', 'dashboards', 'articles']
-            });
+        const concreteDriver = await driver.getConcreteDriver();
+        if (!concreteDriver) return null;
 
-            if (!user) {
-                return resolve(null);
-            }
+        const manager = concreteDriver.manager;
 
-            const userInfo: IUserManagement = {
-                id: user.id,
-                email: user.email,
-                first_name: user.first_name,
-                last_name: user.last_name,
-                user_type: user.user_type,
-                email_verified_at: user.email_verified_at,
-                unsubscribe_from_emails_at: user.unsubscribe_from_emails_at
-            };
+        const adminUser = await manager.findOne(DRAUsersPlatform, { where: { id: user_id } });
+        if (!adminUser || adminUser.user_type !== EUserType.ADMIN) return null;
 
-            return resolve(userInfo);
+        const user = await manager.findOne(DRAUsersPlatform, {
+            where: { id: userId },
+            select: ['id', 'email', 'first_name', 'last_name', 'user_type', 'email_verified_at', 'unsubscribe_from_emails_at'],
         });
+
+        if (!user) return null;
+
+        return {
+            id: user.id,
+            email: user.email,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            user_type: user.user_type,
+            email_verified_at: user.email_verified_at,
+            unsubscribe_from_emails_at: user.unsubscribe_from_emails_at,
+        };
     }
 
     async updateUser(userId: number, userData: IUserUpdate, tokenDetails: ITokenDetails): Promise<boolean> {

@@ -2,7 +2,10 @@ import cron from 'node-cron';
 import { PostgresDataSource } from '../datasources/PostgresDataSource.js';
 import { DRADataSource } from '../models/DRADataSource.js';
 import { DRAUsersPlatform } from '../models/DRAUsersPlatform.js';
-import { DataSourceProcessor } from '../processors/DataSourceProcessor.js';
+import { GoogleAnalyticsProcessor } from '../processors/GoogleAnalyticsProcessor.js';
+import { GoogleAdManagerProcessor } from '../processors/GoogleAdManagerProcessor.js';
+import { GoogleAdsProcessor } from '../processors/GoogleAdsProcessor.js';
+import { MetaAdsProcessor } from '../processors/MetaAdsProcessor.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { EUserType } from '../types/EUserType.js';
 import { ITokenDetails } from '../types/ITokenDetails.js';
@@ -152,9 +155,8 @@ export class SchedulerService {
         try {
             console.log(`[Scheduler] ⏰ Triggering scheduled sync for: ${dataSource.name} (ID: ${dataSource.id})`);
 
-            const processor = DataSourceProcessor.getInstance();
 
-            // Get API connection details for OAuth token information
+
             const apiConnectionDetails = dataSource.connection_details?.api_connection_details;
             if (!apiConnectionDetails) {
                 console.error(`[Scheduler] No API connection details found for data source ${dataSource.id}`);
@@ -198,19 +200,19 @@ export class SchedulerService {
             // Trigger sync based on data source type
             switch (dataSource.data_type) {
                 case EDataSourceType.GOOGLE_ANALYTICS:
-                    await processor.syncGoogleAnalyticsDataSource(dataSource.id, tokenDetails);
+                    await GoogleAnalyticsProcessor.getInstance().syncGoogleAnalyticsDataSource(dataSource.id, tokenDetails);
                     break;
 
                 case EDataSourceType.GOOGLE_AD_MANAGER:
-                    await processor.syncGoogleAdManagerDataSource(dataSource.id, tokenDetails);
+                    await GoogleAdManagerProcessor.getInstance().syncGoogleAdManagerDataSource(dataSource.id, tokenDetails);
                     break;
 
                 case EDataSourceType.GOOGLE_ADS:
-                    await processor.syncGoogleAdsDataSource(dataSource.id, user.id);
+                    await GoogleAdsProcessor.getInstance().syncGoogleAdsDataSource(dataSource.id, user.id);
                     break;
 
                 case EDataSourceType.META_ADS:
-                    await processor.syncMetaAdsDataSource(dataSource.id, user.id);
+                    await MetaAdsProcessor.getInstance().syncMetaAdsDataSource(dataSource.id, user.id);
                     break;
 
                 default:

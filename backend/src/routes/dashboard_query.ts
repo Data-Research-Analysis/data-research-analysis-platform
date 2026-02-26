@@ -2,7 +2,7 @@ import express, { Request, Response } from 'express';
 import { validateJWT } from '../middleware/authenticate.js';
 import { validate } from '../middleware/validator.js';
 import { body, param, matchedData } from 'express-validator';
-import { DashboardQueryService } from '../services/DashboardQueryService.js';
+import { DashboardProcessor } from '../processors/DashboardProcessor.js';
 import { requireDataModelPermission } from '../middleware/rbacMiddleware.js';
 import { EAction } from '../services/PermissionService.js';
 import { rateLimit } from 'express-rate-limit';
@@ -35,9 +35,7 @@ router.post('/query',
         try {
             const { data_model_id, query, query_params } = matchedData(req);
 
-            const queryService = DashboardQueryService.getInstance();
-
-            const result = await queryService.executeChartQuery(
+            const result = await DashboardProcessor.getInstance().executeChartQuery(
                 data_model_id,
                 query,
                 query_params

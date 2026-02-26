@@ -18,7 +18,7 @@
         <h3 class="mt-4 text-lg font-medium text-gray-900 dark:text-white">No pending invitations</h3>
         <p class="mt-2 text-gray-600 dark:text-gray-400">You don't have any pending project invitations at the moment.</p>
         <div class="mt-6">
-          <NuxtLink to="/projects" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 transition-colors">
+          <NuxtLink to="/marketing-projects" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 transition-colors">
             Go to Projects
           </NuxtLink>
         </div>

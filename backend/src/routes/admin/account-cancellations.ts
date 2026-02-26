@@ -1,6 +1,5 @@
 import { Router, Request, Response } from 'express';
 import { AccountCancellationProcessor } from '../../processors/AccountCancellationProcessor.js';
-import { DataDeletionService } from '../../services/DataDeletionService.js';
 import { validateJWT } from '../../middleware/authenticate.js';
 import { EUserType } from '../../types/EUserType.js';
 import { ECancellationStatus } from '../../models/DRAAccountCancellation.js';
@@ -146,8 +145,7 @@ router.post('/:id/delete-now', validateJWT, requireAdmin, async (req: Request, r
         }
 
         // Execute deletion
-        const deletionService = DataDeletionService.getInstance();
-        await deletionService.deleteUserData(cancellation.users_platform.id);
+        await processor.deleteUserData(cancellation.users_platform.id);
 
         // Mark as deleted
         await processor.markDataDeleted(cancellationId, adminId);
@@ -184,8 +182,7 @@ router.get('/:id/estimate', validateJWT, requireAdmin, async (req: Request, res:
             });
         }
 
-        const deletionService = DataDeletionService.getInstance();
-        const estimate = await deletionService.estimateUserDataSize(cancellation.users_platform.id);
+        const estimate = await processor.estimateUserDataSize(cancellation.users_platform.id);
 
         return res.status(200).json({
             success: true,

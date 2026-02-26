@@ -1,7 +1,5 @@
 import { Router, Request, Response } from 'express';
 import { AccountCancellationProcessor } from '../processors/AccountCancellationProcessor.js';
-import { DataModelExportService } from '../services/DataModelExportService.js';
-import { DataDeletionService } from '../services/DataDeletionService.js';
 import { validateJWT } from '../middleware/authenticate.js';
 import { ECancellationReasonCategory } from '../models/DRAAccountCancellation.js';
 
@@ -131,8 +129,8 @@ router.post('/export-data', validateJWT, async (req: Request, res: Response) => 
     try {
         const userId = res.locals.jwtPayload.id;
         
-        const deletionService = DataDeletionService.getInstance();
-        const estimate = await deletionService.estimateUserDataSize(userId);
+        const processor = AccountCancellationProcessor.getInstance();
+        const estimate = await processor.estimateUserDataSize(userId);
 
         return res.status(200).json({
             success: true,
@@ -172,8 +170,8 @@ router.post('/data-model/export', validateJWT, async (req: Request, res: Respons
             });
         }
 
-        const exportService = DataModelExportService.getInstance();
-        const result = await exportService.exportDataModel(dataModelId, {
+        const processor = AccountCancellationProcessor.getInstance();
+        const result = await processor.exportDataModel(dataModelId, {
             format,
             includeMetadata,
             maxRows
@@ -216,9 +214,8 @@ router.post('/data-models/export-multiple', validateJWT, async (req: Request, re
             });
         }
 
-        const exportService = DataModelExportService.getInstance();
-        const result = await exportService.exportMultipleToExcel(dataModelIds, {
-            format: 'excel',
+        const processor = AccountCancellationProcessor.getInstance();
+        const result = await processor.exportMultipleDataModels(dataModelIds, {
             includeMetadata,
             maxRows
         });
