@@ -1283,6 +1283,8 @@ Keep it concise - aim for 200-300 words total.`;
             'google_ads': 'dra_google_ads',
             'meta_ads': 'dra_meta_ads',
             'linkedin_ads': 'dra_linkedin_ads',
+            'hubspot': 'dra_hubspot',
+            'klaviyo': 'dra_klaviyo',
             'excel': 'dra_excel',
             'pdf': 'dra_pdf',
             'mongodb': 'dra_mongodb'
@@ -1352,6 +1354,8 @@ Keep it concise - aim for 200-300 words total.`;
             case 'google_ads':        // Google Ads data stored in PostgreSQL
             case 'meta_ads':          // Meta Ads data stored in PostgreSQL (dra_meta_ads schema)
             case 'linkedin_ads':      // LinkedIn Ads data stored in PostgreSQL (dra_linkedin_ads schema)
+            case 'hubspot':           // HubSpot CRM data stored in PostgreSQL (dra_hubspot schema)
+            case 'klaviyo':           // Klaviyo email data stored in PostgreSQL (dra_klaviyo schema)
             case 'excel':             // Excel data stored in PostgreSQL (dra_excel schema)
             case 'pdf':               // PDF data stored in PostgreSQL (dra_pdf schema)
             case 'mongodb':           // MongoDB data stored in PostgreSQL (dra_mongodb schema)

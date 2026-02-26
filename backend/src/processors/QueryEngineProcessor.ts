@@ -313,7 +313,7 @@ export class QueryEngineProcessor {
                     console.error('[DataSourceProcessor] Error getting MongoDB tables from PostgreSQL:', error);
                     return resolve(null);
                 }
-            } else if (dataSource.data_type === EDataSourceType.POSTGRESQL || dataSource.data_type === EDataSourceType.MYSQL || dataSource.data_type === EDataSourceType.MARIADB || dataSource.data_type === EDataSourceType.EXCEL || dataSource.data_type === EDataSourceType.PDF || dataSource.data_type === EDataSourceType.GOOGLE_ANALYTICS || dataSource.data_type === EDataSourceType.GOOGLE_AD_MANAGER || dataSource.data_type === EDataSourceType.GOOGLE_ADS || dataSource.data_type === EDataSourceType.META_ADS) {
+            } else if (dataSource.data_type === EDataSourceType.POSTGRESQL || dataSource.data_type === EDataSourceType.MYSQL || dataSource.data_type === EDataSourceType.MARIADB || dataSource.data_type === EDataSourceType.EXCEL || dataSource.data_type === EDataSourceType.PDF || dataSource.data_type === EDataSourceType.GOOGLE_ANALYTICS || dataSource.data_type === EDataSourceType.GOOGLE_AD_MANAGER || dataSource.data_type === EDataSourceType.GOOGLE_ADS || dataSource.data_type === EDataSourceType.META_ADS || dataSource.data_type === EDataSourceType.LINKEDIN_ADS || dataSource.data_type === EDataSourceType.HUBSPOT || dataSource.data_type === EDataSourceType.KLAVIYO) {
                 const connection = dataSource.connection_details;
                 console.log('[DEBUG - DataSourceProcessor] Connecting to data source ID:', dataSource.id);
                 console.log('[DEBUG - DataSourceProcessor] Data source type:', dataSource.data_type);
@@ -323,7 +323,10 @@ export class QueryEngineProcessor {
                     dataSource.data_type === EDataSourceType.GOOGLE_ANALYTICS ||
                     dataSource.data_type === EDataSourceType.GOOGLE_AD_MANAGER ||
                     dataSource.data_type === EDataSourceType.GOOGLE_ADS ||
-                    dataSource.data_type === EDataSourceType.META_ADS
+                    dataSource.data_type === EDataSourceType.META_ADS ||
+                    dataSource.data_type === EDataSourceType.LINKEDIN_ADS ||
+                    dataSource.data_type === EDataSourceType.HUBSPOT ||
+                    dataSource.data_type === EDataSourceType.KLAVIYO
                 );
 
                 // Determine schema name based on data source type
@@ -338,6 +341,12 @@ export class QueryEngineProcessor {
                     schemaName = 'dra_google_ads';
                 } else if (dataSource.data_type === EDataSourceType.META_ADS) {
                     schemaName = 'dra_meta_ads';
+                } else if (dataSource.data_type === EDataSourceType.LINKEDIN_ADS) {
+                    schemaName = 'dra_linkedin_ads';
+                } else if (dataSource.data_type === EDataSourceType.HUBSPOT) {
+                    schemaName = 'dra_hubspot';
+                } else if (dataSource.data_type === EDataSourceType.KLAVIYO) {
+                    schemaName = 'dra_klaviyo';
                 } else if (dataSource.data_type === EDataSourceType.EXCEL) {
                     schemaName = 'dra_excel';
                 } else if (dataSource.data_type === EDataSourceType.PDF) {

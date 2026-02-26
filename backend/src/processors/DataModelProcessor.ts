@@ -648,8 +648,8 @@ export class DataModelProcessor {
                     let columnName;
                     if (column.alias_name && column.alias_name !== '') {
                         columnName = column.alias_name;
-                    } else if (column && (column.schema === 'dra_excel' || column.schema === 'dra_pdf' || column.schema === 'dra_mongodb' || column.schema === 'dra_google_analytics' || column.schema === 'dra_google_ad_manager' || column.schema === 'dra_google_ads' || column.schema === 'dra_meta_ads' || column.schema === 'dra_linkedin_ads')) {
-                        // For special schemas (Excel, PDF, MongoDB, GA, GAM, Google Ads, Meta Ads, LinkedIn Ads), always use table_name regardless of aliases
+                    } else if (column && (column.schema === 'dra_excel' || column.schema === 'dra_pdf' || column.schema === 'dra_mongodb' || column.schema === 'dra_google_analytics' || column.schema === 'dra_google_ad_manager' || column.schema === 'dra_google_ads' || column.schema === 'dra_meta_ads' || column.schema === 'dra_linkedin_ads' || column.schema === 'dra_hubspot' || column.schema === 'dra_klaviyo')) {
+                        // For special schemas (Excel, PDF, MongoDB, GA, GAM, Google Ads, Meta Ads, LinkedIn Ads, HubSpot, Klaviyo), always use table_name regardless of aliases
                         // This preserves datasource IDs in table names (e.g., device_15, sheet_123, campaigns_42)
                         columnName = `${column.table_name}`.length > 20 ? `${column.table_name}`.slice(-20) + `_${column.column_name}` : `${column.table_name}` + `_${column.column_name}`;
                     } else {

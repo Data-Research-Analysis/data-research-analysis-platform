@@ -140,8 +140,12 @@ export class DataSamplingService {
                 return result || [];
             } else if (dataSourceType === EDataSourceType.GOOGLE_ANALYTICS ||
                        dataSourceType === EDataSourceType.GOOGLE_ADS ||
-                       dataSourceType === EDataSourceType.GOOGLE_AD_MANAGER) {
-                // Google API data stored in PostgreSQL
+                       dataSourceType === EDataSourceType.GOOGLE_AD_MANAGER ||
+                       dataSourceType === EDataSourceType.META_ADS ||
+                       dataSourceType === EDataSourceType.LINKEDIN_ADS ||
+                       dataSourceType === EDataSourceType.HUBSPOT ||
+                       dataSourceType === EDataSourceType.KLAVIYO) {
+                // API-integrated data stored in internal PostgreSQL
                 query = `
                     SELECT * FROM "${schemaName}"."${tableName}"
                     ORDER BY RANDOM()
@@ -184,7 +188,11 @@ export class DataSamplingService {
                           dataSourceType === EDataSourceType.CSV ||
                           dataSourceType === EDataSourceType.GOOGLE_ANALYTICS ||
                           dataSourceType === EDataSourceType.GOOGLE_ADS ||
-                          dataSourceType === EDataSourceType.GOOGLE_AD_MANAGER;
+                          dataSourceType === EDataSourceType.GOOGLE_AD_MANAGER ||
+                          dataSourceType === EDataSourceType.META_ADS ||
+                          dataSourceType === EDataSourceType.LINKEDIN_ADS ||
+                          dataSourceType === EDataSourceType.HUBSPOT ||
+                          dataSourceType === EDataSourceType.KLAVIYO;
         
         const isMySQL = dataSourceType === EDataSourceType.MYSQL || dataSourceType === EDataSourceType.MARIADB;
 
@@ -535,6 +543,8 @@ export class DataSamplingService {
                 'google_ads': 'dra_google_ads',
                 'meta_ads': 'dra_meta_ads',
                 'linkedin_ads': 'dra_linkedin_ads',
+                'hubspot': 'dra_hubspot',
+                'klaviyo': 'dra_klaviyo',
                 'excel': 'dra_excel',
                 'pdf': 'dra_pdf',
                 'mongodb': 'dra_mongodb'
