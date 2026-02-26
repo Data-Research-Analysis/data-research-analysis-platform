@@ -2,6 +2,7 @@ import { DBDriver } from '../drivers/DBDriver.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { DRADataSource } from '../models/DRADataSource.js';
 import { DRATableMetadata } from '../models/DRATableMetadata.js';
+import { DRACampaign } from '../models/DRACampaign.js';
 import { DRACampaignChannel } from '../models/DRACampaignChannel.js';
 import { DRACampaignOfflineData } from '../models/DRACampaignOfflineData.js';
 import { In } from 'typeorm';
@@ -675,6 +676,314 @@ export class MarketingReportProcessor {
             roas: spend > 0 ? convValue / spend : 0,
             pipelineValue: convValue,
             dataSourceId,
+        };
+    }
+
+    // -----------------------------------------------------------------------
+    // Widget data methods (Option A — data comes from connected ad sources)
+    // -----------------------------------------------------------------------
+
+    /**
+     * KPI Scorecard: single metric for current period + prior period delta.
+     */
+    public async getKpiScorecardWidgetData(
+        projectId: number,
+        metric: string,
+        startDate: Date,
+        endDate: Date,
+    ): Promise<{ current_value: number; prior_value: number; delta_pct: number | null }> {
+        const periodMs = endDate.getTime() - startDate.getTime();
+        const priorStart = new Date(startDate.getTime() - periodMs);
+        const priorEnd = new Date(startDate.getTime() - 86_400_000);
+
+        const [current, prior] = await Promise.all([
+            this.getMarketingHubSummary(projectId, startDate, endDate),
+            this.getMarketingHubSummary(projectId, priorStart, priorEnd),
+        ]);
+
+        const extractMetric = (totals: IMarketingTotals, channels: IChannelMetrics[]): number => {
+            switch (metric) {
+                case 'spend': return totals.spend;
+                case 'impressions': return totals.impressions;
+                case 'clicks': return totals.clicks;
+                case 'conversions': return totals.conversions;
+                case 'cpl': return totals.cpl;
+                case 'pipeline_value': return totals.pipelineValue;
+                case 'roas': {
+                    const totalSpend = totals.spend;
+                    const totalRevenue = channels.reduce((s, c) => s + c.pipelineValue, 0);
+                    return totalSpend > 0 ? totalRevenue / totalSpend : 0;
+                }
+                default: return 0;
+            }
+        };
+
+        const currentVal = extractMetric(current.totals, current.channels);
+        const priorVal = extractMetric(prior.totals, prior.channels);
+        const deltaPct = priorVal !== 0 ? ((currentVal - priorVal) / priorVal) * 100 : null;
+
+        return { current_value: currentVal, prior_value: priorVal, delta_pct: deltaPct };
+    }
+
+    /**
+     * Budget Gauge: campaign spend vs total budget with pacing info.
+     * If campaignId is null, picks the most recent active campaign for the project.
+     */
+    public async getBudgetGaugeWidgetData(
+        projectId: number,
+        campaignId: number | null,
+        startDate: Date,
+        endDate: Date,
+    ): Promise<{
+        campaign_name: string;
+        total_budget: number;
+        spent: number;
+        pct_spent: number;
+        days_total: number;
+        days_elapsed: number;
+        days_remaining: number;
+        daily_budget: number;
+        daily_actual: number;
+    } | null> {
+        const manager = await this.getManager();
+
+        let campaign: any | null = null;
+        if (campaignId) {
+            campaign = await manager.findOne(DRACampaign, {
+                where: { id: campaignId, project_id: projectId },
+            }).catch(() => null);
+        } else {
+            const campaigns = await manager.find(DRACampaign, {
+                where: { project_id: projectId, status: 'active' },
+                order: { created_at: 'DESC' },
+                take: 1,
+            }).catch(() => []);
+            campaign = campaigns[0] ?? null;
+        }
+
+        if (!campaign) return null;
+
+        const spent = await this.getDigitalSpendForCampaign(
+            campaign.id,
+            startDate,
+            endDate,
+        );
+
+        const budget = Number(campaign.budget_total) || 0;
+        const pctSpent = budget > 0 ? (spent / budget) * 100 : 0;
+
+        const campStart = campaign.start_date ? new Date(campaign.start_date) : startDate;
+        const campEnd = campaign.end_date ? new Date(campaign.end_date) : endDate;
+        const now = new Date();
+        const daysTotal = Math.max(1, Math.ceil((campEnd.getTime() - campStart.getTime()) / 86_400_000));
+        const daysElapsed = Math.min(daysTotal, Math.max(0, Math.ceil((now.getTime() - campStart.getTime()) / 86_400_000)));
+        const daysRemaining = Math.max(0, daysTotal - daysElapsed);
+        const dailyBudget = daysTotal > 0 ? budget / daysTotal : 0;
+        const dailyActual = daysElapsed > 0 ? spent / daysElapsed : 0;
+
+        return {
+            campaign_name: campaign.name,
+            total_budget: budget,
+            spent,
+            pct_spent: pctSpent,
+            days_total: daysTotal,
+            days_elapsed: daysElapsed,
+            days_remaining: daysRemaining,
+            daily_budget: dailyBudget,
+            daily_actual: dailyActual,
+        };
+    }
+
+    /**
+     * Channel Comparison: per-channel metrics table.
+     */
+    public async getChannelComparisonWidgetData(
+        projectId: number,
+        startDate: Date,
+        endDate: Date,
+    ): Promise<{ channels: IChannelMetrics[]; totals: IMarketingTotals }> {
+        const summary = await this.getMarketingHubSummary(projectId, startDate, endDate);
+        return { channels: summary.channels, totals: summary.totals };
+    }
+
+    /**
+     * Journey Sankey: simplified last-touch attribution flow by channel.
+     * Nodes: [channel1, channel2, ..., "Conversions"]
+     * Links: each channel → Conversions node weighted by conversion count.
+     */
+    public async getJourneySankeyWidgetData(
+        projectId: number,
+        maxPaths: number,
+        startDate: Date,
+        endDate: Date,
+    ): Promise<{ nodes: string[]; links: Array<{ source: number; target: number; value: number }> }> {
+        const summary = await this.getMarketingHubSummary(projectId, startDate, endDate);
+
+        // Filter to channels with conversions, sorted descending, capped at maxPaths
+        const contributing = summary.channels
+            .filter((c) => c.conversions > 0 || c.spend > 0)
+            .sort((a, b) => b.conversions - a.conversions || b.spend - a.spend)
+            .slice(0, maxPaths);
+
+        if (contributing.length === 0) return { nodes: [], links: [] };
+
+        const nodes = [...contributing.map((c) => c.channelLabel), 'Conversions'];
+        const conversionIdx = nodes.length - 1;
+
+        const links = contributing.map((c, i) => ({
+            source: i,
+            target: conversionIdx,
+            value: c.conversions > 0 ? c.conversions : Math.max(1, Math.round(c.spend / 100)),
+        }));
+
+        return { nodes, links };
+    }
+
+    /**
+     * ROI Waterfall: per-channel spend vs revenue.
+     */
+    public async getRoiWaterfallWidgetData(
+        projectId: number,
+        groupBy: string,
+        includeOffline: boolean,
+        startDate: Date,
+        endDate: Date,
+        campaignId?: number,
+    ): Promise<{
+        channels: Array<{ label: string; spend: number; revenue: number; colour: string }>;
+        total_spend: number;
+        total_revenue: number;
+        overall_roas: number;
+    }> {
+        const summary = await this.getMarketingHubSummary(projectId, startDate, endDate, campaignId);
+
+        const COLOURS = ['#4285f4', '#ea4335', '#fbbc04', '#34a853', '#9c27b0', '#0a66c2', '#ff6d00'];
+
+        let sources = summary.channels;
+        if (!includeOffline) {
+            sources = sources.filter((c) => !c.channelType.startsWith('offline_'));
+        }
+
+        const channels = sources.map((c, i) => ({
+            label: c.channelLabel,
+            spend: c.spend,
+            revenue: c.pipelineValue,
+            colour: COLOURS[i % COLOURS.length],
+        }));
+
+        const totalSpend = channels.reduce((s, c) => s + c.spend, 0);
+        const totalRevenue = channels.reduce((s, c) => s + c.revenue, 0);
+        const overallRoas = totalSpend > 0 ? totalRevenue / totalSpend : 0;
+
+        return { channels, total_spend: totalSpend, total_revenue: totalRevenue, overall_roas: overallRoas };
+    }
+
+    /**
+     * Campaign Timeline: Gantt-style list of campaigns with budget pacing.
+     */
+    public async getCampaignTimelineWidgetData(
+        projectId: number,
+        showOnlyActive: boolean,
+        startDate: Date,
+        endDate: Date,
+    ): Promise<{
+        campaigns: Array<{
+            id: number;
+            name: string;
+            status: string;
+            start_date: string | null;
+            end_date: string | null;
+            budget_total: number;
+            spent: number;
+            pct_spent: number;
+        }>;
+    }> {
+        const manager = await this.getManager();
+
+        const whereClause: any = { project_id: projectId };
+        if (showOnlyActive) whereClause.status = 'active';
+
+        const campaigns: DRACampaign[] = await manager.find(DRACampaign, {
+            where: whereClause,
+            order: { start_date: 'ASC' },
+            take: 20,
+        }).catch(() => []);
+
+        const campaignData = await Promise.all(campaigns.map(async (c) => {
+            const spent = await this.getDigitalSpendForCampaign(c.id, startDate, endDate).catch(() => 0);
+            const budget = Number(c.budget_total) || 0;
+            return {
+                id: c.id,
+                name: c.name,
+                status: c.status,
+                start_date: c.start_date ? new Date(c.start_date).toISOString().split('T')[0] : null,
+                end_date: c.end_date ? new Date(c.end_date).toISOString().split('T')[0] : null,
+                budget_total: budget,
+                spent,
+                pct_spent: budget > 0 ? (spent / budget) * 100 : 0,
+            };
+        }));
+
+        return { campaigns: campaignData };
+    }
+
+    /**
+     * Anomaly Alert: current period metric vs rolling comparison window average.
+     */
+    public async getAnomalyAlertWidgetData(
+        projectId: number,
+        metric: string,
+        thresholdPct: number,
+        comparisonWindow: string,
+        alertDirection: string,
+    ): Promise<{
+        metric: string;
+        current_value: number;
+        comparison_value: number;
+        delta_pct: number;
+        is_anomaly: boolean;
+        direction: 'spike' | 'drop' | 'normal';
+    }> {
+        const now = new Date();
+        // Current 7-day window
+        const currentEnd = now;
+        const currentStart = new Date(now.getTime() - 7 * 86_400_000);
+
+        // Number of historical weeks to average
+        const weeksBack = comparisonWindow === '2_week_avg' ? 2
+            : comparisonWindow === '8_week_avg' ? 8
+            : 4; // default: 4_week_avg
+
+        // Fetch each prior week and average
+        const priorValues: number[] = [];
+        for (let w = 1; w <= weeksBack; w++) {
+            const wEnd = new Date(currentStart.getTime() - (w - 1) * 7 * 86_400_000);
+            const wStart = new Date(wEnd.getTime() - 7 * 86_400_000);
+            const d = await this.getKpiScorecardWidgetData(projectId, metric, wStart, wEnd);
+            priorValues.push(d.current_value);
+        }
+
+        const current = await this.getKpiScorecardWidgetData(projectId, metric, currentStart, currentEnd);
+        const currentVal = current.current_value;
+        const comparisonVal = priorValues.length > 0
+            ? priorValues.reduce((s, v) => s + v, 0) / priorValues.length
+            : 0;
+
+        const deltaPct = comparisonVal !== 0
+            ? ((currentVal - comparisonVal) / comparisonVal) * 100
+            : 0;
+
+        const isAnomaly = Math.abs(deltaPct) >= thresholdPct;
+        const direction: 'spike' | 'drop' | 'normal' = !isAnomaly ? 'normal'
+            : deltaPct > 0 ? 'spike' : 'drop';
+
+        return {
+            metric,
+            current_value: currentVal,
+            comparison_value: comparisonVal,
+            delta_pct: deltaPct,
+            is_anomaly: isAnomaly,
+            direction,
         };
     }
 

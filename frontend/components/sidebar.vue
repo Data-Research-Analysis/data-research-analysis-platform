@@ -3,7 +3,7 @@ import { useDashboardsStore } from '~/stores/dashboards';
 
 const dashboardsStore = useDashboardsStore();
 const route = useRoute();
-const emits = defineEmits(['add:selectedColumns', 'remove:selectedColumns', 'toggleSidebar']);
+const emits = defineEmits(['add:selectedColumns', 'remove:selectedColumns', 'toggleSidebar', 'update:marketingConfig']);
 const state = reactive({
     dataModelsOpened: true,
     dataModels: [],
@@ -19,6 +19,24 @@ const props = defineProps({
         default: () => null,
     },
 });
+
+const MARKETING_WIDGET_TYPES = [
+    'kpi_scorecard', 'budget_gauge', 'channel_comparison_table',
+    'funnel_steps', 'journey_sankey', 'roi_waterfall',
+    'campaign_timeline', 'anomaly_alert_card',
+];
+
+const activeMarketingWidgetType = computed(() => {
+    if (!props.selectedChart?.chart_type) return null;
+    return MARKETING_WIDGET_TYPES.includes(props.selectedChart.chart_type)
+        ? props.selectedChart.chart_type
+        : null;
+});
+
+function handleMarketingConfigUpdate(config) {
+    if (!props.selectedChart) return;
+    emits('update:marketingConfig', { chart_id: props.selectedChart.chart_id, config });
+}
 watch(
   route,
   (value, oldValue) => {
@@ -285,6 +303,54 @@ function toggleSidebar() {
                 <font-awesome icon="fas fa-database" class="text-white text-sm" />
             </div>
             <h3 class="text-gray-800">Data Models</h3>
+        </div>
+
+        <!-- Marketing Widget Config Panel — shown in place of data model picker when a marketing widget is selected -->
+        <div v-if="activeMarketingWidgetType" class="mx-2 mb-3 overflow-y-auto">
+            <div class="flex items-center gap-2 px-3 py-2 bg-primary-blue-50 border-l-4 border-primary-blue-100 rounded text-xs text-primary-blue-100 font-semibold mb-2">
+                <font-awesome icon="fas fa-sliders" class="text-primary-blue-100" />
+                Widget Settings
+            </div>
+            <kpi-scorecard-config
+                v-if="activeMarketingWidgetType === 'kpi_scorecard'"
+                :config="props.selectedChart?.marketing_config"
+                @update:config="handleMarketingConfigUpdate"
+            />
+            <budget-gauge-config
+                v-else-if="activeMarketingWidgetType === 'budget_gauge'"
+                :config="props.selectedChart?.marketing_config"
+                @update:config="handleMarketingConfigUpdate"
+            />
+            <channel-comparison-table-config
+                v-else-if="activeMarketingWidgetType === 'channel_comparison_table'"
+                :config="props.selectedChart?.marketing_config"
+                @update:config="handleMarketingConfigUpdate"
+            />
+            <funnel-steps-config
+                v-else-if="activeMarketingWidgetType === 'funnel_steps'"
+                :config="props.selectedChart?.marketing_config"
+                @update:config="handleMarketingConfigUpdate"
+            />
+            <journey-sankey-config
+                v-else-if="activeMarketingWidgetType === 'journey_sankey'"
+                :config="props.selectedChart?.marketing_config"
+                @update:config="handleMarketingConfigUpdate"
+            />
+            <roi-waterfall-config
+                v-else-if="activeMarketingWidgetType === 'roi_waterfall'"
+                :config="props.selectedChart?.marketing_config"
+                @update:config="handleMarketingConfigUpdate"
+            />
+            <campaign-timeline-config
+                v-else-if="activeMarketingWidgetType === 'campaign_timeline'"
+                :config="props.selectedChart?.marketing_config"
+                @update:config="handleMarketingConfigUpdate"
+            />
+            <anomaly-alert-card-config
+                v-else-if="activeMarketingWidgetType === 'anomaly_alert_card'"
+                :config="props.selectedChart?.marketing_config"
+                @update:config="handleMarketingConfigUpdate"
+            />
         </div>
         
         <!-- Helper text for smart column selection -->

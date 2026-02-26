@@ -80,11 +80,15 @@ const chartPlaceholders = {
     multiline: '/assets/images/chart-placeholders/multiline.png',
     treemap: '/assets/images/chart-placeholders/treemap.png',
     bubble: '/assets/images/chart-placeholders/bubble.png',
-    // Marketing template widget types — use nearest visual equivalent as placeholder
+    // Marketing-native widget types (Phase 2 KPI Widget Library)
     kpi_scorecard: '/assets/images/chart-placeholders/table.png',
     budget_gauge: '/assets/images/chart-placeholders/donut.png',
     channel_comparison_table: '/assets/images/chart-placeholders/table.png',
-    funnel_steps: '/assets/images/chart-placeholders/funnel_steps.png',
+    funnel_steps: '/assets/images/chart-placeholders/funnel_steps.jpg',
+    journey_sankey: '/assets/images/chart-placeholders/multiline.png',
+    roi_waterfall: '/assets/images/chart-placeholders/horizontal_bar.png',
+    campaign_timeline: '/assets/images/chart-placeholders/vertical_bar.png',
+    anomaly_alert_card: '/assets/images/chart-placeholders/table.png',
 };
 
 // Chart type labels
@@ -104,10 +108,40 @@ const chartTypeLabels = {
     budget_gauge: 'Budget Gauge',
     channel_comparison_table: 'Channel Comparison',
     funnel_steps: 'Funnel Steps',
+    journey_sankey: 'Journey Sankey',
+    roi_waterfall: 'ROI Waterfall',
+    campaign_timeline: 'Campaign Timeline',
+    anomaly_alert_card: 'Anomaly Alert',
 };
 
+// Marketing widget types that don't use the data-model column mechanism
+const MARKETING_WIDGET_TYPES = [
+    'kpi_scorecard', 'budget_gauge', 'channel_comparison_table',
+    'journey_sankey', 'roi_waterfall',
+    'campaign_timeline', 'anomaly_alert_card',
+];
+
+function isMarketingWidget(chart) {
+    return MARKETING_WIDGET_TYPES.includes(chart.chart_type);
+}
+
+function getDefaultMarketingConfig(chartType) {
+    const defaults = {
+        kpi_scorecard: { metric: 'spend', data_source: 'marketing_hub', show_delta: true, format: 'currency', comparison_period: 'prior_period' },
+        budget_gauge: { campaign_id: '', show_daily_pace: true, thresholds: { warning: 80, danger: 95 } },
+        channel_comparison_table: { columns: ['spend', 'impressions', 'clicks', 'ctr', 'conversions', 'cpl', 'roas'], sort_by: 'spend' },
+        journey_sankey: { max_paths: 5, min_conversions: 1 },
+        roi_waterfall: { include_offline: false, group_by: 'channel' },
+        campaign_timeline: { show_budget_pacing: true, show_only_active: false, time_window: '30_days' },
+        anomaly_alert_card: { metric: 'spend', threshold_pct: 20, comparison_window: '4_week_avg', alert_direction: 'both' },
+    };
+    return defaults[chartType] ?? {};
+}
+
 // Check if chart is empty (no columns configured)
+// Marketing widgets are never considered empty — they manage their own data
 function isChartEmpty(chart) {
+    if (isMarketingWidget(chart)) return false;
     return !chart.columns || chart.columns.length === 0;
 }
 
@@ -210,6 +244,9 @@ function addChartToDashboard(chartType) {
         chart.config.add_columns_enabled = false;
     });
     state.chart_mode = chartType;
+    // Default marketing_config for marketing widget types
+    const defaultMarketingConfig = MARKETING_WIDGET_TYPES.includes(chartType) ? getDefaultMarketingConfig(chartType) : undefined;
+
     state.dashboard.charts.push({
         x_axis_label: 'X Axis',
         y_axis_label: 'Y Axis',
@@ -223,16 +260,17 @@ function addChartToDashboard(chartType) {
         text_editor: {
             content: '',
         },
+        marketing_config: defaultMarketingConfig,
         config: {
             drag_enabled: false,
             resize_enabled: false,
             add_columns_enabled: false,
         },
         dimensions: {
-            width: '200px',
-            height: '200px',
-            widthDraggable: '200px',
-            heightDraggable: '200px',
+            width: MARKETING_WIDGET_TYPES.includes(chartType) ? '350px' : '200px',
+            height: MARKETING_WIDGET_TYPES.includes(chartType) ? '300px' : '200px',
+            widthDraggable: MARKETING_WIDGET_TYPES.includes(chartType) ? '350px' : '200px',
+            heightDraggable: MARKETING_WIDGET_TYPES.includes(chartType) ? '300px' : '200px',
         },
         location: {
             top: '0px',
@@ -1465,6 +1503,10 @@ onUnmounted(() => {
                     @add:selectedColumns="(data) => updateDataModel('add', data)"
                     @remove:selectedColumns="(data) => updateDataModel('remove', data)"
                     @toggleSidebar="toggleSidebars"
+                    @update:marketingConfig="({ chart_id, config }) => {
+                        const chart = state.dashboard.charts.find(c => c.chart_id === chart_id);
+                        if (chart) chart.marketing_config = config;
+                    }"
                 />
             </div>
             <div class="flex flex-row w-full">
@@ -1594,7 +1636,7 @@ onUnmounted(() => {
                                         @click="toggleResizing(chart.chart_id)"
                                     />
                                     <font-awesome
-                                        v-if="chart.chart_type !== 'text_block'"
+                                        v-if="chart.chart_type !== 'text_block' && !isMarketingWidget(chart)"
                                         icon="fas fa-plus"
                                         class="text-xl ml-2 hover:text-gray-400 cursor-pointer"
                                         :class="{
@@ -1611,6 +1653,7 @@ onUnmounted(() => {
                                         @click="deleteChartFromDashboard(chart.chart_id)"
                                     />
                                     <font-awesome 
+                                        v-if="!isMarketingWidget(chart)"
                                         icon="fas fa-table"
                                         class="text-xl ml-2 text-gray-500 hover:text-gray-400 cursor-pointer"
                                         :v-tippy-content="'View Data In Table'"
@@ -1618,8 +1661,8 @@ onUnmounted(() => {
                                     />
                                 </div>
                                 
-                                <!-- Empty chart placeholder - shows when no columns configured -->
-                                <div v-if="isChartEmpty(chart) && chart.chart_type !== 'text_block'" 
+                                <!-- Empty chart placeholder - shows when no columns configured (not applicable for marketing widgets) -->
+                                <div v-if="isChartEmpty(chart) && chart.chart_type !== 'text_block' && !isMarketingWidget(chart)" 
                                      class="min-h-[300px] flex flex-col items-center justify-center bg-gray-50 border border-gray-200 border-t-0 rounded-b-lg"
                                 >
                                     <img 
@@ -1635,9 +1678,9 @@ onUnmounted(() => {
                                     </p>
                                 </div>
                                 
-                                <!-- Column dropzone and chart rendering - shows when columns exist -->
+                                <!-- Column dropzone and chart rendering - shows when columns exist (not used by marketing widgets) -->
                                 <draggable
-                                    v-if="!isChartEmpty(chart) && chart.chart_type !== 'text_block'"
+                                    v-if="!isChartEmpty(chart) && chart.chart_type !== 'text_block' && !isMarketingWidget(chart)"
                                     :id="`draggable-${chart.chart_id}`"
                                     v-model="chart.columns"
                                     group="data_model_columns"
@@ -1849,6 +1892,72 @@ onUnmounted(() => {
                                         @update:content="(content) => { updateContent(content, chart.chart_id); }" 
                                     />
                                 </div>
+
+                                <!-- Marketing widget renderers — Phase 2 KPI Widget Library -->
+                                <!-- These widgets manage their own data and do not use the columns/draggable mechanism -->
+                                <div
+                                    v-if="isMarketingWidget(chart)"
+                                    :id="`draggable-${chart.chart_id}`"
+                                    class="bg-white border border-gray-200 border-t-0 rounded-b-lg overflow-hidden"
+                                    :style="`width: ${chart.dimensions.widthDraggable}; height: ${chart.dimensions.heightDraggable};`"
+                                >
+                                    <kpi-scorecard-widget
+                                        v-if="chart.chart_type === 'kpi_scorecard'"
+                                        :chart-id="chart.chart_id"
+                                        :project-id="projectId"
+                                        :marketing-config="chart.marketing_config"
+                                        :width="parseInt(chart.dimensions.widthDraggable.replace('px',''))"
+                                        :height="parseInt(chart.dimensions.heightDraggable.replace('px',''))"
+                                    />
+                                    <budget-gauge-widget
+                                        v-else-if="chart.chart_type === 'budget_gauge'"
+                                        :chart-id="chart.chart_id"
+                                        :project-id="projectId"
+                                        :marketing-config="chart.marketing_config"
+                                        :width="parseInt(chart.dimensions.widthDraggable.replace('px',''))"
+                                        :height="parseInt(chart.dimensions.heightDraggable.replace('px',''))"
+                                    />
+                                    <channel-comparison-table-widget
+                                        v-else-if="chart.chart_type === 'channel_comparison_table'"
+                                        :chart-id="chart.chart_id"
+                                        :project-id="projectId"
+                                        :marketing-config="chart.marketing_config"
+                                        :width="parseInt(chart.dimensions.widthDraggable.replace('px',''))"
+                                        :height="parseInt(chart.dimensions.heightDraggable.replace('px',''))"
+                                    />
+                                    <journey-sankey-widget
+                                        v-else-if="chart.chart_type === 'journey_sankey'"
+                                        :chart-id="chart.chart_id"
+                                        :project-id="projectId"
+                                        :marketing-config="chart.marketing_config"
+                                        :width="parseInt(chart.dimensions.widthDraggable.replace('px',''))"
+                                        :height="parseInt(chart.dimensions.heightDraggable.replace('px',''))"
+                                    />
+                                    <roi-waterfall-widget
+                                        v-else-if="chart.chart_type === 'roi_waterfall'"
+                                        :chart-id="chart.chart_id"
+                                        :project-id="projectId"
+                                        :marketing-config="chart.marketing_config"
+                                        :width="parseInt(chart.dimensions.widthDraggable.replace('px',''))"
+                                        :height="parseInt(chart.dimensions.heightDraggable.replace('px',''))"
+                                    />
+                                    <campaign-timeline-widget
+                                        v-else-if="chart.chart_type === 'campaign_timeline'"
+                                        :chart-id="chart.chart_id"
+                                        :project-id="projectId"
+                                        :marketing-config="chart.marketing_config"
+                                        :width="parseInt(chart.dimensions.widthDraggable.replace('px',''))"
+                                        :height="parseInt(chart.dimensions.heightDraggable.replace('px',''))"
+                                    />
+                                    <anomaly-alert-card-widget
+                                        v-else-if="chart.chart_type === 'anomaly_alert_card'"
+                                        :chart-id="chart.chart_id"
+                                        :project-id="projectId"
+                                        :marketing-config="chart.marketing_config"
+                                        :width="parseInt(chart.dimensions.widthDraggable.replace('px',''))"
+                                        :height="parseInt(chart.dimensions.heightDraggable.replace('px',''))"
+                                    />
+                                </div>
                             </div>
                             <div class="flex flex-row justify-end bottom-corners">
                                 <img
@@ -1961,8 +2070,72 @@ onUnmounted(() => {
                         @click="addChartToDashboard('funnel_steps')"
                         class="flex flex-col items-center p-2 bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-2 border-gray-200 hover:border-blue-400 cursor-pointer"
                     >
-                        <img src="/assets/images/chart-placeholders/funnel_steps.png" alt="Funnel Chart" class="w-12 h-12 mb-1" />
+                        <img src="/assets/images/chart-placeholders/funnel_steps.jpg" alt="Funnel Chart" class="w-12 h-12 mb-1" />
                         <span class="text-xs font-medium text-gray-700">Funnel</span>
+                    </button>
+                </div>
+
+                <!-- Marketing Widgets Section -->
+                <div class="mb-2 text-xs font-bold text-gray-500 uppercase tracking-wide flex items-center gap-1">
+                    <font-awesome-icon :icon="['fas', 'bullseye']" class="text-primary-blue-100" />
+                    Marketing Widgets
+                </div>
+                <div class="grid grid-cols-2 gap-2 mb-3">
+                    <button
+                        @click="addChartToDashboard('kpi_scorecard')"
+                        class="flex flex-col items-center p-2 bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-2 border-gray-200 hover:border-blue-400 cursor-pointer"
+                        title="KPI Scorecard — single metric with trend delta"
+                    >
+                        <img src="/assets/images/chart-placeholders/table.png" alt="KPI Scorecard" class="w-12 h-12 mb-1" />
+                        <span class="text-xs font-medium text-gray-700 text-center">KPI Scorecard</span>
+                    </button>
+                    <button
+                        @click="addChartToDashboard('budget_gauge')"
+                        class="flex flex-col items-center p-2 bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-2 border-gray-200 hover:border-blue-400 cursor-pointer"
+                        title="Budget Gauge — circular spend vs budget indicator"
+                    >
+                        <img src="/assets/images/chart-placeholders/donut.png" alt="Budget Gauge" class="w-12 h-12 mb-1" />
+                        <span class="text-xs font-medium text-gray-700 text-center">Budget Gauge</span>
+                    </button>
+                    <button
+                        @click="addChartToDashboard('channel_comparison_table')"
+                        class="flex flex-col items-center p-2 bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-2 border-gray-200 hover:border-blue-400 cursor-pointer"
+                        title="Channel Comparison — multi-channel normalised performance table"
+                    >
+                        <img src="/assets/images/chart-placeholders/table.png" alt="Channel Comparison" class="w-12 h-12 mb-1" />
+                        <span class="text-xs font-medium text-gray-700 text-center">Channels</span>
+                    </button>
+                    <button
+                        @click="addChartToDashboard('journey_sankey')"
+                        class="flex flex-col items-center p-2 bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-2 border-gray-200 hover:border-blue-400 cursor-pointer"
+                        title="Journey Sankey — multi-touch attribution path flows"
+                    >
+                        <img src="/assets/images/chart-placeholders/multiline.png" alt="Journey Sankey" class="w-12 h-12 mb-1" />
+                        <span class="text-xs font-medium text-gray-700 text-center">Journey</span>
+                    </button>
+                    <button
+                        @click="addChartToDashboard('roi_waterfall')"
+                        class="flex flex-col items-center p-2 bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-2 border-gray-200 hover:border-blue-400 cursor-pointer"
+                        title="ROI Waterfall — spend vs revenue by channel"
+                    >
+                        <img src="/assets/images/chart-placeholders/horizontal_bar.png" alt="ROI Waterfall" class="w-12 h-12 mb-1" />
+                        <span class="text-xs font-medium text-gray-700 text-center">ROI Waterfall</span>
+                    </button>
+                    <button
+                        @click="addChartToDashboard('campaign_timeline')"
+                        class="flex flex-col items-center p-2 bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-2 border-gray-200 hover:border-blue-400 cursor-pointer"
+                        title="Campaign Timeline — Gantt-style campaign view with budget pacing"
+                    >
+                        <img src="/assets/images/chart-placeholders/stacked_bar.png" alt="Campaign Timeline" class="w-12 h-12 mb-1" />
+                        <span class="text-xs font-medium text-gray-700 text-center">Timeline</span>
+                    </button>
+                    <button
+                        @click="addChartToDashboard('anomaly_alert_card')"
+                        class="flex flex-col items-center p-2 bg-white rounded-lg shadow hover:shadow-lg transition-shadow border-2 border-gray-200 hover:border-blue-400 cursor-pointer"
+                        title="Anomaly Alert — metric deviation alerts vs historical average"
+                    >
+                        <img src="/assets/images/chart-placeholders/multiline.png" alt="Anomaly Alert" class="w-12 h-12 mb-1" />
+                        <span class="text-xs font-medium text-gray-700 text-center">Anomaly Alert</span>
                     </button>
                 </div>
             </div>

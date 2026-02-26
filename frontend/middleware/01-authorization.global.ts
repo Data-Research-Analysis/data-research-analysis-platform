@@ -1,4 +1,6 @@
 import { useLoggedInUserStore } from "@/stores/logged_in_user";
+import { getAuthToken, deleteAuthToken } from "@/composables/AuthToken";
+import { baseUrl, isPlatformEnabled, isPlatformLoginEnabled, isPlatformRegistrationEnabled } from "@/composables/Utils";
 
 // Cache token validation for 30 seconds to avoid repeated API calls
 const tokenValidationCache = new Map<string, { isValid: boolean; timestamp: number }>();
@@ -53,8 +55,9 @@ function isPublicRoute(path: string): boolean {
 }
 
 // Define routes that require authentication
+// Any non-public route requires authentication
 function requiresAuthentication(path: string): boolean {
-  return path.startsWith('/projects') || path.startsWith('/admin');
+  return !isPublicRoute(path);
 }
 
 export default defineNuxtRouteMiddleware(async (to, from) => {
