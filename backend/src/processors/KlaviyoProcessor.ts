@@ -123,6 +123,14 @@ export class KlaviyoProcessor {
 
             const result = await KlaviyoService.getInstance().syncAll(dataSourceId, user.id, apiKey);
 
+            // Update last_sync timestamp
+            if (!connection.api_connection_details!.api_config) {
+                connection.api_connection_details!.api_config = {};
+            }
+            connection.api_connection_details!.api_config.last_sync = new Date();
+            dataSource.connection_details = connection;
+            await manager.save(dataSource);
+
             console.log(
                 `✅ [Klaviyo] Sync complete for datasource ${dataSourceId}: ${result.campaigns} campaigns`
             );

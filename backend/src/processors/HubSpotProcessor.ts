@@ -139,13 +139,15 @@ export class HubSpotProcessor {
 
             const result = await HubSpotService.getInstance().syncAll(dataSourceId, user.id, apiDetails);
 
-            // Persist refreshed tokens
+            // Persist refreshed tokens and update last_sync timestamp
             const refreshed = await HubSpotOAuthService.getInstance().ensureValidToken(apiDetails);
-            if (refreshed !== apiDetails) {
-                connection.api_connection_details = refreshed;
-                dataSource.connection_details = connection;
-                await manager.save(dataSource);
+            connection.api_connection_details = refreshed;
+            if (!connection.api_connection_details.api_config) {
+                connection.api_connection_details.api_config = {};
             }
+            connection.api_connection_details.api_config.last_sync = new Date();
+            dataSource.connection_details = connection;
+            await manager.save(dataSource);
 
             console.log(
                 `✅ [HubSpot] Sync complete for datasource ${dataSourceId}: ` +
