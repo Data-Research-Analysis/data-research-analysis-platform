@@ -414,6 +414,7 @@ When implementing a new data source, these files **must** be updated in order:
 7. `backend/src/processors/DataSourceProcessor.ts` — add `EDataSourceType.NEW_TYPE` delete block
 8. `backend/src/processors/DataModelProcessor.ts` — add `'dra_new_type'` to the condition in **THREE** places (see critical section below)
 9. `backend/src/services/DataSamplingService.ts` — add `'new_type': 'dra_new_type'` to `apiIntegratedSchemas` map
+10. **Sync history** — the processor's `syncDataSource()` **MUST** use `SyncHistoryService` (see pattern below); add `getNewTypeSyncStatus()` method; add `GET /new-type/sync-status/:id` route
 
 ### Frontend
 10. `frontend/constants/featureFlags.ts` — add `NEW_TYPE_ENABLED: false`
@@ -421,6 +422,43 @@ When implementing a new data source, these files **must** be updated in order:
 12. `frontend/pages/connect/new-type.vue` — create connect page
 13. `frontend/pages/marketing-projects/[projectid]/data-sources/index.vue` — add to 13 locations (see registry)
 14. `frontend/pages/marketing-projects/[projectid]/data-sources/[datasourceid]/index.vue` — add to 9 locations (see registry)
+
+---
+
+## Backend Layer Architecture for API Data Sources
+
+Every API-integrated data source uses one of two architectures. **Choose based on complexity.**
+
+### Pattern A — Service + Driver + Processor (Google*, Meta Ads, LinkedIn Ads)
+Used when the sync logic is complex enough to warrant a dedicated Driver.
+
+```
+XxxService      → raw API calls, data insertion
+XxxDriver       → owns SyncHistoryService; createSyncRecord/markAsRunning/completeSyncRecord/markAsFailed; getSyncHistory(); getLastSyncTime()
+XxxProcessor    → thin orchestrator; calls driver.sync(); calls driver.getSyncHistory() for the route handler
+```
+
+`SyncHistoryService` lives **only in the Driver**. The Processor never imports it directly.
+
+```typescript
+// XxxProcessor.syncDataSource() — delegates entirely to driver
+const driver = XxxDriver.getInstance();
+return driver.syncDataSource(dataSourceId, connectionDetails);
+
+// XxxProcessor.getXxxSyncStatus()
+const driver = XxxDriver.getInstance();
+return { lastSyncTime: await driver.getLastSyncTime(id), syncHistory: await driver.getSyncHistory(id, 10) };
+```
+
+### Pattern B — Service + Processor only (HubSpot, Klaviyo)
+Used for simpler sources with no Driver. `SyncHistoryService` is called directly from the Processor because there is no Driver layer.
+
+```
+XxxService      → raw API calls, data insertion
+XxxProcessor    → calls SyncHistoryService directly; owns createSyncRecord/markAsRunning/completeSyncRecord/markAsFailed; getXxxSyncStatus()
+```
+
+**When adding a new source**, prefer Pattern A (create a Driver) if the sync has multiple report types, pagination, or retry complexity. Use Pattern B only for straightforward single-endpoint sources.
 
 ---
 
@@ -458,6 +496,8 @@ export class NewTypeService {
 ---
 
 ## Backend Processor Implementation Pattern
+
+The template below shows **Pattern B** (no Driver). For Pattern A, `SyncHistoryService` moves into the Driver and the Processor only calls `driver.sync()` and `driver.getSyncHistory()`.
 
 ```typescript
 // backend/src/processors/NewTypeProcessor.ts
@@ -498,12 +538,33 @@ export class NewTypeProcessor {
         const manager = AppDataSource.manager;
         const ds = await manager.findOneOrFail(DRADataSource, { where: { id: dataSourceId } });
         const apiKey = ds.connection_details.api_connection_details?.api_config?.api_key;
-        const success = await NewTypeService.getInstance().syncAll(dataSourceId, userId, apiKey);
+
+        // REQUIRED: create sync history record before calling the service
+        const syncRecord = await SyncHistoryService.getInstance().createSyncRecord(dataSourceId, SyncType.MANUAL);
+        await SyncHistoryService.getInstance().markAsRunning(syncRecord.id);
+
+        let success: boolean;
+        try {
+            success = await NewTypeService.getInstance().syncAll(dataSourceId, userId, apiKey);
+        } catch (err: any) {
+            await SyncHistoryService.getInstance().markAsFailed(syncRecord.id, err.message || 'Sync failed');
+            throw err;
+        }
+
         if (success) {
+            await SyncHistoryService.getInstance().completeSyncRecord(syncRecord.id, 0 /* replace with actual record count */, 0);
             ds.connection_details.api_connection_details!.api_config.last_sync = new Date();
             await manager.save(ds);
         }
         return success;
+    }
+
+    // REQUIRED: expose sync history for the frontend
+    async getNewTypeSyncStatus(dataSourceId: number): Promise<{ lastSyncTime: Date | null; syncHistory: any[] }> {
+        const svc = SyncHistoryService.getInstance();
+        const lastSync = await svc.getLastSync(dataSourceId);
+        const syncHistory = await svc.getSyncHistory(dataSourceId, 10);
+        return { lastSyncTime: lastSync?.completedAt || null, syncHistory };
     }
 
     // OAuth sources only:
@@ -542,6 +603,17 @@ router.post('/sync/:id', validateJWT, requiresProductionAccess, async (req, res)
         const dataSourceId = parseInt(req.params.id);
         await processor.syncDataSource(dataSourceId, req.user!.id);
         res.json({ success: true });
+    } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// REQUIRED: sync history endpoint — consumed by both frontend pages
+router.get('/sync-status/:id', validateJWT, async (req, res) => {
+    try {
+        const dataSourceId = parseInt(req.params.id);
+        const { lastSyncTime, syncHistory } = await processor.getNewTypeSyncStatus(dataSourceId);
+        res.json({ success: true, lastSyncTime, syncHistory });
     } catch (error: any) {
         res.status(500).json({ success: false, error: error.message });
     }
@@ -844,11 +916,25 @@ export const useNewType = () => {
         return `${Math.floor(diff / 86400000)} days ago`;
     };
 
-    return { startOAuthFlow, addDataSource, syncNow, parseCallbackTokens, formatSyncTime };
+    // REQUIRED: fetch sync history from the backend
+    const getSyncStatus = async (dataSourceId: number): Promise<{ lastSyncTime: string | null; syncHistory: any[] } | null> => {
+        try {
+            const response = await $fetch<{ success: boolean; lastSyncTime: string | null; syncHistory: any[] }>(
+                `${config.public.apiBase}/new-type/sync-status/${dataSourceId}`,
+                { headers: authHeaders() }
+            );
+            return response?.success ? { lastSyncTime: response.lastSyncTime, syncHistory: response.syncHistory } : null;
+        } catch (error) {
+            console.error('[useNewType] Failed to get sync status:', error);
+            return null;
+        }
+    };
+
+    return { startOAuthFlow, addDataSource, syncNow, parseCallbackTokens, formatSyncTime, getSyncStatus };
 };
 ```
 
-**Minimum required exports for all composables**: `syncNow(dataSourceId): Promise<boolean>`, `formatSyncTime(timestamp): string`. OAuth sources also need `startOAuthFlow`, `addDataSource`, `parseCallbackTokens`.
+**Minimum required exports for all composables**: `syncNow(dataSourceId): Promise<boolean>`, `formatSyncTime(timestamp): string`, `getSyncStatus(dataSourceId): Promise<...>`. OAuth sources also need `startOAuthFlow`, `addDataSource`, `parseCallbackTokens`.
 
 ---
 

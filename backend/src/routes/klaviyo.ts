@@ -116,4 +116,22 @@ router.post('/sync/:id', validateJWT, requiresProductionAccess, async (req, res)
     }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /klaviyo/sync-status/:id
+// Returns sync history for a Klaviyo data source.
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/sync-status/:id', validateJWT, async (req, res) => {
+    try {
+        const dataSourceId = parseInt(req.params.id);
+        if (isNaN(dataSourceId)) {
+            return res.status(400).json({ success: false, error: 'Invalid data source ID' });
+        }
+        const { lastSyncTime, syncHistory } = await KlaviyoProcessor.getInstance().getKlaviyoSyncStatus(dataSourceId);
+        res.json({ success: true, lastSyncTime, syncHistory });
+    } catch (error: any) {
+        console.error('[Klaviyo] Failed to get sync status:', error);
+        res.status(500).json({ success: false, error: error.message || 'Failed to get sync status' });
+    }
+});
+
 export default router;

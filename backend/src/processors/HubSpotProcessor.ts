@@ -8,7 +8,7 @@ import { DRAUsersPlatform } from '../models/DRAUsersPlatform.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { UtilityService } from '../services/UtilityService.js';
 import { HubSpotOAuthService } from '../services/HubSpotOAuthService.js';
-import { HubSpotService } from '../services/HubSpotService.js';
+import { HubSpotDriver } from '../drivers/HubSpotDriver.js';
 
 export class HubSpotProcessor {
     private static instance: HubSpotProcessor;
@@ -118,27 +118,34 @@ export class HubSpotProcessor {
     // Sync
     // -------------------------------------------------------------------------
 
+    public async getHubSpotSyncStatus(dataSourceId: number): Promise<{ lastSyncTime: Date | null; syncHistory: any[] }> {
+        const driver = HubSpotDriver.getInstance();
+        const lastSyncTime = await driver.getLastSyncTime(dataSourceId);
+        const syncHistory = await driver.getSyncHistory(dataSourceId, 10);
+        return { lastSyncTime, syncHistory };
+    }
+
     public async syncDataSource(dataSourceId: number, userId: number): Promise<boolean> {
-        try {
-            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-            if (!driver) return false;
+        const dbDriver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+        if (!dbDriver) return false;
 
-            const manager = (await driver.getConcreteDriver()).manager;
-            const user = await manager.findOne(DRAUsersPlatform, { where: { id: userId } });
-            if (!user) return false;
+        const manager = (await dbDriver.getConcreteDriver()).manager;
+        const user = await manager.findOne(DRAUsersPlatform, { where: { id: userId } });
+        if (!user) return false;
 
-            const dataSource = await manager.findOne(DRADataSource, {
-                where: { id: dataSourceId, users_platform: user, data_type: EDataSourceType.HUBSPOT },
-            });
-            if (!dataSource) return false;
+        const dataSource = await manager.findOne(DRADataSource, {
+            where: { id: dataSourceId, users_platform: user, data_type: EDataSourceType.HUBSPOT },
+        });
+        if (!dataSource) return false;
 
-            const connection = dataSource.connection_details;
-            if (!connection.api_connection_details) return false;
+        const connection = dataSource.connection_details;
+        if (!connection.api_connection_details) return false;
 
-            const apiDetails = connection.api_connection_details;
+        const apiDetails = connection.api_connection_details;
 
-            const result = await HubSpotService.getInstance().syncAll(dataSourceId, user.id, apiDetails);
+        const syncResult = await HubSpotDriver.getInstance().syncToDatabase(dataSourceId, user.id, apiDetails);
 
+        if (syncResult) {
             // Persist refreshed tokens and update last_sync timestamp
             const refreshed = await HubSpotOAuthService.getInstance().ensureValidToken(apiDetails);
             connection.api_connection_details = refreshed;
@@ -148,15 +155,8 @@ export class HubSpotProcessor {
             connection.api_connection_details.api_config.last_sync = new Date();
             dataSource.connection_details = connection;
             await manager.save(dataSource);
-
-            console.log(
-                `✅ [HubSpot] Sync complete for datasource ${dataSourceId}: ` +
-                `${result.contacts} contacts, ${result.deals} deals`
-            );
-            return true;
-        } catch (err) {
-            console.error(`❌ [HubSpot] Sync failed for datasource ${dataSourceId}:`, err);
-            return false;
         }
+
+        return syncResult;
     }
 }

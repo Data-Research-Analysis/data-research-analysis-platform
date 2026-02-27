@@ -151,11 +151,29 @@ export const useHubSpot = () => {
         return date.toLocaleDateString();
     };
 
+    // -------------------------------------------------------------------------
+    // Sync status / history
+    // -------------------------------------------------------------------------
+
+    const getSyncStatus = async (dataSourceId: number): Promise<{ lastSyncTime: string | null; syncHistory: any[] } | null> => {
+        try {
+            const response = await $fetch<{ success: boolean; lastSyncTime: string | null; syncHistory: any[] }>(
+                `${config.public.apiBase}/hubspot/sync-status/${dataSourceId}`,
+                { headers: authHeaders() }
+            );
+            return response?.success ? { lastSyncTime: response.lastSyncTime, syncHistory: response.syncHistory } : null;
+        } catch (error) {
+            console.error('[useHubSpot] Failed to get sync status:', error);
+            return null;
+        }
+    };
+
     return {
         startOAuthFlow,
         addDataSource,
         syncNow,
         parseCallbackTokens,
         formatSyncTime,
+        getSyncStatus,
     };
 };

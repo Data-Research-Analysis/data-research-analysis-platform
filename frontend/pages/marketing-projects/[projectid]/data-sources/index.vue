@@ -420,16 +420,6 @@ async function viewSyncHistory(dataSourceId) {
     const isHubSpot = dataSource?.data_type === 'hubspot';
     const isKlaviyo = dataSource?.data_type === 'klaviyo';
 
-    // HubSpot and Klaviyo do not expose a sync history endpoint
-    if (isHubSpot || isKlaviyo) {
-        await $swal.fire({
-            title: 'No History',
-            text: 'Sync history is not available for this data source type.',
-            icon: 'info'
-        });
-        return;
-    }
-
     try {
         // Show loading
         $swal.fire({
@@ -442,6 +432,46 @@ async function viewSyncHistory(dataSourceId) {
                 $swal.showLoading();
             }
         });
+
+        if (isKlaviyo) {
+            const status = await klaviyo.getSyncStatus(dataSourceId);
+            $swal.close();
+            const history = (status?.syncHistory || []).map((s: any) => ({
+                id: s.id || Math.random(),
+                sync_started_at: s.startedAt || s.started_at,
+                sync_completed_at: s.completedAt || s.completed_at || null,
+                status: (s.status || 'pending').toLowerCase(),
+                rows_synced: s.recordsSynced ?? s.records_synced ?? 0,
+                error_message: s.errorMessage || s.error_message || null,
+            }));
+            if (history.length > 0) {
+                state.sync_history = history;
+                state.show_sync_history_dialog = true;
+            } else {
+                await $swal.fire({ title: 'No History', text: 'No sync history available yet.', icon: 'info' });
+            }
+            return;
+        }
+
+        if (isHubSpot) {
+            const status = await hubspot.getSyncStatus(dataSourceId);
+            $swal.close();
+            const history = (status?.syncHistory || []).map((s: any) => ({
+                id: s.id || Math.random(),
+                sync_started_at: s.startedAt || s.started_at,
+                sync_completed_at: s.completedAt || s.completed_at || null,
+                status: (s.status || 'pending').toLowerCase(),
+                rows_synced: s.recordsSynced ?? s.records_synced ?? 0,
+                error_message: s.errorMessage || s.error_message || null,
+            }));
+            if (history.length > 0) {
+                state.sync_history = history;
+                state.show_sync_history_dialog = true;
+            } else {
+                await $swal.fire({ title: 'No History', text: 'No sync history available yet.', icon: 'info' });
+            }
+            return;
+        }
 
         const status = isLinkedInAds ? await linkedInAds.getSyncStatus(dataSourceId) : (isMetaAds ? await metaAds.getSyncStatus(dataSourceId) : (isAds ? await ads.getSyncStatus(dataSourceId) : (isGAM ? await gam.getSyncStatus(dataSourceId) : await analytics.getSyncStatus(dataSourceId))));
 

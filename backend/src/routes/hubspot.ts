@@ -132,6 +132,24 @@ router.post('/add', validateJWT, requiresProductionAccess, async (req, res) => {
 // POST /hubspot/sync/:id
 // Manually trigger a sync for an existing HubSpot data source.
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /hubspot/sync-status/:id
+// Returns sync history for a HubSpot data source.
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/sync-status/:id', validateJWT, async (req, res) => {
+    try {
+        const dataSourceId = parseInt(req.params.id);
+        if (isNaN(dataSourceId)) {
+            return res.status(400).json({ success: false, error: 'Invalid data source ID' });
+        }
+        const { lastSyncTime, syncHistory } = await HubSpotProcessor.getInstance().getHubSpotSyncStatus(dataSourceId);
+        res.json({ success: true, lastSyncTime, syncHistory });
+    } catch (error: any) {
+        console.error('[HubSpot] Failed to get sync status:', error);
+        res.status(500).json({ success: false, error: error.message || 'Failed to get sync status' });
+    }
+});
+
 router.post('/sync/:id', validateJWT, requiresProductionAccess, async (req, res) => {
     try {
         const userId: number = req.body?.tokenDetails?.user_id;

@@ -257,11 +257,7 @@ async function loadSyncHistory() {
     if (!state.dataSource) return;
     if (!['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads', 'linkedin_ads', 'hubspot', 'klaviyo'].includes(state.dataSource.data_type)) return;
 
-    // HubSpot and Klaviyo don't have a sync-history endpoint — show empty state
-    if (['hubspot', 'klaviyo'].includes(state.dataSource.data_type)) {
-        state.sync_history = [];
-        return;
-    }
+
 
     state.loadingSyncHistory = true;
 
@@ -271,7 +267,30 @@ async function loadSyncHistory() {
         const isMeta = state.dataSource.data_type === 'meta_ads';
         const isLinkedIn = state.dataSource.data_type === 'linkedin_ads';
 
-        if (isLinkedIn) {
+        const isHubSpot = state.dataSource.data_type === 'hubspot';
+        const isKlaviyo = state.dataSource.data_type === 'klaviyo';
+
+        if (isKlaviyo) {
+            const status = await klaviyo.getSyncStatus(dataSourceId);
+            state.sync_history = (status?.syncHistory || []).map((s: any) => ({
+                id: s.id || Math.random(),
+                sync_started_at: s.startedAt || s.started_at,
+                sync_completed_at: s.completedAt || s.completed_at || null,
+                status: (s.status || 'pending').toLowerCase(),
+                rows_synced: s.recordsSynced ?? s.records_synced ?? 0,
+                error_message: s.errorMessage || s.error_message || null,
+            }));
+        } else if (isHubSpot) {
+            const status = await hubspot.getSyncStatus(dataSourceId);
+            state.sync_history = (status?.syncHistory || []).map((s: any) => ({
+                id: s.id || Math.random(),
+                sync_started_at: s.startedAt || s.started_at,
+                sync_completed_at: s.completedAt || s.completed_at || null,
+                status: (s.status || 'pending').toLowerCase(),
+                rows_synced: s.recordsSynced ?? s.records_synced ?? 0,
+                error_message: s.errorMessage || s.error_message || null,
+            }));
+        } else if (isLinkedIn) {
             const status = await linkedInAds.getSyncStatus(dataSourceId);
             state.linkedInSyncStatus = status;
             state.sync_history = (status?.syncHistory || []).map((s: any) => ({
