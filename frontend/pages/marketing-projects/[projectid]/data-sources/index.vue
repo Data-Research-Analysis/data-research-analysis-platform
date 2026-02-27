@@ -436,7 +436,7 @@ async function viewSyncHistory(dataSourceId) {
         if (isKlaviyo) {
             const status = await klaviyo.getSyncStatus(dataSourceId);
             $swal.close();
-            const history = (status?.syncHistory || []).map((s: any) => ({
+            const history = (status?.syncHistory || []).map((s) => ({
                 id: s.id || Math.random(),
                 sync_started_at: s.startedAt || s.started_at,
                 sync_completed_at: s.completedAt || s.completed_at || null,
@@ -456,7 +456,7 @@ async function viewSyncHistory(dataSourceId) {
         if (isHubSpot) {
             const status = await hubspot.getSyncStatus(dataSourceId);
             $swal.close();
-            const history = (status?.syncHistory || []).map((s: any) => ({
+            const history = (status?.syncHistory || []).map((s) => ({
                 id: s.id || Math.random(),
                 sync_started_at: s.startedAt || s.started_at,
                 sync_completed_at: s.completedAt || s.completed_at || null,
