@@ -270,6 +270,8 @@ function getDataSourceImage(dataType) {
         'excel': excelImage,
         'meta_ads': metaAdsImage,
         'linkedin_ads': linkedInAdsImage,
+        'hubspot': hubspotImage,
+        'klaviyo': klaviyoImage,
         'mongodb': mongodbImage
     };
     return images[dataType] || postgresqlImage;

@@ -21,6 +21,8 @@ import excelImage from '/assets/images/excel.png';
 import metaImage from '/assets/images/meta.png';
 import mongodbImage from '/assets/images/mongodb.png';
 import linkedInImage from '/assets/images/linkedin.png';
+import hubspotImage from '/assets/images/hubspot.svg';
+import klaviyoImage from '/assets/images/klaviyo.svg';
 
 const dataSourceStore = useDataSourceStore();
 const projectsStore = useProjectsStore();
@@ -98,6 +100,8 @@ function getDataSourceIcon(dataType: string) {
         'pdf': pdfImage,
         'meta_ads': metaImage,
         'linkedin_ads': linkedInImage,
+        'hubspot': hubspotImage,
+        'klaviyo': klaviyoImage,
         'mongodb': mongodbImage
     };
     return icons[dataType] || postgresqlImage;
