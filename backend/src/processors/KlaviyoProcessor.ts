@@ -7,6 +7,7 @@ import { DRAProject } from '../models/DRAProject.js';
 import { DRAUsersPlatform } from '../models/DRAUsersPlatform.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { UtilityService } from '../services/UtilityService.js';
+import { KlaviyoService } from '../services/KlaviyoService.js';
 import { KlaviyoDriver } from '../drivers/KlaviyoDriver.js';
 
 export class KlaviyoProcessor {
