@@ -3,7 +3,7 @@
 <template>
     <div>
         <div class="bg-white w-full h-full">
-            <div class="flex flex-col h-full pt-16 pb-20 max-w-7xl mx-auto px-6">
+            <div class="flex flex-col h-full py-10 max-w-7xl mx-auto px-6">
                 <h2 class="font-bold text-primary-blue-100 text-center text-4xl mb-16 px-4">
                     The 3 Bottlenecks Killing Your Campaign Performance
                 </h2>

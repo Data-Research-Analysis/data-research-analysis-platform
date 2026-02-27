@@ -38,22 +38,17 @@ defineExpose({
 </script>
 
 <template>
-    <section id="faq" class="py-16 bg-gray-50">
+    <section id="faq" class="py-10">
         <div class="container mx-auto px-4 max-w-4xl">
             <h2 class="text-3xl font-bold text-primary-blue-100 text-center mb-12">Frequently Asked Questions</h2>
-            <div class="space-y-6" itemscope itemtype="https://schema.org/FAQPage">
+            <div class="space-y-6">
                 <div v-for="(faq, index) in faqData" 
                      :key="index" 
-                     class="bg-white p-6 rounded-lg shadow-md"
-                     itemscope 
-                     itemprop="mainEntity" 
-                     itemtype="https://schema.org/Question">
-                    <h3 class="text-xl font-semibold mb-3 text-primary-blue-100" itemprop="name">
+                     class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-xl font-semibold mb-3 text-primary-blue-100">
                         {{ faq.question }}
                     </h3>
-                    <div itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer">
-                        <p class="text-gray-700" itemprop="text">{{ faq.answer }}</p>
-                    </div>
+                    <p class="text-gray-700">{{ faq.answer }}</p>
                 </div>
             </div>
         </div>

@@ -100,7 +100,7 @@ useHead({ title: 'Connect Klaviyo Email' });
                 <!-- Header -->
                 <div class="bg-[#232F3E] px-8 py-10 flex flex-col items-center gap-4">
                     <img
-                        src="/assets/images/klaviyo.svg"
+                        src="/assets/images/klaviyo.png"
                         alt="Klaviyo Email Marketing"
                         class="w-20 h-20 rounded-xl bg-white p-2 shadow" />
                     <h1 class="text-2xl font-bold text-white">Connect Klaviyo Email</h1>

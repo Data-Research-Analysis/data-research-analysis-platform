@@ -2,7 +2,7 @@
 </script>
 <template>
     <div>
-        <div class="flex flex-col w-3/4 bg-white m-auto flex-col h-full py-15">
+        <div class="flex flex-col w-3/4 bg-white m-auto flex-col h-full py-10">
             <h2 class="font-bold text-primary-blue-100 text-center">
                 How do I get started?
             </h2>

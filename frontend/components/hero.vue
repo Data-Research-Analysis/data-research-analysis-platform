@@ -36,7 +36,7 @@ onMounted(async () => {
 </script>
 <template>
     <div>
-        <div class="bg-primary-blue-100 w-full lg:min-h-screen relative flex flex-col lg:flex-row lg:items-center fancy-bottom">
+        <div class="bg-primary-blue-100 w-full lg:min-h-screen relative flex flex-col lg:flex-row lg:items-center">
             <!-- Mobile Layout -->
             <div class="flex flex-col w-full p-5 pt-32 pb-20 lg:hidden">
                 <h1 class="font-bold text-white text-center text-4xl leading-tight">

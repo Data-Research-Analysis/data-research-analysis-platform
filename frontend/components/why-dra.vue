@@ -2,7 +2,7 @@
 </script>
 <template>
     <div>
-        <div class="bg-primary-blue-100 w-full h-full fancy-top-bottom py-15 px-6">
+        <div class="bg-primary-blue-100 w-full h-full py-10 px-6">
             <div class="max-w-7xl mx-auto flex flex-col items-center">
                 <h2 class="font-bold text-white text-center text-4xl mb-16 pt-5">
                     Turn Your Data into Your Competitive Advantage

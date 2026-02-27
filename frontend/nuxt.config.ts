@@ -30,6 +30,9 @@ export default defineNuxtConfig({
     componentIslands: false, // Can be enabled if needed
     // Enable view transitions for smoother navigation
     viewTransition: true,
+    // Disable app manifest to prevent Vite pre-transform warning for
+    // the #app-manifest virtual module in dead-code branches (if (false) {...})
+    appManifest: false,
   },
   // OPTIMIZATION: Configure router for better performance
   router: {

@@ -23,8 +23,8 @@ import excelImage from '/assets/images/excel.png';
 import metaImage from '/assets/images/meta.png';
 import mongodbImage from '/assets/images/mongodb.png';
 import linkedInImage from '/assets/images/linkedin.png';
-import hubspotImage from '/assets/images/hubspot.svg';
-import klaviyoImage from '/assets/images/klaviyo.svg';
+import hubspotImage from '/assets/images/hubspot.png';
+import klaviyoImage from '/assets/images/klaviyo.png';
 
 const dataSourceStore = useDataSourceStore();
 const projectsStore = useProjectsStore();

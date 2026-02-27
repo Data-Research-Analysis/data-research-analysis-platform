@@ -136,7 +136,7 @@ useHead({ title: 'HubSpot CRM — Finalise Connection' });
 
                 <!-- Header -->
                 <div class="bg-[#FF7A59] px-8 py-8 flex flex-col items-center gap-3">
-                    <img src="/assets/images/hubspot.svg" alt="HubSpot" class="w-14 h-14 rounded-lg bg-white p-1.5 shadow" />
+                    <img src="/assets/images/hubspot.png" alt="HubSpot" class="w-14 h-14 rounded-lg bg-white p-1.5 shadow" />
                     <h1 class="text-xl font-bold text-white">HubSpot Authorised</h1>
                     <p class="text-white/80 text-xs text-center">Name your data source to complete the setup</p>
                 </div>

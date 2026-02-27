@@ -53,7 +53,7 @@ useHead({ title: 'Connect HubSpot CRM' });
                 <!-- Header banner -->
                 <div class="bg-[#FF7A59] px-8 py-10 flex flex-col items-center gap-4">
                     <img
-                        src="/assets/images/hubspot.svg"
+                        src="/assets/images/hubspot.png"
                         alt="HubSpot CRM"
                         class="w-20 h-20 rounded-xl bg-white p-2 shadow" />
                     <h1 class="text-2xl font-bold text-white">Connect HubSpot CRM</h1>

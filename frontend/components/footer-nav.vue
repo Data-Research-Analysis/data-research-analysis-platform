@@ -47,20 +47,24 @@ onMounted(() => {
 </script>
 <template>
     <div>
-        <div class="bg-primary-blue-100 text-white font-sans w-full" :class="{ 'fancy-top': isHomePage }">
+        <div class="bg-primary-blue-100 text-white font-sans w-full">
             <div class="max-w-7xl mx-auto px-6 py-12">
+                
+                <!-- Divider -->
+                <div class="w-full h-px bg-white/20 my-8"></div>
+
                 <!-- Main Footer Content -->
                 <div class="flex flex-col lg:flex-row lg:justify-between gap-10">
                     
                     <!-- 1. Brand / Description -->
-                    <div class="lg:w-1/3 text-center lg:text-left">
+                    <div class="w-full lg:w-2/4 text-center lg:text-left">
                         <p class="hover:text-gray-200 cursor-pointer text-lg leading-relaxed font-bold" @click="openGithub()">
                             Data Research Analysis is an open source data analysis platform developed under the MIT Open Source License.
                         </p>
                     </div>
 
                     <!-- 2. Important Links -->
-                    <div v-if="!isPublicDashboard" class="flex flex-col items-center lg:items-start space-y-3">
+                    <div v-if="!isPublicDashboard" class="w-full lg:w-1/4 flex flex-col items-center lg:items-start space-y-3">
                         <h3 class="font-bold text-xl mb-2 opacity-90">Important Links</h3>
                         
                         <NuxtLink v-if="isPlatformEnabled() && isPlatformRegistrationEnabled() && !authenticated" 
@@ -97,7 +101,7 @@ onMounted(() => {
                     </div>
 
                     <!-- 3. Trust Badges ("Registered with") -->
-                    <div class="flex flex-col items-center lg:items-start">
+                    <div class="w-full lg:w-1/4 flex flex-col items-center lg:items-start">
                          <h3 class="text-sm uppercase tracking-wider mb-4 opacity-70 font-bold">Registered With</h3>
                          <div class="flex flex-row gap-4 items-center bg-white/5 p-4 rounded-xl">
                             <a href="https://www.secp.gov.pk/" target="_blank" title="Securities Exchange Commission Pakistan" class="hover:opacity-80 transition duration-200">
@@ -109,6 +113,9 @@ onMounted(() => {
                             <a href="https://www.techdestination.com/" target="_blank" title="Tech Destination Pakistan" class="hover:opacity-80 transition duration-200">
                                 <img src="/assets/images/tech-destination-logo.png" class="h-12 w-auto" alt="Tech Destination Pakistan" />
                             </a>
+                         </div>
+                         <div class="text-md leading-relaxed font-bold">
+                            Built by a global team, proudly headquartered in Pakistan. We are on a mission to democratize data analytics and empower businesses worldwide with actionable insights.
                          </div>
                     </div>
                 </div>
