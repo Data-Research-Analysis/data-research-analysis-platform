@@ -545,35 +545,61 @@ export class DataSourceProcessor {
                     }
                 }
 
-                // Delete HubSpot schema tables (data is keyed on data_source_id — CASCADE handles FK rows)
+                // Delete HubSpot schema tables
                 if (dataSource.data_type === EDataSourceType.HUBSPOT) {
                     try {
-                        const tables = ['contacts', 'deals', 'pipeline_snapshot_daily'];
-                        for (const t of tables) {
-                            await dbConnector.query(
-                                `DELETE FROM dra_hubspot.${t} WHERE data_source_id = $1`,
-                                [dataSource.id]
-                            );
+                        // Drop tables registered in dra_table_metadata (ds{id}_{hash} naming)
+                        const metadataResults = await dbConnector.query(
+                            `SELECT physical_table_name FROM dra_table_metadata
+                             WHERE schema_name = 'dra_hubspot' AND data_source_id = $1`,
+                            [dataSource.id]
+                        );
+                        console.log(`Found ${metadataResults.length} HubSpot metadata-tracked tables to delete for data source ${dataSource.id}`);
+                        for (const row of metadataResults) {
+                            await dbConnector.query(`DROP TABLE IF EXISTS dra_hubspot."${row.physical_table_name}" CASCADE`);
+                            console.log(`Dropped HubSpot table: ${row.physical_table_name}`);
                         }
-                        console.log(`Deleted dra_hubspot rows for data source ${dataSource.id}`);
+
+                        // Fallback: drop any ds{id}_* tables not yet in metadata
+                        const fallbackTables = await dbConnector.query(
+                            `SELECT table_name FROM information_schema.tables
+                             WHERE table_schema = 'dra_hubspot' AND table_name LIKE 'ds${dataSource.id}_%'`
+                        );
+                        for (const row of fallbackTables) {
+                            await dbConnector.query(`DROP TABLE IF EXISTS dra_hubspot."${row.table_name}" CASCADE`);
+                            console.log(`Dropped HubSpot table (fallback): ${row.table_name}`);
+                        }
                     } catch (error) {
-                        console.error('Error deleting HubSpot rows:', error);
+                        console.error('Error dropping HubSpot tables:', error);
                     }
                 }
 
                 // Delete Klaviyo schema tables
                 if (dataSource.data_type === EDataSourceType.KLAVIYO) {
                     try {
-                        const tables = ['campaigns', 'campaign_metrics', 'flow_metrics'];
-                        for (const t of tables) {
-                            await dbConnector.query(
-                                `DELETE FROM dra_klaviyo.${t} WHERE data_source_id = $1`,
-                                [dataSource.id]
-                            );
+                        // Drop tables registered in dra_table_metadata (ds{id}_{hash} naming)
+                        const metadataResults = await dbConnector.query(
+                            `SELECT physical_table_name FROM dra_table_metadata
+                             WHERE schema_name = 'dra_klaviyo' AND data_source_id = $1`,
+                            [dataSource.id]
+                        );
+                        console.log(`Found ${metadataResults.length} Klaviyo metadata-tracked tables to delete for data source ${dataSource.id}`);
+                        for (const row of metadataResults) {
+                            await dbConnector.query(`DROP TABLE IF EXISTS dra_klaviyo."${row.physical_table_name}" CASCADE`);
+                            console.log(`Dropped Klaviyo table: ${row.physical_table_name}`);
                         }
-                        console.log(`Deleted dra_klaviyo rows for data source ${dataSource.id}`);
+
+                        // Fallback: drop any ds{id}_* tables not yet in metadata
+                        const fallbackTables = await dbConnector.query(
+                            `SELECT table_name FROM information_schema.tables
+                             WHERE table_schema = 'dra_klaviyo' AND table_name LIKE 'ds${dataSource.id}_%'`
+                        );
+                        for (const row of fallbackTables) {
+                            await dbConnector.query(`DROP TABLE IF EXISTS dra_klaviyo."${row.table_name}" CASCADE`);
+                            console.log(`Dropped Klaviyo table (fallback): ${row.table_name}`);
+                        }
                     } catch (error) {
-                        console.error('Error deleting Klaviyo rows:', error);
+                        console.error('Error dropping Klaviyo tables:', error);
                     }
                 }
 
