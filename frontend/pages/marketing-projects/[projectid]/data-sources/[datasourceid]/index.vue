@@ -9,6 +9,8 @@ import { useGoogleAdManager } from '@/composables/useGoogleAdManager';
 import { useGoogleAds } from '@/composables/useGoogleAds';
 import { useMetaAds } from '@/composables/useMetaAds';
 import { useLinkedInAds } from '@/composables/useLinkedInAds';
+import { useHubSpot } from '@/composables/useHubSpot';
+import { useKlaviyo } from '@/composables/useKlaviyo';
 import { useReCaptcha } from "vue-recaptcha-v3";
 import googleAnalyticsImage from '/assets/images/google-analytics.png';
 import googleAdManagerImage from '/assets/images/google-ad-manager.png';
@@ -31,6 +33,8 @@ const gam = useGoogleAdManager();
 const ads = useGoogleAds();
 const metaAds = useMetaAds();
 const linkedInAds = useLinkedInAds();
+const hubspot = useHubSpot();
+const klaviyo = useKlaviyo();
 const recaptcha = useReCaptcha();
 const nuxtApp = useNuxtApp();
 const $swal = nuxtApp.$swal as any;
@@ -110,7 +114,7 @@ function getDataSourceIcon(dataType: string) {
 // Get sync status
 function getSyncStatus() {
     if (!state.dataSource) return { status: 'idle', text: 'Idle', color: 'gray' };
-    if (!['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads', 'linkedin_ads'].includes(state.dataSource.data_type)) {
+    if (!['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads', 'linkedin_ads', 'hubspot', 'klaviyo'].includes(state.dataSource.data_type)) {
         return { status: 'n/a', text: 'Not applicable', color: 'gray' };
     }
 
@@ -203,15 +207,21 @@ async function triggerSync() {
         const isAds = state.dataSource.data_type === 'google_ads';
         const isMeta = state.dataSource.data_type === 'meta_ads';
         const isLinkedIn = state.dataSource.data_type === 'linkedin_ads';
-        const serviceName = isLinkedIn ? 'LinkedIn Ads' : (isMeta ? 'Meta Ads' : (isAds ? 'Google Ads' : (isGAM ? 'Google Ad Manager' : 'Google Analytics')));
+        const isHubSpot = state.dataSource.data_type === 'hubspot';
+        const isKlaviyo = state.dataSource.data_type === 'klaviyo';
+        const serviceName = isHubSpot ? 'HubSpot' : (isKlaviyo ? 'Klaviyo' : (isLinkedIn ? 'LinkedIn Ads' : (isMeta ? 'Meta Ads' : (isAds ? 'Google Ads' : (isGAM ? 'Google Ad Manager' : 'Google Analytics')))));
 
-        const success = isLinkedIn
-            ? await linkedInAds.syncNow(dataSourceId)
-            : (isMeta
-                ? await metaAds.syncNow(dataSourceId)
-                : (isAds 
-                    ? await ads.syncNow(dataSourceId) 
-                    : (isGAM ? await gam.syncNow(dataSourceId) : await analytics.syncNow(dataSourceId))));
+        const success = isHubSpot
+            ? await hubspot.syncNow(dataSourceId)
+            : (isKlaviyo
+                ? await klaviyo.syncNow(dataSourceId)
+                : (isLinkedIn
+                    ? await linkedInAds.syncNow(dataSourceId)
+                    : (isMeta
+                        ? await metaAds.syncNow(dataSourceId)
+                        : (isAds 
+                            ? await ads.syncNow(dataSourceId) 
+                            : (isGAM ? await gam.syncNow(dataSourceId) : await analytics.syncNow(dataSourceId))))));
 
         if (success) {
             await $swal.fire({
@@ -245,7 +255,13 @@ async function triggerSync() {
 // Load sync history
 async function loadSyncHistory() {
     if (!state.dataSource) return;
-    if (!['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads', 'linkedin_ads'].includes(state.dataSource.data_type)) return;
+    if (!['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads', 'linkedin_ads', 'hubspot', 'klaviyo'].includes(state.dataSource.data_type)) return;
+
+    // HubSpot and Klaviyo don't have a sync-history endpoint — show empty state
+    if (['hubspot', 'klaviyo'].includes(state.dataSource.data_type)) {
+        state.sync_history = [];
+        return;
+    }
 
     state.loadingSyncHistory = true;
 
@@ -628,8 +644,8 @@ onMounted(async () => {
         state.loading = true;
         await loadDataSource();
         
-        // Load sync history for Google and Meta sources
-        if (state.dataSource && ['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads', 'linkedin_ads'].includes(state.dataSource.data_type)) {
+        // Load sync history for API sources
+        if (state.dataSource && ['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads', 'linkedin_ads', 'hubspot', 'klaviyo'].includes(state.dataSource.data_type)) {
             await loadSyncHistory();
         }
     } catch (error) {
@@ -664,7 +680,7 @@ onMounted(async () => {
             </div>
             <div class="flex items-center gap-3">
                 <button
-                    v-if="permissions.canUpdate.value && ['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads', 'linkedin_ads'].includes(state.dataSource.data_type)"
+                    v-if="permissions.canUpdate.value && ['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads', 'linkedin_ads', 'hubspot', 'klaviyo'].includes(state.dataSource.data_type)"
                     @click="openScheduleModal"
                     class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors duration-200 flex items-center gap-2 cursor-pointer">
                     <font-awesome icon="fas fa-calendar" />
@@ -680,8 +696,8 @@ onMounted(async () => {
             </div>
         </div>
 
-        <!-- Sync Controls (Google, Meta and LinkedIn sources) -->
-        <div v-if="['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads', 'linkedin_ads'].includes(state.dataSource.data_type)"
+        <!-- Sync Controls (API sources) -->
+        <div v-if="['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads', 'linkedin_ads', 'hubspot', 'klaviyo'].includes(state.dataSource.data_type)"
             class="bg-white border border-gray-200 rounded-lg p-6 mb-6">
             <h2 class="text-xl font-semibold text-gray-900 mb-4">Sync Controls</h2>
             
@@ -750,8 +766,8 @@ onMounted(async () => {
             </button>
         </div>
 
-        <!-- Sync History (Google, Meta and LinkedIn sources) -->
-        <div v-if="['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads', 'linkedin_ads'].includes(state.dataSource.data_type)"
+        <!-- Sync History (API sources) -->
+        <div v-if="['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads', 'linkedin_ads', 'hubspot', 'klaviyo'].includes(state.dataSource.data_type)"
             class="bg-white border border-gray-200 rounded-lg p-6">
             <h2 class="text-xl font-semibold text-gray-900 mb-4">Sync History</h2>
 

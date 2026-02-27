@@ -289,7 +289,9 @@ async function syncDataSource(dataSourceId) {
         const isAds = dataSource?.data_type === 'google_ads';
         const isMetaAds = dataSource?.data_type === 'meta_ads';
         const isLinkedInAds = dataSource?.data_type === 'linkedin_ads';
-        const serviceName = isLinkedInAds ? 'LinkedIn Ads' : (isMetaAds ? 'Meta Ads' : (isAds ? 'Google Ads' : (isGAM ? 'Google Ad Manager' : 'Google Analytics')));
+        const isHubSpot = dataSource?.data_type === 'hubspot';
+        const isKlaviyo = dataSource?.data_type === 'klaviyo';
+        const serviceName = isHubSpot ? 'HubSpot' : (isKlaviyo ? 'Klaviyo' : (isLinkedInAds ? 'LinkedIn Ads' : (isMetaAds ? 'Meta Ads' : (isAds ? 'Google Ads' : (isGAM ? 'Google Ad Manager' : 'Google Analytics')))));
 
         $swal.fire({
             title: 'Syncing...',
@@ -303,7 +305,7 @@ async function syncDataSource(dataSourceId) {
         });
 
         console.log('Starting sync for data source ID:', dataSourceId);
-        const success = isLinkedInAds ? await linkedInAds.syncNow(dataSourceId) : (isMetaAds ? await metaAds.syncNow(dataSourceId) : (isAds ? await ads.syncNow(dataSourceId) : (isGAM ? await gam.syncNow(dataSourceId) : await analytics.syncNow(dataSourceId))));
+        const success = isHubSpot ? await hubspot.syncNow(dataSourceId) : (isKlaviyo ? await klaviyo.syncNow(dataSourceId) : (isLinkedInAds ? await linkedInAds.syncNow(dataSourceId) : (isMetaAds ? await metaAds.syncNow(dataSourceId) : (isAds ? await ads.syncNow(dataSourceId) : (isGAM ? await gam.syncNow(dataSourceId) : await analytics.syncNow(dataSourceId))))));
 
         if (success) {
             await $swal.fire({
@@ -338,13 +340,13 @@ async function syncDataSource(dataSourceId) {
  */
 async function bulkSyncAllGoogleDataSources() {
     const googleDataSources = state.data_sources.filter(ds =>
-        ds.data_type === 'google_analytics' || ds.data_type === 'google_ad_manager' || ds.data_type === 'google_ads' || ds.data_type === 'meta_ads' || ds.data_type === 'linkedin_ads'
+        ds.data_type === 'google_analytics' || ds.data_type === 'google_ad_manager' || ds.data_type === 'google_ads' || ds.data_type === 'meta_ads' || ds.data_type === 'linkedin_ads' || ds.data_type === 'hubspot' || ds.data_type === 'klaviyo'
     );
 
     if (googleDataSources.length === 0) {
         await $swal.fire({
             title: 'No API Data Sources',
-            text: 'There are no Google Analytics, Ad Manager, Ads, Meta Ads, or LinkedIn Ads data sources to sync.',
+            text: 'There are no Google Analytics, Ad Manager, Ads, Meta Ads, LinkedIn Ads, HubSpot, or Klaviyo data sources to sync.',
             icon: 'info'
         });
         return;
@@ -352,7 +354,7 @@ async function bulkSyncAllGoogleDataSources() {
 
     const { value: confirm } = await $swal.fire({
         title: `Sync ${googleDataSources.length} Data Source${googleDataSources.length > 1 ? 's' : ''}?`,
-        text: 'This will sync all Google Analytics, Ad Manager, Google Ads, Meta Ads, and LinkedIn Ads data sources in this project.',
+        text: 'This will sync all API-connected data sources (Google Analytics, Ad Manager, Google Ads, Meta Ads, LinkedIn Ads, HubSpot, Klaviyo) in this project.',
         icon: 'question',
         showCancelButton: true,
         confirmButtonText: 'Yes, Sync All',
@@ -385,7 +387,9 @@ async function bulkSyncAllGoogleDataSources() {
         const isAds = ds.data_type === 'google_ads';
         const isMetaAds = ds.data_type === 'meta_ads';
         const isLinkedInAds = ds.data_type === 'linkedin_ads';
-        const success = isLinkedInAds ? await linkedInAds.syncNow(ds.id) : (isMetaAds ? await metaAds.syncNow(ds.id) : (isAds ? await ads.syncNow(ds.id) : (isGAM ? await gam.syncNow(ds.id) : await analytics.syncNow(ds.id))));
+        const isHubSpotDs = ds.data_type === 'hubspot';
+        const isKlaviyoDs = ds.data_type === 'klaviyo';
+        const success = isHubSpotDs ? await hubspot.syncNow(ds.id) : (isKlaviyoDs ? await klaviyo.syncNow(ds.id) : (isLinkedInAds ? await linkedInAds.syncNow(ds.id) : (isMetaAds ? await metaAds.syncNow(ds.id) : (isAds ? await ads.syncNow(ds.id) : (isGAM ? await gam.syncNow(ds.id) : await analytics.syncNow(ds.id))))));
         if (success) {
             successCount++;
         } else {
@@ -413,6 +417,18 @@ async function viewSyncHistory(dataSourceId) {
     const isAds = dataSource?.data_type === 'google_ads';
     const isMetaAds = dataSource?.data_type === 'meta_ads';
     const isLinkedInAds = dataSource?.data_type === 'linkedin_ads';
+    const isHubSpot = dataSource?.data_type === 'hubspot';
+    const isKlaviyo = dataSource?.data_type === 'klaviyo';
+
+    // HubSpot and Klaviyo do not expose a sync history endpoint
+    if (isHubSpot || isKlaviyo) {
+        await $swal.fire({
+            title: 'No History',
+            text: 'Sync history is not available for this data source type.',
+            icon: 'info'
+        });
+        return;
+    }
 
     try {
         // Show loading
@@ -465,33 +481,37 @@ function closeSyncHistoryDialog() {
  * Get last sync time formatted
  */
 function getLastSyncTime(dataSource) {
-    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager' && dataSource.data_type !== 'google_ads' && dataSource.data_type !== 'meta_ads' && dataSource.data_type !== 'linkedin_ads') return null;
+    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager' && dataSource.data_type !== 'google_ads' && dataSource.data_type !== 'meta_ads' && dataSource.data_type !== 'linkedin_ads' && dataSource.data_type !== 'hubspot' && dataSource.data_type !== 'klaviyo') return null;
     const lastSync = dataSource.connection_details?.api_connection_details?.api_config?.last_sync;
     const isGAM = dataSource.data_type === 'google_ad_manager';
     const isAds = dataSource.data_type === 'google_ads';
     const isMeta = dataSource.data_type === 'meta_ads';
     const isLinkedIn = dataSource.data_type === 'linkedin_ads';
-    return lastSync ? (isLinkedIn ? linkedInAds.formatSyncTime(lastSync) : (isMeta ? metaAds.formatSyncTime(lastSync) : (isAds ? ads.formatSyncTime(lastSync) : (isGAM ? gam.formatSyncTime(lastSync) : analytics.formatSyncTime(lastSync))))) : 'Never';
+    const isHubSpot = dataSource.data_type === 'hubspot';
+    const isKlaviyo = dataSource.data_type === 'klaviyo';
+    return lastSync ? (isHubSpot ? hubspot.formatSyncTime(lastSync) : (isKlaviyo ? klaviyo.formatSyncTime(lastSync) : (isLinkedIn ? linkedInAds.formatSyncTime(lastSync) : (isMeta ? metaAds.formatSyncTime(lastSync) : (isAds ? ads.formatSyncTime(lastSync) : (isGAM ? gam.formatSyncTime(lastSync) : analytics.formatSyncTime(lastSync))))))) : 'Never';
 }
 
 /**
  * Get sync frequency text
  */
 function getSyncFrequency(dataSource) {
-    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager' && dataSource.data_type !== 'google_ads' && dataSource.data_type !== 'meta_ads' && dataSource.data_type !== 'linkedin_ads') return null;
+    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager' && dataSource.data_type !== 'google_ads' && dataSource.data_type !== 'meta_ads' && dataSource.data_type !== 'linkedin_ads' && dataSource.data_type !== 'hubspot' && dataSource.data_type !== 'klaviyo') return null;
     const frequency = dataSource.connection_details?.api_connection_details?.api_config?.sync_frequency || 'manual';
     const isGAM = dataSource.data_type === 'google_ad_manager';
     const isMeta = dataSource.data_type === 'meta_ads';
     const isAds = dataSource.data_type === 'google_ads';
     const isLinkedIn = dataSource.data_type === 'linkedin_ads';
-    return (isAds || isMeta || isLinkedIn) ? 'Manual' : (isGAM ? gam.getSyncFrequencyText(frequency) : analytics.getSyncFrequencyText(frequency));
+    const isHubSpot = dataSource.data_type === 'hubspot';
+    const isKlaviyo = dataSource.data_type === 'klaviyo';
+    return (isAds || isMeta || isLinkedIn || isHubSpot || isKlaviyo) ? 'Manual' : (isGAM ? gam.getSyncFrequencyText(frequency) : analytics.getSyncFrequencyText(frequency));
 }
 
 /**
  * Check if data source was recently synced (within 24 hours)
  */
 function isRecentlySynced(dataSource) {
-    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager' && dataSource.data_type !== 'google_ads' && dataSource.data_type !== 'meta_ads' && dataSource.data_type !== 'linkedin_ads') return false;
+    if (dataSource.data_type !== 'google_analytics' && dataSource.data_type !== 'google_ad_manager' && dataSource.data_type !== 'google_ads' && dataSource.data_type !== 'meta_ads' && dataSource.data_type !== 'linkedin_ads' && dataSource.data_type !== 'hubspot' && dataSource.data_type !== 'klaviyo') return false;
     const lastSync = dataSource.connection_details?.api_connection_details?.api_config?.last_sync;
     if (!lastSync) return false;
     const diffHours = (new Date().getTime() - new Date(lastSync).getTime()) / (1000 * 60 * 60);
@@ -630,20 +650,13 @@ async function saveClassification(classification) {
                 </div>
             </div>
 
-            <!-- Bulk Sync Button for Google Data Sources -->
-            <div v-if="!state.loading && permissions.canUpdate.value && state.data_sources.some(ds => ds.data_type === 'google_analytics' || ds.data_type === 'google_ad_manager' || ds.data_type === 'google_ads')"
+            <!-- Bulk Sync Button for API Data Sources -->
+            <div v-if="!state.loading && permissions.canUpdate.value && state.data_sources.some(ds => ds.data_type === 'google_analytics' || ds.data_type === 'google_ad_manager' || ds.data_type === 'google_ads' || ds.data_type === 'meta_ads' || ds.data_type === 'linkedin_ads' || ds.data_type === 'hubspot' || ds.data_type === 'klaviyo')"
                 class="mt-5 mb-2">
                 <button @click="bulkSyncAllGoogleDataSources"
                     class="px-4 py-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 rounded-lg transition-colors duration-200 flex items-center gap-2 cursor-pointer">
                     <font-awesome icon="fas fa-sync" />
-                    {{
-                        state.data_sources.some(ds => ds.data_type === 'google_analytics') && state.data_sources.some(ds =>
-                            ds.data_type === 'google_ad_manager')
-                            ? 'Sync All Google Data Sources'
-                            : state.data_sources.some(ds => ds.data_type === 'google_analytics')
-                                ? 'Sync All Google Analytics Data Sources'
-                                : 'Sync All Google Ad Manager Data Sources'
-                    }}
+                    Sync All API Data Sources
                 </button>
             </div>
 
@@ -737,8 +750,8 @@ async function saveClassification(classification) {
                                 </div>
                             </div>
 
-                            <!-- Sync Status (for Google and Meta sources) -->
-                            <div v-if="['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads', 'linkedin_ads'].includes(dataSource.data_type)"
+                            <!-- Sync Status (for API-connected sources) -->
+                            <div v-if="['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads', 'linkedin_ads', 'hubspot', 'klaviyo'].includes(dataSource.data_type)"
                                 class="mb-4">
                                 <div class="flex items-center justify-between mb-2">
                                     <span class="text-sm text-gray-600">Status</span>
@@ -802,9 +815,9 @@ async function saveClassification(classification) {
                                 <font-awesome icon="fas fa-pen" class="text-sm text-white" />
                             </NuxtLink>
 
-                            <!-- Sync Button (for Google and Meta sources) -->
+                            <!-- Sync Button (for API-connected sources) -->
                             <button
-                                v-if="permissions.canUpdate.value && ['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads', 'linkedin_ads'].includes(dataSource.data_type)"
+                                v-if="permissions.canUpdate.value && ['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads', 'linkedin_ads', 'hubspot', 'klaviyo'].includes(dataSource.data_type)"
                                 @click.stop="syncDataSource(dataSource.id)"
                                 :disabled="state.syncing[dataSource.id]"
                                 class="bg-primary-blue-100 hover:bg-primary-blue-300 border border-primary-blue-100 rounded-full w-10 h-10 flex items-center justify-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors z-10"
@@ -815,9 +828,9 @@ async function saveClassification(classification) {
                                     class="text-sm text-white" />
                             </button>
 
-                            <!-- Sync History Button (for Google and Meta sources) -->
+                            <!-- Sync History Button (for API-connected sources) -->
                             <button
-                                v-if="['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads', 'linkedin_ads'].includes(dataSource.data_type)"
+                                v-if="['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads', 'linkedin_ads', 'hubspot', 'klaviyo'].includes(dataSource.data_type)"
                                 @click.stop="viewSyncHistory(dataSource.id)"
                                 class="bg-gray-500 hover:bg-gray-600 border border-gray-500 rounded-full w-10 h-10 flex items-center justify-center cursor-pointer transition-colors z-10"
                                 v-tippy="{ content: 'View Sync History' }">

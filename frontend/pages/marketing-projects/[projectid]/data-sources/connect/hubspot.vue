@@ -100,7 +100,7 @@ useHead({ title: 'Connect HubSpot CRM' });
                     <button
                         @click="connectWithHubSpot"
                         :disabled="state.loading"
-                        class="w-full py-3 px-6 bg-[#FF7A59] hover:bg-[#e86e4f] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-3">
+                        class="w-full py-3 px-6 bg-[#FF7A59] hover:bg-[#e86e4f] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-3 cursor-pointer">
                         <font-awesome-icon v-if="state.loading" :icon="['fas', 'spinner']" class="animate-spin" />
                         <font-awesome-icon v-else :icon="['fas', 'arrow-right']" />
                         <span>{{ state.loading ? 'Redirecting to HubSpot…' : 'Connect with HubSpot' }}</span>
