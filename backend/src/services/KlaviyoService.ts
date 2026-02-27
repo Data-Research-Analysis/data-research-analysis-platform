@@ -1,5 +1,7 @@
+import { EntityManager } from 'typeorm';
 import { DBDriver } from '../drivers/DBDriver.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
+import { TableMetadataService } from './TableMetadataService.js';
 
 const SCHEMA = 'dra_klaviyo';
 /** Klaviyo stable API revision (Q1 2026) */
@@ -31,14 +33,14 @@ export class KlaviyoService {
     }
 
     // -------------------------------------------------------------------------
-    // DB helper
+    // DB helpers
     // -------------------------------------------------------------------------
 
-    private async getDbQuery(): Promise<(sql: string, params?: any[]) => Promise<any[]>> {
+    private async getEntityManager(): Promise<EntityManager> {
         const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
         if (!driver) throw new Error('PostgreSQL driver unavailable');
         const dataSource = await driver.getConcreteDriver();
-        return (sql: string, params?: any[]) => dataSource.query(sql, params);
+        return dataSource.manager;
     }
 
     // -------------------------------------------------------------------------
@@ -89,14 +91,16 @@ export class KlaviyoService {
     }
 
     // -------------------------------------------------------------------------
-    // Ensure schema and tables
+    // Ensure schema and individual tables
     // -------------------------------------------------------------------------
 
-    public async ensureSchema(query: (sql: string, params?: any[]) => Promise<any[]>): Promise<void> {
-        await query(`CREATE SCHEMA IF NOT EXISTS ${SCHEMA}`);
+    private async ensureSchema(manager: EntityManager): Promise<void> {
+        await manager.query(`CREATE SCHEMA IF NOT EXISTS ${SCHEMA}`);
+    }
 
-        await query(`
-            CREATE TABLE IF NOT EXISTS ${SCHEMA}.campaigns (
+    private async createCampaignsTable(manager: EntityManager, tableName: string): Promise<void> {
+        await manager.query(`
+            CREATE TABLE IF NOT EXISTS ${SCHEMA}."${tableName}" (
                 id              SERIAL PRIMARY KEY,
                 data_source_id  INTEGER NOT NULL,
                 klaviyo_id      VARCHAR(100) NOT NULL,
@@ -107,9 +111,11 @@ export class KlaviyoService {
                 UNIQUE(data_source_id, klaviyo_id)
             )
         `);
+    }
 
-        await query(`
-            CREATE TABLE IF NOT EXISTS ${SCHEMA}.campaign_metrics (
+    private async createCampaignMetricsTable(manager: EntityManager, tableName: string): Promise<void> {
+        await manager.query(`
+            CREATE TABLE IF NOT EXISTS ${SCHEMA}."${tableName}" (
                 id              SERIAL PRIMARY KEY,
                 data_source_id  INTEGER NOT NULL,
                 campaign_id     VARCHAR(100) NOT NULL,
@@ -126,9 +132,11 @@ export class KlaviyoService {
                 UNIQUE(data_source_id, campaign_id, metric_date)
             )
         `);
+    }
 
-        await query(`
-            CREATE TABLE IF NOT EXISTS ${SCHEMA}.flow_metrics (
+    private async createFlowMetricsTable(manager: EntityManager, tableName: string): Promise<void> {
+        await manager.query(`
+            CREATE TABLE IF NOT EXISTS ${SCHEMA}."${tableName}" (
                 id              SERIAL PRIMARY KEY,
                 data_source_id  INTEGER NOT NULL,
                 flow_id         VARCHAR(100) NOT NULL,
@@ -147,9 +155,37 @@ export class KlaviyoService {
     // Sync campaigns
     // -------------------------------------------------------------------------
 
-    public async syncCampaigns(dataSourceId: number, apiKey: string): Promise<number> {
-        const query = await this.getDbQuery();
-        await this.ensureSchema(query);
+    public async syncCampaigns(dataSourceId: number, usersPlatformId: number, apiKey: string): Promise<number> {
+        const manager = await this.getEntityManager();
+        const tableMetadataService = TableMetadataService.getInstance();
+
+        await this.ensureSchema(manager);
+
+        const campaignLogical = 'campaigns';
+        const campaignTableName = tableMetadataService.generatePhysicalTableName(dataSourceId, campaignLogical);
+        await this.createCampaignsTable(manager, campaignTableName);
+        await tableMetadataService.storeTableMetadata(manager, {
+            dataSourceId,
+            usersPlatformId,
+            schemaName: SCHEMA,
+            physicalTableName: campaignTableName,
+            logicalTableName: campaignLogical,
+            originalSheetName: campaignLogical,
+            tableType: 'klaviyo',
+        });
+
+        const metricsLogical = 'campaign_metrics';
+        const metricsTableName = tableMetadataService.generatePhysicalTableName(dataSourceId, metricsLogical);
+        await this.createCampaignMetricsTable(manager, metricsTableName);
+        await tableMetadataService.storeTableMetadata(manager, {
+            dataSourceId,
+            usersPlatformId,
+            schemaName: SCHEMA,
+            physicalTableName: metricsTableName,
+            logicalTableName: metricsLogical,
+            originalSheetName: metricsLogical,
+            tableType: 'klaviyo',
+        });
 
         let cursor: string | undefined;
         let synced = 0;
@@ -166,8 +202,8 @@ export class KlaviyoService {
 
             for (const campaign of results) {
                 const attrs = campaign.attributes ?? {};
-                await query(
-                    `INSERT INTO ${SCHEMA}.campaigns
+                await manager.query(
+                    `INSERT INTO ${SCHEMA}."${campaignTableName}"
                         (data_source_id, klaviyo_id, campaign_name, subject_line, send_time, status)
                      VALUES ($1,$2,$3,$4,$5,$6)
                      ON CONFLICT (data_source_id, klaviyo_id) DO UPDATE SET
@@ -188,7 +224,7 @@ export class KlaviyoService {
 
                 // Sync metrics for sent campaigns
                 if (attrs.status === 'sent' || attrs.status === 'cancelled') {
-                    await this.syncCampaignMetrics(dataSourceId, apiKey, campaign.id).catch(() => {});
+                    await this.syncCampaignMetrics(dataSourceId, apiKey, campaign.id, manager, metricsTableName).catch(() => {});
                 }
             }
 
@@ -208,9 +244,10 @@ export class KlaviyoService {
     public async syncCampaignMetrics(
         dataSourceId: number,
         apiKey: string,
-        campaignId: string
+        campaignId: string,
+        manager: EntityManager,
+        metricsTableName: string
     ): Promise<void> {
-        const query = await this.getDbQuery();
 
         // Use Campaign Values Report endpoint (aggregate metrics)
         const payload = {
@@ -253,8 +290,8 @@ export class KlaviyoService {
 
             for (const row of results) {
                 const stats = row.statistics ?? {};
-                await query(
-                    `INSERT INTO ${SCHEMA}.campaign_metrics
+                await manager.query(
+                    `INSERT INTO ${SCHEMA}."${metricsTableName}"
                         (data_source_id, campaign_id, metric_date, sends, opens, unique_opens,
                          clicks, unique_clicks, unsubscribes, bounces, revenue, placed_orders)
                      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
@@ -293,8 +330,25 @@ export class KlaviyoService {
     // Sync flow metrics
     // -------------------------------------------------------------------------
 
-    public async syncFlowMetrics(dataSourceId: number, apiKey: string): Promise<void> {
-        const query = await this.getDbQuery();
+    public async syncFlowMetrics(dataSourceId: number, usersPlatformId: number, apiKey: string): Promise<void> {
+        const manager = await this.getEntityManager();
+        const tableMetadataService = TableMetadataService.getInstance();
+
+        await this.ensureSchema(manager);
+
+        const logicalName = 'flow_metrics';
+        const tableName = tableMetadataService.generatePhysicalTableName(dataSourceId, logicalName);
+
+        await this.createFlowMetricsTable(manager, tableName);
+        await tableMetadataService.storeTableMetadata(manager, {
+            dataSourceId,
+            usersPlatformId,
+            schemaName: SCHEMA,
+            physicalTableName: tableName,
+            logicalTableName: logicalName,
+            originalSheetName: logicalName,
+            tableType: 'klaviyo',
+        });
 
         const payload = {
             data: {
@@ -337,8 +391,8 @@ export class KlaviyoService {
 
                 if (!flowId) continue;
 
-                await query(
-                    `INSERT INTO ${SCHEMA}.flow_metrics
+                await manager.query(
+                    `INSERT INTO ${SCHEMA}."${tableName}"
                         (data_source_id, flow_id, flow_name, metric_date, emails_sent, opens, clicks, revenue)
                      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
                      ON CONFLICT (data_source_id, flow_id, metric_date) DO UPDATE SET
@@ -368,9 +422,9 @@ export class KlaviyoService {
     // Full sync
     // -------------------------------------------------------------------------
 
-    public async syncAll(dataSourceId: number, apiKey: string): Promise<{ campaigns: number }> {
-        const campaigns = await this.syncCampaigns(dataSourceId, apiKey);
-        await this.syncFlowMetrics(dataSourceId, apiKey);
+    public async syncAll(dataSourceId: number, usersPlatformId: number, apiKey: string): Promise<{ campaigns: number }> {
+        const campaigns = await this.syncCampaigns(dataSourceId, usersPlatformId, apiKey);
+        await this.syncFlowMetrics(dataSourceId, usersPlatformId, apiKey);
         return { campaigns };
     }
 
@@ -384,14 +438,15 @@ export class KlaviyoService {
         endDate: string
     ): Promise<{ sends: number; clicks: number; revenue: number; placed_orders: number }> {
         try {
-            const query = await this.getDbQuery();
-            const rows = await query(
+            const manager = await this.getEntityManager();
+            const tableName = TableMetadataService.getInstance().generatePhysicalTableName(dataSourceId, 'campaign_metrics');
+            const rows = await manager.query(
                 `SELECT
                     COALESCE(SUM(sends), 0)         AS sends,
                     COALESCE(SUM(unique_clicks), 0)  AS clicks,
                     COALESCE(SUM(revenue), 0)        AS revenue,
                     COALESCE(SUM(placed_orders), 0)  AS placed_orders
-                 FROM ${SCHEMA}.campaign_metrics
+                 FROM ${SCHEMA}."${tableName}"
                  WHERE data_source_id = $1
                    AND metric_date BETWEEN $2 AND $3`,
                 [dataSourceId, startDate, endDate]

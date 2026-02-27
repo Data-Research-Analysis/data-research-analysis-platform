@@ -137,7 +137,7 @@ export class HubSpotProcessor {
 
             const apiDetails = connection.api_connection_details;
 
-            const result = await HubSpotService.getInstance().syncAll(dataSourceId, apiDetails);
+            const result = await HubSpotService.getInstance().syncAll(dataSourceId, user.id, apiDetails);
 
             // Persist refreshed tokens
             const refreshed = await HubSpotOAuthService.getInstance().ensureValidToken(apiDetails);

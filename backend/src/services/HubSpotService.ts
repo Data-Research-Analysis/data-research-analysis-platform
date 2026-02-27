@@ -1,6 +1,8 @@
+import { EntityManager } from 'typeorm';
 import { DBDriver } from '../drivers/DBDriver.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { HubSpotOAuthService } from './HubSpotOAuthService.js';
+import { TableMetadataService } from './TableMetadataService.js';
 import { IAPIConnectionDetails } from '../types/IAPIConnectionDetails.js';
 
 const SCHEMA = 'dra_hubspot';
@@ -10,7 +12,7 @@ const PAGE_LIMIT = 100;
  * HubSpot CRM Service
  * Handles API calls and syncs data to the dra_hubspot PostgreSQL schema.
  *
- * Tables written:
+ * Tables written (physical names follow ds{id}_{hash} convention):
  *  - contacts               — CRM contacts with UTM / lifecycle stage data
  *  - deals                  — pipeline deals with stage, amount, close date
  *  - pipeline_snapshot_daily — daily aggregate of open pipeline value + closed-won
@@ -32,14 +34,14 @@ export class HubSpotService {
     }
 
     // -------------------------------------------------------------------------
-    // DB helper
+    // DB helpers
     // -------------------------------------------------------------------------
 
-    private async getDbQuery(): Promise<(sql: string, params?: any[]) => Promise<any[]>> {
+    private async getEntityManager(): Promise<EntityManager> {
         const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
         if (!driver) throw new Error('PostgreSQL driver unavailable');
         const dataSource = await driver.getConcreteDriver();
-        return (sql: string, params?: any[]) => dataSource.query(sql, params);
+        return dataSource.manager;
     }
 
     // -------------------------------------------------------------------------
@@ -72,14 +74,16 @@ export class HubSpotService {
     }
 
     // -------------------------------------------------------------------------
-    // Ensure schema and tables
+    // Ensure schema and individual tables
     // -------------------------------------------------------------------------
 
-    public async ensureSchema(query: (sql: string, params?: any[]) => Promise<any[]>): Promise<void> {
-        await query(`CREATE SCHEMA IF NOT EXISTS ${SCHEMA}`);
+    private async ensureSchema(manager: EntityManager): Promise<void> {
+        await manager.query(`CREATE SCHEMA IF NOT EXISTS ${SCHEMA}`);
+    }
 
-        await query(`
-            CREATE TABLE IF NOT EXISTS ${SCHEMA}.contacts (
+    private async createContactsTable(manager: EntityManager, tableName: string): Promise<void> {
+        await manager.query(`
+            CREATE TABLE IF NOT EXISTS ${SCHEMA}."${tableName}" (
                 id              SERIAL PRIMARY KEY,
                 data_source_id  INTEGER NOT NULL,
                 hubspot_id      VARCHAR(50) NOT NULL,
@@ -95,9 +99,11 @@ export class HubSpotService {
                 UNIQUE(data_source_id, hubspot_id)
             )
         `);
+    }
 
-        await query(`
-            CREATE TABLE IF NOT EXISTS ${SCHEMA}.deals (
+    private async createDealsTable(manager: EntityManager, tableName: string): Promise<void> {
+        await manager.query(`
+            CREATE TABLE IF NOT EXISTS ${SCHEMA}."${tableName}" (
                 id              SERIAL PRIMARY KEY,
                 data_source_id  INTEGER NOT NULL,
                 hubspot_id      VARCHAR(50) NOT NULL,
@@ -111,9 +117,11 @@ export class HubSpotService {
                 UNIQUE(data_source_id, hubspot_id)
             )
         `);
+    }
 
-        await query(`
-            CREATE TABLE IF NOT EXISTS ${SCHEMA}.pipeline_snapshot_daily (
+    private async createPipelineSnapshotTable(manager: EntityManager, tableName: string): Promise<void> {
+        await manager.query(`
+            CREATE TABLE IF NOT EXISTS ${SCHEMA}."${tableName}" (
                 id                     SERIAL PRIMARY KEY,
                 data_source_id         INTEGER NOT NULL,
                 snapshot_date          DATE NOT NULL,
@@ -133,12 +141,29 @@ export class HubSpotService {
 
     public async syncContacts(
         dataSourceId: number,
+        usersPlatformId: number,
         connectionDetails: IAPIConnectionDetails
     ): Promise<number> {
         connectionDetails = await HubSpotOAuthService.getInstance().ensureValidToken(connectionDetails);
         const accessToken = connectionDetails.oauth_access_token;
-        const query = await this.getDbQuery();
-        await this.ensureSchema(query);
+        const manager = await this.getEntityManager();
+        const tableMetadataService = TableMetadataService.getInstance();
+
+        await this.ensureSchema(manager);
+
+        const logicalName = 'contacts';
+        const tableName = tableMetadataService.generatePhysicalTableName(dataSourceId, logicalName);
+
+        await this.createContactsTable(manager, tableName);
+        await tableMetadataService.storeTableMetadata(manager, {
+            dataSourceId,
+            usersPlatformId,
+            schemaName: SCHEMA,
+            physicalTableName: tableName,
+            logicalTableName: logicalName,
+            originalSheetName: logicalName,
+            tableType: 'hubspot',
+        });
 
         const properties = [
             'email', 'firstname', 'lastname', 'lifecyclestage',
@@ -161,8 +186,8 @@ export class HubSpotService {
 
             for (const contact of results) {
                 const p = contact.properties ?? {};
-                await query(
-                    `INSERT INTO ${SCHEMA}.contacts
+                await manager.query(
+                    `INSERT INTO ${SCHEMA}."${tableName}"
                         (data_source_id, hubspot_id, email, first_name, last_name,
                          lifecycle_stage, lead_source, utm_source, utm_campaign, utm_medium, created_date)
                      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
@@ -206,12 +231,29 @@ export class HubSpotService {
 
     public async syncDeals(
         dataSourceId: number,
+        usersPlatformId: number,
         connectionDetails: IAPIConnectionDetails
     ): Promise<number> {
         connectionDetails = await HubSpotOAuthService.getInstance().ensureValidToken(connectionDetails);
         const accessToken = connectionDetails.oauth_access_token;
-        const query = await this.getDbQuery();
-        await this.ensureSchema(query);
+        const manager = await this.getEntityManager();
+        const tableMetadataService = TableMetadataService.getInstance();
+
+        await this.ensureSchema(manager);
+
+        const logicalName = 'deals';
+        const tableName = tableMetadataService.generatePhysicalTableName(dataSourceId, logicalName);
+
+        await this.createDealsTable(manager, tableName);
+        await tableMetadataService.storeTableMetadata(manager, {
+            dataSourceId,
+            usersPlatformId,
+            schemaName: SCHEMA,
+            physicalTableName: tableName,
+            logicalTableName: logicalName,
+            originalSheetName: logicalName,
+            tableType: 'hubspot',
+        });
 
         const properties = [
             'dealname', 'pipeline', 'dealstage', 'amount',
@@ -238,8 +280,8 @@ export class HubSpotService {
                     p.hs_is_closed_won === 'true' ||
                     (p.dealstage ?? '').toLowerCase().includes('closedwon');
 
-                await query(
-                    `INSERT INTO ${SCHEMA}.deals
+                await manager.query(
+                    `INSERT INTO ${SCHEMA}."${tableName}"
                         (data_source_id, hubspot_id, deal_name, pipeline, deal_stage,
                          amount, close_date, create_date, is_closed_won)
                      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
@@ -277,13 +319,31 @@ export class HubSpotService {
     // Build daily pipeline snapshot
     // -------------------------------------------------------------------------
 
-    public async buildPipelineSnapshot(dataSourceId: number): Promise<void> {
-        const query = await this.getDbQuery();
+    public async buildPipelineSnapshot(dataSourceId: number, usersPlatformId: number): Promise<void> {
+        const manager = await this.getEntityManager();
+        const tableMetadataService = TableMetadataService.getInstance();
+
+        await this.ensureSchema(manager);
+
+        const dealsTableName = tableMetadataService.generatePhysicalTableName(dataSourceId, 'deals');
+        const snapshotLogicalName = 'pipeline_snapshot_daily';
+        const snapshotTableName = tableMetadataService.generatePhysicalTableName(dataSourceId, snapshotLogicalName);
+
+        await this.createPipelineSnapshotTable(manager, snapshotTableName);
+        await tableMetadataService.storeTableMetadata(manager, {
+            dataSourceId,
+            usersPlatformId,
+            schemaName: SCHEMA,
+            physicalTableName: snapshotTableName,
+            logicalTableName: snapshotLogicalName,
+            originalSheetName: snapshotLogicalName,
+            tableType: 'hubspot',
+        });
 
         const today = new Date().toISOString().split('T')[0];
 
-        await query(
-            `INSERT INTO ${SCHEMA}.pipeline_snapshot_daily
+        await manager.query(
+            `INSERT INTO ${SCHEMA}."${snapshotTableName}"
                 (data_source_id, snapshot_date, total_open_deals, total_pipeline_value,
                  deals_closed_won, revenue_closed_won)
              SELECT
@@ -293,7 +353,7 @@ export class HubSpotService {
                 COALESCE(SUM(amount) FILTER (WHERE is_closed_won = FALSE), 0),
                 COUNT(*) FILTER (WHERE is_closed_won = TRUE),
                 COALESCE(SUM(amount) FILTER (WHERE is_closed_won = TRUE), 0)
-             FROM ${SCHEMA}.deals
+             FROM ${SCHEMA}."${dealsTableName}"
              WHERE data_source_id = $1
              ON CONFLICT (data_source_id, snapshot_date) DO UPDATE SET
                 total_open_deals    = EXCLUDED.total_open_deals,
@@ -312,10 +372,11 @@ export class HubSpotService {
 
     public async getCurrentPipelineValue(dataSourceId: number): Promise<number> {
         try {
-            const query = await this.getDbQuery();
-            const rows = await query(
+            const manager = await this.getEntityManager();
+            const tableName = TableMetadataService.getInstance().generatePhysicalTableName(dataSourceId, 'deals');
+            const rows = await manager.query(
                 `SELECT COALESCE(SUM(amount), 0) AS pipeline_value
-                 FROM ${SCHEMA}.deals
+                 FROM ${SCHEMA}."${tableName}"
                  WHERE data_source_id = $1 AND is_closed_won = FALSE AND amount IS NOT NULL`,
                 [dataSourceId]
             );
@@ -331,11 +392,12 @@ export class HubSpotService {
 
     public async syncAll(
         dataSourceId: number,
+        usersPlatformId: number,
         connectionDetails: IAPIConnectionDetails
     ): Promise<{ contacts: number; deals: number }> {
-        const contacts = await this.syncContacts(dataSourceId, connectionDetails);
-        const deals = await this.syncDeals(dataSourceId, connectionDetails);
-        await this.buildPipelineSnapshot(dataSourceId);
+        const contacts = await this.syncContacts(dataSourceId, usersPlatformId, connectionDetails);
+        const deals = await this.syncDeals(dataSourceId, usersPlatformId, connectionDetails);
+        await this.buildPipelineSnapshot(dataSourceId, usersPlatformId);
         return { contacts, deals };
     }
 }

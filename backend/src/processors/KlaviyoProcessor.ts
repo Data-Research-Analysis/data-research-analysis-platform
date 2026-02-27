@@ -121,7 +121,7 @@ export class KlaviyoProcessor {
             const apiKey = connection.api_connection_details?.api_config?.klaviyo_api_key;
             if (!apiKey) return false;
 
-            const result = await KlaviyoService.getInstance().syncAll(dataSourceId, apiKey);
+            const result = await KlaviyoService.getInstance().syncAll(dataSourceId, user.id, apiKey);
 
             console.log(
                 `✅ [Klaviyo] Sync complete for datasource ${dataSourceId}: ${result.campaigns} campaigns`

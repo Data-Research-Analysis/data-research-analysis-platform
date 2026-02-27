@@ -64,11 +64,19 @@ export class AIDataModelerController {
 
                     const schemaCollector = new SchemaCollectorService();
                     const tableNames = tableMetadata.map(m => m.physical_table_name);
-                    const currentTables = await schemaCollector.collectSchemaForTables(
-                        dataSource,
-                        dataSourceDetails.schema,
-                        tableNames
-                    );
+                    // Fixed-schema API sources (hubspot, klaviyo) create tables directly and don't
+                    // register them in dra_table_metadata — fall back to full schema collection.
+                    let currentTables;
+                    if (tableNames.length === 0 && dataSourceDetails.schema.startsWith('dra_')) {
+                        console.log(`[AIDataModelerController] No metadata entries for schema '${dataSourceDetails.schema}', using full schema collection`);
+                        currentTables = await schemaCollector.collectSchema(dataSource, dataSourceDetails.schema);
+                    } else {
+                        currentTables = await schemaCollector.collectSchemaForTables(
+                            dataSource,
+                            dataSourceDetails.schema,
+                            tableNames
+                        );
+                    }
 
                     if (dataSource.isInitialized) {
                         await dataSource.destroy();
@@ -199,16 +207,24 @@ export class AIDataModelerController {
             );
 
             // Collect schema only for tables that belong to this data source (from metadata)
+            // Fixed-schema API sources (hubspot, klaviyo) create tables directly and don't
+            // register them in dra_table_metadata — fall back to full schema collection.
             const schemaCollector = new SchemaCollectorService();
             const tableNames = tableMetadata.map(m => m.physical_table_name);
-            const tables = await schemaCollector.collectSchemaForTables(
-                dataSource,
-                dataSourceDetails.schema,
-                tableNames
-            );
+            let tables;
+            if (tableNames.length === 0 && dataSourceDetails.schema.startsWith('dra_')) {
+                console.log(`[AIDataModelerController] No metadata entries for schema '${dataSourceDetails.schema}', using full schema collection`);
+                tables = await schemaCollector.collectSchema(dataSource, dataSourceDetails.schema);
+            } else {
+                tables = await schemaCollector.collectSchemaForTables(
+                    dataSource,
+                    dataSourceDetails.schema,
+                    tableNames
+                );
+            }
 
             // Merge display names into tables
-            const tablesWithDisplayNames = tables.map(table => {
+            const tablesWithDisplayNames = tables.map((table: any) => {
                 const metadata = tableMetadata.find(
                     m => m.physical_table_name === table.tableName && m.schema_name === table.schema
                 );
@@ -1835,6 +1851,10 @@ Keep it concise - aim for 200-300 words total.`;
                 return 'dra_meta_ads';
             case 'linkedin_ads':
                 return 'dra_linkedin_ads';
+            case 'hubspot':
+                return 'dra_hubspot';
+            case 'klaviyo':
+                return 'dra_klaviyo';
             case 'mongodb':
                 return 'dra_mongodb';
             case 'excel':
