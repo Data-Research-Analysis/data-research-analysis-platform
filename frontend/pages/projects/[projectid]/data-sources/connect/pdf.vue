@@ -256,7 +256,7 @@ async function createDataSource() {
         text: `PDF data source created with ${state.sheets.length} sheets.`,
     });
     
-    router.push(`/projects/${route.params.projectid}`);
+    router.push(`/projects/${route.params.projectid}/data-sources`);
 }
 
 function goBack() {

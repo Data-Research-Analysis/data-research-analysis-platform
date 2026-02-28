@@ -157,7 +157,7 @@ async function connectDataSource(classification) {
             state.errorMessages.push(data.message);
             await dataSourceStore.retrieveDataSources();
             setTimeout(() => {
-                router.push(`/projects/${route.params.projectid}`);
+                router.push(`/projects/${route.params.projectid}/data-sources`);
             }, 2000);
         } catch (error: any) {
             state.connectionSuccess = false;

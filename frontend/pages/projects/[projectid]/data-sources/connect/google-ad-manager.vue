@@ -316,7 +316,7 @@ async function connect() {
             }
 
             // Redirect to data sources list
-            router.push(`/projects/${projectId}`);
+            router.push(`/projects/${projectId}/data-sources`);
         } else {
             throw new Error('Failed to add data source');
         }

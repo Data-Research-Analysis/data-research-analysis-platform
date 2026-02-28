@@ -344,7 +344,7 @@ async function connectDataSource() {
         });
 
         // Navigate back to data sources page
-        await router.push(`/projects/${projectId}`);
+        await router.push(`/projects/${projectId}/data-sources`);
 
     } catch (error: any) {
         console.error('[Wizard] Connection error:', error);
