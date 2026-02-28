@@ -44,6 +44,7 @@ function isPublicRoute(path: string): boolean {
     /^\/forgot-password/,         // /forgot-password and /forgot-password/[code]
     /^\/unsubscribe\/.+$/,        // /unsubscribe/[code]
     /^\/connect\/.+$/,            // /connect/[provider] — OAuth callback landing pages
+    /^\/oauth\/.+$/,              // /oauth/[provider]/callback — Google OAuth callback
   ];
   
   // Check exact matches
