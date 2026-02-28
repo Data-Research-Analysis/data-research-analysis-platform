@@ -1,7 +1,7 @@
-<!-- Deprecated: redirected via routeRules in nuxt.config.ts to /marketing-projects -->
+<!-- Deprecated: redirected via routeRules in nuxt.config.ts to /projects -->
 <script setup lang="ts">
 const router = useRouter();
-onMounted(() => router.replace('/marketing-projects'));
+onMounted(() => router.replace('/projects'));
 </script>
 
 <template>

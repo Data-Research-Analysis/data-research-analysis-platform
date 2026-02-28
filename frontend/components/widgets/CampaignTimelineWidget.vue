@@ -145,7 +145,7 @@ const visibleCampaigns = computed(() =>
         <div v-else-if="visibleCampaigns.length === 0" class="flex flex-col items-center justify-center flex-1 gap-3 text-gray-400">
             <font-awesome-icon :icon="['fas', 'calendar-xmark']" class="text-4xl text-gray-200" />
             <p class="text-sm font-medium">No campaigns in this time window</p>
-            <p class="text-xs text-center">Campaigns will appear here once configured in the Marketing Projects section</p>
+            <p class="text-xs text-center">Campaigns will appear here once configured in the Projects section</p>
         </div>
 
         <!-- Timeline -->

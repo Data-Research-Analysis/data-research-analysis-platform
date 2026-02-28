@@ -42,12 +42,9 @@ export default defineNuxtConfig({
       linkExactActiveClass: 'router-link-exact-active',
     }
   },
-  // Redirect legacy /projects routes to new /marketing-projects URL scheme
   routeRules: {
-    '/projects': { redirect: '/marketing-projects' },
-    '/projects/**': { redirect: '/marketing-projects/**' },
-    '/attribution': { redirect: '/marketing-projects' },
-    '/attribution/**': { redirect: '/marketing-projects' },
+    '/attribution': { redirect: '/projects' },
+    '/attribution/**': { redirect: '/projects' },
   },
   components: [
     {

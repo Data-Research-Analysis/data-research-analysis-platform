@@ -100,7 +100,7 @@ async function saveDataSource() {
 
         // Navigate back to the project data sources page, or home if projectId unknown
         if (state.projectId) {
-            router.push(`/marketing-projects/${state.projectId}/data-sources`);
+            router.push(`/projects/${state.projectId}/data-sources`);
         } else {
             router.push('/');
         }

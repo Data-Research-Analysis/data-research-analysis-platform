@@ -69,7 +69,7 @@ async function cloneTemplate(templateId: number) {
                 timer: 2000,
                 showConfirmButton: false,
             });
-            await navigateTo(`/marketing-projects/${props.projectId}/dashboards/${result.dashboard.id}`);
+            await navigateTo(`/projects/${props.projectId}/dashboards/${result.dashboard.id}`);
         }
     } catch (err: any) {
         const msg = err?.data?.message ?? 'The dashboard could not be created from this template.';

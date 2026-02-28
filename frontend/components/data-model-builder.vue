@@ -3961,7 +3961,11 @@ async function saveDataModel() {
                 showConfirmButton: false
             });
 
-             router.push(`/projects/${route.params.projectid}/data-sources/${route.params.datasourceid}/data-models`);
+             if (route.params.datasourceid) {
+                router.push(`/projects/${route.params.projectid}/data-sources/${route.params.datasourceid}/data-models`);
+            } else {
+                router.push(`/projects/${route.params.projectid}/data-models`);
+            }
         } else {
             // Existing SQL Save Logic
             // VALIDATION: Check if this is truly cross-source or same-source with multiple tables
@@ -4133,7 +4137,11 @@ async function saveDataModel() {
             }
 
             // enableRefreshDataFlag('clearDataModels');
-            router.push(`/projects/${route.params.projectid}/data-sources/${route.params.datasourceid}/data-models`);
+            if (route.params.datasourceid) {
+                router.push(`/projects/${route.params.projectid}/data-sources/${route.params.datasourceid}/data-models`);
+            } else {
+                router.push(`/projects/${route.params.projectid}/data-models`);
+            }
         }
     } catch (error) {
         console.error('[saveDataModel] Error:', error);

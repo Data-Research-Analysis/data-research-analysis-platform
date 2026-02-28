@@ -101,7 +101,7 @@ function isPrefixActive(prefix: string) {
 }
 
 function baseUrl(suffix = '') {
-    return `/marketing-projects/${projectId.value}${suffix}`;
+    return `/projects/${projectId.value}${suffix}`;
 }
 
 const isOverviewActive = computed(() => isExactActive(baseUrl()));
