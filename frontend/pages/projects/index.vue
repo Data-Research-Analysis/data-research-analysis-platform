@@ -326,21 +326,21 @@ function closeMembersDialog() {
                         </span>
                         <span 
                             v-else-if="project.user_role === 'admin'"
-                            class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800 shrink-0"
+                            class="inline-flex items-center px-2 py-1 mr-10 rounded text-xs font-medium bg-blue-100 text-blue-800 shrink-0"
                             title="You are an admin in this project">
                             <font-awesome icon="fas fa-user-shield" class="mr-1" />
                             Admin
                         </span>
                         <span 
                             v-else-if="project.user_role === 'editor'"
-                            class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800 shrink-0"
+                            class="inline-flex items-center px-2 py-1 mr-10 rounded text-xs font-medium bg-green-100 text-green-800 shrink-0"
                             title="You are an editor in this project">
                             <font-awesome icon="fas fa-pencil" class="mr-1" />
                             Editor
                         </span>
                         <span 
                             v-else-if="project.user_role === 'viewer'"
-                            class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800 shrink-0"
+                            class="inline-flex items-center px-2 py-1 mr-10 rounded text-xs font-medium bg-gray-100 text-gray-800 shrink-0"
                             title="You are a viewer in this project">
                             <font-awesome icon="fas fa-eye" class="mr-1" />
                             Viewer
