@@ -94,7 +94,8 @@ export class DataSamplingService {
         schemaName: string,
         tableName: string,
         maxRows: number,
-        dataSourceType: EDataSourceType
+        dataSourceType: EDataSourceType,
+        dataSourceId?: number
     ): Promise<any[]> {
         try {
             const concreteDriver = await driver.getConcreteDriver();
@@ -145,7 +146,21 @@ export class DataSamplingService {
                        dataSourceType === EDataSourceType.LINKEDIN_ADS ||
                        dataSourceType === EDataSourceType.HUBSPOT ||
                        dataSourceType === EDataSourceType.KLAVIYO) {
-                // API-integrated data stored in internal PostgreSQL
+                // API-integrated data stored in internal PostgreSQL.
+                // HubSpot and Klaviyo use fixed table names with a data_source_id column,
+                // so we must filter by data_source_id to avoid returning rows from other sources.
+                const isFixedTableType = dataSourceType === EDataSourceType.HUBSPOT ||
+                                         dataSourceType === EDataSourceType.KLAVIYO;
+                if (isFixedTableType && dataSourceId !== undefined) {
+                    query = `
+                        SELECT * FROM "${schemaName}"."${tableName}"
+                        WHERE data_source_id = $2
+                        ORDER BY RANDOM()
+                        LIMIT $1
+                    `;
+                    const result = await concreteDriver.query(query, [maxRows, dataSourceId]);
+                    return result || [];
+                }
                 query = `
                     SELECT * FROM "${schemaName}"."${tableName}"
                     ORDER BY RANDOM()
@@ -575,8 +590,20 @@ export class DataSamplingService {
                 schemaName
             );
 
+            // For API-integrated sources that use ds{dataSourceId}_{hash} physical table naming,
+            // filter to only the tables that belong to this specific data source.
+            // HubSpot and Klaviyo use fixed table names (contacts, deals, etc.) with a
+            // data_source_id column, so no table-level filtering is needed for them.
+            const usesHashTableNaming = isApiIntegrated &&
+                dataSource.data_type !== EDataSourceType.HUBSPOT &&
+                dataSource.data_type !== EDataSourceType.KLAVIYO;
+
+            const filteredTableSchemas = usesHashTableNaming
+                ? tableSchemas.filter(t => t.tableName.startsWith(`ds${dataSourceId}_`))
+                : tableSchemas;
+
             // Limit tables
-            const limitedTables = tableSchemas.slice(0, this.MAX_TABLES_PER_SOURCE);
+            const limitedTables = filteredTableSchemas.slice(0, this.MAX_TABLES_PER_SOURCE);
             context.total_tables = limitedTables.length;
 
             // Sample each table
@@ -590,7 +617,8 @@ export class DataSamplingService {
                         tableSchema.schema,
                         tableSchema.tableName,
                         maxRowsPerTable,
-                        dataSource.data_type
+                        dataSource.data_type,
+                        dataSourceId
                     );
 
                     // Compute column statistics
