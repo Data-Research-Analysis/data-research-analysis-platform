@@ -6,6 +6,7 @@ import { DRADataSource } from '../models/DRADataSource.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { ITokenDetails } from '../types/ITokenDetails.js';
 import { IDBConnectionDetails } from '../types/IDBConnectionDetails.js';
+import { TableMetadataService } from './TableMetadataService.js';
 
 interface ColumnStatistics {
     column_name: string;
@@ -193,7 +194,8 @@ export class DataSamplingService {
         tableName: string,
         columnName: string,
         dataType: string,
-        dataSourceType: EDataSourceType
+        dataSourceType: EDataSourceType,
+        filterDataSourceId?: number
     ): Promise<ColumnStatistics> {
         const concreteDriver = await driver.getConcreteDriver();
         const isPostgres = dataSourceType === EDataSourceType.POSTGRESQL || 
@@ -231,6 +233,9 @@ export class DataSamplingService {
 
         try {
             if (isPostgres) {
+                const extraWhere = filterDataSourceId !== undefined
+                    ? `data_source_id = ${filterDataSourceId}`
+                    : '';
                 return await this.computePostgresColumnStats(
                     concreteDriver,
                     schemaName,
@@ -240,7 +245,8 @@ export class DataSamplingService {
                     isNumeric,
                     isString,
                     isDate,
-                    isBoolean
+                    isBoolean,
+                    extraWhere
                 );
             } else if (isMySQL) {
                 return await this.computeMySQLColumnStats(
@@ -290,7 +296,8 @@ export class DataSamplingService {
         isNumeric: boolean,
         isString: boolean,
         isDate: boolean,
-        isBoolean: boolean
+        isBoolean: boolean,
+        extraWhere: string = ''
     ): Promise<ColumnStatistics> {
         const baseStats: ColumnStatistics = {
             column_name: columnName,
@@ -315,6 +322,7 @@ export class DataSamplingService {
                     AVG("${columnName}"::numeric) as avg_value,
                     STDDEV("${columnName}"::numeric) as stddev_value
                 FROM "${schemaName}"."${tableName}"
+                ${extraWhere ? `WHERE ${extraWhere}` : ''}
             `;
         } else if (isString) {
             query = `
@@ -326,6 +334,7 @@ export class DataSamplingService {
                     MAX(LENGTH("${columnName}")) as max_length,
                     AVG(LENGTH("${columnName}")) as avg_length
                 FROM "${schemaName}"."${tableName}"
+                ${extraWhere ? `WHERE ${extraWhere}` : ''}
             `;
         } else if (isDate) {
             query = `
@@ -337,6 +346,7 @@ export class DataSamplingService {
                     MAX("${columnName}") as max_value,
                     EXTRACT(DAY FROM (MAX("${columnName}") - MIN("${columnName}")))::integer as date_range_days
                 FROM "${schemaName}"."${tableName}"
+                ${extraWhere ? `WHERE ${extraWhere}` : ''}
             `;
         } else if (isBoolean) {
             query = `
@@ -345,6 +355,7 @@ export class DataSamplingService {
                     COUNT(DISTINCT "${columnName}") as distinct_count,
                     COUNT(*) - COUNT("${columnName}") as null_count
                 FROM "${schemaName}"."${tableName}"
+                ${extraWhere ? `WHERE ${extraWhere}` : ''}
             `;
         } else {
             query = `
@@ -353,6 +364,7 @@ export class DataSamplingService {
                     COUNT(DISTINCT "${columnName}") as distinct_count,
                     COUNT(*) - COUNT("${columnName}") as null_count
                 FROM "${schemaName}"."${tableName}"
+                ${extraWhere ? `WHERE ${extraWhere}` : ''}
             `;
         }
 
@@ -380,7 +392,7 @@ export class DataSamplingService {
                 const topValuesQuery = `
                     SELECT "${columnName}" as value, COUNT(*) as count
                     FROM "${schemaName}"."${tableName}"
-                    WHERE "${columnName}" IS NOT NULL
+                    WHERE "${columnName}" IS NOT NULL${extraWhere ? ` AND ${extraWhere}` : ''}
                     GROUP BY "${columnName}"
                     ORDER BY count DESC
                     LIMIT ${this.TOP_VALUES_LIMIT}
@@ -580,30 +592,50 @@ export class DataSamplingService {
             // Driver is already initialized, no need to connect
             // await driver.connect(connectionDetails);
 
-            // Collect schema
+            // Collect schema - scoped to this specific data source only
             const schemaCollector = new SchemaCollectorService();
             const schemaName = isApiIntegrated
                 ? apiIntegratedSchemas[dataSource.data_type]
                 : (connectionDetails.schema || connectionDetails.database || 'public');
-            const tableSchemas = await schemaCollector.collectSchema(
-                await driver.getConcreteDriver() as DataSource,
-                schemaName
-            );
 
-            // For API-integrated sources that use ds{dataSourceId}_{hash} physical table naming,
-            // filter to only the tables that belong to this specific data source.
-            // HubSpot and Klaviyo use fixed table names (contacts, deals, etc.) with a
-            // data_source_id column, so no table-level filtering is needed for them.
-            const usesHashTableNaming = isApiIntegrated &&
-                dataSource.data_type !== EDataSourceType.HUBSPOT &&
-                dataSource.data_type !== EDataSourceType.KLAVIYO;
+            // HubSpot and Klaviyo use fixed table names (contacts, deals, campaigns, etc.)
+            // shared across all sources, with rows distinguished by a data_source_id column.
+            // All other API-integrated sources use per-source ds{id}_{hash} physical table
+            // naming tracked in dra_table_metadata.
+            const isFixedTableType = dataSource.data_type === EDataSourceType.HUBSPOT ||
+                dataSource.data_type === EDataSourceType.KLAVIYO;
 
-            const filteredTableSchemas = usesHashTableNaming
-                ? tableSchemas.filter(t => t.tableName.startsWith(`ds${dataSourceId}_`))
-                : tableSchemas;
+            let tableSchemas;
+            if (isApiIntegrated && !isFixedTableType) {
+                // Use dra_table_metadata to get ONLY the physical tables registered for
+                // this specific data source — prevents returning tables from other data
+                // sources in the same schema (cross-project leakage).
+                const pgDriver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+                const pgManager = (await pgDriver.getConcreteDriver()).manager;
+                const metadataRecords = await TableMetadataService.getInstance()
+                    .getDataSourceTableMetadata(pgManager, dataSourceId);
+                const physicalTableNames = metadataRecords.map(m => m.physical_table_name);
+                if (physicalTableNames.length === 0) {
+                    context.connection_status = 'success';
+                    return context;
+                }
+                tableSchemas = await schemaCollector.collectSchemaForTables(
+                    await driver.getConcreteDriver() as DataSource,
+                    schemaName,
+                    physicalTableNames
+                );
+            } else {
+                // For HubSpot/Klaviyo (fixed tables) and traditional DB sources,
+                // collect the full schema — row-level filtering by data_source_id
+                // is applied in sampleTable and computeColumnStatistics instead.
+                tableSchemas = await schemaCollector.collectSchema(
+                    await driver.getConcreteDriver() as DataSource,
+                    schemaName
+                );
+            }
 
             // Limit tables
-            const limitedTables = filteredTableSchemas.slice(0, this.MAX_TABLES_PER_SOURCE);
+            const limitedTables = tableSchemas.slice(0, this.MAX_TABLES_PER_SOURCE);
             context.total_tables = limitedTables.length;
 
             // Sample each table
@@ -622,6 +654,8 @@ export class DataSamplingService {
                     );
 
                     // Compute column statistics
+                    // For HubSpot/Klaviyo, pass dataSourceId so stats are scoped to
+                    // only this source's rows (WHERE data_source_id = X).
                     const columnStats: ColumnStatistics[] = [];
                     for (const column of tableSchema.columns) {
                         const stats = await this.computeColumnStatistics(
@@ -630,7 +664,8 @@ export class DataSamplingService {
                             tableSchema.tableName,
                             column.column_name,
                             column.data_type,
-                            dataSource.data_type
+                            dataSource.data_type,
+                            isFixedTableType ? dataSourceId : undefined
                         );
                         columnStats.push(stats);
                     }
