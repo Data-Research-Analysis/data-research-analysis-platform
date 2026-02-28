@@ -2,7 +2,7 @@
 import { useCampaignsStore } from '@/stores/campaigns';
 import { CAMPAIGN_OBJECTIVES, CAMPAIGN_STATUSES } from '~/types/ICampaign';
 
-definePageMeta({ layout: 'marketing-project' });
+definePageMeta({ layout: 'project' });
 
 const route = useRoute();
 const campaignStore = useCampaignsStore();

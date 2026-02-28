@@ -944,7 +944,7 @@ export const useNewType = () => {
 ```vue
 <!-- frontend/pages/connect/new-type.vue -->
 <script setup lang="ts">
-definePageMeta({ layout: 'marketing-project' });
+definePageMeta({ layout: 'project' });
 import { useNewType } from '@/composables/useNewType';
 const route = useRoute();
 const projectId = parseInt(String(route.params.projectid));

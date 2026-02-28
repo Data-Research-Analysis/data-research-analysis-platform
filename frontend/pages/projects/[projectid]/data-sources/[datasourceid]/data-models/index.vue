@@ -1,6 +1,6 @@
 <script setup>
 
-definePageMeta({ layout: 'marketing-project' });
+definePageMeta({ layout: 'project' });
 import { useProjectsStore } from '@/stores/projects';
 import { useDataSourceStore } from '@/stores/data_sources';
 import { useDataModelsStore } from '@/stores/data_models';

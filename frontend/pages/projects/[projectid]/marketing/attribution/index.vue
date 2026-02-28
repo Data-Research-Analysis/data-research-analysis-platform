@@ -4,7 +4,7 @@ import { useCampaignsStore } from '@/stores/campaigns';
 import { useDataSourceStore } from '@/stores/data_sources';
 import type { AttributionModel, IConversionFunnel } from '@/stores/attribution';
 
-definePageMeta({ layout: 'marketing-project' });
+definePageMeta({ layout: 'project' });
 
 const route = useRoute();
 const router = useRouter();

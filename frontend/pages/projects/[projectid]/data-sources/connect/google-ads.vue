@@ -1,6 +1,6 @@
 <script setup lang="ts">
 
-definePageMeta({ layout: 'marketing-project' });
+definePageMeta({ layout: 'project' });
 import { useGoogleOAuth } from '@/composables/useGoogleOAuth';
 import { useGoogleAds } from '@/composables/useGoogleAds';
 import type { IGoogleAdsAccount, IGoogleAdsReportTypeDefinition } from '~/types/IGoogleAds';

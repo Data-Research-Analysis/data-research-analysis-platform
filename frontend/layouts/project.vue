@@ -57,7 +57,7 @@ const isInInvitationAccept = computed(() => {
             <span class="text-white text-sm font-medium">Navigation</span>
         </div>
         <div class="flex flex-grow flex-row print:block">
-            <marketing-project-sidebar class="print:hidden" />
+            <project-sidebar class="print:hidden" />
             <div class="flex-1 min-w-0 print:w-full">
                 <slot />
             </div>

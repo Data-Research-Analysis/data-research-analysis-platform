@@ -391,7 +391,7 @@
 
 <script setup>
 
-definePageMeta({ layout: 'marketing-project' });
+definePageMeta({ layout: 'project' });
 import { useInsightsStore } from '@/stores/insights';
 import { useDataSourceStore } from '@/stores/data_sources';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';

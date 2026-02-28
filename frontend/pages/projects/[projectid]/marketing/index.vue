@@ -3,7 +3,7 @@ import { useMarketingHubStore } from '@/stores/marketingHub';
 import { useCampaignsStore } from '@/stores/campaigns';
 import type { IMarketingTotals } from '~/types/IMarketingHub';
 
-definePageMeta({ layout: 'marketing-project' });
+definePageMeta({ layout: 'project' });
 
 const route = useRoute();
 const marketingHubStore = useMarketingHubStore();

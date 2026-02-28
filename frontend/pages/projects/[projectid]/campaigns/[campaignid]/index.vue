@@ -26,7 +26,7 @@ const DIGITAL_CHANNEL_TYPES: { value: string; label: string }[] = [
     { value: 'google_ad_manager', label: 'Google Ad Manager' },
 ];
 
-definePageMeta({ layout: 'marketing-project' });
+definePageMeta({ layout: 'project' });
 
 const route = useRoute();
 const router = useRouter();

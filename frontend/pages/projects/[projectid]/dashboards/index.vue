@@ -1,6 +1,6 @@
 <script setup>
 
-definePageMeta({ layout: 'marketing-project' });
+definePageMeta({ layout: 'project' });
 import { useProjectsStore } from '@/stores/projects';
 import { useDashboardsStore } from '~/stores/dashboards';
 import { useSubscriptionStore } from '@/stores/subscription';

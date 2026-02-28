@@ -1,6 +1,6 @@
 <script setup lang="ts">
 
-definePageMeta({ layout: 'marketing-project' });
+definePageMeta({ layout: 'project' });
 import { useGoogleOAuth } from '@/composables/useGoogleOAuth';
 import { useGoogleAdManager } from '@/composables/useGoogleAdManager';
 import type { IGAMNetwork, IGAMReportType } from '~/types/IGoogleAdManager';

@@ -1,6 +1,6 @@
 <script setup>
 
-definePageMeta({ layout: 'marketing-project' });
+definePageMeta({ layout: 'project' });
 const route = useRoute();
 const router = useRouter();
 //remove /connect from the url

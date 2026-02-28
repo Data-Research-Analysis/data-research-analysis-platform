@@ -1,6 +1,6 @@
 <script setup lang="ts">
 
-definePageMeta({ layout: 'marketing-project' });
+definePageMeta({ layout: 'project' });
 import { useReCaptcha } from "vue-recaptcha-v3";
 import { useDataSourceStore } from '@/stores/data_sources';
 const dataSourceStore = useDataSourceStore();

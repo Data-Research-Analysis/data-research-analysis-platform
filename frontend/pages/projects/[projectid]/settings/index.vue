@@ -1,5 +1,5 @@
 <script setup lang="ts">
-definePageMeta({ layout: 'marketing-project' });
+definePageMeta({ layout: 'project' });
 </script>
 
 <template>

@@ -17,9 +17,9 @@ const projectId = computed(() => {
 });
 
 const projectName = computed(() => {
-    if (!projectId.value) return 'Marketing Project';
+    if (!projectId.value) return 'Project';
     const project = projectsStore.projects.find((p) => p.id === projectId.value);
-    return project?.name || 'Marketing Project';
+    return project?.name || 'Project';
 });
 
 // Whether the sidebar rail is collapsed to icon-only (desktop only)
@@ -156,7 +156,7 @@ function tip(label: string) {
             :class="effectivelyCollapsed ? 'justify-center py-4 px-2' : 'px-4 py-5 justify-between'"
         >
             <div v-if="!effectivelyCollapsed" class="min-w-0 flex-1 mr-2">
-                <p class="text-xs uppercase tracking-widest text-blue-200 mb-1">Marketing Project</p>
+                <p class="text-xs uppercase tracking-widest text-blue-200 mb-1">Project</p>
                 <h2
                     class="text-sm font-semibold text-white truncate"
                     v-tippy="{ content: projectName, maxWidth: 300 }"

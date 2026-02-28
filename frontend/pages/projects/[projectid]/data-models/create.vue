@@ -1,6 +1,6 @@
 <script setup lang="ts">
 
-definePageMeta({ layout: 'marketing-project' });
+definePageMeta({ layout: 'project' });
 import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useDataModelsStore } from '~/stores/data_models';

@@ -204,7 +204,7 @@
 
 <script setup>
 
-definePageMeta({ layout: 'marketing-project' });
+definePageMeta({ layout: 'project' });
 import { useInsightsStore } from '@/stores/insights';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import { useMarkdown } from '@/composables/useMarkdown';

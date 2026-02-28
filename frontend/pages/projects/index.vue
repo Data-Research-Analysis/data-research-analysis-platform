@@ -84,7 +84,7 @@ async function addProject() {
     }
     
     const { value: formValues } = await $swal.fire({
-        title: "Create New Marketing Project",
+        title: "Create New Project",
         html: `
             <div class="text-left">
                 <label for="swal-input1" class="block text-sm font-medium text-gray-700 mb-1">

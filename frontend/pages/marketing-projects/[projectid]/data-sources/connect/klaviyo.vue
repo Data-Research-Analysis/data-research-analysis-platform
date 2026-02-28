@@ -72,7 +72,7 @@ async function connectDataSource() {
             showConfirmButton: false,
         });
 
-        router.push(`/projects/${projectId}/data-sources`);
+        router.push(`/marketing-projects/${projectId}/data-sources`);
     } catch (err: any) {
         state.error = err.message || 'Failed to connect Klaviyo. Please try again.';
         state.step = 'form';
@@ -88,7 +88,7 @@ useHead({ title: 'Connect Klaviyo Email' });
 
             <!-- Back link -->
             <NuxtLink
-                :to="`/projects/${projectId}/data-sources`"
+                :to="`/marketing-projects/${projectId}/data-sources`"
                 class="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 mb-8">
                 <font-awesome-icon :icon="['fas', 'arrow-left']" />
                 Back to Data Sources

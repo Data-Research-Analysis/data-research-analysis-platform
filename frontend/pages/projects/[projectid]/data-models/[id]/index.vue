@@ -316,5 +316,5 @@ function formatDate(date: string): string {
   });
 }
 
-definePageMeta({ layout: 'marketing-project' });
+definePageMeta({ layout: 'project' });
 </script>

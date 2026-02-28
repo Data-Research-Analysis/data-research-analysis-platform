@@ -252,7 +252,7 @@ async function setSelectedDataSource(dataSourceId) {
  * Navigate to data source detail page
  */
 function goToDataSource(dataSourceId) {
-    router.push(`/projects/${projectId}/data-sources/${dataSourceId}`);
+    router.push(`/marketing-projects/${projectId}/data-sources/${dataSourceId}`);
 }
 
 /**
@@ -838,7 +838,7 @@ async function saveClassification(classification) {
                             <!-- Edit Button (for database sources) -->
                             <NuxtLink
                                 v-if="permissions.canUpdate.value && ['postgresql', 'mysql', 'mariadb'].includes(dataSource.data_type)"
-                                :to="`/projects/${project.id}/data-sources/${dataSource.id}`"
+                                :to="`/marketing-projects/${project.id}/data-sources/${dataSource.id}`"
                                 @click.stop
                                 class="bg-blue-500 hover:bg-blue-600 border border-blue-500 rounded-full w-10 h-10 flex items-center justify-center cursor-pointer transition-colors z-10"
                                 v-tippy="{ content: 'Edit Data Source' }">

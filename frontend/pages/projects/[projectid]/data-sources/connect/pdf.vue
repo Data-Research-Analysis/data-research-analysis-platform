@@ -1,6 +1,6 @@
 <script setup>
 
-definePageMeta({ layout: 'marketing-project' });
+definePageMeta({ layout: 'project' });
 import _ from 'lodash';
 import { ISocketEvent } from '~/types/ISocketEvent';
 const loggedInUserStore = useLoggedInUserStore();

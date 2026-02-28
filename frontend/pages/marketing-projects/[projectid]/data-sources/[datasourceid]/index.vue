@@ -384,7 +384,7 @@ async function deleteDataSource() {
         });
 
         // Navigate back to project page
-        router.push(`/projects/${projectId}`);
+        router.push(`/marketing-projects/${projectId}`);
     } catch (error) {
         await $swal.fire({
             title: 'Error',
@@ -601,7 +601,7 @@ async function saveScheduleConfiguration() {
 
 // Navigate to data models
 function goToDataModels() {
-    router.push(`/projects/${projectId}/data-sources/${dataSourceId}/data-models`);
+    router.push(`/marketing-projects/${projectId}/data-sources/${dataSourceId}/data-models`);
 }
 
 // Update classification for this data source
@@ -653,7 +653,7 @@ async function loadDataSource() {
             text: 'Data source not found or you do not have access to it',
             icon: 'error'
         });
-        router.push(`/projects/${projectId}`);
+        router.push(`/marketing-projects/${projectId}`);
     }
 }
 
@@ -977,7 +977,7 @@ onMounted(async () => {
             <font-awesome icon="fas fa-exclamation-triangle" class="text-red-500 text-6xl mb-4" />
             <p class="text-xl font-semibold text-gray-900">Data Source Not Found</p>
             <p class="text-gray-600 mt-2">The data source you're looking for doesn't exist or you don't have access to it.</p>
-            <NuxtLink :to="`/projects/${projectId}`" class="inline-block mt-4 px-6 py-2 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 cursor-pointer">
+            <NuxtLink :to="`/marketing-projects/${projectId}`" class="inline-block mt-4 px-6 py-2 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 cursor-pointer">
                 Back to Project
             </NuxtLink>
         </div>

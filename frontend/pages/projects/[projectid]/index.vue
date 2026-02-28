@@ -6,7 +6,7 @@ import { useCampaignsStore } from '@/stores/campaigns';
 import { getAuthToken } from '~/composables/AuthToken';
 import type { IMarketingTotals } from '~/types/IMarketingHub';
 
-definePageMeta({ layout: 'marketing-project' });
+definePageMeta({ layout: 'project' });
 
 const route = useRoute();
 const router = useRouter();
