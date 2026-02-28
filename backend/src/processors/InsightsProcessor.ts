@@ -262,13 +262,30 @@ export class InsightsProcessor {
             );
 
             if (existingSession && existingSession.status === 'draft') {
-                // Return existing session
-                return {
-                    success: true,
-                    conversationId: existingSession.conversationId,
-                    projectId,
-                    dataSourceIds
-                };
+                // Only reuse the session if the selected data sources are identical.
+                // If the user changed their selection, fall through and re-initialize
+                // with the new data sources so the context is rebuilt from scratch.
+                const redis = this.redisSessionService['redis'];
+                const draftKey = `insight_draft:insights:${projectId}:${userId}`;
+                const draftRaw = await redis.get(draftKey);
+                const draft = draftRaw ? JSON.parse(draftRaw) : null;
+
+                const storedIds: number[] = (draft?.dataSourceIds ?? []).slice().sort((a: number, b: number) => a - b);
+                const incomingIds: number[] = dataSourceIds.slice().sort((a, b) => a - b);
+                const idsMatch =
+                    storedIds.length === incomingIds.length &&
+                    storedIds.every((id, i) => id === incomingIds[i]);
+
+                if (idsMatch) {
+                    // Same selection — reuse the cached session as-is
+                    return {
+                        success: true,
+                        conversationId: existingSession.conversationId,
+                        projectId,
+                        dataSourceIds
+                    };
+                }
+                // Data sources changed — invalidate the old session and rebuild below
             }
 
             // Build context (this collects schema + samples + statistics)
