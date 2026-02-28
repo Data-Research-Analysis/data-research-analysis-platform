@@ -6,7 +6,7 @@ import _ from 'lodash';
 
 // Navigation guard for permission check
 definePageMeta({
-    layout: 'marketing-project',
+    layout: 'project',
     middleware: async (to) => {
         const projectId = parseInt(String(to.params.projectid));
         const projectsStore = useProjectsStore();
