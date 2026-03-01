@@ -66,6 +66,8 @@ export interface IMetaAd {
 
 // Meta Insights
 export interface IMetaInsights {
+    campaign_id?: string;    // returned when level=campaign
+    campaign_name?: string;  // returned when level=campaign
     impressions: string;
     clicks: string;
     spend: string;
@@ -74,8 +76,9 @@ export interface IMetaInsights {
     ctr?: string;
     cpc?: string;
     cpm?: string;
-    conversions?: string;
+    conversions?: string;          // NOT from API directly — computed client-side
     conversion_values?: string;
+    actions?: Array<{ action_type: string; value: string }>;  // conversion action breakdown
     date_start: string;
     date_stop: string;
 }

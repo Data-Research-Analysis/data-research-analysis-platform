@@ -118,14 +118,31 @@ const kpiCards = computed(() => [
 // ---------------------------------------------------------------------------
 // Top campaigns helpers
 // ---------------------------------------------------------------------------
+function platformIcon(platform: string): [string, string] {
+    switch (platform) {
+        case 'google_ads':   return ['fab', 'google'];
+        case 'linkedin_ads': return ['fab', 'linkedin'];
+        case 'meta_ads':     return ['fab', 'meta'];
+        default:             return ['fas', 'chart-bar'];
+    }
+}
+
+function platformColour(platform: string): string {
+    switch (platform) {
+        case 'google_ads':   return 'text-blue-500';
+        case 'linkedin_ads': return 'text-blue-700';
+        case 'meta_ads':     return 'text-blue-600';
+        default:             return 'text-gray-400';
+    }
+}
+
 function statusBadgeClass(status: string): string {
-    const map: Record<string, string> = {
-        active: 'bg-green-100 text-green-700',
-        paused: 'bg-yellow-100 text-yellow-700',
-        enabled: 'bg-green-100 text-green-700',
-        removed: 'bg-red-100 text-red-500',
-    };
-    return map[status?.toLowerCase()] ?? 'bg-gray-100 text-gray-600';
+    const s = status?.toLowerCase();
+    if (s === 'enabled' || s === 'active')    return 'bg-green-100 text-green-700';
+    if (s === 'paused')                       return 'bg-yellow-100 text-yellow-700';
+    if (s === 'draft')                        return 'bg-gray-100 text-gray-500';
+    if (s === 'archived' || s === 'removed' || s === 'deleted') return 'bg-red-100 text-red-600';
+    return 'bg-gray-100 text-gray-600';
 }
 
 function fmtCurrency(v: number): string {
@@ -283,18 +300,35 @@ onMounted(async () => {
                     <li
                         v-for="(campaign, idx) in topCampaigns"
                         :key="campaign.campaignId"
-                        class="flex items-center gap-4 px-5 py-3 hover:bg-gray-50 transition-colors"
+                        class="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 transition-colors"
                     >
+                        <!-- Rank -->
                         <span class="text-sm font-bold text-gray-400 w-4 flex-shrink-0">{{ idx + 1 }}</span>
+
+                        <!-- Platform icon -->
+                        <font-awesome-icon
+                            :icon="platformIcon(campaign.platform)"
+                            :class="platformColour(campaign.platform)"
+                            class="text-sm flex-shrink-0"
+                        />
+
+                        <!-- Campaign name + secondary metrics -->
                         <div class="flex-1 min-w-0">
                             <p class="text-sm font-medium text-gray-800 truncate">{{ campaign.campaignName }}</p>
+                            <p class="text-xs text-gray-400">
+                                {{ campaign.impressions.toLocaleString() }} impr &middot; {{ campaign.clicks.toLocaleString() }} clicks
+                            </p>
                         </div>
+
+                        <!-- Status badge -->
                         <span
                             class="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0"
                             :class="statusBadgeClass(campaign.status)"
                         >
                             {{ campaign.status }}
                         </span>
+
+                        <!-- Spend / CPL -->
                         <div class="text-right flex-shrink-0">
                             <p class="text-sm font-semibold text-gray-800">{{ fmtCurrency(campaign.spend) }}</p>
                             <p class="text-xs text-gray-400">

@@ -47,10 +47,13 @@ export interface IMarketingHubSummary {
 }
 
 export interface ITopCampaign {
-    campaignId: number;
+    campaignId: string;       // platform campaign ID or name-based key
     campaignName: string;
     status: string;
+    platform: string;         // 'google_ads' | 'linkedin_ads' | 'meta_ads'
     spend: number;
+    impressions: number;
+    clicks: number;
     conversions: number;
     cpl: number;
 }
@@ -197,19 +200,34 @@ export class MarketingReportProcessor {
         const start = startDate.toISOString().split('T')[0];
         const end = endDate.toISOString().split('T')[0];
 
-        const rows: Array<{ campaign_name: string; campaign_status: string; spend: number; conversions: number }> = [];
+        const rows: Array<{
+            campaign_id: string;
+            campaign_name: string;
+            campaign_status: string;
+            platform: string;
+            spend: number;
+            impressions: number;
+            clicks: number;
+            conversions: number;
+        }> = [];
 
+        // ── Google Ads ────────────────────────────────────────────────────
         for (const source of googleAdsSources) {
             const tables = await this.getPhysicalTables(manager, source.id, 'campaigns', 'dra_google_ads');
             for (const { fullName } of tables) {
                 try {
                     const data = await manager.query(
-                        `SELECT campaign_name, campaign_status,
-                                SUM(cost) AS spend,
-                                SUM(conversions) AS conversions
+                        `SELECT COALESCE(campaign_id::text, campaign_name) AS campaign_id,
+                                campaign_name,
+                                campaign_status,
+                                'google_ads'             AS platform,
+                                COALESCE(SUM(cost), 0)          AS spend,
+                                COALESCE(SUM(impressions), 0)   AS impressions,
+                                COALESCE(SUM(clicks), 0)        AS clicks,
+                                COALESCE(SUM(conversions), 0)   AS conversions
                          FROM ${fullName}
                          WHERE date BETWEEN $1 AND $2
-                         GROUP BY campaign_name, campaign_status
+                         GROUP BY campaign_id, campaign_name, campaign_status
                          ORDER BY spend DESC
                          LIMIT $3`,
                         [start, end, limit],
@@ -221,29 +239,130 @@ export class MarketingReportProcessor {
             }
         }
 
-        // Merge and sort
-        const merged = new Map<string, { campaign_name: string; campaign_status: string; spend: number; conversions: number }>();
+        // ── LinkedIn Ads ──────────────────────────────────────────────────
+        const linkedInSources: DRADataSource[] = await manager.find(DRADataSource, {
+            where: { project: { id: projectId } as any, data_type: EDataSourceType.LINKEDIN_ADS as any },
+            relations: ['project'],
+        });
+
+        for (const source of linkedInSources) {
+            const campaignTables = await this.getPhysicalTables(manager, source.id, 'campaigns', 'dra_linkedin_ads');
+            const analyticsTables = await this.getPhysicalTables(manager, source.id, 'campaign_analytics', 'dra_linkedin_ads');
+
+            if (campaignTables.length === 0 || analyticsTables.length === 0) continue;
+
+            const campaignTable = campaignTables[0].fullName;
+            const analyticsTable = analyticsTables[0].fullName;
+
+            try {
+                const data = await manager.query(
+                    `SELECT
+                        c.id::text                                       AS campaign_id,
+                        c.name                                           AS campaign_name,
+                        c.status                                         AS campaign_status,
+                        'linkedin_ads'                                   AS platform,
+                        COALESCE(SUM(COALESCE(a.cost_local, a.cost_usd)), 0) AS spend,
+                        COALESCE(SUM(a.impressions), 0)                  AS impressions,
+                        COALESCE(SUM(a.clicks), 0)                       AS clicks,
+                        COALESCE(SUM(a.external_conversions), 0)         AS conversions
+                     FROM ${campaignTable} c
+                     INNER JOIN ${analyticsTable} a ON c.id::text = a.entity_id
+                     WHERE a.date_start BETWEEN $1 AND $2
+                     GROUP BY c.id, c.name, c.status
+                     ORDER BY spend DESC
+                     LIMIT $3`,
+                    [start, end, limit],
+                );
+                rows.push(...data);
+            } catch {
+                // Table may not exist yet or sync in progress
+            }
+        }
+
+        // ── Meta Ads ──────────────────────────────────────────────────────
+        const metaSources: DRADataSource[] = await manager.find(DRADataSource, {
+            where: { project: { id: projectId } as any, data_type: EDataSourceType.META_ADS as any },
+            relations: ['project'],
+        });
+
+        for (const source of metaSources) {
+            const campaignTables = await this.getPhysicalTables(manager, source.id, 'campaigns', 'dra_meta_ads');
+            const insightsTables = await this.getPhysicalTables(manager, source.id, 'insights', 'dra_meta_ads');
+
+            if (campaignTables.length === 0 || insightsTables.length === 0) continue;
+
+            const campaignTable = campaignTables[0].fullName;
+            const insightsTable = insightsTables[0].fullName;
+
+            try {
+                const data = await manager.query(
+                    `SELECT
+                        c.id                                AS campaign_id,
+                        c.name                              AS campaign_name,
+                        c.status                            AS campaign_status,
+                        'meta_ads'                          AS platform,
+                        COALESCE(SUM(i.spend), 0)           AS spend,
+                        COALESCE(SUM(i.impressions), 0)     AS impressions,
+                        COALESCE(SUM(i.clicks), 0)          AS clicks,
+                        COALESCE(SUM(i.conversions), 0)     AS conversions
+                     FROM ${campaignTable} c
+                     INNER JOIN ${insightsTable} i ON c.id = i.campaign_id
+                     WHERE i.date_start BETWEEN $1 AND $2
+                     GROUP BY c.id, c.name, c.status
+                     ORDER BY spend DESC
+                     LIMIT $3`,
+                    [start, end, limit],
+                );
+                rows.push(...data);
+            } catch {
+                // Skip if tables not synced yet
+            }
+        }
+
+        // ── Merge and sort (cross-platform deduplication) ─────────────────
+        const merged = new Map<string, {
+            campaign_id: string;
+            campaign_name: string;
+            campaign_status: string;
+            platform: string;
+            spend: number;
+            impressions: number;
+            clicks: number;
+            conversions: number;
+        }>();
+
         for (const r of rows) {
-            const key = r.campaign_name;
+            const key = `${r.platform ?? 'google_ads'}::${r.campaign_id || r.campaign_name}`;
             const existing = merged.get(key);
             if (existing) {
-                existing.spend += Number(r.spend) || 0;
+                existing.spend       += Number(r.spend) || 0;
+                existing.impressions += Number(r.impressions) || 0;
+                existing.clicks      += Number(r.clicks) || 0;
                 existing.conversions += Number(r.conversions) || 0;
             } else {
-                merged.set(key, { ...r, spend: Number(r.spend) || 0, conversions: Number(r.conversions) || 0 });
+                merged.set(key, {
+                    ...r,
+                    spend:       Number(r.spend) || 0,
+                    impressions: Number(r.impressions) || 0,
+                    clicks:      Number(r.clicks) || 0,
+                    conversions: Number(r.conversions) || 0,
+                });
             }
         }
 
         return Array.from(merged.values())
             .sort((a, b) => b.spend - a.spend)
             .slice(0, limit)
-            .map((r, idx) => ({
-                campaignId: idx + 1,
+            .map(r => ({
+                campaignId:   r.campaign_id || r.campaign_name,
                 campaignName: r.campaign_name || 'Unknown',
-                status: r.campaign_status || 'unknown',
-                spend: r.spend,
-                conversions: r.conversions,
-                cpl: r.conversions > 0 ? r.spend / r.conversions : 0,
+                status:       r.campaign_status || 'unknown',
+                platform:     r.platform,
+                spend:        r.spend,
+                impressions:  r.impressions,
+                clicks:       r.clicks,
+                conversions:  r.conversions,
+                cpl:          r.conversions > 0 ? r.spend / r.conversions : 0,
             }));
     }
 
@@ -367,29 +486,31 @@ export class MarketingReportProcessor {
         const tables = await this.getPhysicalTables(manager, source.id, 'insights', 'dra_meta_ads');
         if (tables.length === 0) return null;
 
-        let spend = 0, impressions = 0, clicks = 0;
+        let spend = 0, impressions = 0, clicks = 0, conversions = 0;
 
         for (const { fullName } of tables) {
             try {
                 const rows = await manager.query(
                     `SELECT COALESCE(SUM(spend), 0) AS spend,
                             COALESCE(SUM(impressions), 0) AS impressions,
-                            COALESCE(SUM(clicks), 0) AS clicks
+                            COALESCE(SUM(clicks), 0) AS clicks,
+                            COALESCE(SUM(conversions), 0) AS conversions
                      FROM ${fullName}
                      WHERE date_start BETWEEN $1 AND $2`,
                     [start, end],
                 );
                 if (rows?.[0]) {
-                    spend += Number(rows[0].spend) || 0;
+                    spend       += Number(rows[0].spend) || 0;
                     impressions += Number(rows[0].impressions) || 0;
-                    clicks += Number(rows[0].clicks) || 0;
+                    clicks      += Number(rows[0].clicks) || 0;
+                    conversions += Number(rows[0].conversions) || 0;
                 }
             } catch {
                 // Skip missing tables
             }
         }
 
-        return this.buildMetrics(EDataSourceType.META_ADS, source.id, spend, impressions, clicks, 0, 0);
+        return this.buildMetrics(EDataSourceType.META_ADS, source.id, spend, impressions, clicks, conversions, 0);
     }
 
     private async fetchLinkedInAdsMetrics(
