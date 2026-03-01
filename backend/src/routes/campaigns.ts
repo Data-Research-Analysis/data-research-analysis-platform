@@ -3,6 +3,7 @@ import { validateJWT } from '../middleware/authenticate.js';
 import { validate } from '../middleware/validator.js';
 import { body, param } from 'express-validator';
 import { CampaignProcessor } from '../processors/CampaignProcessor.js';
+import { requiresProjectRole } from '../middleware/requiresProjectRole.js';
 
 const router = express.Router();
 const campaignProcessor = CampaignProcessor.getInstance();
@@ -14,6 +15,7 @@ const campaignProcessor = CampaignProcessor.getInstance();
 router.get(
     '/project/:projectId',
     validateJWT,
+    requiresProjectRole(['analyst', 'manager', 'cmo']),
     validate([param('projectId').notEmpty().isInt().toInt()]),
     async (req: Request, res: Response): Promise<void> => {
         try {
@@ -56,6 +58,7 @@ router.get(
 router.post(
     '/',
     validateJWT,
+    requiresProjectRole(['analyst']),
     validate([
         body('project_id').notEmpty().isInt().withMessage('project_id must be a valid integer'),
         body('name').notEmpty().trim().withMessage('name is required'),

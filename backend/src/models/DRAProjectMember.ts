@@ -36,6 +36,6 @@ export class DRAProjectMember {
     @JoinColumn({ name: 'invited_by_user_id' })
     invited_by!: Relation<DRAUsersPlatform> | null;
 
-    @Column({ type: 'varchar', length: 20, nullable: true, comment: "Optional marketing persona: 'cmo' | 'manager' | 'analyst'" })
-    marketing_role!: string | null; // 'cmo' | 'manager' | 'analyst'
+    @Column({ type: 'varchar', length: 20, nullable: false, default: 'cmo', comment: "Marketing persona per project: 'analyst' | 'manager' | 'cmo'" })
+    marketing_role!: 'analyst' | 'manager' | 'cmo';
 }

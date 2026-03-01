@@ -5,6 +5,7 @@ import { useProjectsStore } from '@/stores/projects';
 import { useDashboardsStore } from '~/stores/dashboards';
 import { useSubscriptionStore } from '@/stores/subscription';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
+import { useProjectRole } from '@/composables/useProjectRole';
 const projectsStore = useProjectsStore();
 const dashboardsStore = useDashboardsStore();
 const subscriptionStore = useSubscriptionStore();
@@ -16,6 +17,7 @@ const projectId = parseInt(String(route.params.projectid));
 
 // Get project permissions
 const permissions = useProjectPermissions(projectId);
+const { isAnalyst, isManager } = useProjectRole();
 
 const state = reactive({
     loading: true,
@@ -167,8 +169,8 @@ function checkDashboardLimit() {
                 </NuxtLink>
             </div>
 
-            <!-- Create Button -->
-            <div v-if="permissions.canCreate.value" class="mb-6 mt-6">
+            <!-- Create Button (analyst + manager only) -->
+            <div v-if="isManager" class="mb-6 mt-6">
                 <NuxtLink 
                     v-if="subscriptionStore.canCreateDashboard"
                     :to="`/projects/${project.id}/dashboards/create`"
@@ -216,9 +218,9 @@ function checkDashboardLimit() {
 
                     <!-- Action Buttons (Top Right) -->
                     <div class="absolute top-4 right-4 flex space-x-2">
-                        <!-- Delete Button -->
+                        <!-- Delete Button (analyst only) -->
                         <button
-                            v-if="permissions.canDelete.value"
+                            v-if="isAnalyst"
                             @click="deleteDashboard(dashboard.id)"
                             class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                             v-tippy="{ content: 'Delete Dashboard' }"
@@ -261,7 +263,7 @@ function checkDashboardLimit() {
                     Create your first dashboard to visualize your data
                 </p>
                 <NuxtLink 
-                    v-if="permissions.canCreate.value && subscriptionStore.canCreateDashboard"
+                    v-if="isManager && subscriptionStore.canCreateDashboard"
                     :to="`/projects/${project.id}/dashboards/create`"
                     class="inline-flex items-center px-4 py-2 bg-primary-blue-300 hover:bg-primary-blue-100 text-white rounded-lg transition-colors"
                 >
@@ -269,7 +271,7 @@ function checkDashboardLimit() {
                     Create Dashboard
                 </NuxtLink>
                 <button
-                    v-else-if="permissions.canCreate.value"
+                    v-else-if="isManager"
                     @click="checkDashboardLimit"
                     class="inline-flex items-center px-4 py-2 bg-gray-300 text-gray-600 rounded-lg cursor-not-allowed"
                 >

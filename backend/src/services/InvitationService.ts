@@ -183,6 +183,7 @@ export class InvitationService {
                 project: project,
                 user: existingUser,
                 role: data.role,
+                marketing_role: data.marketing_role ?? 'cmo',
                 added_at: new Date()
             });
 
@@ -232,6 +233,7 @@ export class InvitationService {
             invited_by: inviter,
             invited_email: data.email,
             role: data.role,
+            marketing_role: data.marketing_role ?? 'cmo',
             verification_code: verificationCode,
             status: 'pending',
             expires_at: expiresAt
@@ -336,6 +338,7 @@ export class InvitationService {
             project: invitation.project,
             user: user,
             role: invitation.role,
+            marketing_role: invitation.marketing_role ?? 'cmo',
             added_at: new Date()
         });
 

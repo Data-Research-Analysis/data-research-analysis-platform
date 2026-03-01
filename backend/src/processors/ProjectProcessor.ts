@@ -55,11 +55,12 @@ export class ProjectProcessor {
                 const savedProject = await transactionManager.save(project);
                 savedProjectId = savedProject.id;
                 
-                // Create project member entry with owner role
+                // Create project member entry with owner role and Analyst marketing role
                 const projectMember = new DRAProjectMember();
                 projectMember.project = savedProject;
                 projectMember.user = user;
                 projectMember.role = EProjectRole.OWNER;
+                projectMember.marketing_role = 'analyst';
                 projectMember.added_at = new Date();
                 await transactionManager.save(projectMember);
             });
@@ -163,10 +164,13 @@ export class ProjectProcessor {
             
             // Add owned projects
             ownedProjects.forEach(project => {
+                // Derive my_role from the member record for this user
+                const myMember = project.members?.find(m => m.user?.id === user_id);
                 allProjectsMap.set(project.id, {
                     ...project,
                     is_owner: true,
-                    user_role: 'owner'
+                    user_role: 'owner',
+                    my_role: myMember?.marketing_role ?? 'analyst',
                 });
             });
             
@@ -176,7 +180,8 @@ export class ProjectProcessor {
                     allProjectsMap.set(member.project.id, {
                         ...member.project,
                         is_owner: false,
-                        user_role: member.role
+                        user_role: member.role,
+                        my_role: member.marketing_role ?? 'cmo',
                     });
                 }
             });
@@ -190,6 +195,7 @@ export class ProjectProcessor {
                 created_at: project.created_at,
                 is_owner: project.is_owner,
                 user_role: project.user_role,
+                my_role: project.my_role ?? null,
                 // Add counts
                 data_sources_count: project.data_sources?.length || 0,
                 data_models_count: project.data_sources?.reduce((sum, ds) => 

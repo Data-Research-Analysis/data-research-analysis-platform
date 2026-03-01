@@ -3,6 +3,7 @@ import type { IDataSource } from "./IDataSource";
 export interface IProjectMember {
     id: number;
     role: 'owner' | 'admin' | 'editor' | 'viewer';
+    marketing_role: 'analyst' | 'manager' | 'cmo';
     user: {
         id: number;
         first_name: string;
@@ -22,6 +23,8 @@ export interface IProject {
     // Owner/member status
     is_owner: boolean;
     user_role: 'owner' | 'admin' | 'editor' | 'viewer';
+    /** Marketing role of the currently authenticated user on this project */
+    my_role: 'analyst' | 'manager' | 'cmo' | null;
     // Counts from backend API
     data_sources_count?: number;
     data_models_count?: number;

@@ -8,6 +8,7 @@ export interface IInvitationCreate {
     email: string;
     role: EProjectRole;
     invitedByUserId: number;
+    marketing_role: 'analyst' | 'manager' | 'cmo';
 }
 
 /**

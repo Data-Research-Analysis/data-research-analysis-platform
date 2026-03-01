@@ -104,6 +104,18 @@ function markDataLoaded(cacheKey: string): void {
   }
 }
 
+// Force a refresh if the cache is stale OR if any project is missing my_role
+// (happens on first load after the RBAC migration while localStorage still has
+// pre-migration entries where my_role was not stored).
+function shouldRefreshProjects(projectsStore: ReturnType<typeof useProjectsStore>): boolean {
+  const stale = shouldRefreshData('projects');
+  const missingRole = projectsStore.projects.some(p => !p.my_role);
+  console.log('[02-load-data] shouldRefreshProjects → stale:', stale, '| missingMyRole:', missingRole,
+      '| projects sample:', projectsStore.projects.slice(0, 3).map(p => ({ id: p.id, my_role: p.my_role }))
+  );
+  return stale || missingRole;
+}
+
 export default defineNuxtRouteMiddleware(async (to, from) => {
   // Skip during SSR to prevent backend connection issues
   if (typeof window === 'undefined') {
@@ -141,7 +153,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
         // === PROJECT ROUTES ===
         if (isProjectListRoute(to.path)) {
           // Only load projects for list page
-          if (shouldRefreshData('projects')) {
+          if (shouldRefreshProjects(projectsStore)) {
             loadTasks.push((async () => {
               await projectsStore.retrieveProjects();
               markDataLoaded('projects');
@@ -150,7 +162,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
         } else if (isProjectDetailRoute(to.path)) {
           // Load projects + data sources for project detail
           // Always load projects if cache expired
-          if (shouldRefreshData('projects')) {
+          if (shouldRefreshProjects(projectsStore)) {
             loadTasks.push(
               (async () => {
                 await projectsStore.retrieveProjects();
@@ -169,7 +181,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
           );
         } else if (isDataSourceRoute(to.path)) {
           // Load projects + data sources + data models for data source routes
-          if (shouldRefreshData('projects')) {
+          if (shouldRefreshProjects(projectsStore)) {
             loadTasks.push(
               (async () => {
                 await projectsStore.retrieveProjects();
@@ -196,7 +208,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
           );
         } else if (isDashboardRoute(to.path)) {
           // Load all project-related data for dashboard routes
-          if (shouldRefreshData('projects')) {
+          if (shouldRefreshProjects(projectsStore)) {
             loadTasks.push(
               (async () => {
                 await projectsStore.retrieveProjects();
@@ -227,7 +239,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
           );
         } else if (isInsightsRoute(to.path)) {
           // Load projects and insights data for insights routes
-          if (shouldRefreshData('projects')) {
+          if (shouldRefreshProjects(projectsStore)) {
             loadTasks.push(
               (async () => {
                 await projectsStore.retrieveProjects();
@@ -245,7 +257,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
           );
         } else if (isDataModelsRoute(to.path)) {
           // Load projects + data sources + data models for data-model routes
-          if (shouldRefreshData('projects')) {
+          if (shouldRefreshProjects(projectsStore)) {
             loadTasks.push(
               (async () => {
                 await projectsStore.retrieveProjects();
@@ -268,7 +280,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
           );
         } else if (isMarketingSubRoute(to.path)) {
           // Load projects for campaigns / marketing hub sub-routes
-          if (shouldRefreshData('projects')) {
+          if (shouldRefreshProjects(projectsStore)) {
             loadTasks.push(
               (async () => {
                 await projectsStore.retrieveProjects();

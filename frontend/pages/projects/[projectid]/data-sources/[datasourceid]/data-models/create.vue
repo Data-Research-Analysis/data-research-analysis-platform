@@ -64,8 +64,8 @@ onBeforeUnmount(() => {
 });
 </script>
 <template>
-    <div v-if="project" class="flex flex-col">
-        <tab-content-panel :corners="['top-right', 'bottom-left', 'bottom-right']">
+    <div v-if="project" class="flex flex-col mt-4">
+        <tab-content-panel :corners="['top-left', 'top-right', 'bottom-left', 'bottom-right']">
             <div class="flex flex-col min-h-100 mb-10">
                 <!-- Always show data-model-builder if we have the data_source_tables array (even if empty) -->
                 <data-model-builder 
