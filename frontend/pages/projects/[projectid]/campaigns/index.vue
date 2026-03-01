@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { useCampaignsStore } from '@/stores/campaigns';
 import { CAMPAIGN_OBJECTIVES, CAMPAIGN_STATUSES } from '~/types/ICampaign';
+import { useProjectRole } from '@/composables/useProjectRole';
 
 definePageMeta({ layout: 'project' });
 
 const route = useRoute();
 const campaignStore = useCampaignsStore();
+const { isAnalyst } = useProjectRole();
 
 const projectId = computed(() => parseInt(String(route.params.projectid)));
 
@@ -92,6 +94,7 @@ async function confirmDelete(campaignId: number) {
                 <p class="text-sm text-gray-500 mt-1">Manage your marketing campaigns and track performance</p>
             </div>
             <button
+                v-if="isAnalyst"
                 type="button"
                 class="inline-flex items-center gap-2 px-4 py-2 bg-primary-blue-100 text-white text-sm font-medium rounded-lg hover:bg-primary-blue-200 transition-colors cursor-pointer"
                 @click="showCreateModal = true"
@@ -136,6 +139,7 @@ async function confirmDelete(campaignId: number) {
             <h2 class="text-xl font-semibold text-gray-700 mb-2">No campaigns yet</h2>
             <p class="text-sm text-gray-400 mb-6">Create your first campaign to start tracking your marketing performance.</p>
             <button
+                v-if="isAnalyst"
                 type="button"
                 class="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-blue-100 text-white text-sm font-medium rounded-lg hover:bg-primary-blue-200 transition-colors cursor-pointer"
                 @click="showCreateModal = true"
@@ -174,8 +178,8 @@ async function confirmDelete(campaignId: number) {
                         >
                             {{ getStatusConfig(campaign.status).label }}
                         </span>
-                        <!-- Delete controls -->
-                        <template v-if="deleteConfirmId === campaign.id">
+                        <!-- Delete controls (analyst-only) -->
+                        <template v-if="deleteConfirmId === campaign.id && isAnalyst">
                             <button
                                 type="button"
                                 class="text-xs text-red-600 font-medium hover:text-red-800 transition-colors whitespace-nowrap cursor-pointer"
@@ -193,7 +197,7 @@ async function confirmDelete(campaignId: number) {
                             </button>
                         </template>
                         <button
-                            v-else
+                            v-else-if="isAnalyst"
                             type="button"
                             class="text-gray-300 hover:text-red-500 transition-colors cursor-pointer"
                             title="Delete campaign"

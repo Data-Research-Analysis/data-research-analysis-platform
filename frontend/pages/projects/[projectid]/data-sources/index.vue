@@ -14,6 +14,7 @@ import { useLinkedInAds } from '@/composables/useLinkedInAds';
 import { useHubSpot } from '@/composables/useHubSpot';
 import { useKlaviyo } from '@/composables/useKlaviyo';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
+import { useProjectRole } from '@/composables/useProjectRole';
 import { useTruncation } from '@/composables/useTruncation';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import { DATA_SOURCE_CLASSIFICATIONS } from '@/utils/dataSourceClassifications';
@@ -53,6 +54,7 @@ const projectId = parseInt(String(route.params.projectid));
 
 // Get project permissions
 const permissions = useProjectPermissions(projectId);
+const { isAnalyst } = useProjectRole();
 
 // Debug logging for permissions
 if (import.meta.client) {
@@ -681,7 +683,7 @@ async function saveClassification(classification) {
             </div>
 
             <!-- Bulk Sync Button for API Data Sources -->
-            <div v-if="!state.loading && permissions.canUpdate.value && state.data_sources.some(ds => ds.data_type === 'google_analytics' || ds.data_type === 'google_ad_manager' || ds.data_type === 'google_ads' || ds.data_type === 'meta_ads' || ds.data_type === 'linkedin_ads' || ds.data_type === 'hubspot' || ds.data_type === 'klaviyo')"
+            <div v-if="!state.loading && isAnalyst && state.data_sources.some(ds => ds.data_type === 'google_analytics' || ds.data_type === 'google_ad_manager' || ds.data_type === 'google_ads' || ds.data_type === 'meta_ads' || ds.data_type === 'linkedin_ads' || ds.data_type === 'hubspot' || ds.data_type === 'klaviyo')"
                 class="mt-5 mb-2">
                 <button @click="bulkSyncAllGoogleDataSources"
                     class="px-4 py-2 bg-primary-blue-100 text-white hover:bg-primary-blue-300 rounded-lg transition-colors duration-200 flex items-center gap-2 cursor-pointer">
@@ -695,7 +697,7 @@ async function saveClassification(classification) {
                 <!-- Header Section with Button -->
                 <div class="flex flex-wrap items-center gap-3 mb-4">
                     <button
-                        v-if="permissions.canCreate.value && state.data_sources.length"
+                        v-if="isAnalyst && state.data_sources.length"
                         @click="openDialog"
                         class="px-6 py-3 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 transition-colors duration-200 inline-flex items-center gap-2 cursor-pointer">
                         <font-awesome icon="fas fa-plus" />
@@ -729,7 +731,7 @@ async function saveClassification(classification) {
                         Connect your first data source to start building data models and dashboards
                     </p>
                     <button
-                        v-if="permissions.canCreate.value"
+                        v-if="isAnalyst"
                         @click="openDialog"
                         class="px-6 py-3 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 transition-colors duration-200 inline-flex items-center gap-2 cursor-pointer">
                         <font-awesome icon="fas fa-plus" />
@@ -768,7 +770,7 @@ async function saveClassification(classification) {
                                     <div class="mt-2 flex items-center gap-2 flex-wrap">
                                         <classification-badge :classification="dataSource.classification" />
                                         <button
-                                            v-if="!dataSource.classification && permissions.canUpdate.value"
+                                            v-if="!dataSource.classification && isAnalyst"
                                             @click.stop="openClassifyModal(dataSource.id)"
                                             class="inline-flex items-center gap-1 text-xs text-primary-blue-100 hover:text-primary-blue-300 hover:underline cursor-pointer"
                                             v-tippy="{ content: 'Add a classification for this data source' }"
@@ -828,7 +830,7 @@ async function saveClassification(classification) {
                         <div class="absolute top-4 right-4 flex flex-col gap-2">
                             <!-- Delete Button -->
                             <button
-                                v-if="permissions.canDelete.value"
+                                v-if="isAnalyst"
                                 @click.stop="deleteDataSource(dataSource.id)"
                                 class="bg-red-500 hover:bg-red-700 border border-red-500 rounded-full w-10 h-10 flex items-center justify-center cursor-pointer transition-colors z-10"
                                 v-tippy="{ content: 'Delete Data Source' }">
@@ -837,7 +839,7 @@ async function saveClassification(classification) {
 
                             <!-- Edit Button (for database sources) -->
                             <NuxtLink
-                                v-if="permissions.canUpdate.value && ['postgresql', 'mysql', 'mariadb'].includes(dataSource.data_type)"
+                                v-if="isAnalyst && ['postgresql', 'mysql', 'mariadb'].includes(dataSource.data_type)"
                                 :to="`/projects/${project.id}/data-sources/${dataSource.id}`"
                                 @click.stop
                                 class="bg-blue-500 hover:bg-blue-600 border border-blue-500 rounded-full w-10 h-10 flex items-center justify-center cursor-pointer transition-colors z-10"
@@ -847,7 +849,7 @@ async function saveClassification(classification) {
 
                             <!-- Sync Button (for API-connected sources) -->
                             <button
-                                v-if="permissions.canUpdate.value && ['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads', 'linkedin_ads', 'hubspot', 'klaviyo'].includes(dataSource.data_type)"
+                                v-if="isAnalyst && ['google_analytics', 'google_ad_manager', 'google_ads', 'meta_ads', 'linkedin_ads', 'hubspot', 'klaviyo'].includes(dataSource.data_type)"
                                 @click.stop="syncDataSource(dataSource.id)"
                                 :disabled="state.syncing[dataSource.id]"
                                 class="bg-primary-blue-100 hover:bg-primary-blue-300 border border-primary-blue-100 rounded-full w-10 h-10 flex items-center justify-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors z-10"

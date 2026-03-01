@@ -1,36 +1,30 @@
 <script setup>
 import { useProjectsStore } from '@/stores/projects';
 import { useDataModelsStore } from '@/stores/data_models';
-import { useProjectPermissions } from '@/composables/useProjectPermissions';
+import { useLoggedInUserStore } from '@/stores/logged_in_user';
 import _ from 'lodash';
 
-// Navigation guard for permission check
+// Navigation guard: manager+ only (analyst | manager can create dashboards; cmo cannot)
 definePageMeta({
     layout: 'project',
     middleware: async (to) => {
         const projectId = parseInt(String(to.params.projectid));
         const projectsStore = useProjectsStore();
-        
-        // Ensure projects are loaded from localStorage before checking permissions
+
         if (import.meta.client && projectsStore.projects.length === 0) {
             projectsStore.getProjects();
-            // Wait for next tick to ensure reactive state has updated
             await nextTick();
         }
-        
-        const permissions = useProjectPermissions(projectId);
-        
-        // Debug logging
-        console.log('🔐 Permission check:', {
-            projectId,
-            projectsCount: projectsStore.projects.length,
-            canCreate: permissions.canCreate.value,
-            role: permissions.role.value,
-            isOwner: permissions.isOwner.value
-        });
-        
-        if (!permissions.canCreate.value) {
-            console.warn('❌ Permission denied, redirecting to dashboards list');
+
+        const loggedInUserStore = useLoggedInUserStore();
+        const user = loggedInUserStore.getLoggedInUser();
+        const isSystemAdmin = user?.user_type === 'admin';
+        const project = projectsStore.projects.find(p => p.id === projectId);
+        const role = project?.my_role ?? 'cmo';
+        const canCreate = isSystemAdmin || role === 'analyst' || role === 'manager';
+
+        if (!canCreate) {
+            console.warn('❌ RBAC: CMO cannot create dashboards, redirecting');
             return navigateTo(`/projects/${projectId}/dashboards`);
         }
     }

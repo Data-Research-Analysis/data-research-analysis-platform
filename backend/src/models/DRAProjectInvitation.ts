@@ -45,4 +45,8 @@ export class DRAProjectInvitation {
 
     @Column({ type: 'timestamp', nullable: true })
     accepted_at!: Date | null;
+
+    @Column({ type: 'varchar', length: 20, nullable: false, default: 'cmo',
+              comment: "Marketing role that will be assigned on acceptance: 'analyst' | 'manager' | 'cmo'" })
+    marketing_role!: 'analyst' | 'manager' | 'cmo';
 }

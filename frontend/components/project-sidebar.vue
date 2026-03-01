@@ -3,10 +3,12 @@ defineOptions({ inheritAttrs: false });
 
 import { useProjectsStore } from '@/stores/projects';
 import { useCampaignsStore } from '@/stores/campaigns';
+import { useProjectRole } from '@/composables/useProjectRole';
 
 const route = useRoute();
 const projectsStore = useProjectsStore();
 const campaignsStore = useCampaignsStore();
+const { isAnalyst, isManager } = useProjectRole();
 
 // Mobile drawer state injected from the layout
 const mobileNavOpen = inject<Ref<boolean>>('mobileNavOpen', ref(false));
@@ -202,8 +204,8 @@ function tip(label: string) {
                 <span v-if="!effectivelyCollapsed">Overview</span>
             </NuxtLink>
 
-            <!-- Campaigns -->
-            <div>
+            <!-- Campaigns — manager and analyst only -->
+            <div v-if="isManager">
                 <!-- Collapsed: single icon link -->
                 <NuxtLink
                     v-if="effectivelyCollapsed"
@@ -299,6 +301,7 @@ function tip(label: string) {
                             Reports
                         </NuxtLink>
                         <NuxtLink
+                            v-if="isAnalyst"
                             :to="baseUrl('/marketing/reports?tab=templates')"
                             class="flex items-center gap-2 pl-4 pr-4 py-1.5 text-xs transition-colors"
                             :class="isReportsActive ? 'text-blue-200' : 'text-blue-300 hover:text-white'"
@@ -310,8 +313,8 @@ function tip(label: string) {
                 </template>
             </div>
 
-            <!-- Data Connectivity -->
-            <div>
+            <!-- Data Connectivity — analyst-only -->
+            <div v-if="isAnalyst">
                 <NuxtLink
                     v-if="effectivelyCollapsed"
                     :to="baseUrl('/data-sources')"
@@ -357,7 +360,7 @@ function tip(label: string) {
                 </template>
             </div>
 
-            <!-- Dashboards -->
+            <!-- Dashboards — all roles can view -->
             <NuxtLink
                 :to="baseUrl('/dashboards')"
                 class="flex items-center py-2.5 text-sm font-medium transition-colors"
@@ -371,8 +374,9 @@ function tip(label: string) {
                 <span v-if="!effectivelyCollapsed">Dashboards</span>
             </NuxtLink>
 
-            <!-- AI Insights -->
+            <!-- AI Insights — manager and analyst only -->
             <NuxtLink
+                v-if="isManager"
                 :to="baseUrl('/insights')"
                 class="flex items-center py-2.5 text-sm font-medium transition-colors"
                 :class="[

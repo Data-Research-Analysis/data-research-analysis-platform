@@ -19,6 +19,15 @@
                         <option value="editor">Editor (Can create/edit)</option>
                         <option value="admin">Admin (Full control)</option>
                     </select>
+                    <select
+                        v-model="inviteMarketingRole"
+                        class="min-w-[160px] px-3.5 py-2.5 border border-gray-300 rounded-md text-[15px] focus:outline-none focus:border-blue-500 transition-colors cursor-pointer"
+                        v-tippy="{ content: 'Marketing persona: controls what this member can do in this project' }"
+                    >
+                        <option value="analyst">Analyst (Full access)</option>
+                        <option value="manager">Manager (Publish only)</option>
+                        <option value="cmo">CMO (Read-only)</option>
+                    </select>
                     <button 
                         @click="inviteMember" 
                         class="px-5 py-2.5 bg-blue-500 text-white rounded-md font-medium hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer" 
@@ -81,17 +90,18 @@
 
                         <!-- Marketing role column (only shown in marketing project context) -->
                         <div v-if="showMarketingRole" class="min-w-[140px]">
-                            <select
-                                v-if="canManageMembers"
-                                v-model="member.marketing_role"
-                                @change="updateMarketingRole(member)"
-                                class="px-2.5 py-1.5 border border-gray-300 rounded text-sm cursor-pointer w-full"
-                            >
-                                <option :value="null">— No role —</option>
-                                <option value="cmo">CMO</option>
-                                <option value="manager">Manager</option>
-                                <option value="analyst">Analyst</option>
-                            </select>
+                            <div v-if="canManageMembers" class="flex flex-col gap-1">
+                                <label class="text-xs font-medium text-gray-500">Marketing Role</label>
+                                <select
+                                    v-model="member.marketing_role"
+                                    @change="updateMarketingRole(member)"
+                                    class="px-2.5 py-1.5 border border-gray-300 rounded text-sm cursor-pointer w-full"
+                                >
+                                    <option value="cmo">CMO</option>
+                                    <option value="manager">Manager</option>
+                                    <option value="analyst">Analyst</option>
+                                </select>
+                            </div>
                             <span
                                 v-else-if="member.marketing_role"
                                 :class="[
@@ -170,6 +180,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
+import { useProjectRole } from '@/composables/useProjectRole';
 
 interface Member {
     id: number;
@@ -203,12 +214,15 @@ const props = defineProps<{
     showMarketingRole?: boolean;
 }>();
 
+const { isAnalyst: isProjectAnalyst } = useProjectRole();
+
 const emit = defineEmits(['close', 'memberUpdated']);
 
 const localMembers = ref<Member[]>([]);
 const pendingInvitations = ref<Invitation[]>([]);
 const inviteEmail = ref('');
 const inviteRole = ref<'viewer' | 'editor' | 'admin'>('viewer');
+const inviteMarketingRole = ref<'analyst' | 'manager' | 'cmo'>('manager');
 const inviteMessage = ref('');
 const inviteError = ref(false);
 const loading = ref(false);
@@ -229,6 +243,7 @@ watch(() => props.isOpen, async (newValue) => {
         inviteEmail.value = '';
         inviteMessage.value = '';
         inviteError.value = false;
+        inviteMarketingRole.value = 'manager';
         
         // Fetch pending invitations if user can manage members
         if (canManageMembers.value) {
@@ -238,7 +253,7 @@ watch(() => props.isOpen, async (newValue) => {
 });
 
 const canManageMembers = computed(() => {
-    return ['owner', 'admin'].includes(props.userRole);
+    return isProjectAnalyst.value || ['owner', 'admin'].includes(props.userRole);
 });
 
 function close() {
@@ -373,7 +388,8 @@ async function inviteMember() {
                 body: {
                     projectId: props.projectId,
                     email: inviteEmail.value,
-                    role: inviteRole.value
+                    role: inviteRole.value,
+                    marketing_role: inviteMarketingRole.value
                 }
             }
         );
@@ -389,6 +405,7 @@ async function inviteMember() {
                 await fetchPendingInvitations();
             }
             inviteEmail.value = '';
+            inviteMarketingRole.value = 'manager';
             inviteError.value = false;
         } else {
             inviteMessage.value = data.message || 'Failed to send invitation';
