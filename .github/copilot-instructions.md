@@ -3,6 +3,30 @@
 ## Project Overview
 Full-stack data analytics platform (similar to Tableau/Power BI) built with Vue3/Nuxt3 SSR frontend, Node.js/Express/TypeScript backend, and PostgreSQL. Users connect multiple data sources (PostgreSQL, MySQL, MariaDB, CSV, Excel, PDF), build data models with AI assistance, and create interactive dashboards.
 
+## Planning Mode — "Plan Only" Requests
+
+When the user says **"plan only"**, **"planning only"**, or any equivalent phrasing, do NOT write or modify any code. Instead:
+
+1. **Brainstorm first.** Before producing any plan, ask the user targeted clarifying questions using the `ask_questions` tool. The goal is to:
+   - Resolve ambiguities that would force assumptions in the plan
+   - Identify hidden complexity early so the design stays simple
+   - Confirm scope boundaries (what is in vs out of the PR)
+   - Surface contradictions in the stated requirements and resolve them with the user
+
+2. **Keep questions focused.** Ask a maximum of 4 questions per round, each with 2–5 concrete options where possible. Prefer questions whose answers materially change the architecture or implementation approach.
+
+3. **Iterate if needed.** After the first round of answers, identify any remaining open questions or tensions in the responses and ask a follow-up round before finalising the plan. Do not proceed to writing the plan until the design is unambiguous.
+
+4. **Then produce the plan.** Once questions are resolved, write a detailed, structured implementation plan that is:
+   - Broken into numbered issues with clear size, priority, and dependencies
+   - Specific about which files change and what the code patterns look like
+   - Simple enough that a developer can implement each issue independently
+   - Saved to a markdown file in `documentation/` if the user requests it
+
+5. **Never make assumptions silently.** If a question has meaningful architectural consequences, always ask rather than guess.
+
+---
+
 ## Architecture Essentials
 
 ### Backend: Singleton Processor Pattern
