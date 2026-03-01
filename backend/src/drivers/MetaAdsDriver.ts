@@ -400,6 +400,8 @@ export class MetaAdsDriver implements IAPIDriver {
             },
             level: 'campaign',
             fields: [
+                'campaign_id',
+                'campaign_name',
                 'impressions',
                 'clicks',
                 'spend',
@@ -408,6 +410,7 @@ export class MetaAdsDriver implements IAPIDriver {
                 'ctr',
                 'cpc',
                 'cpm',
+                'actions',      // returns conversion action breakdown
             ],
             time_increment: 1, // Daily breakdown
         };
@@ -431,7 +434,7 @@ export class MetaAdsDriver implements IAPIDriver {
             const batch = insights.slice(i, i + batchSize);
             const records = batch.map(insight => this.transformInsight(insight, 'campaign'));
             
-            await this.batchUpsert(manager, schemaName, tableName, records, ['date_start', 'date_stop']);
+            await this.batchUpsert(manager, schemaName, tableName, records, ['campaign_id', 'date_start', 'date_stop']);
             totalInserted += batch.length;
         }
         
@@ -498,10 +501,37 @@ export class MetaAdsDriver implements IAPIDriver {
     }
     
     /**
+     * Conversion action types that count as conversions (startsWith match).
+     */
+    private static readonly CONVERSION_ACTION_TYPES = [
+        'offsite_conversion',
+        'lead',
+        'complete_registration',
+        'purchase',
+        'contact',
+        'submit_application',
+        'start_trial',
+        'subscribe',
+    ];
+
+    /**
+     * Sum conversion-type actions from the Facebook actions array.
+     * Excludes engagement actions such as link_click, post_engagement, video_view.
+     */
+    private sumConversions(actions?: Array<{ action_type: string; value: string }>): number {
+        if (!actions || !Array.isArray(actions)) return 0;
+        return actions
+            .filter(a => MetaAdsDriver.CONVERSION_ACTION_TYPES.some(t => a.action_type.startsWith(t)))
+            .reduce((sum, a) => sum + (parseInt(a.value, 10) || 0), 0);
+    }
+
+    /**
      * Transform insight data for database insertion
      */
     private transformInsight(insight: IMetaInsights, entityType: string): any {
         return {
+            campaign_id: insight.campaign_id ?? null,
+            campaign_name: insight.campaign_name ?? null,
             entity_type: entityType,
             date_start: insight.date_start,
             date_stop: insight.date_stop,
@@ -513,6 +543,7 @@ export class MetaAdsDriver implements IAPIDriver {
             ctr: insight.ctr ? parseFloat(insight.ctr) : null,
             cpc: insight.cpc ? parseFloat(insight.cpc) : null,
             cpm: insight.cpm ? parseFloat(insight.cpm) : null,
+            conversions: this.sumConversions(insight.actions),
             synced_at: new Date(),
         };
     }
@@ -648,6 +679,8 @@ export class MetaAdsDriver implements IAPIDriver {
         await manager.query(`
             CREATE TABLE IF NOT EXISTS ${fullTableName} (
                 id SERIAL PRIMARY KEY,
+                campaign_id VARCHAR(255),
+                campaign_name VARCHAR(255),
                 entity_type VARCHAR(20),
                 date_start DATE,
                 date_stop DATE,
@@ -659,16 +692,18 @@ export class MetaAdsDriver implements IAPIDriver {
                 ctr DECIMAL(10,6),
                 cpc DECIMAL(10,4),
                 cpm DECIMAL(10,4),
+                conversions BIGINT DEFAULT 0,
                 synced_at TIMESTAMP DEFAULT NOW(),
-                UNIQUE(entity_type, date_start, date_stop)
+                UNIQUE(campaign_id, date_start, date_stop)
             )
         `);
-        
+
         // Create indexes
+        await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_campaign_id ON ${fullTableName}(campaign_id)`);
         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_entity ON ${fullTableName}(entity_type)`);
         await manager.query(`CREATE INDEX IF NOT EXISTS idx_${tableName}_date ON ${fullTableName}(date_start, date_stop)`);
     }
-    
+
     /**
      * Get default start date (30 days ago)
      */
@@ -780,6 +815,8 @@ export class MetaAdsDriver implements IAPIDriver {
     private getInsightColumns(): any[] {
         return [
             { name: 'id', type: 'SERIAL', nullable: false },
+            { name: 'campaign_id', type: 'VARCHAR(255)', nullable: true },
+            { name: 'campaign_name', type: 'VARCHAR(255)', nullable: true },
             { name: 'entity_type', type: 'VARCHAR(20)', nullable: true },
             { name: 'date_start', type: 'DATE', nullable: true },
             { name: 'date_stop', type: 'DATE', nullable: true },
@@ -791,6 +828,7 @@ export class MetaAdsDriver implements IAPIDriver {
             { name: 'ctr', type: 'DECIMAL(10,6)', nullable: true },
             { name: 'cpc', type: 'DECIMAL(10,4)', nullable: true },
             { name: 'cpm', type: 'DECIMAL(10,4)', nullable: true },
+            { name: 'conversions', type: 'BIGINT', nullable: true },
             { name: 'synced_at', type: 'TIMESTAMP', nullable: true },
         ];
     }

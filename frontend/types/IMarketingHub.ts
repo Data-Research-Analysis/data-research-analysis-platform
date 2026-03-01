@@ -34,10 +34,13 @@ export interface IMarketingHubSummary {
 }
 
 export interface ITopCampaign {
-    campaignId: number;
+    campaignId: string;
     campaignName: string;
     status: string;
+    platform: string;    // 'google_ads' | 'linkedin_ads' | 'meta_ads'
     spend: number;
+    impressions: number;
+    clicks: number;
     conversions: number;
     cpl: number;
 }
