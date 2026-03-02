@@ -153,4 +153,23 @@ router.delete(
     }
 );
 
+/**
+ * Generate a dashboard widget from an AI insight message.
+ * POST /insights/session/create-widget
+ */
+router.post(
+    '/session/create-widget',
+    validateJWT,
+    aiOperationsLimiter,
+    validate([
+        body('projectId').notEmpty().isInt().withMessage('projectId must be a valid integer'),
+        body('insightText').notEmpty().isString().withMessage('insightText must be a non-empty string'),
+        body('dashboardId').optional().isInt().withMessage('dashboardId must be an integer'),
+        body('dashboardName').optional().isString().trim(),
+    ]),
+    async (req: Request, res: Response) => {
+        await InsightsController.createWidget(req, res);
+    }
+);
+
 export default router;

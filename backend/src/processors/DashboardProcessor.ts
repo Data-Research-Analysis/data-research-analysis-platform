@@ -2,7 +2,8 @@ import _ from "lodash";
 import { DBDriver } from "../drivers/DBDriver.js";
 import { ITokenDetails } from "../types/ITokenDetails.js";
 import { DRADashboard } from "../models/DRADashboard.js";
-import { IDashboardDataStructure } from "../types/IDashboard.js";
+import { IDashboardChart, IDashboardDataStructure } from "../types/IDashboard.js";
+import { IWidgetSpec } from "../types/IWidgetSpec.js";
 import { EDataSourceType } from "../types/EDataSourceType.js";
 import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
 import { DRAProject } from "../models/DRAProject.js";
@@ -11,6 +12,7 @@ import bcrypt  from 'bcryptjs';
 import { UtilityService } from "../services/UtilityService.js";
 import { DRADashboardExportMetaData } from "../models/DRADashboardExportMetaData.js";
 import { NotificationHelperService } from "../services/NotificationHelperService.js";
+import { AppDataSource } from "../datasources/PostgresDS.js";
 
 export class DashboardProcessor {
     private static instance: DashboardProcessor;
@@ -386,5 +388,158 @@ export class DashboardProcessor {
         );
 
         return saved;
+    }
+
+    // =========================================================================
+    // AI Insights widget helpers
+    // =========================================================================
+
+    /**
+     * Return an existing dashboard by ID, or create a new one if dashboardId is
+     * absent (or not found).  When creating, a name is required.
+     */
+    async resolveOrCreateDashboard(
+        projectId: number,
+        userId: number,
+        dashboardId?: number,
+        dashboardName?: string
+    ): Promise<number> {
+        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+        const manager = (await driver.getConcreteDriver()).manager;
+
+        if (dashboardId) {
+            const existing = await manager.findOne(DRADashboard, { where: { id: dashboardId } });
+            if (existing) return existing.id;
+        }
+
+        // Create a new dashboard
+        const user = await manager.findOne(DRAUsersPlatform, { where: { id: userId } });
+        const project = await manager.findOne(DRAProject, { where: { id: projectId } });
+        if (!user || !project) throw new Error('User or project not found');
+
+        const name = dashboardName ?? `AI Insights Dashboard – ${new Date().toLocaleDateString()}`;
+        const dashboard = manager.create(DRADashboard, {
+            name,
+            project,
+            users_platform: user,
+            data: { charts: [] },
+            is_template: false,
+        });
+        const saved = await manager.save(dashboard);
+        return saved.id;
+    }
+
+    /**
+     * Append an AI-generated widget to a dashboard's JSONB charts array.
+     * Returns the newly assigned chart_id.
+     */
+    async createAIWidget(
+        params: {
+            dashboardId: number;
+            userId: number;
+            spec: IWidgetSpec;
+        }
+    ): Promise<{ chartId: number }> {
+        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+        const manager = (await driver.getConcreteDriver()).manager;
+
+        const dashboard = await manager.findOne(DRADashboard, { where: { id: params.dashboardId } });
+        if (!dashboard) throw new Error(`Dashboard ${params.dashboardId} not found`);
+
+        const data: IDashboardDataStructure = (dashboard.data as IDashboardDataStructure) ?? { charts: [] };
+        const charts: IDashboardChart[] = data.charts ?? [];
+
+        // Generate a unique chart_id
+        const maxId = charts.reduce((m, c) => Math.max(m, c.chart_id ?? 0), 0);
+        const chartId = maxId + 1;
+
+        const newChart: IDashboardChart = {
+            chart_id: chartId,
+            chart_type: params.spec.chart_type,
+            columns: [],
+            data: [],
+            dimensions: { width: 6, height: 4 } as any,
+            location: { x: 0, y: 0 } as any,
+            x_axis_label: params.spec.x_axis ?? undefined,
+            y_axis_label: params.spec.y_axis ?? undefined,
+            source_type: 'ai_insights',
+            ai_sql: params.spec.sql,
+            ai_chart_spec: params.spec,
+            created_by: params.userId,
+        };
+
+        charts.push(newChart);
+        data.charts = charts;
+        dashboard.data = data as any;
+        await manager.save(dashboard);
+
+        return { chartId };
+    }
+
+    /**
+     * Find a single chart object in a dashboard's JSONB array by chart_id.
+     */
+    async getAIChart(
+        dashboardId: number,
+        chartId: number
+    ): Promise<IDashboardChart | null> {
+        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+        const manager = (await driver.getConcreteDriver()).manager;
+
+        const dashboard = await manager.findOne(DRADashboard, { where: { id: dashboardId } });
+        if (!dashboard) return null;
+
+        const charts: IDashboardChart[] = (dashboard.data as any)?.charts ?? [];
+        return charts.find(c => c.chart_id === chartId) ?? null;
+    }
+
+    /**
+     * Execute the stored ai_sql for a widget, binding startDate ($1) and endDate ($2).
+     * Returns the raw query rows to be formatted by the caller.
+     */
+    async getWidgetData(
+        dashboardId: number,
+        chartId: number,
+        startDate: string,
+        endDate: string
+    ): Promise<any[]> {
+        const chart = await this.getAIChart(dashboardId, chartId);
+        if (!chart) throw new Error(`Chart ${chartId} not found in dashboard ${dashboardId}`);
+        if (chart.source_type !== 'ai_insights' || !chart.ai_sql) {
+            throw new Error('Widget does not have an AI SQL query');
+        }
+
+        const rows = await AppDataSource.manager.query(chart.ai_sql, [startDate, endDate]);
+        return rows;
+    }
+
+    /**
+     * Replace the SQL (and optionally the full spec) of an existing AI widget.
+     * Only the chart owner (created_by) may call this.
+     */
+    async updateAIWidgetSQL(
+        dashboardId: number,
+        chartId: number,
+        userId: number,
+        spec: IWidgetSpec
+    ): Promise<void> {
+        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+        const manager = (await driver.getConcreteDriver()).manager;
+
+        const dashboard = await manager.findOne(DRADashboard, { where: { id: dashboardId } });
+        if (!dashboard) throw new Error(`Dashboard ${dashboardId} not found`);
+
+        const charts: IDashboardChart[] = (dashboard.data as any)?.charts ?? [];
+        const idx = charts.findIndex(c => c.chart_id === chartId);
+        if (idx === -1) throw new Error(`Chart ${chartId} not found`);
+
+        const chart = charts[idx];
+        if (chart.created_by !== undefined && chart.created_by !== userId) {
+            throw new Error('You do not have permission to update this widget');
+        }
+
+        charts[idx] = { ...chart, ai_sql: spec.sql, ai_chart_spec: spec, chart_type: spec.chart_type };
+        (dashboard.data as any).charts = charts;
+        await manager.save(dashboard);
     }
 }

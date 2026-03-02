@@ -1,8 +1,11 @@
 import express, { Request, Response } from 'express';
 import { validateJWT } from '../middleware/authenticate.js';
 import { validate } from '../middleware/validator.js';
-import { body, param, matchedData } from 'express-validator';
+import { body, param, query, matchedData } from 'express-validator';
 import { DashboardProcessor } from '../processors/DashboardProcessor.js';
+import { InsightsProcessor } from '../processors/InsightsProcessor.js';
+import { GeminiService } from '../services/GeminiService.js';
+import { AISQLValidatorService } from '../services/AISQLValidatorService.js';
 import { enforceDashboardLimit } from '../middleware/tierEnforcement.js';
 import { authorize } from '../middleware/authorize.js';
 import { Permission } from '../constants/permissions.js';
@@ -11,6 +14,7 @@ import {
     requireDashboardPermission 
 } from '../middleware/rbacMiddleware.js';
 import { EAction } from '../services/PermissionService.js';
+import { aiOperationsLimiter } from '../middleware/rateLimit.js';
 const router = express.Router();
 
 router.get('/list', async (req: Request, res: Response, next: any) => {
@@ -103,5 +107,113 @@ async (req: Request, res: Response) => {
         res.status(400).send({ message: 'The dashboard could not be cloned from the template.' });
     }
 });
+
+/**
+ * Fetch widget data by executing the stored ai_sql with date bindings.
+ * GET /dashboard/widgets/data?dashboardId=&chartId=&startDate=&endDate=
+ */
+router.get(
+    '/widgets/data',
+    validateJWT,
+    validate([
+        query('dashboardId').notEmpty().toInt(),
+        query('chartId').notEmpty().toInt(),
+        query('startDate').notEmpty().isISO8601().withMessage('startDate must be a valid date (YYYY-MM-DD)'),
+        query('endDate').notEmpty().isISO8601().withMessage('endDate must be a valid date (YYYY-MM-DD)'),
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const dashboardId = parseInt(String(req.query.dashboardId));
+            const chartId = parseInt(String(req.query.chartId));
+            const startDate = String(req.query.startDate);
+            const endDate = String(req.query.endDate);
+
+            const rows = await DashboardProcessor.getInstance().getWidgetData(
+                dashboardId,
+                chartId,
+                startDate,
+                endDate
+            );
+            res.status(200).json({ success: true, data: rows });
+        } catch (error: any) {
+            res.status(500).json({ success: false, error: error.message });
+        }
+    }
+);
+
+/**
+ * Regenerate the SQL for an AI Insights widget using a new/refined insight text.
+ * PATCH /dashboard/widgets/regenerate
+ *
+ * Body: dashboardId, chartId, projectId, insightText
+ * Only the widget owner (created_by) may call this.
+ */
+router.patch(
+    '/widgets/regenerate',
+    validateJWT,
+    aiOperationsLimiter,
+    validate([
+        body('dashboardId').notEmpty().isInt(),
+        body('chartId').notEmpty().isInt(),
+        body('projectId').notEmpty().isInt(),
+        body('insightText').notEmpty().isString(),
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const { dashboardId, chartId, projectId, insightText } = req.body;
+            const tokenDetails = req.body.tokenDetails;
+            const userId: number = tokenDetails?.user_id;
+
+            const dashProcessor = DashboardProcessor.getInstance();
+
+            // Verify ownership
+            const chart = await dashProcessor.getAIChart(parseInt(dashboardId), parseInt(chartId));
+            if (!chart) {
+                res.status(404).json({ success: false, error: 'Widget not found' });
+                return;
+            }
+            if (chart.source_type !== 'ai_insights') {
+                res.status(400).json({ success: false, error: 'Widget is not an AI Insights widget' });
+                return;
+            }
+            if (chart.created_by !== undefined && chart.created_by !== userId) {
+                res.status(403).json({ success: false, error: 'You do not have permission to regenerate this widget' });
+                return;
+            }
+
+            // Rebuild schema context
+            const schemaContext = await InsightsProcessor.getInstance().getOrRebuildSchemaContext(
+                parseInt(projectId),
+                userId,
+                tokenDetails
+            );
+            if (!schemaContext) {
+                res.status(400).json({ success: false, error: 'No schema context available. Please reinitialise your insights session.' });
+                return;
+            }
+
+            // Generate new spec
+            const spec = await new GeminiService().generateWidgetSpec(
+                String(insightText),
+                schemaContext,
+                parseInt(projectId)
+            );
+
+            // Validate SQL
+            const validation = await AISQLValidatorService.getInstance().validate(spec.sql, parseInt(projectId));
+            if (!validation.valid) {
+                res.status(422).json({ success: false, error: `Generated SQL is not safe: ${validation.reason}` });
+                return;
+            }
+
+            // Persist updated spec
+            await dashProcessor.updateAIWidgetSQL(parseInt(dashboardId), parseInt(chartId), userId, spec);
+
+            res.status(200).json({ success: true, spec });
+        } catch (error: any) {
+            res.status(500).json({ success: false, error: error.message });
+        }
+    }
+);
 
 export default router;

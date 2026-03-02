@@ -210,6 +210,28 @@ await $fetch('http://frontend.dataresearchanalysis.test:3000/admin/platform-sett
   - Dev: `http://localhost:3002/projects`
   - Docker: `http://backend.dataresearchanalysis.test:3002/admin/platform-settings`
 
+#### Auth Token — ALWAYS use `getAuthToken()`
+**CRITICAL**: Never read the auth cookie directly with `useCookie`. Always use the `getAuthToken()` helper from `~/composables/AuthToken`. It is auto-imported by Nuxt and can be called anywhere — including inside click handlers and regular functions (not just setup).
+
+```typescript
+// ✅ CORRECT - use getAuthToken() anywhere
+const token = getAuthToken();
+const response = await $fetch(`${config.public.apiBase}/some/route`, {
+    headers: {
+        Authorization: `Bearer ${token}`,
+        'Authorization-Type': 'auth',
+        'Content-Type': 'application/json',
+    },
+});
+
+// ❌ WRONG - reading cookie directly (wrong name + breaks outside setup context)
+const token = useCookie('auth_token').value;       // wrong cookie name
+const token = useCookie('dra_auth_token').value;   // fails in click handlers
+```
+
+- Cookie name is `dra_auth_token` internally — but you should never need to know this; use `getAuthToken()`
+- `getAuthToken()` returns `string | undefined`; always guard against undefined when required
+
 #### Pattern Examples from Codebase
 - See [invitations/index.vue](frontend/pages/invitations/index.vue#L119) for reference implementation
 - All API calls MUST use `${useRuntimeConfig().public.apiBase}/route-path`
@@ -361,6 +383,7 @@ See [ai-data-modeler-implementation.md](documentation/ai-data-modeler-implementa
 9. **Adding `/api/` prefix to API routes** - backend routes don't use this prefix
 10. **Using inline `<svg>` blocks in `.vue` files** - forbidden; use `<font-awesome-icon>` instead (see Icon Usage)
 11. **Writing custom CSS in `<style>` blocks** - forbidden; use only TailwindCSS utility classes for all styling in `.vue` files; never add `<style scoped>` or `<style>` blocks
+12. **Reading the auth cookie directly with `useCookie`** - use `getAuthToken()` from `~/composables/AuthToken` instead; it is auto-imported, works anywhere (including click handlers), and uses the correct cookie name `dra_auth_token`
 
 ## Pull Request Template
 
