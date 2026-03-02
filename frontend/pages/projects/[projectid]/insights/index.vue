@@ -337,22 +337,13 @@
         <div class="mt-12 pt-8 border-t-2 border-gray-200">
           <h3 class="text-xl font-semibold text-gray-800 mb-4">Ask Follow-up Questions</h3>
           <div class="max-h-96 overflow-y-auto mb-4 flex flex-col gap-3">
-            <div
+            <AIInsightsMessage
               v-for="(msg, idx) in insightsStore.messages.filter(m => m.role !== 'system')"
               :key="idx"
-              class="flex flex-col gap-1 max-w-4/5"
-              :class="{ 'self-end': msg.role === 'user', 'self-start': msg.role === 'assistant' }"
-            >
-              <div 
-                class="px-4 py-3 rounded-xl leading-normal prose prose-sm max-w-none" 
-                :class="{
-                  'bg-blue-500 text-white prose-invert': msg.role === 'user',
-                  'bg-gray-50 text-gray-800 border border-gray-200': msg.role === 'assistant'
-                }"
-                v-html="renderMarkdown(typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content, null, 2))"
-              ></div>
-              <span class="text-xs text-gray-400 px-2">{{ formatTime(msg.timestamp) }}</span>
-            </div>
+              :msg="msg"
+              :can-add-to-dashboard="isManager"
+              @add-to-dashboard="handleAddToDashboard"
+            />
             
             <!-- Typing Indicator -->
             <div v-if="insightsStore.isGenerating" class="flex flex-col gap-1 max-w-4/5 self-start">
@@ -387,6 +378,14 @@
       </div>
     </div>
   </div>
+
+  <!-- Add-to-Dashboard modal -->
+  <AddToDashboardModal
+    v-if="state.showAddToDashboardModal"
+    :project-id="projectId"
+    :insight-text="state.selectedMessageText"
+    @close="state.showAddToDashboardModal = false"
+  />
 </template>
 
 <script setup>
@@ -395,6 +394,7 @@ definePageMeta({ layout: 'project' });
 import { useInsightsStore } from '@/stores/insights';
 import { useDataSourceStore } from '@/stores/data_sources';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
+import { useProjectRole } from '@/composables/useProjectRole';
 import { useMarkdown } from '@/composables/useMarkdown';
 
 const insightsStore = useInsightsStore();
@@ -413,12 +413,16 @@ const permissions = useProjectPermissions(projectId);
 const canCreate = computed(() => permissions.canCreate.value);
 const canDelete = computed(() => permissions.canDelete.value);
 
+const { isManager } = useProjectRole();
+
 const state = reactive({
   showAnalysisView: false,
   loadingReports: false,
   selectedDataSourceIds: [],
   followUpMessage: '',
-  savedCurrentReport: false
+  savedCurrentReport: false,
+  showAddToDashboardModal: false,
+  selectedMessageText: ''
 });
 
 const availableDataSources = computed(() => {
@@ -491,6 +495,13 @@ async function sendFollowUp() {
       text: result.error || 'Could not send your message. Please try again.'
     });
   }
+}
+
+function handleAddToDashboard(msg) {
+  state.selectedMessageText = typeof msg.content === 'string'
+    ? msg.content
+    : JSON.stringify(msg.content, null, 2);
+  state.showAddToDashboardModal = true;
 }
 
 async function saveCurrentReport() {

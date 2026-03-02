@@ -31,6 +31,7 @@ export interface ModelDraft {
 export interface InsightsDraft {
     dataSourceIds: number[];
     insights: any;
+    sampling_info?: any;
     selectedSources: string[];
     lastModified: string;
     version: number;
@@ -311,11 +312,85 @@ export class RedisAISessionService {
             this.getSchemaContextKey(dataSourceId, userId, sessionType),
         ];
 
-        await Promise.all([
+        const extensions: Promise<any>[] = [
             this.redis.expire(keys[0], RedisTTL.AI_SESSION),
             this.redis.expire(keys[1], RedisTTL.AI_MESSAGES),
             this.redis.expire(keys[2], RedisTTL.AI_MODEL_DRAFT),
             this.redis.expire(keys[3], RedisTTL.AI_SCHEMA_CONTEXT),
+        ];
+
+        // Also extend the underscore-key variants used exclusively by InsightsProcessor
+        if (sessionType === 'insights') {
+            extensions.push(
+                this.redis.expire(this.getInsightSchemaMarkdownKey(dataSourceId, userId), RedisTTL.AI_SCHEMA_CONTEXT),
+                this.redis.expire(this.getInsightDraftKey(dataSourceId, userId), RedisTTL.AI_SCHEMA_CONTEXT),
+                this.redis.expire(this.getInsightSamplingInfoKey(dataSourceId, userId), RedisTTL.AI_SCHEMA_CONTEXT),
+            );
+        }
+
+        await Promise.all(extensions);
+    }
+
+    // -------------------------------------------------------------------------
+    // Insight-specific key helpers (underscore-prefixed keys used by InsightsProcessor)
+    // -------------------------------------------------------------------------
+
+    private getInsightSchemaMarkdownKey(projectId: number, userId: number): string {
+        return `schema_context:insights:${projectId}:${userId}`;
+    }
+
+    private getInsightDraftKey(projectId: number, userId: number): string {
+        return `insight_draft:insights:${projectId}:${userId}`;
+    }
+
+    private getInsightSamplingInfoKey(projectId: number, userId: number): string {
+        return `sampling_info:insights:${projectId}:${userId}`;
+    }
+
+    /** Get the raw markdown schema context for an insights session. */
+    async getInsightSchemaMarkdown(projectId: number, userId: number): Promise<string | null> {
+        return this.redis.get(this.getInsightSchemaMarkdownKey(projectId, userId));
+    }
+
+    /** Persist the raw markdown schema context for an insights session. */
+    async saveInsightSchemaMarkdown(projectId: number, userId: number, markdown: string): Promise<void> {
+        const key = this.getInsightSchemaMarkdownKey(projectId, userId);
+        await this.redis.set(key, markdown);
+        await this.redis.expire(key, RedisTTL.AI_SCHEMA_CONTEXT);
+    }
+
+    /** Get the insight draft (dataSourceIds, partial insights, etc.). */
+    async getInsightDraft(projectId: number, userId: number): Promise<InsightsDraft | null> {
+        const raw = await this.redis.get(this.getInsightDraftKey(projectId, userId));
+        return raw ? JSON.parse(raw) : null;
+    }
+
+    /** Persist the insight draft. */
+    async saveInsightDraft(projectId: number, userId: number, draft: Partial<InsightsDraft>): Promise<void> {
+        const key = this.getInsightDraftKey(projectId, userId);
+        await this.redis.set(key, JSON.stringify(draft));
+        await this.redis.expire(key, RedisTTL.AI_SCHEMA_CONTEXT);
+    }
+
+    /** Get the sampling info stored during session initialisation. */
+    async getInsightSamplingInfo(projectId: number, userId: number): Promise<any> {
+        const raw = await this.redis.get(this.getInsightSamplingInfoKey(projectId, userId));
+        return raw ? JSON.parse(raw) : null;
+    }
+
+    /** Persist sampling info. */
+    async saveInsightSamplingInfo(projectId: number, userId: number, info: any): Promise<void> {
+        const key = this.getInsightSamplingInfoKey(projectId, userId);
+        await this.redis.set(key, JSON.stringify(info));
+        await this.redis.expire(key, RedisTTL.AI_SCHEMA_CONTEXT);
+    }
+
+    /** Delete all three underscore-key insight keys (used during cancelSession). */
+    async deleteInsightKeys(projectId: number, userId: number): Promise<void> {
+        await Promise.all([
+            this.redis.del(this.getInsightSchemaMarkdownKey(projectId, userId)),
+            this.redis.del(this.getInsightDraftKey(projectId, userId)),
+            this.redis.del(this.getInsightSamplingInfoKey(projectId, userId)),
         ]);
     }
 

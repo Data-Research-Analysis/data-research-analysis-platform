@@ -1,5 +1,8 @@
 import { Request, Response } from 'express';
 import { InsightsProcessor } from '../processors/InsightsProcessor.js';
+import { DashboardProcessor } from '../processors/DashboardProcessor.js';
+import { GeminiService } from '../services/GeminiService.js';
+import { AISQLValidatorService } from '../services/AISQLValidatorService.js';
 
 export class InsightsController {
     /**
@@ -315,6 +318,98 @@ export class InsightsController {
                 success: false,
                 error: 'Internal server error',
                 message: error.message 
+            });
+        }
+    }
+
+    /**
+     * Generate an AI dashboard widget from an insights message and add it to a dashboard.
+     * POST /insights/session/create-widget
+     *
+     * Body:
+     *   projectId      {number}   — the active project
+     *   insightText    {string}   — the AI message text to visualise
+     *   dashboardId?   {number}   — existing dashboard to append to (optional)
+     *   dashboardName? {string}   — name for a new dashboard when dashboardId is absent
+     */
+    static async createWidget(req: Request, res: Response): Promise<void> {
+        try {
+            const { projectId, insightText, dashboardId, dashboardName } = req.body;
+            const tokenDetails = req.body.tokenDetails;
+            const userId: number = tokenDetails?.user_id;
+
+            if (!projectId || !insightText) {
+                res.status(400).json({ error: 'projectId and insightText are required' });
+                return;
+            }
+
+            const insightsProcessor = InsightsProcessor.getInstance();
+
+            // 1. Retrieve schema context (cached or rebuilt)
+            const schemaContext = await insightsProcessor.getOrRebuildSchemaContext(
+                parseInt(projectId),
+                userId,
+                tokenDetails
+            );
+
+            if (!schemaContext) {
+                res.status(400).json({
+                    success: false,
+                    error: 'No schema context available. Please initialise an insights session first.',
+                });
+                return;
+            }
+
+            // 2. Ask Gemini to generate the widget spec
+            const geminiService = new GeminiService();
+            const spec = await geminiService.generateWidgetSpec(
+                String(insightText),
+                schemaContext,
+                parseInt(projectId)
+            );
+
+            // 3. Validate the generated SQL
+            const validation = await AISQLValidatorService.getInstance().validate(
+                spec.sql,
+                parseInt(projectId)
+            );
+
+            if (!validation.valid) {
+                res.status(422).json({
+                    success: false,
+                    error: `Generated SQL is not safe to execute: ${validation.reason}`,
+                });
+                return;
+            }
+
+            // 4. Resolve or create the target dashboard
+            const dashProcessor = DashboardProcessor.getInstance();
+            const resolvedDashboardId = await dashProcessor.resolveOrCreateDashboard(
+                parseInt(projectId),
+                userId,
+                dashboardId ? parseInt(dashboardId) : undefined,
+                dashboardName
+            );
+
+            // 5. Append the widget
+            const { chartId } = await dashProcessor.createAIWidget({
+                dashboardId: resolvedDashboardId,
+                userId,
+                spec,
+            });
+
+            res.status(200).json({
+                success: true,
+                dashboardId: resolvedDashboardId,
+                chartId,
+                spec,
+            });
+        } catch (error: any) {
+            console.error('Error in createWidget:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Internal server error',
+                message: error.message,
             });
         }
     }

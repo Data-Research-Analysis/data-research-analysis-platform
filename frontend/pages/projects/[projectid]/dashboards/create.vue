@@ -1218,13 +1218,13 @@ onMounted(async () => {
         <div class="flex flex-row w-full">
             <div class="flex flex-col mr-2" :class="{ 'w-5/6': state.sidebar_status, 'w-full': !state.sidebar_status, 'ml-4': !state.sidebar_status }">
                 <div class="flex flex-row justify-between">
-                    <div class="flex flex-row">
+                    <div class="flex flex-row ml-auto">
                         <div @click="saveDashboard" class="flex flex-row items-center h-12 mr-2 mt-7 text-md text-white font-bold cursor-pointer select-none bg-primary-blue-100 hover:bg-primary-blue-400 rounded-tl-lg rounded-tr-lg">
                             <h3 class="ml-2 mr-2">Save Dashboard</h3>
                         </div>
                     </div>
                 </div>
-                <div class="flex flex-col min-h-200 max-h-200 h-200 overflow-hidden overflow-x-auto mr-2 mb-10 border border-primary-blue-100 border-solid bg-white rounded-br-lg rounded-bl-lg"
+                <div class="flex flex-col min-h-200 max-h-200 h-200 overflow-hidden overflow-x-auto mr-2 mb-10 border border-primary-blue-100 border-solid bg-white rounded-tl-lg  rounded-br-lg rounded-bl-lg"
                     :class="{'ml-4': state.sidebar_status}"
                     style="background-image: repeating-linear-gradient(0deg, #e5e7eb 0px, #e5e7eb 1px, transparent 1px, transparent 20px), repeating-linear-gradient(90deg, #e5e7eb 0px, #e5e7eb 1px, transparent 1px, transparent 20px); background-size: 20px 20px;"
                 >

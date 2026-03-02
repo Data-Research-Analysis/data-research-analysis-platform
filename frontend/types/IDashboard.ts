@@ -6,6 +6,19 @@ import type { IProject } from "./IProject";
 import type { IUsersPlatform } from "./IUsersPlatform";
 
 /**
+ * Client-side copy of the AI widget specification returned by Gemini.
+ * Mirrors backend IWidgetSpec.
+ */
+export interface IWidgetSpec {
+    title: string;
+    chart_type: 'bar' | 'line' | 'pie' | 'donut' | 'kpi' | 'table' | 'area';
+    sql: string;
+    x_axis: string | null;
+    y_axis: string | null;
+    description: string;
+}
+
+/**
  * Represents a single chart within a dashboard
  */
 export interface IDashboardChart {
@@ -26,6 +39,11 @@ export interface IDashboardChart {
         width?: number;
         height?: number;
     };
+    // ===== AI Insights widget fields (source_type = 'ai_insights') =====
+    source_type?: 'data_model' | 'ai_insights';
+    ai_sql?: string | null;
+    ai_chart_spec?: IWidgetSpec | null;
+    created_by?: number | null;
 }
 
 /**

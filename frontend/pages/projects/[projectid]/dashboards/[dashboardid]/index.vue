@@ -67,6 +67,162 @@ const charts = computed(() => {
     return state.dashboard.charts;
 });
 
+// =========================================================================
+// AI Insights widget state
+// =========================================================================
+// Per-chart date range pickers (keyed by chart_id)
+const aiWidgetDates = reactive({});
+
+// Per-chart loading/error/data state
+const aiWidgetState = reactive({});
+
+function initAIWidget(chart) {
+    const chartId = chart.chart_id;
+    if (!aiWidgetDates[chartId]) {
+        // Seed from persisted preference on the chart object; fall back to last 30 days.
+        const savedStart = chart.ai_chart_spec?.startDate;
+        const savedEnd   = chart.ai_chart_spec?.endDate;
+        const today = new Date();
+        const monthAgo = new Date(today);
+        monthAgo.setMonth(today.getMonth() - 1);
+        aiWidgetDates[chartId] = {
+            startDate: savedStart ?? monthAgo.toISOString().split('T')[0],
+            endDate:   savedEnd   ?? today.toISOString().split('T')[0],
+        };
+    }
+    if (!aiWidgetState[chartId]) {
+        aiWidgetState[chartId] = { loading: false, loaded: false, error: null, data: null };
+    }
+}
+
+/**
+ * Transform raw AI widget rows into the data shape each chart component expects.
+ * Uses ai_chart_spec.x_axis / y_axis to identify columns.
+ */
+function getAIWidgetChartData(chart) {
+    const ws = aiWidgetState[chart.chart_id];
+    if (!ws?.data?.rows?.length) return null;
+    const { columns, rows } = ws.data;
+    const spec = chart.ai_chart_spec ?? {};
+    const chartType = spec.chart_type ?? 'table';
+    const xCol = spec.x_axis ?? columns[0];
+    const yCol = spec.y_axis ?? columns[1] ?? columns[0];
+    if (chartType === 'table') {
+        return { columns, rows };
+    }
+    if (['pie', 'donut', 'bar', 'area'].includes(chartType)) {
+        return rows.map(row => ({
+            label: String(row[xCol] ?? ''),
+            value: parseFloat(row[yCol]) || 0,
+        }));
+    }
+    if (chartType === 'line') {
+        const cats = rows.map(row => String(row[xCol] ?? ''));
+        const colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd'];
+        const yCols = yCol ? [yCol] : columns.filter(c => c !== xCol);
+        return {
+            categories: cats,
+            series: yCols.map((col, i) => ({
+                name: col.replace(/_/g, ' '),
+                data: rows.map(row => parseFloat(row[col]) || 0),
+                color: colors[i % colors.length],
+            })),
+        };
+    }
+    if (chartType === 'kpi') {
+        return { value: rows[0]?.[yCol] ?? rows[0]?.[columns[0]], label: spec.title ?? '' };
+    }
+    return { columns, rows };
+}
+
+async function loadAIWidgetData(chart) {
+    const chartId = chart.chart_id;
+    initAIWidget(chart);
+    const { startDate, endDate } = aiWidgetDates[chartId];
+
+    // Persist chosen dates on the chart spec so updateDashboard() saves them.
+    if (chart.ai_chart_spec) {
+        chart.ai_chart_spec.startDate = startDate;
+        chart.ai_chart_spec.endDate   = endDate;
+    }
+    aiWidgetState[chartId] = { loading: true, loaded: false, error: null, data: null };
+
+    try {
+        const token = getAuthToken();
+        const config = useRuntimeConfig();
+        const dashboardId = dashboard.value?.id;
+        const resp = await $fetch(
+            `${config.public.apiBase}/dashboard/widgets/data?dashboardId=${dashboardId}&chartId=${chartId}&startDate=${startDate}&endDate=${endDate}`,
+            { headers: { Authorization: `Bearer ${token}`, 'Authorization-Type': 'auth' } }
+        );
+
+        if (resp?.success && Array.isArray(resp.data)) {
+            const rows = resp.data;
+            const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
+            aiWidgetState[chartId] = {
+                loading: false,
+                loaded: true,
+                error: null,
+                data: { columns, rows },
+            };
+        } else {
+            throw new Error(resp?.error ?? 'No data returned');
+        }
+    } catch (err) {
+        aiWidgetState[chartId] = {
+            loading: false,
+            loaded: true,
+            error: err?.data?.error ?? err?.message ?? 'Failed to load widget data',
+            data: null,
+        };
+    }
+}
+
+async function openRegenerateModal(chart) {
+    const { value: insightText } = await $swal.fire({
+        title: 'Regenerate Widget',
+        input: 'textarea',
+        inputLabel: 'Describe what you want to visualise',
+        inputPlaceholder: 'e.g. Show monthly revenue trend for last 6 months',
+        inputValue: chart.ai_chart_spec?.description ?? '',
+        showCancelButton: true,
+        confirmButtonText: 'Regenerate',
+        inputValidator: (v) => { if (!v?.trim()) return 'Please enter a description'; },
+    });
+    if (!insightText) return;
+
+    const chartId = chart.chart_id;
+    if (!aiWidgetState[chartId]) {
+        aiWidgetState[chartId] = { loading: true, loaded: false, error: null, data: null };
+    } else {
+        aiWidgetState[chartId].loading = true;
+    }
+
+    try {
+        const token = getAuthToken();
+        const config = useRuntimeConfig();
+        await $fetch(`${config.public.apiBase}/dashboard/widgets/regenerate`, {
+            method: 'PATCH',
+            headers: { Authorization: `Bearer ${token}`, 'Authorization-Type': 'auth', 'Content-Type': 'application/json' },
+            body: {
+                dashboardId: dashboard.value?.id,
+                chartId,
+                projectId: projectId.value,
+                insightText: insightText.trim(),
+            },
+        });
+        // Update local chart spec
+        const localChart = state.dashboard.charts.find((c) => c.chart_id === chartId);
+        if (localChart) {
+            aiWidgetState[chartId].loading = false;
+            await loadAIWidgetData(localChart);
+        }
+    } catch (err) {
+        aiWidgetState[chartId].loading = false;
+        aiWidgetState[chartId].error = err?.data?.error ?? err?.message ?? 'Regeneration failed';
+    }
+}
+
 // Chart type placeholder images
 const chartPlaceholders = {
     table: '/assets/images/chart-placeholders/table.png',
@@ -179,6 +335,14 @@ watch(
         }) || [];
 
         if (import.meta.client) {
+            // Auto-load data for ai_insights charts so data is present on every
+            // page load without the user having to click "Load Data" manually.
+            state.dashboard.charts.forEach((chart) => {
+                if (chart.source_type === 'ai_insights') {
+                    loadAIWidgetData(chart);
+                }
+            });
+
             nextTick(() => {
                 state.dashboard.charts.forEach((chart) => {
                     const draggableDiv = document.getElementById(`draggable-${chart.chart_id}`);
@@ -1068,7 +1232,9 @@ function stopDrag() {
 function onResize(event) {
     const draggableDiv = document.getElementById(`draggable-${state.selected_chart.chart_id}`);
     const draggableInnerDiv = document.getElementById(`draggable-div-inner-container-${state.selected_chart.chart_id}`);
-    const chartDiv = document.getElementById(`chart-${state.selected_chart.chart_id}`);
+    const chartDiv =
+        document.getElementById(`chart-${state.selected_chart.chart_id}`) ??
+        document.getElementById(`ai-chart-${state.selected_chart.chart_id}`);
     if (state.is_mouse_down && state.is_resizing && state.selected_div && draggableDiv) {
         const deltaX = event.clientX - state.start_resize_x;
         const deltaY = event.clientY - state.start_resize_y;
@@ -1102,8 +1268,9 @@ function onResize(event) {
         
         //add a 100px margin to both the heights
         //do not allow the height of the div to be less than the height of the chart
-        newHeight = Math.max(chartDiv.offsetHeight, newHeight) + 50;
-        newHeightDraggable = Math.max(chartDiv.offsetHeight, newHeightDraggable) + 50;
+        const chartRefHeight = chartDiv ? chartDiv.offsetHeight : 200;
+        newHeight = Math.max(chartRefHeight, newHeight) + 50;
+        newHeightDraggable = Math.max(chartRefHeight, newHeightDraggable) + 50;
 
         state.selected_div.style.width = `${newWidth}px`;
         state.selected_div.style.minHeight = `${newHeight}px`;
@@ -1469,6 +1636,14 @@ onMounted(async () => {
             },
         };
     });
+
+    // Auto-load data for each ai_insights chart on mount so data is present
+    // immediately after every page refresh without manual "Load Data" clicks.
+    (state.dashboard.charts ?? []).forEach((chart) => {
+        if (chart.source_type === 'ai_insights') {
+            loadAIWidgetData(chart);
+        }
+    });
 });
 
 onBeforeUnmount(() => {
@@ -1512,15 +1687,13 @@ onUnmounted(() => {
             <div class="flex flex-row w-full">
             <div class="flex flex-col ml-2 mr-2 w-full">
                 <div class="flex flex-row justify-between">
-                    <tabs :project-id="project.id" class="mt-6" :class="{ 'ml-10': state.sidebar_status }"/>
-                    
                     <!-- Read-only indicator for viewers -->
                     <div v-if="isReadOnly" class="flex items-center mt-7 px-4 py-2 bg-gray-100 border border-gray-300 rounded-lg">
                         <font-awesome icon="fas fa-eye" class="text-gray-600 mr-2" />
                         <span class="text-sm font-medium text-gray-700">View Only Mode</span>
                     </div>
                     
-                    <div v-if="!isReadOnly" class="flex flex-row">
+                    <div v-if="!isReadOnly" class="flex flex-row ml-auto">
                         <div @click="updateDashboard" class="flex flex-row items-center h-12 mt-7 text-md text-white font-bold border-r-1 border-white border-solid cursor-pointer select-none bg-primary-blue-100 hover:bg-primary-blue-400 rounded-tl-lg">
                             <h3 class="ml-2 mr-2">Update Dashboard</h3>
                         </div>
@@ -1594,7 +1767,7 @@ onUnmounted(() => {
                     </div>
                 </div>
 
-                <div class="flex flex-col min-h-200 max-h-200 h-200 overflow-hidden overflow-x-auto mr-2 mb-10 border border-primary-blue-100 border-solid bg-white rounded-br-lg rounded-bl-lg"
+                <div class="flex flex-col min-h-200 max-h-200 h-200 overflow-hidden overflow-x-auto mr-2 mb-10 border border-primary-blue-100 border-solid bg-white rounded-tl-lg rounded-br-lg rounded-bl-lg"
                     :class="{'ml-10': state.sidebar_status}"
                     style="background-image: repeating-linear-gradient(0deg, #e5e7eb 0px, #e5e7eb 1px, transparent 1px, transparent 20px), repeating-linear-gradient(90deg, #e5e7eb 0px, #e5e7eb 1px, transparent 1px, transparent 20px); background-size: 20px 20px;"
                 >
@@ -1661,8 +1834,8 @@ onUnmounted(() => {
                                     />
                                 </div>
                                 
-                                <!-- Empty chart placeholder - shows when no columns configured (not applicable for marketing widgets) -->
-                                <div v-if="isChartEmpty(chart) && chart.chart_type !== 'text_block' && !isMarketingWidget(chart)" 
+                                <!-- Empty chart placeholder - shows when no columns configured (not applicable for marketing or AI widgets) -->
+                                <div v-if="isChartEmpty(chart) && chart.chart_type !== 'text_block' && !isMarketingWidget(chart) && chart.source_type !== 'ai_insights'" 
                                      class="min-h-[300px] flex flex-col items-center justify-center bg-gray-50 border border-gray-200 border-t-0 rounded-b-lg"
                                 >
                                     <img 
@@ -1678,9 +1851,9 @@ onUnmounted(() => {
                                     </p>
                                 </div>
                                 
-                                <!-- Column dropzone and chart rendering - shows when columns exist (not used by marketing widgets) -->
+                                <!-- Column dropzone and chart rendering - shows when columns exist (not used by marketing or AI widgets) -->
                                 <draggable
-                                    v-if="!isChartEmpty(chart) && chart.chart_type !== 'text_block' && !isMarketingWidget(chart)"
+                                    v-if="!isChartEmpty(chart) && chart.chart_type !== 'text_block' && !isMarketingWidget(chart) && chart.source_type !== 'ai_insights'"
                                     :id="`draggable-${chart.chart_id}`"
                                     v-model="chart.columns"
                                     group="data_model_columns"
@@ -1958,6 +2131,168 @@ onUnmounted(() => {
                                         :height="parseInt(chart.dimensions.heightDraggable.replace('px',''))"
                                     />
                                 </div>
+
+                                <!-- AI Insights widget — source_type === 'ai_insights' -->
+                                <!-- Wrapped in ClientOnly: aiWidgetDates is only initialised in onMounted -->
+                                <!-- Data is fetched on demand via GET /dashboard/widgets/data -->
+                                <ClientOnly v-if="chart.source_type === 'ai_insights'">
+                                <div
+                                    :id="`draggable-${chart.chart_id}`"
+                                    class="bg-white border border-gray-200 border-t-0 rounded-b-lg overflow-auto p-4 flex flex-col gap-3"
+                                    :style="`min-height: 240px; width: ${chart.dimensions.widthDraggable}; height: ${chart.dimensions.heightDraggable};`"
+                                >
+                                    <!-- Widget title & description -->
+                                    <div class="flex flex-col gap-0.5">
+                                        <p class="text-sm font-semibold text-gray-800">
+                                            {{ chart.ai_chart_spec?.title ?? 'AI Widget' }}
+                                        </p>
+                                        <p v-if="chart.ai_chart_spec?.description" class="text-xs text-gray-500">
+                                            {{ chart.ai_chart_spec.description }}
+                                        </p>
+                                        <span class="inline-block mt-1 text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full w-fit">
+                                            AI Insights
+                                        </span>
+                                    </div>
+
+                                    <!-- Date range pickers -->
+                                    <div class="flex items-center gap-2 text-xs text-gray-600">
+                                        <label class="font-medium">From</label>
+                                        <input
+                                            type="date"
+                                            :value="aiWidgetDates[chart.chart_id]?.startDate"
+                                            @change="(e) => { if (aiWidgetDates[chart.chart_id]) { aiWidgetDates[chart.chart_id].startDate = e.target.value; if (chart.ai_chart_spec) chart.ai_chart_spec.startDate = e.target.value; } }"
+                                            class="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-400"
+                                        />
+                                        <label class="font-medium">To</label>
+                                        <input
+                                            type="date"
+                                            :value="aiWidgetDates[chart.chart_id]?.endDate"
+                                            @change="(e) => { if (aiWidgetDates[chart.chart_id]) { aiWidgetDates[chart.chart_id].endDate = e.target.value; if (chart.ai_chart_spec) chart.ai_chart_spec.endDate = e.target.value; } }"
+                                            class="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-400"
+                                        />
+                                        <button
+                                            class="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium text-white bg-blue-500 rounded hover:bg-blue-600 transition-colors cursor-pointer disabled:opacity-50"
+                                            :disabled="aiWidgetState[chart.chart_id]?.loading"
+                                            @click="loadAIWidgetData(chart)"
+                                        >
+                                            <font-awesome-icon
+                                                :icon="aiWidgetState[chart.chart_id]?.loading ? ['fas', 'spinner'] : ['fas', 'chart-bar']"
+                                                :class="{ 'animate-spin': aiWidgetState[chart.chart_id]?.loading }"
+                                            />
+                                            {{ aiWidgetState[chart.chart_id]?.loading ? 'Loading…' : 'Load Data' }}
+                                        </button>
+                                    </div>
+
+                                    <!-- Error state -->
+                                    <div
+                                        v-if="aiWidgetState[chart.chart_id]?.error"
+                                        class="flex flex-col gap-2 p-3 bg-red-50 border border-red-200 rounded-lg"
+                                    >
+                                        <p class="text-xs text-red-700">
+                                            <font-awesome-icon :icon="['fas', 'triangle-exclamation']" class="mr-1" />
+                                            {{ aiWidgetState[chart.chart_id].error }}
+                                        </p>
+                                        <button
+                                            class="self-start text-xs font-medium text-red-600 underline hover:text-red-800 cursor-pointer"
+                                            @click="openRegenerateModal(chart)"
+                                        >
+                                            Regenerate with AI
+                                        </button>
+                                    </div>
+
+                                    <!-- Chart — type driven by ai_chart_spec.chart_type -->
+                                    <template v-if="aiWidgetState[chart.chart_id]?.data?.rows?.length && getAIWidgetChartData(chart)">
+                                        <!-- table (default) -->
+                                        <table-chart
+                                            v-if="!chart.ai_chart_spec?.chart_type || chart.ai_chart_spec.chart_type === 'table'"
+                                            :id="`ai-chart-${chart.chart_id}`"
+                                            :chart-id="`${chart.chart_id}`"
+                                            :data="getAIWidgetChartData(chart)"
+                                            :width="parseInt((chart.dimensions.widthDraggable ?? '600px').replace('px','')) - 40"
+                                            :height="160"
+                                            :enable-scroll-bars="true"
+                                            :show-row-numbers="true"
+                                            :sticky-header="true"
+                                            :use-container-sizing="true"
+                                            class="mt-1"
+                                        />
+                                        <!-- pie -->
+                                        <pie-chart
+                                            v-else-if="chart.ai_chart_spec.chart_type === 'pie'"
+                                            :id="`ai-chart-${chart.chart_id}`"
+                                            :chart-id="`${chart.chart_id}`"
+                                            :data="getAIWidgetChartData(chart)"
+                                            :width="parseInt((chart.dimensions.widthDraggable ?? '600px').replace('px','')) - 40"
+                                            :height="parseInt((chart.dimensions.heightDraggable ?? '300px').replace('px','')) - 120"
+                                            :column-name="chart.ai_chart_spec?.y_axis ?? ''"
+                                            :enable-tooltips="true"
+                                            class="mt-1"
+                                        />
+                                        <!-- donut -->
+                                        <donut-chart
+                                            v-else-if="chart.ai_chart_spec.chart_type === 'donut'"
+                                            :id="`ai-chart-${chart.chart_id}`"
+                                            :chart-id="`${chart.chart_id}`"
+                                            :data="getAIWidgetChartData(chart)"
+                                            :width="parseInt((chart.dimensions.widthDraggable ?? '600px').replace('px','')) - 40"
+                                            :height="parseInt((chart.dimensions.heightDraggable ?? '300px').replace('px','')) - 120"
+                                            :column-name="chart.ai_chart_spec?.y_axis ?? ''"
+                                            :enable-tooltips="true"
+                                            class="mt-1"
+                                        />
+                                        <!-- bar / area (area falls back to vertical bar) -->
+                                        <vertical-bar-chart
+                                            v-else-if="chart.ai_chart_spec.chart_type === 'bar' || chart.ai_chart_spec.chart_type === 'area'"
+                                            :id="`ai-chart-${chart.chart_id}`"
+                                            :chart-id="`${chart.chart_id}`"
+                                            :data="getAIWidgetChartData(chart)"
+                                            :x-axis-label="chart.ai_chart_spec?.x_axis ?? ''"
+                                            :y-axis-label="chart.ai_chart_spec?.y_axis ?? ''"
+                                            :column-name="chart.ai_chart_spec?.y_axis ?? ''"
+                                            :category-name="chart.ai_chart_spec?.x_axis ?? ''"
+                                            :x-axis-rotation="-45"
+                                            :editable-axis-labels="false"
+                                            :enable-tooltips="true"
+                                            class="mt-1"
+                                        />
+                                        <!-- line -->
+                                        <multi-line-chart
+                                            v-else-if="chart.ai_chart_spec.chart_type === 'line'"
+                                            :id="`ai-chart-${chart.chart_id}`"
+                                            :chart-id="`${chart.chart_id}`"
+                                            :data="getAIWidgetChartData(chart)"
+                                            :width="parseInt((chart.dimensions.widthDraggable ?? '600px').replace('px','')) - 40"
+                                            :height="parseInt((chart.dimensions.heightDraggable ?? '300px').replace('px','')) - 120"
+                                            :x-axis-label="chart.ai_chart_spec?.x_axis ?? ''"
+                                            :y-axis-label="chart.ai_chart_spec?.y_axis ?? ''"
+                                            :show-data-points="true"
+                                            :enable-tooltips="true"
+                                            :show-grid="true"
+                                            :editable-axis-labels="false"
+                                            :x-axis-rotation="-45"
+                                            legend-position="top"
+                                            class="mt-1"
+                                        />
+                                        <!-- kpi -->
+                                        <div
+                                            v-else-if="chart.ai_chart_spec.chart_type === 'kpi'"
+                                            :id="`ai-chart-${chart.chart_id}`"
+                                            class="flex flex-col items-center justify-center py-6 gap-1"
+                                        >
+                                            <p class="text-4xl font-bold text-gray-800">{{ getAIWidgetChartData(chart)?.value }}</p>
+                                            <p class="text-xs text-gray-500">{{ chart.ai_chart_spec?.description }}</p>
+                                        </div>
+                                    </template>
+
+                                    <!-- Empty state (after load, no rows) -->
+                                    <p
+                                        v-if="aiWidgetState[chart.chart_id]?.loaded && !aiWidgetState[chart.chart_id]?.data?.rows?.length && !aiWidgetState[chart.chart_id]?.error"
+                                        class="text-xs text-gray-400 italic"
+                                    >
+                                        No data returned for the selected date range.
+                                    </p>
+                                </div>
+                                </ClientOnly>
                             </div>
                             <div class="flex flex-row justify-end bottom-corners">
                                 <img

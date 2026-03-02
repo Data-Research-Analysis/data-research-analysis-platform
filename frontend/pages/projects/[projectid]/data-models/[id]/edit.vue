@@ -141,7 +141,6 @@ async function copyDataModel() {
 </script>
 <template>
     <div v-if="project" class="flex flex-col">
-        <tabs :project-id="project.id"/>
         <div class="flex flex-col min-h-100 mb-10">
             <!-- Header -->
             <div v-if="state.data_model" class="bg-white border-b border-gray-200 px-6 py-4 mb-6">

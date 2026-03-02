@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { AI_DATA_MODELER_TEMPLATE_PROMPT, AI_DATA_MODELER_CHAT_PROMPT } from '../constants/system-prompts.js';
+import { IWidgetSpec } from '../types/IWidgetSpec.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -219,6 +220,75 @@ export class GeminiService {
      */
     sessionExists(conversationId: string): boolean {
         return this.chatSessions.has(conversationId);
+    }
+
+    /**
+     * One-shot call: ask Gemini to generate a dashboard widget specification
+     * from a block of AI insights text and the project's schema context.
+     *
+     * The returned IWidgetSpec contains a SQL query parameterised with
+     * $1 = startDate (DATE) and $2 = endDate (DATE) so the caller can
+     * bind real values when executing the widget.
+     */
+    async generateWidgetSpec(
+        insightText: string,
+        schemaContext: string,
+        projectId: number
+    ): Promise<IWidgetSpec> {
+        const prompt = `You are a dashboard widget generator for a data analytics platform.
+
+Project ID: ${projectId}
+
+## Database Schema Context
+${schemaContext}
+
+## AI Insight to Visualise
+${insightText}
+
+Generate a dashboard widget specification for the insight above.
+Use ONLY tables that exist in the schema context. The SQL query MUST:
+- Be a SELECT statement only
+- Use $1 for the start date filter (type DATE) and $2 for the end date filter (type DATE) when filtering by date
+- Reference tables using the format schema."physical_table_name" exactly as shown in the schema
+
+Respond with ONLY valid JSON (no markdown fences) matching this exact structure:
+{
+  "title": "<short widget title>",
+  "chart_type": "<one of: bar|line|pie|donut|kpi|table|area>",
+  "sql": "<parameterised SELECT statement>",
+  "x_axis": "<column name for x-axis or null>",
+  "y_axis": "<column name for y-axis or null>",
+  "description": "<one sentence describing what this widget shows>"
+}`;
+
+        const response = await this.genAI.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: [{ role: 'user', parts: [{ text: prompt }] }]
+        });
+
+        const raw = (response.text ?? '').trim();
+
+        // Strip markdown code fences if Gemini wraps the output anyway
+        const cleaned = raw
+            .replace(/^```json\s*/i, '')
+            .replace(/^```\s*/i, '')
+            .replace(/\s*```$/i, '')
+            .trim();
+
+        let spec: IWidgetSpec;
+        try {
+            spec = JSON.parse(cleaned);
+        } catch {
+            throw new Error(`Gemini returned invalid JSON for widget spec: ${cleaned.slice(0, 200)}`);
+        }
+
+        // Normalise chart_type to a known value
+        const validTypes: IWidgetSpec['chart_type'][] = ['bar', 'line', 'pie', 'donut', 'kpi', 'table', 'area'];
+        if (!validTypes.includes(spec.chart_type)) {
+            spec.chart_type = 'bar';
+        }
+
+        return spec;
     }
 }
 

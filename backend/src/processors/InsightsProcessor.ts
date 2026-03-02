@@ -265,10 +265,7 @@ export class InsightsProcessor {
                 // Only reuse the session if the selected data sources are identical.
                 // If the user changed their selection, fall through and re-initialize
                 // with the new data sources so the context is rebuilt from scratch.
-                const redis = this.redisSessionService['redis'];
-                const draftKey = `insight_draft:insights:${projectId}:${userId}`;
-                const draftRaw = await redis.get(draftKey);
-                const draft = draftRaw ? JSON.parse(draftRaw) : null;
+                const draft = await this.redisSessionService.getInsightDraft(projectId, userId);
 
                 const storedIds: number[] = (draft?.dataSourceIds ?? []).slice().sort((a: number, b: number) => a - b);
                 const incomingIds: number[] = dataSourceIds.slice().sort((a, b) => a - b);
@@ -343,27 +340,16 @@ export class InsightsProcessor {
                 'insights'
             );
 
-            // Store the sampling context in Redis
-            const contextKey = `schema_context:insights:${projectId}:${userId}`;
-            const redis = this.redisSessionService['redis'];
-            await redis.set(contextKey, markdown);
-            await redis.expire(contextKey, 24 * 60 * 60); // 24 hours
-
-            // Store sampling_info separately so generateInsights can reference it
-            const samplingInfoKey = `sampling_info:insights:${projectId}:${userId}`;
-            await redis.set(samplingInfoKey, JSON.stringify(context.sampling_info ?? null));
-            await redis.expire(samplingInfoKey, 24 * 60 * 60); // 24 hours
-
-            // Store insight draft with data source IDs
-            const draftKey = `insight_draft:insights:${projectId}:${userId}`;
-            await redis.set(draftKey, JSON.stringify({
+            // Store the sampling context, sampling info, and draft via service methods
+            await this.redisSessionService.saveInsightSchemaMarkdown(projectId, userId, markdown);
+            await this.redisSessionService.saveInsightSamplingInfo(projectId, userId, context.sampling_info ?? null);
+            await this.redisSessionService.saveInsightDraft(projectId, userId, {
                 dataSourceIds,
                 insights: null,
-                selectedSources: context.data_sources.map(ds => ds.data_source_name),
+                selectedSources: context.data_sources.map((ds: any) => ds.data_source_name),
                 lastModified: new Date().toISOString(),
                 version: 1
-            }));
-            await redis.expire(draftKey, 24 * 60 * 60);
+            });
 
             // Initialize Gemini conversation
             await socketIODriver.emitToUser(userId, 'insight-analysis-progress', {
@@ -426,15 +412,9 @@ export class InsightsProcessor {
                 };
             }
 
-            // Get context
-            const redis = this.redisSessionService['redis'];
-            const contextKey = `schema_context:insights:${projectId}:${userId}`;
-            const schemaContext = await redis.get(contextKey);
-
-            // Retrieve sampling_info stored during initializeSession
-            const samplingInfoKey = `sampling_info:insights:${projectId}:${userId}`;
-            const samplingInfoRaw = await redis.get(samplingInfoKey);
-            const samplingInfo = samplingInfoRaw ? JSON.parse(samplingInfoRaw) : null;
+            // Get context via service methods
+            const schemaContext = await this.redisSessionService.getInsightSchemaMarkdown(projectId, userId);
+            const samplingInfo = await this.redisSessionService.getInsightSamplingInfo(projectId, userId);
 
             if (!schemaContext) {
                 return {
@@ -570,16 +550,14 @@ Please analyze the provided data and return structured insights.
                 'insights'
             );
 
-            // Update draft with insights
-            const draftKey = `insight_draft:insights:${projectId}:${userId}`;
-            const existingDraft = await redis.get(draftKey);
-            const draft = existingDraft ? JSON.parse(existingDraft) : {};
-            draft.insights = insights;
-            draft.sampling_info = samplingInfo;
-            draft.lastModified = new Date().toISOString();
-            draft.version = (draft.version || 0) + 1;
-            await redis.set(draftKey, JSON.stringify(draft));
-            await redis.expire(draftKey, 24 * 60 * 60);
+            // Update draft with insights via service method
+            const existingDraft = await this.redisSessionService.getInsightDraft(projectId, userId);
+            const draftToSave = existingDraft ? { ...existingDraft } : {} as any;
+            draftToSave.insights = insights;
+            draftToSave.sampling_info = samplingInfo;
+            draftToSave.lastModified = new Date().toISOString();
+            draftToSave.version = (draftToSave.version || 0) + 1;
+            await this.redisSessionService.saveInsightDraft(projectId, userId, draftToSave);
 
             // Final progress update
             await socketIODriver.emitToUser(userId, 'insight-analysis-progress', {
@@ -594,6 +572,9 @@ Please analyze the provided data and return structured insights.
                 insights,
                 sampling_info: samplingInfo
             });
+
+            // Extend session TTL on success
+            await this.extendInsightsSession(projectId, userId);
 
             return {
                 success: true,
@@ -662,9 +643,7 @@ Please analyze the provided data and return structured insights.
             }
 
             // Get schema context and re-initialize if needed
-            const redis = this.redisSessionService['redis'];
-            const contextKey = `schema_context:insights:${projectId}:${userId}`;
-            const schemaContext = await redis.get(contextKey);
+            const schemaContext = await this.redisSessionService.getInsightSchemaMarkdown(projectId, userId);
 
             if (schemaContext) {
                 // Re-initialize Gemini conversation with conversational prompt for follow-ups
@@ -697,6 +676,9 @@ Please analyze the provided data and return structured insights.
                 response,
                 'insights'
             );
+
+            // Extend session TTL on success
+            await this.extendInsightsSession(projectId, userId);
 
             return {
                 success: true,
@@ -753,11 +735,8 @@ Please analyze the provided data and return structured insights.
                 'insights'
             );
 
-            // Get draft
-            const redis = this.redisSessionService['redis'];
-            const draftKey = `insight_draft:insights:${projectId}:${userId}`;
-            const draftData = await redis.get(draftKey);
-            const draft = draftData ? JSON.parse(draftData) : null;
+            // Get draft via service method
+            const draft = await this.redisSessionService.getInsightDraft(projectId, userId);
 
             return {
                 exists: true,
@@ -835,13 +814,7 @@ Please analyze the provided data and return structured insights.
         try {
             await this.redisSessionService.clearSession(projectId, userId, 'insights');
             await this.redisSessionService.clearMessages(projectId, userId, 'insights');
-            
-            const redis = this.redisSessionService['redis'];
-            const draftKey = `insight_draft:insights:${projectId}:${userId}`;
-            const contextKey = `schema_context:insights:${projectId}:${userId}`;
-            
-            await redis.del(draftKey);
-            await redis.del(contextKey);
+            await this.redisSessionService.deleteInsightKeys(projectId, userId);
 
             return { success: true };
 
@@ -874,10 +847,7 @@ Please analyze the provided data and return structured insights.
                 };
             }
 
-            const redis = this.redisSessionService['redis'];
-            const draftKey = `insight_draft:insights:${projectId}:${userId}`;
-            const draftData = await redis.get(draftKey);
-            const draft = draftData ? JSON.parse(draftData) : null;
+            const draft = await this.redisSessionService.getInsightDraft(projectId, userId);
 
             if (!draft || !draft.insights) {
                 return {
@@ -1076,6 +1046,80 @@ Please analyze the provided data and return structured insights.
         } catch (error: any) {
             console.error('Error deleting insight report:', error);
             return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Extend the TTL of all Redis keys for an insights session.
+     * Call after any successful interaction to prevent premature expiry.
+     */
+    public async extendInsightsSession(projectId: number, userId: number): Promise<void> {
+        try {
+            await this.redisSessionService.extendSession(projectId, userId, 'insights');
+        } catch (err) {
+            // Non-fatal — let the caller continue even if TTL extension fails
+            console.warn('[InsightsProcessor] Failed to extend insights session TTL:', err);
+        }
+    }
+
+    /**
+     * Retrieve the schema markdown from Redis; if missing, rebuild it from the
+     * last saved insight report's data source IDs and re-persist to Redis.
+     *
+     * Returns the markdown string, or null when no data sources can be found.
+     */
+    public async getOrRebuildSchemaContext(
+        projectId: number,
+        userId: number,
+        tokenDetails: ITokenDetails
+    ): Promise<string | null> {
+        // Fast path: context still in Redis
+        const cached = await this.redisSessionService.getInsightSchemaMarkdown(projectId, userId);
+        if (cached) return cached;
+
+        console.log(`[InsightsProcessor] Schema context cache miss for project ${projectId}, rebuilding...`);
+
+        // Try to find dataSourceIds from a cached draft first
+        let dataSourceIds: number[] | null = null;
+        const draft = await this.redisSessionService.getInsightDraft(projectId, userId);
+        if (draft?.dataSourceIds?.length) {
+            dataSourceIds = draft.dataSourceIds;
+        }
+
+        // Fallback: read the most recent saved report from the database
+        if (!dataSourceIds) {
+            try {
+                const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+                const manager = (await driver.getConcreteDriver()).manager;
+                const report = await manager.findOne(DRAAIInsightReport, {
+                    where: { project_id: projectId, user_id: userId },
+                    order: { created_at: 'DESC' }
+                });
+                if (report?.data_source_ids?.length) {
+                    dataSourceIds = report.data_source_ids;
+                }
+            } catch (err) {
+                console.error('[InsightsProcessor] Failed to fetch report for schema rebuild:', err);
+            }
+        }
+
+        if (!dataSourceIds) {
+            console.warn(`[InsightsProcessor] Cannot rebuild schema context — no data source IDs found.`);
+            return null;
+        }
+
+        try {
+            const { markdown } = await this.dataSamplingService.buildInsightContext(
+                projectId,
+                dataSourceIds,
+                tokenDetails,
+                {}
+            );
+            await this.redisSessionService.saveInsightSchemaMarkdown(projectId, userId, markdown);
+            return markdown;
+        } catch (err) {
+            console.error('[InsightsProcessor] Schema context rebuild failed:', err);
+            return null;
         }
     }
 }
