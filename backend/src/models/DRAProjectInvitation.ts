@@ -2,7 +2,6 @@ import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, OneToOne
 import { DRAProject } from './DRAProject.js';
 import { DRAUsersPlatform } from './DRAUsersPlatform.js';
 import { DRAVerificationCode } from './DRAVerificationCode.js';
-import { EProjectRole } from '../types/EProjectRole.js';
 
 /**
  * Pending project invitation
@@ -22,9 +21,6 @@ export class DRAProjectInvitation {
 
     @Column({ type: 'varchar', length: 320 })
     invited_email!: string;
-
-    @Column({ type: 'enum', enum: EProjectRole })
-    role!: EProjectRole;
 
     @OneToOne(() => DRAVerificationCode, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'verification_code_id' })

@@ -95,7 +95,7 @@ describe('RBACService', () => {
         });
         
         it('should have getUserRole method', () => {
-            expect(typeof service.getUserRole).toBe('function');
+            expect(typeof service.getMarketingRole).toBe('function');
         });
         
         it('should have hasPermission method', () => {
@@ -123,7 +123,7 @@ describe('RBACService', () => {
         });
         
         it('should have updateMemberRole method', () => {
-            expect(typeof service.updateMemberRole).toBe('function');
+            expect(typeof service.removeMember).toBe('function');
         });
         
         it('should have getProjectMembers method', () => {

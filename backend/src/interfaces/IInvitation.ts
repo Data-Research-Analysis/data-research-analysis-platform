@@ -1,12 +1,9 @@
-import { EProjectRole } from '../types/EProjectRole.js';
-
 /**
  * Interface for creating a new project invitation
  */
 export interface IInvitationCreate {
     projectId: number;
     email: string;
-    role: EProjectRole;
     invitedByUserId: number;
     marketing_role: 'analyst' | 'manager' | 'cmo';
 }
@@ -20,7 +17,7 @@ export interface IInvitationResponse {
     project_name: string;
     invited_by_name: string;
     invited_email: string;
-    role: EProjectRole;
+    marketing_role: 'analyst' | 'manager' | 'cmo';
     status: 'pending' | 'accepted' | 'expired' | 'cancelled';
     invitation_token: string;
     created_at: Date;

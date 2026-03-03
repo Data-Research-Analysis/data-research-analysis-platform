@@ -121,7 +121,12 @@ export class PermissionService {
         });
 
         if (member) {
-            return member.role as EProjectRole;
+            switch (member.marketing_role) {
+                case 'analyst': return EProjectRole.OWNER;
+                case 'manager': return EProjectRole.ADMIN;
+                case 'cmo':
+                default:        return EProjectRole.VIEWER;
+            }
         }
 
         return null;

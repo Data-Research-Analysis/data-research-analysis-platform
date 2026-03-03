@@ -10,7 +10,6 @@ import { DRAProjectMember } from '../models/DRAProjectMember.js';
 import { DRASubscriptionTier } from '../models/DRASubscriptionTier.js';
 import { DRAUserSubscription } from '../models/DRAUserSubscription.js';
 import { IInvitationCreate, IInvitationResponse, IInvitationAccept } from '../interfaces/IInvitation.js';
-import { EProjectRole } from '../types/EProjectRole.js';
 import { EmailService } from './EmailService.js';
 import { NotificationHelperService } from './NotificationHelperService.js';
 
@@ -150,10 +149,10 @@ export class InvitationService {
         });
 
         const isOwner = project.users_platform.id === data.invitedByUserId;
-        const isAdmin = inviterMember?.role === EProjectRole.ADMIN;
+        const canInvite = inviterMember?.marketing_role === 'analyst' || inviterMember?.marketing_role === 'manager';
 
-        if (!isOwner && !isAdmin) {
-            throw new Error('Only project owner or admins can invite members');
+        if (!isOwner && !canInvite) {
+            throw new Error('Only project members with analyst or manager role can invite members');
         }
 
         // Check member limit before proceeding
@@ -182,7 +181,6 @@ export class InvitationService {
             const newMember = manager.create(DRAProjectMember, {
                 project: project,
                 user: existingUser,
-                role: data.role,
                 marketing_role: data.marketing_role ?? 'cmo',
                 added_at: new Date()
             });
@@ -194,7 +192,7 @@ export class InvitationService {
                 email: data.email,
                 projectName: project.name,
                 inviterName: `${inviter.first_name} ${inviter.last_name}`.trim() || inviter.email,
-                role: data.role
+                role: data.marketing_role ?? 'cmo'
             });
 
             return { addedDirectly: true, userId: existingUser.id };
@@ -232,7 +230,6 @@ export class InvitationService {
             project: project,
             invited_by: inviter,
             invited_email: data.email,
-            role: data.role,
             marketing_role: data.marketing_role ?? 'cmo',
             verification_code: verificationCode,
             status: 'pending',
@@ -246,7 +243,7 @@ export class InvitationService {
             email: data.email,
             projectName: project.name,
             inviterName: `${inviter.first_name} ${inviter.last_name}`.trim() || inviter.email,
-            role: data.role,
+            role: data.marketing_role ?? 'cmo',
             token: token
         });
 
@@ -256,7 +253,7 @@ export class InvitationService {
             project_name: project.name,
             invited_by_name: `${inviter.first_name} ${inviter.last_name}`.trim() || inviter.email,
             invited_email: invitation.invited_email,
-            role: invitation.role,
+            marketing_role: (data.marketing_role ?? 'cmo') as 'analyst' | 'manager' | 'cmo',
             status: invitation.status,
             invitation_token: verificationCode.code,
             created_at: invitation.created_at,
@@ -337,7 +334,6 @@ export class InvitationService {
         const newMember = manager.create(DRAProjectMember, {
             project: invitation.project,
             user: user,
-            role: invitation.role,
             marketing_role: invitation.marketing_role ?? 'cmo',
             added_at: new Date()
         });
@@ -363,7 +359,7 @@ export class InvitationService {
             invitation.project.id,
             invitation.project.name,
             `${user.first_name} ${user.last_name}`.trim() || user.email,
-            invitation.role
+            invitation.marketing_role ?? 'cmo'
         );
 
         return {
@@ -398,7 +394,7 @@ export class InvitationService {
             project_name: inv.project.name,
             invited_by_name: `${inv.invited_by.first_name} ${inv.invited_by.last_name}`.trim() || inv.invited_by.email,
             invited_email: inv.invited_email,
-            role: inv.role,
+            marketing_role: inv.marketing_role,
             status: inv.status,
             invitation_token: inv.verification_code.code,
             created_at: inv.created_at,
@@ -429,7 +425,7 @@ export class InvitationService {
             project_name: inv.project.name,
             invited_by_name: `${inv.invited_by.first_name} ${inv.invited_by.last_name}`.trim() || inv.invited_by.email,
             invited_email: inv.invited_email,
-            role: inv.role,
+            marketing_role: inv.marketing_role,
             status: inv.status,
             invitation_token: inv.verification_code.code,
             created_at: inv.created_at,
@@ -520,7 +516,7 @@ export class InvitationService {
             email: invitation.invited_email,
             projectName: invitation.project.name,
             inviterName: `${invitation.invited_by.first_name} ${invitation.invited_by.last_name}`.trim() || invitation.invited_by.email,
-            role: invitation.role,
+            role: invitation.marketing_role ?? 'cmo',
             token: newToken
         });
 
@@ -579,7 +575,7 @@ export class InvitationService {
             project_name: invitation.project.name,
             invited_by_name: `${invitation.invited_by.first_name} ${invitation.invited_by.last_name}`.trim() || invitation.invited_by.email,
             invited_email: invitation.invited_email,
-            role: invitation.role,
+            marketing_role: invitation.marketing_role,
             status: invitation.status,
             invitation_token: verificationCode.code,
             created_at: invitation.created_at,

@@ -2,7 +2,6 @@ import { Router, Request, Response } from 'express';
 import { InvitationService } from '../services/InvitationService.js';
 import { validateJWT } from '../middleware/authenticate.js';
 import { invitationLimiter } from '../middleware/rateLimit.js';
-import { EProjectRole } from '../types/EProjectRole.js';
 import { requiresProjectRole } from '../middleware/requiresProjectRole.js';
 
 const router = Router();
@@ -22,7 +21,7 @@ const invitationService = InvitationService.getInstance();
  */
 router.post('/', validateJWT, invitationLimiter, requiresProjectRole(['analyst']), async (req: Request, res: Response): Promise<void> => {
     try {
-        const { projectId, email, role, marketing_role } = req.body;
+        const { projectId, email, marketing_role } = req.body;
         const userId = (req as any).body.tokenDetails?.user_id;
 
         if (!userId) {
@@ -34,10 +33,10 @@ router.post('/', validateJWT, invitationLimiter, requiresProjectRole(['analyst']
         }
 
         // Validation
-        if (!projectId || !email || !role) {
+        if (!projectId || !email) {
             res.status(400).json({
                 success: false,
-                message: 'Missing required fields: projectId, email, role'
+                message: 'Missing required fields: projectId, email'
             });
             return;
         }
@@ -62,20 +61,9 @@ router.post('/', validateJWT, invitationLimiter, requiresProjectRole(['analyst']
             return;
         }
 
-        // Validate role
-        const validRoles = Object.values(EProjectRole);
-        if (!validRoles.includes(role)) {
-            res.status(400).json({
-                success: false,
-                message: `Invalid role. Must be one of: ${validRoles.join(', ')}`
-            });
-            return;
-        }
-
         const result = await invitationService.createInvitation({
             projectId: parseInt(projectId),
             email: email.toLowerCase().trim(),
-            role,
             marketing_role: marketing_role as 'analyst' | 'manager' | 'cmo',
             invitedByUserId: userId
         });

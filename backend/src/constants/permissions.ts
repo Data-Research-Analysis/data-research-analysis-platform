@@ -101,3 +101,43 @@ export const ROLE_PERMISSIONS: Record<EProjectRole, Permission[]> = {
         Permission.DASHBOARD_VIEW,
     ],
 };
+
+/**
+ * Marketing role type — the authoritative permission system.
+ * Replaces the legacy EProjectRole system for all permission checks.
+ */
+export type MarketingRole = 'analyst' | 'manager' | 'cmo';
+
+/**
+ * Maps marketing roles to their allowed permissions.
+ *
+ *   analyst  → full access (create, edit, delete, manage members)
+ *   manager  → create/edit + manage members (no delete)
+ *   cmo      → read-only (view + execute data models)
+ */
+export const MARKETING_ROLE_PERMISSIONS: Record<MarketingRole, Permission[]> = {
+    analyst: [...Object.values(Permission)],
+    manager: [
+        Permission.PROJECT_VIEW,
+        Permission.PROJECT_EDIT,
+        Permission.PROJECT_MANAGE_MEMBERS,
+        Permission.DATA_SOURCE_VIEW,
+        Permission.DATA_SOURCE_CREATE,
+        Permission.DATA_SOURCE_EDIT,
+        Permission.DATA_MODEL_VIEW,
+        Permission.DATA_MODEL_CREATE,
+        Permission.DATA_MODEL_EDIT,
+        Permission.DATA_MODEL_EXECUTE,
+        Permission.DASHBOARD_VIEW,
+        Permission.DASHBOARD_CREATE,
+        Permission.DASHBOARD_EDIT,
+        Permission.DASHBOARD_SHARE,
+    ],
+    cmo: [
+        Permission.PROJECT_VIEW,
+        Permission.DATA_SOURCE_VIEW,
+        Permission.DATA_MODEL_VIEW,
+        Permission.DATA_MODEL_EXECUTE,
+        Permission.DASHBOARD_VIEW,
+    ],
+};

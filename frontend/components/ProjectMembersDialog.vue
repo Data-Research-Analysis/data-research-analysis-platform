@@ -14,11 +14,6 @@
                         placeholder="Email address" 
                         class="flex-1 min-w-[200px] px-3.5 py-2.5 border border-gray-300 rounded-md text-[15px] focus:outline-none focus:border-blue-500 transition-colors"
                     />
-                    <select v-model="inviteRole" class="min-w-[150px] px-3.5 py-2.5 border border-gray-300 rounded-md text-[15px] focus:outline-none focus:border-blue-500 transition-colors cursor-pointer">
-                        <option value="viewer">Viewer (Read-only)</option>
-                        <option value="editor">Editor (Can create/edit)</option>
-                        <option value="admin">Admin (Full control)</option>
-                    </select>
                     <select
                         v-model="inviteMarketingRole"
                         class="min-w-[160px] px-3.5 py-2.5 border border-gray-300 rounded-md text-[15px] focus:outline-none focus:border-blue-500 transition-colors cursor-pointer"
@@ -63,28 +58,9 @@
                             <span class="text-sm text-gray-600">{{ member.user.email }}</span>
                         </div>
                         
-                        <div class="min-w-[120px]">
-                            <select 
-                                v-if="canManageMembers && member.role !== 'owner'"
-                                v-model="member.role"
-                                @change="updateRole(member)"
-                                class="px-2.5 py-1.5 border border-gray-300 rounded text-sm cursor-pointer"
-                            >
-                                <option value="viewer">Viewer</option>
-                                <option value="editor">Editor</option>
-                                <option value="admin">Admin</option>
-                            </select>
-                            <span 
-                                v-else 
-                                :class="[
-                                    'inline-block px-3 py-1.5 rounded text-sm font-medium capitalize',
-                                    member.role === 'owner' ? 'bg-red-100 text-red-800' : '',
-                                    member.role === 'admin' ? 'bg-orange-100 text-orange-900' : '',
-                                    member.role === 'editor' ? 'bg-blue-100 text-blue-800' : '',
-                                    member.role === 'viewer' ? 'bg-teal-50 text-teal-800' : ''
-                                ]"
-                            >
-                                {{ member.role }}
+                        <div v-if="member.is_owner" class="min-w-[80px]">
+                            <span class="inline-block px-3 py-1.5 rounded text-sm font-medium capitalize bg-red-100 text-red-800">
+                                Owner
                             </span>
                         </div>
 
@@ -117,7 +93,7 @@
                         </div>
                         
                         <button 
-                            v-if="canManageMembers && member.role !== 'owner'"
+                            v-if="canManageMembers && !member.is_owner"
                             @click="removeMember(member)"
                             class="px-2.5 py-1.5 bg-red-400 text-white rounded text-sm hover:bg-red-500 transition-colors cursor-pointer"
                             title="Remove member"
@@ -148,7 +124,7 @@
                                 {{ invitation.invited_email }}
                             </span>
                             <div class="flex items-center gap-3 text-sm text-gray-600">
-                                <span class="capitalize">{{ invitation.role }}</span>
+                                <span class="capitalize">{{ invitation.marketing_role }}</span>
                                 <span>•</span>
                                 <span>Expires: {{ formatDate(invitation.expires_at) }}</span>
                             </div>
@@ -180,11 +156,12 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
-import { useProjectRole } from '@/composables/useProjectRole';
+import { useProjectsStore } from '~/stores/projects';
+import { useLoggedInUserStore } from '~/stores/logged_in_user';
 
 interface Member {
     id: number;
-    role: 'owner' | 'admin' | 'editor' | 'viewer';
+    is_owner: boolean;
     marketing_role: string | null;
     user: {
         id: number;
@@ -200,7 +177,7 @@ interface Invitation {
     id: number;
     project_id: number;
     invited_email: string;
-    role: string;
+    marketing_role: string;
     status: string;
     expires_at: string;
     created_at: string;
@@ -214,14 +191,14 @@ const props = defineProps<{
     showMarketingRole?: boolean;
 }>();
 
-const { isAnalyst: isProjectAnalyst } = useProjectRole();
+const projectsStore = useProjectsStore();
+const loggedInUserStore = useLoggedInUserStore();
 
 const emit = defineEmits(['close', 'memberUpdated']);
 
 const localMembers = ref<Member[]>([]);
 const pendingInvitations = ref<Invitation[]>([]);
 const inviteEmail = ref('');
-const inviteRole = ref<'viewer' | 'editor' | 'admin'>('viewer');
 const inviteMarketingRole = ref<'analyst' | 'manager' | 'cmo'>('manager');
 const inviteMessage = ref('');
 const inviteError = ref(false);
@@ -253,7 +230,15 @@ watch(() => props.isOpen, async (newValue) => {
 });
 
 const canManageMembers = computed(() => {
-    return isProjectAnalyst.value || ['owner', 'admin'].includes(props.userRole);
+    // System admins always have access
+    const user = loggedInUserStore.getLoggedInUser();
+    if (user?.user_type === 'admin') return true;
+    // Look up the project by ID and check my_role
+    const project = projectsStore.projects.find(p => p.id === props.projectId);
+    if (!project) return false;
+    const myRole = project.my_role as string | null;
+    // analyst can manage members; project owner (is_owner flag) also can
+    return project.is_owner || myRole === 'analyst';
 });
 
 function close() {
@@ -388,7 +373,6 @@ async function inviteMember() {
                 body: {
                     projectId: props.projectId,
                     email: inviteEmail.value,
-                    role: inviteRole.value,
                     marketing_role: inviteMarketingRole.value
                 }
             }
@@ -396,7 +380,7 @@ async function inviteMember() {
         
         if (data.success) {
             if (data.invitation?.addedDirectly) {
-                inviteMessage.value = `User added directly as ${inviteRole.value}`;
+                inviteMessage.value = `User added successfully`;
                 // Refresh members list
                 emit('memberUpdated');
             } else {
@@ -414,32 +398,6 @@ async function inviteMember() {
     } catch (error: any) {
         inviteMessage.value = error.message || 'Failed to send invitation';
         inviteError.value = true;
-    }
-}
-
-async function updateRole(member: Member) {
-    try {
-        const data = await $fetch<{success: boolean, message: string}>(`${baseUrl()}/project/${props.projectId}/members/${member.user.id}`, {
-            method: 'PUT',
-            headers: {
-                'Authorization': `Bearer ${getAuthToken()}`,
-                'Authorization-Type': 'auth',
-            },
-            body: {
-                role: member.role
-            }
-        });
-        
-        if (data.success) {
-            emit('memberUpdated');
-        } else {
-            console.error('Failed to update role:', data.message);
-            // Revert on error - sync from props
-            localMembers.value = [...props.members];
-        }
-    } catch (error) {
-        console.error('Error updating role:', error);
-        localMembers.value = [...props.members];
     }
 }
 

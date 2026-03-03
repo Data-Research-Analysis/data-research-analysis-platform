@@ -74,24 +74,24 @@ router.get('/:projectId/members/me',
  * 
  * Invites a user to join the project with specified role.
  * Requires PROJECT_MANAGE_MEMBERS permission (OWNER and ADMIN only).
+ * Role is always set to 'editor' — marketing_role controls permissions.
  * 
  * POST /project/:projectId/members
- * Body: { userId: number, role: 'viewer' | 'editor' | 'admin' }
+ * Body: { userId: number }
  */
 router.post('/:projectId/members',
     validateJWT,
     authorize(Permission.PROJECT_MANAGE_MEMBERS),
     [
         body('userId').isInt().withMessage('Valid user ID required'),
-        body('role').isIn(['viewer', 'editor', 'admin']).withMessage('Invalid role')
     ],
     async (req, res) => {
         try {
             const projectId = parseInt(req.params.projectId);
-            const { userId, role } = req.body;
+            const { userId } = req.body;
             const { user_id } = req.body.tokenDetails;
             
-            const member = await ProjectProcessor.getInstance().addProjectMember(projectId, userId, role, user_id);
+            const member = await ProjectProcessor.getInstance().addProjectMember(projectId, userId, user_id);
             
             res.json({
                 success: true,
@@ -103,45 +103,6 @@ router.post('/:projectId/members',
             res.status(400).json({
                 success: false,
                 message: error.message || 'Failed to add member'
-            });
-        }
-    }
-);
-
-/**
- * Update member role
- * 
- * Changes a member's role in the project.
- * Requires PROJECT_MANAGE_MEMBERS permission (OWNER and ADMIN only).
- * Cannot change OWNER role.
- * 
- * PUT /project/:projectId/members/:userId
- * Body: { role: 'viewer' | 'editor' | 'admin' }
- */
-router.put('/:projectId/members/:userId',
-    validateJWT,
-    authorize(Permission.PROJECT_MANAGE_MEMBERS),
-    [
-        body('role').isIn(['viewer', 'editor', 'admin']).withMessage('Invalid role')
-    ],
-    async (req, res) => {
-        try {
-            const projectId = parseInt(req.params.projectId);
-            const memberUserId = parseInt(req.params.userId);
-            const { role } = req.body;
-            const { user_id } = req.body.tokenDetails;
-            
-            await ProjectProcessor.getInstance().updateProjectMemberRole(projectId, memberUserId, role, user_id);
-            
-            res.json({
-                success: true,
-                message: 'Member role updated successfully'
-            });
-        } catch (error: any) {
-            console.error('Error updating member role:', error);
-            res.status(400).json({
-                success: false,
-                message: error.message || 'Failed to update member role'
             });
         }
     }

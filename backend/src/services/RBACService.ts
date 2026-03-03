@@ -1,20 +1,22 @@
 import { DBDriver } from '../drivers/DBDriver.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
+import { DRAProject } from '../models/DRAProject.js';
 import { DRAProjectMember } from '../models/DRAProjectMember.js';
-import { EProjectRole } from '../types/EProjectRole.js';
-import { Permission, ROLE_PERMISSIONS } from '../constants/permissions.js';
+import { Permission, MarketingRole, MARKETING_ROLE_PERMISSIONS } from '../constants/permissions.js';
 
 /**
  * Role-Based Access Control (RBAC) Service
  * 
  * Singleton service for managing project permissions and member access.
- * Handles permission checking, member management (add/remove/update), and role assignment.
- * 
- * Key features:
- * - Permission-based authorization (granular control)
- * - Project member management
- * - Role hierarchy enforcement (OWNER > ADMIN > EDITOR > VIEWER)
- * - Database-backed permission checks
+ * Handles permission checking, member management (add/remove), and role assignment.
+ *
+ * All permission decisions are derived from dra_project_members.marketing_role:
+ *   analyst  → full access (create, edit, delete, manage members)
+ *   manager  → create/edit + manage members (no delete)
+ *   cmo      → read-only
+ *
+ * Project ownership is detected via dra_projects.users_platform_id — owners
+ * always receive analyst-level (full) permissions.
  */
 export class RBACService {
     private static instance: RBACService;
@@ -27,30 +29,38 @@ export class RBACService {
         }
         return RBACService.instance;
     }
-    
-    /**
-     * Get user's role in project
-     * 
-     * @param userId - Platform user ID
-     * @param projectId - Project ID
-     * @returns User's role or null if not a member
-     */
-    async getUserRole(userId: number, projectId: number): Promise<EProjectRole | null> {
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Internal helpers
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private async getManager() {
         const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-        if (!driver) return null;
-        
-        const manager = (await driver.getConcreteDriver()).manager;
-        
-        const member = await manager.findOne(DRAProjectMember, {
-            where: {
-                user: { id: userId },
-                project: { id: projectId }
-            }
-        });
-        
-        return member?.role || null;
+        if (!driver) throw new Error('Database unavailable');
+        return (await driver.getConcreteDriver()).manager;
     }
-    
+
+    /**
+     * Returns the effective MarketingRole for a user in a project.
+     * Project owner (dra_projects.users_platform_id) is always treated as 'analyst'.
+     */
+    async getMarketingRole(userId: number, projectId: number): Promise<MarketingRole | null> {
+        const manager = await this.getManager();
+        const project = await manager.findOne(DRAProject, {
+            where: { id: projectId },
+            relations: ['users_platform'],
+        });
+        if (project?.users_platform.id === userId) return 'analyst';
+        const member = await manager.findOne(DRAProjectMember, {
+            where: { user: { id: userId }, project: { id: projectId } },
+        });
+        return (member?.marketing_role as MarketingRole) ?? null;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Permission checks
+    // ─────────────────────────────────────────────────────────────────────────
+
     /**
      * Check if user has permission in project
      * 
@@ -62,14 +72,11 @@ export class RBACService {
     async hasPermission(
         userId: number,
         projectId: number,
-        permission: Permission
+        permission: Permission,
     ): Promise<boolean> {
-        const role = await this.getUserRole(userId, projectId);
-        
+        const role = await this.getMarketingRole(userId, projectId);
         if (!role) return false;
-        
-        const permissions = ROLE_PERMISSIONS[role];
-        return permissions.includes(permission);
+        return MARKETING_ROLE_PERMISSIONS[role].includes(permission);
     }
     
     /**
@@ -83,14 +90,12 @@ export class RBACService {
     async hasAnyPermission(
         userId: number,
         projectId: number,
-        permissions: Permission[]
+        permissions: Permission[],
     ): Promise<boolean> {
-        const role = await this.getUserRole(userId, projectId);
-        
+        const role = await this.getMarketingRole(userId, projectId);
         if (!role) return false;
-        
-        const rolePermissions = ROLE_PERMISSIONS[role];
-        return permissions.some(p => rolePermissions.includes(p));
+        const granted = MARKETING_ROLE_PERMISSIONS[role];
+        return permissions.some(p => granted.includes(p));
     }
     
     /**
@@ -104,14 +109,12 @@ export class RBACService {
     async hasAllPermissions(
         userId: number,
         projectId: number,
-        permissions: Permission[]
+        permissions: Permission[],
     ): Promise<boolean> {
-        const role = await this.getUserRole(userId, projectId);
-        
+        const role = await this.getMarketingRole(userId, projectId);
         if (!role) return false;
-        
-        const rolePermissions = ROLE_PERMISSIONS[role];
-        return permissions.every(p => rolePermissions.includes(p));
+        const granted = MARKETING_ROLE_PERMISSIONS[role];
+        return permissions.every(p => granted.includes(p));
     }
     
     /**
@@ -121,15 +124,11 @@ export class RBACService {
      * @returns Array of project memberships with role info
      */
     async getUserProjects(userId: number): Promise<DRAProjectMember[]> {
-        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-        if (!driver) return [];
-        
-        const manager = (await driver.getConcreteDriver()).manager;
-        
+        const manager = await this.getManager();
         return manager.find(DRAProjectMember, {
             where: { user: { id: userId } },
             relations: ['project', 'invited_by'],
-            order: { added_at: 'DESC' }
+            order: { added_at: 'DESC' },
         });
     }
     
@@ -146,49 +145,59 @@ export class RBACService {
      * @returns Created project member record
      * @throws Error if insufficient permissions or member already exists
      */
+    // ─────────────────────────────────────────────────────────────────────────
+    // Member queries
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Returns all members of a project enriched with is_owner flag.
+     * is_owner is true when member.user.id === dra_projects.users_platform_id.
+     */
+    async getProjectMembers(projectId: number): Promise<Array<DRAProjectMember & { is_owner: boolean }>> {
+        const manager = await this.getManager();
+        const project = await manager.findOne(DRAProject, {
+            where: { id: projectId },
+            relations: ['users_platform'],
+        });
+        const members = await manager.find(DRAProjectMember, {
+            where: { project: { id: projectId } },
+            relations: ['user', 'invited_by'],
+            order: { added_at: 'ASC' },
+        });
+        const ownerId = project?.users_platform.id;
+        return members.map(m => Object.assign(m, { is_owner: m.user.id === ownerId }));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Member mutations
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Add a member to a project.
+     * Requires PROJECT_MANAGE_MEMBERS permission from the requesting user.
+     */
     async addMember(
         projectId: number,
         userId: number,
-        role: EProjectRole,
-        invitedByUserId: number
+        invitedByUserId: number,
     ): Promise<DRAProjectMember> {
-        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-        if (!driver) {
-            throw new Error('Database unavailable');
-        }
-        
-        const manager = (await driver.getConcreteDriver()).manager;
-        
-        // Check if inviter has permission
+        const manager = await this.getManager();
         const canManage = await this.hasPermission(
             invitedByUserId,
             projectId,
-            Permission.PROJECT_MANAGE_MEMBERS
+            Permission.PROJECT_MANAGE_MEMBERS,
         );
-        
-        if (!canManage) {
-            throw new Error('Insufficient permissions to add members');
-        }
-        
-        // Check if member already exists
+        if (!canManage) throw new Error('Insufficient permissions to add members');
+
         const existing = await manager.findOne(DRAProjectMember, {
-            where: {
-                project: { id: projectId },
-                user: { id: userId }
-            }
+            where: { project: { id: projectId }, user: { id: userId } },
         });
-        
-        if (existing) {
-            throw new Error('User is already a member of this project');
-        }
-        
-        // Create member
+        if (existing) throw new Error('User is already a member of this project');
+
         const member = new DRAProjectMember();
         member.project = { id: projectId } as any;
         member.user = { id: userId } as any;
-        member.role = role;
         member.invited_by = { id: invitedByUserId } as any;
-        
         return manager.save(member);
     }
     
@@ -207,105 +216,31 @@ export class RBACService {
     async removeMember(
         projectId: number,
         memberUserId: number,
-        removedByUserId: number
+        removedByUserId: number,
     ): Promise<boolean> {
-        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-        if (!driver) return false;
-        
-        const manager = (await driver.getConcreteDriver()).manager;
-        
-        // Check permissions
+        const manager = await this.getManager();
         const canManage = await this.hasPermission(
             removedByUserId,
             projectId,
-            Permission.PROJECT_MANAGE_MEMBERS
+            Permission.PROJECT_MANAGE_MEMBERS,
         );
-        
-        if (!canManage) {
-            throw new Error('Insufficient permissions');
-        }
-        
-        // Cannot remove project owner
-        const memberRole = await this.getUserRole(memberUserId, projectId);
-        if (memberRole === EProjectRole.OWNER) {
+        if (!canManage) throw new Error('Insufficient permissions');
+
+        // Cannot remove the project creator
+        const project = await manager.findOne(DRAProject, {
+            where: { id: projectId },
+            relations: ['users_platform'],
+        });
+        if (project?.users_platform.id === memberUserId) {
             throw new Error('Cannot remove project owner');
         }
-        
+
         const result = await manager.delete(DRAProjectMember, {
             project: { id: projectId },
-            user: { id: memberUserId }
+            user: { id: memberUserId },
         });
-        
         return result.affected !== 0;
     }
     
-    /**
-     * Update member role
-     * 
-     * Requires PROJECT_MANAGE_MEMBERS permission.
-     * Cannot change OWNER role.
-     * 
-     * @param projectId - Project ID
-     * @param memberUserId - User to update
-     * @param newRole - New role to assign
-     * @param updatedByUserId - User performing the action
-     * @returns true if updated successfully
-     * @throws Error if insufficient permissions or trying to change owner
-     */
-    async updateMemberRole(
-        projectId: number,
-        memberUserId: number,
-        newRole: EProjectRole,
-        updatedByUserId: number
-    ): Promise<boolean> {
-        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-        if (!driver) return false;
-        
-        const manager = (await driver.getConcreteDriver()).manager;
-        
-        // Check permissions
-        const canManage = await this.hasPermission(
-            updatedByUserId,
-            projectId,
-            Permission.PROJECT_MANAGE_MEMBERS
-        );
-        
-        if (!canManage) {
-            throw new Error('Insufficient permissions');
-        }
-        
-        // Cannot change owner role
-        const currentRole = await this.getUserRole(memberUserId, projectId);
-        if (currentRole === EProjectRole.OWNER) {
-            throw new Error('Cannot change owner role');
-        }
-        
-        const result = await manager.update(DRAProjectMember, {
-            project: { id: projectId },
-            user: { id: memberUserId }
-        }, {
-            role: newRole
-        });
-        
-        return result.affected !== 0;
-    }
-    
-    /**
-     * Get all members of a project
-     * 
-     * @param projectId - Project ID
-     * @returns Array of project members with user and inviter details
-     */
-    async getProjectMembers(projectId: number): Promise<DRAProjectMember[]> {
-        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-        if (!driver) return [];
-        
-        const manager = (await driver.getConcreteDriver()).manager;
-        
-        return manager.find(DRAProjectMember, {
-            where: { project: { id: projectId } },
-            relations: ['user', 'invited_by'],
-            order: { added_at: 'ASC' }
-        });
-    }
 }
+

@@ -8,7 +8,6 @@ import { DRADashboard } from "../models/DRADashboard.js";
 import { EDataSourceType } from "../types/EDataSourceType.js";
 import { DRADashboardExportMetaData } from "../models/DRADashboardExportMetaData.js";
 import { DRAProjectMember } from "../models/DRAProjectMember.js";
-import { EProjectRole } from "../types/EProjectRole.js";
 import { NotificationHelperService } from "../services/NotificationHelperService.js";
 export class ProjectProcessor {
     private static instance: ProjectProcessor;
@@ -55,11 +54,10 @@ export class ProjectProcessor {
                 const savedProject = await transactionManager.save(project);
                 savedProjectId = savedProject.id;
                 
-                // Create project member entry with owner role and Analyst marketing role
+                // Create project member entry with Analyst marketing role (full access)
                 const projectMember = new DRAProjectMember();
                 projectMember.project = savedProject;
                 projectMember.user = user;
-                projectMember.role = EProjectRole.OWNER;
                 projectMember.marketing_role = 'analyst';
                 projectMember.added_at = new Date();
                 await transactionManager.save(projectMember);
@@ -127,7 +125,6 @@ export class ProjectProcessor {
                     },
                     members: {
                         id: true,
-                        role: true,
                         marketing_role: true,
                         added_at: true,
                         user: {
@@ -180,7 +177,7 @@ export class ProjectProcessor {
                     allProjectsMap.set(member.project.id, {
                         ...member.project,
                         is_owner: false,
-                        user_role: member.role,
+                        user_role: member.marketing_role === 'analyst' ? 'admin' : member.marketing_role === 'manager' ? 'editor' : 'viewer',
                         my_role: member.marketing_role ?? 'cmo',
                     });
                 }
@@ -320,17 +317,9 @@ export class ProjectProcessor {
     /**
      * Add a member to a project with a specified role.
      */
-    public async addProjectMember(projectId: number, userId: number, role: string, requestingUserId: number): Promise<any> {
+    public async addProjectMember(projectId: number, userId: number, requestingUserId: number): Promise<any> {
         const { RBACService } = await import('../services/RBACService.js');
-        return RBACService.getInstance().addMember(projectId, userId, role as any, requestingUserId);
-    }
-
-    /**
-     * Update a member's role in a project.
-     */
-    public async updateProjectMemberRole(projectId: number, memberUserId: number, role: string, requestingUserId: number): Promise<boolean> {
-        const { RBACService } = await import('../services/RBACService.js');
-        return RBACService.getInstance().updateMemberRole(projectId, memberUserId, role as any, requestingUserId);
+        return RBACService.getInstance().addMember(projectId, userId, requestingUserId);
     }
 
     /**
@@ -346,7 +335,7 @@ export class ProjectProcessor {
      */
     public async getUserProjectRole(userId: number, projectId: number): Promise<string | null> {
         const { RBACService } = await import('../services/RBACService.js');
-        return RBACService.getInstance().getUserRole(userId, projectId);
+        return RBACService.getInstance().getMarketingRole(userId, projectId);
     }
 
     /**
@@ -397,7 +386,7 @@ export class ProjectProcessor {
      *
      * Returns null if the user is not a member of the project.
      */
-    public async getMyMembership(projectId: number, userId: number): Promise<{ role: string; marketing_role: string | null } | null> {
+    public async getMyMembership(projectId: number, userId: number): Promise<{ is_owner: boolean; marketing_role: string } | null> {
         const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
         if (!driver) throw new Error('PostgreSQL driver not available');
 
@@ -415,9 +404,14 @@ export class ProjectProcessor {
 
         if (!member) return null;
 
+        const project = await manager.findOne(DRAProject, {
+            where: { id: projectId },
+            relations: ['users_platform'],
+        });
+
         return {
-            role: member.role,
-            marketing_role: member.marketing_role ?? null,
+            is_owner: project?.users_platform.id === userId,
+            marketing_role: member.marketing_role,
         };
     }
 }

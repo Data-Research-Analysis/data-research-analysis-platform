@@ -9,7 +9,7 @@ import PostgresDSMigrations from '../../datasources/PostgresDSMigrations.js';
 import { DRAProject } from '../../models/DRAProject.js';
 import { DRAProjectMember } from '../../models/DRAProjectMember.js';
 import { DRAUsersPlatform } from '../../models/DRAUsersPlatform.js';
-import { EProjectRole } from '../../types/EProjectRole.js';
+
 import { ITokenDetails } from '../../types/ITokenDetails.js';
 import { EUserType } from '../../types/EUserType.js';
 
@@ -98,7 +98,7 @@ describe('ProjectProcessor - Member Creation', () => {
                 relations: ['project', 'user']
             });
             expect(member).toBeDefined();
-            expect(member!.role).toBe(EProjectRole.OWNER);
+            expect(member!.marketing_role).toBe('analyst');
             expect(member!.added_at).toBeDefined();
         });
 
@@ -135,7 +135,7 @@ describe('ProjectProcessor - Member Creation', () => {
             });
 
             expect(member).toBeDefined();
-            expect(member!.role).toBe(EProjectRole.OWNER);
+            expect(member!.marketing_role).toBe('analyst');
         });
 
         it('should create separate member entries for multiple projects by same user', async () => {
@@ -159,8 +159,8 @@ describe('ProjectProcessor - Member Creation', () => {
             });
 
             expect(members).toHaveLength(2);
-            expect(members[0].role).toBe(EProjectRole.OWNER);
-            expect(members[1].role).toBe(EProjectRole.OWNER);
+            expect(members[0].marketing_role).toBe('analyst');
+            expect(members[1].marketing_role).toBe('analyst');
         });
 
         it('should use transaction for atomic project and member creation', async () => {

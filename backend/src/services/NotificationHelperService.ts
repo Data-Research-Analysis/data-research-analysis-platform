@@ -1,6 +1,5 @@
 import { NotificationProcessor } from '../processors/NotificationProcessor.js';
 import { NotificationType, ICreateNotificationData } from '../types/NotificationTypes.js';
-import { EProjectRole } from '../types/EProjectRole.js';
 
 /**
  * NotificationHelperService - Singleton service for creating notifications
@@ -83,7 +82,7 @@ export class NotificationHelperService {
         }
     }
 
-    async notifyProjectMemberAdded(userId: number, projectId: number, projectName: string, memberName: string, role: EProjectRole): Promise<void> {
+    async notifyProjectMemberAdded(userId: number, projectId: number, projectName: string, memberName: string, role: string): Promise<void> {
         try {
             await this.notificationProcessor.createNotification({
                 userId,
@@ -113,7 +112,7 @@ export class NotificationHelperService {
         }
     }
 
-    async notifyProjectRoleChanged(userId: number, projectId: number, projectName: string, newRole: EProjectRole): Promise<void> {
+    async notifyProjectRoleChanged(userId: number, projectId: number, projectName: string, newRole: string): Promise<void> {
         try {
             await this.notificationProcessor.createNotification({
                 userId,

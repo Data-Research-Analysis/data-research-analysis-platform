@@ -3,7 +3,6 @@ import { DataSource } from 'typeorm';
 import { DRAProject } from '../models/DRAProject.js';
 import { DRAUsersPlatform } from '../models/DRAUsersPlatform.js';
 import { DRAProjectMember } from '../models/DRAProjectMember.js';
-import { EProjectRole } from '../types/EProjectRole.js';
 
 export class DemoProjectsSeeder extends Seeder {
     async run(dataSource: DataSource) {
@@ -33,11 +32,10 @@ export class DemoProjectsSeeder extends Seeder {
                 project.created_at = new Date();
                 const savedProject = await transactionManager.save(project);
                 
-                // Create project member entry with owner role
                 const projectMember = new DRAProjectMember();
                 projectMember.project = savedProject;
                 projectMember.user = user;
-                projectMember.role = EProjectRole.OWNER;
+                projectMember.marketing_role = 'analyst';
                 projectMember.added_at = new Date();
                 await transactionManager.save(projectMember);
                 
@@ -59,7 +57,7 @@ export class DemoProjectsSeeder extends Seeder {
                 const projectMember = new DRAProjectMember();
                 projectMember.project = existingProject;
                 projectMember.user = user;
-                projectMember.role = EProjectRole.OWNER;
+                projectMember.marketing_role = 'analyst';
                 projectMember.added_at = new Date();
                 await manager.save(projectMember);
                 console.log('✅ Added missing member entry for demo project');

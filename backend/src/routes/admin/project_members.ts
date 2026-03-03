@@ -85,9 +85,10 @@ router.patch('/:projectId/members/:userId/role', validateJWT, async (req: Reques
         }
 
         // Upsert (update if exists, insert if not)
+        // role column omitted — DB DEFAULT 'editor' handles it (migration 1772800000000)
         await concreteDriver.query(
-            `INSERT INTO dra_project_members (project_id, users_platform_id, role, marketing_role, added_at)
-             VALUES ($1, $2, 'viewer', $3, NOW())
+            `INSERT INTO dra_project_members (project_id, users_platform_id, marketing_role, added_at)
+             VALUES ($1, $2, $3, NOW())
              ON CONFLICT (project_id, users_platform_id)
              DO UPDATE SET marketing_role = EXCLUDED.marketing_role`,
             [projectId, userId, marketing_role],

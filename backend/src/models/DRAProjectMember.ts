@@ -1,7 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Unique, type Relation } from 'typeorm';
 import { DRAProject } from './DRAProject.js';
 import { DRAUsersPlatform } from './DRAUsersPlatform.js';
-import { EProjectRole } from '../types/EProjectRole.js';
 
 /**
  * Project member with role-based permissions
@@ -22,9 +21,6 @@ export class DRAProjectMember {
     @ManyToOne(() => DRAUsersPlatform, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'users_platform_id' })
     user!: Relation<DRAUsersPlatform>;
-
-    @Column({ type: 'enum', enum: EProjectRole })
-    role!: EProjectRole;
 
     @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
     added_at!: Date;
