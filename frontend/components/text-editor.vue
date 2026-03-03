@@ -239,6 +239,10 @@
     
     // Watch for content changes and update editor
     watch([() => props.content, editor], ([newContent, editorInstance]) => {
+        // Skip while the user is editing in the markdown textarea — the TipTap
+        // editor is hidden and must not be updated until the user switches back.
+        if (viewMode.value === 'markdown') return;
+
         // Skip if editor hasn't been created yet or no content
         if (!editorInstance || !newContent) {
             return;
@@ -341,16 +345,14 @@
                 }
             }
         } else {
-            // Switching back to WYSIWYG - parse markdown back to editor
+            // Switching back to WYSIWYG - always re-parse from the textarea so
+            // the editor is guaranteed a clean render regardless of whether the
+            // content superficially matches what was last set.
             if (editor.value) {
                 try {
-                    // Only update if content has changed
-                    const currentMarkdown = editor.value.getMarkdown() || '';
-                    if (markdownContent.value !== currentMarkdown) {
-                        editor.value.commands.setContent(markdownContent.value || '', { 
-                            contentType: 'markdown' 
-                        });
-                    }
+                    editor.value.commands.setContent(markdownContent.value || '', { 
+                        contentType: 'markdown' 
+                    });
                 } catch (error) {
                     console.error('Error parsing markdown content:', error);
                     // Try to set as HTML fallback
@@ -384,19 +386,17 @@
         }
     });
     
-    // Phase 5: Watch markdown content changes and emit updates
+    // Phase 5: Watch markdown content changes and sync the hidden TipTap editor.
+    // onUpdate already emits update:content (HTML) and update:markdown when
+    // setContent fires, so we must NOT emit manually here to avoid double-emits
+    // that cause props.content to change and re-trigger the props watcher.
     watch(markdownContent, (newMarkdown) => {
-        // When user edits markdown directly, emit the changes
         if (viewMode.value === 'markdown' && editor.value) {
             try {
-                // Parse markdown to HTML for the content emit
-                const tempDiv = document.createElement('div');
                 editor.value.commands.setContent(newMarkdown || '', { contentType: 'markdown' });
-                const html = editor.value.getHTML();
-                emits('update:content', html);
-                emits('update:markdown', newMarkdown);
+                // onUpdate handles emitting update:content and update:markdown
             } catch (error) {
-                console.error('Error emitting markdown changes:', error);
+                console.error('Error syncing markdown to editor:', error);
             }
         }
     });
