@@ -384,7 +384,11 @@ export class ProjectProcessor {
         });
         if (!member) throw new Error('Member not found in this project');
 
-        member.marketing_role = marketingRole;
+        const VALID_MARKETING_ROLES = ['cmo', 'manager', 'analyst'] as const;
+        if (!marketingRole || !(VALID_MARKETING_ROLES as readonly string[]).includes(marketingRole)) {
+            throw new Error(`Invalid marketing role. Must be one of: ${VALID_MARKETING_ROLES.join(', ')}`);
+        }
+        member.marketing_role = marketingRole as 'cmo' | 'manager' | 'analyst';
         await manager.save(member);
     }
 
