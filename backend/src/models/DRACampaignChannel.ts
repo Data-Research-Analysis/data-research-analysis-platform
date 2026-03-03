@@ -29,6 +29,12 @@ export class DRACampaignChannel {
     @Column({ type: 'boolean', default: false })
     is_offline!: boolean;
 
+    @Column({ type: 'varchar', length: 255, nullable: true })
+    platform_campaign_id!: string | null;
+
+    @Column({ type: 'varchar', length: 255, nullable: true })
+    platform_campaign_name!: string | null;
+
     @CreateDateColumn()
     created_at!: Date;
 

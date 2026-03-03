@@ -68,6 +68,26 @@ export interface IAddChannelDTO {
     data_source_id?: number | null;
     channel_name?: string | null;
     is_offline?: boolean;
+    platform_campaign_id?: string | null;
+    platform_campaign_name?: string | null;
+}
+
+export interface IUpdateChannelDTO {
+    data_source_id?: number | null;
+    platform_campaign_id?: string | null;
+    platform_campaign_name?: string | null;
+}
+
+export interface IAvailablePlatformCampaign {
+    id: string;
+    name: string;
+    status: string;
+    objective?: string;
+}
+
+export interface IAvailablePlatformCampaignsResult {
+    campaigns: IAvailablePlatformCampaign[];
+    channelInfo?: string;
 }
 
 export class CampaignProcessor {
@@ -193,6 +213,18 @@ export class CampaignProcessor {
         channel.data_source_id = channelData.data_source_id ?? null;
         channel.channel_name = channelData.channel_name ?? null;
         channel.is_offline = channelData.is_offline ?? false;
+        channel.platform_campaign_id = channelData.platform_campaign_id ?? null;
+        channel.platform_campaign_name = channelData.platform_campaign_name ?? null;
+        return manager.save(channel);
+    }
+
+    async updateChannel(channelId: number, data: IUpdateChannelDTO): Promise<DRACampaignChannel | null> {
+        const manager = await this.getManager();
+        const channel = await manager.findOne(DRACampaignChannel, { where: { id: channelId } });
+        if (!channel) return null;
+        if (data.data_source_id !== undefined) channel.data_source_id = data.data_source_id;
+        if (data.platform_campaign_id !== undefined) channel.platform_campaign_id = data.platform_campaign_id;
+        if (data.platform_campaign_name !== undefined) channel.platform_campaign_name = data.platform_campaign_name;
         return manager.save(channel);
     }
 
@@ -200,6 +232,108 @@ export class CampaignProcessor {
         const manager = await this.getManager();
         const result = await manager.delete(DRACampaignChannel, { id: channelId });
         return (result.affected ?? 0) > 0;
+    }
+
+    async getAvailablePlatformCampaigns(
+        dataSourceId: number,
+        channelType: string,
+    ): Promise<IAvailablePlatformCampaignsResult> {
+        if (channelType === 'tiktok_ads') {
+            return { campaigns: [], channelInfo: 'not_integrated' };
+        }
+        if (channelType === 'google_analytics') {
+            return { campaigns: [], channelInfo: 'no_campaign_entities' };
+        }
+
+        const manager = await this.getManager();
+
+        type TableRow = { schema_name: string; physical_table_name: string };
+
+        const getPhysicalTables = async (logicalName: string): Promise<TableRow[]> => {
+            return manager.query(
+                `SELECT schema_name, physical_table_name FROM dra_table_metadata
+                 WHERE data_source_id = $1 AND logical_table_name = $2`,
+                [dataSourceId, logicalName],
+            );
+        };
+
+        const getPhysicalTablesLike = async (logicalPattern: string): Promise<TableRow[]> => {
+            return manager.query(
+                `SELECT schema_name, physical_table_name FROM dra_table_metadata
+                 WHERE data_source_id = $1 AND logical_table_name LIKE $2`,
+                [dataSourceId, logicalPattern],
+            );
+        };
+
+        const campaigns: IAvailablePlatformCampaign[] = [];
+
+        if (channelType === 'google_ads') {
+            const tables = await getPhysicalTables('campaigns');
+            for (const t of tables) {
+                const rows = await manager.query(
+                    `SELECT DISTINCT campaign_id::text AS id, campaign_name AS name, COALESCE(campaign_status, '') AS status
+                     FROM "${t.schema_name}"."${t.physical_table_name}"
+                     WHERE campaign_id IS NOT NULL AND campaign_name IS NOT NULL
+                     ORDER BY campaign_name`,
+                );
+                for (const r of rows) {
+                    if (!campaigns.find((c) => c.id === r.id)) {
+                        campaigns.push({ id: r.id, name: r.name, status: r.status });
+                    }
+                }
+            }
+        } else if (channelType === 'meta_ads') {
+            const tables = await getPhysicalTables('campaigns');
+            for (const t of tables) {
+                const rows = await manager.query(
+                    `SELECT DISTINCT id::text AS id, name, COALESCE(status, '') AS status, COALESCE(objective, '') AS objective
+                     FROM "${t.schema_name}"."${t.physical_table_name}"
+                     WHERE id IS NOT NULL AND name IS NOT NULL
+                     ORDER BY name`,
+                );
+                for (const r of rows) {
+                    if (!campaigns.find((c) => c.id === r.id)) {
+                        campaigns.push({ id: r.id, name: r.name, status: r.status, objective: r.objective });
+                    }
+                }
+            }
+        } else if (channelType === 'linkedin_ads') {
+            const tables = await getPhysicalTables('campaigns');
+            for (const t of tables) {
+                const rows = await manager.query(
+                    `SELECT DISTINCT id::text AS id, name, COALESCE(status, '') AS status,
+                            COALESCE(objective_type, '') AS objective
+                     FROM "${t.schema_name}"."${t.physical_table_name}"
+                     WHERE id IS NOT NULL AND name IS NOT NULL
+                     ORDER BY name`,
+                );
+                for (const r of rows) {
+                    if (!campaigns.find((c) => c.id === r.id)) {
+                        campaigns.push({ id: r.id, name: r.name, status: r.status, objective: r.objective });
+                    }
+                }
+            }
+        } else if (channelType === 'google_ad_manager') {
+            const tables = await getPhysicalTablesLike('orders%');
+            for (const t of tables) {
+                const rows = await manager.query(
+                    `SELECT DISTINCT order_id::text AS id, order_name AS name,
+                            '' AS status, COALESCE(advertiser_name, '') AS objective
+                     FROM "${t.schema_name}"."${t.physical_table_name}"
+                     WHERE order_id IS NOT NULL AND order_name IS NOT NULL
+                     ORDER BY order_name`,
+                );
+                for (const r of rows) {
+                    if (!campaigns.find((c) => c.id === r.id)) {
+                        campaigns.push({ id: r.id, name: r.name, status: r.status, objective: r.objective });
+                    }
+                }
+            }
+        } else {
+            throw new Error(`getAvailablePlatformCampaigns: unsupported channelType '${channelType}'`);
+        }
+
+        return { campaigns };
     }
 
     async listCampaignChannels(campaignId: number): Promise<DRACampaignChannel[]> {

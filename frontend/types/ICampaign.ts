@@ -5,7 +5,32 @@ export interface ICampaignChannel {
     data_source_id: number | null;
     channel_name: string | null;
     is_offline: boolean;
+    platform_campaign_id: string | null;
+    platform_campaign_name: string | null;
     created_at: string;
+}
+
+/** A campaign record returned by GET /campaigns/available-platform-campaigns */
+export interface IAvailablePlatformCampaign {
+    id: string;
+    name: string;
+    status: string;
+    objective?: string;
+}
+
+/** Per-channel digital metrics returned by GET /marketing/digital-metrics/:campaignId */
+export interface IDigitalChannelMetrics {
+    channelId: number;
+    channelType: string;
+    platformCampaignId: string | null;
+    platformCampaignName: string | null;
+    spend: number;
+    impressions: number;
+    clicks: number;
+    conversions: number;
+    ctr: number;
+    cpc: number;
+    cpl: number;
 }
 
 export interface IOfflineDataEntry {
@@ -103,6 +128,14 @@ export interface IAddChannelPayload {
     data_source_id?: number | null;
     channel_name?: string | null;
     is_offline?: boolean;
+    platform_campaign_id?: string | null;
+    platform_campaign_name?: string | null;
+}
+
+export interface IUpdateChannelPayload {
+    data_source_id?: number | null;
+    platform_campaign_id?: string | null;
+    platform_campaign_name?: string | null;
 }
 
 export const CAMPAIGN_OBJECTIVES: { value: string; label: string }[] = [
