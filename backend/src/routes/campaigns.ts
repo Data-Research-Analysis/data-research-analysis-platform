@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import { validateJWT } from '../middleware/authenticate.js';
 import { validate } from '../middleware/validator.js';
-import { body, param } from 'express-validator';
+import { body, param, query } from 'express-validator';
 import { CampaignProcessor } from '../processors/CampaignProcessor.js';
 import { requiresProjectRole } from '../middleware/requiresProjectRole.js';
 
@@ -212,16 +212,20 @@ router.post(
         body('data_source_id').optional({ nullable: true }).isInt(),
         body('channel_name').optional({ nullable: true }).trim(),
         body('is_offline').optional().isBoolean(),
+        body('platform_campaign_id').optional({ nullable: true }).trim(),
+        body('platform_campaign_name').optional({ nullable: true }).trim(),
     ]),
     async (req: Request, res: Response): Promise<void> => {
         try {
             const campaignId = parseInt(req.params.campaignId);
-            const { channel_type, data_source_id, channel_name, is_offline } = req.body;
+            const { channel_type, data_source_id, channel_name, is_offline, platform_campaign_id, platform_campaign_name } = req.body;
             const channel = await campaignProcessor.addChannel(campaignId, {
                 channel_type,
                 data_source_id: data_source_id ?? null,
                 channel_name: channel_name ?? null,
                 is_offline: is_offline ?? false,
+                platform_campaign_id: platform_campaign_id ?? null,
+                platform_campaign_name: platform_campaign_name ?? null,
             });
             res.status(201).json(channel);
         } catch (err: any) {
@@ -267,6 +271,65 @@ router.get(
             const channels = await campaignProcessor.listCampaignChannels(campaignId);
             res.status(200).json(channels);
         } catch (err: any) {
+            res.status(500).json({ success: false, error: err.message });
+        }
+    },
+);
+
+/**
+ * Get available platform campaigns for a connected data source
+ * GET /campaigns/available-platform-campaigns?dataSourceId=X&channelType=Y
+ */
+router.get(
+    '/available-platform-campaigns',
+    validateJWT,
+    validate([
+        query('dataSourceId').notEmpty().isInt().withMessage('dataSourceId must be an integer').toInt(),
+        query('channelType').notEmpty().trim().withMessage('channelType is required'),
+    ]),
+    async (req: Request, res: Response): Promise<void> => {
+        try {
+            const dataSourceId = parseInt(req.query.dataSourceId as string, 10);
+            const channelType = (req.query.channelType as string).trim();
+            const result = await campaignProcessor.getAvailablePlatformCampaigns(dataSourceId, channelType);
+            res.status(200).json({ success: true, ...result });
+        } catch (err: any) {
+            console.error('[GET /campaigns/available-platform-campaigns]', err);
+            res.status(500).json({ success: false, error: err.message });
+        }
+    },
+);
+
+/**
+ * Update a campaign channel (link/unlink platform campaign)
+ * PATCH /campaigns/:campaignId/channels/:channelId
+ */
+router.patch(
+    '/:campaignId/channels/:channelId',
+    validateJWT,
+    validate([
+        param('campaignId').notEmpty().isInt().toInt(),
+        param('channelId').notEmpty().isInt().toInt(),
+        body('data_source_id').optional({ nullable: true }).isInt(),
+        body('platform_campaign_id').optional({ nullable: true }).trim(),
+        body('platform_campaign_name').optional({ nullable: true }).trim(),
+    ]),
+    async (req: Request, res: Response): Promise<void> => {
+        try {
+            const channelId = parseInt(req.params.channelId, 10);
+            const { data_source_id, platform_campaign_id, platform_campaign_name } = req.body;
+            const updated = await campaignProcessor.updateChannel(channelId, {
+                data_source_id: data_source_id ?? undefined,
+                platform_campaign_id: platform_campaign_id ?? undefined,
+                platform_campaign_name: platform_campaign_name ?? undefined,
+            });
+            if (!updated) {
+                res.status(404).json({ success: false, error: 'Channel not found' });
+                return;
+            }
+            res.status(200).json({ success: true, channel: updated });
+        } catch (err: any) {
+            console.error('[PATCH /campaigns/:campaignId/channels/:channelId]', err);
             res.status(500).json({ success: false, error: err.message });
         }
     },

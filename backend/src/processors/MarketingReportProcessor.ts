@@ -58,6 +58,24 @@ export interface ITopCampaign {
     cpl: number;
 }
 
+/**
+ * Per-channel digital metrics for a DRA campaign.
+ * Returned by getDigitalChannelMetrics() and consumed by the Digital tab and Summary tab.
+ */
+export interface IDigitalChannelMetrics {
+    channelId: number;
+    channelType: string;
+    platformCampaignId: string | null;
+    platformCampaignName: string | null;
+    spend: number;
+    impressions: number;
+    clicks: number;
+    conversions: number;
+    ctr: number;
+    cpc: number;
+    cpl: number;
+}
+
 // ---------------------------------------------------------------------------
 // Channel meta
 // ---------------------------------------------------------------------------
@@ -67,6 +85,7 @@ const AD_CHANNEL_TYPES = [
     EDataSourceType.META_ADS,
     EDataSourceType.LINKEDIN_ADS,
     EDataSourceType.GOOGLE_ANALYTICS,
+    EDataSourceType.GOOGLE_AD_MANAGER,
     EDataSourceType.HUBSPOT,
     EDataSourceType.KLAVIYO,
 ] as string[];
@@ -76,6 +95,7 @@ const CHANNEL_LABELS: Record<string, string> = {
     meta_ads: 'Meta Ads',
     linkedin_ads: 'LinkedIn Ads',
     google_analytics: 'Google Analytics (GA4)',
+    google_ad_manager: 'Google Ad Manager',
     hubspot: 'HubSpot CRM',
     klaviyo: 'Klaviyo Email',
 };
@@ -368,35 +388,82 @@ export class MarketingReportProcessor {
 
     /**
      * Total digital spend for a specific campaign (used by Budget vs Digital chart).
+     * When a channel has a platform_campaign_id set, spend is filtered to that campaign.
+     * Channels without a platform_campaign_id aggregate the whole data source (backwards compatible).
      */
     public async getDigitalSpendForCampaign(
         campaignId: number,
         startDate: Date,
         endDate: Date,
     ): Promise<number> {
+        const metrics = await this.getDigitalChannelMetrics(campaignId, startDate, endDate);
+        return metrics.reduce((sum, m) => sum + m.spend, 0);
+    }
+
+    /**
+     * Per-channel digital metrics for a specific DRA campaign.
+     * Used by the Digital tab and Summary tab spend card.
+     * When a channel has a platform_campaign_id set, metrics are filtered to that campaign.
+     * Channels without platform_campaign_id return account-level aggregates (fallback).
+     */
+    public async getDigitalChannelMetrics(
+        campaignId: number,
+        startDate: Date,
+        endDate: Date,
+    ): Promise<IDigitalChannelMetrics[]> {
         const manager = await this.getManager();
 
         const channels: DRACampaignChannel[] = await manager.find(DRACampaignChannel, {
             where: { campaign_id: campaignId },
         });
 
-        const digitalSourceIds = channels
-            .filter(c => !c.is_offline && c.data_source_id !== null)
-            .map(c => c.data_source_id as number);
+        const digitalChannels = channels.filter(c => !c.is_offline && c.data_source_id !== null);
+        if (digitalChannels.length === 0) return [];
 
-        if (digitalSourceIds.length === 0) return 0;
-
+        const sourceIds = [...new Set(digitalChannels.map(c => c.data_source_id as number))];
         const sources: DRADataSource[] = await manager.findBy(DRADataSource, {
-            id: In(digitalSourceIds) as any,
+            id: In(sourceIds) as any,
         });
+        const sourceMap = new Map(sources.map(s => [s.id, s]));
 
-        let totalSpend = 0;
-        for (const source of sources) {
-            const metrics = await this.fetchChannelMetrics(manager, source, startDate, endDate);
-            if (metrics) totalSpend += metrics.spend;
+        const results: IDigitalChannelMetrics[] = [];
+
+        for (const channel of digitalChannels) {
+            const source = sourceMap.get(channel.data_source_id as number);
+            if (!source) continue;
+
+            const raw = await this.fetchChannelMetrics(
+                manager,
+                source,
+                startDate,
+                endDate,
+                channel.platform_campaign_id ?? undefined,
+            );
+
+            const spend = raw?.spend ?? 0;
+            const impressions = raw?.impressions ?? 0;
+            const clicks = raw?.clicks ?? 0;
+            const conversions = raw?.conversions ?? 0;
+            const ctr = impressions > 0 ? clicks / impressions : 0;
+            const cpc = clicks > 0 ? spend / clicks : 0;
+            const cpl = conversions > 0 ? spend / conversions : 0;
+
+            results.push({
+                channelId: channel.id,
+                channelType: channel.channel_type,
+                platformCampaignId: channel.platform_campaign_id,
+                platformCampaignName: channel.platform_campaign_name,
+                spend,
+                impressions,
+                clicks,
+                conversions,
+                ctr,
+                cpc,
+                cpl,
+            });
         }
 
-        return totalSpend;
+        return results;
     }
 
     // -----------------------------------------------------------------------
@@ -406,12 +473,14 @@ export class MarketingReportProcessor {
     /**
      * Fetch normalised metrics for a single data source.
      * Returns null if no table exists or no data found.
+     * When platformCampaignId is provided, metrics are filtered to that specific campaign.
      */
     private async fetchChannelMetrics(
         manager: any,
         source: DRADataSource,
         startDate: Date,
         endDate: Date,
+        platformCampaignId?: string,
     ): Promise<IChannelMetrics | null> {
         const start = startDate.toISOString().split('T')[0];
         const end = endDate.toISOString().split('T')[0];
@@ -419,13 +488,15 @@ export class MarketingReportProcessor {
         try {
             switch (source.data_type) {
                 case EDataSourceType.GOOGLE_ADS:
-                    return await this.fetchGoogleAdsMetrics(manager, source, start, end);
+                    return await this.fetchGoogleAdsMetrics(manager, source, start, end, platformCampaignId);
                 case EDataSourceType.META_ADS:
-                    return await this.fetchMetaAdsMetrics(manager, source, start, end);
+                    return await this.fetchMetaAdsMetrics(manager, source, start, end, platformCampaignId);
                 case EDataSourceType.LINKEDIN_ADS:
-                    return await this.fetchLinkedInAdsMetrics(manager, source, start, end);
+                    return await this.fetchLinkedInAdsMetrics(manager, source, start, end, platformCampaignId);
                 case EDataSourceType.GOOGLE_ANALYTICS:
                     return await this.fetchGA4Metrics(manager, source, start, end);
+                case EDataSourceType.GOOGLE_AD_MANAGER:
+                    return await this.fetchGoogleAdManagerMetrics(manager, source, start, end, platformCampaignId);
                 case EDataSourceType.HUBSPOT:
                     return await this.fetchHubSpotMetrics(manager, source, start, end);
                 case EDataSourceType.KLAVIYO:
@@ -444,6 +515,7 @@ export class MarketingReportProcessor {
         source: DRADataSource,
         start: string,
         end: string,
+        platformCampaignId?: string,
     ): Promise<IChannelMetrics | null> {
         const tables = await this.getPhysicalTables(manager, source.id, 'campaigns', 'dra_google_ads');
         if (tables.length === 0) return null;
@@ -452,16 +524,32 @@ export class MarketingReportProcessor {
 
         for (const { fullName } of tables) {
             try {
-                const rows = await manager.query(
-                    `SELECT COALESCE(SUM(cost), 0) AS spend,
-                            COALESCE(SUM(impressions), 0) AS impressions,
-                            COALESCE(SUM(clicks), 0) AS clicks,
-                            COALESCE(SUM(conversions), 0) AS conversions,
-                            COALESCE(SUM(conversion_value), 0) AS conv_value
-                     FROM ${fullName}
-                     WHERE date BETWEEN $1 AND $2`,
-                    [start, end],
-                );
+                // When platformCampaignId is set, filter to that campaign only.
+                // Google Ads may have multiple physical tables (one per managed sub-account),
+                // so we UNION across all and deduplicate by campaign_id.
+                const [sql, params] = platformCampaignId
+                    ? [
+                        `SELECT COALESCE(SUM(cost), 0) AS spend,
+                                COALESCE(SUM(impressions), 0) AS impressions,
+                                COALESCE(SUM(clicks), 0) AS clicks,
+                                COALESCE(SUM(conversions), 0) AS conversions,
+                                COALESCE(SUM(conversion_value), 0) AS conv_value
+                         FROM ${fullName}
+                         WHERE date BETWEEN $1 AND $2
+                           AND campaign_id::text = $3`,
+                        [start, end, platformCampaignId],
+                    ]
+                    : [
+                        `SELECT COALESCE(SUM(cost), 0) AS spend,
+                                COALESCE(SUM(impressions), 0) AS impressions,
+                                COALESCE(SUM(clicks), 0) AS clicks,
+                                COALESCE(SUM(conversions), 0) AS conversions,
+                                COALESCE(SUM(conversion_value), 0) AS conv_value
+                         FROM ${fullName}
+                         WHERE date BETWEEN $1 AND $2`,
+                        [start, end],
+                    ];
+                const rows = await manager.query(sql, params);
                 if (rows?.[0]) {
                     spend += Number(rows[0].spend) || 0;
                     impressions += Number(rows[0].impressions) || 0;
@@ -482,6 +570,7 @@ export class MarketingReportProcessor {
         source: DRADataSource,
         start: string,
         end: string,
+        platformCampaignId?: string,
     ): Promise<IChannelMetrics | null> {
         const tables = await this.getPhysicalTables(manager, source.id, 'insights', 'dra_meta_ads');
         if (tables.length === 0) return null;
@@ -490,15 +579,30 @@ export class MarketingReportProcessor {
 
         for (const { fullName } of tables) {
             try {
-                const rows = await manager.query(
-                    `SELECT COALESCE(SUM(spend), 0) AS spend,
-                            COALESCE(SUM(impressions), 0) AS impressions,
-                            COALESCE(SUM(clicks), 0) AS clicks,
-                            COALESCE(SUM(conversions), 0) AS conversions
-                     FROM ${fullName}
-                     WHERE date_start BETWEEN $1 AND $2`,
-                    [start, end],
-                );
+                // campaign_id column was added to insights tables in migration 1773200000000.
+                // When platformCampaignId is provided, filter to that campaign.
+                // NOTE: This is a per-campaign filter using the campaign_id column added in #353.
+                const [sql, params] = platformCampaignId
+                    ? [
+                        `SELECT COALESCE(SUM(spend), 0) AS spend,
+                                COALESCE(SUM(impressions), 0) AS impressions,
+                                COALESCE(SUM(clicks), 0) AS clicks,
+                                COALESCE(SUM(conversions), 0) AS conversions
+                         FROM ${fullName}
+                         WHERE date_start BETWEEN $1 AND $2
+                           AND campaign_id = $3`,
+                        [start, end, platformCampaignId],
+                    ]
+                    : [
+                        `SELECT COALESCE(SUM(spend), 0) AS spend,
+                                COALESCE(SUM(impressions), 0) AS impressions,
+                                COALESCE(SUM(clicks), 0) AS clicks,
+                                COALESCE(SUM(conversions), 0) AS conversions
+                         FROM ${fullName}
+                         WHERE date_start BETWEEN $1 AND $2`,
+                        [start, end],
+                    ];
+                const rows = await manager.query(sql, params);
                 if (rows?.[0]) {
                     spend       += Number(rows[0].spend) || 0;
                     impressions += Number(rows[0].impressions) || 0;
@@ -518,6 +622,7 @@ export class MarketingReportProcessor {
         source: DRADataSource,
         start: string,
         end: string,
+        platformCampaignId?: string,
     ): Promise<IChannelMetrics | null> {
         const tables = await this.getPhysicalTables(manager, source.id, 'campaign_analytics', 'dra_linkedin_ads');
         if (tables.length === 0) return null;
@@ -526,15 +631,29 @@ export class MarketingReportProcessor {
 
         for (const { fullName } of tables) {
             try {
-                const rows = await manager.query(
-                    `SELECT COALESCE(SUM(COALESCE(cost_local, cost_usd)), 0) AS spend,
-                            COALESCE(SUM(impressions), 0) AS impressions,
-                            COALESCE(SUM(clicks), 0) AS clicks,
-                            COALESCE(SUM(external_conversions), 0) AS conversions
-                     FROM ${fullName}
-                     WHERE date_start BETWEEN $1 AND $2`,
-                    [start, end],
-                );
+                // entity_id in campaign_analytics stores the LinkedIn campaign ID.
+                // When platformCampaignId is provided, filter to that campaign.
+                const [sql, params] = platformCampaignId
+                    ? [
+                        `SELECT COALESCE(SUM(COALESCE(cost_local, cost_usd)), 0) AS spend,
+                                COALESCE(SUM(impressions), 0) AS impressions,
+                                COALESCE(SUM(clicks), 0) AS clicks,
+                                COALESCE(SUM(external_conversions), 0) AS conversions
+                         FROM ${fullName}
+                         WHERE date_start BETWEEN $1 AND $2
+                           AND entity_id = $3`,
+                        [start, end, platformCampaignId],
+                    ]
+                    : [
+                        `SELECT COALESCE(SUM(COALESCE(cost_local, cost_usd)), 0) AS spend,
+                                COALESCE(SUM(impressions), 0) AS impressions,
+                                COALESCE(SUM(clicks), 0) AS clicks,
+                                COALESCE(SUM(external_conversions), 0) AS conversions
+                         FROM ${fullName}
+                         WHERE date_start BETWEEN $1 AND $2`,
+                        [start, end],
+                    ];
+                const rows = await manager.query(sql, params);
                 if (rows?.[0]) {
                     spend += Number(rows[0].spend) || 0;
                     impressions += Number(rows[0].impressions) || 0;
@@ -547,6 +666,57 @@ export class MarketingReportProcessor {
         }
 
         return this.buildMetrics(EDataSourceType.LINKEDIN_ADS, source.id, spend, impressions, clicks, conversions, 0);
+    }
+
+    /**
+     * Fetch Google Ad Manager metrics from the orders tables.
+     * Spend = total_earnings (publisher revenue), impressions and clicks from the orders report.
+     * When platformCampaignId is provided, it is matched against order_id.
+     */
+    private async fetchGoogleAdManagerMetrics(
+        manager: any,
+        source: DRADataSource,
+        start: string,
+        end: string,
+        platformCampaignId?: string,
+    ): Promise<IChannelMetrics | null> {
+        const tables = await this.getPhysicalTables(manager, source.id, 'orders', 'dra_google_ad_manager');
+        if (tables.length === 0) return null;
+
+        let spend = 0, impressions = 0, clicks = 0;
+
+        for (const { fullName } of tables) {
+            try {
+                const [sql, params] = platformCampaignId
+                    ? [
+                        `SELECT COALESCE(SUM(total_earnings), 0) AS spend,
+                                COALESCE(SUM(impressions), 0) AS impressions,
+                                COALESCE(SUM(clicks), 0) AS clicks
+                         FROM ${fullName}
+                         WHERE date BETWEEN $1 AND $2
+                           AND order_id = $3`,
+                        [start, end, platformCampaignId],
+                    ]
+                    : [
+                        `SELECT COALESCE(SUM(total_earnings), 0) AS spend,
+                                COALESCE(SUM(impressions), 0) AS impressions,
+                                COALESCE(SUM(clicks), 0) AS clicks
+                         FROM ${fullName}
+                         WHERE date BETWEEN $1 AND $2`,
+                        [start, end],
+                    ];
+                const rows = await manager.query(sql, params);
+                if (rows?.[0]) {
+                    spend       += Number(rows[0].spend) || 0;
+                    impressions += Number(rows[0].impressions) || 0;
+                    clicks      += Number(rows[0].clicks) || 0;
+                }
+            } catch {
+                // Skip missing tables
+            }
+        }
+
+        return this.buildMetrics(EDataSourceType.GOOGLE_AD_MANAGER, source.id, spend, impressions, clicks, 0, 0);
     }
 
     private async fetchGA4Metrics(

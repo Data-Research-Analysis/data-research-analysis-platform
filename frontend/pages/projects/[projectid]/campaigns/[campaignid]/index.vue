@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { useCampaignsStore } from '@/stores/campaigns';
+import { useDataSourceStore } from '@/stores/data_sources';
 import { useAttributionStore } from '@/stores/attribution';
 import { CAMPAIGN_OBJECTIVES, CAMPAIGN_STATUSES } from '~/types/ICampaign';
-import type { ICampaign, ICampaignChannel, IOfflineDataEntry, IOfflineCampaignSummary, IAddChannelPayload } from '~/types/ICampaign';
+import type { ICampaign, ICampaignChannel, IOfflineDataEntry, IOfflineCampaignSummary, IAddChannelPayload, IDigitalChannelMetrics, IAvailablePlatformCampaign } from '~/types/ICampaign';
 import type { AttributionModel, IConversionFunnel } from '@/stores/attribution';
 
 const OFFLINE_CHANNEL_TYPES: { value: string; label: string }[] = [
@@ -31,6 +32,7 @@ definePageMeta({ layout: 'project' });
 const route = useRoute();
 const router = useRouter();
 const campaignStore = useCampaignsStore();
+const dataSourceStore = useDataSourceStore();
 const attributionStore = useAttributionStore();
 
 const projectId = computed(() => parseInt(String(route.params.projectid)));
@@ -56,13 +58,27 @@ const campaign = ref<ICampaign | null>(null);
 const showAddChannelPanel = ref(false);
 const newChannelType = ref('');
 const newChannelName = ref('');
+const newChannelDataSourceId = ref<number | null>(null);
 const addChannelSaving = ref(false);
 const addChannelError = ref('');
 const deleteConfirmChannelId = ref<number | null>(null);
 const channelRemoving = ref<number | null>(null);
 
-// Digital spend (from MarketingReportProcessor)
-const digitalSpend = ref(0);
+// Digital spend (computed from channel metrics)
+const digitalSpend = computed(() => digitalMetrics.value.reduce((s, m) => s + (m.spend ?? 0), 0));
+
+// Digital tab state
+const digitalMetrics = ref<IDigitalChannelMetrics[]>([]);
+const digitalMetricsLoading = ref(false);
+const digitalDateStart = ref('');
+const digitalDateEnd = ref('');
+// Per-channel campaign-linking flow
+const linkingChannelId = ref<number | null>(null);
+const availableCampaigns = ref<IAvailablePlatformCampaign[]>([]);
+const availableCampaignsLoading = ref(false);
+const availableCampaignsChannelInfo = ref<string | undefined>(undefined);
+const selectedLinkCampaignId = ref('');
+const linkSaving = ref(false);
 
 // Offline tab state
 const offlineSummary = ref<IOfflineCampaignSummary | null>(null);
@@ -120,6 +136,19 @@ function channelTypeLabel(type: string): string {
 
 const offlineChannels = computed((): ICampaignChannel[] => {
     return (campaign.value?.channels ?? []).filter((ch) => ch.is_offline);
+});
+
+const digitalChannels = computed((): ICampaignChannel[] => {
+    return (campaign.value?.channels ?? []).filter((ch) => !ch.is_offline);
+});
+
+const newChannelIsDigital = computed(() =>
+    DIGITAL_CHANNEL_TYPES.some((t) => t.value === newChannelType.value),
+);
+
+const filteredDataSourcesForChannel = computed(() => {
+    if (!newChannelType.value) return [];
+    return dataSourceStore.getDataSources().filter((ds) => ds.data_type === newChannelType.value);
 });
 
 // ─── Attribution tab state ────────────────────────────────────────────────────
@@ -210,38 +239,95 @@ onMounted(async () => {
     try {
         const c = await campaignStore.retrieveCampaignById(campaignId.value);
         campaign.value = c;
+        // Init date range defaults
+        const today = new Date();
+        const start = new Date();
+        start.setDate(today.getDate() - 30);
+        digitalDateStart.value = start.toISOString().split('T')[0];
+        digitalDateEnd.value = today.toISOString().split('T')[0];
         await Promise.all([
             loadOfflineSummary(),
-            loadDigitalSpend(),
+            loadDigitalMetrics(),
         ]);
     } finally {
         loading.value = false;
     }
 });
 
-async function loadDigitalSpend() {
+async function loadDigitalMetrics() {
+    if (digitalMetricsLoading.value) return;
+    digitalMetricsLoading.value = true;
     try {
-        const today = new Date();
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(today.getDate() - 30);
-        const token = getAuthToken();
-        if (!token) return;
-        const qs = new URLSearchParams({
-            startDate: thirtyDaysAgo.toISOString().split('T')[0],
-            endDate: today.toISOString().split('T')[0],
-        }).toString();
-        const result = await $fetch<{ success: boolean; data: { digitalSpend: number } }>(
-            `${baseUrl()}/marketing/digital-spend/${campaignId.value}?${qs}`,
-            {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Authorization-Type': 'auth',
-                },
-            },
+        digitalMetrics.value = await campaignStore.getDigitalChannelMetrics(
+            campaignId.value,
+            digitalDateStart.value || undefined,
+            digitalDateEnd.value || undefined,
         );
-        digitalSpend.value = result?.data?.digitalSpend ?? 0;
     } catch {
-        // Non-critical — keep 0
+        // Non-critical
+    } finally {
+        digitalMetricsLoading.value = false;
+    }
+}
+
+async function openLinkPanel(channel: ICampaignChannel) {
+    if (linkingChannelId.value === channel.id) {
+        linkingChannelId.value = null;
+        return;
+    }
+    linkingChannelId.value = channel.id;
+    selectedLinkCampaignId.value = channel.platform_campaign_id ?? '';
+    if (!channel.data_source_id) return;
+    availableCampaignsLoading.value = true;
+    availableCampaigns.value = [];
+    availableCampaignsChannelInfo.value = undefined;
+    try {
+        const result = await campaignStore.getAvailablePlatformCampaigns(channel.data_source_id, channel.channel_type);
+        availableCampaigns.value = result.campaigns;
+        availableCampaignsChannelInfo.value = result.channelInfo;
+    } catch {
+        availableCampaigns.value = [];
+    } finally {
+        availableCampaignsLoading.value = false;
+    }
+}
+
+async function saveLinkCampaign(channel: ICampaignChannel) {
+    if (!selectedLinkCampaignId.value) return;
+    const campaign_ = availableCampaigns.value.find((c) => c.id === selectedLinkCampaignId.value);
+    if (!campaign_) return;
+    linkSaving.value = true;
+    try {
+        const updated = await campaignStore.updateChannel(campaignId.value, channel.id, {
+            platform_campaign_id: campaign_.id,
+            platform_campaign_name: campaign_.name,
+        });
+        if (updated && campaign.value?.channels) {
+            const idx = campaign.value.channels.findIndex((c) => c.id === channel.id);
+            if (idx !== -1) campaign.value.channels[idx] = updated;
+        }
+        linkingChannelId.value = null;
+        await loadDigitalMetrics();
+    } finally {
+        linkSaving.value = false;
+    }
+}
+
+async function unlinkCampaign(channel: ICampaignChannel) {
+    linkSaving.value = true;
+    try {
+        const updated = await campaignStore.updateChannel(campaignId.value, channel.id, {
+            platform_campaign_id: null,
+            platform_campaign_name: null,
+        });
+        if (updated && campaign.value?.channels) {
+            const idx = campaign.value.channels.findIndex((c) => c.id === channel.id);
+            if (idx !== -1) campaign.value.channels[idx] = updated;
+        }
+        linkingChannelId.value = null;
+        await loadDigitalMetrics();
+    } finally {
+        linkSaving.value = false;
     }
 }
 
@@ -256,6 +342,9 @@ watch(activeTab, async (tab) => {
     }
     if (tab === 'offline') {
         await loadAllOfflineEntries();
+    }
+    if (tab === 'digital' || tab === 'summary') {
+        await loadDigitalMetrics();
     }
     if (tab === 'attribution' && !attributionLoaded.value) {
         await loadAttributionData();
@@ -354,6 +443,7 @@ async function submitAddChannel() {
             channel_type: newChannelType.value,
             channel_name: newChannelName.value.trim() || null,
             is_offline: isOfflineType(newChannelType.value),
+            data_source_id: newChannelDataSourceId.value ?? null,
         };
         await campaignStore.addChannel(campaignId.value, payload);
         // Refresh campaign to get updated channels list
@@ -361,6 +451,7 @@ async function submitAddChannel() {
         campaign.value = c;
         newChannelType.value = '';
         newChannelName.value = '';
+        newChannelDataSourceId.value = null;
         showAddChannelPanel.value = false;
         await loadOfflineSummary();
     } catch (e: any) {
@@ -587,6 +678,35 @@ async function setStatus(status: string) {
                         :offline-spend="offlineSummary?.total_spend ?? 0"
                     />
 
+                    <!-- Digital channel spend breakdown -->
+                    <div v-if="digitalMetrics.length > 0" class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                        <div class="px-5 py-4 border-b border-gray-200 flex items-center gap-2">
+                            <font-awesome-icon :icon="['fas', 'globe']" class="text-blue-400 text-sm" />
+                            <h2 class="text-sm font-semibold text-gray-700">Digital Channel Breakdown</h2>
+                        </div>
+                        <div class="divide-y divide-gray-100">
+                            <div
+                                v-for="m in digitalMetrics"
+                                :key="m.channelId"
+                                class="flex items-center justify-between px-5 py-3 text-sm"
+                            >
+                                <div class="flex items-center gap-2 min-w-0">
+                                    <span class="text-gray-700 font-medium truncate">
+                                        {{ allChannelTypeLabel(m.channelType) }}
+                                    </span>
+                                    <span v-if="m.platformCampaignName" class="text-xs text-green-600 bg-green-50 rounded-full px-2 py-0.5 truncate max-w-[150px]" :title="m.platformCampaignName">
+                                        {{ m.platformCampaignName }}
+                                    </span>
+                                </div>
+                                <div class="flex items-center gap-4 shrink-0 ml-4 text-xs text-gray-500">
+                                    <span><span class="font-semibold text-gray-800">{{ formatCurrency(m.spend) }}</span> spend</span>
+                                    <span v-if="m.clicks"><span class="font-semibold text-gray-800">{{ formatNumber(m.clicks) }}</span> clicks</span>
+                                    <span v-if="m.conversions"><span class="font-semibold text-gray-800">{{ formatNumber(m.conversions) }}</span> conv.</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Channels panel -->
                     <div class="bg-white rounded-xl border border-gray-200">
                         <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200">
@@ -610,14 +730,15 @@ async function setStatus(status: string) {
                         <!-- Inline add channel form -->
                         <div v-if="showAddChannelPanel" class="px-5 py-4 bg-blue-50 border-b border-blue-100">
                             <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">New Channel</p>
-                            <div class="flex flex-col sm:flex-row gap-3">
-                                <div class="flex-1">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
                                     <label class="block text-xs font-medium text-gray-600 mb-1">
                                         Channel Type <span class="text-red-500">*</span>
                                     </label>
                                     <select
                                         v-model="newChannelType"
                                         class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-blue-100"
+                                        @change="newChannelDataSourceId = null"
                                     >
                                         <option value="" disabled>Select type…</option>
                                         <optgroup label="Offline Channels">
@@ -632,7 +753,7 @@ async function setStatus(status: string) {
                                         </optgroup>
                                     </select>
                                 </div>
-                                <div class="flex-1">
+                                <div>
                                     <label class="block text-xs font-medium text-gray-600 mb-1">Display Name (optional)</label>
                                     <input
                                         v-model="newChannelName"
@@ -641,24 +762,45 @@ async function setStatus(status: string) {
                                         class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue-100"
                                     />
                                 </div>
-                                <div class="flex items-end gap-2">
-                                    <button
-                                        type="button"
-                                        :disabled="addChannelSaving"
-                                        class="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-blue-100 text-white text-sm font-medium rounded-lg hover:bg-primary-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                                        @click="submitAddChannel"
+                                <!-- Data source selector for digital channels -->
+                                <div v-if="newChannelIsDigital" class="sm:col-span-2">
+                                    <label class="block text-xs font-medium text-gray-600 mb-1">Linked Data Source (optional)</label>
+                                    <select
+                                        v-model="newChannelDataSourceId"
+                                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-blue-100"
                                     >
-                                        <font-awesome-icon v-if="addChannelSaving" :icon="['fas', 'spinner']" class="animate-spin" />
-                                        {{ addChannelSaving ? 'Saving…' : 'Save' }}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        class="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors cursor-pointer"
-                                        @click="showAddChannelPanel = false; addChannelError = ''"
-                                    >
-                                        Cancel
-                                    </button>
+                                        <option :value="null">— None (link later) —</option>
+                                        <option
+                                            v-for="ds in filteredDataSourcesForChannel"
+                                            :key="ds.id"
+                                            :value="ds.id"
+                                        >
+                                            {{ ds.name }}
+                                        </option>
+                                    </select>
+                                    <p v-if="filteredDataSourcesForChannel.length === 0" class="mt-1 text-xs text-gray-400">
+                                        No connected {{ newChannelType.replace('_', ' ') }} data sources found.
+                                        <NuxtLink :to="`/projects/${projectId}/data-sources`" class="text-primary-blue-100 hover:underline">Connect one first.</NuxtLink>
+                                    </p>
                                 </div>
+                            </div>
+                            <div class="flex items-center gap-2 mt-3">
+                                <button
+                                    type="button"
+                                    :disabled="addChannelSaving"
+                                    class="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-blue-100 text-white text-sm font-medium rounded-lg hover:bg-primary-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                                    @click="submitAddChannel"
+                                >
+                                    <font-awesome-icon v-if="addChannelSaving" :icon="['fas', 'spinner']" class="animate-spin" />
+                                    {{ addChannelSaving ? 'Saving…' : 'Save' }}
+                                </button>
+                                <button
+                                    type="button"
+                                    class="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors cursor-pointer"
+                                    @click="showAddChannelPanel = false; addChannelError = ''"
+                                >
+                                    Cancel
+                                </button>
                             </div>
                             <p v-if="addChannelError" class="mt-2 text-xs text-red-600 flex items-center gap-1.5">
                                 <font-awesome-icon :icon="['fas', 'triangle-exclamation']" />
@@ -728,10 +870,205 @@ async function setStatus(status: string) {
                 </div>
 
                 <!-- ======================== DIGITAL TAB ==================== -->
-                <div v-else-if="activeTab === 'digital'" class="flex flex-col items-center justify-center py-20 text-center">
-                    <font-awesome-icon :icon="['fas', 'globe']" class="text-5xl text-gray-300 mb-4" />
-                    <h2 class="text-xl font-semibold text-gray-700 mb-2">Digital Channels</h2>
-                    <p class="text-sm text-gray-400 max-w-sm">Connect digital data sources. Coming in a future update.</p>
+                <div v-else-if="activeTab === 'digital'" class="space-y-5">
+                    <!-- Date range controls -->
+                    <div class="flex flex-wrap items-center gap-3">
+                        <div class="flex items-center gap-2 text-xs text-gray-500">
+                            <label class="font-medium">From</label>
+                            <input
+                                v-model="digitalDateStart"
+                                type="date"
+                                class="px-2 py-1.5 border border-gray-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-primary-blue-100"
+                                @change="loadDigitalMetrics"
+                            />
+                            <label class="font-medium">To</label>
+                            <input
+                                v-model="digitalDateEnd"
+                                type="date"
+                                class="px-2 py-1.5 border border-gray-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-primary-blue-100"
+                                @change="loadDigitalMetrics"
+                            />
+                        </div>
+                        <button
+                            type="button"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs text-primary-blue-100 border border-primary-blue-100 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
+                            :disabled="digitalMetricsLoading"
+                            @click="loadDigitalMetrics"
+                        >
+                            <font-awesome-icon :icon="['fas', digitalMetricsLoading ? 'spinner' : 'arrows-rotate']" :class="{ 'animate-spin': digitalMetricsLoading }" />
+                            Refresh
+                        </button>
+                    </div>
+
+                    <!-- No digital channels empty state -->
+                    <div v-if="digitalChannels.length === 0" class="flex flex-col items-center justify-center py-20 text-center">
+                        <font-awesome-icon :icon="['fas', 'globe']" class="text-5xl text-gray-300 mb-4" />
+                        <h2 class="text-lg font-semibold text-gray-700 mb-2">No Digital Channels</h2>
+                        <p class="text-sm text-gray-400 max-w-sm mb-4">
+                            Add digital channels (Google Ads, Meta Ads, etc.) from the Summary tab to start tracking performance.
+                        </p>
+                        <button
+                            type="button"
+                            class="inline-flex items-center gap-2 px-4 py-2 bg-primary-blue-100 text-white text-sm font-medium rounded-lg hover:bg-primary-blue-200 transition-colors"
+                            @click="activeTab = 'summary'"
+                        >
+                            <font-awesome-icon :icon="['fas', 'arrow-left']" />
+                            Go to Summary to add channels
+                        </button>
+                    </div>
+
+                    <!-- Per-channel cards -->
+                    <template v-else>
+                        <div
+                            v-for="channel in digitalChannels"
+                            :key="channel.id"
+                            class="bg-white rounded-xl border border-gray-200 overflow-hidden"
+                        >
+                            <!-- Channel header -->
+                            <div class="flex items-center justify-between px-5 py-4 bg-gray-50 border-b border-gray-200">
+                                <div class="flex items-center gap-3 min-w-0">
+                                    <font-awesome-icon :icon="['fas', 'globe']" class="text-blue-400 text-sm shrink-0" />
+                                    <div class="min-w-0">
+                                        <p class="text-sm font-semibold text-gray-800 truncate">
+                                            {{ channel.channel_name ?? allChannelTypeLabel(channel.channel_type) }}
+                                        </p>
+                                        <p v-if="channel.channel_name" class="text-xs text-gray-400">
+                                            {{ allChannelTypeLabel(channel.channel_type) }}
+                                        </p>
+                                    </div>
+                                    <!-- Linked campaign badge -->
+                                    <span v-if="channel.platform_campaign_name" class="text-xs bg-green-100 text-green-700 rounded-full px-2.5 py-0.5 font-medium truncate max-w-[200px]" :title="channel.platform_campaign_name">
+                                        <font-awesome-icon :icon="['fas', 'link']" class="mr-1" />
+                                        {{ channel.platform_campaign_name }}
+                                    </span>
+                                    <span v-else class="text-xs bg-gray-100 text-gray-500 rounded-full px-2.5 py-0.5">
+                                        Account-level
+                                    </span>
+                                </div>
+                                <!-- Link / Unlink actions -->
+                                <div class="flex items-center gap-2 shrink-0 ml-4">
+                                    <button
+                                        v-if="channel.platform_campaign_name"
+                                        type="button"
+                                        class="text-xs text-red-400 hover:text-red-600 transition-colors cursor-pointer"
+                                        title="Unlink campaign"
+                                        :disabled="linkSaving"
+                                        @click="unlinkCampaign(channel)"
+                                    >
+                                        <font-awesome-icon :icon="['fas', 'link-slash']" />
+                                    </button>
+                                    <button
+                                        v-if="channel.data_source_id && channel.channel_type !== 'tiktok_ads' && channel.channel_type !== 'google_analytics'"
+                                        type="button"
+                                        class="inline-flex items-center gap-1 text-xs text-primary-blue-100 hover:underline cursor-pointer"
+                                        @click="openLinkPanel(channel)"
+                                    >
+                                        <font-awesome-icon :icon="['fas', linkingChannelId === channel.id ? 'chevron-up' : 'link']" class="text-xs" />
+                                        {{ linkingChannelId === channel.id ? 'Close' : (channel.platform_campaign_id ? 'Change' : 'Link Campaign') }}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- TikTok informational callout -->
+                            <div v-if="channel.channel_type === 'tiktok_ads'" class="px-5 py-4 bg-amber-50 border-b border-amber-100 flex items-start gap-3">
+                                <font-awesome-icon :icon="['fas', 'circle-info']" class="text-amber-400 mt-0.5 shrink-0" />
+                                <div>
+                                    <p class="text-sm font-medium text-amber-800">TikTok Ads — Not Yet Integrated</p>
+                                    <p class="text-xs text-amber-700 mt-0.5">Automatic data sync for TikTok Ads is not yet available. Metrics below require manual offline data entry.</p>
+                                </div>
+                            </div>
+
+                            <!-- Google Analytics informational callout -->
+                            <div v-else-if="channel.channel_type === 'google_analytics'" class="px-5 py-4 bg-blue-50 border-b border-blue-100 flex items-start gap-3">
+                                <font-awesome-icon :icon="['fas', 'circle-info']" class="text-blue-400 mt-0.5 shrink-0" />
+                                <div>
+                                    <p class="text-sm font-medium text-blue-800">Google Analytics — Session &amp; Goal Data</p>
+                                    <p class="text-xs text-blue-700 mt-0.5">Google Analytics does not expose campaign spend or CPL. Session and conversion data is shown where available.</p>
+                                </div>
+                            </div>
+
+                            <!-- Link campaign panel -->
+                            <div v-if="linkingChannelId === channel.id" class="px-5 py-4 bg-indigo-50 border-b border-indigo-100">
+                                <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Select a Campaign to Link</p>
+                                <div v-if="availableCampaignsLoading" class="text-sm text-gray-500 flex items-center gap-2 py-2">
+                                    <font-awesome-icon :icon="['fas', 'spinner']" class="animate-spin" />
+                                    Loading campaigns…
+                                </div>
+                                <div v-else-if="availableCampaignsChannelInfo === 'not_integrated'" class="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
+                                    This channel type is not yet integrated for campaign-level filtering.
+                                </div>
+                                <div v-else-if="availableCampaignsChannelInfo === 'no_campaign_entities'" class="text-sm text-blue-700 bg-blue-50 rounded-lg px-3 py-2">
+                                    No campaign entities available for this source type.
+                                </div>
+                                <div v-else-if="!channel.data_source_id" class="text-sm text-gray-500">
+                                    No data source linked to this channel. Edit the channel to connect a data source first.
+                                </div>
+                                <template v-else>
+                                    <div v-if="availableCampaigns.length === 0" class="text-sm text-gray-500 py-2">
+                                        No campaigns found in the connected data source.
+                                    </div>
+                                    <div v-else class="flex items-center gap-3">
+                                        <select
+                                            v-model="selectedLinkCampaignId"
+                                            class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-blue-100"
+                                        >
+                                            <option value="" disabled>Select a campaign…</option>
+                                            <option v-for="c in availableCampaigns" :key="c.id" :value="c.id">
+                                                {{ c.name }}{{ c.status ? ` (${c.status})` : '' }}
+                                            </option>
+                                        </select>
+                                        <button
+                                            type="button"
+                                            :disabled="!selectedLinkCampaignId || linkSaving"
+                                            class="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-blue-100 text-white text-sm font-medium rounded-lg hover:bg-primary-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                                            @click="saveLinkCampaign(channel)"
+                                        >
+                                            <font-awesome-icon v-if="linkSaving" :icon="['fas', 'spinner']" class="animate-spin" />
+                                            {{ linkSaving ? 'Saving…' : 'Link' }}
+                                        </button>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- Metrics row -->
+                            <div class="px-5 py-4">
+                                <div v-if="digitalMetricsLoading" class="text-center text-sm text-gray-400 py-4">
+                                    <font-awesome-icon :icon="['fas', 'spinner']" class="animate-spin mr-2" />
+                                    Loading metrics…
+                                </div>
+                                <template v-else>
+                                    <!-- Find metrics for this channel -->
+                                    <template v-if="digitalMetrics.find((m) => m.channelId === channel.id)">
+                                        <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-3">
+                                            <div
+                                                v-for="(metric, mKey) in (() => {
+                                                    const m = digitalMetrics.find((m) => m.channelId === channel.id)!;
+                                                    return [
+                                                        { label: 'Spend', value: formatCurrency(m.spend) },
+                                                        { label: 'Impressions', value: formatNumber(m.impressions) },
+                                                        { label: 'Clicks', value: formatNumber(m.clicks) },
+                                                        { label: 'CTR', value: m.ctr !== null ? (m.ctr * 100).toFixed(2) + '%' : '—' },
+                                                        { label: 'CPC', value: formatCurrency(m.cpc) },
+                                                        { label: 'Conversions', value: formatNumber(m.conversions) },
+                                                        { label: 'CPL', value: formatCurrency(m.cpl) },
+                                                    ];
+                                                })()"
+                                                :key="mKey"
+                                                class="bg-gray-50 rounded-lg p-3 text-center"
+                                            >
+                                                <p class="text-xs text-gray-400 uppercase tracking-wide mb-1">{{ metric.label }}</p>
+                                                <p class="text-sm font-bold text-gray-800">{{ metric.value }}</p>
+                                            </div>
+                                        </div>
+                                    </template>
+                                    <div v-else class="text-center text-sm text-gray-400 py-4">
+                                        No metrics data for this period.
+                                        <span v-if="!channel.data_source_id" class="block text-xs mt-1">Link a data source to this channel to see metrics.</span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
                 </div>
 
                 <!-- ======================== OFFLINE TAB ==================== -->

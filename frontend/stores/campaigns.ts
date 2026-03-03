@@ -4,10 +4,13 @@ import type {
     ICreateCampaignPayload,
     IUpdateCampaignPayload,
     IAddChannelPayload,
+    IUpdateChannelPayload,
     ICampaignChannel,
     IOfflineDataEntry,
     IOfflineDataEntryPayload,
     IOfflineCampaignSummary,
+    IDigitalChannelMetrics,
+    IAvailablePlatformCampaign,
 } from '~/types/ICampaign';
 
 let campaignsInitialized = false;
@@ -302,6 +305,88 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
         }
     }
 
+    async function getAvailablePlatformCampaigns(
+        dataSourceId: number,
+        channelType: string,
+    ): Promise<{ campaigns: IAvailablePlatformCampaign[]; channelInfo?: string }> {
+        const token = getAuthToken();
+        if (!token) return { campaigns: [] };
+        const response = await $fetch<{ success: boolean; campaigns: IAvailablePlatformCampaign[]; channelInfo?: string }>(
+            `${baseUrl()}/campaigns/available-platform-campaigns?dataSourceId=${dataSourceId}&channelType=${channelType}`,
+            {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Authorization-Type': 'auth',
+                },
+            },
+        );
+        return { campaigns: response?.campaigns ?? [], channelInfo: response?.channelInfo };
+    }
+
+    async function getDigitalChannelMetrics(
+        campaignId: number,
+        startDate?: string,
+        endDate?: string,
+    ): Promise<IDigitalChannelMetrics[]> {
+        const token = getAuthToken();
+        if (!token) return [];
+        const params = new URLSearchParams();
+        if (startDate) params.set('startDate', startDate);
+        if (endDate) params.set('endDate', endDate);
+        const qs = params.toString() ? `?${params.toString()}` : '';
+        const response = await $fetch<{ success: boolean; data: IDigitalChannelMetrics[] }>(
+            `${baseUrl()}/marketing/digital-metrics/${campaignId}${qs}`,
+            {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Authorization-Type': 'auth',
+                },
+            },
+        );
+        return response?.data ?? [];
+    }
+
+    async function updateChannel(
+        campaignId: number,
+        channelId: number,
+        payload: IUpdateChannelPayload,
+    ): Promise<ICampaignChannel | null> {
+        const token = getAuthToken();
+        if (!token) return null;
+        const response = await $fetch<{ success: boolean; channel: ICampaignChannel }>(
+            `${baseUrl()}/campaigns/${campaignId}/channels/${channelId}`,
+            {
+                method: 'PATCH',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Authorization-Type': 'auth',
+                    'Content-Type': 'application/json',
+                },
+                body: payload,
+            },
+        );
+        if (response?.success && response.channel) {
+            const updated = response.channel;
+            // Update channel in-place in selectedCampaign
+            if (selectedCampaign.value) {
+                const idx = selectedCampaign.value.channels?.findIndex((c) => c.id === channelId) ?? -1;
+                if (idx !== -1 && selectedCampaign.value.channels) {
+                    selectedCampaign.value.channels[idx] = updated;
+                }
+            }
+            // Update channel in campaigns list
+            const campaignIdx = campaigns.value.findIndex((c) => c.id === campaignId);
+            if (campaignIdx !== -1) {
+                const chIdx = campaigns.value[campaignIdx].channels?.findIndex((c) => c.id === channelId) ?? -1;
+                if (chIdx !== -1 && campaigns.value[campaignIdx].channels) {
+                    campaigns.value[campaignIdx].channels![chIdx] = updated;
+                }
+            }
+            return updated;
+        }
+        return null;
+    }
+
     // Hydrate from localStorage on client (run once)
     if (import.meta.client && !campaignsInitialized && localStorage.getItem('campaigns')) {
         campaigns.value = JSON.parse(localStorage.getItem('campaigns') || '[]');
@@ -333,5 +418,8 @@ export const useCampaignsStore = defineStore('campaignsDRA', () => {
         updateOfflineEntry,
         deleteOfflineEntry,
         clearOfflineSummaryCache,
+        getAvailablePlatformCampaigns,
+        getDigitalChannelMetrics,
+        updateChannel,
     };
 });

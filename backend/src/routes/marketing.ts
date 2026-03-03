@@ -132,6 +132,41 @@ router.get(
     },
 );
 
+/**
+ * GET /marketing/digital-metrics/:campaignId
+ * Returns per-channel digital metrics for a campaign.
+ * When a channel has a platform_campaign_id linked, metrics are filtered to that campaign.
+ * Channels without a platform_campaign_id return account-level aggregates.
+ * Query params: startDate, endDate
+ */
+router.get(
+    '/digital-metrics/:campaignId',
+    validateJWT,
+    validate([
+        param('campaignId').notEmpty().isInt().withMessage('campaignId must be an integer').toInt(),
+        query('startDate').optional().isISO8601(),
+        query('endDate').optional().isISO8601(),
+    ]),
+    async (req: Request, res: Response): Promise<void> => {
+        try {
+            const campaignId = parseInt(req.params.campaignId, 10);
+            const startDate = parseDateParam(req.query.startDate as string, defaultStart());
+            const endDate = parseDateParam(req.query.endDate as string, new Date());
+
+            const data = await marketingReportProcessor.getDigitalChannelMetrics(
+                campaignId,
+                startDate,
+                endDate,
+            );
+
+            res.status(200).json({ success: true, data });
+        } catch (err: any) {
+            console.error('[GET /marketing/digital-metrics/:campaignId]', err);
+            res.status(500).json({ success: false, error: err.message });
+        }
+    },
+);
+
 // ---------------------------------------------------------------------------
 // Widget data endpoints (Option A — queries connected ad data sources)
 // ---------------------------------------------------------------------------
