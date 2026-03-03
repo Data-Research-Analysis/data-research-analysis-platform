@@ -45,6 +45,11 @@
     // Guard to prevent the content watcher from calling setContent when the
     // editor itself emitted the change (would reset cursor position).
     let isInternalUpdate = false;
+
+    // Guard to prevent Phase 5 (props.content watcher) from writing back to
+    // markdownContent while the user is actively typing in the textarea.
+    // Cleared with a double-nextTick so all watcher cascades settle first.
+    let pendingMarkdownSync = false;
     
     // Initialize the editor
     const editor = useEditor({
@@ -369,15 +374,22 @@
         }
     }
     
-    // Phase 5: Watch for external content changes when in markdown view
+    // Phase 5: Watch for EXTERNAL content changes when in markdown view (e.g.
+    // version restore). Skipped while the user is typing (pendingMarkdownSync)
+    // to prevent Phase 5 from writing back to markdownContent, re-rendering the
+    // <textarea> and resetting the cursor position.
     watch(() => props.content, (newContent) => {
-        // If in markdown view and content changes externally, update markdown view
+        if (pendingMarkdownSync) return;
         if (viewMode.value === 'markdown' && editor.value && newContent) {
             try {
-                // Temporarily set content in editor (hidden) to get markdown
                 const currentHtml = editor.value.getHTML();
                 if (currentHtml !== newContent) {
-                    editor.value.commands.setContent(newContent, { contentType: 'html' });
+                    // Determine content type: version-restore arrives as HTML;
+                    // markdown strings must be parsed accordingly.
+                    const isHTML = newContent.trim().startsWith('<') || newContent.includes('</');
+                    editor.value.commands.setContent(newContent, {
+                        contentType: isHTML ? 'html' : 'markdown'
+                    });
                     markdownContent.value = editor.value.getMarkdown() || '';
                 }
             } catch (error) {
@@ -390,13 +402,21 @@
     // onUpdate already emits update:content (HTML) and update:markdown when
     // setContent fires, so we must NOT emit manually here to avoid double-emits
     // that cause props.content to change and re-trigger the props watcher.
+    // pendingMarkdownSync suppresses the Phase 5 props.content watcher while
+    // this typing cycle (and its reactive cascade) finishes settling.
     watch(markdownContent, (newMarkdown) => {
         if (viewMode.value === 'markdown' && editor.value) {
             try {
+                pendingMarkdownSync = true;
                 editor.value.commands.setContent(newMarkdown || '', { contentType: 'markdown' });
-                // onUpdate handles emitting update:content and update:markdown
+                // onUpdate handles emitting update:content and update:markdown.
+                // Clear the guard after two nextTick cycles so all watcher
+                // cascades (parent state → editorContent → props.content →
+                // Phase 5 watcher) have fully settled before re-enabling.
+                nextTick(() => nextTick(() => { pendingMarkdownSync = false; }));
             } catch (error) {
                 console.error('Error syncing markdown to editor:', error);
+                pendingMarkdownSync = false;
             }
         }
     });
