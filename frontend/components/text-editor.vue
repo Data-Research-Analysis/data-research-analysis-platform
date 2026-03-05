@@ -46,10 +46,13 @@
     // editor itself emitted the change (would reset cursor position).
     let isInternalUpdate = false;
 
-    // Guard to prevent Phase 5 (props.content watcher) from writing back to
-    // markdownContent while the user is actively typing in the textarea.
-    // Cleared with a double-nextTick so all watcher cascades settle first.
-    let pendingMarkdownSync = false;
+    // Set to true whenever the user types in the markdown textarea, before we
+    // emit update:content / update:markdown to the parent.  Phase 5 (the
+    // props.content watcher) clears it the moment it fires for that change and
+    // returns early — preventing it from writing back to markdownContent and
+    // jumping the cursor.  No nextTick timing required: the flag is cleared
+    // exactly once, by the one Phase 5 invocation that the typing caused.
+    let isMarkdownUserEdit = false;
     
     // Initialize the editor
     const editor = useEditor({
@@ -375,11 +378,14 @@
     }
     
     // Phase 5: Watch for EXTERNAL content changes when in markdown view (e.g.
-    // version restore). Skipped while the user is typing (pendingMarkdownSync)
-    // to prevent Phase 5 from writing back to markdownContent, re-rendering the
-    // <textarea> and resetting the cursor position.
+    // version restore).  When props.content changes because of our OWN typing
+    // emit (isMarkdownUserEdit === true), we clear the flag and return — the
+    // textarea already has the right value and must not be overwritten.
     watch(() => props.content, (newContent) => {
-        if (pendingMarkdownSync) return;
+        if (isMarkdownUserEdit) {
+            isMarkdownUserEdit = false;   // self-clearing: one emit → one skip
+            return;
+        }
         if (viewMode.value === 'markdown' && editor.value && newContent) {
             try {
                 const currentHtml = editor.value.getHTML();
@@ -398,25 +404,33 @@
         }
     });
     
-    // Phase 5: Watch markdown content changes and sync the hidden TipTap editor.
-    // onUpdate already emits update:content (HTML) and update:markdown when
-    // setContent fires, so we must NOT emit manually here to avoid double-emits
-    // that cause props.content to change and re-trigger the props watcher.
-    // pendingMarkdownSync suppresses the Phase 5 props.content watcher while
-    // this typing cycle (and its reactive cascade) finishes settling.
+    // Watch markdown content changes (user typing in the textarea).
+    // Steps:
+    //   1. Mark this as a user-originating edit so Phase 5 skips the resulting
+    //      props.content change and does NOT write back to the textarea.
+    //   2. Sync the hidden TipTap editor so we can get proper HTML.
+    //   3. Emit update:content + update:markdown explicitly — this is required
+    //      because TipTap's dispatchTransaction suppresses the `update` event
+    //      when prevState.doc.eq(newState.doc) (same-doc optimisation), which
+    //      means onUpdate is not guaranteed to fire on every keystroke.
+    //      Using editor.getHTML() / editor.getMarkdown() (rather than raw
+    //      newMarkdown) means Vue's hasChanged guard prevents any extra cascade
+    //      on keystrokes where onUpdate DID fire and already updated parent state.
     watch(markdownContent, (newMarkdown) => {
         if (viewMode.value === 'markdown' && editor.value) {
             try {
-                pendingMarkdownSync = true;
+                isMarkdownUserEdit = true;
                 editor.value.commands.setContent(newMarkdown || '', { contentType: 'markdown' });
-                // onUpdate handles emitting update:content and update:markdown.
-                // Clear the guard after two nextTick cycles so all watcher
-                // cascades (parent state → editorContent → props.content →
-                // Phase 5 watcher) have fully settled before re-enabling.
-                nextTick(() => nextTick(() => { pendingMarkdownSync = false; }));
+                // Emit update:markdown FIRST so that editorContent (which is
+                // state.contentMarkdown || state.content) is set from markdown
+                // before update:content sets state.content.  This guarantees
+                // editorContent changes only once, meaning Phase 5 fires only
+                // once and isMarkdownUserEdit is cleared exactly once.
+                emits('update:markdown', editor.value.getMarkdown());
+                emits('update:content', editor.value.getHTML());
             } catch (error) {
                 console.error('Error syncing markdown to editor:', error);
-                pendingMarkdownSync = false;
+                isMarkdownUserEdit = false;
             }
         }
     });
