@@ -3,12 +3,11 @@ import type {
     IAdminOverviewStats,
     IDataSourceSyncRow,
     ISystemHealthStatus,
-    ITimeSeriesPoint,
 } from '~/types/admin/stats';
 
 export const useAdminStats = () => {
     const config = useRuntimeConfig();
-    const { $socket } = useNuxtApp() as any;
+    const { $socketio } = useNuxtApp() as any;
 
     const overviewStats = ref<IAdminOverviewStats | null>(null);
     const syncHealthData = ref<IDataSourceSyncRow[]>([]);
@@ -75,19 +74,19 @@ export const useAdminStats = () => {
         if (!import.meta.client) return;
         loadAll();
 
-        if ($socket) {
-            $socket.emit('join-admin-room');
+        if ($socketio) {
+            $socketio.emit('join-admin-room');
             statsUpdateHandler = () => {
                 refreshStats();
             };
-            $socket.on('admin-stats-update', statsUpdateHandler);
+            $socketio.on('admin-stats-update', statsUpdateHandler);
         }
     });
 
     onUnmounted(() => {
         if (!import.meta.client) return;
-        if ($socket && statsUpdateHandler) {
-            $socket.off('admin-stats-update', statsUpdateHandler);
+        if ($socketio && statsUpdateHandler) {
+            $socketio.off('admin-stats-update', statsUpdateHandler);
         }
     });
 
@@ -99,54 +98,4 @@ export const useAdminStats = () => {
         error,
         refreshStats,
     };
-};
-
-export const useAdminTimeSeries = (metric: string, days = 30) => {
-    const config = useRuntimeConfig();
-    const data = ref<ITimeSeriesPoint[]>([]);
-    const dsTypeBreakdown = ref<{ data_type: string; count: number }[]>([]);
-    const isLoading = ref(false);
-
-    const authHeaders = (): Record<string, string> => {
-        const token = getAuthToken();
-        if (!token) throw new Error('Authentication required');
-        return {
-            Authorization: `Bearer ${token}`,
-            'Authorization-Type': 'auth',
-        };
-    };
-
-    const fetchTimeSeries = async () => {
-        const res = await $fetch<{ success: boolean; data: ITimeSeriesPoint[] }>(
-            `${config.public.apiBase}/admin/stats/timeseries?metric=${metric}&days=${days}`,
-            { headers: authHeaders() }
-        );
-        if (res.success) data.value = res.data;
-    };
-
-    const fetchDsTypeBreakdown = async () => {
-        const res = await $fetch<{ success: boolean; data: { data_type: string; count: number }[] }>(
-            `${config.public.apiBase}/admin/stats/datasource-types`,
-            { headers: authHeaders() }
-        );
-        if (res.success) dsTypeBreakdown.value = res.data;
-    };
-
-    onMounted(async () => {
-        if (!import.meta.client) return;
-        isLoading.value = true;
-        try {
-            if (metric === 'datasource_types') {
-                await fetchDsTypeBreakdown();
-            } else {
-                await fetchTimeSeries();
-            }
-        } catch (err) {
-            console.error('[useAdminTimeSeries] Load failed:', err);
-        } finally {
-            isLoading.value = false;
-        }
-    });
-
-    return { data, dsTypeBreakdown, isLoading };
 };
