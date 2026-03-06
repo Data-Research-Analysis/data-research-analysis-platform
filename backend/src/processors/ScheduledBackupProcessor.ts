@@ -4,6 +4,7 @@ import { DRAScheduledBackupRun } from '../models/DRAScheduledBackupRun.js';
 import { EBackupTriggerType } from '../types/EBackupTriggerType.js';
 import { EBackupRunStatus } from '../types/EBackupRunStatus.js';
 import { IScheduledBackupRun, IBackupStats } from '../interfaces/IScheduledBackupRun.js';
+import { SocketIODriver } from '../drivers/SocketIODriver.js';
 
 /**
  * Processor for Scheduled Backup Run Management
@@ -85,6 +86,13 @@ export class ScheduledBackupProcessor {
 
                 await manager.update(DRAScheduledBackupRun, { id: runId }, updateData);
                 console.log(`✅ Updated backup run #${runId} to status: ${status}`);
+
+                if (status === EBackupRunStatus.COMPLETED || status === EBackupRunStatus.FAILED) {
+                    SocketIODriver.getInstance().emitToRoom('admin-dashboard', 'admin-stats-update', {
+                        type: 'backup_complete',
+                        status,
+                    });
+                }
                 
                 resolve();
             } catch (error) {
