@@ -33,6 +33,10 @@ async function renderChart() {
         .attr('width', w)
         .attr('height', h);
 
+    cleanup = () => {
+        svg.remove();
+    };
+
     const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
 
     if (props.type === 'donut') {
@@ -138,10 +142,6 @@ async function renderChart() {
             .attr('r', 3)
             .attr('fill', color);
     }
-
-    cleanup = () => {
-        svg.remove();
-    };
 }
 
 onMounted(() => {

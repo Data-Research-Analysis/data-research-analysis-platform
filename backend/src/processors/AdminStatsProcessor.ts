@@ -1,4 +1,5 @@
 import { AppDataSource } from '../datasources/PostgresDS.js';
+import { DRADataSource } from '../models/DRADataSource.js';
 import { getRedisClient } from '../config/redis.config.js';
 import { ScheduledBackupProcessor } from './ScheduledBackupProcessor.js';
 import { ScheduledBackupService } from '../services/ScheduledBackupService.js';
@@ -151,8 +152,9 @@ export class AdminStatsProcessor {
         let activeRedisSessions = 0;
         try {
             const redis = getRedisClient();
-            const keys = await redis.keys('dra:ai:*session*');
-            activeRedisSessions = keys.length;
+            for await (const _key of redis.scanIterator({ MATCH: 'dra:ai:*session*' })) {
+                activeRedisSessions++;
+            }
         } catch {
             activeRedisSessions = 0;
         }
@@ -183,63 +185,63 @@ export class AdminStatsProcessor {
         };
     }
 
-    private async querySyncHealthSummary(manager: any) {
-        const rows = await manager.query(`
-            SELECT
-                COUNT(*)::int AS total,
-                COUNT(*) FILTER (
-                    WHERE data_type NOT IN ('postgresql','mysql','mariadb','mongodb','csv','excel','pdf')
-                    AND (
-                        connection_details->'api_connection_details'->'api_config'->>'last_sync' IS NULL
-                        OR connection_details->'api_connection_details'->'api_config'->>'last_sync' = 'null'
-                    )
-                )::int AS never_synced,
-                0::int AS failed
-            FROM dra_data_sources
-        `);
-        const r = rows[0] || {};
+    private async querySyncHealthSummary(_manager: any) {
+        const FILE_DB_TYPES = ['postgresql', 'mysql', 'mariadb', 'mongodb', 'csv', 'excel', 'pdf'];
+        const dataSources = await AppDataSource.manager.find(DRADataSource);
+
+        const total = dataSources.length;
+        let neverSynced = 0;
+        let failedSources = 0;
+
+        for (const ds of dataSources) {
+            if (FILE_DB_TYPES.includes(ds.data_type)) continue;
+            const lastSync = ds.connection_details?.api_connection_details?.api_config?.last_sync;
+            if (!lastSync) {
+                neverSynced++;
+            } else {
+                const hoursSinceSync = (Date.now() - new Date(lastSync as any).getTime()) / 3600000;
+                if (hoursSinceSync > 72) failedSources++;
+            }
+        }
+
         return {
-            totalSources: r.total || 0,
-            failedSources: r.failed || 0,
-            neverSynced: r.never_synced || 0,
+            totalSources: total,
+            failedSources,
+            neverSynced,
         };
     }
 
     async getSyncHealthData(): Promise<IDataSourceSyncRow[]> {
-        const manager = AppDataSource.manager;
-        const rows = await manager.query(`
-            SELECT
-                ds.id,
-                ds.name,
-                ds.data_type,
-                ds.created_at,
-                u.email AS owner_email,
-                ds.connection_details->'api_connection_details'->'api_config'->>'last_sync' AS last_sync
-            FROM dra_data_sources ds
-            LEFT JOIN dra_users_platform u ON ds.users_platform_id = u.id
-            ORDER BY ds.id DESC
-            LIMIT 200
-        `);
+        const FILE_DB_TYPES = ['postgresql', 'mysql', 'mariadb', 'mongodb', 'csv', 'excel', 'pdf'];
 
-        return rows.map((r: any) => {
-            const isFileOrDb = ['postgresql', 'mysql', 'mariadb', 'mongodb', 'csv', 'excel', 'pdf'].includes(r.data_type);
+        const dataSources = await AppDataSource.manager.find(DRADataSource, {
+            relations: ['users_platform'],
+            order: { id: 'DESC' },
+            take: 200,
+        });
+
+        return dataSources.map((ds) => {
+            const isFileOrDb = FILE_DB_TYPES.includes(ds.data_type);
+            const lastSyncRaw = ds.connection_details?.api_connection_details?.api_config?.last_sync;
+            const lastSync = lastSyncRaw ? String(lastSyncRaw) : null;
+
             let status: 'synced' | 'failed' | 'never' = 'synced';
             if (!isFileOrDb) {
-                if (!r.last_sync || r.last_sync === 'null') {
+                if (!lastSync || lastSync === 'null') {
                     status = 'never';
                 } else {
-                    const lastSyncDate = new Date(r.last_sync);
-                    const hoursSinceSync = (Date.now() - lastSyncDate.getTime()) / 3600000;
+                    const hoursSinceSync = (Date.now() - new Date(lastSync).getTime()) / 3600000;
                     status = hoursSinceSync > 72 ? 'failed' : 'synced';
                 }
             }
+
             return {
-                id: r.id,
-                name: r.name,
-                data_type: r.data_type,
-                owner_email: r.owner_email || 'Unknown',
-                last_sync: r.last_sync || null,
-                created_at: r.created_at || null,
+                id: ds.id,
+                name: ds.name,
+                data_type: ds.data_type,
+                owner_email: (ds as any).users_platform?.email || 'Unknown',
+                last_sync: lastSync,
+                created_at: ds.created_at ? String(ds.created_at) : null,
                 status,
             };
         });

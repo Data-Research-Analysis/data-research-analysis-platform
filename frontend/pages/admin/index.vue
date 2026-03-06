@@ -34,22 +34,48 @@ const authHeaders = () => {
 const fetchAllSeries = async () => {
     isSeriesLoading.value = true;
     try {
-        const [signups, projects, ai, cancellations, dsTypes] = await Promise.all([
+        const results = await Promise.allSettled([
             $fetch<any>(`${config.public.apiBase}/admin/stats/timeseries?metric=signups&days=30`, { headers: authHeaders() }),
             $fetch<any>(`${config.public.apiBase}/admin/stats/timeseries?metric=projects&days=30`, { headers: authHeaders() }),
             $fetch<any>(`${config.public.apiBase}/admin/stats/timeseries?metric=ai_messages&days=30`, { headers: authHeaders() }),
             $fetch<any>(`${config.public.apiBase}/admin/stats/timeseries?metric=cancellations&days=30`, { headers: authHeaders() }),
             $fetch<any>(`${config.public.apiBase}/admin/stats/datasource-types`, { headers: authHeaders() }),
         ]);
-        if (signups.success) signupSeries.value = signups.data;
-        if (projects.success) projectSeries.value = projects.data;
-        if (ai.success) aiSeries.value = ai.data;
-        if (cancellations.success) cancellationSeries.value = cancellations.data;
-        if (dsTypes.success) {
-            dsTypeSeries.value = dsTypes.data.map((d: any) => ({ label: d.data_type, value: d.count }));
+
+        const [signupsResult, projectsResult, aiResult, cancellationsResult, dsTypesResult] = results;
+
+        if (signupsResult.status === 'fulfilled' && signupsResult.value.success) {
+            signupSeries.value = signupsResult.value.data;
+        } else if (signupsResult.status === 'rejected') {
+            console.error('[AdminDashboard] Failed to load signups time-series:', signupsResult.reason);
         }
-    } catch (err) {
-        console.error('[AdminDashboard] Failed to load time-series:', err);
+
+        if (projectsResult.status === 'fulfilled' && projectsResult.value.success) {
+            projectSeries.value = projectsResult.value.data;
+        } else if (projectsResult.status === 'rejected') {
+            console.error('[AdminDashboard] Failed to load projects time-series:', projectsResult.reason);
+        }
+
+        if (aiResult.status === 'fulfilled' && aiResult.value.success) {
+            aiSeries.value = aiResult.value.data;
+        } else if (aiResult.status === 'rejected') {
+            console.error('[AdminDashboard] Failed to load AI messages time-series:', aiResult.reason);
+        }
+
+        if (cancellationsResult.status === 'fulfilled' && cancellationsResult.value.success) {
+            cancellationSeries.value = cancellationsResult.value.data;
+        } else if (cancellationsResult.status === 'rejected') {
+            console.error('[AdminDashboard] Failed to load cancellations time-series:', cancellationsResult.reason);
+        }
+
+        if (dsTypesResult.status === 'fulfilled' && dsTypesResult.value.success) {
+            dsTypeSeries.value = dsTypesResult.value.data.map((d: any) => ({
+                label: d.data_type,
+                value: d.count,
+            }));
+        } else if (dsTypesResult.status === 'rejected') {
+            console.error('[AdminDashboard] Failed to load data source type stats:', dsTypesResult.reason);
+        }
     } finally {
         isSeriesLoading.value = false;
     }
