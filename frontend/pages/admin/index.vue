@@ -307,7 +307,7 @@ const triggerBackup = async () => {
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-5">
                             <p class="text-sm font-medium text-gray-600 mb-3">Projects created (last 30 days)</p>
-                            <AdminChart v-if="projectSeries.length" type="bar" :data="projectSeries" :height="160" color="#6366f1" />
+                            <AdminChart v-if="projectSeries.length" type="bar" :data="projectSeries" :height="160" color="#6366f1" context="projects created" />
                             <div v-else class="h-40 flex items-center justify-center text-sm text-gray-400">No data available</div>
                         </div>
                         <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-5">
@@ -429,7 +429,7 @@ const triggerBackup = async () => {
 
                     <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-5">
                         <p class="text-sm font-medium text-gray-600 mb-3">AI messages per day (last 30 days)</p>
-                        <AdminChart v-if="aiSeries.length" type="bar" :data="aiSeries" :height="160" color="#8b5cf6" />
+                        <AdminChart v-if="aiSeries.length" type="bar" :data="aiSeries" :height="160" color="#8b5cf6" context="messages" />
                         <div v-else class="h-40 flex items-center justify-center text-sm text-gray-400">No data available</div>
                     </div>
                 </section>
