@@ -8,6 +8,7 @@ import bcrypt from 'bcryptjs';
 import { UtilityService } from "../services/UtilityService.js";
 import { DRAVerificationCode } from "../models/DRAVerificationCode.js";
 import { EmailService } from "../services/EmailService.js";
+import { SocketIODriver } from "../drivers/SocketIODriver.js";
 import { IUserManagement } from "../types/IUserManagement.js";
 import { IUserUpdate } from "../types/IUserUpdate.js";
 import { IUserCreation } from "../types/IUserCreation.js";
@@ -272,6 +273,7 @@ export class UserManagementProcessor {
                     email_verified_at: newUser.email_verified_at,
                     unsubscribe_from_emails_at: newUser.unsubscribe_from_emails_at
                 };
+                SocketIODriver.getInstance().emitToRoom('admin-dashboard', 'admin-stats-update', { type: 'user_created', delta: 1 });
                 return resolve(createdUser);
             } catch (error) {
                 console.error('Error creating user:', error);

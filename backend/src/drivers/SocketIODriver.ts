@@ -2,6 +2,8 @@ import { Server as HTTPServer } from "http";
 import { Server, Socket } from "socket.io";
 import { UtilityService } from "../services/UtilityService.js";
 import { TokenProcessor } from "../processors/TokenProcessor.js";
+import { AppDataSource } from "../datasources/PostgresDS.js";
+import { EUserType } from "../types/EUserType.js";
 
 export class SocketIODriver {
     
@@ -120,6 +122,23 @@ export class SocketIODriver {
                 });
             }
 
+            // Allow admin users to join the admin-dashboard room for real-time stats
+            socket.on('join-admin-room', async () => {
+                if (!userId) return;
+                try {
+                    const user = await AppDataSource.manager.findOne(
+                        (await import('../models/DRAUsersPlatform.js')).DRAUsersPlatform,
+                        { where: { id: userId } }
+                    );
+                    if (user && user.user_type === EUserType.ADMIN) {
+                        socket.join('admin-dashboard');
+                        console.log(`[Socket.IO] Admin user ${userId} joined admin-dashboard room`);
+                    }
+                } catch (err) {
+                    console.error('[Socket.IO] Error joining admin room:', err);
+                }
+            });
+
             // Handle disconnection
             socket.on("disconnect", () => {
                 const userId = (socket as any).userId;
@@ -184,5 +203,12 @@ export class SocketIODriver {
         });
     }
 
-    
+    /**
+     * Emit an event to all sockets in a named room.
+     */
+    public emitToRoom(room: string, event: string, data: any): void {
+        if (!this.io) return;
+        this.io.to(room).emit(event, data);
+    }
+
 }
