@@ -222,7 +222,7 @@ function checkDashboardLimit() {
                         <button
                             v-if="isAnalyst"
                             @click="deleteDashboard(dashboard.id)"
-                            class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                             v-tippy="{ content: 'Delete Dashboard' }"
                         >
                             <font-awesome icon="fas fa-trash" />
