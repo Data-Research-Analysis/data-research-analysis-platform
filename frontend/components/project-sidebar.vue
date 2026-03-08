@@ -92,9 +92,6 @@ onMounted(() => {
     if (collapsedVal !== null) {
         isCollapsed.value = collapsedVal === 'true';
     }
-
-    // Don't load from localStorage here - let middleware handle data loading
-    // The computed properties will automatically react when stores update
 });
 
 // Watch for project changes and refresh data
@@ -142,7 +139,10 @@ const projectDataSources = computed(() => {
 
 const projectDataModels = computed(() => {
     if (!projectId.value) return [];
-    return dataModelsStore.dataModels.filter(dm => dm.project_id === projectId.value);
+    return dataModelsStore.dataModels.filter(dm => {
+        const dmProjectId = dm.project_id || dm.data_source?.project?.id;
+        return dmProjectId === projectId.value;
+    });
 });
 
 const projectDashboards = computed(() => {
@@ -362,10 +362,10 @@ function tip(label: string) {
             <!-- Campaigns — manager and analyst only -->
             <div v-if="isManagerSafe">
                 <!-- Collapsed: single icon link -->
-                <component
-                    :is="isCampaignsEnabled ? 'NuxtLink' : 'div'"
+                <NuxtLink
                     v-if="effectivelyCollapsed"
-                    :to="isCampaignsEnabled ? baseUrl('/campaigns') : undefined"
+                    :to="baseUrl('/campaigns')"
+                    @click="!isCampaignsEnabled ? $event.preventDefault() : null"
                     class="hidden md:flex items-center justify-center py-2.5 text-sm font-medium transition-colors"
                     :class="[
                         isCampaignsEnabled 
@@ -375,7 +375,7 @@ function tip(label: string) {
                     v-tippy="isCampaignsEnabled ? { content: 'Campaigns', placement: 'right' } : { content: campaignsTooltip, placement: 'right' }"
                 >
                     <font-awesome-icon :icon="['fas', 'bullhorn']" class="w-4 h-4 shrink-0" />
-                </component>
+                </NuxtLink>
                 <!-- Expanded: toggle + sub-items -->
                 <template v-if="!effectivelyCollapsed">
                     <button
@@ -426,10 +426,10 @@ function tip(label: string) {
 
             <!-- Marketing Hub -->
             <div>
-                <component
-                    :is="isMarketingHubEnabled ? 'NuxtLink' : 'div'"
+                <NuxtLink
                     v-if="effectivelyCollapsed"
-                    :to="isMarketingHubEnabled ? baseUrl('/marketing') : undefined"
+                    :to="baseUrl('/marketing')"
+                    @click="!isMarketingHubEnabled ? $event.preventDefault() : null"
                     class="hidden md:flex items-center justify-center py-2.5 text-sm font-medium transition-colors"
                     :class="[
                         isMarketingHubEnabled
@@ -439,7 +439,7 @@ function tip(label: string) {
                     v-tippy="isMarketingHubEnabled ? { content: 'Marketing Hub', placement: 'right' } : { content: marketingHubTooltip, placement: 'right' }"
                 >
                     <font-awesome-icon :icon="['fas', 'chart-line']" class="w-4 h-4 shrink-0" />
-                </component>
+                </NuxtLink>
                 <template v-if="!effectivelyCollapsed">
                     <button
                         :disabled="!isMarketingHubEnabled"
@@ -507,10 +507,10 @@ function tip(label: string) {
             </div>
 
             <!-- AI Insights — manager and analyst only -->
-            <component
-                :is="isAIInsightsEnabled ? 'NuxtLink' : 'div'"
+            <NuxtLink
                 v-if="isManagerSafe"
-                :to="isAIInsightsEnabled ? baseUrl('/insights') : undefined"
+                :to="baseUrl('/insights')"
+                @click="!isAIInsightsEnabled ? $event.preventDefault() : null"
                 class="flex items-center py-2.5 text-sm font-medium transition-colors"
                 :class="[
                     effectivelyCollapsed ? 'justify-center px-0' : 'gap-3 px-4',
@@ -530,12 +530,12 @@ function tip(label: string) {
                         v-tippy="{ content: aiInsightsTooltip, placement: 'right', theme: 'light' }"
                     />
                 </span>
-            </component>
+            </NuxtLink>
 
             <!-- Dashboards — all roles can view -->
-            <component
-                :is="isDashboardsEnabled ? 'NuxtLink' : 'div'"
-                :to="isDashboardsEnabled ? baseUrl('/dashboards') : undefined"
+            <NuxtLink
+                :to="baseUrl('/dashboards')"
+                @click="!isDashboardsEnabled ? $event.preventDefault() : null"
                 class="flex items-center py-2.5 text-sm font-medium transition-colors"
                 :class="[
                     effectivelyCollapsed ? 'justify-center px-0' : 'gap-3 px-4',
@@ -555,7 +555,7 @@ function tip(label: string) {
                         v-tippy="{ content: dashboardsTooltip, placement: 'right', theme: 'light' }"
                     />
                 </span>
-            </component>
+            </NuxtLink>
 
             <!-- Project Settings (Owner Only) -->
             <NuxtLink

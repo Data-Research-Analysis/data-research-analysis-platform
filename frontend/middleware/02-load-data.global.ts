@@ -280,7 +280,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
             })()
           );
         } else if (isMarketingSubRoute(to.path)) {
-          // Load projects + data sources for campaigns / marketing hub sub-routes
+          // Load projects + data sources + data models for campaigns / marketing hub sub-routes
           if (shouldRefreshProjects(projectsStore)) {
             loadTasks.push(
               (async () => {
@@ -289,15 +289,25 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
               })()
             );
           }
-          // Always load data sources for marketing routes to enable sidebar menus
+          
+          // Extract projectId from route params
+          const projectId = to.params.projectid ? parseInt(String(to.params.projectid), 10) : undefined;
+          
+          // Always load data sources and data models for marketing routes to enable sidebar menus
           loadTasks.push(
             (async () => {
               await dataSourceStore.retrieveDataSources();
               markDataLoaded('dataSources');
+            })(),
+            (async () => {
+              if (projectId && !isNaN(projectId)) {
+                await dataModelsStore.retrieveDataModels(projectId);
+                markDataLoaded('dataModels');
+              }
             })()
           );
         } else if (isSettingsRoute(to.path)) {
-          // Load projects + data sources for settings page (needed for sidebar menu enabling)
+          // Load projects + data sources + data models for settings page (needed for sidebar menu enabling)
           if (shouldRefreshProjects(projectsStore)) {
             loadTasks.push(
               (async () => {
@@ -306,11 +316,21 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
               })()
             );
           }
-          // Always load data sources for settings routes to enable sidebar menus
+          
+          // Extract projectId from route params
+          const projectId = to.params.projectid ? parseInt(String(to.params.projectid), 10) : undefined;
+          
+          // Always load data sources and data models for settings routes to enable sidebar menus
           loadTasks.push(
             (async () => {
               await dataSourceStore.retrieveDataSources();
               markDataLoaded('dataSources');
+            })(),
+            (async () => {
+              if (projectId && !isNaN(projectId)) {
+                await dataModelsStore.retrieveDataModels(projectId);
+                markDataLoaded('dataModels');
+              }
             })()
           );
         }

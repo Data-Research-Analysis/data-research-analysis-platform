@@ -384,6 +384,10 @@ See [ai-data-modeler-implementation.md](documentation/ai-data-modeler-implementa
 10. **Using inline `<svg>` blocks in `.vue` files** - forbidden; use `<font-awesome-icon>` instead (see Icon Usage)
 11. **Writing custom CSS in `<style>` blocks** - forbidden; use only TailwindCSS utility classes for all styling in `.vue` files; never add `<style scoped>` or `<style>` blocks
 12. **Reading the auth cookie directly with `useCookie`** - use `getAuthToken()` from `~/composables/AuthToken` instead; it is auto-imported, works anywhere (including click handlers), and uses the correct cookie name `dra_auth_token`
+13. **Loading data in component `onMounted` hooks** - middleware (02-load-data.global.ts) handles all data loading; components should NEVER call store retrieve methods in onMounted; stores are reactive and will automatically update when middleware loads data
+14. **Replacing working dynamic components without understanding why** - if code uses `<component :is="condition ? 'NuxtLink' : 'div'">` pattern, there's usually a reason; investigate before changing; use `@click.prevent` on NuxtLink to disable navigation instead
+15. **Adding polling/setInterval for reactivity** - Vue's reactive system handles updates automatically; polling is an anti-pattern that wastes resources; if computed properties aren't updating, investigate why the underlying refs/stores aren't changing
+16. **Not investigating root cause before fixing** - when something doesn't work, find out WHY before adding workarounds; hacks compound technical debt and often don't solve the actual problem
 
 ## Pull Request Template
 
