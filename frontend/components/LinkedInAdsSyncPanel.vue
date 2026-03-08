@@ -166,7 +166,7 @@ onMounted(() => {
         <div class="bg-white border border-gray-200 rounded-lg p-6">
             <h2 class="text-xl font-semibold text-gray-900 mb-4">Sync History</h2>
 
-            <SyncHistoryTable
+            <DataSourcesSyncHistoryTable
                 :sync-history="syncHistory"
                 :loading="state.loadingStatus"
                 :max-rows="20" />

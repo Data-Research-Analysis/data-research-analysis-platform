@@ -24,23 +24,27 @@ export default defineNuxtPlugin((nuxtApp) => {
   
   // Hover prefetching
   const handleMouseEnter = (e: MouseEvent) => {
-    const target = e.target as HTMLElement
+    const target = e.target as Node
+    
+    // Ensure we have an Element (text nodes don't have .closest())
+    const element = target instanceof Element ? target : (target as Node).parentElement
+    if (!element) return
     
     // Skip if inside editor or form elements to prevent interference during editing
     if (
-      target.closest('[contenteditable="true"]') ||
-      target.closest('.ProseMirror') ||
-      target.closest('.tiptap') ||
-      target.closest('.prose') ||
-      target.closest('textarea') ||
-      target.closest('input[type="text"]') ||
-      target.closest('input[type="email"]') ||
-      target.closest('form')
+      element.closest('[contenteditable="true"]') ||
+      element.closest('.ProseMirror') ||
+      element.closest('.tiptap') ||
+      element.closest('.prose') ||
+      element.closest('textarea') ||
+      element.closest('input[type="text"]') ||
+      element.closest('input[type="email"]') ||
+      element.closest('form')
     ) {
       return
     }
     
-    const link = target.closest('a')
+    const link = element.closest('a')
     if (!link) return
     
     const href = link.getAttribute('href')
@@ -76,20 +80,19 @@ export default defineNuxtPlugin((nuxtApp) => {
     
     // Skip prefetching on admin pages to avoid interference with editors
     if (currentPath.startsWith('/admin')) {
-      console.log('[prefetch] Disabled on admin pages')
       return
     }
     
     // Add hover listeners to all links
-    document.addEventListener('mouseenter', handleMouseEnter, { capture: true, passive: true })
+    document.addEventListener('mouseenter', handleMouseEnter, { capture: true, passive: true } as AddEventListenerOptions)
     
     // Observe all NuxtLinks in viewport
     const links = document.querySelectorAll('a[href^="/"]')
     links.forEach(link => observer.observe(link))
   }
   
-  // Initialize on mount
-  onMounted(() => {
+  // Initialize when app is mounted (Nuxt app hook instead of onMounted)
+  nuxtApp.hook('app:mounted', () => {
     initializePrefetching()
   })
   
@@ -111,9 +114,9 @@ export default defineNuxtPlugin((nuxtApp) => {
     })
   })
   
-  // Cleanup
-  onBeforeUnmount(() => {
-    document.removeEventListener('mouseenter', handleMouseEnter, { capture: true })
+  // Cleanup when app is unmounted
+  nuxtApp.hook('app:beforeUnmount', () => {
+    document.removeEventListener('mouseenter', handleMouseEnter, { capture: true } as AddEventListenerOptions)
     observer.disconnect()
     if (hoverTimeout) clearTimeout(hoverTimeout)
   })

@@ -58,7 +58,6 @@ onBeforeUnmount(() => {
     if (aiDataModelerStore.currentDataSourceId && 
         aiDataModelerStore.sessionSource !== 'database' &&
         aiDataModelerStore.messages.length > 0) {
-        console.log('[Create Data Model] Cleaning up unsaved AI session');
         aiDataModelerStore.cancelSession();
     }
 });

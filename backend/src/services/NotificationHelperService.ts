@@ -1,5 +1,8 @@
 import { NotificationProcessor } from '../processors/NotificationProcessor.js';
 import { NotificationType, ICreateNotificationData } from '../types/NotificationTypes.js';
+import { AppDataSource } from '../datasources/PostgresDS.js';
+import { DRAProject } from '../models/DRAProject.js';
+import { DRAUsersPlatform } from '../models/DRAUsersPlatform.js';
 
 /**
  * NotificationHelperService - Singleton service for creating notifications
@@ -170,6 +173,48 @@ export class NotificationHelperService {
             });
         } catch (error) {
             console.error('Failed to create invitation expired notification:', error);
+        }
+    }
+
+    async notifyOwnershipTransferred(projectId: number, newOwnerId: number, previousOwnerId: number): Promise<void> {
+        try {
+            const manager = AppDataSource.manager;
+            
+            // Get project details
+            const project = await manager.findOne(DRAProject, { where: { id: projectId } });
+            if (!project) return;
+
+            // Get new owner details
+            const newOwner = await manager.findOne(DRAUsersPlatform, { where: { id: newOwnerId } });
+            if (!newOwner) return;
+
+            // Get previous owner details
+            const previousOwner = await manager.findOne(DRAUsersPlatform, { where: { id: previousOwnerId } });
+            if (!previousOwner) return;
+
+            // Notify new owner
+            await this.notificationProcessor.createNotification({
+                userId: newOwnerId,
+                type: NotificationType.PROJECT_UPDATED,
+                title: 'Project Ownership Transferred',
+                message: `You are now the owner of project "${project.name}".`,
+                link: `/projects/${projectId}`,
+                metadata: { projectId, projectName: project.name, previousOwnerId, previousOwnerEmail: previousOwner.email },
+                expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+            });
+
+            // Notify previous owner
+            await this.notificationProcessor.createNotification({
+                userId: previousOwnerId,
+                type: NotificationType.PROJECT_UPDATED,
+                title: 'Project Ownership Transferred',
+                message: `Ownership of project "${project.name}" has been transferred to ${newOwner.first_name} ${newOwner.last_name}.`,
+                link: `/projects/${projectId}`,
+                metadata: { projectId, projectName: project.name, newOwnerId, newOwnerEmail: newOwner.email },
+                expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+            });
+        } catch (error) {
+            console.error('Failed to create ownership transferred notification:', error);
         }
     }
 

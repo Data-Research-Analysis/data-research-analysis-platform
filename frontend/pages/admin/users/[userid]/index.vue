@@ -32,8 +32,6 @@ async function loadUserSubscription() {
             userManagementStore.fetchUserSubscription(userId.value),
             userManagementStore.getAvailableTiers(userId.value)
         ]);
-        console.log('Current Subscription:', currentSubscription);
-        console.log('Available Tiers:', availableTiers);
         state.subscription.current = currentSubscription;
         state.subscription.availableTiers = availableTiers;
         if (currentSubscription) {

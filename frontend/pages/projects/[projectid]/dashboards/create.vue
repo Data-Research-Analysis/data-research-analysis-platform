@@ -160,15 +160,9 @@ function getChartTypeLabel(chartType) {
 watch(
     dataModelTables,
     (newTables) => {
-        console.log('🔍 Watcher triggered - newTables:', newTables);
         if (newTables && newTables.length > 0) {
             state.data_model_tables = [];
             newTables.forEach((dataModelTable) => {
-                console.log('📊 Processing dataModelTable:', {
-                    schema: dataModelTable.schema,
-                    table_name: dataModelTable.table_name,
-                    logical_name: dataModelTable.logical_name
-                });
                 state.data_model_tables.push({
                     schema: dataModelTable.schema,
                     model_name: dataModelTable.table_name,
@@ -178,7 +172,6 @@ watch(
                     columns: dataModelTable.columns,
                 });
             });
-            console.log('✅ Final state.data_model_tables:', state.data_model_tables);
         }
     },
     { immediate: true }
@@ -351,7 +344,6 @@ function buildSQLQuery(chart) {
     let sqlQuery = '';
     let fromJoinClause = [];
     let dataTables = chart.columns.map((column) => `${column.schema}.${column.table_name}`);
-    console.log('dataTables', dataTables);
     dataTables = _.uniq(dataTables);
     fromJoinClause.push(`FROM ${dataTables[0]}`);
     sqlQuery = `SELECT ${chart.columns.map((column) => {
@@ -798,7 +790,6 @@ async function saveDashboard() {
         return;
     }
     
-    console.log('project', project.value)
     try {
         await $fetch(url, {
             method: "POST",
@@ -1187,7 +1178,6 @@ function toggleSidebars(value) {
 }
 onMounted(async () => {
     state.data_model_tables = []
-    console.log('dataModelTables', dataModelTables);
     dataModelTables?.value?.forEach((dataModelTable) => {
         state.data_model_tables.push({
             schema: dataModelTable.schema,

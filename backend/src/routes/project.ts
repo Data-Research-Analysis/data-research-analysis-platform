@@ -35,6 +35,49 @@ router.get('/list', async (req: Request, res: Response, next: any) => {
     res.status(200).send(projects_list);
 });
 
+router.put('/update/:project_id', validateJWT, validate([
+    param('project_id').notEmpty().trim().toInt(),
+    body('name').optional().trim(),
+    body('description').optional().trim()
+]), authorize(Permission.PROJECT_EDIT), async (req: Request, res: Response) => {
+    const { project_id, name, description } = matchedData(req);
+    const updates: { name?: string; description?: string } = {};
+    if (name !== undefined) updates.name = name;
+    if (description !== undefined) updates.description = description;
+
+    const response = await ProjectProcessor.getInstance().updateProject(
+        project_id,
+        updates,
+        req.body.tokenDetails
+    );
+
+    if (response) {
+        res.status(200).send({ message: 'Project updated successfully' });
+    } else {
+        res.status(400).send({ message: 'Failed to update project' });
+    }
+});
+
+router.post('/transfer-ownership/:project_id', validateJWT, validate([
+    param('project_id').notEmpty().trim().toInt(),
+    body('new_owner_id').notEmpty().isInt()
+]), async (req: Request, res: Response) => {
+    const { project_id, new_owner_id } = matchedData(req);
+    const { user_id } = req.body.tokenDetails;
+
+    const response = await ProjectProcessor.getInstance().transferOwnership(
+        project_id,
+        new_owner_id,
+        user_id
+    );
+
+    if (response) {
+        res.status(200).send({ message: 'Ownership transferred successfully' });
+    } else {
+        res.status(400).send({ message: 'Failed to transfer ownership' });
+    }
+});
+
 router.delete('/delete/:project_id', async (req: Request, res: Response, next: any) => {
     next();
 }, validateJWT, validate([param('project_id').notEmpty().trim().toInt().escape().toInt()]), authorize(Permission.PROJECT_DELETE), async (req: Request, res: Response) => {

@@ -73,7 +73,7 @@
           @toggle-auto-refresh="handleToggleAutoRefresh" />
         
         <!-- Refresh History -->
-        <RefreshHistoryTable
+        <DataModelsRefreshHistoryTable
           :history="refreshHistory"
           :loading="historyLoading" />
         

@@ -43,7 +43,6 @@ export const useGoogleAnalytics = () => {
      */
     const syncNow = async (dataSourceId: number): Promise<boolean> => {
         try {
-            console.log('syncNow called with dataSourceId:', dataSourceId);
             const success = await dataSourceStore.syncGoogleAnalytics(dataSourceId);
             return success;
         } catch (error) {

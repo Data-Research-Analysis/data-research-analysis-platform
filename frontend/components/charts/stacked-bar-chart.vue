@@ -323,7 +323,6 @@ function deleteSVGs() {
 
 function processData(rawData) {
   // Transform data into D3 stack format
-  console.log('stacked bar chart processData rawData:', rawData);
   const processedData = rawData.map(d => {
     const item = { label: d.label };
     d.values.forEach(v => {
@@ -331,7 +330,6 @@ function processData(rawData) {
     });
     return item;
   });
-  console.log('stacked bar chart processData processedData:', processedData);
   return processedData;
 }
 

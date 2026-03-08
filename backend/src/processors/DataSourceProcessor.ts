@@ -114,9 +114,10 @@ export class DataSourceProcessor {
 
             const dataSources = Array.from(allDataSourcesMap.values());
 
-            // Transform to include counts
+            // Transform to include counts and project_id
             const dataSourcesWithCounts = dataSources.map(ds => ({
                 ...ds,
+                project_id: ds.project?.id || null,  // Include project_id explicitly
                 data_models_count: ds.data_models?.length || 0,
                 DataModels: ds.data_models  // Backward compatibility
             }));

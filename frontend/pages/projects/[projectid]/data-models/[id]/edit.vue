@@ -29,7 +29,6 @@ const permissions = useProjectPermissions(projectId.value);
 
 async function getAllProjectTables() {
     try {
-        console.log('[CrossSource] Fetching all tables for project:', projectId.value);
         
         const response = await dataModelsStore.fetchAllProjectTables(projectId.value);
         
@@ -54,7 +53,6 @@ async function getAllProjectTables() {
             });
             
             state.data_source_tables = allTables;
-            console.log('[CrossSource] Loaded', allTables.length, 'tables from', response.length, 'data sources');
         } else {
             console.warn('[CrossSource] No data sources found for project');
             state.data_source_tables = [];

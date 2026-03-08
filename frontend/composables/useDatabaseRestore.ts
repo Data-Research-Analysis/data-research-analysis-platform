@@ -180,7 +180,6 @@ export const useDatabaseRestore = () => {
         // Progress updates
         $socketio.on('database-restore-progress', (data: string) => {
             const parsed = JSON.parse(data);
-            console.log('Restore progress:', parsed);
             
             restoreProgress.value = parsed.progress;
             restoreStatus.value = parsed.status;
@@ -194,7 +193,6 @@ export const useDatabaseRestore = () => {
         // Completion
         $socketio.on('database-restore-complete', (data: string) => {
             const parsed = JSON.parse(data);
-            console.log('Restore complete:', parsed);
             
             isRestoring.value = false;
             restoreComplete.value = true;

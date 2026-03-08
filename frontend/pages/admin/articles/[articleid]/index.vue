@@ -159,7 +159,6 @@ async function unpublishArticle() {
             });
             window.location.reload();
         } catch (error) {
-            console.log("error", error);
             await $swal.fire({
                 icon: 'error',
                 title: 'Error!',
@@ -198,7 +197,6 @@ async function publishArticle() {
             });
             window.location.reload();
         } catch (error) {
-            console.log("error", error);
             await $swal.fire({
                 icon: 'error',
                 title: 'Error!',

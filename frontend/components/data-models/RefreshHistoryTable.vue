@@ -49,7 +49,7 @@
               {{ formatDateTime(record.started_at) }}
             </td>
             <td class="px-4 py-3 whitespace-nowrap">
-              <RefreshStatusBadge :status="record.status.toLowerCase()" />
+              <DataModelsRefreshStatusBadge :status="record.status.toLowerCase()" />
             </td>
             <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
               {{ formatDuration(record.duration_ms) }}

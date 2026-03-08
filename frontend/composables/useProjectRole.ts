@@ -29,23 +29,17 @@ export const useProjectRole = () => {
     /** The effective marketing role for the current user in the selected project. */
     const projectRole = computed<MarketingRole>(() => {
         if (isSystemAdmin.value) {
-            console.log('[useProjectRole] system admin → forcing analyst');
             return 'analyst';
         }
         const pid = parseInt(String(route.params.projectid));
         if (!pid) {
-            console.log('[useProjectRole] no projectid param → cmo');
+            // no projectid → cmo
             return 'cmo';
         }
         const project = projectsStore.projects.find(p => p.id === pid);
-        console.log('[useProjectRole] pid:', pid,
-            '| projects in store:', projectsStore.projects.length,
-            '| matched project:', project ? { id: project.id, name: project.name, my_role: project.my_role, is_owner: project.is_owner } : null
-        );
         if (!project) return 'cmo'; // project not yet loaded
 
         const resolved = (project.my_role as MarketingRole) ?? 'cmo';
-        console.log('[useProjectRole] resolved role:', resolved);
         return resolved;
     });
 

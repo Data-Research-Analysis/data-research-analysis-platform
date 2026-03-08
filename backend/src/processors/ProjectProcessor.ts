@@ -414,4 +414,122 @@ export class ProjectProcessor {
             marketing_role: member.marketing_role,
         };
     }
+
+    /**
+     * Update project name and/or description
+     */
+    public async updateProject(
+        projectId: number,
+        updates: { name?: string; description?: string },
+        tokenDetails: ITokenDetails
+    ): Promise<boolean> {
+        try {
+            const { user_id } = tokenDetails;
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) return false;
+
+            const concreteDriver = await driver.getConcreteDriver();
+            if (!concreteDriver) return false;
+
+            const manager = concreteDriver.manager;
+            if (!manager) return false;
+
+            const project = await manager.findOne(DRAProject, {
+                where: { id: projectId },
+                relations: ['users_platform']
+            });
+
+            if (!project) return false;
+
+            // Update fields if provided
+            if (updates.name !== undefined) {
+                project.name = updates.name;
+            }
+            if (updates.description !== undefined) {
+                project.description = updates.description;
+            }
+
+            await manager.save(project);
+            return true;
+        } catch (error) {
+            console.error('Error updating project:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Transfer project ownership to another member
+     */
+    public async transferOwnership(
+        projectId: number,
+        newOwnerId: number,
+        currentOwnerId: number
+    ): Promise<boolean> {
+        try {
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) return false;
+
+            const concreteDriver = await driver.getConcreteDriver();
+            if (!concreteDriver) return false;
+
+            const manager = concreteDriver.manager;
+            if (!manager) return false;
+
+            // Use transaction to ensure atomicity
+            await manager.transaction(async (transactionManager) => {
+                // Get the project
+                const project = await transactionManager.findOne(DRAProject, {
+                    where: { id: projectId },
+                    relations: ['users_platform']
+                });
+
+                if (!project) {
+                    throw new Error('Project not found');
+                }
+
+                // Verify current user is the owner
+                if (project.users_platform.id !== currentOwnerId) {
+                    throw new Error('Only the project owner can transfer ownership');
+                }
+
+                // Verify new owner is a member
+                const newOwnerMember = await transactionManager.findOne(DRAProjectMember, {
+                    where: {
+                        project: { id: projectId },
+                        user: { id: newOwnerId }
+                    },
+                    relations: ['user']
+                });
+
+                if (!newOwnerMember) {
+                    throw new Error('New owner must be a member of the project');
+                }
+
+                // Get the new owner user entity
+                const newOwner = await transactionManager.findOne(DRAUsersPlatform, {
+                    where: { id: newOwnerId }
+                });
+
+                if (!newOwner) {
+                    throw new Error('New owner user not found');
+                }
+
+                // Transfer ownership
+                project.users_platform = newOwner;
+                await transactionManager.save(project);
+
+                // Ensure new owner has analyst role
+                newOwnerMember.marketing_role = 'analyst';
+                await transactionManager.save(newOwnerMember);
+            });
+
+            // Send notification
+            await this.notificationHelper.notifyOwnershipTransferred(projectId, newOwnerId, currentOwnerId);
+
+            return true;
+        } catch (error) {
+            console.error('Error transferring ownership:', error);
+            return false;
+        }
+    }
 }

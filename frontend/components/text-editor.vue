@@ -119,23 +119,15 @@
             FileHandler.configure({
                 allowedMimeTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/webp'],
                 onDrop: (currentEditor, files, pos) =>  {
-                    console.log('FileHandler onDrop triggered with files:', files);
                     files.forEach(file => {
-                        console.log('Processing file:', file.name, file.type);
                         if (file && file.type.startsWith('image/')) {
-                            console.log('Uploading image...');
                             handleImageUpload(file).then(imageUrl => {
-                                console.log('Image uploaded successfully, URL:', imageUrl);
-                                console.log('Inserting at position:', pos);
-                                
                                 // Try setting image using setImage command instead of insertContentAt
                                 currentEditor
                                     .chain()
                                     .focus()
                                     .setImage({ src: imageUrl })
                                     .run();
-                                    
-                                console.log('Image insertion command executed');
                             }).catch(error => {
                                 console.error('Error uploading image:', error);
                                 alert('Failed to upload image. Please try again.');
@@ -479,7 +471,6 @@
             }
             
             const data = await response.json();
-            console.log('Backend response data:', data);
             
             // Extract the image URL from the response
             // Backend returns {urls: [{path: "/backend/public/uploads/filename.png", ...}]}
@@ -496,8 +487,6 @@
             // Construct the full URL with backend base URL
             const imageUrl = `${backendUrl}${imagePath}`;
             
-            console.log('Extracted image path:', imagePath);
-            console.log('Full image URL:', imageUrl);
             return imageUrl;
         } catch (error) {
             console.error('Error uploading image:', error);

@@ -10,6 +10,12 @@ const state = reactive({
     drawerOpen: false,
 });
 
+// Track client-side mount status to prevent hydration mismatches
+const isMounted = ref(false);
+onMounted(() => {
+    isMounted.value = true;
+});
+
 // Computed property for authentication state based on cookie
 const authenticated = computed(() => {
     // Check cookie value directly for reactivity
@@ -21,6 +27,8 @@ const loggedInUser = computed(() => {
 });
 
 const isUserAdmin = computed(() => {
+    // Guard to prevent hydration mismatch - always return false during SSR
+    if (!isMounted.value) return false;
     return loggedInUser.value?.user_type === 'admin';
 });
 
@@ -106,22 +114,29 @@ function closeDrawer() {
                 <div class="mr-4">
                     <NotificationBell />
                 </div>
-                <menu-dropdown>
-                    <template #menuItem="{ onClick }">
-                        <div @click="onClick" class="flex flex-col justify-center items-center w-10 h-10 bg-gray-200 border border-primary-blue-100 border-solid p-1 rounded-full cursor-pointer hover:bg-gray-300 font-bold text-center text-black text-none">
-                            {{ userNameFirstLetter }}
+                <ClientOnly>
+                    <menu-dropdown>
+                        <template #menuItem="{ onClick }">
+                            <div @click="onClick" class="flex flex-col justify-center items-center w-10 h-10 bg-gray-200 border border-primary-blue-100 border-solid p-1 rounded-full cursor-pointer hover:bg-gray-300 font-bold text-center text-black text-none">
+                                {{ userNameFirstLetter }}
+                            </div>
+                        </template>
+                        <template #dropdownMenu="{ onClick }">
+                            <div class="flex flex-col w-40 text-center">
+                                <NuxtLink to="/logout">
+                                    <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer pt-1 pb-1">
+                                        Logout
+                                    </div>
+                                </NuxtLink>
+                            </div>
+                        </template>
+                    </menu-dropdown>
+                    <template #fallback>
+                        <div class="flex flex-col justify-center items-center w-10 h-10 bg-gray-200 border border-primary-blue-100 border-solid p-1 rounded-full">
+                            <div class="animate-pulse h-4 w-4 bg-gray-300 rounded"></div>
                         </div>
                     </template>
-                    <template #dropdownMenu="{ onClick }">
-                        <div class="flex flex-col w-40 text-center">
-                            <NuxtLink to="/logout">
-                                <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer pt-1 pb-1">
-                                    Logout
-                                </div>
-                            </NuxtLink>
-                        </div>
-                    </template>
-                </menu-dropdown>
+                </ClientOnly>
             </div>
         </div>
        <navigation-drawer :drawer-open="state.drawerOpen" @close-drawer="closeDrawer" />

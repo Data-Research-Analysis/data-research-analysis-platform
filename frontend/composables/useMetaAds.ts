@@ -70,7 +70,6 @@ export const useMetaAds = () => {
      */
     const syncNow = async (dataSourceId: number): Promise<boolean> => {
         try {
-            console.log('syncNow called for Meta Ads with dataSourceId:', dataSourceId);
             const success = await dataSourceStore.syncMetaAds(dataSourceId);
             return success;
         } catch (error) {

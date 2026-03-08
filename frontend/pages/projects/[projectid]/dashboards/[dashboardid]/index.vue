@@ -1560,7 +1560,6 @@ function exportDashboardAsImage() {
     }, 100);
 }
 async function exportAsWebPage(closeMenu) {
-    console.log('exportAsWebPage called');
     
     // Close the menu first
     if (closeMenu && typeof closeMenu === 'function') {
@@ -1570,7 +1569,6 @@ async function exportAsWebPage(closeMenu) {
     try {
         const token = getAuthToken();
         if (!dashboard.value?.id) {
-            console.error('Dashboard ID is missing');
             $swal.fire({
                 icon: 'error',
                 title: `Error! `,
@@ -1580,7 +1578,6 @@ async function exportAsWebPage(closeMenu) {
         }
         
         let url = `${baseUrl()}/dashboard/generate-public-export-link/${dashboard.value.id}`;
-        console.log('Calling API:', url);
         
         const data = await $fetch(url, {
             method: "GET",
@@ -1590,12 +1587,10 @@ async function exportAsWebPage(closeMenu) {
             },
         });
         
-        console.log('Public link generated:', data);
         await dashboardsStore.retrieveDashboards();
         
         // Construct the public dashboard URL directly without using router
         const publicDashboardUrl = `${window.location.origin}/public-dashboard/${data.key}`;
-        console.log('Opening public dashboard:', publicDashboardUrl);
         window.open(publicDashboardUrl, '_blank');
     } catch (error) {
         console.error('Error in exportAsWebPage:', error);

@@ -123,7 +123,6 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                     "Authorization-Type": "auth",
                 },
             }) as any;
-            console.log('Received Google OAuth URL:', data);
             return data.auth_url;
         } catch (error) {
             console.error('Error initiating Google OAuth:', error);
@@ -262,12 +261,9 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
      */
     async function syncGoogleAnalytics(dataSourceId: number): Promise<boolean> {
         const token = getAuthToken();
-        console.log('syncGoogleAnalytics called with dataSourceId:', dataSourceId);
-        console.log('Auth token:', token);
         if (!token) return false;
 
         try {
-            console.log('Sending sync request to backend for dataSourceId:', dataSourceId);
             await $fetch(`${baseUrl()}/google-analytics/sync/${dataSourceId}`, {
                 method: "POST",
                 headers: {
@@ -360,7 +356,6 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
      */
     async function syncGoogleAdManager(dataSourceId: number): Promise<boolean> {
         const token = getAuthToken();
-        console.log('syncGoogleAdManager called with dataSourceId:', dataSourceId);
         if (!token) return false;
 
         try {
@@ -434,8 +429,6 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
         if (!token) return null;
 
         try {
-            console.log('[Store] Calling /google-ads/add with config:', config);
-            
             const data = await $fetch(`${baseUrl()}/google-ads/add`, {
                 method: "POST",
                 headers: {
@@ -445,7 +438,6 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                 body: config
             }) as any;
 
-            console.log('[Store] Success! Data source ID:', data.dataSourceId);
             // Refresh data sources list
             await retrieveDataSources();
             return data.dataSourceId || null;
@@ -461,7 +453,6 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
      */
     async function syncGoogleAds(dataSourceId: number): Promise<boolean> {
         const token = getAuthToken();
-        console.log('syncGoogleAds called with dataSourceId:', dataSourceId);
         if (!token) return false;
 
         try {

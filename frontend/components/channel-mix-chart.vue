@@ -64,14 +64,21 @@ const isEmpty = computed(() => chartData.value.length === 0);
 
         <!-- Chart + legend -->
         <div v-else class="p-4">
-            <ChartsDonutChart
-                chart-id="channel-mix-hub"
-                :data="chartData"
-                :height="280"
-                :inner-radius="80"
-                category-column="category"
-                column-name="Spend"
-            />
+            <ClientOnly>
+                <ChartsDonutChart
+                    chart-id="channel-mix-hub"
+                    :data="chartData"
+                    :height="280"
+                    :inner-radius="80"
+                    category-column="category"
+                    column-name="Spend"
+                />
+                <template #fallback>
+                    <div class="flex items-center justify-center h-48">
+                        <font-awesome-icon :icon="['fas', 'spinner']" class="animate-spin text-2xl text-gray-300" />
+                    </div>
+                </template>
+            </ClientOnly>
 
             <!-- Legend below chart -->
             <ul class="mt-3 flex flex-wrap gap-x-4 gap-y-1 justify-center">

@@ -236,7 +236,6 @@ function renderSVG(chartData) {
 
 
 function renderChart(chartData) {
-  console.log('renderChart chartData', chartData);
   //remove all existing svgs
   deleteSVGs();
   renderSVG(chartData);

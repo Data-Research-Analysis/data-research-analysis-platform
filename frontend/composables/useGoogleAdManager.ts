@@ -93,7 +93,6 @@ export const useGoogleAdManager = () => {
      */
     const syncNow = async (dataSourceId: number): Promise<boolean> => {
         try {
-            console.log('syncNow called with dataSourceId:', dataSourceId);
             const success = await dataSourceStore.syncGoogleAdManager(dataSourceId);
             return success;
         } catch (error) {

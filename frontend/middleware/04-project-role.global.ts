@@ -29,6 +29,11 @@ const ANALYST_ONLY_PATTERNS: RegExp[] = [
     /\/settings\/members/,
 ];
 
+// Requires owner only (blocked for all non-owners including analysts)
+const OWNER_ONLY_PATTERNS: RegExp[] = [
+    /\/settings(\/|$)/,
+];
+
 function matchesAny(path: string, patterns: RegExp[]): boolean {
     return patterns.some(p => p.test(path));
 }
@@ -54,7 +59,6 @@ export default defineNuxtRouteMiddleware((to) => {
         if (stored) {
             try { projectsStore.setProjects(JSON.parse(stored)); } catch {}
         }
-        console.log('[04-project-role] hydrated projects from localStorage, count:', projectsStore.projects.length);
     }
 
     // Derive role directly from projects array using the projectid in the URL
@@ -62,15 +66,18 @@ export default defineNuxtRouteMiddleware((to) => {
     const pid = pidMatch ? parseInt(pidMatch[1]) : null;
     const project = pid ? projectsStore.projects.find(p => p.id === pid) : null;
 
-    console.log('[04-project-role] path:', to.path,
-        '| pid:', pid,
-        '| projects in store:', projectsStore.projects.length,
-        '| matched project:', project ? { id: project.id, name: project.name, my_role: project.my_role, is_owner: project.is_owner } : null
-    );
-
     // Use my_role from the store; default to most restrictive while store hydrates
     const role = ((project?.my_role) ?? 'cmo') as 'analyst' | 'manager' | 'cmo';
-    console.log('[04-project-role] resolved role:', role);
+    const isOwner = project?.is_owner ?? false;
+
+    // Owner-only routes — all non-owners are blocked
+    // Skip check if project data not available yet (let page load and handle it)
+    if (matchesAny(to.path, OWNER_ONLY_PATTERNS) && project && !isOwner) {
+        const projectId = pidMatch ? pidMatch[1] : null;
+        return projectId
+            ? navigateTo(`/projects/${projectId}`)
+            : navigateTo('/projects');
+    }
 
     // Manager+ routes — CMO is blocked
     if (matchesAny(to.path, MANAGER_PLUS_PATTERNS) && role === 'cmo') {

@@ -726,12 +726,12 @@ onMounted(async () => {
                     <h3 class="text-sm font-medium text-gray-700 mb-3">Current Status</h3>
                     <div class="space-y-3">
                         <div class="flex items-center justify-between">
-                            <SyncStatusBadge :status="getSyncStatus().status as any" />
+                            <DataSourcesSyncStatusBadge :status="getSyncStatus().status as any" />
                         </div>
                         
                         <!-- Progress bar when syncing -->
                         <div v-if="realtimeSyncStatus.status === 'syncing' && realtimeSyncStatus.progress > 0">
-                            <SyncProgressBar 
+                            <DataSourcesSyncProgressBar 
                                 :progress="realtimeSyncStatus.progress" 
                                 label="Sync Progress" 
                                 color="blue" />
@@ -790,7 +790,7 @@ onMounted(async () => {
             class="bg-white border border-gray-200 rounded-lg p-6">
             <h2 class="text-xl font-semibold text-gray-900 mb-4">Sync History</h2>
 
-            <SyncHistoryTable 
+            <DataSourcesSyncHistoryTable 
                 :sync-history="state.sync_history" 
                 :loading="state.loadingSyncHistory"
                 :max-rows="20" />

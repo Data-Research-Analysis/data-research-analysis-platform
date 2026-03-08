@@ -11,6 +11,12 @@ const loggedInUserStore = useLoggedInUserStore();
 // Get auth token as a reactive reference
 const authToken = useCookie('dra_auth_token');
 
+// Track client-side mount status to prevent hydration mismatches
+const isMounted = ref(false);
+onMounted(() => {
+    isMounted.value = true;
+});
+
 // Computed property for authentication state based on cookie
 const authenticated = computed(() => {
     return !!authToken.value;
@@ -21,6 +27,8 @@ const loggedInUser = computed(() => {
 });
 
 const isUserAdmin = computed(() => {
+    // Guard to prevent hydration mismatch - always return false during SSR
+    if (!isMounted.value) return false;
     return loggedInUser.value?.user_type === 'admin';
 });
 
@@ -103,9 +111,16 @@ function closeDrawer() {
                 </div>
                 <div class="w-3/4 h-1 bg-white m-auto mt-5"></div>
                 <div class="flex flex-row mt-5 items-center">
-                    <div class="flex flex-col justify-center items-center w-10 h-10 bg-gray-200 border border-primary-blue-100 border-solid p-1 rounded-full font-bold text-center text-black">
-                        {{ userNameFirstLetter }}
-                    </div>
+                    <ClientOnly>
+                        <div class="flex flex-col justify-center items-center w-10 h-10 bg-gray-200 border border-primary-blue-100 border-solid p-1 rounded-full font-bold text-center text-black">
+                            {{ userNameFirstLetter }}
+                        </div>
+                        <template #fallback>
+                            <div class="flex flex-col justify-center items-center w-10 h-10 bg-gray-200 border border-primary-blue-100 border-solid p-1 rounded-full">
+                                <div class="animate-pulse h-4 w-4 bg-gray-300 rounded"></div>
+                            </div>
+                        </template>
+                    </ClientOnly>
                     <div class="text-xl font-bold ml-3 hover:text-gray-300 cursor-pointer" @click="closeDrawer">
                         <NuxtLink to="/logout">Logout</NuxtLink>
                     </div>

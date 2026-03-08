@@ -255,14 +255,6 @@ const charts = computed(() => {
         
         // Debug logging on client only
         if (import.meta.client && import.meta.dev) {
-            console.log('[Public Dashboard] Charts loaded:', processedCharts.length);
-            console.log('[Public Dashboard] Chart positions:', processedCharts.map(c => ({ 
-                id: c.chart_id, 
-                top: c.location?.top, 
-                left: c.location?.left,
-                width: c.dimensions?.width,
-                height: c.dimensions?.height
-            })));
         }
         
         return processedCharts;

@@ -21,7 +21,7 @@
       <div>
         <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Status</label>
         <div class="flex items-center gap-2">
-          <RefreshStatusBadge :status="currentStatus" />
+          <DataModelsRefreshStatusBadge :status="currentStatus" />
         </div>
       </div>
       

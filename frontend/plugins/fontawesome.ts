@@ -3,8 +3,9 @@ import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 import { fas } from "@fortawesome/free-solid-svg-icons";
 import { far } from "@fortawesome/free-regular-svg-icons";
 import { fab} from "@fortawesome/free-brands-svg-icons";
+import "@fortawesome/fontawesome-svg-core/styles.css";
 
-// This is important, we are going to let Nuxt worry about the CSS
+// Prevent Font Awesome from dynamically adding its CSS since we imported it above
 config.autoAddCss = false;
 
 // You can add your icons directly in this plugin. See other examples for how you

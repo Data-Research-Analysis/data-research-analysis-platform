@@ -24,20 +24,16 @@ export function useSyncStatus() {
      */
     const connect = () => {
         if (ws.value && ws.value.readyState === WebSocket.OPEN) {
-            console.log('WebSocket already connected');
             return;
         }
         
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/ws/sync-status`;
         
-        console.log(`🔌 Connecting to WebSocket: ${wsUrl}`);
-        
         try {
             ws.value = new WebSocket(wsUrl);
             
             ws.value.onopen = () => {
-                console.log('✅ WebSocket connected');
                 connected.value = true;
                 reconnectAttempts.value = 0;
                 
@@ -57,13 +53,11 @@ export function useSyncStatus() {
             };
             
             ws.value.onclose = () => {
-                console.log('❌ WebSocket disconnected');
                 connected.value = false;
                 
                 // Attempt to reconnect
                 if (reconnectAttempts.value < maxReconnectAttempts) {
                     reconnectAttempts.value++;
-                    console.log(`Reconnecting in ${reconnectDelay}ms (attempt ${reconnectAttempts.value}/${maxReconnectAttempts})...`);
                     setTimeout(connect, reconnectDelay);
                 } else {
                     console.error('Max reconnection attempts reached');
@@ -115,7 +109,6 @@ export function useSyncStatus() {
                 type: 'subscribe',
                 dataSourceIds,
             }));
-            console.log(`📡 Subscribed to data sources: ${dataSourceIds.join(', ')}`);
         }
     };
     
@@ -132,7 +125,6 @@ export function useSyncStatus() {
                 type: 'unsubscribe',
                 dataSourceIds,
             }));
-            console.log(`📡 Unsubscribed from data sources: ${dataSourceIds.join(', ')}`);
         }
     };
     
@@ -142,11 +134,9 @@ export function useSyncStatus() {
     const handleMessage = (message: ISyncEvent) => {
         switch (message.type) {
             case 'connected':
-                console.log('WebSocket connection confirmed');
                 break;
                 
             case 'subscribed':
-                console.log('Subscribed to data sources:', message.data);
                 break;
                 
             case 'sync-event':
@@ -158,7 +148,6 @@ export function useSyncStatus() {
                 break;
                 
             default:
-                console.log('Unknown message type:', message.type);
         }
     };
     

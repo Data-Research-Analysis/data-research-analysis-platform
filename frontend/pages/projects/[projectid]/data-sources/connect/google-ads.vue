@@ -290,15 +290,12 @@ async function connectDataSource() {
             endDate: dateRange.endDate
         };
 
-        console.log('[Wizard] Calling addDataSource with config:', dataSourceConfig);
         const dataSourceId = await ads.addDataSource(dataSourceConfig);
 
         if (!dataSourceId) {
             throw new Error('Failed to create data source - no ID returned');
         }
         
-        console.log('[Wizard] Data source created successfully:', dataSourceId);
-
         // Update progress
         $swal.update({
             html: `
@@ -311,9 +308,7 @@ async function connectDataSource() {
         });
 
         // Trigger initial sync
-        console.log('[Wizard] Triggering initial sync...');
         const syncSuccess = await ads.syncNow(dataSourceId);
-        console.log('[Wizard] Sync result:', syncSuccess);
 
         // Final progress update
         $swal.update({

@@ -152,7 +152,6 @@ export const useSSRPerformance = () => {
     if (!import.meta.client || !hydrationStart.value) return
 
     metrics.value.hydrationTime = performance.now() - hydrationStart.value
-    console.log(`Hydration completed in ${metrics.value.hydrationTime.toFixed(2)}ms`)
   }
 
   /**
@@ -199,14 +198,13 @@ export const useSSRPerformance = () => {
   const logMetrics = () => {
     if (!import.meta.client) return
 
-    console.group('🚀 SSR Performance Metrics')
-    console.log(`URL: ${metrics.value.url}`)
-    console.log(`TTFB: ${metrics.value.ttfb?.toFixed(2) || 'N/A'}ms`)
-    console.log(`FCP: ${metrics.value.fcp?.toFixed(2) || 'N/A'}ms`)
-    console.log(`LCP: ${metrics.value.lcp?.toFixed(2) || 'N/A'}ms`)
-    console.log(`Hydration Time: ${metrics.value.hydrationTime?.toFixed(2) || 'N/A'}ms`)
-    console.log(`TBT: ${metrics.value.tbt?.toFixed(2) || 'N/A'}ms`)
-    console.groupEnd()
+    console.warn(`🚀 SSR Performance Metrics`);
+    console.warn(`URL: ${metrics.value.url}`);
+    console.warn(`TTFB: ${metrics.value.ttfb?.toFixed(2) || 'N/A'}ms`);
+    console.warn(`FCP: ${metrics.value.fcp?.toFixed(2) || 'N/A'}ms`);
+    console.warn(`LCP: ${metrics.value.lcp?.toFixed(2) || 'N/A'}ms`);
+    console.warn(`Hydration Time: ${metrics.value.hydrationTime?.toFixed(2) || 'N/A'}ms`);
+    console.warn(`TBT: ${metrics.value.tbt?.toFixed(2) || 'N/A'}ms`);
   }
 
   /**
@@ -263,7 +261,7 @@ export const useSSRPerformance = () => {
       warnings.forEach(warning => console.warn(warning))
       console.groupEnd()
     } else {
-      console.log('✅ All performance budgets met!')
+      console.warn('✅ All performance budgets met!')
     }
 
     return warnings

@@ -1,13 +1,14 @@
 <template>
-  <transition
-    enter-active-class="transition ease-out duration-300 transform"
-    enter-from-class="translate-y-full opacity-0"
-    enter-to-class="translate-y-0 opacity-100"
-    leave-active-class="transition ease-in duration-200 transform"
-    leave-from-class="translate-y-0 opacity-100"
-    leave-to-class="translate-y-full opacity-0"
-  >
-    <div v-if="showBanner" class="fixed bottom-0 left-0 right-0 z-50 bg-primary-blue-300 text-white shadow-[0_-8px_30px_rgba(0,0,0,0.4)]">
+  <div>
+    <transition
+      enter-active-class="transition ease-out duration-300 transform"
+      enter-from-class="translate-y-full opacity-0"
+      enter-to-class="translate-y-0 opacity-100"
+      leave-active-class="transition ease-in duration-200 transform"
+      leave-from-class="translate-y-0 opacity-100"
+      leave-to-class="translate-y-full opacity-0"
+    >
+      <div v-if="showBanner" class="fixed bottom-0 left-0 right-0 z-50 bg-primary-blue-300 text-white shadow-[0_-8px_30px_rgba(0,0,0,0.4)]">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
         <div class="flex flex-col lg:flex-row items-start lg:items-center gap-4">
           <!-- Icon -->
@@ -166,6 +167,7 @@
       </div>
     </div>
   </transition>
+  </div>
 </template>
 
 <script setup lang="ts">

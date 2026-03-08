@@ -79,7 +79,6 @@ export const useGoogleAds = () => {
      */
     const syncNow = async (dataSourceId: number): Promise<boolean> => {
         try {
-            console.log('syncNow called with dataSourceId:', dataSourceId);
             const success = await dataSourceStore.syncGoogleAds(dataSourceId);
             return success;
         } catch (error) {

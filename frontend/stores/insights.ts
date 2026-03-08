@@ -61,18 +61,13 @@ export const useInsightsStore = defineStore('insights', () => {
             return;
         }
 
-        console.log('[Insights Store] Initializing Socket.IO listeners');
-        console.log('[Insights Store] Socket connected:', socket.connected);
-        console.log('[Insights Store] Socket ID:', socket.id);
-
         // Test listener for ANY event
         socket.onAny((eventName: string, ...args: any[]) => {
-            console.log(`[Insights Store] Socket.IO event received: ${eventName}`, args);
+            // Socket event received
         });
 
         // Listen for progress updates
         socket.on('insight-analysis-progress', (data: any) => {
-            console.log('[Insights Store] Received insight-analysis-progress:', data);
             generationProgress.value = {
                 phase: data.phase,
                 progress: data.progress,
@@ -83,13 +78,12 @@ export const useInsightsStore = defineStore('insights', () => {
 
         // Listen for streaming chunks
         socket.on('insight-chunk', (data: any) => {
-            console.log('[Insights Store] Received insight-chunk');
             streamingResponse.value += data.chunk;
         });
 
         // Listen for completion
         socket.on('insight-complete', (data: any) => {
-            console.log('[Insights Store] Insights complete event received:', data);
+
             
             // Transform the insights structure to match template expectations
             const transformedInsights: any = {

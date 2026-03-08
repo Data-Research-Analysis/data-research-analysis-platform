@@ -83,15 +83,22 @@ const isEmpty = computed(() => !props.trend.length || !chartData.value?.series.l
 
         <!-- Chart -->
         <div v-else class="p-4">
-            <ChartsMultiLineChart
-                chart-id="weekly-spend-hub"
-                :data="chartData"
-                :height="300"
-                y-axis-label="Spend ($)"
-                :show-data-points="true"
-                :enable-tooltips="true"
-                legend-position="bottom"
-            />
+            <ClientOnly>
+                <ChartsMultiLineChart
+                    chart-id="weekly-spend-hub"
+                    :data="chartData"
+                    :height="300"
+                    y-axis-label="Spend ($)"
+                    :show-data-points="true"
+                    :enable-tooltips="true"
+                    legend-position="bottom"
+                />
+                <template #fallback>
+                    <div class="flex items-center justify-center h-48">
+                        <font-awesome-icon :icon="['fas', 'spinner']" class="animate-spin text-2xl text-gray-300" />
+                    </div>
+                </template>
+            </ClientOnly>
         </div>
     </div>
 </template>

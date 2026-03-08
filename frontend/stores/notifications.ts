@@ -163,7 +163,6 @@ export const useNotificationStore = defineStore('notifications', {
             }
 
             if (this.socket || this.initialized) {
-                console.log('Socket already initialized');
                 return;
             }
 
@@ -178,16 +177,15 @@ export const useNotificationStore = defineStore('notifications', {
 
                 // Connection events
                 this.socket.on('connect', () => {
-                    console.log('Socket.IO connected for notifications');
                     this.initialized = true;
                 });
 
                 this.socket.on('disconnect', () => {
-                    console.log('Socket.IO disconnected');
+                    // Disconnected from Socket.IO
                 });
 
                 this.socket.on('serverInitialization', (data) => {
-                    console.log('Server initialization:', data);
+                    // Server initialized
                 });
 
                 // Notification events
@@ -205,8 +203,6 @@ export const useNotificationStore = defineStore('notifications', {
          * Handle new notification from Socket.IO
          */
         handleNewNotification(data: { notification: INotificationData }) {
-            console.log('New notification received:', data);
-
             // Add to beginning of array
             this.notifications.unshift(data.notification);
 
@@ -226,8 +222,6 @@ export const useNotificationStore = defineStore('notifications', {
          * Handle notification marked as read from Socket.IO
          */
         handleNotificationRead(data: { notificationId: number; readAt: Date }) {
-            console.log('Notification marked as read:', data);
-
             const notification = this.notifications.find(n => n.id === data.notificationId);
             if (notification && !notification.isRead) {
                 notification.isRead = true;
@@ -240,8 +234,6 @@ export const useNotificationStore = defineStore('notifications', {
          * Handle notification deleted from Socket.IO
          */
         handleNotificationDeleted(data: { notificationId: number }) {
-            console.log('Notification deleted:', data);
-
             const index = this.notifications.findIndex(n => n.id === data.notificationId);
             if (index !== -1) {
                 const notification = this.notifications[index];
@@ -256,8 +248,6 @@ export const useNotificationStore = defineStore('notifications', {
          * Handle all notifications marked as read from Socket.IO
          */
         handleMarkAllRead(data: { timestamp: Date }) {
-            console.log('All notifications marked as read:', data);
-
             this.notifications.forEach(n => {
                 if (!n.isRead) {
                     n.isRead = true;
@@ -284,7 +274,6 @@ export const useNotificationStore = defineStore('notifications', {
         async requestNotificationPermission() {
             if ('Notification' in window && Notification.permission === 'default') {
                 const permission = await Notification.requestPermission();
-                console.log('Notification permission:', permission);
                 return permission;
             }
             return Notification.permission;

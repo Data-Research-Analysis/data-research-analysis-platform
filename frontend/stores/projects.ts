@@ -87,7 +87,6 @@ export const useProjectsStore = defineStore('projectsDRA', () => {
         const cached: IProject[] = JSON.parse(localStorage.getItem('projects') || '[]');
         const stale = cached.some(p => !p.my_role);
         if (stale) {
-            console.log('[projects store] discarding stale localStorage cache (my_role missing on', cached.filter(p => !p.my_role).length, 'projects)');
             localStorage.removeItem('projects');
             localStorage.removeItem('projects_loadTime');
         } else {

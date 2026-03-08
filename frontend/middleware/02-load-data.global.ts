@@ -49,6 +49,10 @@ function isMarketingSubRoute(path: string): boolean {
   return /^\/projects\/\d+\/(campaigns|marketing)/.test(path);
 }
 
+function isSettingsRoute(path: string): boolean {
+  return /^\/projects\/\d+\/settings/.test(path);
+}
+
 function isAdminRoute(path: string): boolean {
   return path.startsWith('/admin');
 }
@@ -110,9 +114,6 @@ function markDataLoaded(cacheKey: string): void {
 function shouldRefreshProjects(projectsStore: ReturnType<typeof useProjectsStore>): boolean {
   const stale = shouldRefreshData('projects');
   const missingRole = projectsStore.projects.some(p => !p.my_role);
-  console.log('[02-load-data] shouldRefreshProjects → stale:', stale, '| missingMyRole:', missingRole,
-      '| projects sample:', projectsStore.projects.slice(0, 3).map(p => ({ id: p.id, my_role: p.my_role }))
-  );
   return stale || missingRole;
 }
 
@@ -279,7 +280,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
             })()
           );
         } else if (isMarketingSubRoute(to.path)) {
-          // Load projects for campaigns / marketing hub sub-routes
+          // Load projects + data sources for campaigns / marketing hub sub-routes
           if (shouldRefreshProjects(projectsStore)) {
             loadTasks.push(
               (async () => {
@@ -288,6 +289,30 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
               })()
             );
           }
+          // Always load data sources for marketing routes to enable sidebar menus
+          loadTasks.push(
+            (async () => {
+              await dataSourceStore.retrieveDataSources();
+              markDataLoaded('dataSources');
+            })()
+          );
+        } else if (isSettingsRoute(to.path)) {
+          // Load projects + data sources for settings page (needed for sidebar menu enabling)
+          if (shouldRefreshProjects(projectsStore)) {
+            loadTasks.push(
+              (async () => {
+                await projectsStore.retrieveProjects();
+                markDataLoaded('projects');
+              })()
+            );
+          }
+          // Always load data sources for settings routes to enable sidebar menus
+          loadTasks.push(
+            (async () => {
+              await dataSourceStore.retrieveDataSources();
+              markDataLoaded('dataSources');
+            })()
+          );
         }
         
         // === ADMIN ROUTES ===

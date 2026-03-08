@@ -189,7 +189,6 @@ export const useDatabaseBackup = () => {
 
         $socketio.on('database-backup-complete', (data: string) => {
             const parsed = JSON.parse(data);
-            console.log('Backup complete:', parsed);
 
             isBackupInProgress.value = false;
 

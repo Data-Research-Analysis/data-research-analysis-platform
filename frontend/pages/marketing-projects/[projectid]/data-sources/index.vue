@@ -61,25 +61,10 @@ if (import.meta.client) {
     // Log project data when it changes
     watch(() => projectsStore.projects, (projects) => {
         const currentProject = projects.find(p => p.id === projectId);
-        console.log('📦 Projects Store Updated:', {
-            totalProjects: projects.length,
-            currentProjectId: projectId,
-            currentProject: currentProject,
-            user_role: currentProject?.user_role,
-            is_owner: currentProject?.is_owner
-        });
     }, { immediate: true, deep: true });
     
     // Log permission values when they change
     watch([permissions.canCreate, permissions.canUpdate, permissions.canDelete, permissions.role], () => {
-        console.log('🔐 Data Sources Permissions Check:', {
-            projectId: projectId,
-            canCreate: permissions.canCreate.value,
-            canUpdate: permissions.canUpdate.value,
-            canDelete: permissions.canDelete.value,
-            role: permissions.role.value,
-            isViewer: permissions.isViewer.value
-        });
     }, { immediate: true });
 }
 
@@ -306,7 +291,6 @@ async function syncDataSource(dataSourceId) {
             }
         });
 
-        console.log('Starting sync for data source ID:', dataSourceId);
         const success = isHubSpot ? await hubspot.syncNow(dataSourceId) : (isKlaviyo ? await klaviyo.syncNow(dataSourceId) : (isLinkedInAds ? await linkedInAds.syncNow(dataSourceId) : (isMetaAds ? await metaAds.syncNow(dataSourceId) : (isAds ? await ads.syncNow(dataSourceId) : (isGAM ? await gam.syncNow(dataSourceId) : await analytics.syncNow(dataSourceId))))));
 
         if (success) {

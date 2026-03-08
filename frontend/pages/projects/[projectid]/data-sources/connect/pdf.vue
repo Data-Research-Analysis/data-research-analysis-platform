@@ -198,7 +198,6 @@ async function createDataSource() {
     // Process each sheet as a separate data source entry
     for (const sheet of state.sheets) {
         if (!sheet.columns || sheet.columns.length === 0 || !sheet.rows || sheet.rows.length === 0) {
-            console.log('Skipping empty sheet:', sheet.name);
             continue;
         }
         
@@ -243,7 +242,6 @@ async function createDataSource() {
         
         dataSourceId = response.result.data_source_id;
         file.status = 'uploaded';
-        console.log(`Sheet ${sheet.name} uploaded successfully`);
         
         await sleep(1000);
     }

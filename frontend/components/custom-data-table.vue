@@ -253,7 +253,6 @@ function removeRowByIndex(rowIndex) {
   tableState.selectedRows.delete(rowToRemove.id);
   tableState.allRowsSelected = false;
   
-  console.log('Row removed by index:', rowIndex, 'Row data:', rowToRemove);
   emit('rows-removed', {
     removedRows,
     remainingCount: tableState.rows.length
@@ -483,9 +482,6 @@ function selectAllColumns() {
 }
 
   function showSelectionFeedback(message) {
-    // Console log for debugging
-    console.log(message);
-    
     // Only manipulate DOM on client side for SSR compatibility
     if (!import.meta.client) return;
     
@@ -928,11 +924,8 @@ function handleColumnNameKeydown(columnId, event) {
 
 // Context menu
 function toggleColumnMenu(columnId, event) {
-  console.log('Toggle column menu called for column:', columnId);
-  
   if (tableState.showColumnMenu === columnId) {
     tableState.showColumnMenu = null;
-    console.log('Menu closed');
     return;
   }
   
@@ -965,16 +958,12 @@ function toggleColumnMenu(columnId, event) {
   };
   
   tableState.columnMenuPosition = menuPosition;
-  console.log('Menu opened at position:', menuPosition);
 }
 
 // Row context menu
 function toggleRowMenu(rowIndex, event) {
-  console.log('Toggle row menu called for row:', rowIndex);
-  
   if (tableState.showRowMenu === rowIndex) {
     tableState.showRowMenu = null;
-    console.log('Row menu closed');
     return;
   }
   
@@ -1007,7 +996,6 @@ function toggleRowMenu(rowIndex, event) {
   };
   
   tableState.rowMenuPosition = menuPosition;
-  console.log('Row menu opened at position:', menuPosition);
 }
 
 // Expose methods for parent component

@@ -55,16 +55,15 @@ function initializeSocket() {
     });
 
     socket.on('connect', () => {
-        console.log('[Socket.IO] Connected:', socket?.id);
+        // Socket connected
     });
 
     socket.on('disconnect', () => {
-        console.log('[Socket.IO] Disconnected');
+        // Socket disconnected
     });
 
     // Listen for MongoDB sync progress updates
     socket.on('mongodb-sync-progress', (progress: any) => {
-        console.log('[Socket.IO] Sync progress:', progress);
         syncProgress.value = progress;
         
         // Show modal if sync is in progress
@@ -74,7 +73,7 @@ function initializeSocket() {
     });
 
     socket.on('serverInitialization', (data: any) => {
-        console.log('[Socket.IO] Server initialized:', data);
+        // Server initialized
     });
 }
 

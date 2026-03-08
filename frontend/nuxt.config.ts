@@ -49,12 +49,11 @@ export default defineNuxtConfig({
   components: [
     {
       path: '~/components',
-      pathPrefix: false,
+      pathPrefix: true,
     },
   ],
   css: [
     '~/assets/css/main.css',
-    '@fortawesome/fontawesome-svg-core/styles.css',
   ],
   vite: {
     server: {

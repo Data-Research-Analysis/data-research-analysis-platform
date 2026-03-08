@@ -16,21 +16,6 @@ const hasValidModel = computed(() => {
     const hasLength = modelDraft?.tables && modelDraft.tables.length > 0;
     const result = !!(hasTables && isArray && hasLength);
     
-    console.log('modelDraft', modelDraft);
-    console.log('hasTables', modelDraft?.tables);
-    console.log('isArray', isArray);
-    console.log('hasLength', hasLength);
-    
-
-    console.log('[AI Drawer - hasValidModel COMPUTED]', {
-        modelDraft: modelDraft ? 'exists' : 'null',
-        hasTables,
-        isArray,
-        hasLength,
-        result,
-        tablesLength: modelDraft?.tables?.length
-    });
-    
     return result;
 });
 
@@ -59,12 +44,6 @@ const showModelError = computed(() => {
                    hasResponse && 
                    !hasValidModel.value && 
                    !aiDataModelerStore.isLoading;
-    console.log('[AI Drawer] showModelError:', result, { 
-        userRequestedGeneration: userRequestedGeneration.value, 
-        hasResponse, 
-        hasValidModel: hasValidModel.value,
-        isLoading: aiDataModelerStore.isLoading
-    });
     return result;
 });
 
@@ -73,12 +52,6 @@ const showModelSuccess = computed(() => {
     // Show success if user requested generation AND we have a valid model draft
     // Don't rely on message content parsing since backend sends clean responses
     const result = userRequestedGeneration.value && hasValidModel.value;
-    console.log('[AI Drawer] showModelSuccess:', result, { 
-        userRequestedGeneration: userRequestedGeneration.value, 
-        hasValidModel: hasValidModel.value, 
-        modelDraft: aiDataModelerStore.modelDraft,
-        messagesCount: aiDataModelerStore.messages.length
-    });
     return result;
 });
 
@@ -86,7 +59,6 @@ const showModelSuccess = computed(() => {
 watch(hasValidModel, (newValue) => {
     if (newValue && userRequestedGeneration.value) {
         // Model successfully generated, error state no longer relevant
-        console.log('[AI Drawer] Valid model detected, error state cleared');
     }
 });
 
@@ -94,7 +66,6 @@ watch(hasValidModel, (newValue) => {
 watch(() => aiDataModelerStore.isLoading, (newValue) => {
     if (!newValue && isGeneratingRecommendation.value) {
         // Loading finished, reset the flag to show Apply button
-        console.log('[AI Drawer] Loading completed, resetting isGeneratingRecommendation');
         isGeneratingRecommendation.value = false;
     }
 });
@@ -187,7 +158,6 @@ watch(() => aiDataModelerStore.isDrawerOpen, (isOpen) => {
     if (isOpen) {
         // Reset flag when drawer opens - user hasn't requested generation yet
         userRequestedGeneration.value = false;
-        console.log('[AI Drawer] Drawer opened, reset userRequestedGeneration flag');
     }
 });
 
@@ -256,17 +226,12 @@ function handleGenerateAnotherRecommendation() {
     // Generic prompt that lets AI be creative
     const prompt = `Based on my database schema, please recommend and generate a data model that would provide valuable insights. Analyze the available tables and columns, then suggest a data model that combines relevant data in a meaningful way. Be creative and consider different analytical perspectives I might not have thought of. Include appropriate columns, joins, and any useful aggregations or filters.`;
     
-    console.log('[AI Drawer] Generating another AI recommendation');
     userRequestedGeneration.value = true;
     isGeneratingRecommendation.value = true;
     aiDataModelerStore.sendMessage(prompt);
 }
 
 function handleClose() {
-    console.log('[AI Drawer] handleClose called', {
-        isLoading: aiDataModelerStore.isLoading,
-        isInitializing: aiDataModelerStore.isInitializing
-    });
     
     // Allow closing even during loading/initialization (user may want to cancel)
     // Reset flag when closing drawer
@@ -283,23 +248,15 @@ async function handleRetry() {
     // Determine which mode to reinitialize based on stored context
     if (aiDataModelerStore.isCrossSource && aiDataModelerStore.projectId && aiDataModelerStore.dataSources.length > 0) {
         // Cross-source mode: reinitialize with project and data sources
-        console.log('[AI Drawer] Retrying cross-source initialization:', {
-            projectId: aiDataModelerStore.projectId,
-            dataSourceCount: aiDataModelerStore.dataSources.length
-        });
         await aiDataModelerStore.initializeCrossSourceConversation(
             aiDataModelerStore.projectId,
             aiDataModelerStore.dataSources
         );
     } else if (aiDataModelerStore.currentDataSourceId) {
         // Single-source mode: reinitialize with data source ID
-        console.log('[AI Drawer] Retrying single-source initialization:', {
-            dataSourceId: aiDataModelerStore.currentDataSourceId
-        });
         await aiDataModelerStore.initializeConversation(aiDataModelerStore.currentDataSourceId);
     } else {
         // No context available - close drawer and show error
-        console.error('[AI Drawer] Cannot retry: No context available (no dataSourceId or cross-source data)');
         aiDataModelerStore.error = 'Unable to reinitialize session. Please close and reopen the AI Data Modeler.';
     }
 }
@@ -309,22 +266,10 @@ function messageContainsDataModel(content: string): boolean {
     const hasJsonBlock = content.includes('```json') && content.includes('table_name');
     const result = hasBuildAction || hasJsonBlock;
     
-    console.log('[AI Drawer - messageContainsDataModel]', {
-        hasBuildAction,
-        hasJsonBlock,
-        result,
-        contentPreview: content.substring(0, 200)
-    });
-    
     return result;
 }
 
 async function handleApplyModel() {
-    console.log('[AI Drawer - handleApplyModel] START', {
-        hasValidModel: hasValidModel.value,
-        modelDraft: aiDataModelerStore.modelDraft
-    });
-    
     try {
         // Validate model exists before applying
         if (!hasValidModel.value) {
@@ -349,12 +294,9 @@ async function handleApplyModel() {
         
         buttonState.value = 'loading';
         isApplyingModel.value = true;
-        console.log('[AI Drawer] Applying model to builder');
-        console.log('[AI Drawer] Model to apply:', JSON.stringify(aiDataModelerStore.modelDraft, null, 2));
         
         // Trigger the manual application - data-model-builder will handle the rest
         aiDataModelerStore.applyModelToBuilder();
-        console.log('[AI Drawer] Apply trigger sent, data-model-builder will handle completion');
         
         // Brief delay to let the trigger fire
         await nextTick();
@@ -376,14 +318,12 @@ function getTablesList(): string {
     if (!aiDataModelerStore.modelDraft?.tables?.[0]) return 'None';
     const table = aiDataModelerStore.modelDraft.tables[0];
     const tableName = table.table_name || 'Unknown';
-    console.log('[AI Drawer - getTablesList] Current model table:', tableName, 'Last modified:', aiDataModelerStore.modelDraft.lastModified);
     return tableName;
 }
 
 function getColumnCount(): number {
     if (!aiDataModelerStore.modelDraft?.tables?.[0]?.columns) return 0;
     const count = aiDataModelerStore.modelDraft.tables[0].columns.length;
-    console.log('[AI Drawer - getColumnCount] Column count:', count);
     return count;
 }
 

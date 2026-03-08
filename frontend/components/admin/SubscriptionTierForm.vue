@@ -31,8 +31,6 @@ const errors = ref({});
 function validateForm() {
     errors.value = {};
     
-    console.log('Validating form data:', JSON.stringify(formData, null, 2));
-    
     // Tier name is required and must not be empty
     if (!formData.tier_name || formData.tier_name.trim() === '') {
         errors.value.tier_name = 'Tier name is required';
@@ -44,7 +42,6 @@ function validateForm() {
         formData.max_rows_per_data_model === '' || 
         Number.isNaN(formData.max_rows_per_data_model)) {
         errors.value.max_rows_per_data_model = 'Max rows is required - enter a number or click Unlimited';
-        console.log('Max rows validation failed:', formData.max_rows_per_data_model);
     } else if (!Number.isInteger(formData.max_rows_per_data_model)) {
         errors.value.max_rows_per_data_model = 'Max rows must be a whole number';
     } else if (formData.max_rows_per_data_model === 0) {
@@ -59,7 +56,6 @@ function validateForm() {
         formData.price_per_month_usd === '' || 
         Number.isNaN(formData.price_per_month_usd)) {
         errors.value.price_per_month_usd = 'Price is required - enter 0 for free or a positive amount';
-        console.log('Price validation failed:', formData.price_per_month_usd);
     } else if (formData.price_per_month_usd < 0) {
         errors.value.price_per_month_usd = 'Price must be 0 or greater';
     }
@@ -94,15 +90,11 @@ function validateForm() {
         }
     }
     
-    console.log('formData', formData);
-    
     const isValid = Object.keys(errors.value).length === 0;
-    console.log('Form validation result:', isValid, 'Errors:', errors.value);
     return isValid;
 }
 
 function handleSubmit() {
-    console.log('handleSubmit called');
     const isValid = validateForm();
     
     if (!isValid) {
@@ -118,7 +110,6 @@ function handleSubmit() {
         return;
     }
     
-    console.log('Form is valid, emitting submit with data:', formData);
     emit('submit', formData);
 }
 

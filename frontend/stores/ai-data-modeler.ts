@@ -39,26 +39,19 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
         isDrawerOpen.value = true;
         error.value = null;
         
-        console.log('[AI Store] Opening drawer for data source:', dataSourceId);
-        console.log('[AI Store] Data model ID for loading conversation:', dataModelId);
         // Set currentDataSourceId immediately for retry context
         // This ensures retry mechanism always has context even if initialization fails
         currentDataSourceId.value = dataSourceId;
         isCrossSource.value = false; // Clear cross-source flag for single-source mode
-        console.log('[AI Store] isCrossSource set to false for single-source mode');
-        console.log('[AI Store] currentDataSourceId set to:', currentDataSourceId.value);
         // If dataModelId is provided, try to load conversation from database first
         if (dataModelId) {
             const loaded = await loadSavedConversation(dataModelId);
             if (loaded) {
-                console.log('[AI Store] Loaded conversation from database for data model:', dataModelId);
                 // Initialize a new Redis/Gemini session for continued conversation
-                console.log('[AI Store] Initializing new session after loading from database');
                 await initializeConversation(dataSourceId);
                 return;
             }
             // If loading failed, fall through to initialize new session
-            console.log('[AI Store] No conversation found for data model, initializing new session');
         }
         
         // Initialize conversation with the data source (new or Redis session)
@@ -79,20 +72,12 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
         projectId.value = projectIdValue;
         dataSources.value = dataSourcesArray;
         
-        console.log('[AI Store] Opening cross-source drawer:', {
-            projectId: projectIdValue,
-            dataSourceCount: dataSourcesArray.length,
-            dataSources: dataSourcesArray
-        });
-        
         // If dataModelId is provided, try to load conversation from database first
         if (dataModelId) {
             const loaded = await loadSavedConversation(dataModelId);
             if (loaded) {
-                console.log('[AI Store] Loaded conversation from database for data model:', dataModelId);
                 return;
             }
-            console.log('[AI Store] No conversation found for data model, initializing new session');
         }
         
         // Initialize cross-source conversation
@@ -126,7 +111,6 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
     async function initializeConversation(dataSourceId: number) {
         // Guard: Don't initialize if drawer is already closed
         if (!isDrawerOpen.value) {
-            console.log('[AI Store] Drawer closed, aborting initialization');
             return false;
         }
         
@@ -156,17 +140,8 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
             
             // Guard: Check if drawer is still open after async operation
             if (!isDrawerOpen.value) {
-                console.log('[AI Store] Drawer closed during initialization, discarding results');
                 return false;
             }
-            
-            console.log('[AI Store] Initialize response:', {
-                source: data.source,
-                conversationId: data.conversationId,
-                messageCount: data.messages?.length || 0,
-                inferredJoinCount: data.inferredJoinCount || 0,
-                messages: data.messages
-            });
             
             conversationId.value = data.conversationId;
             sessionSource.value = data.source;
@@ -179,10 +154,6 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
                 if (preloadedSuggestions.value.length === 0) {
                     preloadedSuggestions.value = data.inferredJoins;
                     suggestionsLoadedForDataSource.value = `${dataSourceId}:session`;
-                    console.log('[AI Store] Loaded', data.inferredJoins.length, 'inferred joins from session');
-                    console.log('[AI Store] Inferred joins detail:', data.inferredJoins.map(j => 
-                        `${j.left_schema}.${j.left_table}.${j.left_column} → ${j.right_schema}.${j.right_table}.${j.right_column}`
-                    ));
                     
                     // Sync to localStorage
                     if (import.meta.client) {
@@ -250,7 +221,6 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
     ) {
         // Guard: Don't initialize if drawer is already closed
         if (!isDrawerOpen.value) {
-            console.log('[AI Store] Drawer closed, aborting cross-source initialization');
             return false;
         }
         
@@ -282,14 +252,8 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
             
             // Guard: Check if drawer is still open after async operation
             if (!isDrawerOpen.value) {
-                console.log('[AI Store] Drawer closed during cross-source initialization, discarding results');
                 return false;
             }
-            
-            console.log('[AI Store] Initialize cross-source response:', {
-                conversationId: data.conversationId,
-                messageCount: data.messages?.length || 0
-            });
             
             conversationId.value = data.conversationId;
             sessionSource.value = 'new';
@@ -325,7 +289,6 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
      */
     async function sendMessage(message: string, options?: { isTemplate?: boolean }) {
         // Check if we have an active session (either single-source or cross-source)
-        console.log('[AI Store - sendMessage] Current session context:', currentDataSourceId.value, isCrossSource.value);
         if (!currentDataSourceId.value && !isCrossSource.value) {
             error.value = 'No active session';
             return false;
@@ -388,13 +351,7 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
             messages.value.push(aiMessage);
 
             // Check if AI generated a data model
-            console.log('[AI Store - sendMessage] Checking for dataModel in response:', {
-                hasDataModel: !!data.dataModel,
-                dataModel: data.dataModel
-            });
-            
             if (data.dataModel) {
-                console.log('[AI Store] AI generated a data model:', data.dataModel);
                 // Wrap single dataModel in array if not already an array
                 const tablesArray = Array.isArray(data.dataModel) ? data.dataModel : [data.dataModel];
                 const newModelDraft = {
@@ -404,13 +361,10 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
                     lastModified: new Date().toISOString(),
                     version: 1
                 };
-                console.log('[AI Store] Setting modelDraft.value to:', newModelDraft);
                 modelDraft.value = newModelDraft;
-                console.log('[AI Store] modelDraft.value is now:', modelDraft.value);
                 
                 // Add to history
                 addModelToHistory(newModelDraft, aiMessage.id);
-                console.log('[AI Store] Added to history. History length:', modelHistory.value.length);
                 
                 // Save to Redis - pass the full modelDraft structure, not just data.dataModel
                 await updateModelDraft(newModelDraft);
@@ -547,18 +501,14 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
      * Load saved conversation from database
      */
     async function loadSavedConversation(dataModelId: number) {
-        console.log('[AI Store] loadSavedConversation called for data model ID:', dataModelId);
         isInitializing.value = true;
         error.value = null;
 
         try {
             const token = getAuthToken();
             if (!token) {
-                console.log('[AI Store] No auth token, cannot load conversation');
                 throw new Error('Authentication required');
             }
-
-            console.log('[AI Store] Attempting to load conversation for data model:', dataModelId);
 
             const url = `${baseUrl()}/ai-data-modeler/conversations/${dataModelId}`;
             const data = await $fetch(url, {
@@ -569,17 +519,7 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
                 }
             }) as any;
 
-            console.log('[AI Store] Load conversation response successful');
             const conversation = data.conversation;
-            console.log('[AI Store] Conversation data:', conversation);
-
-            console.log('[AI Store] Loaded conversation from database:', {
-                conversationId: conversation.id,
-                messageCount: conversation.messages?.length || 0,
-                dataSourceId: conversation.data_source?.id,
-                dataModelId: conversation.data_model?.id,
-                isCrossSource: conversation.data_model?.is_cross_source
-            });
 
             conversationId.value = conversation.id.toString();
             sessionSource.value = 'database';
@@ -595,16 +535,11 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
                 
                 // Note: Data sources list should be loaded by the calling component
                 // and passed when opening the drawer in cross-source mode
-                console.log('[AI Store] Loaded cross-source conversation:', {
-                    projectId: projectId.value,
-                    note: 'Data sources should be provided by calling component'
-                });
             } else {
                 // Single-source model
                 currentDataSourceId.value = conversation.data_source?.id;
                 isCrossSource.value = false;
             }
-            console.log('[AI Store] currentDataSourceId set to:', currentDataSourceId.value);
 
             messages.value = conversation.messages.map((msg: any) => ({
                 id: generateMessageId(),
@@ -620,7 +555,6 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
             console.error('[AI Store] Error loading conversation:', err);
             // Don't set error.value for 404s, just return false
             if (err.statusCode === 404) {
-                console.log('[AI Store] No conversation found for data model:', dataModelId);
                 return false;
             }
             if (err instanceof Error) {
@@ -658,12 +592,7 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
      * Manually trigger application of model draft to builder
      */
     function applyModelToBuilder() {
-        console.log('[AI Store - applyModelToBuilder] START');
-        console.log('[AI Store] Current applyTrigger value:', applyTrigger.value);
-        console.log('[AI Store] Current modelDraft:', modelDraft.value);
         applyTrigger.value++;
-        console.log('[AI Store] New applyTrigger value:', applyTrigger.value);
-        console.log('[AI Store - applyModelToBuilder] END');
     }
 
     /**
@@ -689,8 +618,6 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
             modelHistory.value.shift();
             currentHistoryIndex.value--;
         }
-        
-        console.log('[AI Store] Model added to history. Total:', modelHistory.value.length);
     }
 
     /**
@@ -701,7 +628,6 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
             const historyEntry = modelHistory.value[index];
             modelDraft.value = JSON.parse(JSON.stringify(historyEntry.model)); // Deep clone
             currentHistoryIndex.value = index;
-            console.log('[AI Store] Reverted to model at index:', index);
         }
     }
 
@@ -781,7 +707,6 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
                 
                 // Calculate exponential backoff delay
                 const delay = initialDelay * Math.pow(2, attempt);
-                console.log(`[AI Store] Rate limit hit, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
                 
                 // Wait before retrying
                 await new Promise(resolve => setTimeout(resolve, delay));
@@ -830,12 +755,10 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
             if (tableNames && tableNames.length > 0) {
                 const tableQuery = tableNames.join(',');
                 queryParams.push(`tables=${encodeURIComponent(tableQuery)}`);
-                console.log(`[AI Store] Fetching suggestions for selected tables: ${tableQuery}`);
             }
             
             if (useAI) {
                 queryParams.push('useAI=true');
-                console.log('[AI Store] AI-powered suggestions ENABLED');
             }
             
             if (queryParams.length > 0) {
@@ -853,8 +776,6 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
 
             if (response && response.success) {
                 suggestedJoins.value = response.data || [];
-                console.log(`[AI Store] Fetched ${suggestedJoins.value.length} suggested joins (AI: ${useAI ? 'YES' : 'NO'})`);
-                console.log('[AI Store] Suggested joins data:', JSON.stringify(response.data, null, 2));
 
                 // Sync to localStorage
                 if (import.meta.client) {
@@ -884,7 +805,6 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
         
         // Check if already loaded
         if (suggestionsLoadedForDataSource.value === cacheKey) {
-            console.log('[AI Store] Suggestions already loaded for', cacheKey);
             return preloadedSuggestions.value;
         }
 
@@ -898,7 +818,6 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
                     const suggestions = JSON.parse(cached);
                     preloadedSuggestions.value = suggestions;
                     suggestionsLoadedForDataSource.value = cacheKey;
-                    console.log('[AI Store] Loaded', suggestions.length, 'suggestions from localStorage (instant)');
                     
                     // Still fetch from server in background to update cache
                     fetchPreloadedSuggestions(dataSourceId, useAI, localCacheKey);
@@ -929,8 +848,6 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
 
             const config = useRuntimeConfig();
             const url = `${config.public.apiBase}/ai-data-modeler/suggested-joins/${dataSourceId}?loadAll=true${useAI ? '&useAI=true' : ''}`;
-            
-            console.log('[AI Store] Preloading suggestions from:', url);
 
             const response = await $fetch(url, {
                 method: 'GET',
@@ -950,7 +867,6 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
                     localStorage.setItem(cacheKey, JSON.stringify(preloadedSuggestions.value));
                 }
 
-                console.log('[AI Store] Preloaded', preloadedSuggestions.value.length, 'suggestions');
                 return preloadedSuggestions.value;
             } else {
                 console.warn('[AI Store] Preload failed:', response);
@@ -1005,7 +921,6 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
         
         // Check if already loaded
         if (suggestionsLoadedForDataSource.value === cacheKey) {
-            console.log('[AI Store] Cross-source suggestions already loaded for', cacheKey);
             return preloadedSuggestions.value;
         }
 
@@ -1019,7 +934,6 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
                     const suggestions = JSON.parse(cached);
                     preloadedSuggestions.value = suggestions;
                     suggestionsLoadedForDataSource.value = cacheKey;
-                    console.log('[AI Store] Loaded', suggestions.length, 'cross-source suggestions from localStorage (instant)');
                     
                     // Still fetch from server in background to update cache
                     fetchCrossSourceSuggestions(projectId, useAI, localCacheKey);
@@ -1050,8 +964,6 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
 
             const config = useRuntimeConfig();
             const url = `${config.public.apiBase}/ai-data-modeler/suggested-joins/cross-source/${projectId}${useAI ? '?useAI=true' : ''}`;
-            
-            console.log('[AI Store] Preloading cross-source suggestions from:', url);
 
             const response = await $fetch(url, {
                 method: 'GET',
@@ -1071,7 +983,6 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
                     localStorage.setItem(cacheKey, JSON.stringify(preloadedSuggestions.value));
                 }
 
-                console.log('[AI Store] Preloaded', preloadedSuggestions.value.length, 'cross-source suggestions');
                 return preloadedSuggestions.value;
             } else {
                 console.warn('[AI Store] Cross-source preload failed:', response);

@@ -9,19 +9,9 @@ export default defineNuxtPlugin(async (nuxtApp) => {
   if (config.public.NUXT_ENV === 'production') {
     socketPath = `${socketHost}`;
   }
-  console.log(`[Socket.IO] Attempting to connect to server at ${socketPath}`);
-  console.log(`[Socket.IO] Environment: ${config.public.NUXT_ENV}`);
 
   // Get auth token for authenticated connections
   const authToken = getAuthToken();
-  if (authToken) {
-    console.log('[Socket.IO] Auth token found, connecting as authenticated user');
-    console.log('[Socket.IO] Token type:', typeof authToken);
-    console.log('[Socket.IO] Token length:', authToken.length);
-    console.log('[Socket.IO] Token (first 30 chars):', authToken.substring(0, 30));
-  } else {
-    console.log('[Socket.IO] No auth token, connecting as anonymous user');
-  }
 
   const socket: Socket = io(socketPath, {
     auth: {
@@ -41,11 +31,11 @@ export default defineNuxtPlugin(async (nuxtApp) => {
 
   // Connection event handlers
   socket.on('connect', () => {
-    console.log('✅ Connected to Socket.IO server:', socket.id);
+    // Connected
   });
 
   socket.on('disconnect', (reason) => {
-    console.log('❌ Disconnected from Socket.IO server:', reason);
+    // Disconnected
   });
 
   socket.on('connect_error', (error) => {
@@ -53,7 +43,7 @@ export default defineNuxtPlugin(async (nuxtApp) => {
   });
 
   socket.on('reconnect', (attemptNumber) => {
-    console.log('🔄 Reconnected to Socket.IO server after', attemptNumber, 'attempts');
+    // Reconnected
   });
 
   socket.on('reconnect_error', (error) => {
@@ -66,10 +56,7 @@ export default defineNuxtPlugin(async (nuxtApp) => {
 
   // Listen for server initialization message (now includes userId and room info)
   socket.on('serverInitialization', (data) => {
-    console.log('📡 Server initialization message:', data);
-    if (data.userId) {
-      console.log(`✅ Authenticated as user ${data.userId} in room ${data.room}`);
-    }
+    // Server initialized
   });
 
   // Data source sync events (client-side listeners)
@@ -80,7 +67,6 @@ export default defineNuxtPlugin(async (nuxtApp) => {
     const Swal = (await import('sweetalert2')).default;
     
     socket.on('sync:started', (data: { dataSourceId: number; dataSourceName: string; syncType: string }) => {
-      console.log('🔄 Sync started:', data);
       const dataSourceStore = useDataSourceStore();
       dataSourceStore.updateSyncStatus(data.dataSourceId, 'syncing', 0);
       
@@ -98,14 +84,12 @@ export default defineNuxtPlugin(async (nuxtApp) => {
     });
 
     socket.on('sync:progress', (data: { dataSourceId: number; progress: number; message?: string }) => {
-      console.log('📊 Sync progress:', data);
-      const dataSourceStore = useDataSourceStore();
+
       dataSourceStore.updateSyncStatus(data.dataSourceId, 'syncing', data.progress);
     });
 
     socket.on('sync:completed', (data: { dataSourceId: number; dataSourceName: string; recordsSynced: number; duration: number }) => {
-      console.log('✅ Sync completed:', data);
-      const dataSourceStore = useDataSourceStore();
+
       dataSourceStore.updateSyncStatus(data.dataSourceId, 'completed', 100);
       
       // Refresh data sources to get updated last_sync timestamp
@@ -150,7 +134,6 @@ export default defineNuxtPlugin(async (nuxtApp) => {
     
     // Data model refresh events
     socket.on('model:refresh:started', (data: { dataModelId: number; dataModelName: string; triggeredBy: string }) => {
-      console.log('🔄 Model refresh started:', data);
       const dataModelsStore = useDataModelsStore();
       dataModelsStore.updateRefreshStatus(data.dataModelId, 'refreshing', 0);
       
@@ -174,7 +157,6 @@ export default defineNuxtPlugin(async (nuxtApp) => {
       duration: number;
       lastRefreshedAt: string;
     }) => {
-      console.log('✅ Model refresh completed:', data);
       const dataModelsStore = useDataModelsStore();
       dataModelsStore.updateRefreshStatus(data.dataModelId, 'completed', 100, {
         rowCount: data.rowCount,

@@ -3,11 +3,17 @@ defineOptions({ inheritAttrs: false });
 
 import { useProjectsStore } from '@/stores/projects';
 import { useCampaignsStore } from '@/stores/campaigns';
+import { useDataSourceStore } from '@/stores/data_sources';
+import { useDataModelsStore } from '@/stores/data_models';
+import { useDashboardsStore } from '@/stores/dashboards';
 import { useProjectRole } from '@/composables/useProjectRole';
 
 const route = useRoute();
 const projectsStore = useProjectsStore();
 const campaignsStore = useCampaignsStore();
+const dataSourceStore = useDataSourceStore();
+const dataModelsStore = useDataModelsStore();
+const dashboardsStore = useDashboardsStore();
 const { isAnalyst, isManager } = useProjectRole();
 
 // Mobile drawer state injected from the layout
@@ -20,15 +26,35 @@ const projectId = computed(() => {
 
 const projectName = computed(() => {
     if (!projectId.value) return 'Project';
+    // During SSR or before data loads, return placeholder
+    if (!import.meta.client) return 'Project';
     const project = projectsStore.projects.find((p) => p.id === projectId.value);
     return project?.name || 'Project';
 });
+
+const currentProject = computed(() => {
+    if (!projectId.value) return null;
+    return projectsStore.projects.find((p) => p.id === projectId.value) || null;
+});
+
+const isOwner = computed(() => {
+    // Guard to prevent hydration mismatch - always return false during SSR
+    if (!isMounted.value) return false;
+    return currentProject.value?.is_owner || false;
+});
+
+// SSR-safe role checks - guard with isMounted to prevent hydration mismatches
+const isAnalystSafe = computed(() => isMounted.value && isAnalyst.value);
+const isManagerSafe = computed(() => isMounted.value && isManager.value);
 
 // Whether the sidebar rail is collapsed to icon-only (desktop only)
 const isCollapsed = ref(false);
 // Track viewport to ensure collapsed mode only applies on desktop
 const isMobileViewport = ref(false);
 const effectivelyCollapsed = computed(() => isCollapsed.value && !isMobileViewport.value);
+
+// Track if component is mounted to prevent hydration mismatches
+const isMounted = ref(false);
 
 // Expandable section state
 const expanded = reactive({
@@ -45,6 +71,8 @@ const COLLAPSED_KEY = computed(() =>
 );
 
 onMounted(() => {
+    isMounted.value = true;
+    
     const checkMobile = () => { isMobileViewport.value = window.innerWidth < 768; };
     checkMobile();
     window.addEventListener('resize', checkMobile);
@@ -64,7 +92,21 @@ onMounted(() => {
     if (collapsedVal !== null) {
         isCollapsed.value = collapsedVal === 'true';
     }
+
+    // Don't load from localStorage here - let middleware handle data loading
+    // The computed properties will automatically react when stores update
 });
+
+// Watch for project changes and refresh data
+watch(projectId, async (newId) => {
+    if (newId) {
+        await Promise.all([
+            dataSourceStore.retrieveDataSources(),
+            dataModelsStore.retrieveDataModels(newId),
+            dashboardsStore.retrieveDashboards()
+        ]);
+    }
+}, { immediate: false });
 
 function toggleCollapsed() {
     isCollapsed.value = !isCollapsed.value;
@@ -90,6 +132,72 @@ function toggleSection(section: 'campaigns' | 'marketingHub' | 'dataConnectivity
     expanded[section] = !expanded[section];
     persistState();
 }
+
+// Progressive menu enabling based on data availability
+const projectDataSources = computed(() => {
+    if (!projectId.value) return [];
+    const filtered = dataSourceStore.dataSources.filter(ds => ds.project_id === projectId.value);
+    return filtered;
+});
+
+const projectDataModels = computed(() => {
+    if (!projectId.value) return [];
+    return dataModelsStore.dataModels.filter(dm => dm.project_id === projectId.value);
+});
+
+const projectDashboards = computed(() => {
+    if (!projectId.value) return [];
+    return dashboardsStore.dashboards.filter(d => d.project?.id === projectId.value);
+});
+
+// Check if any dashboard has AI Insights charts
+const projectAIDashboards = computed(() => {
+    return projectDashboards.value.filter(dashboard => {
+        return dashboard.data?.charts?.some(chart => chart.source_type === 'ai_insights');
+    });
+});
+
+// Boolean flags for enabling logic
+const hasDataSources = computed(() => isMounted.value && projectDataSources.value.length > 0);
+const hasDataModels = computed(() => isMounted.value && projectDataModels.value.length > 0);
+const hasAIDashboards = computed(() => isMounted.value && projectAIDashboards.value.length > 0);
+
+// Feature enabling conditions
+const isCampaignsEnabled = computed(() => hasDataSources.value);
+const isMarketingHubEnabled = computed(() => hasDataSources.value);
+const isAIInsightsEnabled = computed(() => hasDataSources.value);
+const isDashboardsEnabled = computed(() => 
+    hasDataSources.value && (hasDataModels.value || hasAIDashboards.value)
+);
+
+// Tooltip messages for disabled features
+const campaignsTooltip = computed(() => 
+    !hasDataSources.value 
+        ? 'Connect at least one data source to enable campaigns' 
+        : ''
+);
+
+const marketingHubTooltip = computed(() => 
+    !hasDataSources.value 
+        ? 'Connect at least one data source to enable marketing analytics' 
+        : ''
+);
+
+const aiInsightsTooltip = computed(() => 
+    !hasDataSources.value 
+        ? 'Connect at least one data source to enable AI insights' 
+        : ''
+);
+
+const dashboardsTooltip = computed(() => {
+    if (!hasDataSources.value) {
+        return 'Connect a data source and create a data model or AI dashboard to enable dashboards';
+    }
+    if (!hasDataModels.value && !hasAIDashboards.value) {
+        return 'Create a data model or generate an AI Insights dashboard to enable dashboards';
+    }
+    return '';
+});
 
 // Active state helpers
 const currentPath = computed(() => route.path);
@@ -204,117 +312,8 @@ function tip(label: string) {
                 <span v-if="!effectivelyCollapsed">Overview</span>
             </NuxtLink>
 
-            <!-- Campaigns — manager and analyst only -->
-            <div v-if="isManager">
-                <!-- Collapsed: single icon link -->
-                <NuxtLink
-                    v-if="effectivelyCollapsed"
-                    :to="baseUrl('/campaigns')"
-                    class="hidden md:flex items-center justify-center py-2.5 text-sm font-medium transition-colors"
-                    :class="isCampaignsActive ? 'bg-primary-blue-400 text-white' : 'text-blue-100 hover:bg-primary-blue-400 hover:text-white'"
-                    v-tippy="{ content: 'Campaigns', placement: 'right' }"
-                >
-                    <font-awesome-icon :icon="['fas', 'bullhorn']" class="w-4 h-4 shrink-0" />
-                </NuxtLink>
-                <!-- Expanded: toggle + sub-items -->
-                <template v-if="!effectivelyCollapsed">
-                    <button
-                        class="flex items-center justify-between w-full px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer"
-                        :class="isCampaignsActive ? 'text-white bg-primary-blue-400' : 'text-blue-100 hover:bg-primary-blue-400 hover:text-white'"
-                        @click="toggleSection('campaigns')"
-                        type="button"
-                    >
-                        <span class="flex items-center gap-3">
-                            <font-awesome-icon :icon="['fas', 'bullhorn']" class="w-4 h-4 shrink-0" />
-                            Campaigns
-                            <span
-                                v-if="campaignsCount > 0"
-                                class="ml-auto inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full bg-primary-blue-400 text-white text-xs font-semibold"
-                            >{{ campaignsCount }}</span>
-                        </span>
-                        <font-awesome-icon
-                            :icon="['fas', 'chevron-down']"
-                            class="w-3 h-3 shrink-0 transition-transform"
-                            :class="{ 'rotate-180': !expanded.campaigns }"
-                        />
-                    </button>
-                    <div v-show="expanded.campaigns" class="pl-10">
-                        <NuxtLink
-                            :to="baseUrl('/campaigns')"
-                            class="flex items-center gap-2 px-4 py-2 text-sm transition-colors"
-                            :class="isCampaignsActive ? 'text-white' : 'text-blue-200 hover:text-white'"
-                        >
-                            Campaign List
-                        </NuxtLink>
-                    </div>
-                </template>
-            </div>
-
-            <!-- Marketing Hub -->
-            <div>
-                <NuxtLink
-                    v-if="effectivelyCollapsed"
-                    :to="baseUrl('/marketing')"
-                    class="hidden md:flex items-center justify-center py-2.5 text-sm font-medium transition-colors"
-                    :class="isMarketingHubActive ? 'bg-primary-blue-400 text-white' : 'text-blue-100 hover:bg-primary-blue-400 hover:text-white'"
-                    v-tippy="{ content: 'Marketing Hub', placement: 'right' }"
-                >
-                    <font-awesome-icon :icon="['fas', 'chart-line']" class="w-4 h-4 shrink-0" />
-                </NuxtLink>
-                <template v-if="!effectivelyCollapsed">
-                    <button
-                        class="flex items-center justify-between w-full px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer"
-                        :class="isMarketingHubActive ? 'text-white bg-primary-blue-400' : 'text-blue-100 hover:bg-primary-blue-400 hover:text-white'"
-                        @click="toggleSection('marketingHub')"
-                        type="button"
-                    >
-                        <span class="flex items-center gap-3">
-                            <font-awesome-icon :icon="['fas', 'chart-line']" class="w-4 h-4 shrink-0" />
-                            Marketing Hub
-                        </span>
-                        <font-awesome-icon
-                            :icon="['fas', 'chevron-down']"
-                            class="w-3 h-3 shrink-0 transition-transform"
-                            :class="{ 'rotate-180': !expanded.marketingHub }"
-                        />
-                    </button>
-                    <div v-show="expanded.marketingHub" class="pl-10">
-                        <NuxtLink
-                            :to="baseUrl('/marketing')"
-                            class="flex items-center gap-2 px-4 py-2 text-sm transition-colors"
-                            :class="isPerformanceActive ? 'text-white' : 'text-blue-200 hover:text-white'"
-                        >
-                            Performance
-                        </NuxtLink>
-                        <NuxtLink
-                            :to="baseUrl('/marketing/attribution')"
-                            class="flex items-center gap-2 px-4 py-2 text-sm transition-colors"
-                            :class="isAttributionActive ? 'text-white' : 'text-blue-200 hover:text-white'"
-                        >
-                            Attribution
-                        </NuxtLink>
-                        <NuxtLink
-                            :to="baseUrl('/marketing/reports')"
-                            class="flex items-center gap-2 px-4 py-2 text-sm transition-colors"
-                            :class="isReportsActive ? 'text-white' : 'text-blue-200 hover:text-white'"
-                        >
-                            Reports
-                        </NuxtLink>
-                        <NuxtLink
-                            v-if="isAnalyst"
-                            :to="baseUrl('/marketing/reports?tab=templates')"
-                            class="flex items-center gap-2 pl-4 pr-4 py-1.5 text-xs transition-colors"
-                            :class="isReportsActive ? 'text-blue-200' : 'text-blue-300 hover:text-white'"
-                        >
-                            <font-awesome-icon :icon="['fas', 'layer-group']" class="w-3 h-3" />
-                            Dashboard Templates
-                        </NuxtLink>
-                    </div>
-                </template>
-            </div>
-
             <!-- Data Connectivity — analyst-only -->
-            <div v-if="isAnalyst">
+            <div v-if="isAnalystSafe">
                 <NuxtLink
                     v-if="effectivelyCollapsed"
                     :to="baseUrl('/data-sources')"
@@ -360,37 +359,207 @@ function tip(label: string) {
                 </template>
             </div>
 
-            <!-- Dashboards — all roles can view -->
-            <NuxtLink
-                :to="baseUrl('/dashboards')"
-                class="flex items-center py-2.5 text-sm font-medium transition-colors"
-                :class="[
-                    effectivelyCollapsed ? 'justify-center px-0' : 'gap-3 px-4',
-                    isDashboardsActive ? 'bg-primary-blue-400 text-white' : 'text-blue-100 hover:bg-primary-blue-400 hover:text-white',
-                ]"
-                v-tippy="tip('Dashboards')"
-            >
-                <font-awesome-icon :icon="['fas', 'table-columns']" class="w-4 h-4 shrink-0" />
-                <span v-if="!effectivelyCollapsed">Dashboards</span>
-            </NuxtLink>
+            <!-- Campaigns — manager and analyst only -->
+            <div v-if="isManagerSafe">
+                <!-- Collapsed: single icon link -->
+                <component
+                    :is="isCampaignsEnabled ? 'NuxtLink' : 'div'"
+                    v-if="effectivelyCollapsed"
+                    :to="isCampaignsEnabled ? baseUrl('/campaigns') : undefined"
+                    class="hidden md:flex items-center justify-center py-2.5 text-sm font-medium transition-colors"
+                    :class="[
+                        isCampaignsEnabled 
+                            ? (isCampaignsActive ? 'bg-primary-blue-400 text-white' : 'text-blue-100 hover:bg-primary-blue-400 hover:text-white')
+                            : 'text-blue-300 opacity-50 cursor-not-allowed'
+                    ]"
+                    v-tippy="isCampaignsEnabled ? { content: 'Campaigns', placement: 'right' } : { content: campaignsTooltip, placement: 'right' }"
+                >
+                    <font-awesome-icon :icon="['fas', 'bullhorn']" class="w-4 h-4 shrink-0" />
+                </component>
+                <!-- Expanded: toggle + sub-items -->
+                <template v-if="!effectivelyCollapsed">
+                    <button
+                        :disabled="!isCampaignsEnabled"
+                        class="flex items-center justify-between w-full px-4 py-2.5 text-sm font-medium transition-colors"
+                        :class="[
+                            isCampaignsEnabled 
+                                ? (isCampaignsActive ? 'text-white bg-primary-blue-400' : 'text-blue-100 hover:bg-primary-blue-400 hover:text-white cursor-pointer')
+                                : 'text-blue-300 opacity-50 cursor-not-allowed'
+                        ]"
+                        @click="isCampaignsEnabled ? toggleSection('campaigns') : null"
+                        type="button"
+                    >
+                        <span class="flex items-center gap-3">
+                            <font-awesome-icon :icon="['fas', 'bullhorn']" class="w-4 h-4 shrink-0" />
+                            <span class="flex items-center gap-2">
+                                Campaigns
+                                <font-awesome-icon 
+                                    v-if="!isCampaignsEnabled"
+                                    :icon="['fas', 'circle-info']"
+                                    class="w-3 h-3"
+                                    v-tippy="{ content: campaignsTooltip, placement: 'right', theme: 'light' }"
+                                />
+                            </span>
+                            <span
+                                v-if="isCampaignsEnabled && campaignsCount > 0"
+                                class="ml-auto inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full bg-primary-blue-400 text-white text-xs font-semibold"
+                            >{{ campaignsCount }}</span>
+                        </span>
+                        <font-awesome-icon
+                            v-if="isCampaignsEnabled"
+                            :icon="['fas', 'chevron-down']"
+                            class="w-3 h-3 shrink-0 transition-transform"
+                            :class="{ 'rotate-180': !expanded.campaigns }"
+                        />
+                    </button>
+                    <div v-show="isCampaignsEnabled && expanded.campaigns" class="pl-10">
+                        <NuxtLink
+                            :to="baseUrl('/campaigns')"
+                            class="flex items-center gap-2 px-4 py-2 text-sm transition-colors"
+                            :class="isCampaignsActive ? 'text-white' : 'text-blue-200 hover:text-white'"
+                        >
+                            Campaign List
+                        </NuxtLink>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Marketing Hub -->
+            <div>
+                <component
+                    :is="isMarketingHubEnabled ? 'NuxtLink' : 'div'"
+                    v-if="effectivelyCollapsed"
+                    :to="isMarketingHubEnabled ? baseUrl('/marketing') : undefined"
+                    class="hidden md:flex items-center justify-center py-2.5 text-sm font-medium transition-colors"
+                    :class="[
+                        isMarketingHubEnabled
+                            ? (isMarketingHubActive ? 'bg-primary-blue-400 text-white' : 'text-blue-100 hover:bg-primary-blue-400 hover:text-white')
+                            : 'text-blue-300 opacity-50 cursor-not-allowed'
+                    ]"
+                    v-tippy="isMarketingHubEnabled ? { content: 'Marketing Hub', placement: 'right' } : { content: marketingHubTooltip, placement: 'right' }"
+                >
+                    <font-awesome-icon :icon="['fas', 'chart-line']" class="w-4 h-4 shrink-0" />
+                </component>
+                <template v-if="!effectivelyCollapsed">
+                    <button
+                        :disabled="!isMarketingHubEnabled"
+                        class="flex items-center justify-between w-full px-4 py-2.5 text-sm font-medium transition-colors"
+                        :class="[
+                            isMarketingHubEnabled
+                                ? (isMarketingHubActive ? 'text-white bg-primary-blue-400' : 'text-blue-100 hover:bg-primary-blue-400 hover:text-white cursor-pointer')
+                                : 'text-blue-300 opacity-50 cursor-not-allowed'
+                        ]"
+                        @click="isMarketingHubEnabled ? toggleSection('marketingHub') : null"
+                        type="button"
+                    >
+                        <span class="flex items-center gap-3">
+                            <font-awesome-icon :icon="['fas', 'chart-line']" class="w-4 h-4 shrink-0" />
+                            <span class="flex items-center gap-2">
+                                Marketing Hub
+                                <font-awesome-icon 
+                                    v-if="!isMarketingHubEnabled"
+                                    :icon="['fas', 'circle-info']"
+                                    class="w-3 h-3"
+                                    v-tippy="{ content: marketingHubTooltip, placement: 'right', theme: 'light' }"
+                                />
+                            </span>
+                        </span>
+                        <font-awesome-icon
+                            v-if="isMarketingHubEnabled"
+                            :icon="['fas', 'chevron-down']"
+                            class="w-3 h-3 shrink-0 transition-transform"
+                            :class="{ 'rotate-180': !expanded.marketingHub }"
+                        />
+                    </button>
+                    <div v-show="isMarketingHubEnabled && expanded.marketingHub" class="pl-10">
+                        <NuxtLink
+                            :to="baseUrl('/marketing')"
+                            class="flex items-center gap-2 px-4 py-2 text-sm transition-colors"
+                            :class="isPerformanceActive ? 'text-white' : 'text-blue-200 hover:text-white'"
+                        >
+                            Performance
+                        </NuxtLink>
+                        <NuxtLink
+                            :to="baseUrl('/marketing/attribution')"
+                            class="flex items-center gap-2 px-4 py-2 text-sm transition-colors"
+                            :class="isAttributionActive ? 'text-white' : 'text-blue-200 hover:text-white'"
+                        >
+                            Attribution
+                        </NuxtLink>
+                        <NuxtLink
+                            :to="baseUrl('/marketing/reports')"
+                            class="flex items-center gap-2 px-4 py-2 text-sm transition-colors"
+                            :class="isReportsActive ? 'text-white' : 'text-blue-200 hover:text-white'"
+                        >
+                            Reports
+                        </NuxtLink>
+                        <NuxtLink
+                            v-if="isAnalystSafe"
+                            :to="baseUrl('/marketing/reports?tab=templates')"
+                            class="flex items-center gap-2 pl-4 pr-4 py-1.5 text-xs transition-colors"
+                            :class="isReportsActive ? 'text-blue-200' : 'text-blue-300 hover:text-white'"
+                        >
+                            <font-awesome-icon :icon="['fas', 'layer-group']" class="w-3 h-3" />
+                            Dashboard Templates
+                        </NuxtLink>
+                    </div>
+                </template>
+            </div>
 
             <!-- AI Insights — manager and analyst only -->
-            <NuxtLink
-                v-if="isManager"
-                :to="baseUrl('/insights')"
+            <component
+                :is="isAIInsightsEnabled ? 'NuxtLink' : 'div'"
+                v-if="isManagerSafe"
+                :to="isAIInsightsEnabled ? baseUrl('/insights') : undefined"
                 class="flex items-center py-2.5 text-sm font-medium transition-colors"
                 :class="[
                     effectivelyCollapsed ? 'justify-center px-0' : 'gap-3 px-4',
-                    isAIInsightsActive ? 'bg-primary-blue-400 text-white' : 'text-blue-100 hover:bg-primary-blue-400 hover:text-white',
+                    isAIInsightsEnabled
+                        ? (isAIInsightsActive ? 'bg-primary-blue-400 text-white' : 'text-blue-100 hover:bg-primary-blue-400 hover:text-white')
+                        : 'text-blue-300 opacity-50 cursor-not-allowed'
                 ]"
-                v-tippy="tip('AI Insights')"
+                v-tippy="effectivelyCollapsed ? (isAIInsightsEnabled ? tip('AI Insights') : { content: aiInsightsTooltip, placement: 'right' }) : {}"
             >
                 <font-awesome-icon :icon="['fas', 'robot']" class="w-4 h-4 shrink-0" />
-                <span v-if="!effectivelyCollapsed">AI Insights</span>
-            </NuxtLink>
+                <span v-if="!effectivelyCollapsed" class="flex items-center gap-2">
+                    AI Insights
+                    <font-awesome-icon 
+                        v-if="!isAIInsightsEnabled"
+                        :icon="['fas', 'circle-info']"
+                        class="w-3 h-3"
+                        v-tippy="{ content: aiInsightsTooltip, placement: 'right', theme: 'light' }"
+                    />
+                </span>
+            </component>
 
-            <!-- Project Settings -->
+            <!-- Dashboards — all roles can view -->
+            <component
+                :is="isDashboardsEnabled ? 'NuxtLink' : 'div'"
+                :to="isDashboardsEnabled ? baseUrl('/dashboards') : undefined"
+                class="flex items-center py-2.5 text-sm font-medium transition-colors"
+                :class="[
+                    effectivelyCollapsed ? 'justify-center px-0' : 'gap-3 px-4',
+                    isDashboardsEnabled
+                        ? (isDashboardsActive ? 'bg-primary-blue-400 text-white' : 'text-blue-100 hover:bg-primary-blue-400 hover:text-white')
+                        : 'text-blue-300 opacity-50 cursor-not-allowed'
+                ]"
+                v-tippy="effectivelyCollapsed ? (isDashboardsEnabled ? tip('Dashboards') : { content: dashboardsTooltip, placement: 'right' }) : {}"
+            >
+                <font-awesome-icon :icon="['fas', 'table-columns']" class="w-4 h-4 shrink-0" />
+                <span v-if="!effectivelyCollapsed" class="flex items-center gap-2">
+                    Dashboards
+                    <font-awesome-icon 
+                        v-if="!isDashboardsEnabled"
+                        :icon="['fas', 'circle-info']"
+                        class="w-3 h-3"
+                        v-tippy="{ content: dashboardsTooltip, placement: 'right', theme: 'light' }"
+                    />
+                </span>
+            </component>
+
+            <!-- Project Settings (Owner Only) -->
             <NuxtLink
+                v-if="isOwner"
                 :to="baseUrl('/settings')"
                 class="flex items-center py-2.5 text-sm font-medium transition-colors"
                 :class="[

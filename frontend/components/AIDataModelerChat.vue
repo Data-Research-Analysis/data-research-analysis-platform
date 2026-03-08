@@ -140,9 +140,6 @@ async function handleApplyModel() {
         buttonState.value = 'loading';
         isApplyingModel.value = true;
         
-        console.log('[AI Chat] Applying model to builder');
-        console.log('[AI Chat] Model to apply:', JSON.stringify(aiDataModelerStore.modelDraft, null, 2));
-        
         // Trigger the model application
         aiDataModelerStore.applyModelToBuilder();
         

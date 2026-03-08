@@ -202,7 +202,6 @@ async function createDataSource(classification = null) {
     // Process each sheet as a separate data source entry
     for (const sheet of state.sheets) {
         if (!sheet.columns || sheet.columns.length === 0 || !sheet.rows || sheet.rows.length === 0) {
-            console.log('Skipping empty sheet:', sheet.name);
             continue;
         }
         
@@ -248,7 +247,6 @@ async function createDataSource(classification = null) {
         
         dataSourceId = response.result.data_source_id;
         file.status = 'uploaded';
-        console.log(`Sheet ${sheet.name} uploaded successfully`);
         
         await sleep(1000);
     }
@@ -316,7 +314,6 @@ async function handleFiles(files) {
                 };
                 
                 state.files.push(fileEntry);
-                console.log(`Added file: ${file.name} (${fileEntry.sizeFormatted})`);
                 
                 // Upload to server for parsing
                 const formData = new FormData();
@@ -362,7 +359,6 @@ async function handleFiles(files) {
                     if (stateFile) {
                         stateFile.status = 'completed';
                     }
-                    console.log(`Parsed ${response.sheets.length} sheets from ${file.name}`);
                 } else {
                     const stateFile = state.files.find(f => f.id === fileEntry.id);
                     if (stateFile) {

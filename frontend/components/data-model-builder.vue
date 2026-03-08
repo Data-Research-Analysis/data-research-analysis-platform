@@ -516,14 +516,12 @@ let isDrawerOpening = false;
 function openAIDataModeler() {
     // GUARD: Prevent multiple simultaneous openings
     if (isDrawerOpening) {
-        console.log('[openAIDataModeler] Already opening drawer, ignoring duplicate call');
         return;
     }
     
     isDrawerOpening = true;
     
     // SET FLAG: Prevent watchers from triggering when drawer opens
-    console.log('[openAIDataModeler] Setting guard flag before opening drawer');
     state.is_applying_ai_config = true;
 
     // If editing existing data model, pass its ID to load conversation from database
@@ -533,7 +531,6 @@ function openAIDataModeler() {
 
     if (props.isCrossSource && props.projectId) {
         // Cross-source mode: Pass project ID and data sources
-        console.log('[openAIDataModeler] Opening in cross-source mode for project:', props.projectId);
         
         // Extract data source information from tables
         const dataSources = [];
@@ -553,7 +550,6 @@ function openAIDataModeler() {
         aiDataModelerStore.openDrawerCrossSource(props.projectId, dataSources, dataModelId);
     } else if (props.dataSource && props.dataSource.id) {
         // Single-source mode: Use existing logic
-        console.log('[openAIDataModeler] Opening in single-source mode for data source:', props.dataSource.id);
         aiDataModelerStore.openDrawer(props.dataSource.id, dataModelId);
     }
 
@@ -562,7 +558,6 @@ function openAIDataModeler() {
     setTimeout(() => {
         state.is_applying_ai_config = false;
         isDrawerOpening = false;
-        console.log('[openAIDataModeler] Guard flag cleared after drawer open');
     }, 1000); // Increased to 1 second to prevent rapid re-opening
 }
 
@@ -622,10 +617,8 @@ function hasAdvancedFields() {
 }
 
 watch(() => state.data_table.query_options, async (value) => {
-    console.log('[WATCH] query_options changed');
     // Guard: Don't re-execute during save operation
     if (state.is_saving_model) {
-        console.log('[watch query_options] Skipping during save operation');
         return;
     }
     await executeQueryOnExternalDataSource();
@@ -664,7 +657,6 @@ watch(() => state.data_table.calculated_columns, async (value) => {
 watch(() => state.data_table.join_conditions, (newValue) => {
     if (newValue && newValue.length > 0) {
         state.join_conditions = [...newValue];
-        console.log('[Data Model Builder] Synced join_conditions from data_table to state:', state.join_conditions.length);
     } else {
         state.join_conditions = [];
     }
@@ -679,7 +671,6 @@ watch(() => state.data_table.join_conditions, (newValue) => {
 watch(() => state.data_table.columns, async (columns) => {
     // Skip if component is still initializing (prevents fetching on page load)
     if (state.is_initial_load) {
-        console.log('[Data Model Builder] Skipping suggestion fetch during initial load');
         return;
     }
     
@@ -700,8 +691,6 @@ watch(() => state.data_table.columns, async (columns) => {
     // 2. Data source exists
     // 3. User has selected columns from 2+ different tables (need at least 2 to join)
     if (!props.isCrossSource && props.dataSource?.id && tableNames.length >= 2) {
-        console.log(`[Data Model Builder] Detected columns from ${tableNames.length} tables (${tableNames.join(', ')}), fetching AI-suggested joins...`);
-        
         try {
             // Check user subscription/type to determine if AI should be enabled
             const loggedInUserStore = useLoggedInUserStore();
@@ -712,15 +701,8 @@ watch(() => state.data_table.columns, async (columns) => {
             // 2. Future: Pro/Enterprise subscription tiers (when implemented)
             const enableAI = user?.user_type === 'admin';
             
-            if (enableAI) {
-                console.log('[Data Model Builder] AI-powered suggestions ENABLED (user has access)');
-            } else {
-                console.log('[Data Model Builder] AI-powered suggestions DISABLED (basic tier - rule-based only)');
-            }
-            
             // Fetch suggestions with AI enabled based on subscription
             await aiDataModelerStore.fetchSuggestedJoins(props.dataSource.id, tableNames, enableAI);
-            console.log(`[Data Model Builder] AI-suggested joins loaded: ${aiDataModelerStore.suggestedJoins.length} suggestions`);
         } catch (error) {
             console.error('[Data Model Builder] Failed to fetch AI-suggested joins:', error);
         }
@@ -728,7 +710,6 @@ watch(() => state.data_table.columns, async (columns) => {
         // Clear suggestions when user deselects to less than 2 tables
         if (aiDataModelerStore.suggestedJoins.length > 0) {
             aiDataModelerStore.clearSuggestions();
-            console.log('[Data Model Builder] Cleared AI-suggested joins (columns from less than 2 tables)');
         }
     }
 }, { deep: true });
@@ -738,7 +719,6 @@ watch(() => state.data_table.columns, async (columns) => {
 watch(() => state.data_table.table_aliases, (newValue) => {
     if (newValue && newValue.length > 0) {
         state.table_aliases = [...newValue];
-        console.log('[Data Model Builder] Synced table_aliases from data_table to state:', state.table_aliases.length);
     } else {
         state.table_aliases = [];
     }
@@ -748,21 +728,10 @@ watch(() => state.data_table.table_aliases, (newValue) => {
 watch(() => aiDataModelerStore.applyTrigger, (newValue, oldValue) => {
     // Guard: Don't apply during unmount
     if (state.is_unmounting) {
-        console.log('[Data Model Builder - applyTrigger watcher] Component unmounting, skipping apply');
         return;
     }
 
-    console.log('[Data Model Builder - applyTrigger watcher] Triggered', {
-        newValue,
-        oldValue,
-        changed: newValue !== oldValue,
-        hasModelDraft: !!aiDataModelerStore.modelDraft,
-        hasTables: !!aiDataModelerStore.modelDraft?.tables,
-        modelDraft: aiDataModelerStore.modelDraft
-    });
-
     if (newValue !== oldValue && aiDataModelerStore.modelDraft?.tables) {
-        console.log('[Data Model Builder] Manual apply trigger detected, applying AI model');
         applyAIGeneratedModel(aiDataModelerStore.modelDraft.tables);
     } else {
         console.warn('[Data Model Builder] Trigger changed but conditions not met for applying model');
@@ -813,7 +782,6 @@ function whereColumnChanged(event) {
  * Used by WHERE, HAVING, ORDER BY clauses to update live data preview
  */
 async function handleQueryOptionChanged(source) {
-    console.log(`[handleQueryOptionChanged] Triggered by: ${source}`);
     // Don't call buildSQLQuery() here - it has modal popups
     // executeQueryOnExternalDataSource() will build the query internally
     await nextTick();
@@ -998,18 +966,6 @@ function syncGroupByColumns() {
     }
     
     state.data_table.query_options.group_by.group_by_columns = allGroupByColumns;
-    
-    console.log('[syncGroupByColumns] Updated group_by_columns:', {
-        total: allGroupByColumns.length,
-        autoColumns: autoGroupByColumns.length,
-        calculatedColumns: calculatedColumnExpressions.length,
-        manualColumns: manualGroupByColumns.length,
-        columns: allGroupByColumns,
-        excludedAggregates: Array.from(aggregatedColumns),
-        hiddenColumnsIncluded: state.data_table.columns.filter(col => 
-            !col.is_selected_column && (col.transform || col.transform_function)
-        ).length
-    });
 }
 
 function openDialog() {
@@ -1042,7 +998,6 @@ async function changeDataModel(event) {
     state.data_table.columns = state.data_table.columns.filter((column) => {
         // Allow foreign key columns (needed for reflexive relationships)
         if (event?.added?.element?.reference?.foreign_table_schema && event?.added?.element?.reference?.local_table_name === column?.table_name && event?.added?.element?.reference?.local_column_name === column?.column_name) {
-            console.log('[changeDataModel] Foreign key column added - may be used for reflexive relationship', event.added.element);
             // Don't block it - user might be creating reflexive relationship
         }
         //remove duplicate columns (check both table_name and table_alias)
@@ -1081,8 +1036,6 @@ function buildColumnReference(column) {
  * even if they weren't selected for display
  */
 function ensureReferencedColumnsExist() {
-    console.log('[ensureReferencedColumnsExist] Starting column restoration check');
-    
     // Initialize hidden_referenced_columns if doesn't exist
     if (!state.data_table.hidden_referenced_columns) {
         state.data_table.hidden_referenced_columns = [];
@@ -1100,7 +1053,6 @@ function ensureReferencedColumnsExist() {
             const [schema, tableName, columnName] = parts;
             referencedColumns.add(`${schema}.${tableName}.${columnName}`);
             addHiddenReferencedColumn(schema, tableName, columnName, 'group_by', 'group_by_columns');
-            console.log('[ensureReferencedColumnsExist] Found GROUP BY column:', baseRef);
         }
     });
     
@@ -1112,7 +1064,6 @@ function ensureReferencedColumnsExist() {
             if (parts.length === 3) {
                 const [schema, tableName, columnName] = parts;
                 addHiddenReferencedColumn(schema, tableName, columnName, 'aggregate', `aggregate_function_${idx}`);
-                console.log('[ensureReferencedColumnsExist] Found aggregate column:', aggFunc.column);
             }
         }
     });
@@ -1125,7 +1076,6 @@ function ensureReferencedColumnsExist() {
             if (parts.length === 3) {
                 const [schema, tableName, columnName] = parts;
                 addHiddenReferencedColumn(schema, tableName, columnName, 'where', `where_${idx}`);
-                console.log('[ensureReferencedColumnsExist] Found WHERE column:', clause.column);
             }
         }
     });
@@ -1138,7 +1088,6 @@ function ensureReferencedColumnsExist() {
             if (parts.length === 3) {
                 const [schema, tableName, columnName] = parts;
                 addHiddenReferencedColumn(schema, tableName, columnName, 'having', `having_${idx}`);
-                console.log('[ensureReferencedColumnsExist] Found HAVING column:', clause.column);
             }
         }
     });
@@ -1151,7 +1100,6 @@ function ensureReferencedColumnsExist() {
             if (parts.length === 3) {
                 const [schema, tableName, columnName] = parts;
                 addHiddenReferencedColumn(schema, tableName, columnName, 'order_by', `order_by_${idx}`);
-                console.log('[ensureReferencedColumnsExist] Found ORDER BY column:', clause.column);
             }
         }
     });
@@ -1167,13 +1115,9 @@ function ensureReferencedColumnsExist() {
             if (parts.length === 3) {
                 const [schema, tableName, columnName] = parts;
                 addHiddenReferencedColumn(schema, tableName, columnName, 'calculated', `calculated_${idx}`);
-                console.log('[ensureReferencedColumnsExist] Found calculated column reference:', ref);
             }
         });
     });
-    
-    console.log(`[ensureReferencedColumnsExist] Total referenced columns found: ${referencedColumns.size}`);
-    console.log(`[ensureReferencedColumnsExist] Hidden referenced columns tracked: ${state.data_table.hidden_referenced_columns.length}`);
 }
 
 /**
@@ -1259,8 +1203,6 @@ function performCreateAlias(table, alias) {
     );
     const displayName = sourceTable?.logical_name || tableName;
 
-    console.log(`[createTableAlias] Created alias "${alias}" for ${schema}.${tableName} (${displayName})`);
-
     $swal.fire({
         icon: 'success',
         title: 'Alias Created',
@@ -1293,7 +1235,6 @@ function removeTableAlias(index) {
     }
 
     state.table_aliases.splice(index, 1);
-    console.log(`[removeTableAlias] Removed alias "${alias.alias}"`);
 
     $swal.fire({
         icon: 'success',
@@ -1671,8 +1612,6 @@ function editJoinCondition(joinIndex) {
     };
     
     state.show_join_dialog = true;
-    
-    console.log('[editJoinCondition] Editing JOIN at index', joinIndex, 'Form:', state.join_form);
 }
 
 /**
@@ -1815,8 +1754,6 @@ async function createJoinCondition() {
         const existingJoin = state.join_conditions[state.editing_join_index];
         Object.assign(existingJoin, joinData);
         
-        console.log('[createJoinCondition] Updated JOIN at index', state.editing_join_index);
-        
         $swal.fire({
             icon: 'success',
             title: 'JOIN Updated',
@@ -1833,8 +1770,6 @@ async function createJoinCondition() {
         
         state.join_conditions.push(newJoin);
         
-        console.log('[createJoinCondition] Created new JOIN:', newJoin);
-        
         $swal.fire({
             icon: 'success',
             title: 'JOIN Created',
@@ -1846,9 +1781,6 @@ async function createJoinCondition() {
     // CRITICAL: Immediately sync to data_table before query execution
     // This ensures JOINs are included in the query JSON sent to backend
     state.data_table.join_conditions = [...state.join_conditions];
-
-    console.log('[createJoinCondition] Total JOINs now:', state.join_conditions.length);
-    console.log('[createJoinCondition] Synced to data_table.join_conditions');
 
     closeJoinDialog();
     await executeQueryOnExternalDataSource();
@@ -1873,7 +1805,6 @@ async function removeJoinCondition(index) {
         state.join_conditions.splice(index, 1);
         // Sync to data_table for persistence
         state.data_table.join_conditions = [...state.join_conditions];
-        console.log(`[removeJoinCondition] Removed JOIN at index ${index}`);
         await executeQueryOnExternalDataSource();
     }
 }
@@ -1886,7 +1817,6 @@ async function updateJoinOperator(index, newOperator) {
         state.join_conditions[index].primary_operator = newOperator;
         // Sync to data_table for persistence
         state.data_table.join_conditions = [...state.join_conditions];
-        console.log(`[updateJoinOperator] Updated JOIN ${index} operator to: ${newOperator}`);
         await executeQueryOnExternalDataSource();
     }
 }
@@ -1899,7 +1829,6 @@ async function updateJoinLogic(index, newLogic) {
         state.join_conditions[index].join_logic = newLogic;
         // Sync to data_table for persistence
         state.data_table.join_conditions = [...state.join_conditions];
-        console.log(`[updateJoinLogic] Updated JOIN ${index} logic to: ${newLogic}`);
 
         if (newLogic === 'OR') {
             console.warn('[updateJoinLogic] ⚠️ OR logic between JOINs has limitations in SQL. The query structure may need adjustment.');
@@ -1953,8 +1882,6 @@ function updateJoinRightTable(joinIndex) {
  * Converts IInferredJoin to join_conditions format
  */
 function handleApplySuggestedJoin(suggestion) {
-    console.log('[Data Model Builder] Applying suggested JOIN:', suggestion);
-
     // Check if this JOIN already exists
     const isDuplicate = state.join_conditions.some(join => 
         join.left_table_schema === suggestion.left_schema &&
@@ -2003,7 +1930,6 @@ function handleApplySuggestedJoin(suggestion) {
             // Column exists but might not be selected - select it now
             if (!existingColumn.is_selected_column) {
                 existingColumn.is_selected_column = true;
-                console.log(`[Data Model Builder] Auto-selected existing column: ${schema}.${table_name}.${column_name}`);
             }
         } else {
             // Column doesn't exist - find it in source tables and add it
@@ -2030,7 +1956,6 @@ function handleApplySuggestedJoin(suggestion) {
                     };
                     
                     state.data_table.columns.push(newColumn);
-                    console.log(`[Data Model Builder] Auto-added and selected column: ${schema}.${table_name}.${column_name}`);
                 } else {
                     console.warn(`[Data Model Builder] Source column not found: ${schema}.${table_name}.${column_name}`);
                 }
@@ -2071,10 +1996,7 @@ function handleApplySuggestedJoin(suggestion) {
     // Switch to advanced view to show JOIN conditions section
     if (state.viewMode !== 'advanced') {
         state.viewMode = 'advanced';
-        console.log('[Data Model Builder] Switched to advanced view to display JOIN conditions');
     }
-
-    console.log('[Data Model Builder] Applied JOIN:', newJoin);
 
     $swal.fire({
         title: 'JOIN Applied!',
@@ -2102,7 +2024,6 @@ function handleApplySuggestedJoin(suggestion) {
  */
 function handleDismissSuggestedJoin(suggestionId) {
     aiDataModelerStore.dismissSuggestion(suggestionId);
-    console.log('[Data Model Builder] Dismissed suggestion:', suggestionId);
 }
 
 function getTableKeyForColumn(col, includeAlias = false) {
@@ -2128,9 +2049,6 @@ function findSourceTableForColumn(col) {
  * Auto-detect JOIN conditions from foreign key relationships
  */
 function autoDetectJoinConditions() {
-    console.log('[autoDetectJoinConditions] Starting auto-detection');
-    console.log('[autoDetectJoinConditions] Total columns in model:', state.data_table.columns.length);
-
     // Get unique tables from selected columns
     const uniqueTables = new Map();
     state.data_table.columns.forEach(col => {
@@ -2147,16 +2065,8 @@ function autoDetectJoinConditions() {
     });
 
     const dataTables = Array.from(uniqueTables.values());
-    console.log('[autoDetectJoinConditions] Unique tables in model:', dataTables.length,
-        dataTables.map(t => {
-            const base = props.isCrossSource && t.data_source_id
-                ? `${t.data_source_id}.${t.schema}.${t.table_name}`
-                : `${t.schema}.${t.table_name}`;
-            return t.table_alias ? `${base} AS ${t.table_alias}` : base;
-        }));
 
     if (dataTables.length < 2) {
-        console.log('[autoDetectJoinConditions] Less than 2 tables, no JOINs needed');
         return;
     }
 
@@ -2164,14 +2074,6 @@ function autoDetectJoinConditions() {
     const relationshipReferences = state.tables
         .filter(table => table.references && table.references.length > 0)
         .flatMap(table => table.references);
-
-    console.log('[autoDetectJoinConditions] Available FK relationships in metadata:', relationshipReferences.length);
-    if (relationshipReferences.length > 0) {
-        console.log('[autoDetectJoinConditions] FK relationships sample:',
-            relationshipReferences.slice(0, 3).map(r =>
-                `${r.local_table_schema}.${r.local_table_name}.${r.local_column_name} → ${r.foreign_table_schema}.${r.foreign_table_name}.${r.foreign_column_name}`
-            ));
-    }
 
     // Clear existing auto-detected JOINs (keep manual ones and AI-suggested ones)
     // AI-suggested joins that were manually applied by user should NOT be cleared
@@ -2198,7 +2100,6 @@ function autoDetectJoinConditions() {
         const prefix2 = props.isCrossSource && dataSourceId2 ? `${dataSourceId2}.` : '';
         const key = `${prefix1}${schema1}.${table1}::${prefix2}${schema2}.${table2}`;
         connectedPairs.add(key);
-        console.log(`[autoDetectJoinConditions] Marked connected: ${key}`);
     }
 
     for (let i = 0; i < dataTables.length; i++) {
@@ -2208,7 +2109,6 @@ function autoDetectJoinConditions() {
 
             // Skip if tables are already connected
             if (areTablesConnected(table1.schema, table1.table_name, table2.schema, table2.table_name, table1.data_source_id, table2.data_source_id)) {
-                console.log(`[autoDetectJoinConditions] Tables already connected, skipping: ${table1.schema}.${table1.table_name} ↔ ${table2.schema}.${table2.table_name}`);
                 continue;
             }
 
@@ -2232,8 +2132,6 @@ function autoDetectJoinConditions() {
             });
 
             if (relationships.length > 0) {
-                console.log(`[autoDetectJoinConditions] Found ${relationships.length} FK relationship(s): ${table1.schema}.${table1.table_name} ↔ ${table2.schema}.${table2.table_name}`);
-
                 // Process each FK relationship
                 relationships.forEach((relationship, relIndex) => {
 
@@ -2296,28 +2194,19 @@ function autoDetectJoinConditions() {
                             table1.data_source_id,
                             table2.data_source_id
                         );
-
-                        console.log(`[autoDetectJoinConditions] Created JOIN: ${relationship.local_table_schema}.${relationship.local_table_name}.${relationship.local_column_name} = ${relationship.foreign_table_schema}.${relationship.foreign_table_name}.${relationship.foreign_column_name}`);
                     } else {
-                        console.log(`[autoDetectJoinConditions] JOIN already exists, skipping duplicate`);
                     }
                 }); // End forEach relationships
             } else {
-                console.log(`[autoDetectJoinConditions] No FK relationship found between ${table1.schema}.${table1.table_name} and ${table2.schema}.${table2.table_name}`);
-                
                 // NOTE (Issue #270): Smart column matching moved to backend service
                 // AI-suggested joins are now fetched via watch() on state.tables and displayed in SuggestedJoinsPanel
                 // Users can apply suggestions from the panel, which will add them to join_conditions
-                console.log(`[autoDetectJoinConditions] For non-FK joins, use AI-suggested joins panel above`);
             }
         }
     }
 
     // Add detected JOINs to state
     state.join_conditions.push(...detectedJoins);
-
-    console.log(`[autoDetectJoinConditions] Auto-detected ${detectedJoins.length} JOIN conditions`);
-    console.log('[autoDetectJoinConditions] Total JOINs now:', state.join_conditions.length);
 }
 
 // NOTE (Issue #270): Old frontend pattern-matching functions removed
@@ -2336,8 +2225,6 @@ async function deleteColumn(columnName) {
     // Build fully-qualified column reference for cleanup
     const fullColumnRef = buildColumnReference(columnToDelete);
 
-    console.log(`[deleteColumn] Removing column: ${fullColumnRef}`);
-
     // 1. Remove from columns array
     state.data_table.columns = state.data_table.columns.filter((column) => {
         column.alias_name = "";
@@ -2346,7 +2233,6 @@ async function deleteColumn(columnName) {
 
     // If no columns left, reset everything
     if (state.data_table.columns.length === 0) {
-        console.log('[deleteColumn] No columns remaining, resetting all query options');
         state.data_table.query_options.where = [];
         state.data_table.query_options.group_by = {};
         state.data_table.query_options.order_by = [];
@@ -2358,51 +2244,32 @@ async function deleteColumn(columnName) {
 
     // 2. Clean up GROUP BY columns (AI-generated string array)
     if (state.data_table.query_options?.group_by?.group_by_columns?.length > 0) {
-        const beforeLength = state.data_table.query_options.group_by.group_by_columns.length;
         state.data_table.query_options.group_by.group_by_columns =
             state.data_table.query_options.group_by.group_by_columns.filter(col => {
                 // Remove exact matches and columns wrapped in transform functions
                 return !col.includes(fullColumnRef);
             });
-
-        const removedCount = beforeLength - state.data_table.query_options.group_by.group_by_columns.length;
-        if (removedCount > 0) {
-            console.log(`[deleteColumn] Removed ${removedCount} reference(s) from group_by_columns`);
-        }
     }
 
     // 3. Clean up aggregate functions
     if (state.data_table.query_options?.group_by?.aggregate_functions?.length > 0) {
-        const beforeLength = state.data_table.query_options.group_by.aggregate_functions.length;
         state.data_table.query_options.group_by.aggregate_functions =
             state.data_table.query_options.group_by.aggregate_functions.filter(aggFunc => {
                 return aggFunc.column !== fullColumnRef;
             });
 
-        const removedCount = beforeLength - state.data_table.query_options.group_by.aggregate_functions.length;
-        if (removedCount > 0) {
-            console.log(`[deleteColumn] Removed ${removedCount} aggregate function(s)`);
-        }
-
         // If no aggregate functions remain, reset GROUP BY
         if (state.data_table.query_options.group_by.aggregate_functions.length === 0) {
-            console.log('[deleteColumn] No aggregate functions remain, resetting GROUP BY');
             state.data_table.query_options.group_by = {};
         }
     }
 
     // 4. Clean up aggregate expressions
     if (state.data_table.query_options?.group_by?.aggregate_expressions?.length > 0) {
-        const beforeLength = state.data_table.query_options.group_by.aggregate_expressions.length;
         state.data_table.query_options.group_by.aggregate_expressions =
             state.data_table.query_options.group_by.aggregate_expressions.filter(aggExpr => {
                 return !aggExpr.expression.includes(fullColumnRef);
             });
-
-        const removedCount = beforeLength - state.data_table.query_options.group_by.aggregate_expressions.length;
-        if (removedCount > 0) {
-            console.log(`[deleteColumn] Removed ${removedCount} aggregate expression(s)`);
-        }
     }
     
     // Sync GROUP BY columns after all cleanup operations
@@ -2413,44 +2280,26 @@ async function deleteColumn(columnName) {
 
     // 5. Clean up WHERE clauses
     if (state.data_table.query_options?.where?.length > 0) {
-        const beforeLength = state.data_table.query_options.where.length;
         state.data_table.query_options.where =
             state.data_table.query_options.where.filter(whereClause => {
                 return whereClause.column !== fullColumnRef;
             });
-
-        const removedCount = beforeLength - state.data_table.query_options.where.length;
-        if (removedCount > 0) {
-            console.log(`[deleteColumn] Removed ${removedCount} WHERE clause(s)`);
-        }
     }
 
     // 6. Clean up ORDER BY clauses
     if (state.data_table.query_options?.order_by?.length > 0) {
-        const beforeLength = state.data_table.query_options.order_by.length;
         state.data_table.query_options.order_by =
             state.data_table.query_options.order_by.filter(orderClause => {
                 return orderClause.column !== fullColumnRef;
             });
-
-        const removedCount = beforeLength - state.data_table.query_options.order_by.length;
-        if (removedCount > 0) {
-            console.log(`[deleteColumn] Removed ${removedCount} ORDER BY clause(s)`);
-        }
     }
 
     // 7. Clean up HAVING conditions
     if (state.data_table.query_options?.group_by?.having_conditions?.length > 0) {
-        const beforeLength = state.data_table.query_options.group_by.having_conditions.length;
         state.data_table.query_options.group_by.having_conditions =
             state.data_table.query_options.group_by.having_conditions.filter(havingClause => {
                 return havingClause.column !== fullColumnRef;
             });
-
-        const removedCount = beforeLength - state.data_table.query_options.group_by.having_conditions.length;
-        if (removedCount > 0) {
-            console.log(`[deleteColumn] Removed ${removedCount} HAVING condition(s)`);
-        }
     }
 
     // Execute query with cleaned-up model
@@ -2552,7 +2401,6 @@ function addHiddenReferencedColumn(schema, tableName, columnName, usage, referen
         // Update existing tracking
         if (!existing.usage.includes(usage)) {
             existing.usage.push(usage);
-            console.log(`[addHiddenReferencedColumn] Added usage '${usage}' to ${schema}.${tableName}.${columnName}`);
         }
         if (reference && !existing.referenced_in.includes(reference)) {
             existing.referenced_in.push(reference);
@@ -2580,8 +2428,6 @@ function addHiddenReferencedColumn(schema, tableName, columnName, usage, referen
             referenced_in: reference ? [reference] : []
         });
         
-        console.log(`[addHiddenReferencedColumn] Tracking new hidden column: ${schema}.${tableName}.${columnName} (usage: ${usage})`);
-        
         // If column doesn't exist in data model yet, add it with is_selected_column: false
         if (!existingColumn) {
             if (sourceColumn) {
@@ -2596,7 +2442,6 @@ function addHiddenReferencedColumn(schema, tableName, columnName, usage, referen
                     is_selected_column: false,
                     table_alias: null
                 });
-                console.log(`[addHiddenReferencedColumn] Added new column to data model (unchecked, used in ${usage}): ${schema}.${tableName}.${columnName}`);
             } else {
                 console.warn(`[addHiddenReferencedColumn] Cannot add column - source not found: ${schema}.${tableName}.${columnName}`);
             }
@@ -2625,8 +2470,6 @@ function removeHiddenColumnUsage(schema, tableName, columnName, usage, reference
         hidden.referenced_in = hidden.referenced_in.filter(r => r !== reference);
     }
     
-    console.log(`[removeHiddenColumnUsage] Removed usage '${usage}' from ${schema}.${tableName}.${columnName}. Remaining: ${hidden.usage.length}`);
-    
     // If no more usages, remove entirely
     if (hidden.usage.length === 0) {
         state.data_table.hidden_referenced_columns = 
@@ -2635,8 +2478,6 @@ function removeHiddenColumnUsage(schema, tableName, columnName, usage, reference
                   col.table_name === tableName &&
                   col.column_name === columnName)
             );
-        
-        console.log(`[removeHiddenColumnUsage] No more usages, removed from tracking: ${schema}.${tableName}.${columnName}`);
         
         // Also remove from columns if not selected for display
         const colInList = state.data_table.columns.find(col =>
@@ -2651,7 +2492,6 @@ function removeHiddenColumnUsage(schema, tableName, columnName, usage, reference
                   col.table_name === tableName &&
                   col.column_name === columnName)
             );
-            console.log(`[removeHiddenColumnUsage] Removed hidden column from data model: ${schema}.${tableName}.${columnName}`);
         }
     }
 }
@@ -2999,7 +2839,6 @@ function expandCalculatedColumnReferences(expression) {
                 // Replace all occurrences with the expression (wrapped in parentheses)
                 expandedExpression = expandedExpression.replace(columnNameRegex, `(${calcCol.expression})`);
                 changed = true;
-                console.log(`[expandCalculatedColumnReferences] Replaced ${calcCol.column_name} with (${calcCol.expression})`);
             }
         });
     }
@@ -3020,7 +2859,6 @@ function expandCalculatedColumnReferences(expression) {
  */
 function hasCircularReference(newColumnName, selectedColumns, visited = new Set()) {
     if (visited.has(newColumnName)) {
-        console.log('[hasCircularReference] Circular reference detected:', newColumnName);
         return true;
     }
     visited.add(newColumnName);
@@ -3048,12 +2886,7 @@ function hasCircularReference(newColumnName, selectedColumns, visited = new Set(
 }
 
 async function addCalculatedColumn() {
-    console.log('[DEBUG addCalculatedColumn] Function called');
-    console.log('[DEBUG addCalculatedColumn] state.calculated_column:', JSON.stringify(state.calculated_column, null, 2));
-    console.log('[DEBUG addCalculatedColumn] state.data_table.calculated_columns before:', state.data_table.calculated_columns);
-    
     if (state.calculated_column.column_name === '') {
-        console.log('[DEBUG addCalculatedColumn] VALIDATION FAILED: Empty column name');
         $swal.fire({
             icon: 'error',
             title: `Error!`,
@@ -3061,12 +2894,8 @@ async function addCalculatedColumn() {
         });
         return;
     }
-    console.log('[DEBUG addCalculatedColumn] Validation 1 passed: column name is not empty');
     
     if (state.calculated_column.columns.length === 0 || state.calculated_column.columns.filter((column) => column.column_name === '' && column.type === 'column').length > 0) {
-        console.log('[DEBUG addCalculatedColumn] VALIDATION FAILED: No columns or empty column names');
-        console.log('[DEBUG addCalculatedColumn] columns.length:', state.calculated_column.columns.length);
-        console.log('[DEBUG addCalculatedColumn] Empty column names:', state.calculated_column.columns.filter((column) => column.column_name === '' && column.type === 'column'));
         $swal.fire({
             icon: 'error',
             title: `Error!`,
@@ -3074,11 +2903,8 @@ async function addCalculatedColumn() {
         });
         return;
     }
-    console.log('[DEBUG addCalculatedColumn] Validation 2 passed: columns selected');
     
     if (state.calculated_column.columns.length === 0 || state.calculated_column.columns.filter((column, index) => index > 0 && column.operator === null).length > 0) {
-        console.log('[DEBUG addCalculatedColumn] VALIDATION FAILED: Missing operators');
-        console.log('[DEBUG addCalculatedColumn] Columns missing operators:', state.calculated_column.columns.filter((column, index) => index > 0 && column.operator === null));
         $swal.fire({
             icon: 'error',
             title: `Error!`,
@@ -3086,21 +2912,14 @@ async function addCalculatedColumn() {
         });
         return;
     }
-    console.log('[DEBUG addCalculatedColumn] Validation 3 passed: operators selected');
 
     // Validate aggregate usage
-    console.log('[DEBUG addCalculatedColumn] Checking aggregate usage...');
-    console.log('[DEBUG addCalculatedColumn] numericColumnsWithAggregates:', numericColumnsWithAggregates.value);
     const usesAggregates = state.calculated_column.columns.some(col => {
         const colInfo = numericColumnsWithAggregates.value.find(c => c.value === col.column_name);
-        console.log('[DEBUG addCalculatedColumn] Looking up column:', col.column_name, 'Found:', colInfo);
         return colInfo && (colInfo.type === 'aggregate_function' || colInfo.type === 'aggregate_expression');
     });
-    console.log('[DEBUG addCalculatedColumn] usesAggregates:', usesAggregates);
-    console.log('[DEBUG addCalculatedColumn] showGroupByClause:', showGroupByClause.value);
 
     if (usesAggregates && !showGroupByClause.value) {
-        console.log('[DEBUG addCalculatedColumn] VALIDATION FAILED: Aggregates without GROUP BY');
         $swal.fire({
             icon: 'error',
             title: `Error!`,
@@ -3108,12 +2927,9 @@ async function addCalculatedColumn() {
         });
         return;
     }
-    console.log('[DEBUG addCalculatedColumn] Validation 4 passed: aggregate usage valid');
     
     // Validation 5: Check for circular references
-    console.log('[DEBUG addCalculatedColumn] Checking for circular references...');
     if (hasCircularReference(state.calculated_column.column_name, state.calculated_column.columns)) {
-        console.log('[DEBUG addCalculatedColumn] VALIDATION FAILED: Circular reference detected');
         $swal.fire({
             icon: 'error',
             title: `Circular Reference Detected!`,
@@ -3121,30 +2937,20 @@ async function addCalculatedColumn() {
         });
         return;
     }
-    console.log('[DEBUG addCalculatedColumn] Validation 5 passed: no circular references');
     
     let expression = "";
-    console.log('[DEBUG addCalculatedColumn] Building expression...');
     for (let i = 0; i < state.calculated_column.columns.length; i++) {
         const column = state.calculated_column.columns[i];
         const operator = column.operator;
         const type = column.type;
-        
-        console.log(`[DEBUG addCalculatedColumn] Processing column ${i}:`, { column_name: column.column_name, operator, type });
 
         // Get the proper column reference (fully qualified for base columns, alias for others)
         let columnRef = column.column_name;
         if (type === 'column') {
             const colInfo = numericColumnsWithAggregates.value.find(c => c.value === column.column_name);
-            console.log(`[DEBUG addCalculatedColumn] Column ${i} lookup:`, { 
-                searching_for: column.column_name, 
-                found: colInfo ? 'YES' : 'NO',
-                colInfo: colInfo 
-            });
             if (colInfo && colInfo.type === 'base_column') {
                 // Use fully qualified name for base columns
                 columnRef = `${colInfo.schema}.${colInfo.table_name}.${colInfo.column_name}`;
-                console.log(`[DEBUG addCalculatedColumn] Using qualified name:`, columnRef);
             }
             // For aggregates and calculated columns, use the alias name
             // Calculated column references will be expanded later via expandCalculatedColumnReferences()
@@ -3153,10 +2959,8 @@ async function addCalculatedColumn() {
         if (i === 0) {
             //the first operator will always be null, so we skip it
             expression += `${columnRef}`;
-            console.log(`[DEBUG addCalculatedColumn] Expression after column ${i}:`, expression);
         } else {
             let value = type === 'column' ? columnRef : column.numeric_value;
-            console.log(`[DEBUG addCalculatedColumn] Column ${i} operator:`, operator, 'value:', value);
             if (operator === 'ADD') {
                 expression += ` + ${value}`;
             } else if (operator === 'SUBTRACT') {
@@ -3168,27 +2972,19 @@ async function addCalculatedColumn() {
             } else if (operator === 'MODULO') {
                 expression += ` % ${value}`;
             }
-            console.log(`[DEBUG addCalculatedColumn] Expression after column ${i}:`, expression);
         }
     }
     
     // Expand any calculated column references in the expression
-    console.log('[DEBUG addCalculatedColumn] Expression before expansion:', expression);
     const expandedExpression = expandCalculatedColumnReferences(expression);
-    console.log('[DEBUG addCalculatedColumn] Expression after expansion:', expandedExpression);
     
     const finalColumn = {
         column_name: state.calculated_column.column_name,
         expression: `ROUND(${expandedExpression}, 2)`,
         column_data_type: state.calculated_column.column_data_type,
     };
-    console.log('[DEBUG addCalculatedColumn] Final expression:', expandedExpression);
-    console.log('[DEBUG addCalculatedColumn] Final column object to push:', finalColumn);
-    console.log('[DEBUG addCalculatedColumn] Pushing to state.data_table.calculated_columns...');
     
     state.data_table.calculated_columns.push(finalColumn);
-    
-    console.log('[DEBUG addCalculatedColumn] After push, calculated_columns:', state.data_table.calculated_columns);
     
     // Sync GROUP BY to include calculated column expressions
     if (state.data_table.query_options?.group_by?.aggregate_functions?.length > 0 ||
@@ -3196,11 +2992,8 @@ async function addCalculatedColumn() {
         syncGroupByColumns();
     }
     
-    console.log('[DEBUG addCalculatedColumn] Closing dialog...');
     state.show_calculated_column_dialog = false;
-    console.log('[DEBUG addCalculatedColumn] Calling executeQueryOnExternalDataSource...');
     await executeQueryOnExternalDataSource();
-    console.log('[DEBUG addCalculatedColumn] Function completed');
 }
 async function deleteCalculatedColumn(index) {
     state.data_table.calculated_columns.splice(index, 1);
@@ -3226,18 +3019,9 @@ function buildSQLQuery(silent = false) {
         return tableRef;
     });
 
-    console.log('[Data Model Builder - buildSQLQuery] Initial dataTables from columns:', dataTables);
-    console.log('[Data Model Builder - buildSQLQuery] Total columns:', state.data_table.columns.length);
-    console.log('[Data Model Builder - buildSQLQuery] Columns with aliases:', JSON.stringify(state.data_table.columns.map(c => ({
-        table: c.table_name,
-        alias: c.table_alias,
-        column: c.column_name
-    })), null, 2));
-
     let fromJoinClauses = [];
     const tableCombinations = [];
     dataTables = _.uniq(dataTables);
-    console.log('[Data Model Builder - buildSQLQuery] Unique dataTables (with aliases):', dataTables);
     console.error('[DEBUG] dataTables.length:', dataTables.length, 'Tables:', dataTables);
     if (dataTables.length === 1) {
         // Single table (possibly aliased)
@@ -3259,18 +3043,12 @@ function buildSQLQuery(silent = false) {
             }
         });
 
-        console.log('[buildSQLQuery] Single-table: Columns used in aggregates:', Array.from(aggregateColumns));
-
         sqlQuery = `SELECT ${state.data_table.columns.filter((column) => {
             // Exclude columns that are ONLY used in aggregates (not for grouping)
             if (!column.is_selected_column) return false;
             
             const columnFullPath = `${column.schema}.${column.table_name}.${column.column_name}`;
             const isAggregateOnly = aggregateColumns.has(columnFullPath);
-            
-            if (isAggregateOnly) {
-                console.log(`[buildSQLQuery] Excluding aggregate-only column from SELECT: ${columnFullPath}`);
-            }
             
             return !isAggregateOnly;
         }).map((column) => {
@@ -3285,7 +3063,6 @@ function buildSQLQuery(silent = false) {
         }).join(', ')}`;
     } else {
         // Use state.join_conditions for JOIN generation
-        console.log('[Data Model Builder - buildSQLQuery] Using JOIN conditions from state:', state.join_conditions.length);
 
         // Convert state.join_conditions to fromJoinClauses format
         fromJoinClauses = state.join_conditions.map(join => ({
@@ -3319,7 +3096,6 @@ function buildSQLQuery(silent = false) {
             return !tablesInJoins.has(table);
         });
 
-        console.log('[Data Model Builder - buildSQLQuery] Orphaned tables:', orphanedTables);
         if (orphanedTables.length > 0) {
             const orphanedAlert = {
                 type: 'warning',
@@ -3389,9 +3165,6 @@ function buildSQLQuery(silent = false) {
             }
         }
 
-        console.log('[buildSQLQuery] Table column counts:', tableColumnCounts);
-        console.log('[buildSQLQuery] Primary table (most columns):', primaryTable);
-
         // Reorder fromJoinClauses to start with the primary table
         if (primaryTable && fromJoinClauses.length > 0) {
             const parsedPrimary = parseTableKey(primaryTable);
@@ -3428,8 +3201,6 @@ function buildSQLQuery(silent = false) {
                 } else {
                     fromJoinClauses.unshift(primaryJoin);
                 }
-
-                console.log('[buildSQLQuery] Reordered JOINs to start with primary table');
             }
         }
 
@@ -3527,16 +3298,12 @@ function buildSQLQuery(silent = false) {
                     }
                 } else {
                     // Both tables already exist - this JOIN is redundant, skip it
-                    console.log(`[buildSQLQuery] Skipping redundant JOIN: both ${localTableFull} and ${foreignTableFull} already in FROM clause`);
-                    console.log(`[buildSQLQuery] This indicates tables are already connected through another path`);
                 }
             }
         });
-        console.log('[Data Model Builder - buildSQLQuery] Final fromJoinClause array:', fromJoinClause);
 
         // CRITICAL FIX: If no JOIN conditions exist but we have multiple tables, add them with CROSS JOIN
         if (fromJoinClause.length === 0 && dataTables.length > 0) {
-            console.log('[buildSQLQuery] No JOIN conditions found, adding tables with CROSS JOIN (Cartesian product)');
             
             // Get table aliases if they exist
             const getTableAlias = (schema, tableName) => {
@@ -3558,8 +3325,6 @@ function buildSQLQuery(silent = false) {
                     fromJoinClause.push(`CROSS JOIN ${tableSQL}`);
                 }
             });
-            
-            console.log('[buildSQLQuery] Generated FROM clause with CROSS JOIN:', fromJoinClause);
         }
 
         // Check if any JOINs use OR logic and log warning
@@ -3595,8 +3360,6 @@ function buildSQLQuery(silent = false) {
                 });
             }
         });
-
-        console.log('[buildSQLQuery] Columns used in aggregates:', Array.from(aggregateColumns));
 
         // CRITICAL: Reorder columns to match table order in JOIN clauses
         // This prevents referencing tables before they're introduced in the FROM/JOIN clause
@@ -3713,7 +3476,6 @@ function buildSQLQuery(silent = false) {
 
     // Add calculated columns AFTER aggregates so they can reference aggregate aliases
     if (state?.data_table?.calculated_columns?.length) {
-        console.log('[buildSQLQuery] Adding calculated columns to query:', state.data_table.calculated_columns);
         state.data_table.calculated_columns.forEach((column) => {
             // Replace aggregate aliases with full aggregate expressions for PostgreSQL compatibility
             let finalExpression = column.expression;
@@ -3748,9 +3510,7 @@ function buildSQLQuery(silent = false) {
             });
 
             sqlQuery += `, ${finalExpression} AS ${column.column_name}`;
-            console.log('[buildSQLQuery] Added calculated column to query:', column.column_name, 'SQL:', `${finalExpression} AS ${column.column_name}`);
         })
-        console.log('[buildSQLQuery] Query after adding calculated columns:', sqlQuery);
     }
 
     sqlQuery += ` ${fromJoinClause.join(' ')}`;
@@ -3914,7 +3674,6 @@ function buildSQLQuery(silent = false) {
         }
     });
 
-    console.log('[Data Model Builder - buildSQLQuery] FINAL SQL QUERY:', sqlQuery);
     return sqlQuery;
 }
 async function saveDataModel() {
@@ -3976,8 +3735,6 @@ async function saveDataModel() {
                         .map(col => col.data_source_id)
                 );
                 
-                console.log('[saveDataModel] Cross-source validation - Unique data sources:', Array.from(uniqueDataSourceIds));
-                
                 if (uniqueDataSourceIds.size === 1) {
                     const result = await $swal.fire({
                         icon: 'warning',
@@ -4005,13 +3762,6 @@ async function saveDataModel() {
             // This preserves manually-added GROUP BY columns while ensuring
             // auto-derived columns are up to date
             syncGroupByColumns();
-            console.log('[saveDataModel] Synced group_by_columns via syncGroupByColumns:', state.data_table.query_options?.group_by?.group_by_columns);
-        
-            console.log('[saveDataModel] Synced to data_table before save:', {
-                join_conditions: state.data_table.join_conditions.length,
-                table_aliases: state.data_table.table_aliases.length,
-                group_by_columns: state.data_table.query_options?.group_by?.group_by_columns?.length || 0
-            });
 
             let offsetStr = 'OFFSET 0';
             let limitStr = 'LIMIT 5';
@@ -4069,13 +3819,6 @@ async function saveDataModel() {
                 columns: state.data_table.columns // Send ALL columns - don't filter!
             };
 
-            console.log('[saveDataModel] Sending ALL columns to preserve full model definition:', {
-                total: state.data_table.columns.length,
-                selected: state.data_table.columns.filter(c => c.is_selected_column).length,
-                unselected: state.data_table.columns.filter(c => !c.is_selected_column).length,
-                hiddenTracked: state.data_table.hidden_referenced_columns?.length || 0
-            });
-
             const responseData = await $fetch(url, {
                 method: "POST",
                 headers: {
@@ -4107,21 +3850,12 @@ async function saveDataModel() {
                             aiDataModelerStore.currentDataSourceId = Number(route.params.datasourceid);
                         }
 
-                        console.log('Saving AI conversation with:', {
-                            dataSourceId: aiDataModelerStore.currentDataSourceId,
-                            dataModelId,
-                            title: state.data_table.table_name || 'AI Generated Model',
-                            messagesCount: aiDataModelerStore.messages.length
-                        });
-
                         const saved = await aiDataModelerStore.saveConversation(
                             dataModelId,
                             state.data_table.table_name || 'AI Generated Model'
                         );
 
-                        if (saved) {
-                            console.log('AI conversation saved successfully');
-                        } else {
+                        if (!saved) {
                             console.warn('AI conversation save returned false');
                         }
                     }
@@ -4129,16 +3863,6 @@ async function saveDataModel() {
                     // Log error but don't block the data model save success
                     console.error('Failed to save AI conversation:', error);
                 }
-            } else {
-                console.log('No AI conversation to save:', {
-                    hasConversationId: !!aiDataModelerStore.conversationId,
-                    messagesCount: aiDataModelerStore.messages.length
-                });
-            }
-
-            // enableRefreshDataFlag('clearDataModels');
-            if (route.params.datasourceid) {
-                router.push(`/projects/${route.params.projectid}/data-sources/${route.params.datasourceid}/data-models`);
             } else {
                 router.push(`/projects/${route.params.projectid}/data-models`);
             }
@@ -4166,34 +3890,29 @@ async function saveDataModel() {
 async function executeQueryOnExternalDataSource() {
     // Guard: Component is unmounting, abort all operations
     if (state.is_unmounting) {
-        console.log('[executeQuery] Component unmounting, aborting...');
         return;
     }
 
     // Guard: Prevent concurrent executions
     if (state.is_executing_query) {
-        console.log('[executeQuery] Already executing, skipping...');
         console.trace('[executeQuery] Call stack:');
         return;
     }
 
     // Guard: Don't execute during AI configuration application
     if (state.is_applying_ai_config) {
-        console.log('[executeQuery] AI config applying, skipping...');
         console.trace('[executeQuery] Call stack:');
         return;
     }
 
     // Guard: Don't execute during save operation
     if (state.is_saving_model) {
-        console.log('[executeQuery] Save operation in progress, skipping...');
         console.trace('[executeQuery] Call stack:');
         return;
     }
 
     // Guard: Detect runaway loops
     state.query_execution_count++;
-    console.log(`[executeQuery] Execution #${state.query_execution_count}`);
     if (state.query_execution_count > 10) {
         console.error('[CRITICAL] Too many query executions! Possible loop detected.');
         console.trace('[executeQuery] Call stack:');
@@ -4234,7 +3953,6 @@ async function executeQueryOnExternalDataSource() {
 
             // Basic client-side validation for MongoDB
             if (!state.mongo_query.collection) {
-                 console.log('[executeQuery] MongoDB: No collection selected, skipping.');
                  state.is_executing_query = false;
                  return;
             }
@@ -4243,7 +3961,6 @@ async function executeQueryOnExternalDataSource() {
             
             // CRITICAL: For cross-source models, ensure all columns have data_source_id
             if (props.isCrossSource) {
-                console.log('[executeQuery] Cross-source model detected, validating data_source_id for all columns');
                 let missingCount = 0;
                 state.data_table.columns.forEach(col => {
                     if (!col.data_source_id) {
@@ -4254,26 +3971,19 @@ async function executeQueryOnExternalDataSource() {
                         if (sourceTable?.data_source_id) {
                             col.data_source_id = sourceTable.data_source_id;
                             missingCount++;
-                            console.log(`[executeQuery] Backfilled data_source_id for ${col.schema}.${col.table_name}.${col.column_name}`);
                         } else {
                             console.error(`[executeQuery] CRITICAL: Cannot find data_source_id for ${col.schema}.${col.table_name}.${col.column_name}`);
                         }
                     }
                 });
-                if (missingCount > 0) {
-                    console.log(`[executeQuery] Backfilled ${missingCount} columns with missing data_source_id`);
-                }
             }
             
             // CRITICAL: Sync JOIN conditions to data_table before building query
             state.data_table.join_conditions = [...state.join_conditions];
             state.data_table.table_aliases = [...state.table_aliases];
             
-            console.log('[executeQuery] Building SQL with calculated_columns:', state.data_table.calculated_columns);
             state.sql_query = buildSQLQuery();
             state.sql_query += ` LIMIT 5 OFFSET 0`;
-            console.log('[Data Model Builder - executeQueryOnExternalDataSource] SQL Query being sent:', state.sql_query);
-            console.log('[Data Model Builder - executeQueryOnExternalDataSource] JSON Query being sent:', JSON.stringify(state.data_table));
             
             requestBody = {
                 query: state.sql_query,
@@ -4326,8 +4036,6 @@ async function executeQueryOnExternalDataSource() {
             }
 
             const columns = Object.keys(data[0]);
-            console.log('[executeQuery] Columns from query result:', columns);
-            console.log('[executeQuery] Number of rows returned:', data.length);
             
             state.response_from_external_data_source_columns = columns;
             state.response_from_external_data_source_rows = data;
@@ -4554,7 +4262,6 @@ async function toggleColumnInDataModel(column, tableName, tableAlias = null) {
 async function applyAIGeneratedModel(model) {
     // Guard: Don't apply during unmount
     if (state.is_unmounting) {
-        console.log('[applyAIGeneratedModel] Component unmounting, aborting apply');
         return;
     }
 
@@ -4572,11 +4279,8 @@ async function applyAIGeneratedModel(model) {
     // SET FLAG: Prevent watchers from triggering during config application
     state.is_applying_ai_config = true;
     state.loading = true;
-    console.log('[applyAIGeneratedModel] Guard flag SET');
 
     try {
-        console.log('[Data Model Builder] Applying AI-generated model:', model);
-
         // Handle array of models (take first one, or latest)
         let modelToApply = model;
         if (Array.isArray(model)) {
@@ -4588,7 +4292,6 @@ async function applyAIGeneratedModel(model) {
                 });
                 return;
             }
-            console.log(`[Data Model Builder] Multiple models detected (${model.length}), using the first one`);
             modelToApply = model[0];
         }
 
@@ -4597,7 +4300,6 @@ async function applyAIGeneratedModel(model) {
 
         if (!transformedModel) {
             // Error already shown in validateAndTransformAIModel
-            console.log('[applyAIGeneratedModel] Validation failed, model will not be applied');
             // Note: User can still close drawer manually or try again
             // We don't auto-close here to let them see the error and potentially fix it
             return;
@@ -4608,7 +4310,6 @@ async function applyAIGeneratedModel(model) {
 
         try {
             // Clear existing model first to ensure clean replacement
-            console.log('[Data Model Builder] Clearing existing model before applying new one');
 
             // Reset to default empty state
             state.data_table.table_name = '';
@@ -4629,19 +4330,8 @@ async function applyAIGeneratedModel(model) {
             };
 
             // Now apply the new model - use Object.assign to maintain reactivity
-            console.log('[Data Model Builder] About to assign transformed model:', {
-                hasColumns: !!transformedModel.columns,
-                columnsLength: transformedModel.columns?.length,
-                hasQueryOptions: !!transformedModel.query_options,
-                transformedModel: JSON.stringify(transformedModel, null, 2)
-            });
             
             Object.assign(state.data_table, transformedModel);
-            
-            console.log('[Data Model Builder] After Object.assign:', {
-                columnsLength: state.data_table.columns?.length,
-                columns: state.data_table.columns
-            });
             
             // CRITICAL: Validate that columns were actually assigned
             if (!state.data_table.columns || state.data_table.columns.length === 0) {
@@ -4653,7 +4343,6 @@ async function applyAIGeneratedModel(model) {
             // Preserve table_display_name if provided by AI
             if (modelToApply.table_display_name) {
                 state.data_table.table_display_name = modelToApply.table_display_name;
-                console.log('[applyAIGeneratedModel] Preserved display name:', modelToApply.table_display_name);
             }
 
             // Initialize join_conditions and table_aliases arrays if not present
@@ -4693,7 +4382,6 @@ async function applyAIGeneratedModel(model) {
                         (!props.isCrossSource || !dataSourceId || a.data_source_id === dataSourceId)
                     );
                     if (!exists) {
-                        console.log(`[applyAIGeneratedModel] Registering table alias: ${schema}.${table} AS ${alias}`);
                         state.data_table.table_aliases.push({
                             schema: schema,
                             original_table: table,
@@ -4713,8 +4401,6 @@ async function applyAIGeneratedModel(model) {
                         aggregateColumns.add(aggFunc.column);
                     }
                 });
-
-                console.log('[applyAIGeneratedModel] Post-validation check - aggregate columns:', Array.from(aggregateColumns));
 
                 state.data_table.columns.forEach(col => {
                     const fullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
@@ -4739,33 +4425,27 @@ async function applyAIGeneratedModel(model) {
             }
 
             // Auto-detect JOIN conditions from foreign key relationships
-            console.log('[applyAIGeneratedModel] Auto-detecting JOIN conditions...');
             autoDetectJoinConditions();
-            console.log(`[applyAIGeneratedModel] JOINs detected: ${state.join_conditions.length}`);
 
             // CRITICAL FIX: Sync JOIN conditions to data_table so backend receives them
             // state.join_conditions is used by buildSQLQuery() for frontend display
             // state.data_table.join_conditions is sent to backend in JSON
             // Both must have the same data!
             state.data_table.join_conditions = [...state.join_conditions];
-            console.log(`[applyAIGeneratedModel] Synced ${state.data_table.join_conditions.length} JOINs to data_table`);
 
             // Also sync table_aliases if they exist
             if (state.table_aliases && state.table_aliases.length > 0) {
                 state.data_table.table_aliases = [...state.table_aliases];
-                console.log(`[applyAIGeneratedModel] Synced ${state.data_table.table_aliases.length} table aliases to data_table`);
             }
 
             // Switch to advanced view if model has advanced features
             if (hasAdvancedFields()) {
-                console.log('[applyAIGeneratedModel] Switching to advanced view (model has advanced features)');
                 state.viewMode = 'advanced';
             }
             
             // Sync GROUP BY columns after model application
             nextTick(() => {
                 syncGroupByColumns();
-                console.log('[applyAIGeneratedModel] Synced GROUP BY columns after model application');
             });
 
             // Wait for all reactive updates to complete before clearing flag
@@ -4774,8 +4454,6 @@ async function applyAIGeneratedModel(model) {
             // Additional wait to ensure DOM updates are complete
             // This prevents Vue internal errors during component unmounting/remounting
             await new Promise(resolve => setTimeout(resolve, 100));
-            
-            console.log('[applyAIGeneratedModel] All reactive updates completed');
 
         } catch (error) {
             console.error('[Data Model Builder] Error applying AI model:', error);
@@ -4826,11 +4504,9 @@ async function applyAIGeneratedModel(model) {
         // CLEAR FLAG: Allow watchers to resume
         state.is_applying_ai_config = false;
         state.loading = false;
-        console.log('[applyAIGeneratedModel] Guard flag CLEARED');
     }
 
     // Execute query ONCE after all changes applied
-    console.log('[applyAIGeneratedModel] Executing query after model applied');
     
     // Verify model was actually applied before executing query
     if (!state.data_table.columns || state.data_table.columns.length === 0) {
@@ -4856,7 +4532,6 @@ async function applyAIGeneratedModel(model) {
         });
         
         // Close the AI drawer after successful application
-        console.log('[applyAIGeneratedModel] Closing AI drawer after successful application');
         aiDataModelerStore.closeDrawer(false); // false = don't cleanup session (keep for potential edits)
         
     } catch (queryError) {
@@ -4869,7 +4544,6 @@ async function applyAIGeneratedModel(model) {
         });
         
         // Still close the drawer even if query preview failed
-        console.log('[applyAIGeneratedModel] Closing AI drawer despite query error');
         aiDataModelerStore.closeDrawer(false);
     }
 }
@@ -4932,8 +4606,6 @@ function inferDataTypeFromExpression(expression) {
             ...(elseMatch ? [elseMatch[1]] : [])
         ];
         
-        console.log(`[inferDataTypeFromExpression] CASE clauses found:`, allClauses);
-        
         if (allClauses.length > 0) {
             // If any clause is a string literal (quoted), it returns text
             const hasStringLiteral = allClauses.some(clause => {
@@ -4943,7 +4615,6 @@ function inferDataTypeFromExpression(expression) {
             });
             
             if (hasStringLiteral) {
-                console.log(`[inferDataTypeFromExpression] Detected string literal in CASE → text`);
                 return 'text';
             }
             
@@ -4957,12 +4628,10 @@ function inferDataTypeFromExpression(expression) {
             });
             
             if (allNumericOrNull) {
-                console.log(`[inferDataTypeFromExpression] All CASE clauses numeric → numeric`);
                 return 'numeric';
             }
             
             // Mixed or unknown - default to text for safety
-            console.log(`[inferDataTypeFromExpression] Mixed CASE types → text (safe default)`);
             return 'text';
         }
     }
@@ -5063,13 +4732,9 @@ function validateAndTransformAIModel(aiModel) {
         // STEP 1: Detect and transform column format
         // AI-generated models may use fully-qualified column names (schema.table.column)
         // while the builder expects separate fields (schema, table_name, column_name)
-        console.log('[Data Model Builder] ===== RAW AI MODEL INPUT =====');
-        console.log('[Data Model Builder] Raw columns from AI:', JSON.stringify(aiModel.columns, null, 2));
-        console.log('[Data Model Builder] Raw query_options:', JSON.stringify(aiModel.query_options, null, 2));
 
         // Log is_selected_column values before any processing
         aiModel.columns.forEach((col, idx) => {
-            console.log(`[Data Model Builder] Column ${idx + 1} is_selected_column:`, col.is_selected_column);
         });
 
         const transformedColumns = aiModel.columns.map((col, index) => {
@@ -5079,7 +4744,6 @@ function validateAndTransformAIModel(aiModel) {
 
                 if (parts.length === 3) {
                     // Parse: schema.table.column
-                    console.log(`[Data Model Builder] Transforming column ${index + 1}: ${col.column} → {schema: ${parts[0]}, table: ${parts[1]}, column: ${parts[2]}}`);
                     return {
                         schema: parts[0],
                         table_name: parts[1],
@@ -5099,7 +4763,6 @@ function validateAndTransformAIModel(aiModel) {
                     };
                 } else if (parts.length === 2) {
                     // Parse: table.column (assume default schema from model)
-                    console.log(`[Data Model Builder] Transforming column ${index + 1}: ${col.column} → {table: ${parts[0]}, column: ${parts[1]}}`);
                     return {
                         schema: aiModel.schema || 'public',
                         table_name: parts[0],
@@ -5127,8 +4790,6 @@ function validateAndTransformAIModel(aiModel) {
             return col;
         }).filter(col => col !== null);
 
-        console.log('[Data Model Builder] Transformed columns:', transformedColumns.length);
-
         // Replace original columns with transformed ones
         aiModel.columns = transformedColumns;
 
@@ -5143,7 +4804,6 @@ function validateAndTransformAIModel(aiModel) {
         const reflexiveTables = Object.entries(tableUsageCounts).filter(([_, count]) => count > 1);
 
         if (reflexiveTables.length > 0) {
-            console.log('[Data Model Builder] Detected potential self-referencing tables:', reflexiveTables);
 
             reflexiveTables.forEach(([tableKey, count]) => {
                 // Verify all instances have distinct aliases
@@ -5165,7 +4825,6 @@ function validateAndTransformAIModel(aiModel) {
 
                 // Auto-create table aliases if AI provided them
                 if (uniqueAliases.size >= 2) {
-                    console.log(`[Data Model Builder] Self-join detected for ${tableKey} with aliases:`, Array.from(uniqueAliases));
 
                     // Ensure aliases are registered in state
                     uniqueAliases.forEach(alias => {
@@ -5183,7 +4842,6 @@ function validateAndTransformAIModel(aiModel) {
                         );
 
                         if (!aliasExists) {
-                            console.log(`[Data Model Builder] Auto-registering alias "${alias}" for ${tableKey}`);
                             state.table_aliases.push({
                                 schema,
                                 original_table: tableName,
@@ -5212,21 +4870,9 @@ function validateAndTransformAIModel(aiModel) {
         const validColumns = [];
         const columnErrors = [];
 
-        console.log('[DEBUG - AI Model Validation] Available tables in state:', state.tables?.length || 0);
-        state.tables?.forEach(t => {
-            console.log(`  - ${t.table_name} (${t.schema}) [logical: ${t.logical_name || 'NOT SET'}]: ${t.columns?.length || 0} columns`);
-            console.log(`    Columns:`, t.columns?.map(c => c.column_name).join(', '));
-        });
-
         for (let i = 0; i < aiModel.columns.length; i++) {
             const col = aiModel.columns[i];
             const colIndex = i + 1;
-
-            console.log(`[DEBUG - AI Model Validation] Validating column ${colIndex}:`, {
-                schema: col.schema,
-                table_name: col.table_name,
-                column_name: col.column_name
-            });
 
             if (!col.schema) {
                 columnErrors.push(`Column ${colIndex} (${col.column_name || col.column || 'unknown'}): Missing schema`);
@@ -5244,9 +4890,6 @@ function validateAndTransformAIModel(aiModel) {
             // CRITICAL FIX: AI returns schema as "dra_excel.ds72_xxxx" but we need just "dra_excel"
             // Normalize the schema name to handle combined schema.table references
             const schemaToMatch = normalizeSchemaName(col.schema);
-            if (schemaToMatch !== col.schema) {
-                console.log(`[DEBUG - AI Model Validation] Normalized schema from "${col.schema}" to "${schemaToMatch}"`);
-            }
 
             // Check if this column exists in the available tables
             const availableTables = state.tables || [];
@@ -5254,23 +4897,18 @@ function validateAndTransformAIModel(aiModel) {
             // CRITICAL FIX: Support both physical and logical table names
             // AI models use logical names (e.g., "user_acquisition", "loans")
             // while state.tables uses physical names (e.g., "ds52_2b702ce5", "ds72_1d68512e")
-            console.log(`[DEBUG - AI Model Validation] Searching for table: schema="${schemaToMatch}", table_name="${col.table_name}"`);
             
             const sourceTable = availableTables.find(t => {
                 if (props.isCrossSource && col.data_source_id && t.data_source_id !== col.data_source_id) {
                     return false;
                 }
                 
-                console.log(`[DEBUG - AI Model Validation]   Checking table: physical="${t.table_name}", logical="${t.logical_name}", schema="${t.schema}"`);
-                
                 // Match by physical name (backwards compatible)
                 if (t.table_name === col.table_name && t.schema === schemaToMatch) {
-                    console.log(`[DEBUG - AI Model Validation]   ✓ Matched by physical name: ${col.table_name}`);
                     return true;
                 }
                 // Match by logical name (supports AI-generated models with human-readable names)
                 if (t.logical_name === col.table_name && t.schema === schemaToMatch) {
-                    console.log(`[DEBUG - AI Model Validation] ✓ Matched by logical name: ${col.table_name} -> ${t.table_name}`);
                     // IMPORTANT: Update col.table_name to physical name for subsequent processing
                     col.table_name = t.table_name;
                     // Also update col.schema to the normalized schema
@@ -5284,7 +4922,6 @@ function validateAndTransformAIModel(aiModel) {
             });
 
             if (!sourceTable) {
-                console.warn(`[DEBUG - AI Model Validation] ⚠️ Table not found: ${schemaToMatch}.${col.table_name}`);
                 columnErrors.push(`Column ${colIndex}: Table ${schemaToMatch}.${col.table_name} does not exist in data source`);
                 continue;
             }
@@ -5343,16 +4980,9 @@ function validateAndTransformAIModel(aiModel) {
 
         // STEP 3: Validate JOIN conditions against available inferred joins and foreign keys
         if (aiModel.join_conditions && Array.isArray(aiModel.join_conditions) && aiModel.join_conditions.length > 0) {
-            console.log('[Data Model Builder] Validating', aiModel.join_conditions.length, 'AI-generated JOIN conditions...');
             
             // Get available inferred joins from store
             const availableInferredJoins = aiDataModelerStore.preloadedSuggestions || [];
-            console.log('[Data Model Builder] Available inferred joins:', availableInferredJoins.length);
-            if (availableInferredJoins.length > 0) {
-                console.log('[Data Model Builder] Inferred join details:', availableInferredJoins.map(j => 
-                    `${j.left_schema}.${j.left_table}.${j.left_column} → ${j.right_schema}.${j.right_table}.${j.right_column} (confidence: ${j.confidence_score})`
-                ));
-            }
             
             const validJoins = [];
             const joinErrors = [];
@@ -5379,7 +5009,6 @@ function validateAndTransformAIModel(aiModel) {
                                 join.left_table_schema = leftTable.schema;
                                 join.left_table_name = leftTable.table_name;
                                 join.left_column_name = join.left_column;
-                                console.log(`[Data Model Builder] Resolved left JOIN schema from state.tables: ${leftTable.schema}.${leftTable.table_name}`);
                             }
                         }
                     } else {
@@ -5408,7 +5037,6 @@ function validateAndTransformAIModel(aiModel) {
                                 join.right_table_schema = rightTable.schema;
                                 join.right_table_name = rightTable.table_name;
                                 join.right_column_name = join.right_column;
-                                console.log(`[Data Model Builder] Resolved right JOIN schema from state.tables: ${rightTable.schema}.${rightTable.table_name}`);
                             }
                         }
                     } else {
@@ -5451,11 +5079,6 @@ function validateAndTransformAIModel(aiModel) {
                 join.left_table_schema = normalizeSchemaName(join.left_table_schema);
                 join.right_table_schema = normalizeSchemaName(join.right_table_schema);
                 
-                console.log(`[Data Model Builder] Validating JOIN ${index + 1}:`, {
-                    left: `${join.left_table_schema}.${join.left_table_name}.${join.left_column_name}`,
-                    right: `${join.right_table_schema}.${join.right_table_name}.${join.right_column_name}`
-                });
-                
                 // Check if both tables exist in data source
                 const leftTableExists = state.tables?.some(t =>
                     t.schema === join.left_table_schema &&
@@ -5488,12 +5111,10 @@ function validateAndTransformAIModel(aiModel) {
                 );
                 
                 if (leftTable && leftTable.table_name !== join.left_table_name) {
-                    console.log(`[Data Model Builder] Translated left table: ${join.left_table_name} -> ${leftTable.table_name}`);
                     join.left_table_name = leftTable.table_name;
                 }
                 
                 if (rightTable && rightTable.table_name !== join.right_table_name) {
-                    console.log(`[Data Model Builder] Translated right table: ${join.right_table_name} -> ${rightTable.table_name}`);
                     join.right_table_name = rightTable.table_name;
                 }
                 
@@ -5515,7 +5136,6 @@ function validateAndTransformAIModel(aiModel) {
                 );
                 
                 if (matchesInferredJoin) {
-                    console.log(`[Data Model Builder] ✓ JOIN ${index + 1} matches inferred relationship`);
                     join.ai_suggested = true; // Mark as AI-suggested
                     validJoins.push(join);
                 } else {
@@ -5531,12 +5151,10 @@ function validateAndTransformAIModel(aiModel) {
                     );
                     
                     if (matchesForeignKey) {
-                        console.log(`[Data Model Builder] ✓ JOIN ${index + 1} matches foreign key relationship`);
                         join.is_auto_detected = true;
                         validJoins.push(join);
                     } else {
                         // Hallucinated join - AI invented a relationship that doesn't exist
-                        console.warn(`[Data Model Builder] ⚠️ HALLUCINATED JOIN ${index + 1}: No matching relationship found`);
                         joinErrors.push(
                             `JOIN ${index + 1}: No relationship found between ` +
                             `${join.left_table_schema}.${join.left_table_name}.${join.left_column_name} and ` +
@@ -5565,10 +5183,8 @@ function validateAndTransformAIModel(aiModel) {
                 
                 // Remove invalid joins but continue with the model
                 aiModel.join_conditions = validJoins;
-                console.log(`[Data Model Builder] Kept ${validJoins.length} valid JOINs, removed ${joinErrors.length} invalid`);
             } else {
                 aiModel.join_conditions = validJoins;
-                console.log(`[Data Model Builder] All ${validJoins.length} JOINs validated successfully`);
             }
         }
 
@@ -5588,7 +5204,6 @@ function validateAndTransformAIModel(aiModel) {
         };
 
         const columnMapping = createTableNameMapping();
-        console.log('[Data Model Builder] Created column mapping with', columnMapping.size, 'entries');
 
         // Initialize query_options with validation
         if (!aiModel.query_options) {
@@ -5612,11 +5227,9 @@ function validateAndTransformAIModel(aiModel) {
                 const validOrderByClauses = [];
                 aiModel.query_options.order_by.forEach((orderByClause, index) => {
                     if (!orderByClause) {
-                        console.warn(`[Data Model Builder] Skipping null ORDER BY clause at index ${index}`);
                         return;
                     }
                     if (!orderByClause.column || orderByClause.column === '') {
-                        console.warn(`[Data Model Builder] Skipping ORDER BY clause ${index}: missing column`);
                         return;
                     }
                     
@@ -5624,7 +5237,7 @@ function validateAndTransformAIModel(aiModel) {
                     if (typeof orderByClause.order === 'number') {
                         // Convert numeric to index: 0 = ASC, 1 = DESC
                         if (orderByClause.order === 0 || orderByClause.order === 1) {
-                            console.log(`[Data Model Builder] ORDER BY clause ${index}: keeping numeric order ${orderByClause.order}`);
+                            // Valid numeric order
                         } else {
                             console.warn(`[Data Model Builder] ORDER BY clause ${index}: invalid numeric order ${orderByClause.order}, defaulting to 0 (ASC)`);
                             orderByClause.order = 0;
@@ -5648,9 +5261,6 @@ function validateAndTransformAIModel(aiModel) {
                     validOrderByClauses.push(orderByClause);
                 });
                 
-                if (validOrderByClauses.length !== aiModel.query_options.order_by.length) {
-                    console.warn(`[Data Model Builder] Filtered ORDER BY clauses: ${aiModel.query_options.order_by.length} → ${validOrderByClauses.length}`);
-                }
                 aiModel.query_options.order_by = validOrderByClauses;
             }
 
@@ -5690,7 +5300,6 @@ function validateAndTransformAIModel(aiModel) {
                         );
                         if (column) {
                             whereClause.column_data_type = column.data_type;
-                            console.log(`[Data Model Builder] Populated column_data_type for WHERE clause: ${whereClause.column} -> ${column.data_type}`);
                         } else {
                             console.warn(`[Data Model Builder] Could not find column definition for WHERE clause: ${whereClause.column}`);
                         }
@@ -5714,7 +5323,7 @@ function validateAndTransformAIModel(aiModel) {
                      ) ||
                      aiModel.query_options.group_by.group_by_columns?.length > 0)) {
                     aiModel.query_options.group_by.name = 'GROUP BY';
-                    console.log('[Data Model Builder] Set group_by.name flag for GROUP BY section visibility (functions OR expressions)');                // CRITICAL: Translate logical table names to physical in aggregate functions
+                    // CRITICAL: Translate logical table names to physical in aggregate functions
                 // Aggregate functions reference columns like "schema.table.column"
                 // where table might still be a logical name that needs translation
                 
@@ -5744,7 +5353,6 @@ function validateAndTransformAIModel(aiModel) {
                             const funcName = functionNames[aggFunc.aggregate_function] || 'aggregate';
                             const columnName = aggFunc.column.split('.').pop();
                             aggFunc.column_alias_name = `${funcName}_${columnName}`;
-                            console.log(`[Data Model Builder] Generated alias for aggregate function: ${aggFunc.column_alias_name}`);
                         }
                         
                         validAggregateFunctions.push(aggFunc);
@@ -5768,7 +5376,6 @@ function validateAndTransformAIModel(aiModel) {
                             if (translatedCol) {
                                 const newPath = `${translatedCol.schema}.${translatedCol.table_name}.${translatedCol.column_name}`;
                                 if (aggFunc.column !== newPath) {
-                                    console.log(`[Data Model Builder] Translated aggregate function column: ${aggFunc.column} -> ${newPath}`);
                                     aggFunc.column = newPath;
                                 }
                             }
@@ -5792,7 +5399,6 @@ function validateAndTransformAIModel(aiModel) {
                                 const oldPath = `${schema}.${tableName}.${columnName}`;
                                 if (oldPath !== newPath) {
                                     const newRef = `${prefix || ''}${newPath}${suffix || ''}`;
-                                    console.log(`[Data Model Builder] Translated GROUP BY column: ${colRef} -> ${newRef}`);
                                     return newRef;
                                 }
                             }
@@ -5826,13 +5432,11 @@ function validateAndTransformAIModel(aiModel) {
                         // Ensure column_alias_name exists
                         if (!aggExpr.column_alias_name) {
                             aggExpr.column_alias_name = `expr_${index}`;
-                            console.log(`[Data Model Builder] Generated alias for aggregate expression: ${aggExpr.column_alias_name}`);
                         }
                         
                         // CRITICAL: Infer data type from expression (especially for CASE statements)
                         if (!aggExpr.column_data_type) {
                             aggExpr.column_data_type = inferDataTypeFromExpression(aggExpr.expression);
-                            console.log(`[Data Model Builder] Inferred data type for ${aggExpr.column_alias_name}: ${aggExpr.column_data_type} from expression: ${aggExpr.expression.substring(0, 50)}...`);
                         }
                         
                         validAggregateExpressions.push(aggExpr);
@@ -5855,32 +5459,24 @@ function validateAndTransformAIModel(aiModel) {
                     }
                 });
 
-                console.log('[Data Model Builder] Columns used in aggregates:', Array.from(aggregateColumns));
-
                 // Mark columns that are ONLY in aggregates (set is_selected_column = false)
                 // These columns should NOT appear in SELECT or GROUP BY clauses
                 // FORCE override regardless of AI's value - aggregate-only means NOT in SELECT
                 aiModel.columns.forEach(col => {
                     const fullPath = `${col.schema}.${col.table_name}.${col.column_name}`;
                     if (aggregateColumns.has(fullPath)) {
-                        const beforeValue = col.is_selected_column;
                         // FORCE to false - this column is ONLY for aggregate functions
                         col.is_selected_column = false;
-                        console.log(`[Data Model Builder] FORCED ${fullPath} to is_selected_column = false (was: ${beforeValue})`);
                     }
                 });
 
                 // CRITICAL FIX: Also filter these columns from group_by_columns array
                 // Backend uses this array to reconstruct GROUP BY clause
                 if (aiModel.query_options.group_by.group_by_columns) {
-                    const beforeCount = aiModel.query_options.group_by.group_by_columns.length;
                     aiModel.query_options.group_by.group_by_columns =
                         aiModel.query_options.group_by.group_by_columns.filter(col =>
                             !aggregateColumns.has(col)
                         );
-                    const afterCount = aiModel.query_options.group_by.group_by_columns.length;
-                    console.log(`[Data Model Builder] Filtered GROUP BY columns: ${beforeCount} → ${afterCount}`);
-                    console.log('[Data Model Builder] Remaining GROUP BY columns:', aiModel.query_options.group_by.group_by_columns);
                 }
                 
                 // PROACTIVE FIX: Ensure all non-aggregate selected columns are in GROUP BY
@@ -5905,14 +5501,9 @@ function validateAndTransformAIModel(aiModel) {
                             }
                             aiModel.query_options.group_by.group_by_columns.push(columnRef);
                             addedCount++;
-                            console.log(`[Data Model Builder] ADDED missing GROUP BY column: ${columnRef}`);
                         }
                     }
                 });
-                
-                if (addedCount > 0) {
-                    console.log(`[Data Model Builder] Added ${addedCount} missing GROUP BY columns (total now: ${aiModel.query_options.group_by.group_by_columns.length})`);
-                }
                 
                 // VALIDATION: Filter out invalid HAVING clauses
                 if (aiModel.query_options.group_by.having_conditions && aiModel.query_options.group_by.having_conditions.length > 0) {
@@ -5953,7 +5544,6 @@ function validateAndTransformAIModel(aiModel) {
                             if (aggFunc) {
                                 // Aggregate functions typically return numeric values
                                 havingClause.column_data_type = 'numeric';
-                                console.log(`[Data Model Builder] Populated column_data_type for HAVING clause (aggregate): ${havingClause.column} -> numeric`);
                             } else {
                                 // Try to find in base columns
                                 const column = aiModel.columns.find(col => 
@@ -5961,7 +5551,6 @@ function validateAndTransformAIModel(aiModel) {
                                 );
                                 if (column) {
                                     havingClause.column_data_type = column.data_type;
-                                    console.log(`[Data Model Builder] Populated column_data_type for HAVING clause: ${havingClause.column} -> ${column.data_type}`);
                                 }
                             }
                         }
@@ -5974,7 +5563,6 @@ function validateAndTransformAIModel(aiModel) {
         aiModel.columns.forEach(col => {
             if (col.is_selected_column === undefined || col.is_selected_column === null) {
                 col.is_selected_column = true;
-                console.log(`[Data Model Builder] Defaulted ${col.schema}.${col.table_name}.${col.column_name} to regular SELECT column`);
             }
         });
 
@@ -5999,11 +5587,6 @@ function validateAndTransformAIModel(aiModel) {
             console.error('[Data Model Builder] Model columns is not an array, converting to array');
             aiModel.columns = Array.isArray(validColumns) ? validColumns : [];
         }
-
-        console.log('[Data Model Builder] Model validated successfully:', aiModel);
-        console.log('[Data Model Builder] Final model column count:', aiModel.columns?.length);
-        console.log('[Data Model Builder] Columns with is_selected_column=true:', 
-            aiModel.columns?.filter(c => c.is_selected_column).length);
         
         // FINAL VALIDATION: Ensure we have at least one column to display
         const selectedColumns = aiModel.columns?.filter(c => c.is_selected_column) || [];
@@ -6093,18 +5676,15 @@ onMounted(async () => {
     // Load subscription stats for row limit enforcement
     try {
         await subscriptionStore.fetchSubscription();
-        console.log('[Data Model Builder] Subscription stats loaded:', subscriptionStore.subscription?.subscription_tier?.tier_name);
     } catch (error) {
         console.error('[Data Model Builder] Failed to load subscription stats:', error);
     }
     
     // CRITICAL: Load tables FIRST before processing data model
     // This ensures state.tables is available when ensureReferencedColumnsExist() runs
-    console.log('[DEBUG - Data Model Builder] Raw dataSourceTables received:', props.dataSourceTables.length, 'tables');
 
     // Diagnostic: Check each table for duplicates
     props.dataSourceTables.forEach((table, tIndex) => {
-        console.log(`[DEBUG - Data Model Builder] Table ${tIndex}: ${table.table_name} has ${table.columns?.length || 0} columns`);
 
         if (table.columns && Array.isArray(table.columns)) {
             // Check for duplicate column names
@@ -6132,33 +5712,21 @@ onMounted(async () => {
 
     state.tables = props.dataSourceTables;
     state.isInitialized = true; // Mark as initialized after tables are loaded
-    console.log('[DEBUG - Data Model Builder] Tables loaded into state');
 
     // PRELOAD JOIN SUGGESTIONS: Fetch all possible joins immediately for better UX
     // This provides proactive guidance before users select columns
-    console.log('[Data Model Builder] Preloading join suggestions', props.isCrossSource ? '(CROSS-SOURCE mode)' : '(single-source mode)');
     
     try {
         const loggedInUserStore = useLoggedInUserStore();
         const user = loggedInUserStore.getLoggedInUser();
         const enableAI = user?.user_type === 'admin';
         
-        if (enableAI) {
-            console.log('[Data Model Builder] AI-powered suggestions ENABLED for preloading');
-        } else {
-            console.log('[Data Model Builder] Rule-based suggestions only for preloading');
-        }
-        
         if (props.isCrossSource && props.projectId) {
             // Cross-source mode: Use project-level endpoint
-            console.log('[Data Model Builder] Preloading cross-source join suggestions for project:', props.projectId);
             await aiDataModelerStore.preloadCrossSourceSuggestions(props.projectId, enableAI);
-            console.log('[Data Model Builder] Preloaded', aiDataModelerStore.preloadedSuggestions.length, 'cross-source join suggestions');
         } else if (!props.isCrossSource && props.dataSource?.id) {
             // Single-source mode: Use data source endpoint
-            console.log('[Data Model Builder] Preloading join suggestions for data source:', props.dataSource.id);
             await aiDataModelerStore.preloadSuggestionsForDataSource(props.dataSource.id, enableAI);
-            console.log('[Data Model Builder] Preloaded', aiDataModelerStore.preloadedSuggestions.length, 'join suggestions');
         } else {
             console.warn('[Data Model Builder] Cannot preload suggestions: missing required props');
         }
@@ -6178,7 +5746,6 @@ onMounted(async () => {
                     );
                     if (sourceTable?.logical_name) {
                         col.table_logical_name = sourceTable.logical_name;
-                        console.log(`[Data Model Builder] Enriched column ${col.column_name} with logical name: ${sourceTable.logical_name}`);
                     }
                 }
             });
@@ -6209,13 +5776,11 @@ onMounted(async () => {
         // Copy JOIN conditions from data_table to state-level array for UI binding
         if (state.data_table.join_conditions && state.data_table.join_conditions.length > 0) {
             state.join_conditions = [...state.data_table.join_conditions];
-            console.log('[Data Model Builder] Loaded', state.join_conditions.length, 'JOIN conditions from saved model');
         }
 
         // Copy table aliases from data_table to state-level array for UI binding
         if (state.data_table.table_aliases && state.data_table.table_aliases.length > 0) {
             state.table_aliases = [...state.data_table.table_aliases];
-            console.log('[Data Model Builder] Loaded', state.table_aliases.length, 'table aliases from saved model');
         }
 
         // Ensure GROUP BY structure is properly initialized (for backward compatibility)
@@ -6238,16 +5803,6 @@ onMounted(async () => {
             // Ensure group_by_columns array exists
             if (!state.data_table.query_options.group_by.group_by_columns) {
                 state.data_table.query_options.group_by.group_by_columns = [];
-            }
-
-            // Log loaded aggregate functions if any
-            if (state.data_table.query_options.group_by.aggregate_functions.length > 0) {
-                console.log('[Data Model Builder] Loaded', state.data_table.query_options.group_by.aggregate_functions.length, 'aggregate functions from saved model');
-            }
-
-            // Log loaded aggregate expressions if any
-            if (state.data_table.query_options.group_by.aggregate_expressions.length > 0) {
-                console.log('[Data Model Builder] Loaded', state.data_table.query_options.group_by.aggregate_expressions.length, 'aggregate expressions from saved model');
             }
         }
 
@@ -6303,14 +5858,11 @@ onMounted(async () => {
                     );
                     
                     if (!alreadyTracked) {
-                        console.log(`[Backward Compatibility] Migrating hidden column to tracking: ${colPath}`);
                         // Will be properly tracked by ensureReferencedColumnsExist
                     }
                 }
             }
         });
-
-        console.log(`[Data Model Builder] Hidden referenced columns tracked: ${state.data_table.hidden_referenced_columns.length}`);
 
         // Auto-switch to advanced view if data model has advanced fields
         if (hasAdvancedFields()) {
@@ -6325,12 +5877,10 @@ onMounted(async () => {
     // This prevents fetching suggestions on page load/refresh when editing existing models
     nextTick(() => {
         state.is_initial_load = false;
-        console.log('[Data Model Builder] Initial load complete - suggestion watch now active');
     });
 })
 
 onBeforeUnmount(() => {
-    console.log('[DataModelBuilder] Component unmounting - cleanup started');
     state.is_unmounting = true;
     state.is_executing_query = false;
     state.is_applying_ai_config = false;
@@ -6338,8 +5888,6 @@ onBeforeUnmount(() => {
     
     // Clear AI-suggested joins to prevent stale data
     aiDataModelerStore.clearSuggestions();
-    
-    console.log('[DataModelBuilder] Component unmounting - cleanup completed');
 });
 
 </script>

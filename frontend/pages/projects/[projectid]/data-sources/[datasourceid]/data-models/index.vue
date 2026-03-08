@@ -47,14 +47,6 @@ const canDelete = permissions.canDelete;
 // Debug logging
 if (import.meta.client) {
     watch([canCreate, canUpdate, canDelete, permissions.role], () => {
-        console.log('🔐 Data Source Data Models Permissions Check:', {
-            projectId: projectId.value,
-            canCreate: canCreate.value,
-            canUpdate: canUpdate.value,
-            canDelete: canDelete.value,
-            role: permissions.role.value,
-            isViewer: permissions.isViewer.value
-        });
     }, { immediate: true });
 }
 
