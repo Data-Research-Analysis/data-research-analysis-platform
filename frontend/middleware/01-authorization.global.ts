@@ -34,6 +34,8 @@ function isPublicRoute(path: string): boolean {
     '/register',
     '/privacy-policy',
     '/terms-conditions',
+    '/return-refund-policy',
+    '/cancellation-policy',
     '/articles',
   ];
   
