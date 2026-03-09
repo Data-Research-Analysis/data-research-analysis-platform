@@ -18,10 +18,30 @@
                             <img src="/assets/images/google-analytics.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="Google Analytics" title="Google Analytics" />
                             <img src="/assets/images/google-ads.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="Google Ads" title="Google Ads" />
                             <img src="/assets/images/google-ad-manager.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="Google Ad Manager" title="Google Ad Manager" />
-                            <img src="/assets/images/meta.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="Meta Ads Manager" title="Meta Ads Manager" />
-                            <img src="/assets/images/linkedin.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="LinkedIn Ads" title="LinkedIn Ads" />
-                            <img src="/assets/images/hubspot.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="HubSpot CRM" title="HubSpot CRM" />
-                            <img src="/assets/images/klaviyo.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="Klaviyo" title="Klaviyo" />
+                            <div class="relative grayscale opacity-60">
+                                <img src="/assets/images/meta.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="Meta Ads Manager" title="Meta Ads Manager" />
+                                <span class="absolute top-1 right-1 px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-amber-100 text-amber-700 border border-amber-300 whitespace-nowrap">
+                                    Coming Soon
+                                </span>
+                            </div>
+                            <div class="relative grayscale opacity-60">
+                                <img src="/assets/images/linkedin.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="LinkedIn Ads" title="LinkedIn Ads" />
+                                <span class="absolute top-1 right-1 px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-amber-100 text-amber-700 border border-amber-300 whitespace-nowrap">
+                                    Coming Soon
+                                </span>
+                            </div>
+                            <div class="relative grayscale opacity-60">
+                                <img src="/assets/images/hubspot.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="HubSpot CRM" title="HubSpot CRM" />
+                                <span class="absolute top-1 right-1 px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-amber-100 text-amber-700 border border-amber-300 whitespace-nowrap">
+                                    Coming Soon
+                                </span>
+                            </div>
+                            <div class="relative grayscale opacity-60">
+                                <img src="/assets/images/klaviyo.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="Klaviyo" title="Klaviyo" />
+                                <span class="absolute top-1 right-1 px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-amber-100 text-amber-700 border border-amber-300 whitespace-nowrap">
+                                    Coming Soon
+                                </span>
+                            </div>
                             <img src="/assets/images/excel.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="Excel" title="Excel" />
                             <img src="/assets/images/pdf.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="PDF" title="PDF" />
                             <img src="/assets/images/postgresql.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-3 rounded-lg" alt="PostgreSQL" title="PostgreSQL" />
@@ -41,10 +61,30 @@
                         <img src="/assets/images/google-analytics.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="Google Analytics" title="Google Analytics" />
                         <img src="/assets/images/google-ads.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="Google Ads" title="Google Ads" />
                         <img src="/assets/images/google-ad-manager.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="Google Ad Manager" title="Google Ad Manager" />
-                        <img src="/assets/images/meta.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-5 m-auto rounded-lg" alt="Meta Ads Manager" title="Meta Ads Manager" />
-                        <img src="/assets/images/linkedin.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="LinkedIn Ads" title="LinkedIn Ads" />
-                        <img src="/assets/images/hubspot.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="HubSpot CRM" title="HubSpot CRM" />
-                        <img src="/assets/images/klaviyo.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="Klaviyo" title="Klaviyo" />
+                        <div class="relative grayscale opacity-60">
+                            <img src="/assets/images/meta.png" class="bg-white w-full border-1 border-primary-blue-100 shadow-lg p-5 m-auto rounded-lg" alt="Meta Ads Manager" title="Meta Ads Manager" />
+                            <span class="absolute top-1 right-1 px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-amber-100 text-amber-700 border border-amber-300 whitespace-nowrap">
+                                Coming Soon
+                            </span>
+                        </div>
+                        <div class="relative grayscale opacity-60">
+                            <img src="/assets/images/linkedin.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="LinkedIn Ads" title="LinkedIn Ads" />
+                            <span class="absolute top-1 right-1 px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-amber-100 text-amber-700 border border-amber-300 whitespace-nowrap">
+                                Coming Soon
+                            </span>
+                        </div>
+                        <div class="relative grayscale opacity-60">
+                            <img src="/assets/images/hubspot.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="HubSpot CRM" title="HubSpot CRM" />
+                            <span class="absolute top-1 right-1 px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-amber-100 text-amber-700 border border-amber-300 whitespace-nowrap">
+                                Coming Soon
+                            </span>
+                        </div>
+                        <div class="relative grayscale opacity-60">
+                            <img src="/assets/images/klaviyo.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="Klaviyo" title="Klaviyo" />
+                            <span class="absolute top-1 right-1 px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-amber-100 text-amber-700 border border-amber-300 whitespace-nowrap">
+                                Coming Soon
+                            </span>
+                        </div>
                         <img src="/assets/images/excel.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="Excel" title="Excel" />
                         <img src="/assets/images/pdf.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="PDF" title="PDF" />
                         <img src="/assets/images/postgresql.png" class="bg-white border-1 border-primary-blue-200 shadow-lg p-5 rounded-lg" alt="PostgreSQL" title="PostgreSQL" />
