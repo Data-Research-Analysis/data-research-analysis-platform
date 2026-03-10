@@ -17,6 +17,71 @@ const {
 // Get reference to FAQ component to access faqData
 const faqSectionRef = ref(null);
 
+// Pricing schema for SEO
+const getPricingSchema = () => {
+    return {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": "Data Research Analysis Platform",
+        "description": "AI-powered marketing analytics platform for CMOs and marketing teams",
+        "brand": {
+            "@type": "Brand",
+            "name": "Data Research Analysis"
+        },
+        "offers": [
+            {
+                "@type": "Offer",
+                "name": "FREE Plan",
+                "price": "0",
+                "priceCurrency": "USD",
+                "priceValidUntil": "2027-12-31",
+                "availability": "https://schema.org/InStock",
+                "url": `${siteUrl}/#pricing`
+            },
+            {
+                "@type": "Offer",
+                "name": "PRO Plan",
+                "price": "149",
+                "priceCurrency": "USD",
+                "priceValidUntil": "2027-12-31",
+                "availability": "https://schema.org/InStock",
+                "billingIncrement": "month",
+                "url": `${siteUrl}/#pricing`
+            },
+            {
+                "@type": "Offer",
+                "name": "TEAM Plan",
+                "price": "399",
+                "priceCurrency": "USD",
+                "priceValidUntil": "2027-12-31",
+                "availability": "https://schema.org/InStock",
+                "billingIncrement": "month",
+                "url": `${siteUrl}/#pricing`
+            },
+            {
+                "@type": "Offer",
+                "name": "BUSINESS Plan",
+                "price": "999",
+                "priceCurrency": "USD",
+                "priceValidUntil": "2027-12-31",
+                "availability": "https://schema.org/InStock",
+                "billingIncrement": "month",
+                "url": `${siteUrl}/#pricing`
+            },
+            {
+                "@type": "Offer",
+                "name": "ENTERPRISE Plan",
+                "price": "2499",
+                "priceCurrency": "USD",
+                "priceValidUntil": "2027-12-31",
+                "availability": "https://schema.org/InStock",
+                "billingIncrement": "month",
+                "url": `${siteUrl}/#pricing`
+            }
+        ]
+    };
+};
+
 // Inject all structured data
 onMounted(() => {
     if (import.meta.client) {
@@ -27,7 +92,8 @@ onMounted(() => {
             getOrganizationSchema(),
             getSoftwareApplicationSchema(),
             getFAQSchema(faqData),
-            getSearchActionSchema()
+            getSearchActionSchema(),
+            getPricingSchema()
         ];
         injectMultipleSchemas(schemas);
     }
@@ -37,7 +103,7 @@ onMounted(() => {
 useHead({
     title: 'Best Marketing Analytics Platform 2026 - AI-Powered Dashboard for CMOs | Data Research Analysis',
     meta: [
-        { name: 'description', content: 'AI-powered marketing analytics platform for CMOs. Unify Google Ads, Analytics, SQL, CSV, Excel data in custom dashboards. Get actionable ROI insights without technical skills. Free trial available.' },
+        { name: 'description', content: 'AI-powered marketing analytics platform for CMOs. Unify Google Ads, Analytics, SQL, CSV, Excel data in custom dashboards. Plans from FREE to $2,499/month. Start free today.' },
         { name: 'keywords', content: 'marketing analytics platform 2026, CMO dashboard, AI marketing insights, Google Ads analytics, cross-channel reporting, marketing ROI tracking, data visualization, business intelligence for marketing' },
         { name: 'author', content: 'Data Research Analysis' },
         { name: 'robots', content: 'index, follow, max-image-preview:large, max-snippet:-1' },
@@ -73,7 +139,7 @@ useHead({
         <ai-showcase id="ai-showcase" />
         <add-external-data-source id="add-external-data-source" />
         <how-do-it-get-started id="how-do-it-get-started" />
-        <join-private-beta id="join-private-beta" />
+        <pricing-section id="pricing" />
         <faq-section ref="faqSectionRef" />
         <partner-trust-badges />
     </div>

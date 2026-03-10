@@ -28,6 +28,26 @@ const faqData = [
     {
         question: 'Can I share dashboards with my team?',
         answer: 'Absolutely. You can create projects and invite team members with different permission levels (Owner, Editor, Viewer). Dashboards can also be shared via public links for stakeholder reporting.'
+    },
+    {
+        question: 'How much does Data Research Analysis cost?',
+        answer: 'We offer 5 plans starting with a FREE tier (100K rows, 3 projects, 5 data sources). Paid plans start at $149/month for PRO tier with 5M rows and 50 projects. See our pricing section for full details and 20% annual discounts.'
+    },
+    {
+        question: 'Can I upgrade or downgrade my plan?',
+        answer: 'Yes! Contact our sales team to discuss plan changes. We\'ll ensure a smooth transition with no data loss. You can also start with the FREE plan to test the platform before committing to a paid tier.'
+    },
+    {
+        question: 'Is there a free trial for paid plans?',
+        answer: 'We recommend starting with our FREE plan to test the platform with 100K rows, 3 projects, and 10 AI generations per month. For enterprise needs or specific feature testing, contact sales for a customized evaluation.'
+    },
+    {
+        question: 'Do you offer annual discounts?',
+        answer: 'Yes! Annual plans save 20% compared to monthly billing across all paid tiers. For example, PRO tier is $1,429/year (vs $1,788 monthly billing) saving you $359 annually.'
+    },
+    {
+        question: 'What payment methods do you accept?',
+        answer: 'We\'re currently in private beta. Contact our sales team to discuss payment options and custom enterprise agreements for your organization.'
     }
 ];
 

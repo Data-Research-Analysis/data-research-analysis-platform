@@ -47,6 +47,23 @@ function openDrawer() {
 function closeDrawer() {
     state.drawerOpen = false;
 }
+
+function scrollToPricing(event) {
+    event.preventDefault();
+    if (import.meta.client) {
+        const currentRoute = route.name;
+        if (currentRoute === 'index') {
+            // Already on homepage, just scroll
+            const pricingSection = document.getElementById('pricing');
+            if (pricingSection) {
+                pricingSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        } else {
+            // Navigate to homepage with hash
+            navigateTo('/#pricing');
+        }
+    }
+}
 </script>
 <template>
     <div class="relative bg-primary-blue-100 text-white h-10 lg:h-15 shadow-lg z-10" id="top">
@@ -59,6 +76,9 @@ function closeDrawer() {
                 <div class="flex flex-row items-center -mt-2">
                     <div class="text-xl font-bold hover:text-gray-300 cursor-pointer">
                         <NuxtLink to="/">Home</NuxtLink>
+                    </div>
+                    <div class="text-xl font-bold hover:text-gray-300 cursor-pointer ml-5">
+                        <a @click="scrollToPricing">Pricing</a>
                     </div>
                     <div class="text-xl font-bold hover:text-gray-300 cursor-pointer ml-5">
                         <NuxtLink to="/articles">Blog</NuxtLink>

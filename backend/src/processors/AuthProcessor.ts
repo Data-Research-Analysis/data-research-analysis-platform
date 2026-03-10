@@ -9,6 +9,7 @@ import { DBDriver } from '../drivers/DBDriver.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { EUserType } from '../types/EUserType.js';
 import { NotificationHelperService } from '../services/NotificationHelperService.js';
+import { RowLimitService } from '../services/RowLimitService.js';
 
 export class AuthProcessor {
     private static instance: AuthProcessor;
@@ -103,6 +104,17 @@ export class AuthProcessor {
                 newUser.password = encryptedPassword;
                 newUser.user_type = EUserType.NORMAL;
                 await manager.save(newUser);
+                
+                // Assign FREE tier to new user
+                try {
+                    const rowLimitService = RowLimitService.getInstance();
+                    await rowLimitService.assignFreeTier(newUser.id);
+                    console.log(`✅ Assigned FREE tier to new user ${newUser.id} (${email})`);
+                } catch (tierError) {
+                    console.error(`⚠️  Failed to assign FREE tier to user ${newUser.id}:`, tierError);
+                    // Continue registration even if tier assignment fails
+                    // User can be assigned tier later via admin panel
+                }
                 
                 const expiredAt = new Date();
                 expiredAt.setDate(expiredAt.getDate() + 3);//expires in 3 days from now
