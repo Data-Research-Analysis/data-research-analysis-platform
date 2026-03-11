@@ -90,12 +90,6 @@ onMounted(() => {
                             Pricing
                         </NuxtLink>
                         
-                        <NuxtLink v-if="isPlatformEnabled() && isPlatformRegistrationEnabled() && !authenticated" 
-                                  to="/register" 
-                                  class="text-base hover:text-gray-300 hover:underline opacity-90 hover:opacity-100 transition duration-200">
-                            Register
-                        </NuxtLink>
-                        
                         <NuxtLink v-if="isPlatformEnabled() && isPlatformLoginEnabled() && !authenticated" 
                                   to="/login" 
                                   class="text-base hover:text-gray-300 hover:underline opacity-90 hover:opacity-100 transition duration-200">
