@@ -28,7 +28,7 @@ onMounted(() => {
         <h1>Return &amp; Refund Policy</h1>
         
         <p>
-            Last updated: January 25, 2026
+            Last updated: March 12, 2026
         </p>
 
         <h2>Introduction</h2>
@@ -85,7 +85,7 @@ onMounted(() => {
                 <p>5 AI-generated data models per month</p>
             </li>
             <li>
-                <p>Up to 100,000 rows per data model</p>
+                <p>Up to 50,000 rows per data model</p>
             </li>
             <li>
                 <p>Access to all chart types and visualization features</p>
@@ -193,7 +193,7 @@ onMounted(() => {
         <h3>Downgrading Tiers</h3>
         
         <p>
-            If you downgrade your subscription tier (e.g., from BUSINESS to PRO), the change takes effect at the end of your current billing period. <strong>No refund is provided for the higher tier</strong>, but you retain access to all features until the billing period ends.
+            If you downgrade your subscription tier (e.g., from ENTERPRISE to PROFESSIONAL), the change takes effect at the end of your current billing period. <strong>No refund is provided for the higher tier</strong>, but you retain access to all features until the billing period ends.
         </p>
 
         <h3>Cancellation and Credits</h3>
