@@ -41,27 +41,23 @@ onMounted(() => {
             Data Research Analysis is a Software as a Service (SaaS) platform that provides instant access to data analysis, visualization, and dashboard creation tools. Because our service is digital and access is granted immediately upon subscription, our refund policy differs from policies for physical products.
         </p>
 
-        <h2>General Refund Policy</h2>
+        <h2>Payment Processing</h2>
 
-        <h3>No Refunds on Active Subscriptions</h3>
-        
         <p>
-            All subscription fees paid for Data Research Analysis are <strong>non-refundable</strong> as a general rule. This is because:
+            Data Research Analysis uses <strong>Paddle</strong> as our authorised Merchant of Record and reseller. When you purchase a subscription, your transaction is processed by Paddle, and their <a href="https://www.paddle.com/legal/invoiced-consumer-terms" target="_blank" rel="noopener noreferrer" class="text-primary-blue-300 hover:underline">Consumer Terms and Conditions</a> apply alongside this policy. All refunds are processed by Paddle on a case-by-case basis.
         </p>
-        <ul>
-            <li>
-                <p>Our service is digital and access is granted immediately upon payment</p>
-            </li>
-            <li>
-                <p>Resources are allocated for your account (storage, processing, AI generations)</p>
-            </li>
-            <li>
-                <p>Usage-based features (AI data modeling, data processing) cannot be "returned" once consumed</p>
-            </li>
-            <li>
-                <p>A free tier is available for users to test the platform before committing to a paid subscription</p>
-            </li>
-        </ul>
+
+        <h2>14-Day Consumer Right to Cancel</h2>
+
+        <p>
+            If you are a Consumer purchasing a paid subscription for the first time, you have the right to cancel and receive a full refund within <strong>14 days</strong> of the date of your first payment, without giving any reason.
+        </p>
+        <p>
+            To exercise this right, contact us at <a href="mailto:hello@dataresearchanalysis.com" class="text-primary-blue-300 hover:underline">hello@dataresearchanalysis.com</a> before the 14-day period expires. Your refund will be processed via the same payment method and returned to you within 14 days of us receiving your cancellation request, at no fee to you.
+        </p>
+        <p>
+            <strong>Important:</strong> This right to cancel applies only to the initial subscription purchase and not to any subsequent automatic renewal charges.
+        </p>
 
         <h3>Free Tier Testing</h3>
         
@@ -95,10 +91,10 @@ onMounted(() => {
             The FREE tier allows you to evaluate whether our platform meets your needs before making a financial commitment.
         </p>
 
-        <h2>Exceptions and Special Circumstances</h2>
+        <h2>Refunds After the 14-Day Period</h2>
 
         <p>
-            We may provide refunds in the following exceptional circumstances:
+            After the 14-day Consumer Right to Cancel has expired, subscription fees are generally non-refundable. However, we may issue refunds in the following circumstances, processed at Paddle's discretion on a case-by-case basis:
         </p>
 
         <h3>1. Billing Errors</h3>
@@ -130,30 +126,7 @@ onMounted(() => {
             Planned maintenance windows and third-party service interruptions (Google Analytics API, Google Ads API, etc.) are not eligible for refunds.
         </p>
 
-        <h3>3. First-Time Subscribers (7-Day Consideration Window)</h3>
-        
-        <p>
-            For first-time paid subscribers upgrading from the FREE tier, we offer a <strong>7-day consideration window</strong> from the date of your first payment. Within this period, if you determine the paid features do not meet your needs, you may request a refund provided:
-        </p>
-        <ul>
-            <li>
-                <p>This is your first paid subscription with Data Research Analysis</p>
-            </li>
-            <li>
-                <p>You request the refund within 7 days of the initial charge</p>
-            </li>
-            <li>
-                <p>You have not exceeded 50% of your tier's monthly resource limits (projects, data sources, AI generations)</p>
-            </li>
-            <li>
-                <p>You provide specific feedback about why the service did not meet your expectations</p>
-            </li>
-        </ul>
-        <p>
-            <strong>Note:</strong> This consideration window applies only once per customer and only to the first month of a new subscription.
-        </p>
-
-        <h3>4. Service Not As Described</h3>
+        <h3>3. Service Not As Described</h3>
         
         <p>
             If we make material changes to advertised features or capabilities after you subscribe, and these changes significantly reduce the value or functionality you subscribed for, you may request a prorated refund for the remaining subscription period.
@@ -175,10 +148,10 @@ onMounted(() => {
                 <p><strong>Data Processing:</strong> Any data synchronization, transformation, or processing performed during your subscription</p>
             </li>
             <li>
-                <p><strong>Partial Month Usage:</strong> Subscriptions are billed monthly; partial month refunds are not provided except in exceptional circumstances listed above</p>
+                <p><strong>Partial Month Usage:</strong> Subscriptions are billed monthly; partial month refunds are not provided except within the 14-day Consumer Right to Cancel period or in the exceptional circumstances listed above</p>
             </li>
             <li>
-                <p><strong>Change of Mind:</strong> Simple dissatisfaction or change of mind after the 7-day first-time subscriber window</p>
+                <p><strong>Change of Mind:</strong> Simple dissatisfaction or change of mind after the 14-day Consumer Right to Cancel period</p>
             </li>
             <li>
                 <p><strong>Third-Party Service Issues:</strong> Problems with connected services (Google Analytics, Google Ads, external databases) outside our control</p>
