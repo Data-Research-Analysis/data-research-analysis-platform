@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paid Plans Now Available</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f3f4f6;">
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f3f4f6; padding: 40px 0;">
+        <tr>
+            <td style="padding: 0;">
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                    
+                    <!-- Header with gradient -->
+                    <tr>
+                        <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 30px; text-align: center;">
+                            <h1 style="margin: 0; color: #ffffff; font-size: 32px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                                🚀 Paid Plans Are Live!
+                            </h1>
+                        </td>
+                    </tr>
+                    
+                    <!-- Main content -->
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <p style="margin: 0 0 20px 0; color: #374151; font-size: 16px; line-height: 1.6;">
+                                Hi <strong>{{user_name}}</strong>,
+                            </p>
+                            
+                            <p style="margin: 0 0 20px 0; color: #374151; font-size: 16px; line-height: 1.6;">
+                                Great news! You expressed interest in our <strong>{{interested_tier}}</strong> plan, and we're excited to let you know that our paid plans are now available.
+                            </p>
+                            
+                            <p style="margin: 0 0 30px 0; color: #374151; font-size: 16px; line-height: 1.6;">
+                                Upgrade today to unlock all the powerful features you've been waiting for:
+                            </p>
+                            
+                            <!-- Feature highlights -->
+                            <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 30px;">
+                                <tr>
+                                    <td style="background-color: #f9fafb; border-left: 4px solid #667eea; padding: 20px; border-radius: 4px;">
+                                        <ul style="margin: 0; padding-left: 20px; color: #374151;">
+                                            <li style="margin-bottom: 10px; line-height: 1.6;">✓ <strong>Unlimited projects, data sources, and dashboards</strong></li>
+                                            <li style="margin-bottom: 10px; line-height: 1.6;">✓ <strong>{{tier_max_rows}} rows per data model</strong></li>
+                                            <li style="margin-bottom: 10px; line-height: 1.6;">✓ <strong>{{tier_max_members}} team members per project</strong></li>
+                                            <li style="margin-bottom: 10px; line-height: 1.6;">✓ <strong>Unlimited AI-powered data modeling</strong></li>
+                                            <li style="margin-bottom: 0; line-height: 1.6;">✓ <strong>Priority support and advanced features</strong></li>
+                                        </ul>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <!-- Pricing box -->
+                            <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 30px;">
+                                <tr>
+                                    <td style="text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 25px; border-radius: 8px;">
+                                        <p style="margin: 0 0 10px 0; color: #ffffff; font-size: 18px; font-weight: bold;">
+                                            {{interested_tier}} Plan
+                                        </p>
+                                        <p style="margin: 0; color: #ffffff; font-size: 36px; font-weight: bold;">
+                                            ${{tier_price}}<span style="font-size: 18px; font-weight: normal;">/month</span>
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <!-- CTA button -->
+                            <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 30px;">
+                                <tr>
+                                    <td style="text-align: center;">
+                                        <a href="{{upgrade_url}}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 18px; font-weight: bold; box-shadow: 0 4px 6px rgba(102, 126, 234, 0.3);">
+                                            Upgrade to {{interested_tier}}
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <p style="margin: 0 0 20px 0; color: #374151; font-size: 16px; line-height: 1.6;">
+                                Want to compare all available plans? Visit our <a href="{{pricing_url}}" style="color: #667eea; text-decoration: none; font-weight: bold;">pricing page</a> to see the full breakdown.
+                            </p>
+                            
+                            <p style="margin: 0; color: #374151; font-size: 16px; line-height: 1.6;">
+                                Have questions? Our team is here to help! Just reply to this email or contact us at <a href="mailto:{{support_email}}" style="color: #667eea; text-decoration: none;">{{support_email}}</a>.
+                            </p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color: #f9fafb; padding: 30px; text-align: center; border-top: 1px solid #e5e7eb;">
+                            <p style="margin: 0 0 10px 0; color: #6b7280; font-size: 14px;">
+                                Data Research Analysis Platform
+                            </p>
+                            <p style="margin: 0 0 15px 0; color: #6b7280; font-size: 14px;">
+                                <a href="{{projects_url}}" style="color: #667eea; text-decoration: none;">Dashboard</a> •
+                                <a href="{{pricing_url}}" style="color: #667eea; text-decoration: none;">Pricing</a> •
+                                <a href="{{support_email}}" style="color: #667eea; text-decoration: none;">Support</a>
+                            </p>
+                            <p style="margin: 0; color: #9ca3af; font-size: 12px;">
+                                © {{year}} Data Research Analysis. All rights reserved.
+                            </p>
+                            <p style="margin: 10px 0 0 0; color: #9ca3af; font-size: 12px;">
+                                <a href="{{unsubscribe_url}}" style="color: #9ca3af; text-decoration: underline;">Manage email preferences</a>
+                            </p>
+                        </td>
+                    </tr>
+                    
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

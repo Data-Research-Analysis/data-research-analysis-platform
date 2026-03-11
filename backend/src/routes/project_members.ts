@@ -4,6 +4,7 @@ import { validateJWT } from '../middleware/authenticate.js';
 import { authorize } from '../middleware/authorize.js';
 import { Permission } from '../constants/permissions.js';
 import { ProjectProcessor } from '../processors/ProjectProcessor.js';
+import { enforceSubUserLimit } from '../middleware/tierEnforcement.js';
 
 const router = express.Router();
 
@@ -81,6 +82,7 @@ router.get('/:projectId/members/me',
  */
 router.post('/:projectId/members',
     validateJWT,
+    enforceSubUserLimit,
     authorize(Permission.PROJECT_MANAGE_MEMBERS),
     [
         body('userId').isInt().withMessage('Valid user ID required'),

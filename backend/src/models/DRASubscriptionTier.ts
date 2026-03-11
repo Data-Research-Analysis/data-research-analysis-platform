@@ -3,9 +3,7 @@ import { DRAUserSubscription } from './DRAUserSubscription.js';
 
 export enum ESubscriptionTier {
     FREE = 'free',
-    PRO = 'pro',
-    TEAM = 'team',
-    BUSINESS = 'business',
+    PROFESSIONAL = 'professional',
     ENTERPRISE = 'enterprise'
 }
 
@@ -40,6 +38,9 @@ export class DRASubscriptionTier {
 
     @Column({ type: 'decimal', precision: 10, scale: 2 })
     price_per_month_usd!: number;
+
+    @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+    price_per_year_usd!: number | null;
 
     @Column({ type: 'boolean', default: true })
     is_active!: boolean;

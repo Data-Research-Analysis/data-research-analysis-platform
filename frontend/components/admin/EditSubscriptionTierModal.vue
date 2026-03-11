@@ -68,7 +68,7 @@ function handleCancel() {
 
                 <!-- Modal Body -->
                 <div>
-                    <SubscriptionTierForm
+                    <AdminSubscriptionTierForm
                         :tier="tier"
                         :mode="mode"
                         @submit="handleSubmit"

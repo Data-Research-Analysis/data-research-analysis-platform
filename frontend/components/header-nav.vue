@@ -78,37 +78,10 @@ function scrollToPricing(event) {
                         <NuxtLink to="/">Home</NuxtLink>
                     </div>
                     <div class="text-xl font-bold hover:text-gray-300 cursor-pointer ml-5">
-                        <a @click="scrollToPricing">Pricing</a>
-                    </div>
-                    <div class="text-xl font-bold hover:text-gray-300 cursor-pointer ml-5">
                         <NuxtLink to="/articles">Blog</NuxtLink>
                     </div>
-                    <div v-if="isPlatformEnabled()">
-                        <menu-dropdown>
-                            <template #menuItem="{ onClick }">
-                                <div @click="onClick" class="text-xl font-bold ml-5 hover:text-gray-300 cursor-pointer">
-                                    Platform
-                                </div>
-                            </template>
-                            <template #dropdownMenu="{ onClick }">
-                                <div class="flex flex-col w-40 text-center">
-                                    <template v-if="isPlatformRegistrationEnabled()">
-                                        <NuxtLink to="/register">
-                                            <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer border-b-1 border-primary-blue-100 border-solid pt-1 pb-1">
-                                                Register
-                                            </div>
-                                        </NuxtLink>
-                                    </template>
-                                    <template v-if="isPlatformLoginEnabled()">
-                                        <NuxtLink to="/login">
-                                            <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer pt-1 pb-1">
-                                                Login
-                                            </div>
-                                        </NuxtLink>
-                                    </template>
-                                </div>
-                            </template>
-                        </menu-dropdown>
+                    <div class="text-xl font-bold hover:text-gray-300 cursor-pointer ml-5">
+                        <NuxtLink to="/login" class="text-xl font-bold hover:text-gray-300">Login</NuxtLink>
                     </div>
                 </div>
                 <div class="flex flex-row">
@@ -117,7 +90,7 @@ function scrollToPricing(event) {
                         <font-awesome icon="fab fa-linkedin" class="ml-5 text-4xl hover:text-gray-300 cursor-pointer" @click="openLinkedin()"/>
                     </div>
                     <div class="flex flex-row mr-5 hidden lg:block">
-                        <combo-button label="Join Our Private Beta" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" @click="gotoJoinPrivateBeta()"/>
+                        <combo-button label="Choose Your Plan" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" @click="gotoJoinPricing()"/>
                     </div>
                 </div>
             </div>

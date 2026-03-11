@@ -9,6 +9,7 @@ export interface ISubscriptionTier {
     max_dashboards: number | null;
     ai_generations_per_month: number | null;
     price_per_month_usd: string; // decimal as string
+    price_per_year_usd: string | null; // decimal as string, null if not set
     is_active: boolean;
     created_at: string;
     updated_at: string;

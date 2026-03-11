@@ -1,6 +1,5 @@
 <script setup lang="ts">
 const billingPeriod = ref<'monthly' | 'annual'>('annual');
-const showRegisterModal = ref(false);
 
 interface TierFeatures {
     rows: string;
@@ -34,7 +33,7 @@ const tiers: PricingTier[] = [
             dashboards: 5,
             dataModelsPerSource: 3,
             aiGenerations: 10,
-            teamMembers: '0 (Solo Only)'
+            teamMembers: 'Solo Only'
         },
         additionalFeatures: [
             'AI Data Modeler',
@@ -59,7 +58,7 @@ const tiers: PricingTier[] = [
             dashboards: 'Unlimited',
             dataModelsPerSource: 'Unlimited',
             aiGenerations: 'Unlimited',
-            teamMembers: '100 Users Included'
+            teamMembers: 100
         },
         additionalFeatures: [
             'All FREE features',
@@ -90,7 +89,7 @@ const tiers: PricingTier[] = [
             dashboards: 'Unlimited',
             dataModelsPerSource: 'Unlimited',
             aiGenerations: 'Unlimited',
-            teamMembers: 'Unlimited'
+            teamMembers: '100+'
         },
         additionalFeatures: [
             'All PROFESSIONAL features',
@@ -119,12 +118,27 @@ const displaySavings = (tier: PricingTier) => {
     return `Save $${savings}/year`;
 };
 
-const handleCTAClick = (tierName: string) => {
-    if (tierName === 'FREE') {
-        navigateTo('/register');
-    } else {
-        showRegisterModal.value = true;
+const { $swal } = useNuxtApp();
+
+const handleCTAClick = async (tierName: string) => {
+    if (tierName === 'PROFESSIONAL' || tierName === 'ENTERPRISE') {
+        const result = await ($swal as any).fire({
+            title: 'Paid Plans Coming Soon!',
+            html: `<p>Paid plans are not yet available, but we'll register you a <strong>free account</strong> and notify you as soon as <strong>${tierName === 'PROFESSIONAL' ? 'Pro' : 'Enterprise'}</strong> plans launch.</p>`,
+            icon: 'info',
+            showCancelButton: true,
+            confirmButtonText: 'Register Free Account',
+            cancelButtonText: 'Stay Here',
+            confirmButtonColor: '#1e3a5f',
+        });
+        if (!result.isConfirmed) return;
     }
+    const planMap: Record<string, string> = {
+        'FREE': 'free',
+        'PROFESSIONAL': 'professional',
+        'ENTERPRISE': 'enterprise'
+    };
+    navigateTo(`/register?plan=${planMap[tierName]}`);
 };
 
 const formatValue = (value: number | string): string => {
@@ -287,24 +301,11 @@ const formatValue = (value: number | string): string => {
                                     : 'bg-gradient-to-r from-gray-700 to-gray-800 hover:from-gray-800 hover:to-gray-900 text-white shadow-lg'
                             "
                         >
-                            {{ tier.name === 'FREE' ? 'Get Started Free' : 'Contact Sales' }}
+                            {{ tier.name === 'FREE' ? 'Get Free' : tier.name === 'PROFESSIONAL' ? 'Get Pro' : 'Get Enterprise' }}
                         </button>
                     </div>
                 </div>
             </div>
-
-            <!-- Bottom Note -->
-            <div class="text-center">
-                <p class="text-sm text-white/90">
-                    All plans include 14 data source connectors, unlimited users on the platform, and expert support.
-                </p>
-                <p class="text-sm text-white/90 mt-2">
-                    Questions? <button @click="showRegisterModal = true" class="text-white hover:text-white/80 font-medium underline">Register now</button> to get started.
-                </p>
-            </div>
         </div>
     </section>
-
-    <!-- Register Modal -->
-    <register-modal :is-open="showRegisterModal" @close="showRegisterModal = false" />
 </template>

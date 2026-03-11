@@ -35,7 +35,7 @@ onMounted(async () => {
 });
 </script>
 <template>
-    <div>
+    <div class="relative z-0">
         <div class="bg-primary-blue-100 w-full lg:min-h-screen relative flex flex-col lg:flex-row lg:items-center">
             <!-- Mobile Layout -->
             <div class="flex flex-col w-full p-5 pt-32 pb-20 lg:hidden">
@@ -46,7 +46,7 @@ onMounted(async () => {
                     The only data platform built for CMOs who need to prove ROI, unite their team, and get home in time for dinner.
                 </div>
                 <div class="flex flex-col w-full m-auto mt-8 pb-10">
-                    <combo-button label="Start Your Free Beta" color="white" class="w-full h-12 shadow-lg cursor-pointer" @click="gotoJoinPrivateBeta()"/>
+                    <combo-button label="Choose Your Plan" color="white" class="w-full h-12 shadow-lg cursor-pointer" @click="gotoJoinPricing()"/>
                 </div>
                 <div class="flex flex-row justify-center mt-5 mb-20">
                     <HeroCarousel :images="[dataSourcesImage, templateAIImage, chatAIImage, dashboardImage]" />
@@ -66,7 +66,7 @@ onMounted(async () => {
                         The only data platform built for CMOs who need to prove ROI, unite their team, and get home in time for dinner.
                     </div>
                      <div class="w-2/3">
-                        <combo-button label="Join Our Private Beta" color="white" class="w-full h-14 text-lg shadow-xl hover:scale-105 transition-transform cursor-pointer" @click="gotoJoinPrivateBeta()"/>
+                        <combo-button label="Choose Your Plan" color="white" class="w-full h-14 text-lg shadow-xl hover:scale-105 transition-transform cursor-pointer" @click="gotoJoinPricing()"/>
                     </div>
                 </div>
 

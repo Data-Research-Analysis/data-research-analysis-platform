@@ -30,4 +30,19 @@ export class UserProcessor {
         if (!user) return null;
         return { id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name };
     }
+
+    /**
+     * Update banner dismissal timestamp for a user
+     */
+    public async updateBannerDismissal(userId: number, dismissedUntil: Date): Promise<void> {
+        const { DBDriver } = await import('../drivers/DBDriver.js');
+        const { EDataSourceType } = await import('../types/EDataSourceType.js');
+        const { DRAUsersPlatform } = await import('../models/DRAUsersPlatform.js');
+        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+        const concreteDriver = await driver.getConcreteDriver();
+        
+        await concreteDriver.manager.update(DRAUsersPlatform, userId, {
+            dismissed_paid_plan_banner_until: dismissedUntil
+        });
+    }
 }

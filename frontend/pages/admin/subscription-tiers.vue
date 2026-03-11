@@ -116,6 +116,7 @@ function formatDate(dateString) {
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Max Dashboards</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">AI Generations</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price/Month</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price/Year</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                     <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
@@ -145,6 +146,9 @@ function formatDate(dateString) {
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                         {{ formatPrice(tier.price_per_month_usd) }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {{ tier.price_per_year_usd !== null && tier.price_per_year_usd !== undefined ? formatPrice(tier.price_per_year_usd) : '—' }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm">
                                         <span 
@@ -184,7 +188,7 @@ function formatDate(dateString) {
         </div>
 
         <!-- Create Modal -->
-        <EditSubscriptionTierModal
+        <AdminEditSubscriptionTierModal
             v-if="state.showCreateModal"
             :tier="null"
             :show="state.showCreateModal"
@@ -193,7 +197,7 @@ function formatDate(dateString) {
         />
 
         <!-- Edit Modal -->
-        <EditSubscriptionTierModal
+        <AdminEditSubscriptionTierModal
             v-if="state.showEditModal && state.editingTier"
             :tier="state.editingTier"
             :show="state.showEditModal"

@@ -27,9 +27,7 @@ function getTierBadgeClass(tierName) {
     if (!tierName) return 'bg-gray-100 text-gray-700';
     const name = tierName.toUpperCase();
     if (name === 'FREE') return 'bg-gray-100 text-gray-700';
-    if (name === 'PRO') return 'bg-blue-100 text-blue-700';
-    if (name === 'TEAM') return 'bg-green-100 text-green-700';
-    if (name === 'BUSINESS') return 'bg-purple-100 text-purple-700';
+    if (name === 'PROFESSIONAL') return 'bg-purple-100 text-purple-700';
     if (name === 'ENTERPRISE') return 'bg-yellow-100 text-yellow-700';
     return 'bg-gray-100 text-gray-700';
 }

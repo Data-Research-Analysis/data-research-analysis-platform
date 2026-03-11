@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import type { IMessage, ISchemaSummary, ISchemaDetails } from '~/types/IAIDataModeler';
 import type { IModelDraft } from '~/types/IModelDraft';
 import { getAuthToken } from '~/composables/AuthToken';
+import { useTierLimits } from '~/composables/useTierLimits';
 
 export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
     const isDrawerOpen = ref(false);
@@ -296,6 +297,12 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
 
         if (!message.trim()) {
             return false;
+        }
+
+        // Check AI generation limit before processing
+        const { checkAIGenerationLimit } = useTierLimits();
+        if (!checkAIGenerationLimit()) {
+            return false; // Shows modal, prevents message
         }
 
         isLoading.value = true;

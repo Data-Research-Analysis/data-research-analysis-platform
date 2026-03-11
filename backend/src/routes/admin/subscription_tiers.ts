@@ -95,6 +95,10 @@ router.post('/', async (req: Request, res: Response, next: any) => {
         .notEmpty()
         .isFloat({ min: 0 })
         .withMessage('price_per_month_usd must be non-negative'),
+    body('price_per_year_usd')
+        .optional({ nullable: true })
+        .custom((value) => value === null || (typeof value === 'number' && value >= 0))
+        .withMessage('price_per_year_usd must be non-negative or null'),
     body('is_active')
         .optional()
         .isBoolean()
@@ -157,6 +161,10 @@ router.put('/:id', async (req: Request, res: Response, next: any) => {
         .optional()
         .isFloat({ min: 0 })
         .withMessage('price_per_month_usd must be non-negative'),
+    body('price_per_year_usd')
+        .optional({ nullable: true })
+        .custom((value) => value === null || (typeof value === 'number' && value >= 0))
+        .withMessage('price_per_year_usd must be non-negative or null'),
     body('is_active')
         .optional()
         .isBoolean()

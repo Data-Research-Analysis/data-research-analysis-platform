@@ -12,14 +12,14 @@ describe('TierLimitModal Component', () => {
         tierName: 'FREE',
         upgradeTiers: [
             {
-                tierName: 'STARTER',
+                tierName: 'PROFESSIONAL',
                 limit: 10,
-                pricePerMonth: 9.99,
+                pricePerMonth: 399,
             },
             {
-                tierName: 'PRO',
-                limit: 50,
-                pricePerMonth: 29.99,
+                tierName: 'ENTERPRISE',
+                limit: -1,
+                pricePerMonth: 2499,
             },
         ],
     };
@@ -91,10 +91,10 @@ describe('TierLimitModal Component', () => {
         await nextTick();
 
         const content = wrapper.text();
-        expect(content).toContain('STARTER');
-        expect(content).toContain('PRO');
-        expect(content).toContain('9.99');
-        expect(content).toContain('29.99');
+        expect(content).toContain('PROFESSIONAL');
+        expect(content).toContain('ENTERPRISE');
+        expect(content).toContain('399');
+        expect(content).toContain('2499');
     });
 
     test('should emit close event when close button clicked', async () => {

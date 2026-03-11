@@ -239,3 +239,44 @@ export async function enforceAIGenerationLimit(
         });
     }
 }
+
+/**
+ * Enforce sub-user/member limit
+ * Use: router.post('/project/:projectId/members', authenticate, enforceSubUserLimit, handler)
+ */
+export async function enforceSubUserLimit(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const userId = req.body.tokenDetails?.user_id;
+        
+        if (!userId) {
+            res.status(401).json({
+                success: false,
+                message: 'Authentication required'
+            });
+            return;
+        }
+
+        const tierService = TierEnforcementService.getInstance();
+        await tierService.canAddMember(userId);
+        
+        next();
+    } catch (error) {
+        if (error instanceof TierLimitError) {
+            res.status(402).json({
+                success: false,
+                ...error.toJSON()
+            });
+            return;
+        }
+        
+        console.error('[TierEnforcement] Error checking member limit:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to validate tier limits'
+        });
+    }
+}

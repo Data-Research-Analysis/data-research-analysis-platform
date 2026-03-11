@@ -33,6 +33,9 @@
         </div>
       </div>
 
+      <!-- Subscription Usage Card -->
+      <SubscriptionUsageCard class="mb-6" />
+
       <!-- Action Buttons -->
       <div v-if="canCreate" class="">
         <div class="inline-flex shadow-sm" role="group">

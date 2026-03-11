@@ -18,7 +18,7 @@ describe('Subscription Store', () => {
 
     it('fetches subscription data successfully', async () => {
         const mockSubscriptionData = {
-            tier: ESubscriptionTier.PRO,
+            tier: ESubscriptionTier.PROFESSIONAL,
             rowLimit: 5000000,
             projectCount: 3,
             maxProjects: 10,
@@ -34,7 +34,7 @@ describe('Subscription Store', () => {
         const store = useSubscriptionStore();
         await store.fetchSubscription();
 
-        expect(store.tier).toBe(ESubscriptionTier.PRO);
+        expect(store.tier).toBe(ESubscriptionTier.PROFESSIONAL);
         expect(store.rowLimit).toBe(5000000);
         expect(store.projectCount).toBe(3);
         expect(store.maxProjects).toBe(10);
@@ -320,8 +320,8 @@ describe('Subscription Store', () => {
 
         it('auto-refreshes usage stats when enabled', async () => {
             const mockUsageStats = {
-                tier: ESubscriptionTier.PRO,
-                tierDetails: { id: 3, tierName: ESubscriptionTier.PRO, pricePerMonth: 29.99 },
+                tier: ESubscriptionTier.PROFESSIONAL,
+                tierDetails: { id: 3, tierName: ESubscriptionTier.PROFESSIONAL, pricePerMonth: 29.99 },
                 rowLimit: 5000000,
                 projectCount: 5,
                 maxProjects: 50,

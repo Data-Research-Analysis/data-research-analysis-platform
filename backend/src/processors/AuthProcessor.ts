@@ -10,6 +10,7 @@ import { EDataSourceType } from '../types/EDataSourceType.js';
 import { EUserType } from '../types/EUserType.js';
 import { NotificationHelperService } from '../services/NotificationHelperService.js';
 import { RowLimitService } from '../services/RowLimitService.js';
+import { DRASubscriptionTier } from '../models/DRASubscriptionTier.js';
 
 export class AuthProcessor {
     private static instance: AuthProcessor;
@@ -81,7 +82,7 @@ export class AuthProcessor {
         });
     }
 
-    public async register(firstName: string, lastName: string, email: string, password: string): Promise<boolean> {
+    public async register(firstName: string, lastName: string, email: string, password: string, interestedPlan?: string): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             const concreteDriver = await driver.getConcreteDriver();
@@ -103,6 +104,26 @@ export class AuthProcessor {
                 newUser.last_name = lastName;
                 newUser.password = encryptedPassword;
                 newUser.user_type = EUserType.NORMAL;
+                
+                // Map plan name to subscription tier and set interest if provided
+                if (interestedPlan) {
+                    const planNameToTierName: Record<string, string> = {
+                        'free': 'free',
+                        'professional': 'professional',
+                        'enterprise': 'enterprise'
+                    };
+                    const tierName = planNameToTierName[interestedPlan.toLowerCase()];
+                    if (tierName) {
+                        const tier = await manager.findOne(DRASubscriptionTier, { 
+                            where: { tier_name: tierName } 
+                        });
+                        if (tier) {
+                            newUser.interested_subscription_tier = tier;
+                            console.log(`📋 User interested in ${interestedPlan} plan (tier ID: ${tier.id})`);
+                        }
+                    }
+                }
+                
                 await manager.save(newUser);
                 
                 // Assign FREE tier to new user

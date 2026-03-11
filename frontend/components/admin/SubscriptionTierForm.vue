@@ -23,6 +23,7 @@ const formData = reactive({
     max_dashboards: props.tier?.max_dashboards || null,
     ai_generations_per_month: props.tier?.ai_generations_per_month || null,
     price_per_month_usd: props.tier?.price_per_month_usd !== undefined ? parseFloat(props.tier.price_per_month_usd) : null,
+    price_per_year_usd: props.tier?.price_per_year_usd !== undefined && props.tier.price_per_year_usd !== null ? parseFloat(props.tier.price_per_year_usd) : null,
     is_active: props.tier?.is_active !== undefined ? props.tier.is_active : true,
 });
 
@@ -58,6 +59,13 @@ function validateForm() {
         errors.value.price_per_month_usd = 'Price is required - enter 0 for free or a positive amount';
     } else if (formData.price_per_month_usd < 0) {
         errors.value.price_per_month_usd = 'Price must be 0 or greater';
+    }
+    
+    // Optional field: annual price, if set must be non-negative
+    if (formData.price_per_year_usd !== null && formData.price_per_year_usd !== undefined && formData.price_per_year_usd !== '') {
+        if (Number.isNaN(Number(formData.price_per_year_usd)) || Number(formData.price_per_year_usd) < 0) {
+            errors.value.price_per_year_usd = 'Annual price must be 0 or greater';
+        }
     }
     
     // Required fields: These must be -1 or positive integers (cannot be null/empty)
@@ -319,6 +327,27 @@ function setNull(field) {
                 />
             </div>
             <p v-if="errors.price_per_month_usd" class="mt-1 text-sm text-red-500">{{ errors.price_per_month_usd }}</p>
+        </div>
+
+        <!-- Price Per Year USD -->
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+                Price Per Year (USD) <span class="text-gray-400 text-xs font-normal">(optional)</span>
+            </label>
+            <div class="flex items-center">
+                <span class="px-3 py-2 bg-gray-100 border border-r-0 border-gray-300 rounded-l-md text-gray-700">$</span>
+                <input
+                    v-model.number="formData.price_per_year_usd"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="e.g., 0 or 999.99 (leave blank if not set)"
+                    class="flex-1 px-3 py-2 border border-gray-300 rounded-r-md shadow-sm focus:outline-none focus:ring-primary-blue-100 focus:border-primary-blue-100"
+                    :class="{ 'border-red-500': errors.price_per_year_usd }"
+                />
+            </div>
+            <p class="mt-1 text-xs text-gray-500">Discounted annual billing price. Leave blank to hide annual pricing for this tier.</p>
+            <p v-if="errors.price_per_year_usd" class="mt-1 text-sm text-red-500">{{ errors.price_per_year_usd }}</p>
         </div>
 
         <!-- Is Active -->

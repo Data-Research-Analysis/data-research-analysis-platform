@@ -11,9 +11,9 @@ export function openLinkedin() {
         window.open("https://www.linkedin.com/company/data-research-analysis-smc-private-limited", "_blank");
     }
 }
-export function gotoJoinPrivateBeta() {
+export function gotoJoinPricing() {
     const router = useRouter();
-    router.push("/#join-private-beta");
+    router.push("/#pricing");
 }
 export function baseUrl() {
     const config = useRuntimeConfig();

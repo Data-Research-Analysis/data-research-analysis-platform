@@ -1536,6 +1536,81 @@ Need another export? You can create a new one from your dashboard.`;
     }
 
     /**
+     * Send paid plans launch notification
+     * 
+     * Sent to users who expressed interest in paid plans when plans become available.
+     * Includes personalized tier information and upgrade CTA.
+     * 
+     * @param email - User email address
+     * @param userName - User full name
+     * @param interestedTier - Tier user expressed interest in (PROFESSIONAL or ENTERPRISE)
+     * @param tierPrice - Monthly price of the interested tier
+     * @param tierMaxRows - Max rows for the interested tier
+     * @param tierMaxMembers - Max members for the interested tier
+     * @returns Send result with message ID
+     */
+    public async sendPaidPlansLaunch(
+        email: string,
+        userName: string,
+        interestedTier: string,
+        tierPrice: number,
+        tierMaxRows: string,
+        tierMaxMembers: string
+    ): Promise<SendMailResult> {
+        const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
+        const upgradeUrl = `${frontendUrl}/pricing?plan=${interestedTier.toLowerCase()}`;
+        const pricingUrl = `${frontendUrl}/pricing`;
+        const projectsUrl = `${frontendUrl}/projects`;
+        const supportEmail = process.env.SUPPORT_EMAIL || 'support@dataresearchanalysis.com';
+        
+        const html = await TemplateEngineService.getInstance().render('paid-plans-launch.html', [
+            { key: 'user_name', value: userName },
+            { key: 'interested_tier', value: interestedTier },
+            { key: 'tier_price', value: tierPrice.toString() },
+            { key: 'tier_max_rows', value: tierMaxRows },
+            { key: 'tier_max_members', value: tierMaxMembers },
+            { key: 'upgrade_url', value: upgradeUrl },
+            { key: 'pricing_url', value: pricingUrl },
+            { key: 'projects_url', value: projectsUrl },
+            { key: 'support_email', value: supportEmail },
+            { key: 'unsubscribe_url', value: `${frontendUrl}/settings/notifications` },
+            { key: 'year', value: new Date().getFullYear().toString() }
+        ]);
+
+        const text = `🚀 Paid Plans Are Live!
+
+Hi ${userName},
+
+Great news! You expressed interest in our ${interestedTier} plan, and we're excited to let you know that our paid plans are now available.
+
+Upgrade today to unlock all the powerful features you've been waiting for:
+
+✓ Unlimited projects, data sources, and dashboards
+✓ ${tierMaxRows} rows per data model
+✓ ${tierMaxMembers} team members per project
+✓ Unlimited AI-powered data modeling
+✓ Priority support and advanced features
+
+${interestedTier} Plan: $${tierPrice}/month
+
+Upgrade now: ${upgradeUrl}
+
+Want to compare all available plans? Visit our pricing page: ${pricingUrl}
+
+Have questions? Our team is here to help! Contact us at ${supportEmail}.
+
+Data Research Analysis Platform
+${projectsUrl}`;
+
+        return this.mailDriver.sendMail({
+            to: email,
+            subject: `🚀 ${interestedTier} Plan Now Available - Upgrade Today!`,
+            text,
+            html
+        });
+    }
+
+    /**
      * Close email service and cleanup resources
      */
     async close(): Promise<void> {

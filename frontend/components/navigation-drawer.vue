@@ -68,36 +68,16 @@ function closeDrawer() {
                 <div class="text-xl font-bold mt-2 hover:text-gray-300 cursor-pointer" @click="closeDrawer">
                     <NuxtLink to="/articles">Blog</NuxtLink>
                 </div>
-                <div v-if="isPlatformEnabled()">
-                    <menu-dropdown>
-                        <template #menuItem="{ onClick }">
-                            <div @click="onClick" class="text-xl font-bold mt-2 cursor-pointer hover:text-gray-300 cursor-pointer">
-                                Platform
-                            </div>
-                        </template>
-                        <template #dropdownMenu="{ onClick }">
-                            <div class="flex flex-col w-40 text-center">
-                                <template v-if="isPlatformRegistrationEnabled()">
-                                    <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer border-b-1 border-primary-blue-100 border-solid pt-1 pb-1">
-                                        <NuxtLink to="/register" @click="closeDrawer">Register</NuxtLink>
-                                    </div>
-                                </template>
-                                <template v-if="isPlatformLoginEnabled()">
-                                    <div @click="onClick" class="text-xl font-bold text-black hover:bg-gray-200 cursor-pointer pt-1 pb-1">
-                                        <NuxtLink to="/login" @click="closeDrawer">Login</NuxtLink>
-                                    </div>
-                                </template>
-                            </div>
-                        </template>
-                    </menu-dropdown>
+                <div class="flex flex-row mr-5 mt-5 gap-3">
+                    <NuxtLink to="/login" class="text-xl font-bold hover:text-gray-300" @click="closeDrawer()">Login</NuxtLink>
+                </div>
+                <div class="flex flex-row mr-5 mt-3">
+                    <combo-button label="Choose Your Plan" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" @click="gotoJoinPricing();closeDrawer();"/>
                 </div>
                 <div class="w-3/4 h-1 bg-white m-auto mt-5"></div>
                 <div class="flex flex-row mt-5">
                     <font-awesome icon="fab fa-github-square" class="text-4xl hover:text-gray-300 cursor-pointer" @click="openGithub();closeDrawer();"/>
                     <font-awesome icon="fab fa-linkedin" class="ml-5 text-4xl hover:text-gray-300 cursor-pointer" @click="openLinkedin();closeDrawer();"/>
-                </div>
-                <div class="flex flex-row mr-5 mt-5">
-                    <combo-button label="Join Our Private Beta" color="white" class="w-full h-10 mr-2 shadow-lg cursor-pointer" @click="gotoJoinPrivateBeta();closeDrawer();"/>
                 </div>
             </div>
             
