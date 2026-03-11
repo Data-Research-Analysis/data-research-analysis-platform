@@ -31,7 +31,7 @@ const faqData = [
     },
     {
         question: 'How much does Data Research Analysis cost?',
-        answer: 'We offer 5 plans starting with a FREE tier (100K rows, 3 projects, 5 data sources). Paid plans start at $149/month for PRO tier with 5M rows and 50 projects. See our pricing section for full details and 20% annual discounts.'
+        answer: 'We offer 3 plans. FREE is always free (50K rows, 3 projects, 5 data sources, 10 AI generations/month). PROFESSIONAL is $399/month (or $3,829/year) with 100M rows, unlimited projects, data sources, dashboards, and up to 100 team members. ENTERPRISE is $2,499/month (or $23,990/year) for unlimited everything, 100+ users, multi-tenancy, and on-premise deployment.'
     },
     {
         question: 'Can I upgrade or downgrade my plan?',
@@ -39,11 +39,11 @@ const faqData = [
     },
     {
         question: 'Is there a free trial for paid plans?',
-        answer: 'We recommend starting with our FREE plan to test the platform with 100K rows, 3 projects, and 10 AI generations per month. For enterprise needs or specific feature testing, contact sales for a customized evaluation.'
+        answer: 'We recommend starting with our FREE plan to test the platform with 50K rows, 3 projects, and 10 AI generations per month. For enterprise needs or specific feature testing, contact sales for a customized evaluation.'
     },
     {
         question: 'Do you offer annual discounts?',
-        answer: 'Yes! Annual plans save 20% compared to monthly billing across all paid tiers. For example, PRO tier is $1,429/year (vs $1,788 monthly billing) saving you $359 annually.'
+        answer: 'Yes! Annual billing saves you money on paid tiers. PROFESSIONAL drops from $399/month to the equivalent of ~$319/month ($3,829/year), saving $959 annually. ENTERPRISE drops from $2,499/month to the equivalent of ~$1,999/month ($23,990/year), saving $5,998 annually.'
     },
     {
         question: 'What payment methods do you accept?',

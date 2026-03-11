@@ -40,28 +40,8 @@ const getPricingSchema = () => {
             },
             {
                 "@type": "Offer",
-                "name": "PRO Plan",
-                "price": "149",
-                "priceCurrency": "USD",
-                "priceValidUntil": "2027-12-31",
-                "availability": "https://schema.org/InStock",
-                "billingIncrement": "month",
-                "url": `${siteUrl}/#pricing`
-            },
-            {
-                "@type": "Offer",
-                "name": "TEAM Plan",
+                "name": "PROFESSIONAL Plan",
                 "price": "399",
-                "priceCurrency": "USD",
-                "priceValidUntil": "2027-12-31",
-                "availability": "https://schema.org/InStock",
-                "billingIncrement": "month",
-                "url": `${siteUrl}/#pricing`
-            },
-            {
-                "@type": "Offer",
-                "name": "BUSINESS Plan",
-                "price": "999",
                 "priceCurrency": "USD",
                 "priceValidUntil": "2027-12-31",
                 "availability": "https://schema.org/InStock",

@@ -7,7 +7,6 @@
 
 import { useSubscriptionStore } from '~/stores/subscription';
 import { ref, computed } from 'vue';
-import type { IEnhancedUsageStats } from '~/types/subscriptions/IEnhancedUsageStats';
 
 export interface ITierLimitModalState {
     show: boolean;

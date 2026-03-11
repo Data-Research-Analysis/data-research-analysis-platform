@@ -1,7 +1,6 @@
 import { DBDriver } from "../drivers/DBDriver.js";
 import { EDataSourceType } from "../types/EDataSourceType.js";
 import { DRAUserSubscription } from "../models/DRAUserSubscription.js";
-import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
 import { ESubscriptionTier } from "../models/DRASubscriptionTier.js";
 import { RowLimitService } from "./RowLimitService.js";
 
@@ -104,11 +103,11 @@ export class SubscriptionLimitService {
         
         // Count distinct users who have been invited to projects owned by this user
         const result = await manager.query(
-            `SELECT COUNT(DISTINCT pum.users_platform_id) as count 
-             FROM dra_project_users_mapping pum
-             JOIN dra_projects p ON pum.project_id = p.id
+            `SELECT COUNT(DISTINCT pm.users_platform_id) as count 
+             FROM dra_project_members pm
+             JOIN dra_projects p ON pm.project_id = p.id
              WHERE p.users_platform_id = $1
-             AND pum.users_platform_id != $1`,
+             AND pm.users_platform_id != $1`,
             [userId]
         );
         
