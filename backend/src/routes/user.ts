@@ -35,4 +35,41 @@ router.get('/lookup-by-email', validateJWT, async (req, res) => {
     }
 });
 
+/**
+ * Dismiss paid plan banner
+ * POST /user/dismiss-paid-plan-banner
+ * Body: { dismissUntil: ISO date string }
+ * 
+ * Updates user's dismissed_paid_plan_banner_until field to hide the banner temporarily.
+ */
+router.post('/dismiss-paid-plan-banner', validateJWT, async (req, res) => {
+    try {
+        const userId = req.body.tokenDetails?.user_id;
+        const { dismissUntil } = req.body;
+        
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'Unauthorized' });
+        }
+        
+        if (!dismissUntil) {
+            return res.status(400).json({ success: false, message: 'dismissUntil parameter required' });
+        }
+        
+        const dismissedUntilDate = new Date(dismissUntil);
+        if (isNaN(dismissedUntilDate.getTime())) {
+            return res.status(400).json({ success: false, message: 'Invalid date format for dismissUntil' });
+        }
+        
+        await UserProcessor.getInstance().updateBannerDismissal(userId, dismissedUntilDate);
+        
+        res.json({ success: true, message: 'Banner dismissed successfully' });
+    } catch (error: any) {
+        console.error('Error dismissing banner:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message || 'Failed to dismiss banner'
+        });
+    }
+});
+
 export default router;

@@ -250,6 +250,10 @@ function closeMembersDialog() {
         <div class="text-md mb-6">
             All of your data and files will be contained within projects. All projects are isolated from one another and help with organization of your analysis.
         </div>
+        
+        <!-- Subscription Usage Card -->
+        <SubscriptionUsageCard class="mb-6" />
+        
         <!-- Header Section -->
         <div class="flex flex-row items-center justify-start mb-5">
             <button

@@ -51,7 +51,7 @@
                         In a cut-throat market, guessing is expensive. It costs you market share, budget, and your peace of mind.
                     </p>
                     <div class="w-full md:w-1/3 mx-auto">
-                         <combo-button label="Join Our Private Beta" color="white" class="w-full h-12 shadow-lg cursor-pointer text-primary-blue-100" @click="gotoJoinPrivateBeta()"/>
+                         <combo-button label="Choose Your Plan" color="white" class="w-full h-12 shadow-lg cursor-pointer text-primary-blue-100" @click="gotoJoinPricing()"/>
                     </div>
                 </div>
             </div> 

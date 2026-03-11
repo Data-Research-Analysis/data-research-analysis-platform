@@ -3,6 +3,7 @@ import _ from 'lodash';
 import { useAIDataModelerStore } from '~/stores/ai-data-modeler';
 import { useSubscriptionStore } from '~/stores/subscription';
 import { useLoggedInUserStore } from '~/stores/logged_in_user';
+import { useTierLimits } from '~/composables/useTierLimits';
 import MongoDBQueryEditor from '~/components/data-sources/MongoDBQueryEditor.vue';
 import SQLErrorAlert from '~/components/SQLErrorAlert.vue';
 
@@ -11,6 +12,7 @@ const route = useRoute();
 const router = useRouter();
 const aiDataModelerStore = useAIDataModelerStore();
 const subscriptionStore = useSubscriptionStore();
+const { modalState: tierLimitModal, hideLimitModal } = useTierLimits();
 const state = reactive({
     show_dialog: false,
     show_calculated_column_dialog: false,
@@ -3677,6 +3679,14 @@ function buildSQLQuery(silent = false) {
     return sqlQuery;
 }
 async function saveDataModel() {
+    // Check tier limits for new data models (not when editing existing ones)
+    if (!props.isEditDataModel && !props.dataModel?.id) {
+        const { checkDataModelLimit } = useTierLimits();
+        if (!checkDataModelLimit()) {
+            return; // Shows modal, prevents save
+        }
+    }
+    
     // Set flag to prevent watch from triggering during save
     state.is_saving_model = true;
     
@@ -7680,6 +7690,17 @@ onBeforeUnmount(() => {
                 </div>
             </template>
         </overlay-dialog>
+        
+        <!-- Tier Limit Modal -->
+        <TierLimitModal
+            :show="tierLimitModal.show"
+            :resource="tierLimitModal.resource"
+            :current-usage="tierLimitModal.currentUsage"
+            :tier-limit="tierLimitModal.tierLimit"
+            :tier-name="tierLimitModal.tierName"
+            :upgrade-tiers="tierLimitModal.upgradeTiers"
+            @close="hideLimitModal"
+        />
     </div>
 </template>
 

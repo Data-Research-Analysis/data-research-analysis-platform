@@ -10,6 +10,7 @@ export interface ISubscriptionTierData {
     max_dashboards: number | null;
     ai_generations_per_month: number | null;
     price_per_month_usd: number;
+    price_per_year_usd?: number | null;
     is_active?: boolean;
 }
 
@@ -164,6 +165,10 @@ export class SubscriptionTierProcessor {
             throw new Error('price_per_month_usd cannot be negative');
         }
         
+        if (tierData.price_per_year_usd !== undefined && tierData.price_per_year_usd !== null && tierData.price_per_year_usd < 0) {
+            throw new Error('price_per_year_usd cannot be negative');
+        }
+        
         const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
         if (!driver) {
             throw new Error('PostgreSQL driver not available');
@@ -253,6 +258,10 @@ export class SubscriptionTierProcessor {
         // Validate price
         if (tierData.price_per_month_usd < 0) {
             throw new Error('price_per_month_usd cannot be negative');
+        }
+        
+        if (tierData.price_per_year_usd !== undefined && tierData.price_per_year_usd !== null && tierData.price_per_year_usd < 0) {
+            throw new Error('price_per_year_usd cannot be negative');
         }
         
         // Validate nullable number fields (if not null, must be positive)

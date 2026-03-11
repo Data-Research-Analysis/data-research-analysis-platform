@@ -79,7 +79,7 @@
             </div>
 
             <div class="flex flex-col w-3/5 lg:w-1/5 m-auto mt-16">
-                <combo-button label="Join Our Private Beta" color="primary" class="w-full h-10 mr-2 shadow-lg cursor-pointer" @click="gotoJoinPrivateBeta()"/>
+                <combo-button label="Choose Your Plan" color="primary" class="w-full h-10 mr-2 shadow-lg cursor-pointer" @click="gotoJoinPricing()"/>
             </div>
         </div>
     </div>

@@ -31,6 +31,7 @@ const state = reactive({
     email: "",
     password: "",
     rePassword: "",
+    interestedPlan: "", // Track which plan they're interested in
     firstNameError: false,
     lastNameError: false,
     emailError: false,
@@ -109,6 +110,7 @@ async function createAccount() {
                   last_name: state.lastName,  
                   email: state.email,
                   password: state.password,
+                  ...(state.interestedPlan && { interested_plan: state.interestedPlan }),
                 },
               };
               try {
@@ -145,6 +147,13 @@ async function createAccount() {
 
 onMounted(async () => {
     await getToken();
+    
+    // Read plan parameter from URL query
+    const route = useRoute();
+    if (route.query.plan && typeof route.query.plan === 'string') {
+        state.interestedPlan = route.query.plan;
+    }
+    
     // Only add event listeners on client side for SSR compatibility
     if (import.meta.client) {
         window.addEventListener("keydown", (event) => {

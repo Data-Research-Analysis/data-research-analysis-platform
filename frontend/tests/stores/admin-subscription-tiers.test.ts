@@ -27,7 +27,7 @@ describe('Admin Subscription Tiers Store', () => {
             },
             {
                 id: 2,
-                tier_name: ESubscriptionTier.PRO,
+                tier_name: ESubscriptionTier.PROFESSIONAL,
                 max_rows_per_data_model: '5000000',
                 price_per_month_usd: '99',
                 is_active: true,
@@ -45,7 +45,7 @@ describe('Admin Subscription Tiers Store', () => {
 
     it('creates a new tier successfully', async () => {
         const newTier = {
-            tier_name: ESubscriptionTier.TEAM,
+            tier_name: ESubscriptionTier.PROFESSIONAL,
             max_rows_per_data_model: '20000000',
             price_per_month_usd: '299',
             is_active: true,

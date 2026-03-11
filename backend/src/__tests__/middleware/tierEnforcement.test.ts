@@ -71,7 +71,7 @@ describe('Tier Enforcement Middleware', () => {
                 3,
                 [
                     {
-                        tierName: ESubscriptionTier.PRO,
+                        tierName: ESubscriptionTier.PROFESSIONAL,
                         limit: 10,
                         pricePerMonth: 9.99,
                     },
@@ -93,7 +93,7 @@ describe('Tier Enforcement Middleware', () => {
                     limit: 3,
                     upgradeTiers: expect.arrayContaining([
                         expect.objectContaining({
-                            tierName: ESubscriptionTier.PRO,
+                            tierName: ESubscriptionTier.PROFESSIONAL,
                         }),
                     ]),
                 })
@@ -148,7 +148,7 @@ describe('Tier Enforcement Middleware', () => {
 
         it('should return 402 when data source limit exceeded', async () => {
             const tierError = new TierLimitError(
-                ESubscriptionTier.PRO,
+                ESubscriptionTier.PROFESSIONAL,
                 'data_source',
                 5,
                 5,
@@ -209,7 +209,7 @@ describe('Tier Enforcement Middleware', () => {
 
         it('should return 402 when dashboard limit exceeded', async () => {
             const tierError = new TierLimitError(
-                ESubscriptionTier.PRO,
+                ESubscriptionTier.PROFESSIONAL,
                 'dashboard',
                 20,
                 20,
@@ -246,13 +246,13 @@ describe('Tier Enforcement Middleware', () => {
 
         it('should return 402 when AI generation limit exceeded', async () => {
             const tierError = new TierLimitError(
-                ESubscriptionTier.PRO,
+                ESubscriptionTier.PROFESSIONAL,
                 'ai_generation',
                 50,
                 50,
                 [
                     {
-                        tierName: ESubscriptionTier.PRO,
+                        tierName: ESubscriptionTier.PROFESSIONAL,
                         limit: 200,
                         pricePerMonth: 29.99,
                     },
@@ -271,7 +271,7 @@ describe('Tier Enforcement Middleware', () => {
                     limit: 50,
                     upgradeTiers: expect.arrayContaining([
                         expect.objectContaining({
-                            tierName: ESubscriptionTier.PRO,
+                            tierName: ESubscriptionTier.PROFESSIONAL,
                         }),
                     ]),
                 })
@@ -328,12 +328,12 @@ describe('Tier Enforcement Middleware', () => {
                 5,
                 [
                     {
-                        tierName: ESubscriptionTier.PRO,
+                        tierName: ESubscriptionTier.PROFESSIONAL,
                         limit: 10,
                         pricePerMonth: 9.99,
                     },
                     {
-                        tierName: ESubscriptionTier.PRO,
+                        tierName: ESubscriptionTier.PROFESSIONAL,
                         limit: 50,
                         pricePerMonth: 29.99,
                     },
@@ -353,12 +353,12 @@ describe('Tier Enforcement Middleware', () => {
                     limit: 5,
                     upgradeTiers: expect.arrayContaining([
                         {
-                            tierName: ESubscriptionTier.PRO,
+                            tierName: ESubscriptionTier.PROFESSIONAL,
                             limit: 10,
                             pricePerMonth: 9.99,
                         },
                         {
-                            tierName: ESubscriptionTier.PRO,
+                            tierName: ESubscriptionTier.PROFESSIONAL,
                             limit: 50,
                             pricePerMonth: 29.99,
                         },

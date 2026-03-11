@@ -16,9 +16,12 @@ export interface IEnhancedUsageStats {
     maxDashboards: number | null;
     aiGenerationsPerMonth: number | null;
     aiGenerationsUsed: number;
+    memberCount: number;
+    maxMembersPerProject: number | null;
     canCreateProject: boolean;
     canCreateDataSource: boolean;
     canCreateDataModel: boolean;
     canCreateDashboard: boolean;
     canUseAIGeneration: boolean;
+    canAddMember: boolean;
 }

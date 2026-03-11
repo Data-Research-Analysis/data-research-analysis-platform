@@ -73,9 +73,7 @@ const dashboardUsage = computed(() => {
                 class="px-3 py-1 text-xs font-semibold rounded-full"
                 :class="{
                     'bg-blue-100 text-blue-800': subscriptionStats.tier.tier_name === 'FREE',
-                    'bg-purple-100 text-purple-800': subscriptionStats.tier.tier_name === 'PRO',
-                    'bg-indigo-100 text-indigo-800': subscriptionStats.tier.tier_name === 'TEAM',
-                    'bg-orange-100 text-orange-800': subscriptionStats.tier.tier_name === 'BUSINESS',
+                    'bg-purple-100 text-purple-800': subscriptionStats.tier.tier_name === 'PROFESSIONAL',
                     'bg-yellow-100 text-yellow-800': subscriptionStats.tier.tier_name === 'ENTERPRISE',
                 }"
             >

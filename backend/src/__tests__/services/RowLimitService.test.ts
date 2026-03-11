@@ -84,7 +84,7 @@ describe('RowLimitService', () => {
         it('should return existing tier for subscribed user', async () => {
             const mockProTier = {
                 id: 2,
-                tier_name: ESubscriptionTier.PRO,
+                tier_name: ESubscriptionTier.PROFESSIONAL,
                 max_rows_per_data_model: '5000000',
             };
 
@@ -274,7 +274,7 @@ describe('RowLimitService', () => {
     describe('getUsageStats', () => {
         it('should return comprehensive usage statistics', async () => {
             const mockProTier = {
-                tier_name: ESubscriptionTier.PRO,
+                tier_name: ESubscriptionTier.PROFESSIONAL,
                 max_rows_per_data_model: '5000000',
                 max_projects: 10,
                 max_data_sources_per_project: 5,
@@ -292,7 +292,7 @@ describe('RowLimitService', () => {
             const result = await service.getUsageStats(1);
 
             expect(result).toEqual({
-                tier: ESubscriptionTier.PRO,
+                tier: ESubscriptionTier.PROFESSIONAL,
                 rowLimit: 5000000,
                 projectCount: 3,
                 maxProjects: 10,

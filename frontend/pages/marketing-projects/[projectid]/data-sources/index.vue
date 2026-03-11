@@ -16,6 +16,7 @@ import { useKlaviyo } from '@/composables/useKlaviyo';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
 import { useProjectRole } from '@/composables/useProjectRole';
 import { useTruncation } from '@/composables/useTruncation';
+import { useTierLimits } from '@/composables/useTierLimits';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import { DATA_SOURCE_CLASSIFICATIONS } from '@/utils/dataSourceClassifications';
 import pdfImage from '/assets/images/pdf.png';
@@ -48,6 +49,7 @@ const { $swal } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
 const { isTitleTruncated } = useTruncation();
+const { checkDataSourceLimit, modalState: tierLimitModal, hideLimitModal } = useTierLimits();
 
 // Get project ID from route
 const projectId = parseInt(String(route.params.projectid));
@@ -196,6 +198,10 @@ const isAdmin = computed(() => {
 });
 
 function openDialog() {
+    // Check tier limits before allowing data source connection
+    if (!checkDataSourceLimit()) {
+        return;
+    }
     state.show_dialog = true;
 }
 
@@ -981,5 +987,16 @@ async function saveClassification(classification) {
         :loading="state.classifyLoading"
         @confirm="saveClassification"
         @cancel="state.classifyTargetId = null"
+    />
+    
+    <!-- Tier Limit Modal -->
+    <TierLimitModal
+        :show="tierLimitModal.show"
+        :resource="tierLimitModal.resource"
+        :currentUsage="tierLimitModal.currentUsage"
+        :tierLimit="tierLimitModal.tierLimit"
+        :tierName="tierLimitModal.tierName"
+        :upgradeTiers="tierLimitModal.upgradeTiers"
+        @close="hideLimitModal"
     />
 </template>

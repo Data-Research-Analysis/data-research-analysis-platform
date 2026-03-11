@@ -9,6 +9,9 @@
         </p>
       </div>
 
+      <!-- Subscription Usage Card -->
+      <SubscriptionUsageCard class="mb-6" />
+
       <!-- Loading State -->
       <div v-if="state.loading" class="bg-white rounded-lg shadow p-8 text-center">
         <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>

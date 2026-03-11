@@ -77,6 +77,7 @@ export const useSubscriptionStore = defineStore('subscription', () => {
     const canCreateDataModel = computed(() => usageStats.value?.canCreateDataModel ?? true);
     const canCreateDashboard = computed(() => usageStats.value?.canCreateDashboard ?? true);
     const canUseAIGeneration = computed(() => usageStats.value?.canUseAIGeneration ?? true);
+    const canAddMember = computed(() => usageStats.value?.canAddMember ?? true);
     const aiGenerationsRemaining = computed(() => {
         if (!usageStats.value) return 0;
         if (usageStats.value.aiGenerationsPerMonth === null) return Infinity;
@@ -190,6 +191,7 @@ export const useSubscriptionStore = defineStore('subscription', () => {
         canCreateDataModel,
         canCreateDashboard,
         canUseAIGeneration,
+        canAddMember,
         aiGenerationsRemaining,
     };
 });

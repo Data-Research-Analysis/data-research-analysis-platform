@@ -137,9 +137,10 @@ export const useSubscriptionTiersStore = defineStore('subscriptionTiers', () => 
             await fetchTiers();
             return data;
         } catch (err: any) {
-            error.value = err.message;
+            const message = err.data?.message || err.message;
+            error.value = message;
             console.error('Error deleting subscription tier:', err);
-            throw err;
+            throw new Error(message);
         } finally {
             loading.value = false;
         }

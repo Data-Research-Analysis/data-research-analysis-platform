@@ -24,6 +24,16 @@ function scrollToTop() {
     }
 }
 
+function scrollToPricing(event) {
+    event.preventDefault();
+    if (import.meta.client) {
+        const pricingSection = document.getElementById('pricing');
+        if (pricingSection) {
+            pricingSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+}
+
 onMounted(() => {
     // Only access window/document on client side for SSR compatibility
     if (import.meta.client) {
@@ -66,6 +76,19 @@ onMounted(() => {
                     <!-- 2. Important Links -->
                     <div v-if="!isPublicDashboard" class="w-full lg:w-1/4 flex flex-col items-center lg:items-start space-y-3">
                         <h3 class="font-bold text-xl mb-2 opacity-90">Important Links</h3>
+                        
+                        <a v-if="isHomePage" 
+                           @click.prevent="scrollToPricing" 
+                           href="#pricing"
+                           class="text-base hover:text-gray-300 hover:underline opacity-90 hover:opacity-100 transition duration-200 cursor-pointer">
+                            Pricing
+                        </a>
+                        
+                        <NuxtLink v-else
+                                  to="/#pricing" 
+                                  class="text-base hover:text-gray-300 hover:underline opacity-90 hover:opacity-100 transition duration-200">
+                            Pricing
+                        </NuxtLink>
                         
                         <NuxtLink v-if="isPlatformEnabled() && isPlatformRegistrationEnabled() && !authenticated" 
                                   to="/register" 

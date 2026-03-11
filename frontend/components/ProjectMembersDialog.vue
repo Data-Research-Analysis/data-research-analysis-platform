@@ -7,6 +7,41 @@
                 <!-- Add Member Section (Admin/Owner only) -->
                 <div v-if="canManageMembers" class="mb-8 pb-8 border-b border-gray-200">
                 <h3 class="text-lg font-semibold mb-4 text-gray-800">Invite Member</h3>
+
+                <!-- Member usage bar -->
+                <div class="mb-4 p-3 bg-gray-50 rounded-lg flex items-center justify-between gap-4">
+                    <div class="flex items-center gap-2 text-sm text-gray-600">
+                        <font-awesome-icon :icon="['fas', 'users']" class="text-gray-400" />
+                        <span>
+                            <span v-if="maxMembersAllowed === null">
+                                <strong class="text-gray-800">{{ currentMemberUsage }}</strong> sub-user<span v-if="currentMemberUsage !== 1">s</span> across all projects
+                                <span class="text-green-600 font-medium ml-1">(Unlimited)</span>
+                            </span>
+                            <span v-else-if="maxMembersAllowed === 0">
+                                Sub-users are not available on the <strong class="text-gray-800">FREE</strong> plan
+                            </span>
+                            <span v-else>
+                                <strong :class="isAtMemberLimit ? 'text-red-600' : 'text-gray-800'">{{ currentMemberUsage }}</strong>
+                                <span class="text-gray-500"> / {{ maxMembersAllowed }} sub-users used</span>
+                            </span>
+                        </span>
+                    </div>
+                    <span v-if="maxMembersAllowed !== null && maxMembersAllowed > 0" 
+                          :class="['text-xs font-medium px-2.5 py-1 rounded-full', isAtMemberLimit ? 'bg-red-100 text-red-700' : remainingMembers <= 10 ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700']">
+                        {{ isAtMemberLimit ? 'Limit reached' : `${remainingMembers} remaining` }}
+                    </span>
+                </div>
+
+                <!-- At-limit banner -->
+                <div v-if="isAtMemberLimit" class="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
+                    <font-awesome-icon :icon="['fas', 'triangle-exclamation']" class="text-red-500 flex-shrink-0" />
+                    <p class="text-sm text-red-700">
+                        You've reached the member limit for your 
+                        <strong>{{ tierDisplayName }}</strong> plan. 
+                        <button @click="handleComingSoon" class="underline font-medium cursor-pointer">Upgrade your plan</button> to invite more members.
+                    </p>
+                </div>
+
                 <div class="flex gap-3 flex-wrap">
                     <input 
                         v-model="inviteEmail" 
@@ -26,7 +61,8 @@
                     <button 
                         @click="inviteMember" 
                         class="px-5 py-2.5 bg-blue-500 text-white rounded-md font-medium hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer" 
-                        :disabled="!inviteEmail"
+                        :disabled="!inviteEmail || isAtMemberLimit"
+                        :title="isAtMemberLimit ? 'Member limit reached — upgrade to invite more' : ''"
                     >
                         Send Invitation
                     </button>
@@ -152,12 +188,25 @@
             </div>
         </template>
     </overlay-dialog>
+    
+    <!-- Tier Limit Modal -->
+    <TierLimitModal
+        :show="tierLimitModal.show"
+        :resource="tierLimitModal.resource"
+        :currentUsage="tierLimitModal.currentUsage"
+        :tierLimit="tierLimitModal.tierLimit"
+        :tierName="tierLimitModal.tierName"
+        :upgradeTiers="tierLimitModal.upgradeTiers"
+        @close="hideLimitModal"
+    />
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
 import { useProjectsStore } from '~/stores/projects';
 import { useLoggedInUserStore } from '~/stores/logged_in_user';
+import { useSubscriptionStore } from '~/stores/subscription';
+import { useTierLimits } from '~/composables/useTierLimits';
 
 interface Member {
     id: number;
@@ -193,6 +242,35 @@ const props = defineProps<{
 
 const projectsStore = useProjectsStore();
 const loggedInUserStore = useLoggedInUserStore();
+const subscriptionStore = useSubscriptionStore();
+
+function handleComingSoon() {
+    const { $swal } = useNuxtApp() as any;
+    $swal.fire({
+        title: 'Coming Soon!',
+        text: 'Paid plans are coming soon. We will notify you when they are available.',
+        icon: 'info',
+        confirmButtonText: 'Got it',
+        confirmButtonColor: '#3b82f6',
+    });
+}
+const { checkMemberLimit, modalState: tierLimitModal, hideLimitModal } = useTierLimits();
+
+// Member limit computed properties
+const maxMembersAllowed = computed(() => subscriptionStore.usageStats?.maxMembersPerProject ?? null);
+const currentMemberUsage = computed(() => subscriptionStore.usageStats?.memberCount ?? 0);
+const tierDisplayName = computed(() => {
+    const t = subscriptionStore.usageStats?.tier || 'FREE';
+    return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
+});
+const remainingMembers = computed(() => {
+    if (maxMembersAllowed.value === null) return Infinity;
+    return Math.max(0, maxMembersAllowed.value - currentMemberUsage.value);
+});
+const isAtMemberLimit = computed(() => {
+    if (maxMembersAllowed.value === null) return false;
+    return currentMemberUsage.value >= maxMembersAllowed.value;
+});
 
 const emit = defineEmits(['close', 'memberUpdated']);
 
@@ -357,6 +435,11 @@ async function cancelInvitation(invitationId: number) {
 
 async function inviteMember() {
     if (!inviteEmail.value) return;
+    
+    // Check tier limits before allowing invitation
+    if (!checkMemberLimit()) {
+        return;
+    }
     
     inviteMessage.value = '';
     inviteError.value = false;

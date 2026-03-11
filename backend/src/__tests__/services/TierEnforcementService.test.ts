@@ -133,7 +133,7 @@ describe('TierEnforcementService', () => {
             mockManager.count.mockResolvedValue(3); // 3 projects, limit is 3
             mockManager.find.mockResolvedValue([
                 {
-                    tier_name: ESubscriptionTier.PRO,
+                    tier_name: ESubscriptionTier.PROFESSIONAL,
                     max_projects: 10,
                     price_per_month_usd: 9.99,
                 },
@@ -218,7 +218,7 @@ describe('TierEnforcementService', () => {
     describe('canCreateDataSource', () => {
         const mockStarterTier = {
             id: 2,
-            tier_name: ESubscriptionTier.PRO,
+            tier_name: ESubscriptionTier.PROFESSIONAL,
             max_data_sources_per_project: 5,
             price_per_month_usd: 9.99,
         };
@@ -293,7 +293,7 @@ describe('TierEnforcementService', () => {
     describe('canCreateDashboard', () => {
         const mockProTier = {
             id: 3,
-            tier_name: ESubscriptionTier.PRO,
+            tier_name: ESubscriptionTier.PROFESSIONAL,
             max_dashboards: 20,
             price_per_month_usd: 29.99,
         };
@@ -350,7 +350,7 @@ describe('TierEnforcementService', () => {
     describe('canUseAIGeneration', () => {
         const mockStarterTier = {
             id: 2,
-            tier_name: ESubscriptionTier.PRO,
+            tier_name: ESubscriptionTier.PROFESSIONAL,
             ai_generations_per_month: 50,
             price_per_month_usd: 9.99,
         };
@@ -472,7 +472,7 @@ describe('TierEnforcementService', () => {
     describe('getUsageStats', () => {
         const mockStarterTier = {
             id: 2,
-            tier_name: ESubscriptionTier.PRO,
+            tier_name: ESubscriptionTier.PROFESSIONAL,
             max_projects: 10,
             max_data_sources_per_project: 5,
             max_dashboards: 15,
@@ -505,10 +505,10 @@ describe('TierEnforcementService', () => {
             const stats = await service.getUsageStats(1);
 
             expect(stats).toMatchObject({
-                tier: ESubscriptionTier.PRO,
+                tier: ESubscriptionTier.PROFESSIONAL,
                 tierDetails: {
                     id: 2,
-                    tierName: ESubscriptionTier.PRO,
+                    tierName: ESubscriptionTier.PROFESSIONAL,
                     pricePerMonth: 9.99,
                 },
                 rowLimit: 10000,

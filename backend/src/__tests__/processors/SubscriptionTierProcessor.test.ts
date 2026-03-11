@@ -42,7 +42,7 @@ describe('SubscriptionTierProcessor', () => {
         it('should return all active tiers by default', async () => {
             const mockTiers = [
                 { id: 1, tier_name: ESubscriptionTier.FREE, max_rows_per_data_model: '100000', is_active: true },
-                { id: 2, tier_name: ESubscriptionTier.PRO, max_rows_per_data_model: '5000000', is_active: true },
+                { id: 2, tier_name: ESubscriptionTier.PROFESSIONAL, max_rows_per_data_model: '5000000', is_active: true },
             ];
 
             mockRepository.find.mockResolvedValue(mockTiers);
@@ -59,7 +59,7 @@ describe('SubscriptionTierProcessor', () => {
         it('should return all tiers including inactive when includeInactive is true', async () => {
             const mockTiers = [
                 { id: 1, tier_name: ESubscriptionTier.FREE, is_active: true },
-                { id: 2, tier_name: ESubscriptionTier.PRO, is_active: false },
+                { id: 2, tier_name: ESubscriptionTier.PROFESSIONAL, is_active: false },
             ];
 
             mockRepository.find.mockResolvedValue(mockTiers);
@@ -148,7 +148,7 @@ describe('SubscriptionTierProcessor', () => {
 
         it('should reject tier with negative row limit', async () => {
             const tierData = {
-                tier_name: ESubscriptionTier.PRO,
+                tier_name: ESubscriptionTier.PROFESSIONAL,
                 max_rows_per_data_model: -5,
                 max_projects: null,
                 max_data_sources_per_project: null,
@@ -218,7 +218,7 @@ describe('SubscriptionTierProcessor', () => {
         });
 
         it('should validate updated values', async () => {
-            const existingTier = { id: 1, tier_name: ESubscriptionTier.PRO };
+            const existingTier = { id: 1, tier_name: ESubscriptionTier.PROFESSIONAL };
             mockRepository.findOne.mockResolvedValue(existingTier);
 
             await expect(

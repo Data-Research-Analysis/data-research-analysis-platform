@@ -95,7 +95,7 @@
 <script setup lang="ts">
 const props = defineProps<{
     show: boolean;
-    resource: 'project' | 'data_source' | 'dashboard' | 'ai_generation';
+    resource: 'project' | 'data_source' | 'dashboard' | 'data_model' | 'ai_generation' | 'member';
     currentUsage: number;
     tierLimit: number | null;
     tierName: string;
@@ -115,7 +115,9 @@ const resourceDisplay = computed(() => {
         'project': 'Project',
         'data_source': 'Data Source',
         'dashboard': 'Dashboard',
-        'ai_generation': 'AI Generation'
+        'data_model': 'Data Model',
+        'ai_generation': 'AI Generation',
+        'member': 'Team Member'
     };
     return displays[props.resource];
 });
@@ -127,9 +129,13 @@ const progressWidth = computed(() => {
 });
 
 function handleUpgrade() {
-    // SSR guard
-    if (import.meta.client) {
-        window.location.href = '/pricing';
-    }
+    const { $swal } = useNuxtApp() as any;
+    $swal.fire({
+        title: 'Coming Soon!',
+        text: 'Paid plans are coming soon. We will notify you when they are available.',
+        icon: 'info',
+        confirmButtonText: 'Got it',
+        confirmButtonColor: '#3b82f6',
+    });
 }
 </script>

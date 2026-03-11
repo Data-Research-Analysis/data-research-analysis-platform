@@ -7,6 +7,7 @@ import { DRAProject } from '../models/DRAProject.js';
 import { DRADataSource } from '../models/DRADataSource.js';
 import { DRADataModel } from '../models/DRADataModel.js';
 import { DRADashboard } from '../models/DRADashboard.js';
+import { DRAProjectMember } from '../models/DRAProjectMember.js';
 import { EUserType } from '../types/EUserType.js';
 import { TierLimitError } from '../types/TierLimitError.js';
 import { getRedisClient } from '../config/redis.config.js';
@@ -32,11 +33,14 @@ export interface IEnhancedUsageStats {
     maxDashboards: number | null;
     aiGenerationsPerMonth: number | null;
     aiGenerationsUsed: number;
+    memberCount: number;
+    maxMembersPerProject: number | null;
     canCreateProject: boolean;
     canCreateDataSource: boolean;
     canCreateDataModel: boolean;
     canCreateDashboard: boolean;
     canUseAIGeneration: boolean;
+    canAddMember: boolean;
 }
 
 /**
@@ -454,6 +458,67 @@ export class TierEnforcementService {
     }
 
     /**
+     * Check if user can add a team member (sub-user limit)
+     * @throws TierLimitError if limit exceeded
+     */
+    async canAddMember(userId: number): Promise<void> {
+        // Admin bypass
+        if (await this.isAdmin(userId)) {
+            return;
+        }
+
+        // Check for active override
+        const override = await this.getActiveOverride(userId, 'members');
+        
+        const { tier } = await this.getUserSubscription(userId);
+        const maxMembers = override !== null ? override : tier.max_members_per_project;
+
+        // Unlimited (null or -1 or override is present)
+        if (maxMembers === null || maxMembers === -1) {
+            return;
+        }
+
+        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+        if (!driver) {
+            throw new Error('Database driver not available');
+        }
+
+        const concreteDriver = await driver.getConcreteDriver();
+        if (!concreteDriver?.manager) {
+            throw new Error('Database manager not available');
+        }
+
+        // Count distinct sub-users (excluding the owner themselves)
+        const result = await concreteDriver.manager.query(
+            `SELECT COUNT(DISTINCT pum.users_platform_id) as count 
+             FROM dra_project_members pum
+             JOIN dra_projects p ON pum.project_id = p.id
+             WHERE p.users_platform_id = $1
+             AND pum.users_platform_id != $1`,
+            [userId]
+        );
+
+        const subUserCount = parseInt(result[0]?.count || '0');
+
+        if (subUserCount >= maxMembers) {
+            const upgradeTiers = await this.getUpgradeTiers(tier.tier_name as ESubscriptionTier, 'ai_generation');
+            throw new TierLimitError(
+                tier.tier_name as ESubscriptionTier,
+                'member',
+                subUserCount,
+                maxMembers,
+                maxMembers === 0 
+                    ? [{
+                        tierName: ESubscriptionTier.PROFESSIONAL,
+                        limit: 100,
+                        pricePerMonth: 399
+                    }]
+                    : upgradeTiers
+            );
+        }
+    }
+
+    /**
      * Increment AI generation counter in Redis (monthly reset via 31-day TTL)
      */
     async incrementAIGenerationCount(userId: number): Promise<number> {
@@ -512,12 +577,27 @@ export class TierEnforcementService {
         const aiGenerationsUsed = await this.getAIGenerationCount(userId);
         const isAdminUser = await this.isAdmin(userId);
 
+        // Count distinct sub-users across all projects owned by this user
+        const memberCountResult = await concreteDriver.manager.query(
+            `SELECT COUNT(DISTINCT pum.users_platform_id) as count
+             FROM dra_project_members pum
+             JOIN dra_projects p ON pum.project_id = p.id
+             WHERE p.users_platform_id = $1
+             AND pum.users_platform_id != $1`,
+            [userId]
+        );
+        const memberCount = parseInt(memberCountResult[0]?.count || '0');
+        const maxMembersRaw = tier.max_members_per_project;
+        // -1 means unlimited; null also means unlimited
+        const maxMembersPerProject: number | null = (maxMembersRaw === -1 || maxMembersRaw === null) ? null : maxMembersRaw;
+
         // Determine if user can create resources
         const canCreateProject = isAdminUser || tier.max_projects === null || projectCount < tier.max_projects;
         const canCreateDataSource = isAdminUser || tier.max_data_sources_per_project === null; // Per-project check needed
         const canCreateDataModel = isAdminUser || tier.max_data_models_per_data_source === null; // Per-data-source check needed
         const canCreateDashboard = isAdminUser || tier.max_dashboards === null || dashboardCount < tier.max_dashboards;
         const canUseAIGeneration = isAdminUser || tier.ai_generations_per_month === null || aiGenerationsUsed < tier.ai_generations_per_month;
+        const canAddMember = isAdminUser || maxMembersPerProject === null || memberCount < maxMembersPerProject;
 
         return {
             tier: tier.tier_name as ESubscriptionTier,
@@ -537,11 +617,14 @@ export class TierEnforcementService {
             maxDashboards: tier.max_dashboards,
             aiGenerationsPerMonth: tier.ai_generations_per_month,
             aiGenerationsUsed,
+            memberCount,
+            maxMembersPerProject,
             canCreateProject,
             canCreateDataSource,
             canCreateDataModel,
             canCreateDashboard,
-            canUseAIGeneration
+            canUseAIGeneration,
+            canAddMember,
         };
     }
 }

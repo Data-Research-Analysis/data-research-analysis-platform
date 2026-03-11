@@ -28,6 +28,26 @@ const faqData = [
     {
         question: 'Can I share dashboards with my team?',
         answer: 'Absolutely. You can create projects and invite team members with different permission levels (Owner, Editor, Viewer). Dashboards can also be shared via public links for stakeholder reporting.'
+    },
+    {
+        question: 'How much does Data Research Analysis cost?',
+        answer: 'We offer 3 plans. FREE is always free (50K rows, 3 projects, 5 data sources, 10 AI generations/month). PROFESSIONAL is $399/month (or $3,829/year) with 100M rows, unlimited projects, data sources, dashboards, and up to 100 team members. ENTERPRISE is $2,499/month (or $23,990/year) for unlimited everything, 100+ users, multi-tenancy, and on-premise deployment.'
+    },
+    {
+        question: 'Can I upgrade or downgrade my plan?',
+        answer: 'Yes! Contact our sales team to discuss plan changes. We\'ll ensure a smooth transition with no data loss. You can also start with the FREE plan to test the platform before committing to a paid tier.'
+    },
+    {
+        question: 'Is there a free trial for paid plans?',
+        answer: 'We recommend starting with our FREE plan to test the platform with 50K rows, 3 projects, and 10 AI generations per month. For enterprise needs or specific feature testing, contact sales for a customized evaluation.'
+    },
+    {
+        question: 'Do you offer annual discounts?',
+        answer: 'Yes! Annual billing saves you money on paid tiers. PROFESSIONAL drops from $399/month to the equivalent of ~$319/month ($3,829/year), saving $959 annually. ENTERPRISE drops from $2,499/month to the equivalent of ~$1,999/month ($23,990/year), saving $5,998 annually.'
+    },
+    {
+        question: 'What payment methods do you accept?',
+        answer: 'We\'re currently in private beta. Contact our sales team to discuss payment options and custom enterprise agreements for your organization.'
     }
 ];
 

@@ -1,4 +1,4 @@
-import { Column, DataSource, Entity, JoinTable, OneToMany, PrimaryGeneratedColumn, Relation } from 'typeorm';
+import { Column, DataSource, Entity, JoinColumn, JoinTable, ManyToOne, OneToMany, PrimaryGeneratedColumn, Relation } from 'typeorm';
 import { DRAProject } from './DRAProject.js';
 import { DRADataSource } from './DRADataSource.js';
 import { DRADataModel } from './DRADataModel.js';
@@ -11,6 +11,7 @@ import { DRACategory } from './DRACategory.js';
 import { DRAArticleCategory } from './DRAArticleCategory.js';
 import { DRADataModelSource } from './DRADataModelSource.js';
 import { DRATableMetadata } from './DRATableMetadata.js';
+import { DRASubscriptionTier } from './DRASubscriptionTier.js';
 
 @Entity('dra_users_platform')
 export class DRAUsersPlatform {
@@ -30,6 +31,13 @@ export class DRAUsersPlatform {
     email_verified_at!: Date
     @Column({ type: 'timestamp', nullable: true })
     unsubscribe_from_emails_at!: Date
+    
+    @ManyToOne(() => DRASubscriptionTier, { nullable: true })
+    @JoinColumn({ name: 'interested_subscription_tier_id' })
+    interested_subscription_tier?: Relation<DRASubscriptionTier>
+    
+    @Column({ type: 'timestamp', nullable: true })
+    dismissed_paid_plan_banner_until?: Date
     
     @OneToMany(() => DRAProject, (project) => project.users_platform, { cascade: ["remove", "update"] })
     projects!: Relation<DRAProject>[]
