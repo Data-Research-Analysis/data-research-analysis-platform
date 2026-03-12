@@ -457,7 +457,7 @@ export class UserSubscriptionProcessor {
                     maxDashboards: formatLimit(tier.max_dashboards),
                     maxMembersPerProject: formatLimit(tier.max_members_per_project),
                     aiGenerationsPerMonth: formatLimit(tier.ai_generations_per_month),
-                    maxRowsPerDataModel: tier.max_rows_per_data_model.toLocaleString(),
+                    maxRowsPerDataModel: formatLimit(tier.max_rows_per_data_model),
                     startDate: subscription.started_at,
                     expirationDate: subscription.ends_at || 'Ongoing',
                     endDate: subscription.cancelled_at || ''
