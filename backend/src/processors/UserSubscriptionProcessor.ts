@@ -438,8 +438,10 @@ export class UserSubscriptionProcessor {
             }
             
             // Helper function to format limit values (null, undefined, or -1 = Unlimited)
-            const formatLimit = (value: number | null | undefined): string => {
-                if (value === null || value === undefined || value === -1) {
+            // Note: TypeORM returns bigint columns as strings at runtime, so we use Number()
+            // to handle both the numeric -1 and the string "-1" cases.
+            const formatLimit = (value: number | string | null | undefined): string => {
+                if (value === null || value === undefined || Number(value) === -1) {
                     return 'Unlimited';
                 }
                 return value.toString();
