@@ -43,13 +43,24 @@ function isProjectScopedPath(path: string): boolean {
 }
 
 export default defineNuxtRouteMiddleware((to) => {
+    // Skip during SSR - let client-side handle RBAC after stores are initialized
+    if (typeof window === 'undefined') {
+        console.log('[project-role] Skipping RBAC during SSR');
+        return;
+    }
+
     // Only applies to project-scoped routes
     if (!isProjectScopedPath(to.path)) return;
+
+    console.log('[project-role] Checking RBAC for:', to.path);
 
     // System admins bypass all role checks
     const loggedInUserStore = useLoggedInUserStore();
     const user = loggedInUserStore.getLoggedInUser();
-    if (user?.user_type === 'admin') return;
+    if (user?.user_type === 'admin') {
+        console.log('[project-role] Admin user - bypassing RBAC');
+        return;
+    }
 
     const projectsStore = useProjectsStore();
 
@@ -66,13 +77,23 @@ export default defineNuxtRouteMiddleware((to) => {
     const pid = pidMatch ? parseInt(pidMatch[1]) : null;
     const project = pid ? projectsStore.projects.find(p => p.id === pid) : null;
 
+    // If project data not available yet, skip RBAC check
+    // Let the page load and 02-load-data will fetch the data
+    if (!project) {
+        console.log('[project-role] Project data not loaded yet - allowing navigation (will re-check after data loads)');
+        return;
+    }
+
     // Use my_role from the store; default to most restrictive while store hydrates
     const role = ((project?.my_role) ?? 'cmo') as 'analyst' | 'manager' | 'cmo';
     const isOwner = project?.is_owner ?? false;
 
+    console.log('[project-role] User role:', role, 'isOwner:', isOwner, 'project:', project?.name);
+
     // Owner-only routes — all non-owners are blocked
     // Skip check if project data not available yet (let page load and handle it)
     if (matchesAny(to.path, OWNER_ONLY_PATTERNS) && project && !isOwner) {
+        console.log('[project-role] REDIRECT - owner-only route, user is not owner');
         const projectId = pidMatch ? pidMatch[1] : null;
         return projectId
             ? navigateTo(`/projects/${projectId}`)
@@ -81,6 +102,7 @@ export default defineNuxtRouteMiddleware((to) => {
 
     // Manager+ routes — CMO is blocked
     if (matchesAny(to.path, MANAGER_PLUS_PATTERNS) && role === 'cmo') {
+        console.log('[project-role] REDIRECT - manager+ route, user is CMO');
         const projectId = pidMatch ? pidMatch[1] : null;
         return projectId
             ? navigateTo(`/projects/${projectId}/marketing`)
@@ -89,9 +111,12 @@ export default defineNuxtRouteMiddleware((to) => {
 
     // Analyst-only routes — CMO and manager are blocked
     if (matchesAny(to.path, ANALYST_ONLY_PATTERNS) && role !== 'analyst') {
+        console.log('[project-role] REDIRECT - analyst-only route, user role is:', role);
         const projectId = pidMatch ? pidMatch[1] : null;
         return projectId
             ? navigateTo(`/projects/${projectId}/marketing`)
             : navigateTo('/projects');
     }
+
+    console.log('[project-role] Access granted');
 });

@@ -159,7 +159,9 @@ export class ExcelDataSourceProcessor {
                                 displayTitle: displayColumnName
                             });
 
-                            const dataType = UtilityService.getInstance().convertDataTypeToPostgresDataType(EDataSourceType.EXCEL, column.type);
+                            // Use forced type if user manually set it, otherwise fall back to inferred type or original type
+                            const columnType = column.forcedType || column.inferredType || column.type;
+                            const dataType = UtilityService.getInstance().convertDataTypeToPostgresDataType(EDataSourceType.EXCEL, columnType);
                             let dataTypeString = '';
                             if (dataType.size) {
                                 dataTypeString = `${dataType.type}(${dataType.size})`;

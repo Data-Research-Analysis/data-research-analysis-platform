@@ -7,8 +7,17 @@ export const useLoggedInUserStore = defineStore('loggedInUserDRA', () => {
         loggedInUser.value = user;
         // Only update localStorage on client side
         if (import.meta.client) {
-            localStorage.setItem('loggedInUser', JSON.stringify(user));
-            enableRefreshDataFlag('setLoggedInUser');
+            try {
+                localStorage.setItem('loggedInUser', JSON.stringify(user));
+                enableRefreshDataFlag('setLoggedInUser');
+            } catch (error: any) {
+                if (error.name === 'QuotaExceededError') {
+                    console.warn('[LoggedInUserStore] localStorage quota exceeded for user.');
+                    enableRefreshDataFlag('setLoggedInUser');
+                } else {
+                    console.error('[LoggedInUserStore] Error saving user to localStorage:', error);
+                }
+            }
         }
     }
     

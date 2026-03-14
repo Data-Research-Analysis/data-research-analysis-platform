@@ -2,10 +2,19 @@
 
 definePageMeta({ layout: 'project' });
 import _ from 'lodash';
+import { useColumnTypeDetection } from '@/composables/file-uploads/useColumnTypeDetection';
+import { useDataNormalization } from '@/composables/file-uploads/useDataNormalization';
+import { useFileValidation } from '@/composables/file-uploads/useFileValidation';
+
 const { $swal, $socketio } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
 const config = useRuntimeConfig();
+
+// Initialize composables
+const columnDetector = useColumnTypeDetection();
+const dataNormalizer = useDataNormalization();
+const fileValidator = useFileValidation();
 
 let dropZone = null;
 const state = reactive({
@@ -546,6 +555,8 @@ async function createDataSource(classification = null) {
                                 key: column.key,
                                 column_name: column.key.substring(0, 20).replace(/\s/g,'_').toLowerCase(),
                                 type: column.type,
+                                inferredType: column.inferredType,  // NEW: Original inferred type
+                                forcedType: column.forcedType,      // NEW: User-forced type (if set)
                             };
                         }),
                         rows: sheetRows,
@@ -691,27 +702,20 @@ function showErrorDetails(file) {
 }
 
 function isValidFile(file) {
-  const validExtensions = ['.xlsx', '.xls', '.csv']
-  const validTypes = [
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/vnd.ms-excel',
-    'text/csv'
-  ]
-  
-  const hasValidExtension = validExtensions.some(ext => 
-    file.name.toLowerCase().endsWith(ext)
-  )
-  const hasValidType = validTypes.includes(file.type)
-  
-  return hasValidExtension || hasValidType
+    // Auto-detect file type based on extension
+    const extension = file.name.slice(((file.name.lastIndexOf('.') - 1) >>> 0) + 2).toLowerCase();
+    
+    // Excel page accepts both Excel and CSV files
+    if (extension === 'csv') {
+        return fileValidator.isValidFile(file, 'csv');
+    } else {
+        return fileValidator.isValidFile(file, 'excel');
+    }
 }
 
 function formatFileSize(bytes) {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+    // Delegate to composable
+    return fileValidator.formatFileSize(bytes);
 }
 
 async function handleFiles(files) {
@@ -797,6 +801,9 @@ async function handleFiles(files) {
                         // Analyze columns for type detection and width
                         sheet.columns = analyzeColumns(sheet.rows, sheet.columns);
                         
+                        // Normalize time values (convert Excel decimals to HH:MM:SS)
+                        sheet.rows = normalizeTimeValues(sheet.rows, sheet.columns);
+                        
                         addSheetToCollection(sheet);
                     }
                     
@@ -850,107 +857,18 @@ async function handleFiles(files) {
     }
 }
 
-// Type Detection Functions
-function isBooleanType(values) {
-    const boolPattern = /^(true|false|yes|no|y|n|1|0)$/i;
-    const validCount = values.filter(v => 
-        v === null || v === '' || boolPattern.test(String(v).trim())
-    ).length;
-    return validCount / values.length >= 0.8;
-}
-
-function isNumberType(values) {
-    const validCount = values.filter(v => {
-        if (v === null || v === '') return true;
-        const num = Number(v);
-        return !isNaN(num) && isFinite(num);
-    }).length;
-    return validCount / values.length >= 0.8;
-}
-
-function isDateType(values) {
-    const validCount = values.filter(v => {
-        if (v === null || v === '') return true;
-        const date = new Date(v);
-        return !isNaN(date.getTime());
-    }).length;
-    return validCount / values.length >= 0.8;
-}
-
-function isEmailType(values) {
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const validCount = values.filter(v => 
-        v === null || v === '' || emailPattern.test(String(v).trim())
-    ).length;
-    return validCount / values.length >= 0.8;
-}
-
-function isUrlType(values) {
-    const urlPattern = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
-    const validCount = values.filter(v => 
-        v === null || v === '' || urlPattern.test(String(v).trim())
-    ).length;
-    return validCount / values.length >= 0.8;
-}
-
-function inferColumnType(columnValues) {
-    const nonEmptyValues = columnValues.filter(v => v !== null && v !== '');
-    
-    if (nonEmptyValues.length === 0) return 'text';
-    
-    if (isBooleanType(nonEmptyValues)) return 'boolean';
-    if (isNumberType(nonEmptyValues)) return 'number';
-    if (isDateType(nonEmptyValues)) return 'date';
-    if (isEmailType(nonEmptyValues)) return 'email';
-    if (isUrlType(nonEmptyValues)) return 'url';
-    
-    return 'text';
-}
-
-function calculateColumnWidth(title, values, type) {
-    const maxValueLength = Math.max(
-        title.length,
-        ...values.map(v => String(v || '').length)
-    );
-    
-    // Base width on content
-    let width = Math.min(Math.max(maxValueLength * 10, 100), 400);
-    
-    // Adjust by type
-    if (type === 'date') width = Math.max(width, 150);
-    if (type === 'email') width = Math.max(width, 200);
-    if (type === 'url') width = Math.max(width, 250);
-    
-    return width;
-}
+// Type Detection and Normalization - Delegated to Composables
+// NOTE: These functions now use shared composables imported at the top
+// See: useColumnTypeDetection, useDataNormalization  
 
 function analyzeColumns(rows, existingColumns = []) {
-    if (!rows || rows.length === 0) return existingColumns;
-    
-    const analyzedColumns = existingColumns.map(column => {
-        // Extract values for this column
-        const columnValues = rows.map(row => {
-            const rowData = row.data || row;
-            return rowData[column.key];
-        });
-        
-        // Infer type if not already set
-        const type = column.type || inferColumnType(columnValues);
-        
-        // Calculate width
-        const width = calculateColumnWidth(column.title, columnValues, type);
-        
-        return {
-            ...column,
-            type,
-            width,
-            visible: true,
-            sortable: true,
-            editable: true
-        };
-    });
-    
-    return analyzedColumns;
+    // Delegate to composable
+    return columnDetector.analyzeColumns(rows, existingColumns);
+}
+
+function normalizeTimeValues(rows, columns) {
+    // Delegate to composable
+    return dataNormalizer.normalizeTimeValues(rows, columns);
 }
 
 // Sheet Editing Handlers
@@ -1082,6 +1000,57 @@ function handleSheetRenamed(event) {
     
     sheet.name = newName;
     sheet.metadata.modified = new Date();
+}
+
+function handleColumnTypeForced(event) {
+    console.log('[Excel] handleColumnTypeForced called with event:', event);
+    console.log('[Excel] Current sheets:', state.sheets.map(s => ({ id: s.id, name: s.name, columnCount: s.columns.length })));
+    
+    const { sheetId, columnId, columnKey, forcedType, convertedCount } = event;
+    const sheet = state.sheets.find(s => s.id === sheetId);
+    if (!sheet) {
+        console.warn('[Excel] Sheet not found:', sheetId);
+        console.warn('[Excel] Available sheet IDs:', state.sheets.map(s => s.id));
+        return;
+    }
+    
+    console.log('[Excel] Found sheet:', sheet.name, 'looking for column:', columnId, columnKey);
+    console.log('[Excel] Sheet columns:', sheet.columns.map(c => ({ id: c.id, key: c.key, title: c.title })));
+    
+    // Find column by ID or key
+    const column = sheet.columns.find(col => col.id === columnId || col.key === columnKey);
+    if (!column) {
+        console.warn('[Excel] Column not found. Looking for:', { columnId, columnKey });
+        console.warn('[Excel] Available columns:', sheet.columns.map(c => ({ id: c.id, key: c.key, title: c.title })));
+        return;
+    }
+    
+    console.log('[Excel] Found column:', column.title, 'current type:', column.type, 'forcing to:', forcedType);
+    
+    // Set the forced type and update the current type
+    column.forcedType = forcedType;
+    column.type = forcedType;
+    
+    sheet.metadata.modified = new Date();
+    console.log(`[Excel] ✅ Column type forced: ${column.title} → ${forcedType} (${convertedCount || 0} cells converted)`);
+    console.log('[Excel] Updated column:', { type: column.type, inferredType: column.inferredType, forcedType: column.forcedType });
+}
+
+function handleColumnTypeReset(event) {
+    const { sheetId, columnId, columnKey } = event;
+    const sheet = state.sheets.find(s => s.id === sheetId);
+    if (!sheet) return;
+    
+    // Find column by ID or key
+    const column = sheet.columns.find(col => col.id === columnId || col.key === columnKey);
+    if (!column) return;
+    
+    // Clear the forced type and revert to inferred type
+    column.forcedType = undefined;
+    column.type = column.inferredType;
+    
+    sheet.metadata.modified = new Date();
+    console.log(`[Excel] Column type reset: ${column.title} → ${column.inferredType}`);
 }
 
 onMounted(async () => {
@@ -1360,6 +1329,8 @@ onMounted(async () => {
                         @sheet-changed="handleSheetChanged"
                         @sheet-deleted="handleSheetDeleted"
                         @sheet-renamed="handleSheetRenamed"
+                        @column-type-forced="handleColumnTypeForced"
+                        @column-type-reset="handleColumnTypeReset"
                     />
                 </div>
             </div>

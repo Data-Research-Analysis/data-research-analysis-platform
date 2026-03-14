@@ -158,10 +158,16 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
                     
                     // Sync to localStorage
                     if (import.meta.client) {
-                        localStorage.setItem(
-                            `join-suggestions:${dataSourceId}`,
-                            JSON.stringify(data.inferredJoins)
-                        );
+                        try {
+                            localStorage.setItem(
+                                `join-suggestions:${dataSourceId}`,
+                                JSON.stringify(data.inferredJoins)
+                            );
+                        } catch (error: any) {
+                            if (error.name === 'QuotaExceededError') {
+                                console.warn('[AIDataModeler] localStorage quota exceeded for join suggestions.');
+                            }
+                        }
                     }
                 }
             }
@@ -786,10 +792,16 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
 
                 // Sync to localStorage
                 if (import.meta.client) {
-                    localStorage.setItem(
-                        `suggested-joins-${dataSourceId}`,
-                        JSON.stringify(response.data)
-                    );
+                    try {
+                        localStorage.setItem(
+                            `suggested-joins-${dataSourceId}`,
+                            JSON.stringify(response.data)
+                        );
+                    } catch (error: any) {
+                        if (error.name === 'QuotaExceededError') {
+                            console.warn('[AIDataModeler] localStorage quota exceeded for suggested joins.');
+                        }
+                    }
                 }
             } else {
                 console.warn('[AI Store] No success in response:', response);
@@ -871,7 +883,13 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
                 
                 // Sync to localStorage
                 if (import.meta.client) {
-                    localStorage.setItem(cacheKey, JSON.stringify(preloadedSuggestions.value));
+                    try {
+                        localStorage.setItem(cacheKey, JSON.stringify(preloadedSuggestions.value));
+                    } catch (error: any) {
+                        if (error.name === 'QuotaExceededError') {
+                            console.warn('[AIDataModeler] localStorage quota exceeded for preloaded suggestions.');
+                        }
+                    }
                 }
 
                 return preloadedSuggestions.value;
@@ -896,10 +914,16 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
         appliedSuggestions.value.add(suggestionId);
 
         if (import.meta.client) {
-            localStorage.setItem(
-                'applied-suggestions',
-                JSON.stringify(Array.from(appliedSuggestions.value))
-            );
+            try {
+                localStorage.setItem(
+                    'applied-suggestions',
+                    JSON.stringify(Array.from(appliedSuggestions.value))
+                );
+            } catch (error: any) {
+                if (error.name === 'QuotaExceededError') {
+                    console.warn('[AIDataModeler] localStorage quota exceeded for applied suggestions.');
+                }
+            }
         }
     }
 
@@ -911,10 +935,16 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
         dismissedSuggestions.value.add(suggestionId);
 
         if (import.meta.client) {
-            localStorage.setItem(
-                'dismissed-suggestions',
-                JSON.stringify(Array.from(dismissedSuggestions.value))
-            );
+            try {
+                localStorage.setItem(
+                    'dismissed-suggestions',
+                    JSON.stringify(Array.from(dismissedSuggestions.value))
+                );
+            } catch (error: any) {
+                if (error.name === 'QuotaExceededError') {
+                    console.warn('[AIDataModeler] localStorage quota exceeded for dismissed suggestions.');
+                }
+            }
         }
     }
 
@@ -987,7 +1017,13 @@ export const useAIDataModelerStore = defineStore('aiDataModelerDRA', () => {
                 
                 // Sync to localStorage
                 if (import.meta.client) {
-                    localStorage.setItem(cacheKey, JSON.stringify(preloadedSuggestions.value));
+                    try {
+                        localStorage.setItem(cacheKey, JSON.stringify(preloadedSuggestions.value));
+                    } catch (error: any) {
+                        if (error.name === 'QuotaExceededError') {
+                            console.warn('[AIDataModeler] localStorage quota exceeded for cross-source suggestions.');
+                        }
+                    }
                 }
 
                 return preloadedSuggestions.value;

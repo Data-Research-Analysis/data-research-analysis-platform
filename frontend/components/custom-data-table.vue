@@ -28,6 +28,19 @@ const props = defineProps({
   maxSheets: {
     type: Number,
     default: 10
+  },
+  // Performance props
+  maxDisplayRows: {
+    type: Number,
+    default: 5000  // Show max 5000 rows for performance
+  },
+  paginate: {
+    type: Boolean,
+    default: true  // Enable pagination by default
+  },
+  rowsPerPage: {
+    type: Number,
+    default: 100   // Show 100 rows per page
   }
 });
 
@@ -41,6 +54,8 @@ const emit = defineEmits([
   'column-renamed',
   'column-added',
   'column-duplicated',
+  'column-type-forced',
+  'column-type-reset',
   // Sheet-related events
   'sheet-changed',
   'sheet-created',
@@ -64,7 +79,12 @@ const tableState = reactive({
   showColumnMenu: null,
   columnMenuPosition: { left: '0px', top: '0px' },
   showRowMenu: null,
-  rowMenuPosition: { left: '0px', top: '0px' }
+  rowMenuPosition: { left: '0px', top: '0px' },
+  showTypeSubmenu: false,
+  // Pagination state
+  currentPage: 1,
+  rowsPerPage: 100,
+  showLargeDatasetWarning: false
 });
 
 // Sheet management state
@@ -84,8 +104,19 @@ const visibleColumns = computed(() =>
   tableState.columns.filter(col => col.visible)
 );
 
+// Performance mode detection
+const isLargeDataset = computed(() => tableState.rows.length > 1000);
+const shouldPaginate = computed(() => props.paginate && tableState.rows.length > props.rowsPerPage);
+
+// Optimized sorted rows - only sort if needed
 const sortedRows = computed(() => {
   if (!tableState.sortColumn) return tableState.rows;
+  
+  // For large datasets, disable sorting to improve performance
+  if (isLargeDataset.value && tableState.rows.length > 10000) {
+    console.warn('[DataTable] Sorting disabled for datasets > 10k rows for performance');
+    return tableState.rows;
+  }
   
   return [...tableState.rows].sort((a, b) => {
     const aVal = a.data[tableState.sortColumn];
@@ -97,6 +128,42 @@ const sortedRows = computed(() => {
     
     return tableState.sortDirection === 'desc' ? -comparison : comparison;
   });
+});
+
+// Paginated/limited rows for display
+const displayRows = computed(() => {
+  let rows = sortedRows.value;
+  
+  // Apply max display limit for performance
+  if (rows.length > props.maxDisplayRows) {
+    console.warn(`[DataTable] Limiting display to ${props.maxDisplayRows} of ${rows.length} rows for performance`);
+    rows = rows.slice(0, props.maxDisplayRows);
+    if (!tableState.showLargeDatasetWarning) {
+      tableState.showLargeDatasetWarning = true;
+    }
+  }
+  
+  // Apply pagination if enabled
+  if (shouldPaginate.value) {
+    const start = (tableState.currentPage - 1) * tableState.rowsPerPage;
+    const end = start + tableState.rowsPerPage;
+    return rows.slice(start, end);
+  }
+  
+  return rows;
+});
+
+// Pagination helpers
+const totalPages = computed(() => {
+  if (!shouldPaginate.value) return 1;
+  return Math.ceil(Math.min(tableState.rows.length, props.maxDisplayRows) / tableState.rowsPerPage);
+});
+
+const paginationInfo = computed(() => {
+  if (!shouldPaginate.value) return null;
+  const start = (tableState.currentPage - 1) * tableState.rowsPerPage + 1;
+  const end = Math.min(start + tableState.rowsPerPage - 1, Math.min(tableState.rows.length, props.maxDisplayRows));
+  return { start, end, total: Math.min(tableState.rows.length, props.maxDisplayRows), actualTotal: tableState.rows.length };
 });
 
 const someRowsSelected = computed(() => 
@@ -156,6 +223,20 @@ const isMultiSheetMode = computed(() =>
   props.allowMultipleSheets && (sheetsState.sheets.length > 0 || props.sheets.length > 0)
 );
 
+// Helper function to check if a column is selected (fixes Vue reactivity with Sets)
+function isColumnSelected(columnId) {
+  // Access .size to ensure Vue tracks changes to the Set
+  const size = tableState.selectedColumns.size;
+  return tableState.selectedColumns.has(columnId);
+}
+
+// Helper function to check if a row is selected (fixes Vue reactivity with Sets)
+function isRowSelected(rowId) {
+  // Access .size to ensure Vue tracks changes to the Set
+  const size = tableState.selectedRows.size;
+  return tableState.selectedRows.has(rowId);
+}
+
 // Row selection methods
 function toggleRowSelection(rowId) {
   if (tableState.selectedRows.has(rowId)) {
@@ -163,6 +244,8 @@ function toggleRowSelection(rowId) {
   } else {
     tableState.selectedRows.add(rowId);
   }
+  // Force Vue reactivity by creating new Set reference
+  tableState.selectedRows = new Set(tableState.selectedRows);
   updateAllRowsSelectedState();
   
   emit('row-selected', {
@@ -180,6 +263,8 @@ function toggleAllRows() {
     tableState.rows.forEach(row => tableState.selectedRows.add(row.id));
     tableState.allRowsSelected = true;
   }
+  // Force Vue reactivity
+  tableState.selectedRows = new Set(tableState.selectedRows);
   
   emit('row-selected', {
     allSelected: tableState.allRowsSelected,
@@ -199,6 +284,8 @@ function toggleAllColumns() {
     visibleColumns.value.forEach(column => tableState.selectedColumns.add(column.id));
     showSelectionFeedback(`Selected all ${visibleColumns.value.length} columns`);
   }
+  // Force Vue reactivity
+  tableState.selectedColumns = new Set(tableState.selectedColumns);
 }
 
 function toggleColumnSelection(columnId, event) {
@@ -210,12 +297,22 @@ function toggleColumnSelection(columnId, event) {
   } else {
     tableState.selectedColumns.add(columnId);
   }
+  // Force Vue reactivity by creating new Set reference
+  tableState.selectedColumns = new Set(tableState.selectedColumns);
+}
+
+function clearColumnSelection() {
+  tableState.selectedColumns.clear();
+  // Force Vue reactivity
+  tableState.selectedColumns = new Set(tableState.selectedColumns);
+  showSelectionFeedback('All columns deselected');
 }
 
 function removeSelectedRows() {
   const removedRows = tableState.rows.filter(row => tableState.selectedRows.has(row.id));
   tableState.rows = tableState.rows.filter(row => !tableState.selectedRows.has(row.id));
   tableState.selectedRows.clear();
+  tableState.selectedRows = new Set(tableState.selectedRows);
   tableState.allRowsSelected = false;
   
   emit('rows-removed', {
@@ -228,6 +325,7 @@ function removeAllRows() {
   const removedRows = [...tableState.rows];
   tableState.rows = [];
   tableState.selectedRows.clear();
+  tableState.selectedRows = new Set(tableState.selectedRows);
   tableState.allRowsSelected = false;
   
   emit('rows-removed', {
@@ -251,6 +349,7 @@ function removeRowByIndex(rowIndex) {
   
   // Clear selections that might reference the removed row
   tableState.selectedRows.delete(rowToRemove.id);
+  tableState.selectedRows = new Set(tableState.selectedRows);
   tableState.allRowsSelected = false;
   
   emit('rows-removed', {
@@ -280,6 +379,281 @@ function updateRowIndices() {
   tableState.rows.forEach((row, index) => {
     row.index = index;
   });
+}
+
+function inferColumnType(columnKey) {
+  // Sample first 10 non-empty rows to infer type
+  const sample = tableState.rows
+    .slice(0, 10)
+    .map(row => row.data[columnKey])
+    .filter(val => val !== null && val !== undefined && val !== '');
+  
+  if (sample.length === 0) return 'text';
+  
+  // Check if all values are booleans
+  const isBool = sample.every(val => 
+    typeof val === 'boolean' || 
+    String(val).toLowerCase() === 'true' || 
+    String(val).toLowerCase() === 'false'
+  );
+  if (isBool) return 'boolean';
+  
+  // Check if all values are time (before date check)
+  const isTime = sample.every(val => isValidTimeValue(val));
+  if (isTime) return 'time';
+  
+  // Check if all values are dates
+  const isDate = sample.every(val => {
+    const date = new Date(val);
+    return !isNaN(date.getTime()) && String(val).match(/^\d{4}-\d{2}-\d{2}/);
+  });
+  if (isDate) return 'date';
+  
+  // Check if all values are numbers
+  const isNumber = sample.every(val => !isNaN(parseFloat(val)) && isFinite(val));
+  if (isNumber) return 'number';
+  
+  return 'text';
+}
+
+function isValidTimeValue(value) {
+  if (value === null || value === undefined || value === '') return true;
+  
+  const strValue = String(value).trim();
+  
+  // 24-hour format: HH:MM or HH:MM:SS
+  const time24Pattern = /^([0-1]?[0-9]|2[0-3]):([0-5][0-9])(:([0-5][0-9]))?$/;
+  if (time24Pattern.test(strValue)) return true;
+  
+  // 12-hour format with AM/PM
+  const time12Pattern = /^([0]?[1-9]|1[0-2]):([0-5][0-9])(:([0-5][0-9]))?\s*(AM|PM|am|pm)$/;
+  if (time12Pattern.test(strValue)) return true;
+  
+  // Excel decimal (0-1)
+  const numValue = Number(value);
+  if (!isNaN(numValue) && numValue >= 0 && numValue < 1) return true;
+  
+  return false;
+}
+
+function convertToTime(value) {
+  if (value === null || value === undefined || value === '') return null;
+  
+  const strValue = String(value).trim();
+  
+  // Pattern 1: Already HH:MM:SS (return as-is)
+  const time24SSPattern = /^([0-1]?[0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9])$/;
+  if (time24SSPattern.test(strValue)) return strValue;
+  
+  // Pattern 2: HH:MM (add seconds)
+  const time24Pattern = /^([0-1]?[0-9]|2[0-3]):([0-5][0-9])$/;
+  if (time24Pattern.test(strValue)) return `${strValue}:00`;
+  
+  // Pattern 3: HH:MM:SS AM/PM (convert to 24-hour)
+  const time12SSMatch = strValue.match(/^([0]?[1-9]|1[0-2]):([0-5][0-9]):([0-5][0-9])\s*(AM|PM|am|pm)$/);
+  if (time12SSMatch) {
+    let hours = parseInt(time12SSMatch[1]);
+    const minutes = time12SSMatch[2];
+    const seconds = time12SSMatch[3];
+    const period = time12SSMatch[4].toUpperCase();
+    
+    if (period === 'PM' && hours !== 12) hours += 12;
+    if (period === 'AM' && hours === 12) hours = 0;
+    
+    return `${String(hours).padStart(2, '0')}:${minutes}:${seconds}`;
+  }
+  
+  // Pattern 4: HH:MM AM/PM (convert to 24-hour, add seconds)
+  const time12Match = strValue.match(/^([0]?[1-9]|1[0-2]):([0-5][0-9])\s*(AM|PM|am|pm)$/);
+  if (time12Match) {
+    let hours = parseInt(time12Match[1]);
+    const minutes = time12Match[2];
+    const period = time12Match[3].toUpperCase();
+    
+    if (period === 'PM' && hours !== 12) hours += 12;
+    if (period === 'AM' && hours === 12) hours = 0;
+    
+    return `${String(hours).padStart(2, '0')}:${minutes}:00`;
+  }
+  
+  // Pattern 5: Excel decimal (0 to 1 = midnight to midnight)
+  const numValue = Number(value);
+  if (!isNaN(numValue) && numValue >= 0 && numValue < 1) {
+    const totalSeconds = Math.round(numValue * 86400); // 24 hours = 86400 seconds
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }
+  
+  return null; // Invalid time
+}
+
+function validateTypeConversion(columnKey, targetType) {
+  // Returns { isValid: boolean, invalidCount: number, invalidRows: number[] }
+  const invalidRows = [];
+  
+  tableState.rows.forEach((row, index) => {
+    const value = row.data[columnKey];
+    if (value === null || value === undefined || value === '') return; // Empty is valid
+    
+    let isValid = true;
+    switch (targetType) {
+      case 'number':
+        // Extract first number from string (handles '123-abc', 'Vehicle-4479', etc.)
+        const numMatch = String(value).match(/-?\d+\.?\d*/);
+        const parsed = numMatch ? parseFloat(numMatch[0]) : NaN;
+        isValid = !isNaN(parsed) && isFinite(parsed);
+        break;
+      case 'boolean':
+        const strVal = String(value).toLowerCase();
+        isValid = strVal === 'true' || strVal === 'false' || 
+                  typeof value === 'boolean';
+        break;
+      case 'date':
+        const date = new Date(value);
+        isValid = !isNaN(date.getTime());
+        break;
+      case 'time':
+        isValid = isValidTimeValue(value);
+        break;
+      case 'text':
+        isValid = true; // Text accepts everything
+        break;
+    }
+    
+    if (!isValid) {
+      invalidRows.push(index + 1); // 1-indexed for display
+    }
+  });
+  
+  return {
+    isValid: invalidRows.length === 0,
+    invalidCount: invalidRows.length,
+    invalidRows: invalidRows.slice(0, 5) // First 5 for display
+  };
+}
+
+function forceColumnType(columnId, targetType) {
+  const column = tableState.columns.find(col => col.id === columnId);
+  if (!column) return;
+  
+  // Validate existing data
+  const validation = validateTypeConversion(column.key, targetType);
+  if (!validation.isValid) {
+    // Show error toast
+    const rowsList = validation.invalidRows.length > 0 
+      ? ` (rows: ${validation.invalidRows.join(', ')}${validation.invalidCount > 5 ? '...' : ''})`
+      : '';
+    showSelectionFeedback(
+      `Cannot force type: ${validation.invalidCount} cell${validation.invalidCount > 1 ? 's' : ''} contain invalid data${rowsList}`,
+      'error'
+    );
+    return;
+  }
+  
+  // Convert existing data to target type
+  let convertedCount = 0;
+  tableState.rows.forEach(row => {
+    const currentValue = row.data[column.key];
+    if (currentValue === null || currentValue === undefined || currentValue === '') return;
+    
+    let convertedValue = currentValue;
+    switch (targetType) {
+      case 'number':
+        // Extract first number from string (handles '123-abc' → 123, 'Vehicle-4479' → 4479)
+        const numMatch = String(currentValue).match(/-?\d+\.?\d*/);
+        convertedValue = numMatch ? parseFloat(numMatch[0]) : currentValue;
+        break;
+      case 'boolean':
+        const strVal = String(currentValue).toLowerCase();
+        convertedValue = strVal === 'true' || currentValue === true;
+        break;
+      case 'date':
+        const date = new Date(currentValue);
+        convertedValue = date.toISOString().split('T')[0];
+        break;
+      case 'time':
+        convertedValue = convertToTime(currentValue);
+        break;
+      case 'text':
+        convertedValue = String(currentValue);
+        break;
+    }
+    
+    if (convertedValue !== currentValue) {
+      row.data[column.key] = convertedValue;
+      convertedCount++;
+    }
+  });
+  
+  // Apply forced type
+  if (!column.inferredType) {
+    column.inferredType = column.type; // Save original inferred type
+  }
+  column.forcedType = targetType;
+  column.type = targetType;
+  
+  // Update sheet metadata
+  if (isMultiSheetMode.value && activeSheet.value) {
+    activeSheet.value.columns = [...tableState.columns];
+    activeSheet.value.rows = tableState.rows.map(row => ({ ...row, data: { ...row.data } }));
+    activeSheet.value.metadata.modified = new Date();
+  }
+  
+  // Emit event
+  emit('column-type-forced', {
+    sheetId: props.activeSheetId,
+    columnId: column.id,
+    columnKey: column.key,
+    forcedType: targetType,
+    previousType: column.inferredType,
+    convertedCount
+  });
+  
+  const message = convertedCount > 0 
+    ? `Column "${column.title}" type set to ${targetType} (${convertedCount} cell${convertedCount > 1 ? 's' : ''} converted)`
+    : `Column "${column.title}" type set to ${targetType}`;
+  showSelectionFeedback(message);
+  tableState.showColumnMenu = null;
+  tableState.showTypeSubmenu = false;
+}
+
+function resetColumnType(columnId) {
+  const column = tableState.columns.find(col => col.id === columnId);
+  if (!column || !column.forcedType) return;
+  
+  column.type = column.inferredType || 'text';
+  column.forcedType = null;
+  
+  // Update sheet metadata
+  if (isMultiSheetMode.value && activeSheet.value) {
+    activeSheet.value.columns = [...tableState.columns];
+    activeSheet.value.metadata.modified = new Date();
+  }
+  
+  // Emit event
+  emit('column-type-reset', {
+    sheetId: props.activeSheetId,
+    columnId: column.id,
+    columnKey: column.key,
+    resetToType: column.type
+  });
+  
+  showSelectionFeedback(`Column "${column.title}" type reset to auto (${column.type})`);
+  tableState.showColumnMenu = null;
+  tableState.showTypeSubmenu = false;
+}
+
+function getCurrentColumnType(columnId) {
+  const column = tableState.columns.find(col => col.id === columnId);
+  return column?.type || 'text';
+}
+
+function isColumnTypeForced(columnId) {
+  const column = tableState.columns.find(col => col.id === columnId);
+  return Boolean(column?.forcedType);
 }
 
 function addNewRow(position = 'end', defaultData = {}) {
@@ -443,6 +817,8 @@ function expandColumnSelection(targetColumnId = null) {
       tableState.selectedColumns.add(columnIds[i]);
     }
   }
+  // Force Vue reactivity
+  tableState.selectedColumns = new Set(tableState.selectedColumns);
 }
 
 function fillSelectionGaps() {
@@ -461,6 +837,8 @@ function fillSelectionGaps() {
       addedCount++;
     }
   }
+  // Force Vue reactivity
+  tableState.selectedColumns = new Set(tableState.selectedColumns);
   
   if (addedCount > 0) {
     showSelectionFeedback(`Added ${addedCount} columns to selection`);
@@ -472,6 +850,8 @@ function fillSelectionGaps() {
 function selectAllColumns() {
   const initialCount = tableState.selectedColumns.size;
   visibleColumns.value.forEach(column => tableState.selectedColumns.add(column.id));
+  // Force Vue reactivity
+  tableState.selectedColumns = new Set(tableState.selectedColumns);
   const addedCount = tableState.selectedColumns.size - initialCount;
   
   if (addedCount > 0) {
@@ -481,13 +861,14 @@ function selectAllColumns() {
   }
 }
 
-  function showSelectionFeedback(message) {
+  function showSelectionFeedback(message, type = 'info') {
     // Only manipulate DOM on client side for SSR compatibility
     if (!import.meta.client) return;
     
     // Create a toast-like notification
     const toast = document.createElement('div');
-    toast.className = 'fixed top-4 right-4 bg-blue-500 text-white px-4 py-2 shadow-lg z-50 text-sm font-medium transform transition-all duration-300';
+    const bgColor = type === 'error' ? 'bg-red-500' : 'bg-blue-500';
+    toast.className = `fixed top-4 right-4 ${bgColor} text-white px-4 py-2 shadow-lg z-50 text-sm font-medium transform transition-all duration-300`;
     toast.textContent = message;
     toast.style.transform = 'translateX(100%)';
     
@@ -498,7 +879,8 @@ function selectAllColumns() {
       toast.style.transform = 'translateX(0)';
     }, 10);
     
-    // Animate out and remove
+    // Animate out and remove (longer duration for errors)
+    const duration = type === 'error' ? 4000 : 2000;
     setTimeout(() => {
       toast.style.transform = 'translateX(100%)';
       setTimeout(() => {
@@ -506,19 +888,21 @@ function selectAllColumns() {
           document.body.removeChild(toast);
         }
       }, 300);
-    }, 2000);
+    }, duration);
     
-    // Add visual feedback to selected elements (optional)
-    setTimeout(() => {
-      const selectedHeaders = document.querySelectorAll('.bg-blue-100');
-      selectedHeaders.forEach(header => {
-        const originalBg = header.style.backgroundColor;
-        header.style.backgroundColor = '#dbeafe';
-        setTimeout(() => {
-          header.style.backgroundColor = originalBg;
-        }, 200);
-      });
-    }, 10);
+    // Add visual feedback to selected elements (optional, skip for errors)
+    if (type !== 'error') {
+      setTimeout(() => {
+        const selectedHeaders = document.querySelectorAll('.bg-blue-100');
+        selectedHeaders.forEach(header => {
+          const originalBg = header.style.backgroundColor;
+          header.style.backgroundColor = '#dbeafe';
+          setTimeout(() => {
+            header.style.backgroundColor = originalBg;
+          }, 200);
+        });
+      }, 10);
+    }
   }
 
 function removeSelectedColumns() {
@@ -536,6 +920,8 @@ function removeSelectedColumns() {
   });
   
   tableState.selectedColumns.clear();
+  // Force Vue reactivity
+  tableState.selectedColumns = new Set(tableState.selectedColumns);
   
   emit('column-removed', {
     removedColumns,
@@ -571,6 +957,8 @@ function addNewColumn(position = 'end', columnConfig = {}) {
     key: columnConfig.key || `column_${columnNumber}`,
     title: columnConfig.title || `Column ${columnNumber}`,
     type: columnConfig.type || 'text',
+    inferredType: columnConfig.inferredType || columnConfig.type || 'text',
+    forcedType: columnConfig.forcedType || null,
     width: columnConfig.width || 150,
     visible: columnConfig.visible !== false,
     sortable: columnConfig.sortable !== false,
@@ -624,7 +1012,9 @@ function duplicateColumn(columnId) {
     ...sourceColumn,
     id: newColumnId,
     key: `${sourceColumn.key}_copy`,
-    title: `${sourceColumn.title} (Copy)`
+    title: `${sourceColumn.title} (Copy)`,
+    inferredType: sourceColumn.inferredType || sourceColumn.type,
+    forcedType: sourceColumn.forcedType || null
   };
   
   // Copy data from source column to new column for all rows
@@ -748,6 +1138,15 @@ function updateCellValue(rowId, columnKey, newValue) {
     case 'date':
       processedValue = new Date(newValue);
       break;
+    case 'time':
+      // Time input returns HH:MM or HH:MM:SS format
+      // Ensure it's in HH:MM:SS format (add seconds if missing)
+      if (typeof newValue === 'string' && newValue.match(/^\d{2}:\d{2}$/)) {
+        processedValue = `${newValue}:00`;
+      } else {
+        processedValue = String(newValue).trim();
+      }
+      break;
     case 'email':
     case 'url':
     case 'text':
@@ -792,6 +1191,17 @@ function formatCellValue(value, columnType) {
   switch (columnType) {
     case 'date':
       return value instanceof Date ? value.toLocaleDateString() : value;
+    case 'time':
+      // Time values should already be in HH:MM:SS format
+      // If it's a decimal (Excel format), convert it
+      if (typeof value === 'number' && value >= 0 && value < 1) {
+        const totalSeconds = Math.round(value * 86400);
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+      }
+      return String(value);
     case 'boolean':
       return value ? 'Yes' : 'No';
     case 'number':
@@ -1005,6 +1415,9 @@ defineExpose({
     tableState.selectedRows.clear();
     tableState.selectedColumns.clear();
     tableState.allRowsSelected = false;
+    // Force Vue reactivity
+    tableState.selectedRows = new Set(tableState.selectedRows);
+    tableState.selectedColumns = new Set(tableState.selectedColumns);
   },
   // Sheet management methods
   getAllSheetsData: () => sheetsState.sheets.map(sheet => ({
@@ -1150,6 +1563,9 @@ function handleKeyboardShortcuts(e) {
     tableState.selectedColumns.clear();
     tableState.selectedRows.clear();
     tableState.allRowsSelected = false;
+    // Force Vue reactivity
+    tableState.selectedColumns = new Set(tableState.selectedColumns);
+    tableState.selectedRows = new Set(tableState.selectedRows);
     tableState.showColumnMenu = null;
     sheetsState.showSheetMenu = null;
     sheetsState.editingSheetId = null;
@@ -1166,9 +1582,33 @@ function navigateSheet(direction) {
   }
 }
 
+// Pagination functions
+function goToPage(page) {
+  if (page < 1 || page > totalPages.value) return;
+  tableState.currentPage = page;
+}
+
+function nextPage() {
+  if (tableState.currentPage < totalPages.value) {
+    tableState.currentPage++;
+  }
+}
+
+function prevPage() {
+  if (tableState.currentPage > 1) {
+    tableState.currentPage--;
+  }
+}
+
+function changeRowsPerPage(count) {
+  tableState.rowsPerPage = count;
+  tableState.currentPage = 1; // Reset to first page
+}
+
 function handleClickOutside(e) {
   if (!e.target.closest('.column-menu') && !e.target.closest('.column-menu-trigger')) {
     tableState.showColumnMenu = null;
+    tableState.showTypeSubmenu = false;
   }
   if (!e.target.closest('.row-menu') && !e.target.closest('.row-menu-trigger')) {
     tableState.showRowMenu = null;
@@ -1187,6 +1627,8 @@ function createSheet(name = null, columns = [], rows = []) {
     ? columns.map(col => ({
         ...col,
         id: col?.id ? col.id : `col_${Date.now()}_${Math.random()}`,
+        inferredType: col?.inferredType || col?.type || 'text',
+        forcedType: col?.forcedType || null,
         width: col.width || 150,
         visible: col.visible !== false,
         sortable: col.sortable !== false,
@@ -1195,6 +1637,8 @@ function createSheet(name = null, columns = [], rows = []) {
     : (props.columns || []).map(col => ({
         ...col,
         id: col?.id ? col.id : `col_${Date.now()}_${Math.random()}`,
+        inferredType: col?.inferredType || col?.type || 'text',
+        forcedType: col?.forcedType || null,
         width: col.width || 150,
         visible: col.visible !== false,
         sortable: col.sortable !== false,
@@ -1275,6 +1719,9 @@ function loadSheetData(sheet) {
   tableState.selectedRows.clear();
   tableState.selectedColumns.clear();
   tableState.allRowsSelected = false;
+  // Force Vue reactivity
+  tableState.selectedRows = new Set(tableState.selectedRows);
+  tableState.selectedColumns = new Set(tableState.selectedColumns);
   tableState.editingCell = null;
   tableState.sortColumn = null;
   tableState.sortDirection = null;
@@ -1390,6 +1837,17 @@ onMounted(() => {
         sheetsState.sheets = props.sheets.map(sheet => ({
             ...sheet,
             id: sheet.id || `sheet_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+            // Process columns to ensure they have IDs
+            columns: sheet.columns.map(col => ({
+                ...col,
+                id: col?.id ? col.id : `col_${Date.now()}_${Math.random()}`,
+                inferredType: col?.inferredType || col?.type || 'text',
+                forcedType: col?.forcedType || null,
+                width: col.width || 150,
+                visible: col.visible !== false,
+                sortable: col.sortable !== false,
+                editable: col.editable !== false
+            })),
             metadata: {
                 created: sheet.metadata?.created || new Date(),
                 modified: sheet.metadata?.modified || new Date(),
@@ -1410,6 +1868,8 @@ onMounted(() => {
         tableState.columns = props.columns.map(col => ({
             ...col,
             id: col?.id ? col.id : `col_${Date.now()}_${Math.random()}`,
+            inferredType: col?.inferredType || col?.type || 'text',
+            forcedType: col?.forcedType || null,
             width: col.width || 150,
             visible: col.visible !== false,
             sortable: col.sortable !== false,
@@ -1443,6 +1903,29 @@ onUnmounted(() => {
 </script>
 <template>
   <div class="w-full">
+    <!-- Large Dataset Warning -->
+    <div v-if="tableState.showLargeDatasetWarning" class="mb-4 p-4 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800">
+      <div class="flex items-start gap-3">
+        <font-awesome-icon :icon="['fas', 'triangle-exclamation']" class="w-5 h-5 mt-0.5 flex-shrink-0" />
+        <div>
+          <h3 class="font-semibold mb-1">Large Dataset Detected</h3>
+          <p class="text-sm">
+            This file contains <strong>{{ tableState.rows.length.toLocaleString() }} rows</strong>. 
+            For performance, only the first <strong>{{ maxDisplayRows.toLocaleString() }} rows</strong> are shown in the preview.
+            All data will be included when you create the data source.
+          </p>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Performance Mode Info -->
+    <div v-if="isLargeDataset && tableState.rows.length <= maxDisplayRows" class="mb-4 p-3 bg-blue-50 border-l-4 border-blue-400 text-blue-800 text-sm">
+      <div class="flex items-center gap-2">
+        <font-awesome-icon :icon="['fas', 'circle-info']" class="w-4 h-4" />
+        <span>Performance mode: Showing {{ tableState.rows.length.toLocaleString() }} rows with pagination for better performance.</span>
+      </div>
+    </div>
+    
     <!-- Table Toolbar -->
     <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-4 gap-4">
       <!-- Selection Info & Actions -->
@@ -1501,7 +1984,7 @@ onUnmounted(() => {
         </button>
         <button 
           v-if="selectedColumns.size > 0"
-          @click="selectedColumns.clear()"
+          @click="clearColumnSelection"
           class="border border-purple-500 text-purple-500 hover:bg-purple-50 px-4 py-2 text-sm font-medium transition-colors duration-200"
         >
           Clear Column Selection
@@ -1522,7 +2005,8 @@ onUnmounted(() => {
                 type="checkbox"
                 :checked="allColumnsSelected"
                 :indeterminate="someColumnsSelected"
-                @change="toggleAllColumns"
+                @change.stop="toggleAllColumns"
+                @click.stop
                 class="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500 focus:ring-2"
                 title="Select/Deselect all columns"
               />
@@ -1534,8 +2018,9 @@ onUnmounted(() => {
             >
               <input 
                 type="checkbox"
-                :checked="selectedColumns.has(column.id)"
-                @change="toggleColumnSelection(column.id, $event)"
+                :checked="isColumnSelected(column.id)"
+                @change.stop="toggleColumnSelection(column.id, $event)"
+                @click.stop
                 class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
                 :title="`Select column: ${column.title}`"
               />
@@ -1561,7 +2046,7 @@ onUnmounted(() => {
               :key="column.id"
               class="relative border-r border-gray-200 p-3 text-left font-semibold text-gray-900 select-none group"
               :class="[
-                selectedColumns.has(column.id) ? 'bg-blue-100 border-blue-300' : 'bg-gray-50',
+                isColumnSelected(column.id) ? 'bg-blue-100 border-blue-300' : 'bg-gray-50',
                 column.sortable ? 'cursor-pointer hover:bg-gray-100' : 'cursor-pointer hover:bg-gray-100'
               ]"
               :style="{ width: column.width + 'px', minWidth: column.width + 'px' }"
@@ -1589,7 +2074,7 @@ onUnmounted(() => {
                     {{ column.title }}
                   </span>
                   <!-- Selection indicator -->
-                  <div v-if="selectedColumns.has(column.id)" class="w-2 h-2 bg-blue-500 rounded-full" title="Selected"></div>
+                  <div v-if="isColumnSelected(column.id)" class="w-2 h-2 bg-blue-500 rounded-full" title="Selected"></div>
                 </div>
                 
                 <!-- Sort Indicator -->
@@ -1638,10 +2123,10 @@ onUnmounted(() => {
         <!-- Table Body -->
         <tbody class="divide-y divide-gray-200">
           <tr 
-            v-for="row in sortedRows" 
+            v-for="row in displayRows" 
             :key="row.id"
             class="hover:bg-gray-50 transition-colors duration-150"
-            :class="selectedRows.has(row.id) ? 'bg-blue-50' : 'bg-white'"
+            :class="isRowSelected(row.id) ? 'bg-blue-50' : 'bg-white'"
           >
             <!-- Row Selection Cell -->
             <td 
@@ -1653,8 +2138,9 @@ onUnmounted(() => {
                 <span class="text-xs text-gray-500 font-medium">{{ row.index + 1 }}</span>
                 <input 
                   type="checkbox"
-                  :checked="selectedRows.has(row.id)"
+                  :checked="isRowSelected(row.id)"
                   @change.stop="toggleRowSelection(row.id)"
+                  @click.stop
                   class="w-3 h-3 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-1"
                 />
               </div>
@@ -1695,6 +2181,16 @@ onUnmounted(() => {
                 <input 
                   v-else-if="column.type === 'date'"
                   type="date"
+                  :value="getCellValue(row, column.key)"
+                  @input="updateCellValue(row.id, column.key, $event.target.value); stopEditing()"
+                  @blur="stopEditing"
+                  class="w-full h-full p-2 border-0 outline-none bg-white focus:ring-2 focus:ring-blue-500"
+                />
+                
+                <input 
+                  v-else-if="column.type === 'time'"
+                  type="time"
+                  step="1"
                   :value="getCellValue(row, column.key)"
                   @input="updateCellValue(row.id, column.key, $event.target.value); stopEditing()"
                   @blur="stopEditing"
@@ -1747,6 +2243,77 @@ onUnmounted(() => {
           Add Row
         </button>
       </div>
+      
+      <!-- Pagination Controls -->
+      <div v-if="shouldPaginate" class="p-4 border-t border-gray-200 bg-gray-50">
+        <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+          <!-- Pagination Info -->
+          <div class="text-sm text-gray-600">
+            <span v-if="paginationInfo">
+              Showing <span class="font-semibold">{{ paginationInfo.start }}</span> to 
+              <span class="font-semibold">{{ paginationInfo.end }}</span> of 
+              <span class="font-semibold">{{ paginationInfo.total.toLocaleString() }}</span> rows
+              <span v-if="paginationInfo.actualTotal > paginationInfo.total" class="text-yellow-600">
+                ({{ paginationInfo.actualTotal.toLocaleString() }} total)
+              </span>
+            </span>
+          </div>
+          
+          <!-- Pagination Buttons -->
+          <div class="flex items-center gap-2">
+            <button
+              @click="prevPage"
+              :disabled="tableState.currentPage === 1"
+              class="px-3 py-1.5 border rounded-lg transition-colors duration-200"
+              :class="tableState.currentPage === 1 
+                ? 'border-gray-200 text-gray-400 cursor-not-allowed' 
+                : 'border-gray-300 text-gray-700 hover:bg-gray-100'"
+            >
+              <font-awesome-icon :icon="['fas', 'chevron-left']" class="w-3 h-3" />
+            </button>
+            
+            <div class="flex items-center gap-1">
+              <span class="text-sm text-gray-600">Page</span>
+              <input
+                type="number"
+                v-model.number="tableState.currentPage"
+                @change="goToPage(tableState.currentPage)"
+                min="1"
+                :max="totalPages"
+                class="w-16 px-2 py-1 text-sm text-center border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+              <span class="text-sm text-gray-600">of {{ totalPages }}</span>
+            </div>
+            
+            <button
+              @click="nextPage"
+              :disabled="tableState.currentPage === totalPages"
+              class="px-3 py-1.5 border rounded-lg transition-colors duration-200"
+              :class="tableState.currentPage === totalPages 
+                ? 'border-gray-200 text-gray-400 cursor-not-allowed' 
+                : 'border-gray-300 text-gray-700 hover:bg-gray-100'"
+            >
+              <font-awesome-icon :icon="['fas', 'chevron-right']" class="w-3 h-3" />
+            </button>
+          </div>
+          
+          <!-- Rows Per Page Selector -->
+          <div class="flex items-center gap-2 text-sm">
+            <label class="text-gray-600">Rows:</label>
+            <select
+              v-model.number="tableState.rowsPerPage"
+              @change="changeRowsPerPage(tableState.rowsPerPage)"
+              class="px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option :value="50">50</option>
+              <option :value="100">100</option>
+              <option :value="250">250</option>
+              <option :value="500">500</option>
+              <option :value="1000">1000</option>
+            </select>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Column Context Menu -->
@@ -1764,14 +2331,14 @@ onUnmounted(() => {
         :style="columnMenuPosition"
       >
         <button 
-          @click="sortColumnByDirection(showColumnMenu, 'asc')" 
+          @click="sortColumnByDirection(showColumnMenu, 'asc'); tableState.showTypeSubmenu = false;" 
           class="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm flex items-center gap-2 transition-colors duration-150"
         >
           <font-awesome-icon :icon="['fas', 'chevron-down']" class="w-4 h-4" />
           Sort Ascending
         </button>
         <button 
-          @click="sortColumnByDirection(showColumnMenu, 'desc')" 
+          @click="sortColumnByDirection(showColumnMenu, 'desc'); tableState.showTypeSubmenu = false;" 
           class="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm flex items-center gap-2 transition-colors duration-150"
         >
           <font-awesome-icon :icon="['fas', 'chevron-up']" class="w-4 h-4" />
@@ -1780,7 +2347,7 @@ onUnmounted(() => {
         <hr class="my-1 border-gray-200">
         <button 
           v-if="selectedColumns.size >= 2 && hasSelectionGaps"
-          @click="fillSelectionGaps(); tableState.showColumnMenu = null;" 
+          @click="fillSelectionGaps(); tableState.showColumnMenu = null; tableState.showTypeSubmenu = false;" 
           class="w-full text-left px-4 py-2 hover:bg-orange-50 text-orange-600 text-sm flex items-center gap-2 transition-colors duration-150"
         >
           <font-awesome-icon :icon="['fas', 'bars']" class="w-4 h-4" />
@@ -1788,21 +2355,21 @@ onUnmounted(() => {
         </button>
         <hr class="my-1 border-gray-200">
         <button 
-          @click="insertColumnAt(getColumnIndex(showColumnMenu)); tableState.showColumnMenu = null;" 
+          @click="insertColumnAt(getColumnIndex(showColumnMenu)); tableState.showColumnMenu = null; tableState.showTypeSubmenu = false;" 
           class="w-full text-left px-4 py-2 hover:bg-green-50 text-green-600 text-sm flex items-center gap-2 transition-colors duration-150"
         >
           <font-awesome-icon :icon="['fas', 'plus']" class="w-4 h-4" />
           Insert Column Before
         </button>
         <button 
-          @click="insertColumnAt(getColumnIndex(showColumnMenu) + 1); tableState.showColumnMenu = null;" 
+          @click="insertColumnAt(getColumnIndex(showColumnMenu) + 1); tableState.showColumnMenu = null; tableState.showTypeSubmenu = false;" 
           class="w-full text-left px-4 py-2 hover:bg-green-50 text-green-600 text-sm flex items-center gap-2 transition-colors duration-150"
         >
           <font-awesome-icon :icon="['fas', 'plus']" class="w-4 h-4" />
           Insert Column After
         </button>
         <button 
-          @click="duplicateColumn(showColumnMenu); tableState.showColumnMenu = null;" 
+          @click="duplicateColumn(showColumnMenu); tableState.showColumnMenu = null; tableState.showTypeSubmenu = false;" 
           class="w-full text-left px-4 py-2 hover:bg-green-50 text-green-600 text-sm flex items-center gap-2 transition-colors duration-150"
         >
           <font-awesome-icon :icon="['fas', 'copy']" class="w-4 h-4" />
@@ -1810,14 +2377,119 @@ onUnmounted(() => {
         </button>
         <hr class="my-1 border-gray-200">
         <button 
-          @click="startColumnEdit(showColumnMenu)" 
+          @click="startColumnEdit(showColumnMenu); tableState.showTypeSubmenu = false;" 
           class="w-full text-left px-4 py-2 hover:bg-blue-50 text-blue-600 text-sm flex items-center gap-2 transition-colors duration-150"
         >
           <font-awesome-icon :icon="['fas', 'pen']" class="w-4 h-4" />
           Rename Column
         </button>
+        
+        <hr class="my-1 border-gray-200">
+        
+        <!-- Force Type Submenu Trigger -->
+        <div class="relative">
+          <button 
+            @click="tableState.showTypeSubmenu = !tableState.showTypeSubmenu"
+            @mouseenter="tableState.showTypeSubmenu = true"
+            class="w-full text-left px-4 py-2 hover:bg-purple-50 text-purple-600 text-sm flex items-center justify-between transition-colors duration-150"
+          >
+            <div class="flex items-center gap-2">
+              <font-awesome-icon :icon="['fas', 'wand-magic-sparkles']" class="w-4 h-4" />
+              Force Type
+            </div>
+            <font-awesome-icon :icon="['fas', 'chevron-right']" class="w-3 h-3" />
+          </button>
+          
+          <!-- Type Submenu -->
+          <Transition
+            enter-active-class="transition ease-out duration-150"
+            enter-from-class="opacity-0 scale-95"
+            enter-to-class="opacity-100 scale-100"
+            leave-active-class="transition ease-in duration-100"
+            leave-from-class="opacity-100 scale-100"
+            leave-to-class="opacity-0 scale-95"
+          >
+            <div 
+              v-if="tableState.showTypeSubmenu"
+              class="absolute left-full top-0 ml-1 bg-white border border-gray-300 shadow-lg py-1 min-w-[140px] z-[60]"
+            >
+              <button 
+                @click="forceColumnType(showColumnMenu, 'text')"
+                class="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm flex items-center justify-between transition-colors duration-150"
+              >
+                <span>Text</span>
+                <font-awesome-icon 
+                  v-if="getCurrentColumnType(showColumnMenu) === 'text'"
+                  :icon="['fas', 'check']" 
+                  class="w-3 h-3 text-green-600" 
+                />
+              </button>
+              <button 
+                @click="forceColumnType(showColumnMenu, 'number')"
+                class="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm flex items-center justify-between transition-colors duration-150"
+              >
+                <span>Number</span>
+                <font-awesome-icon 
+                  v-if="getCurrentColumnType(showColumnMenu) === 'number'"
+                  :icon="['fas', 'check']" 
+                  class="w-3 h-3 text-green-600" 
+                />
+              </button>
+              <button 
+                @click="forceColumnType(showColumnMenu, 'date')"
+                class="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm flex items-center justify-between transition-colors duration-150"
+              >
+                <span>Date</span>
+                <font-awesome-icon 
+                  v-if="getCurrentColumnType(showColumnMenu) === 'date'"
+                  :icon="['fas', 'check']" 
+                  class="w-3 h-3 text-green-600" 
+                />
+              </button>
+              <button 
+                @click="forceColumnType(showColumnMenu, 'time')"
+                class="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm flex items-center justify-between transition-colors duration-150"
+              >
+                <span>Time</span>
+                <font-awesome-icon 
+                  v-if="getCurrentColumnType(showColumnMenu) === 'time'"
+                  :icon="['fas', 'check']" 
+                  class="w-3 h-3 text-green-600" 
+                />
+              </button>
+              <button 
+                @click="forceColumnType(showColumnMenu, 'boolean')"
+                class="w-full text-left px-4 py-2 hover:bg-gray-100 text-sm flex items-center justify-between transition-colors duration-150"
+              >
+                <span>Boolean</span>
+                <font-awesome-icon 
+                  v-if="getCurrentColumnType(showColumnMenu) === 'boolean'"
+                  :icon="['fas', 'check']" 
+                  class="w-3 h-3 text-green-600" 
+                />
+              </button>
+              
+              <hr 
+                v-if="isColumnTypeForced(showColumnMenu)"
+                class="my-1 border-gray-200"
+              >
+              
+              <button 
+                v-if="isColumnTypeForced(showColumnMenu)"
+                @click="resetColumnType(showColumnMenu)"
+                class="w-full text-left px-4 py-2 hover:bg-amber-50 text-amber-600 text-sm flex items-center gap-2 transition-colors duration-150"
+              >
+                <font-awesome-icon :icon="['fas', 'rotate-left']" class="w-3 h-3" />
+                Reset to Auto
+              </button>
+            </div>
+          </Transition>
+        </div>
+        
+        <hr class="my-1 border-gray-200">
+        
         <button 
-          @click="removeColumn(showColumnMenu)" 
+          @click="removeColumn(showColumnMenu); tableState.showTypeSubmenu = false;" 
           class="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 text-sm flex items-center gap-2 transition-colors duration-150"
         >
           <font-awesome-icon :icon="['fas', 'trash']" class="w-4 h-4" />

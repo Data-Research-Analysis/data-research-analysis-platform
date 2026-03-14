@@ -35,20 +35,35 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     function setDataSources(dataSourcesList: IDataSource[]) {
         dataSources.value = dataSourcesList
         if (import.meta.client) {
-            localStorage.setItem('dataSources', JSON.stringify(dataSourcesList));
-            enableRefreshDataFlag('setDataSources');
+            try {
+                localStorage.setItem('dataSources', JSON.stringify(dataSourcesList));
+                enableRefreshDataFlag('setDataSources');
+            } catch (error: any) {
+                if (error.name === 'QuotaExceededError') {
+                    console.warn('[DataSourceStore] localStorage quota exceeded for dataSources. Data kept in memory only.');
+                    enableRefreshDataFlag('setDataSources');
+                } else {
+                    console.error('[DataSourceStore] Error saving dataSources to localStorage:', error);
+                }
+            }
         }
     }
     function setSelectedDataSource(dataSource: IDataSource) {
         selectedDataSource.value = dataSource
         if (import.meta.client) {
-            localStorage.setItem('selectedDataSource', JSON.stringify(dataSource));
+            try {
+                localStorage.setItem('selectedDataSource', JSON.stringify(dataSource));
+            } catch (error: any) {
+                if (error.name === 'QuotaExceededError') {
+                    console.warn('[DataSourceStore] localStorage quota exceeded for selectedDataSource. Data kept in memory only.');
+                } else {
+                    console.error('[DataSourceStore] Error saving selectedDataSource to localStorage:', error);
+                }
+            }
         }
     }
     function getDataSources() {
-        if (import.meta.client && localStorage.getItem('dataSources')) {
-            dataSources.value = JSON.parse(localStorage.getItem('dataSources') || '[]')
-        }
+        // Return current value - don't overwrite with potentially stale localStorage
         return dataSources.value;
     }
     async function retrieveDataSources() {
@@ -67,7 +82,8 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
     }
 
     function getSelectedDataSource() {
-        if (import.meta.client && localStorage.getItem('selectedDataSource')) {
+        // Load from localStorage only if not already set
+        if (import.meta.client && !selectedDataSource.value && localStorage.getItem('selectedDataSource')) {
             selectedDataSource.value = JSON.parse(localStorage.getItem('selectedDataSource') || 'null')
         }        
         return selectedDataSource.value

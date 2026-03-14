@@ -6,8 +6,17 @@ export const usePrivateBetaUserStore = defineStore('privateBetaUserStore', () =>
     function setPrivateBetaUsers(usersList: IPrivateBetaUser[]) {
         privateBetaUsers.value = usersList;
         if (import.meta.client) {
-            localStorage.setItem('privateBetaUsers', JSON.stringify(usersList));
-            enableRefreshDataFlag('setPrivateBetaUsers');
+            try {
+                localStorage.setItem('privateBetaUsers', JSON.stringify(usersList));
+                enableRefreshDataFlag('setPrivateBetaUsers');
+            } catch (error: any) {
+                if (error.name === 'QuotaExceededError') {
+                    console.warn('[PrivateBetaUsersStore] localStorage quota exceeded.');
+                    enableRefreshDataFlag('setPrivateBetaUsers');
+                } else {
+                    console.error('[PrivateBetaUsersStore] Error saving to localStorage:', error);
+                }
+            }
         }
     }
     function getPrivateBetaUsers() {

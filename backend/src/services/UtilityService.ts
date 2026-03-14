@@ -385,6 +385,8 @@ export class UtilityService {
             return { baseType: 'BIGINT' };
         } else if (normalizedType === 'DATE') {
             return { baseType: 'DATE' };
+        } else if (normalizedType === 'TIME') {
+            return { baseType: 'TIME' };
         } else {
             // Default to text for unknown Excel data types
             return { baseType: 'VARCHAR', size: 1024 };
@@ -413,6 +415,8 @@ export class UtilityService {
             return { baseType: 'BIGINT' };
         } else if (normalizedType === 'DATE') {
             return { baseType: 'DATE' };
+        } else if (normalizedType === 'TIME') {
+            return { baseType: 'TIME' };
         } else {
             // Default to text for unknown PDF data types
             return { baseType: 'VARCHAR', size: 1024 };

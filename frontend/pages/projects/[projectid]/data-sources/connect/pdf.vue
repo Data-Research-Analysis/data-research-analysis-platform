@@ -3,10 +3,17 @@
 definePageMeta({ layout: 'project' });
 import _ from 'lodash';
 import { ISocketEvent } from '~/types/ISocketEvent';
+import { useColumnTypeDetection } from '@/composables/file-uploads/useColumnTypeDetection';
+import { useDataNormalization } from '@/composables/file-uploads/useDataNormalization';
+
 const loggedInUserStore = useLoggedInUserStore();
 const { $swal, $socketio } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
+
+// Initialize file upload composables
+const columnDetector = useColumnTypeDetection();
+const dataNormalizer = useDataNormalization();
 
 let dropZone = null;
 const state = reactive({
@@ -464,176 +471,38 @@ function isNullPlaceholder(value) {
   return typeof value === 'string' && NULL_PLACEHOLDERS.includes(value.trim());
 }
 
-function isBooleanType(values) {
-  const booleanPatterns = /^(true|false|yes|no|y|n|1|0|on|off|active|inactive|enabled|disabled)$/i
-  const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '' && !isNullPlaceholder(v))
-  if (nonEmptyValues.length === 0) return false
-  
-  // Require at least 70% of values to be valid boolean patterns
-  const validBooleanCount = nonEmptyValues.filter(value => 
-    booleanPatterns.test(String(value).trim())
-  ).length;
-  
-  const threshold = Math.max(1, Math.ceil(nonEmptyValues.length * 0.7));
-  return validBooleanCount >= threshold;
-}
-function isNumberType(values) {
-  const numberPattern = /^-?\$?[\d,]+\.?\d*%?$/
-  const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '' && !isNullPlaceholder(v))
-  if (nonEmptyValues.length === 0) return false
-  
-  return nonEmptyValues.every(value => {
-    const str = String(value).trim().replace(/[$,%]/g, '')
-    return !isNaN(str) && !isNaN(parseFloat(str)) && str !== ''
-  })
-}
-function isDateType(values) {
-  const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '' && !isNullPlaceholder(v))
-  if (nonEmptyValues.length === 0) return false
-  
-  return nonEmptyValues.every(value => {
-    const str = String(value).trim()
-    if (!str) return false
+// Thin wrapper functions that delegate to composables for backward compatibility
+/**
+ * Create column objects from raw PDF row data
+ * Extracts column keys from first row and creates proper column structure
+ */
+function createColumnsFromRowData(rows) {
+    if (!rows || rows.length === 0) return [];
     
-    // Try parsing as date
-    const date = new Date(str)
-    if (isNaN(date.getTime())) return false
+    const firstRow = rows[0];
+    const columnKeys = Object.keys(firstRow);
     
-    // Check for common date patterns
-    const datePatterns = [
-      /^\d{4}-\d{2}-\d{2}$/, // YYYY-MM-DD
-      /^\d{2}\/\d{2}\/\d{4}$/, // MM/DD/YYYY or DD/MM/YYYY
-      /^\d{2}-\d{2}-\d{4}$/, // MM-DD-YYYY or DD-MM-YYYY
-      /^\w{3}\s+\d{1,2},?\s+\d{4}$/, // Mon DD, YYYY
-      /^\d{1,2}\/\d{1,2}\/\d{2,4}$/, // M/D/YY or MM/DD/YYYY
-      /^[A-Z][a-z]{2} [A-Z][a-z]{2} \d{2} \d{4} \d{2}:\d{2}:\d{2} GMT[+-]\d{4}( \(.+\))?$/ // JS Date string
-    ]
-    
-    return datePatterns.some(pattern => pattern.test(str))
-  })
-}
-function isEmailType(values) {
-  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '' && !isNullPlaceholder(v))
-  if (nonEmptyValues.length === 0) return false
-  
-  return nonEmptyValues.every(value => 
-    emailPattern.test(String(value).trim())
-  )
-}
-function isUrlType(values) {
-  const urlPattern = /^https?:\/\/.+\..+/
-  const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '' && !isNullPlaceholder(v))
-  if (nonEmptyValues.length === 0) return false
-  
-  return nonEmptyValues.every(value => 
-    urlPattern.test(String(value).trim())
-  )
-}
-function inferColumnType(values) {
-  // Priority order: boolean > number > date > email > url > text
-  if (isBooleanType(values)) return 'boolean'
-  if (isNumberType(values)) return 'number'
-  if (isDateType(values)) return 'date'
-  if (isEmailType(values)) return 'email'
-  if (isUrlType(values)) return 'url'
-  return 'text'
-}
-function calculateColumnWidth(columnName, values, type) {
-  // Calculate header width (8px per character + padding)
-  const headerWidth = columnName.length * 8 + 24
-  
-  // Calculate max content width (6px per character + padding)
-  const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '' && !isNullPlaceholder(v))
-  const maxContentLength = nonEmptyValues.length > 0 
-    ? Math.max(...nonEmptyValues.map(v => String(v).length))
-    : 0
-  const contentWidth = maxContentLength * 6 + 24
-  
-  // Type-specific minimum widths
-  const typeMinWidths = {
-    boolean: 80,
-    number: 100,
-    date: 120,
-    email: 200,
-    url: 200,
-    text: 100
-  }
-  
-  const minWidth = typeMinWidths[type] || 100
-  const calculatedWidth = Math.max(headerWidth, contentWidth, minWidth)
-  
-  // Cap maximum width at 300px for readability
-  return Math.min(calculatedWidth, 300)
-}
-function analyzeColumns(rows) {
-  if (!rows || rows.length === 0) return { columns: [], hasDuplicates: false, renamedColumns: [] }
-  
-  const columnKeys = Object.keys(rows[0])
-  
-  // Track sanitized names to detect duplicates
-  const sanitizedNamesCount = new Map();
-  const finalNamesUsed = new Set();
-  const renamedColumns = [];
-  
-  // First pass: count occurrences of each sanitized name
-  columnKeys.forEach(key => {
-    const sanitized = key.toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 63);
-    const count = sanitizedNamesCount.get(sanitized) || 0;
-    sanitizedNamesCount.set(sanitized, count + 1);
-  });
-  
-  const columns = columnKeys.map((key, index) => {
-    // Extract all values for this column
-    const columnValues = rows.map(row => row[key])
-    
-    // Infer type and calculate width
-    const type = inferColumnType(columnValues)
-    
-    // Handle duplicate column names
-    let sanitizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 63);
-    let finalKey = sanitizedKey;
-    
-    // If this sanitized name appears multiple times, add suffix
-    if (sanitizedNamesCount.get(sanitizedKey) > 1) {
-      let suffixCounter = 1;
-      while (finalNamesUsed.has(`${sanitizedKey}_${suffixCounter}`)) {
-        suffixCounter++;
-      }
-      finalKey = `${sanitizedKey}_${suffixCounter}`;
-      console.log(`[PDF Duplicate Column] "${key}" → "${finalKey}" (duplicate of "${sanitizedKey}")`);
-      
-      // Track renamed column for user review
-      renamedColumns.push({
-        originalIndex: index,
+    return columnKeys.map((key, index) => ({
+        id: `col_${Date.now()}_${index}_${Math.random()}`,
+        key: key,
+        title: key,  // Use the key as the title initially
         originalTitle: key,
-        sanitizedName: sanitizedKey,
-        finalName: finalKey,
-        reason: 'duplicate'
-      });
-    }
-    
-    finalNamesUsed.add(finalKey);
-    const width = calculateColumnWidth(key, columnValues, type)
-    
-    return {
-      id: `col_${Date.now()}_${Math.random()}`,
-      key: finalKey,
-      originalKey: sanitizedKey,
-      title: key,
-      type,
-      width,
-      sortable: true,
-      editable: true,
-      visible: true
-    }
-  });
-  
-  return {
-    columns,
-    hasDuplicates: renamedColumns.length > 0,
-    renamedColumns
-  };
+        originalKey: key,
+        type: 'text',  // Default type, will be inferred by analyzeColumns
+        inferredType: 'text',
+        visible: true,
+        sortable: true,
+        editable: true,
+        width: 150
+    }));
+}
+
+function analyzeColumns(rows, existingColumns = []) {
+    return columnDetector.analyzeColumns(rows, existingColumns);
+}
+
+function normalizeTimeValues(rows, columns) {
+    return dataNormalizer.normalizeTimeValues(rows, columns);
 }
 async function uploadPDFToServer(fileData) {
   const formData = new FormData();
@@ -853,6 +722,57 @@ function handleColumnRenamed(event) {
     }
 }
 
+function handleColumnTypeForced(event) {
+    console.log('[PDF] handleColumnTypeForced called with event:', event);
+    console.log('[PDF] Current sheets:', state.sheets.map(s => ({ id: s.id, name: s.name, columnCount: s.columns.length })));
+    
+    const { sheetId, columnId, columnKey, forcedType, convertedCount } = event;
+    const sheet = state.sheets.find(s => s.id === sheetId);
+    if (!sheet) {
+        console.warn('[PDF] Sheet not found:', sheetId);
+        console.warn('[PDF] Available sheet IDs:', state.sheets.map(s => s.id));
+        return;
+    }
+    
+    console.log('[PDF] Found sheet:', sheet.name, 'looking for column:', columnId, columnKey);
+    console.log('[PDF] Sheet columns:', sheet.columns.map(c => ({ id: c.id, key: c.key, title: c.title })));
+    
+    // Find column by ID or key
+    const column = sheet.columns.find(col => col.id === columnId || col.key === columnKey);
+    if (!column) {
+        console.warn('[PDF] Column not found. Looking for:', { columnId, columnKey });
+        console.warn('[PDF] Available columns:', sheet.columns.map(c => ({ id: c.id, key: c.key, title: c.title })));
+        return;
+    }
+    
+    console.log('[PDF] Found column:', column.title, 'current type:', column.type, 'forcing to:', forcedType);
+    
+    // Set the forced type and update the current type
+    column.forcedType = forcedType;
+    column.type = forcedType;
+    
+    sheet.metadata.modified = new Date();
+    console.log(`[PDF] ✅ Column type forced: ${column.title} → ${forcedType} (${convertedCount || 0} cells converted)`);
+    console.log('[PDF] Updated column:', { type: column.type, inferredType: column.inferredType, forcedType: column.forcedType });
+}
+
+function handleColumnTypeReset(event) {
+    const { sheetId, columnId, columnKey } = event;
+    const sheet = state.sheets.find(s => s.id === sheetId);
+    if (!sheet) return;
+    
+    // Find column by ID or key
+    const column = sheet.columns.find(col => col.id === columnId || col.key === columnKey);
+    if (!column) return;
+    
+    // Clear the forced type and revert to inferred type
+    column.forcedType = undefined;
+    column.type = column.inferredType;
+    
+    sheet.metadata.modified = new Date();
+    console.log(`[PDF] Column type reset: ${column.title} → ${column.inferredType}`);
+}
+
 onMounted(async () => {
   state.upload_id = _.uniqueId();
   dropZone = document.getElementById('drop-zone');
@@ -899,18 +819,31 @@ onMounted(async () => {
         const pageData = parsedData.data.data;
         const fileIndex = state.files.findIndex(f => fileName.includes(f.id));
         if (fileIndex !== -1) {
-            const analyzedResult = analyzeColumns(pageData);
+            // Step 1: Create column objects from raw row data
+            const rawColumns = createColumnsFromRowData(pageData);
+            
+            // Step 2: Analyze columns to infer types and detect duplicates
+            const analyzedResult = analyzeColumns(pageData, rawColumns);
             const analyzedColumns = analyzedResult.columns || analyzedResult;
-            const hasDuplicates = analyzedResult.hasDuplicates || false;
-            const renamedColumns = analyzedResult.renamedColumns || [];
+            
+            // Check for duplicate column names (backend should handle this, but double-check)
+            const columnTitles = analyzedColumns.map(col => col.title);
+            const hasDuplicates = columnTitles.length !== new Set(columnTitles).size;
+            const renamedColumns = hasDuplicates ? 
+                analyzedColumns.filter((col, idx) => columnTitles.indexOf(col.title) !== idx)
+                    .map(col => ({ oldName: col.originalTitle, newName: col.title })) : [];
+            
             const pageIndex = pageNumber - 1;
+            
+            // Step 3: Normalize time values
+            const normalizedPageData = normalizeTimeValues(pageData, analyzedColumns);
 
             // Update file page data
             if (state.files[fileIndex].pages[pageIndex]) {
               state.files[fileIndex].pages[pageIndex].columns = analyzedColumns;
-              state.files[fileIndex].pages[pageIndex].rows = pageData || [];
-              state.files[fileIndex].pages[pageIndex].num_columns = pageData && pageData[0] ? Object.keys(pageData[0]).length : 0;
-              state.files[fileIndex].pages[pageIndex].num_rows = pageData ? pageData.length : 0;
+              state.files[fileIndex].pages[pageIndex].rows = normalizedPageData || [];
+              state.files[fileIndex].pages[pageIndex].num_columns = normalizedPageData && normalizedPageData[0] ? Object.keys(normalizedPageData[0]).length : 0;
+              state.files[fileIndex].pages[pageIndex].num_rows = normalizedPageData ? normalizedPageData.length : 0;
             }
             
             // Track renamed columns at file level
@@ -926,18 +859,18 @@ onMounted(async () => {
             if (existingSheet) {
                 // Update existing sheet
                 existingSheet.columns = analyzedColumns;
-                existingSheet.rows = (pageData || []).map((rowData, index) => ({
+                existingSheet.rows = (normalizedPageData || []).map((rowData, index) => ({
                     id: `row_${Date.now()}_${index}`,
                     data: { ...rowData }
                 }));
-                existingSheet.metadata.rowCount = pageData ? pageData.length : 0;
+                existingSheet.metadata.rowCount = normalizedPageData ? normalizedPageData.length : 0;
                 existingSheet.metadata.columnCount = analyzedColumns.length;
                 existingSheet.metadata.modified = new Date();
             } else {
                 // Create new sheet
                 const pageInfo = {
                     columns: analyzedColumns,
-                    rows: (pageData || []).map((rowData, index) => ({
+                    rows: (normalizedPageData || []).map((rowData, index) => ({
                         id: `row_${Date.now()}_${index}`,
                         data: { ...rowData }
                     }))
@@ -1103,6 +1036,7 @@ onMounted(async () => {
                         Showing {{ state.sheets.length }} sheet{{ state.sheets.length !== 1 ? 's' : '' }} from {{ state.files.length }} PDF file{{ state.files.length !== 1 ? 's' : '' }}
                     </div>
                     <custom-data-table
+                        :columns="[]"
                         :sheets="state.sheets"
                         :activeSheetId="state.activeSheetId"
                         :allowMultipleSheets="true"
@@ -1118,6 +1052,8 @@ onMounted(async () => {
                         @sheet-created="handleSheetCreated"
                         @sheet-deleted="handleSheetDeleted"
                         @sheet-renamed="handleSheetRenamed"
+                        @column-type-forced="handleColumnTypeForced"
+                        @column-type-reset="handleColumnTypeReset"
                         ref="dataTable"
                     />
                 </div>
