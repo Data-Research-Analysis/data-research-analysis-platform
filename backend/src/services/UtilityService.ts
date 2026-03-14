@@ -367,7 +367,7 @@ export class UtilityService {
         baseType: string; 
         size?: number;
     } {
-        //text, email, url, boolean, number, integer, decimal, date
+        //text, email, url, boolean, number, integer, bigint, decimal, date
         const normalizedType = dataType.trim().toUpperCase();
         if (normalizedType === 'EMAIL') {
             return { baseType: 'VARCHAR', size: 512 };
@@ -381,6 +381,8 @@ export class UtilityService {
             return { baseType: 'NUMERIC' };
         } else if (normalizedType === 'INTEGER' || normalizedType === 'INT') {
             return { baseType: 'INTEGER' };
+        } else if (normalizedType === 'BIGINT') {
+            return { baseType: 'BIGINT' };
         } else if (normalizedType === 'DATE') {
             return { baseType: 'DATE' };
         } else {
@@ -393,7 +395,7 @@ export class UtilityService {
         baseType: string; 
         size?: number;
     } {
-        // PDF data types are similar to Excel: text, email, url, boolean, number, date
+        // PDF data types are similar to Excel: text, email, url, boolean, number, integer, bigint, decimal, date
         const normalizedType = dataType.trim().toUpperCase();
         if (normalizedType === 'EMAIL') {
             return { baseType: 'VARCHAR', size: 512 };
@@ -403,8 +405,12 @@ export class UtilityService {
             return { baseType: 'VARCHAR', size: 2048 }; // PDF text might be longer
         } else if (normalizedType === 'BOOLEAN') {
             return { baseType: 'BOOLEAN' };
-        } else if (normalizedType === 'NUMBER') {
+        } else if (normalizedType === 'NUMBER' || normalizedType === 'DECIMAL') {
             return { baseType: 'NUMERIC' };
+        } else if (normalizedType === 'INTEGER') {
+            return { baseType: 'INTEGER' };
+        } else if (normalizedType === 'BIGINT') {
+            return { baseType: 'BIGINT' };
         } else if (normalizedType === 'DATE') {
             return { baseType: 'DATE' };
         } else {

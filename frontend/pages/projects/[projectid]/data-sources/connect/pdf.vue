@@ -18,6 +18,13 @@ const state = reactive({
     selected_file: null,
     loading: false,
     upload_id: 0,
+    loadingTableForFileId: null, // Track which file's table is being loaded
+    showClassificationModal: false,
+    selectedClassification: null,
+    // Duplicate column handling
+    renamedColumns: [], // Track renamed columns per file
+    requiresReview: false,
+    reviewAcknowledged: false,
 });
 const user = computed(() => loggedInUserStore.getLoggedInUser());
 
@@ -36,10 +43,15 @@ const hasErrorFiles = computed(() => {
 });
 
 const buttonDisabled = computed(() => {
+    // Disable if review is required but not acknowledged
+    if (state.requiresReview && !state.reviewAcknowledged) {
+        return true;
+    }
     return state.loading || !allFilesCompleted.value || state.files.length === 0;
 });
 
 const buttonStatusText = computed(() => {
+    if (state.requiresReview && !state.reviewAcknowledged) return 'Please review and approve renamed columns';
     if (state.loading) return 'Creating Data Source...';
     if (state.files.length === 0) return 'Please upload PDF files first';
     if (hasErrorFiles.value) return 'Some files failed to process';
@@ -114,6 +126,9 @@ function preventDefaults(e) {
     e.stopPropagation();
 }
 function showTable(fileId) {
+    // Set loading state for this file
+    state.loadingTableForFileId = fileId;
+    
     nextTick(() => {
         state.show_table_dialog = false;
         setTimeout(() => {
@@ -126,6 +141,8 @@ function showTable(fileId) {
                 // If sheets already exist, show the table
                 if (fileSheets.length > 0) {
                     state.show_table_dialog = true;
+                    // Clear loading state
+                    state.loadingTableForFileId = null;
                     return;
                 }
                 
@@ -140,29 +157,180 @@ function showTable(fileId) {
                 }
             }
             state.show_table_dialog = true;
+            // Clear loading state
+            state.loadingTableForFileId = null;
         }, 500);
     });
 }
-function removeFile(fileId) {
-    // Remove sheets associated with this file
-    removeSheetsByFileId(fileId);
+async function removeFile(fileId) {
+    const file = state.files.find(f => f.id === fileId);
+    if (!file) return;
     
-    // Remove the file itself
-    state.files = state.files.filter((file) => file.id !== fileId);
+    // Show confirmation dialog
+    const result = await $swal.fire({
+        title: 'Delete File?',
+        text: `Are you sure you want to remove "${file.displayName || file.name}"? This action cannot be undone.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Yes, delete it',
+        cancelButtonText: 'Cancel'
+    });
     
-    // Hide table dialog if no sheets remain
-    if (state.sheets.length === 0) {
-        state.show_table_dialog = false;
+    // If user confirmed, proceed with deletion
+    if (result.isConfirmed) {
+        // Remove sheets associated with this file
+        removeSheetsByFileId(fileId);
+        
+        // Remove the file itself
+        state.files = state.files.filter((file) => file.id !== fileId);
+        
+        // Hide table dialog if no sheets remain
+        if (state.sheets.length === 0) {
+            state.show_table_dialog = false;
+        }
+        
+        // Reset file input to allow re-uploading the same file
+        if (import.meta.client) {
+            const fileElem = document.getElementById('file-elem');
+            if (fileElem) {
+                fileElem.value = '';
+            }
+        }
+        
+        // Show success message
+        $swal.fire({
+            title: 'Deleted!',
+            text: `${file.displayName || file.name} has been removed.`,
+            icon: 'success',
+            timer: 2000,
+            showConfirmButton: false
+        });
     }
 }
-async function createDataSource() {
+
+// Duplicate Column Modal Handler
+async function showDuplicateColumnModal(fileName, renamedColumns, fileId) {
+    const columnList = renamedColumns.map((col, idx) => 
+        `${idx + 1}. "<strong>${col.originalTitle}</strong>" → "<strong class="text-blue-600">${col.finalName}</strong>"`
+    ).join('<br>');
+    
+    const result = await $swal.fire({
+        title: 'Duplicate Columns Detected',
+        icon: 'warning',
+        html: `
+            <div class="text-left">
+                <p class="mb-3">The following columns in <strong>${fileName}</strong> have duplicate names and were automatically renamed:</p>
+                <div class="bg-yellow-50 border border-yellow-200 rounded p-3 mb-3 text-sm" style="max-height: 300px; overflow-y: auto;">
+                    ${columnList}
+                </div>
+                <p class="text-sm text-gray-600">
+                    <strong>Action Required:</strong> Please review the renamed columns in the preview below. 
+                    You can manually rename them or approve the automatic names.
+                </p>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Review in Preview',
+        cancelButtonText: 'Cancel Upload',
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        width: '600px'
+    });
+    
+    if (!result.isConfirmed) {
+        // User cancelled - remove file from upload list
+        const fileIndex = state.files.findIndex(f => f.id === fileId);
+        if (fileIndex >= 0) {
+            state.files.splice(fileIndex, 1);
+            // Also remove associated sheets
+            removeSheetsByFileId(fileId);
+            // Remove from renamed columns tracking
+            state.renamedColumns = state.renamedColumns.filter(r => r.fileId !== fileId);
+            // Check if we still need review
+            state.requiresReview = state.renamedColumns.length > 0;
+        }
+    }
+}
+
+// Helper function to check if a column is renamed
+function isRenamedColumn(fileName, columnIndex) {
+    const file = state.renamedColumns.find(r => r.fileName === fileName);
+    return file?.columns.some(c => c.originalIndex === columnIndex) || false;
+}
+
+// Helper function to get original column name
+function getOriginalColumnName(fileName, columnIndex) {
+    const file = state.renamedColumns.find(r => r.fileName === fileName);
+    const column = file?.columns.find(c => c.originalIndex === columnIndex);
+    return column?.originalTitle || '';
+}
+
+// Helper function to handle column rename in preview
+function onColumnRenamed(fileName, columnIndex, newName) {
+    const file = state.renamedColumns.find(r => r.fileName === fileName);
+    if (file) {
+        const column = file.columns.find(c => c.originalIndex === columnIndex);
+        if (column) {
+            column.finalName = newName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+        }
+    }
+}
+
+// Show list of all renamed columns
+function showRenamedColumnsList() {
+    const allRenames = state.renamedColumns.flatMap(file => 
+        file.columns.map(col => ({
+            file: file.fileName,
+            original: col.originalTitle,
+            renamed: col.finalName
+        }))
+    );
+    
+    const tableRows = allRenames.map((rename, idx) => `
+        <tr class="${idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'}">
+            <td class="px-4 py-2 border text-sm">${rename.file}</td>
+            <td class="px-4 py-2 border font-mono text-sm">${rename.original}</td>
+            <td class="px-4 py-2 border text-center text-gray-400">→</td>
+            <td class="px-4 py-2 border font-mono text-sm text-blue-600">${rename.renamed}</td>
+        </tr>
+    `).join('');
+    
+    $swal.fire({
+        title: 'All Renamed Columns',
+        html: `
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm border-collapse">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-4 py-2 border font-semibold">File</th>
+                            <th class="px-4 py-2 border font-semibold">Original Name</th>
+                            <th class="px-4 py-2 border"></th>
+                            <th class="px-4 py-2 border font-semibold">New Name</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tableRows}
+                    </tbody>
+                </table>
+            </div>
+        `,
+        width: '800px',
+        confirmButtonText: 'Close'
+    });
+}
+
+async function createDataSource(classification = null) {
     // Prevent execution if button should be disabled
     if (buttonDisabled.value) {
+        state.showClassificationModal = false;
         return;
     }
 
     const token = getAuthToken();
     if (!state.data_source_name || state.data_source_name.trim() === '') {
+        state.showClassificationModal = false;
         $swal.fire({
             icon: 'error',
             title: `Error!`,
@@ -172,6 +340,7 @@ async function createDataSource() {
     }
     
     if (state.sheets.length === 0) {
+        state.showClassificationModal = false;
         $swal.fire({
             icon: 'error',
             title: `Error!`,
@@ -182,6 +351,7 @@ async function createDataSource() {
 
     // Additional check to ensure all files are completed
     if (!allFilesCompleted.value) {
+        state.showClassificationModal = false;
         $swal.fire({
             icon: 'error',
             title: `Error!`,
@@ -231,6 +401,7 @@ async function createDataSource() {
                 data_source_name: `${state.data_source_name}`.replace(/\s/g,'_').toLowerCase(),
                 project_id: route.params.projectid,
                 data_source_id: dataSourceId ? dataSourceId : null,
+                classification: dataSourceId ? null : (classification || state.selectedClassification),
                 sheet_info: {
                     sheet_id: sheet.id,
                     sheet_name: sheet.name,
@@ -248,6 +419,9 @@ async function createDataSource() {
     
     state.loading = false;
     
+    // Close the classification modal
+    state.showClassificationModal = false;
+    
     $swal.fire({
         icon: 'success',
         title: 'Success!',
@@ -255,6 +429,15 @@ async function createDataSource() {
     });
     
     router.push(`/projects/${route.params.projectid}/data-sources`);
+}
+
+function goToDataSources() {
+    router.push(`/projects/${route.params.projectid}/data-sources`);
+}
+
+function handleCreateClick() {
+    if (buttonDisabled.value) return;
+    state.showClassificationModal = true;
 }
 
 function goBack() {
@@ -274,9 +457,16 @@ function isValidFile(file) {
   return hasValidExtension || hasValidType
 }
 // Type detection helper functions
+// Common null placeholder strings to skip during type detection
+const NULL_PLACEHOLDERS = ['NIL', 'N/A', 'NA', '#N/A', 'NULL', 'null', 'Nil', 'nil', '-', '--', 'NONE', 'None', 'none'];
+
+function isNullPlaceholder(value) {
+  return typeof value === 'string' && NULL_PLACEHOLDERS.includes(value.trim());
+}
+
 function isBooleanType(values) {
   const booleanPatterns = /^(true|false|yes|no|y|n|1|0|on|off|active|inactive|enabled|disabled)$/i
-  const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '')
+  const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '' && !isNullPlaceholder(v))
   if (nonEmptyValues.length === 0) return false
   
   // Require at least 70% of values to be valid boolean patterns
@@ -289,7 +479,7 @@ function isBooleanType(values) {
 }
 function isNumberType(values) {
   const numberPattern = /^-?\$?[\d,]+\.?\d*%?$/
-  const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '')
+  const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '' && !isNullPlaceholder(v))
   if (nonEmptyValues.length === 0) return false
   
   return nonEmptyValues.every(value => {
@@ -298,7 +488,7 @@ function isNumberType(values) {
   })
 }
 function isDateType(values) {
-  const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '')
+  const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '' && !isNullPlaceholder(v))
   if (nonEmptyValues.length === 0) return false
   
   return nonEmptyValues.every(value => {
@@ -324,7 +514,7 @@ function isDateType(values) {
 }
 function isEmailType(values) {
   const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '')
+  const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '' && !isNullPlaceholder(v))
   if (nonEmptyValues.length === 0) return false
   
   return nonEmptyValues.every(value => 
@@ -333,7 +523,7 @@ function isEmailType(values) {
 }
 function isUrlType(values) {
   const urlPattern = /^https?:\/\/.+\..+/
-  const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '')
+  const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '' && !isNullPlaceholder(v))
   if (nonEmptyValues.length === 0) return false
   
   return nonEmptyValues.every(value => 
@@ -354,7 +544,7 @@ function calculateColumnWidth(columnName, values, type) {
   const headerWidth = columnName.length * 8 + 24
   
   // Calculate max content width (6px per character + padding)
-  const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '')
+  const nonEmptyValues = values.filter(v => v !== null && v !== undefined && v !== '' && !isNullPlaceholder(v))
   const maxContentLength = nonEmptyValues.length > 0 
     ? Math.max(...nonEmptyValues.map(v => String(v).length))
     : 0
@@ -377,21 +567,59 @@ function calculateColumnWidth(columnName, values, type) {
   return Math.min(calculatedWidth, 300)
 }
 function analyzeColumns(rows) {
-  if (!rows || rows.length === 0) return []
+  if (!rows || rows.length === 0) return { columns: [], hasDuplicates: false, renamedColumns: [] }
   
   const columnKeys = Object.keys(rows[0])
   
-  return columnKeys.map(key => {
+  // Track sanitized names to detect duplicates
+  const sanitizedNamesCount = new Map();
+  const finalNamesUsed = new Set();
+  const renamedColumns = [];
+  
+  // First pass: count occurrences of each sanitized name
+  columnKeys.forEach(key => {
+    const sanitized = key.toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 63);
+    const count = sanitizedNamesCount.get(sanitized) || 0;
+    sanitizedNamesCount.set(sanitized, count + 1);
+  });
+  
+  const columns = columnKeys.map((key, index) => {
     // Extract all values for this column
     const columnValues = rows.map(row => row[key])
     
     // Infer type and calculate width
     const type = inferColumnType(columnValues)
+    
+    // Handle duplicate column names
+    let sanitizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 63);
+    let finalKey = sanitizedKey;
+    
+    // If this sanitized name appears multiple times, add suffix
+    if (sanitizedNamesCount.get(sanitizedKey) > 1) {
+      let suffixCounter = 1;
+      while (finalNamesUsed.has(`${sanitizedKey}_${suffixCounter}`)) {
+        suffixCounter++;
+      }
+      finalKey = `${sanitizedKey}_${suffixCounter}`;
+      console.log(`[PDF Duplicate Column] "${key}" → "${finalKey}" (duplicate of "${sanitizedKey}")`);
+      
+      // Track renamed column for user review
+      renamedColumns.push({
+        originalIndex: index,
+        originalTitle: key,
+        sanitizedName: sanitizedKey,
+        finalName: finalKey,
+        reason: 'duplicate'
+      });
+    }
+    
+    finalNamesUsed.add(finalKey);
     const width = calculateColumnWidth(key, columnValues, type)
     
     return {
       id: `col_${Date.now()}_${Math.random()}`,
-      key,
+      key: finalKey,
+      originalKey: sanitizedKey,
       title: key,
       type,
       width,
@@ -399,7 +627,13 @@ function analyzeColumns(rows) {
       editable: true,
       visible: true
     }
-  })
+  });
+  
+  return {
+    columns,
+    hasDuplicates: renamedColumns.length > 0,
+    renamedColumns
+  };
 }
 async function uploadPDFToServer(fileData) {
   const formData = new FormData();
@@ -476,9 +710,18 @@ async function handleFiles(files) {
       status: 'processing',
       originalFile: file,
       pages: [],
+      renamedColumns: [] // Track renamed columns for this file
     };
     state.files.push(tempFile);
     await parseFile(tempFile);
+  }
+  
+  // Reset file input to allow re-uploading files
+  if (import.meta.client) {
+    const fileElem = document.getElementById('file-elem');
+    if (fileElem) {
+      fileElem.value = '';
+    }
   }
 }
 
@@ -656,7 +899,10 @@ onMounted(async () => {
         const pageData = parsedData.data.data;
         const fileIndex = state.files.findIndex(f => fileName.includes(f.id));
         if (fileIndex !== -1) {
-            const analyzedColumns = analyzeColumns(pageData);
+            const analyzedResult = analyzeColumns(pageData);
+            const analyzedColumns = analyzedResult.columns || analyzedResult;
+            const hasDuplicates = analyzedResult.hasDuplicates || false;
+            const renamedColumns = analyzedResult.renamedColumns || [];
             const pageIndex = pageNumber - 1;
 
             // Update file page data
@@ -665,6 +911,12 @@ onMounted(async () => {
               state.files[fileIndex].pages[pageIndex].rows = pageData || [];
               state.files[fileIndex].pages[pageIndex].num_columns = pageData && pageData[0] ? Object.keys(pageData[0]).length : 0;
               state.files[fileIndex].pages[pageIndex].num_rows = pageData ? pageData.length : 0;
+            }
+            
+            // Track renamed columns at file level
+            if (hasDuplicates && renamedColumns.length > 0) {
+              state.files[fileIndex].renamedColumns = state.files[fileIndex].renamedColumns || [];
+              state.files[fileIndex].renamedColumns.push(...renamedColumns);
             }
 
             // Update or create corresponding sheet
@@ -697,6 +949,24 @@ onMounted(async () => {
             // Mark file as completed when all pages are processed
             if (state.files[fileIndex].pages.length === pageNumber) {
               state.files[fileIndex].status = 'completed';
+              
+              // Check if this file has duplicates and show modal
+              if (state.files[fileIndex].renamedColumns && state.files[fileIndex].renamedColumns.length > 0) {
+                const fileRenamedCols = state.files[fileIndex].renamedColumns;
+                // Add to state tracking
+                state.renamedColumns.push({
+                  fileId: state.files[fileIndex].id,
+                  fileName: state.files[fileIndex].displayName || state.files[fileIndex].name,
+                  columns: fileRenamedCols
+                });
+                state.requiresReview = true;
+                // Show modal
+                showDuplicateColumnModal(
+                  state.files[fileIndex].displayName || state.files[fileIndex].name,
+                  fileRenamedCols,
+                  state.files[fileIndex].id
+                );
+              }
             }
         }
       }
@@ -724,33 +994,38 @@ onMounted(async () => {
                 <p class="text-sm text-gray-600">Supported formats: .pdf</p>
                 <input type="file" id="file-elem" multiple class="hidden">
             </div>
-            <div class="grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5 mx-auto mt-5">
-                <div v-for="file in state.files" class="w-full relative">
-                    <notched-card  class="justify-self-center mt-5">
+            <div class="flex flex-wrap justify-center gap-6 mx-auto mt-5 px-4">
+                <div v-for="file in state.files" :key="file.id" class="relative">
+                    <notched-card>
                         <template #body="{ onClick }">
                             <NuxtLink class="text-gray-500">
-                                <div class="flex flex-row justify-end">
+                                <div class="flex flex-row justify-start">
                                     <font-awesome
-                                      v-if="file.status === 'completed' && file.pages && file.pages.some(page => page.rows && page.rows.length)"
+                                      v-if="state.loadingTableForFileId === file.id"
+                                      icon="fas fa-spinner"
+                                      class="text-xl mr-2 text-blue-500 fa-spin cursor-pointer"
+                                    />
+                                    <font-awesome
+                                      v-else-if="file.status === 'completed' && file.pages && file.pages.some(page => page.rows && page.rows.length)"
                                       icon="fas fa-table"
-                                      class="text-xl ml-2 text-gray-500 hover:text-gray-400 cursor-pointer"
+                                      class="text-xl mr-2 text-gray-500 hover:text-gray-400 cursor-pointer"
                                       :v-tippy-content="'View All Pages In Multi-Sheet Table'"
                                       @click="showTable(file.id)"
                                     />
                                     <font-awesome
                                       v-if="file.status === 'completed'"
                                       icon="fas fa-check"
-                                      class="text-xl ml-2 text-green-300"
+                                      class="text-xl mr-2 text-green-500"
                                     />
                                     <font-awesome
                                       v-else-if="file.status === 'processing'"
                                       icon="fas fa-hourglass-half"
-                                      class="text-xl ml-2 text-gray-500"
+                                      class="text-xl mr-2 text-gray-500"
                                     />
                                     <font-awesome
                                       v-else-if="file.status === 'error'"
                                       icon="fas fa-exclamation"
-                                      class="text-xl ml-2 text-red-500"
+                                      class="text-xl mr-2 text-red-500"
                                     />
                                 </div>
                                 <div class="flex flex-col justify-center">
@@ -776,8 +1051,8 @@ onMounted(async () => {
                             </NuxtLink>
                         </template>
                     </notched-card>
-                    <div v-if="file.status !== 'processing'" class="absolute top-px -right-2 z-10 bg-gray-200 hover:bg-gray-300 border border-gray-200 border-solid rounded-full w-10 h-10 flex items-center justify-center cursor-pointer" @click="removeFile(file.id)" v-tippy="{ content: 'Remove File', placement: 'top' }">
-                        <font-awesome icon="fas fa-xmark" class="text-xl text-red-500 hover:text-red-400" />
+                    <div class="absolute -top-2 -right-3 z-10 bg-red-500 hover:bg-red-600 border border-red-500 border-solid rounded-full w-10 h-10 flex items-center justify-center cursor-pointer shadow-md" @click="removeFile(file.id)" v-tippy="{ content: 'Remove File', placement: 'top' }">
+                        <font-awesome icon="fas fa-xmark" class="text-xl text-white" />
                     </div>
                 </div>
             </div>
@@ -856,6 +1131,38 @@ onMounted(async () => {
                     {{ buttonStatusText }}
                 </div>
                 
+                <!-- Duplicate column warning banner -->
+                <div v-if="state.requiresReview && !state.reviewAcknowledged" class="mb-5 w-full max-w-2xl">
+                    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-lg">
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0">
+                                <font-awesome-icon :icon="['fas', 'triangle-exclamation']" class="h-5 w-5 text-yellow-400" />
+                            </div>
+                            <div class="ml-3 flex-1">
+                                <h3 class="text-sm font-medium text-yellow-800">Action Required: Review Renamed Columns</h3>
+                                <div class="mt-2 text-sm text-yellow-700">
+                                    <p>Some PDF files contain duplicate column names. We've automatically renamed them to ensure your data uploads correctly.</p>
+                                    <p class="mt-1"><strong>Please review the changes below and approve to continue.</strong></p>
+                                </div>
+                                <div class="mt-4 flex gap-3">
+                                    <button
+                                        @click="state.reviewAcknowledged = true"
+                                        class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded text-sm font-medium transition-colors"
+                                    >
+                                        Approve Renames &amp; Continue
+                                    </button>
+                                    <button
+                                        @click="showRenamedColumnsList"
+                                        class="bg-white hover:bg-gray-50 text-yellow-800 border border-yellow-300 px-4 py-2 rounded text-sm font-medium transition-colors"
+                                    >
+                                        View All Renamed Columns
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
                 <!-- Create button -->
                 <div 
                     class="h-10 text-center items-center self-center p-2 font-bold shadow-md select-none transition-all duration-200 rounded-lg"
@@ -863,11 +1170,20 @@ onMounted(async () => {
                         'bg-primary-blue-100 hover:bg-primary-blue-200 cursor-pointer text-white': !buttonDisabled,
                         'bg-gray-300 cursor-not-allowed text-gray-500': buttonDisabled
                     }"
-                    @click="!buttonDisabled && createDataSource()"
+                    @click="!buttonDisabled && handleCreateClick()"
                 >
                     Create PDF Data Source &amp; Upload PDF Files
                 </div>
             </div>
         </div>
     </div>
+
+    <data-source-classification-modal
+        v-if="state.showClassificationModal"
+        v-model="state.showClassificationModal"
+        :loading="state.loading"
+        confirm-label="Create Data Source"
+        @confirm="(c) => { state.selectedClassification = c; createDataSource(c); }"
+        @cancel="state.showClassificationModal = false"
+    />
 </template>

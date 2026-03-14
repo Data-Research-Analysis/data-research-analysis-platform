@@ -199,8 +199,12 @@ export class PDFDataSourceProcessor {
                                             values += ', ';
                                         }
 
+                                        // Common null placeholder strings
+                                        const NULL_PLACEHOLDERS = ['NIL', 'N/A', 'NA', '#N/A', 'NULL', 'null', 'Nil', 'nil', '-', '--', 'NONE', 'None', 'none'];
+                                        const isNullPlaceholder = typeof value === 'string' && NULL_PLACEHOLDERS.includes(value.trim());
+
                                         // Handle different data types properly with comprehensive escaping
-                                        if (value === null || value === undefined || value === '') {
+                                        if (value === null || value === undefined || value === '' || isNullPlaceholder) {
                                             values += 'NULL';
                                         } else if (columnInfo.type === 'boolean') {
                                             const boolValue = DataSourceSQLHelpers.convertToPostgresBoolean(value);

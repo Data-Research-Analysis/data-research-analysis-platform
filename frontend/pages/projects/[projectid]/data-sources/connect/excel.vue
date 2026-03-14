@@ -2,7 +2,7 @@
 
 definePageMeta({ layout: 'project' });
 import _ from 'lodash';
-const { $swal } = useNuxtApp();
+const { $swal, $socketio } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
 const config = useRuntimeConfig();
@@ -19,6 +19,13 @@ const state = reactive({
     upload_id: 0,
     showClassificationModal: false,
     selectedClassification: null,
+    loadingTableForFileId: null, // Track which file's table is being loaded
+    uploadJobs: new Map(), // Track jobId -> fileId mapping
+    completedDataSourceId: null, // Track the created data source ID
+    // NEW: Duplicate column handling
+    renamedColumns: [], // Track renamed columns per sheet
+    requiresReview: false,
+    reviewAcknowledged: false,
 });
 
 // Computed properties for button state management
@@ -27,8 +34,30 @@ const allFilesCompleted = computed(() => {
     return state.files.every(file => file.status === 'completed');
 });
 
+const allUploadsCompleted = computed(() => {
+    if (!state.files || state.files.length === 0) return false;
+    // Check if all files that were queued/uploading are now uploaded or error
+    const uploadedOrError = state.files.every(file => 
+        file.status === 'uploaded' || file.status === 'error' || file.status === 'completed'
+    );
+    return uploadedOrError;
+});
+
+const hasUploadedFiles = computed(() => {
+    return state.files.some(file => file.status === 'uploaded');
+});
+
+const allSheetsUploaded = computed(() => {
+    if (!state.files || state.files.length === 0) return false;
+    return state.files.every(file => file.status === 'uploaded' || file.status === 'error');
+});
+
 const hasProcessingFiles = computed(() => {
-    return state.files.some(file => file.status === 'processing');
+    return state.files.some(file => 
+        file.status === 'processing' || 
+        file.status === 'uploading' || 
+        file.status === 'queued'
+    );
 });
 
 const hasErrorFiles = computed(() => {
@@ -36,16 +65,243 @@ const hasErrorFiles = computed(() => {
 });
 
 const buttonDisabled = computed(() => {
+    // Disable if review is required but not acknowledged
+    if (state.requiresReview && !state.reviewAcknowledged) {
+        return true;
+    }
     return state.loading || !allFilesCompleted.value || state.files.length === 0;
 });
 
 const buttonStatusText = computed(() => {
+    if (state.requiresReview && !state.reviewAcknowledged) return 'Please review and approve renamed columns';
     if (state.loading) return 'Creating Data Source...';
     if (state.files.length === 0) return 'Please upload Excel files first';
-    if (hasErrorFiles.value) return 'Some files failed to process';
-    if (hasProcessingFiles.value) return 'Processing files...';
+    if (hasErrorFiles.value && !hasProcessingFiles.value) return 'Some files failed - fix errors or remove them';
+    if (hasProcessingFiles.value) return 'Uploading in progress...';
+    if (allUploadsCompleted.value && state.completedDataSourceId) return 'All uploads completed!';
     if (allFilesCompleted.value) return 'Ready to create data source';
     return 'Upload Excel files to continue';
+});
+
+// Socket.IO event handler for Excel upload progress
+const handleExcelUploadProgress = (eventData) => {
+    try {
+        const data = typeof eventData === 'string' ? JSON.parse(eventData) : eventData;
+        const { jobId, fileId, phase, progress, message, error, dataSourceId } = data;
+        
+        // Find the file associated with this job
+        const file = state.files.find(f => f.id === fileId);
+        if (!file) return;
+        
+        console.log('[Excel Upload Progress]', { phase, progress, message, fileId });
+        
+        // Update file status based on phase
+        if (phase === 'queued') {
+            file.status = 'queued';
+            file.progress = progress;
+            file.statusMessage = message || 'Upload queued';
+        } else if (phase === 'processing') {
+            file.status = 'uploading';
+            file.progress = progress;
+            file.statusMessage = message || 'Processing...';
+        } else if (phase === 'completed') {
+            file.status = 'uploaded';
+            file.progress = 100;
+            file.statusMessage = 'Upload completed';
+            
+            // Store the data source ID if this is the first sheet of a new data source
+            if (dataSourceId && !state.completedDataSourceId) {
+                state.completedDataSourceId = dataSourceId;
+            }
+            
+            // Check if all files are now uploaded
+            const allDone = state.files.every(f => f.status === 'uploaded' || f.status === 'error');
+            const successCount = state.files.filter(f => f.status === 'uploaded').length;
+            
+            if (allDone && successCount > 0) {
+                $swal.fire({
+                    icon: 'success',
+                    title: 'All Uploads Complete!',
+                    text: `Successfully uploaded ${successCount} file(s). Click "View Data Sources" to see your data.`,
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 6000,
+                    timerProgressBar: true
+                });
+            }
+        } else if (phase === 'failed') {
+            file.status = 'error';
+            file.progress = 0;
+            file.statusMessage = error || 'Upload failed';
+            file.error = error;
+            
+            // Parse structured error if available
+            let errorTitle = 'Upload Failed';
+            let errorText = `Failed to upload ${file.name}`;
+            
+            if (error) {
+                // Check if error message contains specific details
+                if (error.includes('row') || error.includes('column')) {
+                    errorTitle = 'Data Validation Error';
+                    errorText = error;
+                } else {
+                    errorText = `${file.name}: ${error}`;
+                }
+            }
+            
+            // Show detailed error notification
+            $swal.fire({
+                icon: 'error',
+                title: errorTitle,
+                html: `
+                    <div style="text-align: left;">
+                        <p><strong>${file.name}</strong></p>
+                        <p style="color: #d33;">${errorText}</p>
+                        <hr style="margin: 10px 0;">
+                        <p style="font-size: 0.9em; color: #666;">
+                            <strong>Common solutions:</strong><br>
+                            • Check that numeric values aren't too large (max: 2,147,483,647)<br>
+                            • Verify date formats are consistent<br>
+                            • Ensure required fields aren't empty<br>
+                            • Remove any special characters that might cause issues
+                        </p>
+                    </div>
+                `,
+                confirmButtonText: 'OK',
+                width: '500px'
+            });
+        }
+    } catch (err) {
+        console.error('[Excel Upload Progress] Error parsing event:', err);
+    }
+};
+
+// Duplicate Column Modal Handler
+async function showDuplicateColumnModal(sheetName, renamedColumns, fileId) {
+    const columnList = renamedColumns.map((col, idx) => 
+        `${idx + 1}. "<strong>${col.originalTitle}</strong>" → "<strong class="text-blue-600">${col.finalName}</strong>"`
+    ).join('<br>');
+    
+    const result = await $swal.fire({
+        title: 'Duplicate Columns Detected',
+        icon: 'warning',
+        html: `
+            <div class="text-left">
+                <p class="mb-3">The following columns in <strong>${sheetName}</strong> have duplicate names and were automatically renamed:</p>
+                <div class="bg-yellow-50 border border-yellow-200 rounded p-3 mb-3 text-sm" style="max-height: 300px; overflow-y: auto;">
+                    ${columnList}
+                </div>
+                <p class="text-sm text-gray-600">
+                    <strong>Action Required:</strong> Please review the renamed columns in the preview below. 
+                    You can manually rename them or approve the automatic names.
+                </p>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Review in Preview',
+        cancelButtonText: 'Cancel Upload',
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        width: '600px'
+    });
+    
+    if (!result.isConfirmed) {
+        // User cancelled - remove file from upload list
+        const fileIndex = state.files.findIndex(f => f.id === fileId);
+        if (fileIndex >= 0) {
+            state.files.splice(fileIndex, 1);
+            // Also remove associated sheets
+            removeSheetsByFileId(fileId);
+            // Remove from renamed columns tracking
+            state.renamedColumns = state.renamedColumns.filter(r => r.fileId !== fileId);
+            // Check if we still need review
+            state.requiresReview = state.renamedColumns.length > 0;
+        }
+    }
+}
+
+// Helper function to check if a column is renamed
+function isRenamedColumn(sheetName, columnIndex) {
+    const sheet = state.renamedColumns.find(r => r.sheetName === sheetName);
+    return sheet?.columns.some(c => c.originalIndex === columnIndex) || false;
+}
+
+// Helper function to get original column name
+function getOriginalColumnName(sheetName, columnIndex) {
+    const sheet = state.renamedColumns.find(r => r.sheetName === sheetName);
+    const column = sheet?.columns.find(c => c.originalIndex === columnIndex);
+    return column?.originalTitle || '';
+}
+
+// Helper function to handle column rename in preview
+function onColumnRenamed(sheetName, columnIndex, newName) {
+    const sheet = state.renamedColumns.find(r => r.sheetName === sheetName);
+    if (sheet) {
+        const column = sheet.columns.find(c => c.originalIndex === columnIndex);
+        if (column) {
+            column.finalName = newName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+        }
+    }
+}
+
+// Show list of all renamed columns
+function showRenamedColumnsList() {
+    const allRenames = state.renamedColumns.flatMap(sheet => 
+        sheet.columns.map(col => ({
+            sheet: sheet.sheetName,
+            original: col.originalTitle,
+            renamed: col.finalName
+        }))
+    );
+    
+    const tableRows = allRenames.map((rename, idx) => `
+        <tr class="${idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'}">
+            <td class="px-4 py-2 border text-sm">${rename.sheet}</td>
+            <td class="px-4 py-2 border font-mono text-sm">${rename.original}</td>
+            <td class="px-4 py-2 border text-center text-gray-400">→</td>
+            <td class="px-4 py-2 border font-mono text-sm text-blue-600">${rename.renamed}</td>
+        </tr>
+    `).join('');
+    
+    $swal.fire({
+        title: 'All Renamed Columns',
+        html: `
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm border-collapse">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-4 py-2 border font-semibold">Sheet</th>
+                            <th class="px-4 py-2 border font-semibold">Original Name</th>
+                            <th class="px-4 py-2 border"></th>
+                            <th class="px-4 py-2 border font-semibold">New Name</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tableRows}
+                    </tbody>
+                </table>
+            </div>
+        `,
+        width: '800px',
+        confirmButtonText: 'Close'
+    });
+}
+
+// Lifecycle: Set up Socket.IO listeners
+onMounted(() => {
+    if (import.meta.client && $socketio) {
+        console.log('[Excel Upload] Setting up Socket.IO listener');
+        $socketio.on('excel-upload-progress', handleExcelUploadProgress);
+    }
+});
+
+// Lifecycle: Clean up Socket.IO listeners
+onBeforeUnmount(() => {
+    if (import.meta.client && $socketio) {
+        console.log('[Excel Upload] Cleaning up Socket.IO listener');
+        $socketio.off('excel-upload-progress', handleExcelUploadProgress);
+    }
 });
 
 // Sheet Management Functions
@@ -123,6 +379,9 @@ function preventDefaults(e) {
 }
 
 function showTable(fileId) {
+    // Set loading state for this file
+    state.loadingTableForFileId = fileId;
+    
     nextTick(() => {
         state.show_table_dialog = false;
         setTimeout(() => {
@@ -143,30 +402,69 @@ function showTable(fileId) {
             }
             
             state.show_table_dialog = true;
+            // Clear loading state
+            state.loadingTableForFileId = null;
         }, 500);
     });
 }
 
-function removeFile(fileId) {
-    // Remove sheets associated with this file
-    removeSheetsByFileId(fileId);
+async function removeFile(fileId) {
+    const file = state.files.find(f => f.id === fileId);
+    if (!file) return;
     
-    // Remove the file itself
-    state.files = state.files.filter((file) => file.id !== fileId);
+    // Show confirmation dialog
+    const result = await $swal.fire({
+        title: 'Delete File?',
+        text: `Are you sure you want to remove "${file.name}"? This action cannot be undone.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Yes, delete it',
+        cancelButtonText: 'Cancel'
+    });
     
-    // Hide table dialog if no sheets remain
-    if (state.sheets.length === 0) {
-        state.show_table_dialog = false;
+    // If user confirmed, proceed with deletion
+    if (result.isConfirmed) {
+        // Remove sheets associated with this file
+        removeSheetsByFileId(fileId);
+        
+        // Remove the file itself
+        state.files = state.files.filter((file) => file.id !== fileId);
+        
+        // Hide table dialog if no sheets remain
+        if (state.sheets.length === 0) {
+            state.show_table_dialog = false;
+        }
+        
+        // Reset file input to allow re-uploading the same file
+        if (import.meta.client) {
+            const fileElem = document.getElementById('file-elem');
+            if (fileElem) {
+                fileElem.value = '';
+            }
+        }
+        
+        // Show success message
+        $swal.fire({
+            title: 'Deleted!',
+            text: `${file.name} has been removed.`,
+            icon: 'success',
+            timer: 2000,
+            showConfirmButton: false
+        });
     }
 }
 async function createDataSource(classification = null) {
     // Prevent execution if button should be disabled
     if (buttonDisabled.value) {
+        state.showClassificationModal = false;
         return;
     }
 
     const token = getAuthToken();
     if (!state.data_source_name || state.data_source_name.trim() === '') {
+        state.showClassificationModal = false;
         $swal.fire({
             icon: 'error',
             title: `Error!`,
@@ -176,6 +474,7 @@ async function createDataSource(classification = null) {
     }
     
     if (state.sheets.length === 0) {
+        state.showClassificationModal = false;
         $swal.fire({
             icon: 'error',
             title: `Error!`,
@@ -186,6 +485,7 @@ async function createDataSource(classification = null) {
 
     // Additional check to ensure all files are completed
     if (!allFilesCompleted.value) {
+        state.showClassificationModal = false;
         $swal.fire({
             icon: 'error',
             title: `Error!`,
@@ -197,9 +497,25 @@ async function createDataSource(classification = null) {
     state.loading = true;
     const url = `${baseUrl()}/data-source/add-excel-data-source`;
     let dataSourceId = null;
-    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+    let successCount = 0;
+    let failCount = 0;
+    
+    // Generate unique upload session ID to group all sheets together
+    const uploadSessionId = `upload_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    console.log('[Excel Upload] Starting upload session:', uploadSessionId);
 
-    // Process each sheet as a separate data source entry
+    // Show initial progress
+    $swal.fire({
+        icon: 'info',
+        title: 'Uploading...',
+        text: `Queuing ${state.sheets.length} sheet(s) for upload`,
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000
+    });
+
+    // Process each sheet as a separate job (queued for background processing)
     for (const sheet of state.sheets) {
         if (!sheet.columns || sheet.columns.length === 0 || !sheet.rows || sheet.rows.length === 0) {
             continue;
@@ -208,57 +524,114 @@ async function createDataSource(classification = null) {
         const file = state.files.find(f => f.id === sheet.fileId);
         if (!file) continue;
         
-        file.status = 'uploading';
+        file.status = 'queued';
+        file.progress = 0;
+        file.statusMessage = 'Queueing upload...';
         
-        // Convert sheet data to the expected format
-        const sheetRows = sheet.rows.map(row => row.data || row);        
-        const response = await $fetch(url, {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${token}`,
-                "Authorization-Type": "auth",
-            },
-            body: {
-                file_id: file.id,
-                data: {
-                    columns: sheet.columns.map((column) => {
-                        return {
-                            title: column.title,
-                            key: column.key,
-                            column_name: column.key.substring(0, 20).replace(/\s/g,'_').toLowerCase(),
-                            type: column.type,
-                        };
-                    }),
-                    rows: sheetRows,
+        try {
+            // Convert sheet data to the expected format
+            const sheetRows = sheet.rows.map(row => row.data || row);        
+            const response = await $fetch(url, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
                 },
-                data_source_name: `${state.data_source_name}`.replace(/\s/g,'_').toLowerCase(),
-                project_id: route.params.projectid,
-                data_source_id: dataSourceId ? dataSourceId : null,
-                classification: dataSourceId ? null : (classification || state.selectedClassification),
-                sheet_info: {
-                    sheet_id: sheet.id,
-                    sheet_name: sheet.name,
-                    file_name: sheet.fileName,
-                    original_sheet_name: sheet.metadata.originalSheetName,
-                    sheet_index: sheet.sheetIndex
+                body: {
+                    file_id: file.id,
+                    data: {
+                        columns: sheet.columns.map((column) => {
+                            return {
+                                title: column.title,
+                                key: column.key,
+                                column_name: column.key.substring(0, 20).replace(/\s/g,'_').toLowerCase(),
+                                type: column.type,
+                            };
+                        }),
+                        rows: sheetRows,
+                    },
+                    data_source_name: `${state.data_source_name}`.replace(/\s/g,'_').toLowerCase(),
+                    project_id: route.params.projectid,
+                    data_source_id: dataSourceId ? dataSourceId : null,
+                    upload_session_id: uploadSessionId,  // NEW: Group all sheets in this upload session
+                    classification: dataSourceId ? null : (classification || state.selectedClassification),
+                    sheet_info: {
+                        sheet_id: sheet.id,
+                        sheet_name: sheet.name,
+                        file_name: sheet.fileName,
+                        original_sheet_name: sheet.metadata.originalSheetName,
+                        sheet_index: sheet.sheetIndex
+                    }
                 }
+            });
+            
+            // Handle new async response format
+            if (response.success && response.jobId) {
+                successCount++;
+                // Store job ID for tracking
+                state.uploadJobs.set(response.jobId, file.id);
+                file.jobId = response.jobId;
+                file.status = 'queued';
+                file.statusMessage = 'Upload queued';
+                
+                console.log('[Excel Upload] Job queued:', response.jobId, 'for file:', file.id);
+            } else {
+                failCount++;
+                file.status = 'error';
+                file.statusMessage = 'Failed to queue upload';
             }
-        });
-        
-        dataSourceId = response.result.data_source_id;
-        file.status = 'uploaded';
-        
-        await sleep(1000);
+            
+        } catch (error) {
+            console.error('[Excel Upload] Error queuing upload:', error);
+            failCount++;
+            file.status = 'error';
+            file.statusMessage = error.message || 'Upload failed';
+            file.error = error.message;
+        }
     }
     
     state.loading = false;
     
-    $swal.fire({
-        icon: 'success',
-        title: 'Success!',
-        text: `Excel data source created with ${state.sheets.length} sheets.`,
-    });
+    // Close the classification modal
+    state.showClassificationModal = false;
     
+    // Stay on page to show progress - no redirect
+    if (failCount === 0) {
+        // Show success toast
+        $swal.fire({
+            icon: 'success',
+            title: 'Uploads Queued!',
+            text: `${successCount} sheet(s) are uploading. Watch the progress below.`,
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 4000,
+            timerProgressBar: true
+        });
+    } else if (failCount < state.sheets.length) {
+        // Some succeeded, some failed
+        $swal.fire({
+            icon: 'warning',
+            title: 'Partial Success',
+            text: `${successCount} sheet(s) queued, but ${failCount} failed.`,
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 4000,
+            timerProgressBar: true
+        });
+    } else {
+        // All failed - don't navigate, let user fix the issue
+        $swal.fire({
+            icon: 'error',
+            title: 'Upload Failed',
+            text: `All ${failCount} sheet(s) failed to queue. Please check your files and try again.`,
+            confirmButtonText: 'OK'
+        });
+    }
+}
+
+function goToDataSources() {
     router.push(`/projects/${route.params.projectid}/data-sources`);
 }
 
@@ -270,6 +643,53 @@ function handleCreateClick() {
 function goBack() {
     router.push(`/projects/${route.params.projectid}/data-sources`);
 }
+
+function showErrorDetails(file) {
+    const errorMessage = file.error || file.statusMessage || 'Unknown error';
+    
+    // Build detailed error explanation
+    let suggestions = [];
+    if (errorMessage.toLowerCase().includes('integer') || errorMessage.toLowerCase().includes('out of range')) {
+        suggestions.push('The Excel file contains numeric values that are too large for the database.');
+        suggestions.push('Maximum integer value: 2,147,483,647');
+        suggestions.push('Solution: Reduce the size of large numbers, or use text format for very large IDs.');
+    } else if (errorMessage.toLowerCase().includes('format') || errorMessage.toLowerCase().includes('invalid')) {
+        suggestions.push('Some data in the Excel file has an invalid format.');
+        suggestions.push('Check date formats, numeric values, and special characters.');
+    } else if (errorMessage.toLowerCase().includes('empty') || errorMessage.toLowerCase().includes('required')) {
+        suggestions.push('Required fields cannot be empty.');
+        suggestions.push('Check that all mandatory columns have values.');
+    } else if (errorMessage.toLowerCase().includes('duplicate')) {
+        suggestions.push('Duplicate values found where unique values are required.');
+        suggestions.push('Check for duplicate IDs or keys in your data.');
+    } else {
+        suggestions.push('Check your Excel file for data quality issues.');
+        suggestions.push('Ensure all values match their column types (numbers, dates, text).');
+        suggestions.push('Remove any special characters or formatting that might cause issues.');
+    }
+    
+    $swal.fire({
+        icon: 'error',
+        title: `Error in ${file.name}`,
+        html: `
+            <div style="text-align: left;">
+                <p style="color: #d33; font-weight: bold; margin-bottom: 10px;">${errorMessage}</p>
+                <hr style="margin: 15px 0;">
+                <p style="font-weight: bold; margin-bottom: 8px;">Suggested Solutions:</p>
+                <ul style="padding-left: 20px; color: #666; line-height: 1.6;">
+                    ${suggestions.map(s => `<li>${s}</li>`).join('')}
+                </ul>
+                <hr style="margin: 15px 0;">
+                <p style="font-size: 0.85em; color: #999;">
+                    Tip: You can remove this file and upload a corrected version.
+                </p>
+            </div>
+        `,
+        confirmButtonText: 'OK',
+        width: '550px'
+    });
+}
+
 function isValidFile(file) {
   const validExtensions = ['.xlsx', '.xls', '.csv']
   const validTypes = [
@@ -309,6 +729,10 @@ async function handleFiles(files) {
                     sizeFormatted: formatFileSize(file.size),
                     type: file.type || 'application/octet-stream',
                     status: 'processing',
+                    progress: 0,
+                    statusMessage: 'Parsing Excel file...',
+                    jobId: null,
+                    error: null,
                     raw: file, // Store the raw File object
                     uploadedAt: new Date()
                 };
@@ -333,12 +757,34 @@ async function handleFiles(files) {
                 if (response.success && response.sheets) {
                     // Create sheet objects from parsed data
                     for (const sheetData of response.sheets) {
+                        // Check for duplicate columns
+                        if (sheetData.hasDuplicates && sheetData.renamedColumns && sheetData.renamedColumns.length > 0) {
+                            // Store renamed columns metadata
+                            const existingIndex = state.renamedColumns.findIndex(
+                                r => r.sheetName === sheetData.name
+                            );
+                            
+                            if (existingIndex >= 0) {
+                                state.renamedColumns[existingIndex].columns = sheetData.renamedColumns;
+                            } else {
+                                state.renamedColumns.push({
+                                    sheetName: sheetData.name,
+                                    fileId: fileEntry.id,
+                                    columns: sheetData.renamedColumns
+                                });
+                            }
+                            
+                            state.requiresReview = true;
+                        }
+                        
                         // Map backend format to frontend format
                         const formattedSheet = {
                             name: sheetData.sheet_name || sheetData.name,
-                            index: sheetData.sheet_index,
+                            index: sheetData.sheet_index || sheetData.index,
                             columns: sheetData.columns,
-                            rows: sheetData.rows
+                            rows: sheetData.rows,
+                            hasDuplicates: sheetData.hasDuplicates,
+                            renamedColumns: sheetData.renamedColumns
                         };
                         
                         const sheet = createSheetFromWorksheet(
@@ -358,6 +804,14 @@ async function handleFiles(files) {
                     const stateFile = state.files.find(f => f.id === fileEntry.id);
                     if (stateFile) {
                         stateFile.status = 'completed';
+                    }
+                    
+                    // Show duplicate column modal if needed
+                    if (state.requiresReview && state.renamedColumns.some(r => r.fileId === fileEntry.id)) {
+                        const fileRenames = state.renamedColumns.find(r => r.fileId === fileEntry.id);
+                        if (fileRenames) {
+                            showDuplicateColumnModal(fileRenames.sheetName, fileRenames.columns, fileEntry.id);
+                        }
                     }
                 } else {
                     const stateFile = state.files.find(f => f.id === fileEntry.id);
@@ -385,6 +839,14 @@ async function handleFiles(files) {
             title: `Error!`,
             text: `The following files could not be processed: ${rejectedFiles.join(', ')}`,
         });
+    }
+    
+    // Reset file input to allow re-uploading files
+    if (import.meta.client) {
+        const fileElem = document.getElementById('file-elem');
+        if (fileElem) {
+            fileElem.value = '';
+        }
     }
 }
 
@@ -655,42 +1117,112 @@ onMounted(async () => {
             <div class="flex flex-row justify-center">
                 <input type="text" class="w-3/4 border border-primary-blue-100 border-solid p-2 cursor-pointer margin-auto mt-10 rounded-lg" placeholder="Data Source Name" v-model="state.data_source_name"/>
             </div>
+            
+            <!-- Duplicate columns warning banner -->
+            <div 
+                v-if="state.requiresReview && !state.reviewAcknowledged"
+                class="w-3/4 mx-auto bg-yellow-50 border-l-4 border-yellow-400 p-4 mt-6 rounded"
+            >
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <font-awesome-icon 
+                            :icon="['fas', 'triangle-exclamation']"
+                            class="text-yellow-400 w-5 h-5"
+                        />
+                    </div>
+                    <div class="ml-3 flex-1">
+                        <h3 class="text-sm font-medium text-yellow-800">
+                            Duplicate Column Names Detected
+                        </h3>
+                        <div class="mt-2 text-sm text-yellow-700">
+                            <p>
+                                Some columns have been automatically renamed to prevent conflicts. 
+                                Renamed columns are highlighted in yellow in the preview below.
+                            </p>
+                            <p class="mt-1">
+                                <strong>Action Required:</strong> Review the renamed columns and either:
+                            </p>
+                            <ul class="list-disc list-inside mt-1">
+                                <li>Approve the automatic names and proceed with upload</li>
+                                <li>Manually rename columns by clicking on their names in the preview</li>
+                            </ul>
+                        </div>
+                        <div class="mt-4 flex gap-3">
+                            <button
+                                @click="state.reviewAcknowledged = true"
+                                class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded text-sm"
+                            >
+                                <font-awesome-icon :icon="['fas', 'check']" class="mr-2" />
+                                Approve Renames & Continue
+                            </button>
+                            <button
+                                @click="showRenamedColumnsList"
+                                class="border border-yellow-600 text-yellow-700 hover:bg-yellow-50 px-4 py-2 rounded text-sm"
+                            >
+                                <font-awesome-icon :icon="['fas', 'list']" class="mr-2" />
+                                View All Renamed Columns
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             <div class="flex flex-col justify-center w-3/4 min-h-100 bg-gray-200 m-auto mt-5 text-center cursor-pointer rounded-xl" id="drop-zone">
                 <h3 class="text-lg font-semibold">Drop files here or click to upload</h3>
                 <p class="text-sm text-gray-600">Supported formats: .xlsx, .xls, .csv</p>
                 <input type="file" id="file-elem" multiple accept=".xlsx,.xls,.csv" class="hidden">
             </div>
-            <div class="grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 md:gap-10 lg:grid-cols-4 xl:grid-cols-5 mx-auto mt-5">
-                <div v-for="file in state.files" :key="file.id" class="w-full relative">
-                    <notched-card class="justify-self-center mt-5">
+            <div class="flex flex-wrap justify-center gap-6 mx-auto mt-5 px-4">
+                <div v-for="file in state.files" :key="file.id" class="relative">
+                    <notched-card>
                         <template #body="{ onClick }">
                             <NuxtLink class="text-gray-500">
-                                <div class="flex flex-row justify-end">
+                                <div class="flex flex-row justify-start">
                                     <font-awesome
-                                      v-if="file.status === 'completed' && getSheetsByFileId(file.id).length > 0"
+                                      v-if="state.loadingTableForFileId === file.id"
+                                      icon="fas fa-spinner"
+                                      class="text-xl mr-2 text-blue-500 fa-spin cursor-pointer"
+                                    />
+                                    <font-awesome
+                                      v-else-if="file.status === 'completed' && getSheetsByFileId(file.id).length > 0"
                                       icon="fas fa-table"
-                                      class="text-xl ml-2 text-gray-500 hover:text-gray-400 cursor-pointer"
+                                      class="text-xl mr-2 text-gray-500 hover:text-gray-400 cursor-pointer"
                                       @click="showTable(file.id)"
                                     />
                                     <font-awesome
-                                      v-if="file.status === 'completed'"
+                                      v-if="file.status === 'uploaded'"
+                                      icon="fas fa-circle-check"
+                                      class="text-xl mr-2 text-green-600"
+                                    />
+                                    <font-awesome
+                                      v-else-if="file.status === 'completed'"
                                       icon="fas fa-check"
-                                      class="text-xl ml-2 text-green-500"
+                                      class="text-xl mr-2 text-green-500"
+                                    />
+                                    <font-awesome
+                                      v-else-if="file.status === 'uploading' || file.status === 'queued'"
+                                      icon="fas fa-spinner"
+                                      class="text-xl mr-2 text-blue-500 fa-spin"
                                     />
                                     <font-awesome
                                       v-else-if="file.status === 'processing'"
                                       icon="fas fa-spinner"
-                                      class="text-xl ml-2 text-blue-500 fa-spin"
+                                      class="text-xl mr-2 text-blue-500 fa-spin"
+                                    />
+                                    <font-awesome
+                                      v-else-if="file.status === 'requires_review'"
+                                      icon="fas fa-triangle-exclamation"
+                                      class="text-xl mr-2 text-yellow-500"
                                     />
                                     <font-awesome
                                       v-else-if="file.status === 'error'"
                                       icon="fas fa-exclamation-circle"
-                                      class="text-xl ml-2 text-red-500"
+                                      class="text-xl mr-2 text-red-500"
                                     />
                                     <font-awesome
                                       v-else
                                       icon="fas fa-clock"
-                                      class="text-xl ml-2 text-gray-400"
+                                      class="text-xl mr-2 text-gray-400"
                                     />
                                 </div>
                                 <div class="flex flex-col justify-center">
@@ -700,14 +1232,37 @@ onMounted(async () => {
                                     <div class="mt-1 text-xs text-gray-600">
                                       {{ file.sizeFormatted }}
                                     </div>
-                                    <div v-if="file.status === 'completed'" class="mt-1 text-xs text-green-600">
+                                    <div v-if="file.status === 'uploaded'" class="mt-1 text-xs text-green-600">
+                                      ✓ Uploaded - {{ getSheetsByFileId(file.id).length }} sheet(s)
+                                    </div>
+                                    <div v-else-if="file.status === 'completed'" class="mt-1 text-xs text-green-600">
                                       Ready - {{ getSheetsByFileId(file.id).length }} sheet(s)
+                                    </div>
+                                    <div v-else-if="file.status === 'uploading'" class="mt-1 text-xs text-blue-600">
+                                      <span v-if="file.progress">{{ file.progress }}% - </span>{{ file.statusMessage || 'Uploading...' }}
+                                    </div>
+                                    <div v-else-if="file.status === 'queued'" class="mt-1 text-xs text-amber-600">
+                                      Queued - {{ file.statusMessage || 'Waiting to upload' }}
                                     </div>
                                     <div v-else-if="file.status === 'processing'" class="mt-1 text-xs text-blue-600">
                                       Processing...
                                     </div>
-                                    <div v-else-if="file.status === 'error'" class="mt-1 text-xs text-red-600">
-                                      Failed to process
+                                    <div v-else-if="file.status === 'requires_review'" class="mt-1 text-xs text-yellow-600">
+                                      <strong>Review Required:</strong> {{ file.statusMessage || 'Duplicate columns detected' }}
+                                    </div>
+                                    <div v-else-if="file.status === 'error'" class="mt-1 text-xs">
+                                      <div class="text-red-600 font-medium mb-1">
+                                        {{ file.statusMessage || 'Failed to process' }}
+                                      </div>
+                                      <div v-if="file.error && file.error !== file.statusMessage" class="text-red-500 text-xs">
+                                        {{ file.error }}
+                                      </div>
+                                      <button 
+                                        @click.prevent="showErrorDetails(file)"
+                                        class="mt-1 text-blue-600 hover:text-blue-800 underline text-xs"
+                                      >
+                                        View suggestions →
+                                      </button>
                                     </div>
                                     <div v-else class="mt-1 text-xs text-gray-500">
                                       Pending
@@ -718,8 +1273,9 @@ onMounted(async () => {
                                         icon="fas fa-file-excel"
                                         class="text-5xl ml-2"
                                         :class="{
+                                            'text-green-600': file.status === 'uploaded',
                                             'text-green-500': file.status === 'completed',
-                                            'text-blue-500': file.status === 'processing',
+                                            'text-blue-500': file.status === 'processing' || file.status === 'uploading' || file.status === 'queued',
                                             'text-red-500': file.status === 'error',
                                             'text-green-300': file.status === 'pending'
                                         }"
@@ -728,8 +1284,8 @@ onMounted(async () => {
                             </NuxtLink>
                         </template>
                     </notched-card>
-                    <div v-if="file.status === 'pending' || file.status === 'error'" class="absolute top-px -right-2 z-10 bg-gray-200 hover:bg-gray-300 border border-gray-200 border-solid rounded-full w-10 h-10 flex items-center justify-center cursor-pointer" @click="removeFile(file.id)" v-tippy="{ content: 'Remove File', placement: 'top' }">
-                        <font-awesome icon="fas fa-xmark" class="text-xl text-red-500 hover:text-red-400" />
+                    <div class="absolute -top-2 -right-3 z-10 bg-red-500 hover:bg-red-600 border border-red-500 border-solid rounded-full w-10 h-10 flex items-center justify-center cursor-pointer shadow-md" @click="removeFile(file.id)" v-tippy="{ content: 'Remove File', placement: 'top' }">
+                        <font-awesome icon="fas fa-xmark" class="text-xl text-white" />
                     </div>
                 </div>
             </div>
@@ -737,14 +1293,22 @@ onMounted(async () => {
             <!-- File processing status summary -->
             <div v-if="state.files && state.files.length" class="flex flex-col items-center mt-5">
                 <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm w-3/4 max-w-md">
-                    <h4 class="text-sm font-semibold text-gray-700 mb-2">Processing Status</h4>
+                    <h4 class="text-sm font-semibold text-gray-700 mb-2">File Status</h4>
                     <div class="space-y-2">
                         <div class="flex justify-between text-sm">
                             <span class="text-gray-600">Total Files:</span>
                             <span class="font-medium">{{ state.files.length }}</span>
                         </div>
                         <div class="flex justify-between text-sm">
-                            <span class="text-green-600">Completed:</span>
+                            <span class="text-green-600">✓ Uploaded:</span>
+                            <span class="font-medium">{{ state.files.filter(f => f.status === 'uploaded').length }}</span>
+                        </div>
+                        <div class="flex justify-between text-sm" v-if="state.files.filter(f => f.status === 'queued' || f.status === 'uploading').length > 0">
+                            <span class="text-blue-600">↻ In Progress:</span>
+                            <span class="font-medium">{{ state.files.filter(f => f.status === 'queued' || f.status === 'uploading').length }}</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-green-600">Ready to Upload:</span>
                             <span class="font-medium">{{ state.files.filter(f => f.status === 'completed').length }}</span>
                         </div>
                         <div class="flex justify-between text-sm" v-if="hasProcessingFiles">
@@ -752,7 +1316,7 @@ onMounted(async () => {
                             <span class="font-medium">{{ state.files.filter(f => f.status === 'processing').length }}</span>
                         </div>
                         <div class="flex justify-between text-sm" v-if="hasErrorFiles">
-                            <span class="text-red-600">Failed:</span>
+                            <span class="text-red-600">✗ Failed:</span>
                             <span class="font-medium">{{ state.files.filter(f => f.status === 'error').length }}</span>
                         </div>
                     </div>
@@ -760,13 +1324,13 @@ onMounted(async () => {
                     <!-- Progress bar -->
                     <div class="mt-3">
                         <div class="flex justify-between text-xs text-gray-500 mb-1">
-                            <span>Progress</span>
-                            <span>{{ state.files.length > 0 ? Math.round((state.files.filter(f => f.status === 'completed').length / state.files.length) * 100) : 0 }}%</span>
+                            <span>Upload Progress</span>
+                            <span>{{ state.files.length > 0 ? Math.round((state.files.filter(f => f.status === 'uploaded').length / state.files.length) * 100) : 0 }}%</span>
                         </div>
                         <div class="w-full bg-gray-200 rounded-full h-2">
                             <div 
                                 class="bg-green-500 h-2 rounded-full transition-all duration-300 ease-out"
-                                :style="{ width: state.files.length > 0 ? (state.files.filter(f => f.status === 'completed').length / state.files.length) * 100 + '%' : '0%' }"
+                                :style="{ width: state.files.length > 0 ? (state.files.filter(f => f.status === 'uploaded').length / state.files.length) * 100 + '%' : '0%' }"
                             ></div>
                         </div>
                     </div>
@@ -801,14 +1365,30 @@ onMounted(async () => {
             </div>
             
             <spinner v-if="state.loading"/>
-            <div v-else-if="!state.loading && state.files && state.files.length" 
-                 class="h-10 text-center items-center self-center mt-5 mb-5 p-2 font-bold shadow-md select-none rounded-lg"
-                 :class="{
-                     'bg-primary-blue-100 hover:bg-primary-blue-200 cursor-pointer text-white': !buttonDisabled,
-                     'bg-gray-300 cursor-not-allowed text-gray-500': buttonDisabled
-                 }"
-                 @click="handleCreateClick">
-                Create Data Source
+            <div v-else-if="!state.loading && state.files && state.files.length" class="flex flex-col gap-3 items-center mt-5 mb-5">
+                <!-- Create Data Source Button -->
+                <div class="h-10 text-center items-center self-center p-2 font-bold shadow-md select-none rounded-lg"
+                     :class="{
+                         'bg-primary-blue-100 hover:bg-primary-blue-200 cursor-pointer text-white': !buttonDisabled,
+                         'bg-gray-300 cursor-not-allowed text-gray-500': buttonDisabled
+                     }"
+                     @click="handleCreateClick">
+                    Create Data Source
+                </div>
+                
+                <!-- View Data Sources Button - shown after uploads complete -->
+                <div v-if="allSheetsUploaded && hasUploadedFiles" 
+                     class="h-10 text-center items-center self-center p-2 px-6 font-bold shadow-md select-none rounded-lg bg-green-600 hover:bg-green-700 cursor-pointer text-white"
+                     @click="goToDataSources">
+                    <font-awesome icon="fas fa-check-circle" class="mr-2" />
+                    View Data Sources
+                </div>
+                
+                <!-- Upload Progress Indicator -->
+                <div v-if="hasProcessingFiles" class="text-sm text-blue-600 flex items-center gap-2">
+                    <font-awesome icon="fas fa-spinner" class="fa-spin" />
+                    <span>Uploads in progress...</span>
+                </div>
             </div>
         </div>
     </div>

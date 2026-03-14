@@ -52,10 +52,33 @@ export class EmailService {
     private queueProcessor: NodeJS.Timeout | null = null;
     private lastEmailTime = 0;
     private emailCount = 0;
-    private readonly MAX_EMAILS_PER_SECOND = 1; // Conservative for Mailtrap
+    private readonly MAX_EMAILS_PER_SECOND: number;
+    private readonly EMAIL_RATE_LIMIT_DURATION: number;
 
     private constructor() {
+        // Initialize rate limit configuration from environment variables
+        // Default: 1 email per 1000ms (1 second) - conservative for Mailtrap free tier
+        this.MAX_EMAILS_PER_SECOND = parseInt(process.env.EMAIL_RATE_LIMIT_MAX || '1');
+        this.EMAIL_RATE_LIMIT_DURATION = parseInt(process.env.EMAIL_RATE_LIMIT_DURATION || '1000');
+        
         this.mailDriver = MailDriver.getInstance();
+        
+        // Check if email sending is disabled
+        if (process.env.EMAIL_ENABLED === 'false') {
+            console.log('⚠️ Email sending is DISABLED (EMAIL_ENABLED=false)');
+            // Create dummy queue and worker that don't process anything
+            const redisConnection = {
+                host: process.env.REDIS_HOST || 'localhost',
+                port: parseInt(process.env.REDIS_PORT || '6379'),
+                password: process.env.REDIS_PASSWORD || undefined,
+            };
+            this.emailQueue = new Queue('emails', { 
+                connection: redisConnection,
+                prefix: 'dra:email'
+            });
+            this.worker = null as any;
+            return;
+        }
         
         // Initialize email queue with Redis
         const redisConnection = {
@@ -69,29 +92,61 @@ export class EmailService {
             prefix: 'dra:email'
         });
         
-        // Initialize worker to process email jobs
+        // Initialize worker to process email jobs with configurable rate limiting
+        // Configured via EMAIL_RATE_LIMIT_MAX and EMAIL_RATE_LIMIT_DURATION env variables
         this.worker = new Worker(
             'emails',
             async (job) => {
-                return await this.sendEmailImmediately(job.data);
+                // Add delay between emails to respect rate limits
+                const timeSinceLastEmail = Date.now() - this.lastEmailTime;
+                const minDelay = this.EMAIL_RATE_LIMIT_DURATION / this.MAX_EMAILS_PER_SECOND;
+                
+                if (timeSinceLastEmail < minDelay) {
+                    await this.sleep(minDelay - timeSinceLastEmail);
+                }
+                
+                try {
+                    const result = await this.sendEmailImmediately(job.data);
+                    this.lastEmailTime = Date.now();
+                    return result;
+                } catch (error: any) {
+                    // If it's a rate limit error, add extra delay before retry
+                    if (this.isRateLimitError(error)) {
+                        console.warn(`⚠️ Rate limit hit, waiting 5 seconds before retry...`);
+                        await this.sleep(5000);
+                    }
+                    throw error;
+                }
             },
             {
                 connection: redisConnection,
                 prefix: 'dra:email',
                 limiter: {
-                    max: 10,
-                    duration: 1000
+                    max: this.MAX_EMAILS_PER_SECOND,
+                    duration: this.EMAIL_RATE_LIMIT_DURATION
+                },
+                settings: {
+                    backoffStrategy: async (attemptsMade: number) => {
+                        // Exponential backoff: 2s, 4s, 8s
+                        return Math.pow(2, attemptsMade) * 1000;
+                    }
                 }
             }
         );
         
         this.worker.on('failed', (job, err) => {
-            console.error(`[EmailService] Job ${job?.id} failed:`, err);
+            if (this.isRateLimitError(err)) {
+                console.error(`[EmailService] ⚠️ Rate limit error for job ${job?.id} - will retry with backoff`);
+            } else {
+                console.error(`[EmailService] Job ${job?.id} failed:`, err.message || err);
+            }
         });
         
         this.worker.on('completed', (job) => {
-            console.log(`[EmailService] Job ${job?.id} completed successfully`);
+            console.log(`[EmailService] ✅ Email sent successfully (job ${job?.id})`);
         });
+        
+        console.log(`✅ EmailService initialized with rate limit: ${this.MAX_EMAILS_PER_SECOND} emails per ${this.EMAIL_RATE_LIMIT_DURATION}ms`);
     }
 
     public static getInstance(): EmailService {
@@ -157,10 +212,10 @@ export class EmailService {
         const now = Date.now();
         const timeSinceLastEmail = now - this.lastEmailTime;
         
-        if (timeSinceLastEmail < 1000) {
+        if (timeSinceLastEmail < this.EMAIL_RATE_LIMIT_DURATION) {
             this.emailCount++;
             if (this.emailCount >= this.MAX_EMAILS_PER_SECOND) {
-                const sleepTime = 1000 - timeSinceLastEmail;
+                const sleepTime = this.EMAIL_RATE_LIMIT_DURATION - timeSinceLastEmail;
                 console.log(`[EmailService] Rate limiting: sleeping ${sleepTime}ms`);
                 await this.sleep(sleepTime);
                 this.emailCount = 0;
@@ -232,6 +287,11 @@ export class EmailService {
      * Queue email for sending (recommended for bulk operations)
      */
     async sendEmail(options: IEmailOptions): Promise<void> {
+        if (process.env.EMAIL_ENABLED === 'false') {
+            console.log(`[EmailService] Email sending disabled - skipping email to: ${options.to}`);
+            return;
+        }
+        
         await this.emailQueue.add('send-email', options, {
             attempts: 3,
             backoff: {
@@ -247,6 +307,11 @@ export class EmailService {
      * Send email immediately with retry logic (use for critical notifications)
      */
     async sendEmailImmediately(options: IEmailOptions): Promise<void> {
+        if (process.env.EMAIL_ENABLED === 'false') {
+            console.log(`[EmailService] Email sending disabled - skipping email to: ${options.to}`);
+            return;
+        }
+        
         return this.sendWithRetry(options, 3);
     }
 

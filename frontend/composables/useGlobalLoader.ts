@@ -31,16 +31,17 @@ export const useGlobalLoader = () => {
   const loadingCounter = useState<number>('global-loader-counter', () => 0)
   const loaderTimeout = useState<ReturnType<typeof setTimeout> | null>('global-loader-timeout', () => null)
   const isLoaderVisible = useState<boolean>('global-loader-visible', () => false)
+  const currentMessage = useState<string>('global-loader-message', () => 'Loading...')
   
   // Batch loading state
-  const activeBatches = useState<Map<string, { counter: number, started: boolean }>>('global-loader-batches', () => new Map())
+  const activeBatches = useState<Map<string, { counter: number, started: boolean, message?: string }>>('global-loader-batches', () => new Map())
   const currentBatchId = useState<string | null>('global-loader-current-batch', () => null)
   
   // Debounce delay in milliseconds - only show loader if request takes longer
   const LOADER_DELAY = 300
   
   /**
-   * Display SweetAlert2 loader
+   * Display SweetAlert2 loader with dynamic message
    */
   const displaySwalLoader = () => {
     if (import.meta.client) {
@@ -51,7 +52,7 @@ export const useGlobalLoader = () => {
         html: `
           <div class="flex flex-col items-center">
             <div class="animate-spin rounded-full h-16 w-16 border-b-4 border-primary-blue-500"></div>
-            <p class="mt-4 text-gray-600 font-medium">Loading...</p>
+            <p class="mt-4 text-gray-600 font-medium">${currentMessage.value}</p>
           </div>
         `,
         showConfirmButton: false,
@@ -89,13 +90,27 @@ export const useGlobalLoader = () => {
   
   /**
    * Show loader - increment counter (batch-aware)
+   * @param message Optional custom message to display
    */
-  const showLoader = () => {
+  const showLoader = (message?: string) => {
+    // Update message if provided
+    if (message) {
+      currentMessage.value = message
+    }
+    
     if (currentBatchId.value) {
-      // Batch mode: increment batch counter
+      // Batch mode: increment batch counter and update message
       const batch = activeBatches.value.get(currentBatchId.value)
       if (batch) {
         batch.counter++
+        if (message) {
+          batch.message = message
+        }
+      }
+      
+      // Update loader message if already visible
+      if (isLoaderVisible.value && message) {
+        displaySwalLoader()
       }
     } else {
       // Individual mode: use global counter
@@ -115,6 +130,9 @@ export const useGlobalLoader = () => {
             isLoaderVisible.value = true
           }
         }, LOADER_DELAY)
+      } else if (loadingCounter.value > 1 && isLoaderVisible.value && message) {
+        // Update message for subsequent requests if loader already visible
+        displaySwalLoader()
       }
     }
   }
@@ -174,10 +192,17 @@ export const useGlobalLoader = () => {
   /**
    * Start a new batch context
    * All API calls after this will be tracked as part of the batch
+   * @param batchId Unique identifier for the batch
+   * @param message Optional custom message to display
    */
-  const startBatch = (batchId: string) => {
+  const startBatch = (batchId: string, message?: string) => {
+    // Update message if provided
+    if (message) {
+      currentMessage.value = message
+    }
+    
     // Create new batch
-    activeBatches.value.set(batchId, { counter: 0, started: false })
+    activeBatches.value.set(batchId, { counter: 0, started: false, message })
     currentBatchId.value = batchId
     
     // Show loader immediately for batch (no debounce for navigation)
