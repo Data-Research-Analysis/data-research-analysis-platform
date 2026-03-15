@@ -913,80 +913,104 @@ onMounted(async () => {
             Back
         </button>
 
-        <div class="text-center mb-10">
+        <div class="text-center mb-5">
             <h1 class="text-4xl font-bold text-gray-900 mb-2">Connect PDF Data Source</h1>
             <p class="text-base text-gray-600">Upload your PDF files to extract and import data into the platform.</p>
         </div>
 
         <div class="flex flex-col justify-center">
             <div class="flex flex-row justify-center">
-                <input type="text" class="w-3/4 border border-primary-blue-100 border-solid p-2 cursor-pointer margin-auto mt-10 rounded-lg" placeholder="Data Source Name" v-model="state.data_source_name"/>
+                <input type="text" class="w-3/4 border border-primary-blue-100 border-solid p-2 cursor-pointer margin-auto rounded-lg" placeholder="Data Source Name" v-model="state.data_source_name"/>
             </div>
             <div class="flex flex-col justify-center w-3/4 min-h-100 bg-gray-200 m-auto mt-5 text-center cursor-pointer rounded-xl" id="drop-zone">
                 <h3 class="text-lg font-semibold">Drop files here or click to upload</h3>
                 <p class="text-sm text-gray-600">Supported formats: .pdf</p>
                 <input type="file" id="file-elem" multiple class="hidden">
             </div>
-            <div class="flex flex-wrap justify-center gap-6 mx-auto mt-5 px-4">
-                <div v-for="file in state.files" :key="file.id" class="relative">
-                    <notched-card>
-                        <template #body="{ onClick }">
-                            <NuxtLink class="text-gray-500">
-                                <div class="flex flex-row justify-start">
-                                    <font-awesome
-                                      v-if="state.loadingTableForFileId === file.id"
-                                      icon="fas fa-spinner"
-                                      class="text-xl mr-2 text-blue-500 fa-spin cursor-pointer"
-                                    />
-                                    <font-awesome
-                                      v-else-if="file.status === 'completed' && file.pages && file.pages.some(page => page.rows && page.rows.length)"
-                                      icon="fas fa-table"
-                                      class="text-xl mr-2 text-gray-500 hover:text-gray-400 cursor-pointer"
-                                      :v-tippy-content="'View All Pages In Multi-Sheet Table'"
-                                      @click="showTable(file.id)"
-                                    />
-                                    <font-awesome
-                                      v-if="file.status === 'completed'"
-                                      icon="fas fa-check"
-                                      class="text-xl mr-2 text-green-500"
-                                    />
-                                    <font-awesome
-                                      v-else-if="file.status === 'processing'"
-                                      icon="fas fa-hourglass-half"
-                                      class="text-xl mr-2 text-gray-500"
-                                    />
-                                    <font-awesome
-                                      v-else-if="file.status === 'error'"
-                                      icon="fas fa-exclamation"
-                                      class="text-xl mr-2 text-red-500"
-                                    />
-                                </div>
-                                <div class="flex flex-col justify-center">
-                                    <div class="text-md">
-                                      {{ file.displayName || file.name }}
-                                    </div>
-                                    <div v-if="file.status === 'completed' && file.pages" class="mt-1 text-xs text-green-600">
-                                      {{ file.pages.length }} pages processed
-                                    </div>
-                                    <div v-if="file.status === 'processing'" class="mt-1 text-xs text-blue-600">
-                                      Processing pages...
-                                    </div>
-                                    <div v-if="file.status === 'error' && file.error" class="mt-2 text-xs text-red-600">
-                                      {{ file.error }}
-                                    </div>
-                                </div>
-                                <div class="flex flex-row justify-center items-center mt-5 mr-10">
-                                    <font-awesome
-                                        icon="fas fa-file-pdf"
-                                        class="text-5xl ml-2 text-red-500"
-                                    />
-                                </div>
-                            </NuxtLink>
-                        </template>
-                    </notched-card>
-                    <div class="absolute -top-2 -right-3 z-10 bg-red-500 hover:bg-red-600 border border-red-500 border-solid rounded-full w-10 h-10 flex items-center justify-center cursor-pointer shadow-md" @click="removeFile(file.id)" v-tippy="{ content: 'Remove File', placement: 'top' }">
-                        <font-awesome icon="fas fa-xmark" class="text-xl text-white" />
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mx-auto mt-5 px-4">
+                <div v-for="file in state.files" :key="file.id"
+                     class="relative border border-gray-200 rounded-lg p-6 bg-white shadow-sm hover:shadow-lg hover:border-primary-blue-100 transition-all duration-200 group flex flex-col">
+                    
+                    <!-- Header: Icon + Filename -->
+                    <div class="flex items-start gap-4 mb-4">
+                        <font-awesome
+                            icon="fas fa-file-pdf"
+                            class="text-4xl text-red-500 shrink-0"
+                        />
+                        <div class="flex-1 min-w-0">
+                            <h3 class="text-lg font-semibold text-gray-900 break-words">{{ file.displayName || file.name }}</h3>
+                            <p class="text-sm text-gray-500">PDF File</p>
+                        </div>
                     </div>
+
+                    <!-- Status Section -->
+                    <div class="mb-4">
+                        <div class="flex items-center gap-2 mb-2">
+                            <font-awesome
+                              v-if="file.status === 'completed'"
+                              icon="fas fa-check"
+                              class="text-lg text-green-500"
+                            />
+                            <font-awesome
+                              v-else-if="file.status === 'processing'"
+                              icon="fas fa-hourglass-half"
+                              class="text-lg text-gray-500"
+                            />
+                            <font-awesome
+                              v-else-if="file.status === 'error'"
+                              icon="fas fa-exclamation"
+                              class="text-lg text-red-500"
+                            />
+                            <font-awesome
+                              v-else
+                              icon="fas fa-clock"
+                              class="text-lg text-gray-400"
+                            />
+                            <span class="text-sm font-medium text-gray-700">
+                                <template v-if="file.status === 'completed'">Completed</template>
+                                <template v-else-if="file.status === 'processing'">Processing</template>
+                                <template v-else-if="file.status === 'error'">Error</template>
+                                <template v-else>Pending</template>
+                            </span>
+                        </div>
+                        <div v-if="file.status === 'completed' && file.pages" class="text-xs text-green-600">
+                          {{ file.pages.length }} pages processed
+                        </div>
+                        <div v-else-if="file.status === 'processing'" class="text-xs text-blue-600">
+                          Processing pages...
+                        </div>
+                        <div v-else-if="file.status === 'error' && file.error" class="text-xs text-red-600">
+                          {{ file.error }}
+                        </div>
+                    </div>
+
+                    <!-- Info Section -->
+                    <div v-if="file.status === 'completed' && file.pages" class="mb-4">
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            {{ file.pages.length }} Page{{ file.pages.length !== 1 ? 's' : '' }}
+                        </span>
+                    </div>
+
+                    <!-- Action Button -->
+                    <button 
+                        v-if="file.status === 'completed' && file.pages && file.pages.some(page => page.rows && page.rows.length)"
+                        @click="showTable(file.id)"
+                        :disabled="state.loadingTableForFileId === file.id"
+                        class="mt-auto w-full px-4 py-2 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        v-tippy="{ content: 'View All Pages In Multi-Sheet Table' }">
+                        <font-awesome 
+                            :icon="state.loadingTableForFileId === file.id ? 'fas fa-spinner' : 'fas fa-table'" 
+                            :class="{ 'fa-spin': state.loadingTableForFileId === file.id }" />
+                        {{ state.loadingTableForFileId === file.id ? 'Loading...' : 'View Pages' }}
+                    </button>
+
+                    <!-- Remove Button -->
+                    <button 
+                        @click="removeFile(file.id)"
+                        class="absolute top-4 right-4 hover:bg-gray-100 w-5 h-5 flex items-center justify-center cursor-pointer transition-colors z-10 shadow-md"
+                        v-tippy="{ content: 'Remove File', placement: 'top' }">
+                        <font-awesome icon="fas fa-trash" class="text-lg text-red-500" />
+                    </button>
                 </div>
             </div>
             

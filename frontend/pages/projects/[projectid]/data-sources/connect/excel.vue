@@ -186,21 +186,24 @@ const handleExcelUploadProgress = (eventData) => {
     }
 };
 
-// Duplicate Column Modal Handler
+// Column Sanitization Modal Handler
 async function showDuplicateColumnModal(sheetName, renamedColumns, fileId) {
     const columnList = renamedColumns.map((col, idx) => 
         `${idx + 1}. "<strong>${col.originalTitle}</strong>" → "<strong class="text-blue-600">${col.finalName}</strong>"`
     ).join('<br>');
     
     const result = await $swal.fire({
-        title: 'Duplicate Columns Detected',
-        icon: 'warning',
+        title: 'Column Names Sanitized',
+        icon: 'info',
         html: `
             <div class="text-left">
-                <p class="mb-3">The following columns in <strong>${sheetName}</strong> have duplicate names and were automatically renamed:</p>
-                <div class="bg-yellow-50 border border-yellow-200 rounded p-3 mb-3 text-sm" style="max-height: 300px; overflow-y: auto;">
+                <p class="mb-3">The following columns in <strong>${sheetName}</strong> were automatically renamed for database compatibility:</p>
+                <div class="bg-blue-50 border border-blue-200 rounded p-3 mb-3 text-sm" style="max-height: 300px; overflow-y: auto;">
                     ${columnList}
                 </div>
+                <p class="text-sm text-gray-600 mb-2">
+                    <strong>Why?</strong> Column names with spaces, special characters, or duplicates are converted to database-friendly names (lowercase letters, numbers, and underscores only).
+                </p>
                 <p class="text-sm text-gray-600">
                     <strong>Action Required:</strong> Please review the renamed columns in the preview below. 
                     You can manually rename them or approve the automatic names.
@@ -539,7 +542,8 @@ async function createDataSource(classification = null) {
         
         try {
             // Convert sheet data to the expected format
-            const sheetRows = sheet.rows.map(row => row.data || row);        
+            const sheetRows = sheet.rows.map(row => row.data || row);
+            
             const response = await $fetch(url, {
                 method: "POST",
                 headers: {
@@ -551,12 +555,12 @@ async function createDataSource(classification = null) {
                     data: {
                         columns: sheet.columns.map((column) => {
                             return {
-                                title: column.title,
+                                title: column.title,  // User's renamed column name
                                 key: column.key,
-                                column_name: column.key.substring(0, 20).replace(/\s/g,'_').toLowerCase(),
+                                column_name: column.title.substring(0, 63).replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase(),  // Use title (user's rename), not key
                                 type: column.type,
-                                inferredType: column.inferredType,  // NEW: Original inferred type
-                                forcedType: column.forcedType,      // NEW: User-forced type (if set)
+                                inferredType: column.inferredType,
+                                forcedType: column.forcedType,
                             };
                         }),
                         rows: sheetRows,
@@ -761,8 +765,16 @@ async function handleFiles(files) {
                 if (response.success && response.sheets) {
                     // Create sheet objects from parsed data
                     for (const sheetData of response.sheets) {
-                        // Check for duplicate columns
-                        if (sheetData.hasDuplicates && sheetData.renamedColumns && sheetData.renamedColumns.length > 0) {
+                        console.log('[Excel Upload] Sheet data:', {
+                            name: sheetData.sheet_name || sheetData.name,
+                            hasDuplicates: sheetData.hasDuplicates,
+                            renamedColumnsLength: sheetData.renamedColumns?.length || 0,
+                            renamedColumns: sheetData.renamedColumns
+                        });
+                        
+                        // Check for renamed columns (spaces, special chars, duplicates, or length)
+                        if (sheetData.hasDuplicates === true && sheetData.renamedColumns && sheetData.renamedColumns.length > 0) {
+                            console.log('[Excel Upload] Processing renamed columns for file:', fileEntry.id);
                             // Store renamed columns metadata
                             const existingIndex = state.renamedColumns.findIndex(
                                 r => r.sheetName === sheetData.name
@@ -772,7 +784,7 @@ async function handleFiles(files) {
                                 state.renamedColumns[existingIndex].columns = sheetData.renamedColumns;
                             } else {
                                 state.renamedColumns.push({
-                                    sheetName: sheetData.name,
+                                    sheetName: sheetData.sheet_name || sheetData.name || fileEntry.name,
                                     fileId: fileEntry.id,
                                     columns: sheetData.renamedColumns
                                 });
@@ -801,6 +813,12 @@ async function handleFiles(files) {
                         // Analyze columns for type detection and width
                         sheet.columns = analyzeColumns(sheet.rows, sheet.columns);
                         
+                        // Add IDs to columns for custom-data-table component
+                        sheet.columns = sheet.columns.map((col, index) => ({
+                            ...col,
+                            id: col.id || `col_${Date.now()}_${index}_${Math.random()}`
+                        }));
+                        
                         // Normalize time values (convert Excel decimals to HH:MM:SS)
                         sheet.rows = normalizeTimeValues(sheet.rows, sheet.columns);
                         
@@ -813,12 +831,18 @@ async function handleFiles(files) {
                         stateFile.status = 'completed';
                     }
                     
-                    // Show duplicate column modal if needed
-                    if (state.requiresReview && state.renamedColumns.some(r => r.fileId === fileEntry.id)) {
-                        const fileRenames = state.renamedColumns.find(r => r.fileId === fileEntry.id);
-                        if (fileRenames) {
-                            showDuplicateColumnModal(fileRenames.sheetName, fileRenames.columns, fileEntry.id);
-                        }
+                    console.log('[Excel Upload] Checking for duplicates modal. state.renamedColumns:', state.renamedColumns);
+                    console.log('[Excel Upload] Looking for fileId:', fileEntry.id);
+                    
+                    // Show duplicate column modal if needed - only for files that actually have duplicates
+                    const fileRenames = state.renamedColumns.find(r => r.fileId === fileEntry.id);
+                    console.log('[Excel Upload] Found fileRenames:', fileRenames);
+                    
+                    if (fileRenames && fileRenames.columns && fileRenames.columns.length > 0) {
+                        console.log('[Excel Upload] Showing duplicate modal for:', fileRenames.sheetName, 'with', fileRenames.columns.length, 'columns');
+                        showDuplicateColumnModal(fileRenames.sheetName, fileRenames.columns, fileEntry.id);
+                    } else {
+                        console.log('[Excel Upload] No duplicates to show modal for');
                     }
                 } else {
                     const stateFile = state.files.find(f => f.id === fileEntry.id);
@@ -948,26 +972,44 @@ function handleColumnAdded(sheetId, columnDef) {
     sheet.metadata.columnCount = sheet.columns.length;
 }
 
-function handleColumnRenamed(sheetId, oldKey, newKey, newTitle) {
-    const sheet = state.sheets.find(s => s.id === sheetId);
-    if (!sheet) return;
+function handleColumnRenamed(event) {
+    // Get active sheet (custom-data-table works on active sheet only)
+    const activeSheet = state.sheets.find(sheet => sheet.id === state.activeSheetId);
+    if (!activeSheet) return;
     
-    // Update column definition
-    const column = sheet.columns.find(col => col.key === oldKey);
-    if (column) {
-        column.key = newKey;
-        column.title = newTitle;
+    // Find column by ID first, fallback to key if ID not found (safety measure)
+    let column = activeSheet.columns.find(col => col.id === event.columnId);
+    if (!column) {
+        column = activeSheet.columns.find(col => col.key === event.column?.key);
     }
     
-    // Update data in all rows
-    sheet.rows.forEach(row => {
-        if (oldKey in row.data) {
-            row.data[newKey] = row.data[oldKey];
-            delete row.data[oldKey];
-        }
-    });
+    if (!column) return;
     
-    sheet.metadata.modified = new Date();
+    // Update column title (this is what user sees and what should be sent to backend)
+    column.title = event.newName;
+    
+    // Store original title if not already stored
+    if (!column.originalTitle) {
+        column.originalTitle = event.oldName;
+    }
+    
+    // Update the key for data mapping (sanitize to match backend expectations)
+    const newKey = event.newName.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    const oldKey = column.key;
+    
+    if (newKey !== oldKey) {
+        column.key = newKey;
+        
+        // Update data in all rows with the new key
+        activeSheet.rows.forEach(row => {
+            if (oldKey in row.data) {
+                row.data[newKey] = row.data[oldKey];
+                delete row.data[oldKey];
+            }
+        });
+    }
+    
+    activeSheet.metadata.modified = new Date();
 }
 
 function handleSheetChanged(event) {
@@ -1077,14 +1119,14 @@ onMounted(async () => {
             Back
         </button>
 
-        <div class="text-center mb-10">
+        <div class="text-center mb-5">
             <h1 class="text-4xl font-bold text-gray-900 mb-2">Connect Excel / CSV Data Source</h1>
             <p class="text-base text-gray-600">Upload your Excel or CSV files to import and analyze data.</p>
         </div>
 
         <div class="flex flex-col justify-center">
             <div class="flex flex-row justify-center">
-                <input type="text" class="w-3/4 border border-primary-blue-100 border-solid p-2 cursor-pointer margin-auto mt-10 rounded-lg" placeholder="Data Source Name" v-model="state.data_source_name"/>
+                <input type="text" class="w-3/4 border border-primary-blue-100 border-solid p-2 cursor-pointer margin-auto rounded-lg" placeholder="Data Source Name" v-model="state.data_source_name"/>
             </div>
             
             <!-- Duplicate columns warning banner -->
@@ -1101,11 +1143,11 @@ onMounted(async () => {
                     </div>
                     <div class="ml-3 flex-1">
                         <h3 class="text-sm font-medium text-yellow-800">
-                            Duplicate Column Names Detected
+                            Column Names Sanitized for Database Compatibility
                         </h3>
                         <div class="mt-2 text-sm text-yellow-700">
                             <p>
-                                Some columns have been automatically renamed to prevent conflicts. 
+                                Some columns were automatically renamed because they contained spaces, special characters, or were duplicates. 
                                 Renamed columns are highlighted in yellow in the preview below.
                             </p>
                             <p class="mt-1">
@@ -1141,121 +1183,141 @@ onMounted(async () => {
                 <p class="text-sm text-gray-600">Supported formats: .xlsx, .xls, .csv</p>
                 <input type="file" id="file-elem" multiple accept=".xlsx,.xls,.csv" class="hidden">
             </div>
-            <div class="flex flex-wrap justify-center gap-6 mx-auto mt-5 px-4">
-                <div v-for="file in state.files" :key="file.id" class="relative">
-                    <notched-card>
-                        <template #body="{ onClick }">
-                            <NuxtLink class="text-gray-500">
-                                <div class="flex flex-row justify-start">
-                                    <font-awesome
-                                      v-if="state.loadingTableForFileId === file.id"
-                                      icon="fas fa-spinner"
-                                      class="text-xl mr-2 text-blue-500 fa-spin cursor-pointer"
-                                    />
-                                    <font-awesome
-                                      v-else-if="file.status === 'completed' && getSheetsByFileId(file.id).length > 0"
-                                      icon="fas fa-table"
-                                      class="text-xl mr-2 text-gray-500 hover:text-gray-400 cursor-pointer"
-                                      @click="showTable(file.id)"
-                                    />
-                                    <font-awesome
-                                      v-if="file.status === 'uploaded'"
-                                      icon="fas fa-circle-check"
-                                      class="text-xl mr-2 text-green-600"
-                                    />
-                                    <font-awesome
-                                      v-else-if="file.status === 'completed'"
-                                      icon="fas fa-check"
-                                      class="text-xl mr-2 text-green-500"
-                                    />
-                                    <font-awesome
-                                      v-else-if="file.status === 'uploading' || file.status === 'queued'"
-                                      icon="fas fa-spinner"
-                                      class="text-xl mr-2 text-blue-500 fa-spin"
-                                    />
-                                    <font-awesome
-                                      v-else-if="file.status === 'processing'"
-                                      icon="fas fa-spinner"
-                                      class="text-xl mr-2 text-blue-500 fa-spin"
-                                    />
-                                    <font-awesome
-                                      v-else-if="file.status === 'requires_review'"
-                                      icon="fas fa-triangle-exclamation"
-                                      class="text-xl mr-2 text-yellow-500"
-                                    />
-                                    <font-awesome
-                                      v-else-if="file.status === 'error'"
-                                      icon="fas fa-exclamation-circle"
-                                      class="text-xl mr-2 text-red-500"
-                                    />
-                                    <font-awesome
-                                      v-else
-                                      icon="fas fa-clock"
-                                      class="text-xl mr-2 text-gray-400"
-                                    />
-                                </div>
-                                <div class="flex flex-col justify-center">
-                                    <div class="text-md font-semibold">
-                                      {{ file.name }}
-                                    </div>
-                                    <div class="mt-1 text-xs text-gray-600">
-                                      {{ file.sizeFormatted }}
-                                    </div>
-                                    <div v-if="file.status === 'uploaded'" class="mt-1 text-xs text-green-600">
-                                      ✓ Uploaded - {{ getSheetsByFileId(file.id).length }} sheet(s)
-                                    </div>
-                                    <div v-else-if="file.status === 'completed'" class="mt-1 text-xs text-green-600">
-                                      Ready - {{ getSheetsByFileId(file.id).length }} sheet(s)
-                                    </div>
-                                    <div v-else-if="file.status === 'uploading'" class="mt-1 text-xs text-blue-600">
-                                      <span v-if="file.progress">{{ file.progress }}% - </span>{{ file.statusMessage || 'Uploading...' }}
-                                    </div>
-                                    <div v-else-if="file.status === 'queued'" class="mt-1 text-xs text-amber-600">
-                                      Queued - {{ file.statusMessage || 'Waiting to upload' }}
-                                    </div>
-                                    <div v-else-if="file.status === 'processing'" class="mt-1 text-xs text-blue-600">
-                                      Processing...
-                                    </div>
-                                    <div v-else-if="file.status === 'requires_review'" class="mt-1 text-xs text-yellow-600">
-                                      <strong>Review Required:</strong> {{ file.statusMessage || 'Duplicate columns detected' }}
-                                    </div>
-                                    <div v-else-if="file.status === 'error'" class="mt-1 text-xs">
-                                      <div class="text-red-600 font-medium mb-1">
-                                        {{ file.statusMessage || 'Failed to process' }}
-                                      </div>
-                                      <div v-if="file.error && file.error !== file.statusMessage" class="text-red-500 text-xs">
-                                        {{ file.error }}
-                                      </div>
-                                      <button 
-                                        @click.prevent="showErrorDetails(file)"
-                                        class="mt-1 text-blue-600 hover:text-blue-800 underline text-xs"
-                                      >
-                                        View suggestions →
-                                      </button>
-                                    </div>
-                                    <div v-else class="mt-1 text-xs text-gray-500">
-                                      Pending
-                                    </div>
-                                </div>
-                                <div class="flex flex-row justify-center items-center mt-5 mr-10">
-                                    <font-awesome
-                                        icon="fas fa-file-excel"
-                                        class="text-5xl ml-2"
-                                        :class="{
-                                            'text-green-600': file.status === 'uploaded',
-                                            'text-green-500': file.status === 'completed',
-                                            'text-blue-500': file.status === 'processing' || file.status === 'uploading' || file.status === 'queued',
-                                            'text-red-500': file.status === 'error',
-                                            'text-green-300': file.status === 'pending'
-                                        }"
-                                    />
-                                </div>
-                            </NuxtLink>
-                        </template>
-                    </notched-card>
-                    <div class="absolute -top-2 -right-3 z-10 bg-red-500 hover:bg-red-600 border border-red-500 border-solid rounded-full w-10 h-10 flex items-center justify-center cursor-pointer shadow-md" @click="removeFile(file.id)" v-tippy="{ content: 'Remove File', placement: 'top' }">
-                        <font-awesome icon="fas fa-xmark" class="text-xl text-white" />
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mx-auto mt-5 px-4">
+                <div v-for="file in state.files" :key="file.id"
+                     class="relative border border-gray-200 rounded-lg p-6 bg-white shadow-sm hover:shadow-lg hover:border-primary-blue-100 transition-all duration-200 group flex flex-col">
+                    
+                    <!-- Header: Icon + Filename -->
+                    <div class="flex items-start gap-4 mb-4">
+                        <font-awesome
+                            icon="fas fa-file-excel"
+                            class="text-4xl shrink-0"
+                            :class="{
+                                'text-green-600': file.status === 'uploaded',
+                                'text-green-500': file.status === 'completed',
+                                'text-blue-500': file.status === 'processing' || file.status === 'uploading' || file.status === 'queued',
+                                'text-red-500': file.status === 'error',
+                                'text-yellow-500': file.status === 'requires_review',
+                                'text-gray-400': !file.status || file.status === 'pending'
+                            }"
+                        />
+                        <div class="flex-1 min-w-0">
+                            <h3 class="text-lg font-semibold text-gray-900 break-words">{{ file.name }}</h3>
+                            <p class="text-sm text-gray-500">Excel File</p>
+                        </div>
                     </div>
+
+                    <!-- Status Section -->
+                    <div class="mb-4">
+                        <div class="flex items-center gap-2 mb-2">
+                            <font-awesome
+                              v-if="file.status === 'uploaded'"
+                              icon="fas fa-circle-check"
+                              class="text-lg text-green-600"
+                            />
+                            <font-awesome
+                              v-else-if="file.status === 'completed'"
+                              icon="fas fa-check"
+                              class="text-lg text-green-500"
+                            />
+                            <font-awesome
+                              v-else-if="file.status === 'uploading' || file.status === 'queued'"
+                              icon="fas fa-spinner"
+                              class="text-lg text-blue-500 fa-spin"
+                            />
+                            <font-awesome
+                              v-else-if="file.status === 'processing'"
+                              icon="fas fa-spinner"
+                              class="text-lg text-blue-500 fa-spin"
+                            />
+                            <font-awesome
+                              v-else-if="file.status === 'requires_review'"
+                              icon="fas fa-triangle-exclamation"
+                              class="text-lg text-yellow-500"
+                            />
+                            <font-awesome
+                              v-else-if="file.status === 'error'"
+                              icon="fas fa-exclamation-circle"
+                              class="text-lg text-red-500"
+                            />
+                            <font-awesome
+                              v-else
+                              icon="fas fa-clock"
+                              class="text-lg text-gray-400"
+                            />
+                            <span class="text-sm font-medium text-gray-700">
+                                <template v-if="file.status === 'uploaded'">Uploaded</template>
+                                <template v-else-if="file.status === 'completed'">Ready</template>
+                                <template v-else-if="file.status === 'uploading'">Uploading</template>
+                                <template v-else-if="file.status === 'queued'">Queued</template>
+                                <template v-else-if="file.status === 'processing'">Processing</template>
+                                <template v-else-if="file.status === 'requires_review'">Review Required</template>
+                                <template v-else-if="file.status === 'error'">Error</template>
+                                <template v-else>Pending</template>
+                            </span>
+                        </div>
+                        <div v-if="file.status === 'uploaded'" class="text-xs text-green-600">
+                          ✓ Uploaded - {{ getSheetsByFileId(file.id).length }} sheet(s)
+                        </div>
+                        <div v-else-if="file.status === 'completed'" class="text-xs text-green-600">
+                          Ready - {{ getSheetsByFileId(file.id).length }} sheet(s)
+                        </div>
+                        <div v-else-if="file.status === 'uploading'" class="text-xs text-blue-600">
+                          <span v-if="file.progress">{{ file.progress }}% - </span>{{ file.statusMessage || 'Uploading...' }}
+                        </div>
+                        <div v-else-if="file.status === 'queued'" class="text-xs text-amber-600">
+                          Queued - {{ file.statusMessage || 'Waiting to upload' }}
+                        </div>
+                        <div v-else-if="file.status === 'processing'" class="text-xs text-blue-600">
+                          Processing...
+                        </div>
+                        <div v-else-if="file.status === 'requires_review'" class="text-xs text-yellow-600">
+                          <strong>Review Required:</strong> {{ file.statusMessage || 'Column names sanitized' }}
+                        </div>
+                        <div v-else-if="file.status === 'error'" class="text-xs">
+                          <div class="text-red-600 font-medium mb-1">
+                            {{ file.statusMessage || 'Failed to process' }}
+                          </div>
+                          <div v-if="file.error && file.error !== file.statusMessage" class="text-red-500 text-xs">
+                            {{ file.error }}
+                          </div>
+                          <button 
+                            @click.prevent="showErrorDetails(file)"
+                            class="mt-1 text-blue-600 hover:text-blue-800 underline text-xs cursor-pointer"
+                          >
+                            View suggestions →
+                          </button>
+                        </div>
+                    </div>
+
+                    <!-- Info Section -->
+                    <div class="flex items-center gap-4 mb-4">
+                        <span class="text-sm text-gray-600">{{ file.sizeFormatted }}</span>
+                        <span v-if="getSheetsByFileId(file.id).length > 0" 
+                              class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            {{ getSheetsByFileId(file.id).length }} Sheet{{ getSheetsByFileId(file.id).length !== 1 ? 's' : '' }}
+                        </span>
+                    </div>
+
+                    <!-- Action Button -->
+                    <button 
+                        v-if="file.status === 'completed' && getSheetsByFileId(file.id).length > 0"
+                        @click="showTable(file.id)"
+                        :disabled="state.loadingTableForFileId === file.id"
+                        class="mt-auto w-full px-4 py-2 bg-primary-blue-100 text-white rounded-lg hover:bg-primary-blue-300 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                        <font-awesome 
+                            :icon="state.loadingTableForFileId === file.id ? 'fas fa-spinner' : 'fas fa-table'" 
+                            :class="{ 'fa-spin': state.loadingTableForFileId === file.id }" />
+                        {{ state.loadingTableForFileId === file.id ? 'Loading...' : 'View Table' }}
+                    </button>
+
+                    <!-- Remove Button -->
+                    <button 
+                        @click="removeFile(file.id)"
+                        class="absolute top-4 right-4 bg-white hover:bg-gray-100 w-5 h-5 flex items-center justify-center cursor-pointer transition-colors z-10 shadow-md"
+                        v-tippy="{ content: 'Remove File', placement: 'top' }">
+                        <font-awesome icon="fas fa-trash" class="text-lg text-red-500" />
+                    </button>
                 </div>
             </div>
             
