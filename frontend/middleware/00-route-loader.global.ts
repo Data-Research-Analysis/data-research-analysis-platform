@@ -30,6 +30,7 @@ export default defineNuxtRouteMiddleware((to, from) => {
   // Only run on client-side
   if (import.meta.client) {
     const { startBatch, endBatch } = useGlobalLoader()
+    const { getMessageForContext } = useLoaderMessages()
     
     // Start batch when navigating to a different route
     if (from.path !== to.path) {
@@ -39,8 +40,11 @@ export default defineNuxtRouteMiddleware((to, from) => {
       // Store batch ID in route meta for other middleware to access
       to.meta.loaderBatchId = batchId
       
-      // Start batch - shows loader immediately
-      startBatch(batchId)
+      // Get personalized message for the destination route
+      const message = getMessageForContext(to.path, '')
+      
+      // Start batch - shows loader immediately with personalized message
+      startBatch(batchId, message)
       
       // End batch after navigation completes
       const router = useRouter()

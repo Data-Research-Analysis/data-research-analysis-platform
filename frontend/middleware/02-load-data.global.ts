@@ -151,10 +151,17 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
         // AUTHENTICATED ROUTES - Load data based on specific route
         const loadTasks: Array<Promise<void>> = [];
         
+        console.log('[load-data] Starting data load for route:', {
+          path: to.path,
+          params: to.params,
+          currentProjectsCount: projectsStore.projects.length
+        });
+        
         // === PROJECT ROUTES ===
         if (isProjectListRoute(to.path)) {
           // Only load projects for list page
           if (shouldRefreshProjects(projectsStore)) {
+            console.log('[load-data] Loading projects for list page');
             loadTasks.push((async () => {
               await projectsStore.retrieveProjects();
               markDataLoaded('projects');
@@ -164,12 +171,15 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
           // Load projects + data sources for project detail
           // Always load projects if cache expired
           if (shouldRefreshProjects(projectsStore)) {
+            console.log('[load-data] Loading projects for project detail');
             loadTasks.push(
               (async () => {
                 await projectsStore.retrieveProjects();
                 markDataLoaded('projects');
               })()
             );
+          } else {
+            console.log('[load-data] Skipping projects load - cache is fresh');
           }
           
           // Always load data sources when navigating to project (even if cached)
@@ -181,14 +191,19 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
             })()
           );
         } else if (isDataSourceRoute(to.path)) {
+          console.log('[load-data] Data source route detected');
           // Load projects + data sources + data models for data source routes
           if (shouldRefreshProjects(projectsStore)) {
+            console.log('[load-data] Loading projects for data source route');
             loadTasks.push(
               (async () => {
                 await projectsStore.retrieveProjects();
+                console.log('[load-data] Projects loaded:', projectsStore.projects.length);
                 markDataLoaded('projects');
               })()
             );
+          } else {
+            console.log('[load-data] Skipping projects load - cache is fresh, current count:', projectsStore.projects.length);
           }
           
           // Extract projectId from route params
@@ -370,7 +385,11 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
         
         // Execute all load tasks in parallel
         if (loadTasks.length > 0) {
+          console.log('[load-data] Waiting for', loadTasks.length, 'load tasks to complete...');
           await Promise.all(loadTasks);
+          console.log('[load-data] All load tasks completed. Projects count:', projectsStore.projects.length);
+        } else {
+          console.log('[load-data] No load tasks needed');
         }
         
         // Clear force refresh flag

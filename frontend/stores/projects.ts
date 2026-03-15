@@ -9,6 +9,7 @@ export const useProjectsStore = defineStore('projectsDRA', () => {
     const myProjectRole = ref<'analyst' | 'manager' | 'cmo' | null>(null)
     
     function setProjects(projectsList: IProject[]) {
+        console.log('[ProjectsStore] setProjects called with', projectsList.length, 'projects');
         // Validate and normalize project data to ensure RBAC consistency
         projects.value = projectsList.map(p => ({
             ...p,
@@ -20,32 +21,53 @@ export const useProjectsStore = defineStore('projectsDRA', () => {
             data_models_count: p.data_models_count || 0,
             dashboards_count: p.dashboards_count || 0,
         }))
+        console.log('[ProjectsStore] projects.value now contains', projects.value.length, 'projects');
         if (import.meta.client) {
-            localStorage.setItem('projects', JSON.stringify(projects.value));
-            enableRefreshDataFlag('setProjects');
+            try {
+                localStorage.setItem('projects', JSON.stringify(projects.value));
+                enableRefreshDataFlag('setProjects');
+            } catch (error: any) {
+                if (error.name === 'QuotaExceededError') {
+                    console.warn('[ProjectsStore] localStorage quota exceeded for projects. Data kept in memory only.');
+                    enableRefreshDataFlag('setProjects');
+                } else {
+                    console.error('[ProjectsStore] Error saving projects to localStorage:', error);
+                }
+            }
         }
     }
     function setSelectedProject(project: IProject) {
         selectedProject.value = project
         myProjectRole.value = project.my_role ?? null
         if (import.meta.client) {
-            localStorage.setItem('selectedProject', JSON.stringify(project));
-            localStorage.setItem('myProjectRole', project.my_role ?? 'cmo');
+            try {
+                localStorage.setItem('selectedProject', JSON.stringify(project));
+                localStorage.setItem('myProjectRole', project.my_role ?? 'cmo');
+            } catch (error: any) {
+                if (error.name === 'QuotaExceededError') {
+                    console.warn('[ProjectsStore] localStorage quota exceeded for selectedProject.');
+                } else {
+                    console.error('[ProjectsStore] Error saving selectedProject to localStorage:', error);
+                }
+            }
         }
     }
     function getProjects() {
-        if (import.meta.client && localStorage.getItem('projects')) {
-            projects.value = JSON.parse(localStorage.getItem('projects') || '[]')
-        }
+        console.log('[ProjectsStore] getProjects called, returning', projects.value.length, 'projects');
+        // Return current value - store already initializes from localStorage on load
+        // Don't overwrite with localStorage on every call as it may be stale
         return projects.value;
     }
     async function retrieveProjects() {
+        console.log('[ProjectsStore] retrieveProjects called');
         const token = getAuthToken();
         if (!token) {
+            console.log('[ProjectsStore] No token, clearing projects');
             projects.value = [];
             return;
         }
         const url = `${baseUrl()}/project/list`;
+        console.log('[ProjectsStore] Fetching projects from API...');
         const data = await $fetch(url, {
             method: "GET",
             headers: {
@@ -53,10 +75,12 @@ export const useProjectsStore = defineStore('projectsDRA', () => {
                 "Authorization-Type": "auth",
             },
         });
+        console.log('[ProjectsStore] API returned', Array.isArray(data) ? data.length : 'non-array', 'projects');
         setProjects(data)
     }
     function getSelectedProject() {
-        if (import.meta.client && localStorage.getItem('selectedProject')) {
+        // Load from localStorage only if not already set
+        if (import.meta.client && !selectedProject.value && localStorage.getItem('selectedProject')) {
             const stored = JSON.parse(localStorage.getItem('selectedProject') || 'null')
             selectedProject.value = stored
             myProjectRole.value = (stored?.my_role ?? localStorage.getItem('myProjectRole') ?? null) as 'analyst' | 'manager' | 'cmo' | null

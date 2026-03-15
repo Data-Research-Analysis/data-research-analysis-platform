@@ -16,8 +16,17 @@ export const useSubscriptionStore = defineStore('subscription', () => {
     function setSubscriptionStats(stats: IUserSubscriptionStats) {
         subscriptionStats.value = stats;
         if (import.meta.client) {
-            localStorage.setItem('subscriptionStats', JSON.stringify(stats));
-            enableRefreshDataFlag('setSubscriptionStats');
+            try {
+                localStorage.setItem('subscriptionStats', JSON.stringify(stats));
+                enableRefreshDataFlag('setSubscriptionStats');
+            } catch (error: any) {
+                if (error.name === 'QuotaExceededError') {
+                    console.warn('[SubscriptionStore] localStorage quota exceeded for stats.');
+                    enableRefreshDataFlag('setSubscriptionStats');
+                } else {
+                    console.error('[SubscriptionStore] Error saving stats to localStorage:', error);
+                }
+            }
         }
     }
 

@@ -8,14 +8,31 @@ export const useDashboardsStore = defineStore('dashboardsDRA', () => {
     function setDashboards(dashboardsList: IDashboard[]) {
         dashboards.value = dashboardsList
         if (import.meta.client) {
-            localStorage.setItem('dashboards', JSON.stringify(dashboardsList))
-            enableRefreshDataFlag('setDashboards');
+            try {
+                localStorage.setItem('dashboards', JSON.stringify(dashboardsList))
+                enableRefreshDataFlag('setDashboards');
+            } catch (error: any) {
+                if (error.name === 'QuotaExceededError') {
+                    console.warn('[DashboardsStore] localStorage quota exceeded for dashboards.');
+                    enableRefreshDataFlag('setDashboards');
+                } else {
+                    console.error('[DashboardsStore] Error saving dashboards to localStorage:', error);
+                }
+            }
         }
     }
     function setSelectedDashboard(dashboard: IDashboard) {
         selectedDashboard.value = dashboard
         if (import.meta.client) {
-            localStorage.setItem('selectedDashboard', JSON.stringify(dashboard))
+            try {
+                localStorage.setItem('selectedDashboard', JSON.stringify(dashboard))
+            } catch (error: any) {
+                if (error.name === 'QuotaExceededError') {
+                    console.warn('[DashboardsStore] localStorage quota exceeded for selectedDashboard.');
+                } else {
+                    console.error('[DashboardsStore] Error saving selectedDashboard to localStorage:', error);
+                }
+            }
         }
     }
     function setColumnsAdded(columnNames: string[]) {
@@ -26,9 +43,7 @@ export const useDashboardsStore = defineStore('dashboardsDRA', () => {
         }
     }
     function getDashboards() {
-        if (import.meta.client && localStorage.getItem('dashboards')) {
-            dashboards.value = JSON.parse(localStorage.getItem('dashboards') || '[]')
-        }
+        // Return current value - don't overwrite with potentially stale localStorage
         return dashboards.value;
     }
     async function retrieveDashboards() {
@@ -62,7 +77,8 @@ export const useDashboardsStore = defineStore('dashboardsDRA', () => {
         return data;
     }
     function getSelectedDashboard() {
-        if (import.meta.client && localStorage.getItem('selectedDashboard')) {
+        // Load from localStorage only if not already set
+        if (import.meta.client && !selectedDashboard.value && localStorage.getItem('selectedDashboard')) {
             selectedDashboard.value = JSON.parse(localStorage.getItem('selectedDashboard') || 'null')
         }
         return selectedDashboard.value

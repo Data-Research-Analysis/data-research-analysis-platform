@@ -86,11 +86,36 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
   // === PROJECT VALIDATION AND SELECTION ===
   if (to.params.projectid) {
     const projectId = parseInt(String(to.params.projectid));
-    const project = projectsStore.getProjects().find((p) => p.id === projectId);
+    const allProjects = projectsStore.getProjects();
+    
+    console.log('[validate-data] Validating project:', {
+      projectId,
+      projectsCount: allProjects.length,
+      projectIds: allProjects.map(p => p.id),
+      route: to.path
+    });
+    
+    const project = allProjects.find((p) => p.id === projectId);
     
     if (!project) {
-      return navigateTo('/projects');
+      console.log('[validate-data] Project not found!', {
+        projectId,
+        hasProjects: allProjects.length > 0,
+        willRedirect: allProjects.length > 0
+      });
+      
+      // Project not found - only redirect if we have ANY projects loaded
+      // If projects array is empty, it means data hasn't loaded yet, so allow the route
+      if (allProjects.length > 0) {
+        console.log('[validate-data] REDIRECTING to /projects - project not in list');
+        return navigateTo('/projects');
+      }
+      // Otherwise, let the page load and handle the missing project itself
+      console.log('[validate-data] Allowing navigation - no projects loaded yet');
+      return;
     }
+    
+    console.log('[validate-data] Project found, setting as selected:', project.name);
     
     // Set selected project
     projectsStore.setSelectedProject(project);    
@@ -103,8 +128,14 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     const dataSource = dataSourceStore.getDataSources().find((ds) => ds.id === dataSourceId);
     
     if (!dataSource) {
-      const projectId = to.params.projectid;
-      return navigateTo(`/projects/${projectId}`);
+      // Data source not found - only redirect if we have ANY data sources loaded
+      const allDataSources = dataSourceStore.getDataSources();
+      if (allDataSources.length > 0) {
+        const projectId = to.params.projectid;
+        return navigateTo(`/projects/${projectId}`);
+      }
+      // Otherwise, let the page load and handle the missing data source itself
+      return;
     }
     
     // Validate data source belongs to the current project
@@ -125,8 +156,14 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
     const dashboard = dashboardsStore.getDashboards().find((d) => d.id === dashboardId);
     
     if (!dashboard) {
-      const projectId = to.params.projectid;
-      return navigateTo(`/projects/${projectId}/dashboards`);
+      // Dashboard not found - only redirect if we have ANY dashboards loaded
+      const allDashboards = dashboardsStore.getDashboards();
+      if (allDashboards.length > 0) {
+        const projectId = to.params.projectid;
+        return navigateTo(`/projects/${projectId}/dashboards`);
+      }
+      // Otherwise, let the page load and handle the missing dashboard itself
+      return;
     }
     
     // Validate dashboard belongs to the current project

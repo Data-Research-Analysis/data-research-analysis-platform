@@ -17,6 +17,9 @@ import { QueueService } from '../services/QueueService.js';
 export class ExcelDataSourceProcessor {
     private static instance: ExcelDataSourceProcessor;
     private notificationHelper = NotificationHelperService.getInstance();
+    // Track upload sessions to prevent duplicate data sources for multi-sheet files
+    private uploadSessionCache: Map<string, number> = new Map();
+    
     private constructor() { }
 
     public static getInstance(): ExcelDataSourceProcessor {
@@ -26,7 +29,7 @@ export class ExcelDataSourceProcessor {
         return ExcelDataSourceProcessor.instance;
     }
 
-    public async addExcelDataSource(dataSourceName: string, fileId: string, data: string, tokenDetails: ITokenDetails, projectId: number, dataSourceId: number = null, sheetInfo?: any, classification?: string | null): Promise<IExcelDataSourceReturn> {
+    public async addExcelDataSource(dataSourceName: string, fileId: string, data: string, tokenDetails: ITokenDetails, projectId: number, dataSourceId: number = null, uploadSessionId?: string, sheetInfo?: any, classification?: string | null): Promise<IExcelDataSourceReturn> {
         return new Promise<IExcelDataSourceReturn>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -49,6 +52,13 @@ export class ExcelDataSourceProcessor {
             if (project) {
                 let dataSource = new DRADataSource();
                 const sheetsProcessed = [];
+                
+                // Check if we already created a data source for this upload session
+                if (!dataSourceId && uploadSessionId && this.uploadSessionCache.has(uploadSessionId)) {
+                    dataSourceId = this.uploadSessionCache.get(uploadSessionId);
+                    console.log(`[Excel Upload] Reusing data source ${dataSourceId} for session ${uploadSessionId}`);
+                }
+                
                 if (!dataSourceId) {
                     //the tables will be saved in the platform's own database but in a dedicated schema
                     const host = UtilityService.getInstance().getConstants('POSTGRESQL_HOST');
@@ -77,12 +87,25 @@ export class ExcelDataSourceProcessor {
                     dataSource.created_at = new Date();
                     dataSource.classification = classification || null;
                     dataSource = await manager.save(dataSource);
+                    
+                    // Cache the data source ID for this upload session
+                    if (uploadSessionId) {
+                        this.uploadSessionCache.set(uploadSessionId, dataSource.id);
+                        console.log(`[Excel Upload] Created new data source ${dataSource.id} for session ${uploadSessionId}`);
+                        
+                        // Clean up cache after 10 minutes to prevent memory leak
+                        setTimeout(() => {
+                            this.uploadSessionCache.delete(uploadSessionId);
+                            console.log(`[Excel Upload] Cleaned up session cache for ${uploadSessionId}`);
+                        }, 10 * 60 * 1000);
+                    }
                 } else {
                     dataSource = await manager.findOne(DRADataSource, { where: { id: dataSourceId, project: project, users_platform: user } });
                 }
 
                 try {
                     const parsedTableStructure = JSON.parse(data);
+                    
                     // Get sheet information
                     const sheetName = sheetInfo?.sheet_name || 'Sheet1';
                     const sheetId = sheetInfo?.sheet_id || `sheet_${Date.now()}`;
@@ -136,7 +159,9 @@ export class ExcelDataSourceProcessor {
                                 displayTitle: displayColumnName
                             });
 
-                            const dataType = UtilityService.getInstance().convertDataTypeToPostgresDataType(EDataSourceType.EXCEL, column.type);
+                            // Use forced type if user manually set it, otherwise fall back to inferred type or original type
+                            const columnType = column.forcedType || column.inferredType || column.type;
+                            const dataType = UtilityService.getInstance().convertDataTypeToPostgresDataType(EDataSourceType.EXCEL, columnType);
                             let dataTypeString = '';
                             if (dataType.size) {
                                 dataTypeString = `${dataType.type}(${dataType.size})`;
@@ -166,6 +191,7 @@ export class ExcelDataSourceProcessor {
                             if (parsedTableStructure.rows && parsedTableStructure.rows.length > 0) {
                                 let successfulInserts = 0;
                                 let failedInserts = 0;
+                                const insertErrors: Array<{ rowNumber: number; error: string; columnName?: string }> = [];
 
                                 for (let rowIndex = 0; rowIndex < parsedTableStructure.rows.length; rowIndex++) {
                                     const row = parsedTableStructure.rows[rowIndex];
@@ -198,7 +224,7 @@ export class ExcelDataSourceProcessor {
                                         else if (row[columnInfo.original] !== undefined) {
                                             value = row[columnInfo.original];
                                         }
-                                        // Strategy 4: Try nested data structure (fallback)
+                                        // Strategy 6: Try nested data structure (fallback)
                                         else if (row.data) {
                                             if (originalColumn?.title && row.data[originalColumn.title] !== undefined) {
                                                 value = row.data[originalColumn.title];
@@ -212,8 +238,12 @@ export class ExcelDataSourceProcessor {
                                             values += ', ';
                                         }
 
+                                        // Common null placeholder strings
+                                        const NULL_PLACEHOLDERS = ['NIL', 'N/A', 'NA', '#N/A', 'NULL', 'null', 'Nil', 'nil', '-', '--', 'NONE', 'None', 'none'];
+                                        const isNullPlaceholder = typeof value === 'string' && NULL_PLACEHOLDERS.includes(value.trim());
+                                        
                                         // Handle different data types properly with comprehensive escaping
-                                        if (value === null || value === undefined || value === '') {
+                                        if (value === null || value === undefined || value === '' || isNullPlaceholder) {
                                             values += 'NULL';
                                         } else if (columnInfo.type === 'boolean') {
                                             const boolValue = DataSourceSQLHelpers.convertToPostgresBoolean(value);
@@ -240,13 +270,56 @@ export class ExcelDataSourceProcessor {
                                     try {
                                         const result = await dbConnector.query(insertQuery);
                                         successfulInserts++;
-                                    } catch (error) {
+                                    } catch (error: any) {
                                         failedInserts++;
-                                        console.error(`ERROR inserting row ${rowIndex + 1}:`, error);
-                                        console.error('Failed query:', insertQuery);
+                                        
+                                        // Extract meaningful error information
+                                        let errorMessage = error.message || 'Unknown error';
+                                        let problematicColumn: string | undefined;
+                                        
+                                        // PostgreSQL error codes
+                                        if (error.code === '22003') { // integer out of range
+                                            errorMessage = 'Integer value out of range';
+                                            // Try to identify which column has the problem
+                                            for (const colInfo of sanitizedColumns) {
+                                                if (colInfo.type === 'integer' || colInfo.type === 'bigint') {
+                                                    const val = row[colInfo.key] || row[colInfo.original];
+                                                    if (val && typeof val === 'number' && Math.abs(val) > 2147483647) {
+                                                        problematicColumn = colInfo.displayTitle || colInfo.title;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                        } else if (error.code === '22P02') { // invalid text representation
+                                            errorMessage = 'Invalid data format';
+                                        } else if (error.code === '23502') { // not null violation
+                                            errorMessage = 'Required field is empty';
+                                        } else if (error.code === '23505') { // unique violation
+                                            errorMessage = 'Duplicate value';
+                                        }
+                                        
+                                        insertErrors.push({
+                                            rowNumber: rowIndex + 1,
+                                            error: errorMessage,
+                                            columnName: problematicColumn
+                                        });
+                                        
+                                        console.error(`ERROR inserting row ${rowIndex + 1}:`, errorMessage);
+                                        if (problematicColumn) {
+                                            console.error(`Problem in column: ${problematicColumn}`);
+                                        }
                                         console.error('Row data:', JSON.stringify(row, null, 2));
-                                        console.error('Column mappings:', sanitizedColumns);
-                                        throw error;
+                                        
+                                        // Stop after first error to prevent flooding logs
+                                        // Return detailed error for user feedback
+                                        const errorDetails = {
+                                            message: `Failed to insert row ${rowIndex + 1}${problematicColumn ? ` (column: ${problematicColumn})` : ''}`,
+                                            detailedError: errorMessage,
+                                            rowNumber: rowIndex + 1,
+                                            columnName: problematicColumn,
+                                            sqlError: error.message
+                                        };
+                                        throw Object.assign(new Error(JSON.stringify(errorDetails)), { details: errorDetails });
                                     }
                                 }
 

@@ -11,21 +11,47 @@ export const useArticlesStore = defineStore('articlesDRA', () => {
     function setArticles(articlesList: IArticle[]) {
         articles.value = articlesList;
         if (import.meta.client) {
-            localStorage.setItem('articles', JSON.stringify(articlesList));
-            enableRefreshDataFlag('setArticles');
+            try {
+                localStorage.setItem('articles', JSON.stringify(articlesList));
+                enableRefreshDataFlag('setArticles');
+            } catch (error: any) {
+                if (error.name === 'QuotaExceededError') {
+                    console.warn('[ArticlesStore] localStorage quota exceeded for articles.');
+                    enableRefreshDataFlag('setArticles');
+                } else {
+                    console.error('[ArticlesStore] Error saving articles to localStorage:', error);
+                }
+            }
         }
     }
     function setCategories(categoriesList: ICategory[]) {
         categories.value = categoriesList;
         if (import.meta.client) {
-            localStorage.setItem('categories', JSON.stringify(categoriesList));
-            enableRefreshDataFlag('setCategories');
+            try {
+                localStorage.setItem('categories', JSON.stringify(categoriesList));
+                enableRefreshDataFlag('setCategories');
+            } catch (error: any) {
+                if (error.name === 'QuotaExceededError') {
+                    console.warn('[ArticlesStore] localStorage quota exceeded for categories.');
+                    enableRefreshDataFlag('setCategories');
+                } else {
+                    console.error('[ArticlesStore] Error saving categories to localStorage:', error);
+                }
+            }
         }
     }
     function setSelectedArticle(article: IArticle) {
             selectedArticle.value = article
             if (import.meta.client) {
-                localStorage.setItem('selectedArticle', JSON.stringify(article))
+                try {
+                    localStorage.setItem('selectedArticle', JSON.stringify(article))
+                } catch (error: any) {
+                    if (error.name === 'QuotaExceededError') {
+                        console.warn('[ArticlesStore] localStorage quota exceeded for selectedArticle.');
+                    } else {
+                        console.error('[ArticlesStore] Error saving selectedArticle to localStorage:', error);
+                    }
+                }
             }
         }
     function getArticles() {
@@ -69,7 +95,15 @@ export const useArticlesStore = defineStore('articlesDRA', () => {
     function setArticleVersions(versions: IArticleVersion[]) {
         articleVersions.value = versions;
         if (import.meta.client) {
-            localStorage.setItem('articleVersions', JSON.stringify(versions));
+            try {
+                localStorage.setItem('articleVersions', JSON.stringify(versions));
+            } catch (error: any) {
+                if (error.name === 'QuotaExceededError') {
+                    console.warn('[ArticlesStore] localStorage quota exceeded for articleVersions.');
+                } else {
+                    console.error('[ArticlesStore] Error saving articleVersions to localStorage:', error);
+                }
+            }
         }
     }
     function getArticleVersions() {

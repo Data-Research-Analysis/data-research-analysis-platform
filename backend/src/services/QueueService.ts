@@ -12,6 +12,7 @@ export class QueueService {
     private databaseBackupQueue: Queue;
     private databaseRestoreQueue: Queue;
     private mongodbSyncQueue: Queue;
+    private excelUploadQueue: Queue;
     
     private constructor() {}
 
@@ -29,6 +30,7 @@ export class QueueService {
             this.databaseBackupQueue = new Queue('DRADatabaseBackupQueue');
             this.databaseRestoreQueue = new Queue('DRADatabaseRestoreQueue');
             this.mongodbSyncQueue = new Queue('DRAMongoDBSyncQueue');
+            this.excelUploadQueue = new Queue('DRAExcelUploadQueue');
             await this.purgeQueues();
             return resolve();
         });
@@ -100,6 +102,31 @@ export class QueueService {
         });
     }
     
+    public async addExcelUploadJob(jobData: {
+        userId: number;
+        projectId: number;
+        dataSourceName: string;
+        fileId: string;
+        data: string;
+        dataSourceId?: number;
+        uploadSessionId?: string;
+        sheetInfo?: any;
+        classification?: string | null;
+    }): Promise<string> {
+        return new Promise<string>(async (resolve, reject) => {
+            const index = await this.excelUploadQueue.getNextIndex();
+            const jobId = `excel_upload_${Date.now()}_${index}`;
+            let response: Document = new Document({
+                id: index,
+                key: jobId,
+                content: JSON.stringify(jobData)
+            });
+            await this.excelUploadQueue.enqueue(response);
+            await this.excelUploadQueue.commit();
+            resolve(jobId);
+        });
+    }
+    
     public async getNextPDFConversionJob(): Promise<Document | null> {
         return new Promise<Document | null>(async (resolve, reject) => {
             const job = await this.pdfConversionQueue.dequeue();
@@ -144,6 +171,14 @@ export class QueueService {
         });
     }
     
+    public async getNextExcelUploadJob(): Promise<Document | null> {
+        return new Promise<Document | null>(async (resolve, reject) => {
+            const job = await this.excelUploadQueue.dequeue();
+            await this.excelUploadQueue.commit();
+            resolve(job);
+        });
+    }
+    
     public async purgePDFConversionQueue(): Promise<void> {
         return new Promise<void>(async (resolve, reject) => {
             await this.pdfConversionQueue.purge();
@@ -182,6 +217,13 @@ export class QueueService {
         });
     }
     
+    public async purgeExcelUploadQueue(): Promise<void> {
+        return new Promise<void>(async (resolve, reject) => {
+            await this.excelUploadQueue.purge();
+            resolve();
+        });
+    }
+    
     public async purgeQueues(): Promise<void> {
         return new Promise<void>(async (resolve, reject) => {
             await this.purgePDFConversionQueue();
@@ -190,6 +232,7 @@ export class QueueService {
             await this.purgeDatabaseBackupQueue();
             await this.purgeDatabaseRestoreQueue();
             await this.purgeMongoDBSyncQueue();
+            await this.purgeExcelUploadQueue();
             resolve();
         });
     }
@@ -248,6 +291,15 @@ export class QueueService {
                         await this.processMongoDBSyncJob(jobContent);
                     }
                 }
+                const numExcelUpload = await this.excelUploadQueue.length();
+                if (numExcelUpload > 0) {
+                    const job: Document | null = await this.excelUploadQueue.dequeue();
+                    if (job) {
+                        console.log('Processing Excel Upload Job:', job.getKey());
+                        const jobContent = JSON.parse(job.getContent());
+                        await this.processExcelUploadJob(job.getKey(), jobContent);
+                    }
+                }
             }, UtilityService.getInstance().getConstants('QUEUE_STATUS_INTERVAL'));
             resolve();
         });
@@ -290,6 +342,119 @@ export class QueueService {
             
         } catch (error: any) {
             console.error(`[QueueService] MongoDB sync failed for data source ${dataSourceId}:`, error);
+        }
+    }
+
+    private async processExcelUploadJob(jobId: string, jobData: {
+        userId: number;
+        projectId: number;
+        dataSourceName: string;
+        fileId: string;
+        data: string;
+        dataSourceId?: number;
+        uploadSessionId?: string;
+        sheetInfo?: any;
+        classification?: string | null;
+    }): Promise<void> {
+        const { userId, projectId, dataSourceName, fileId, data, dataSourceId, uploadSessionId, sheetInfo, classification } = jobData;
+        const maxRetries = 3;
+        let retryCount = 0;
+        
+        const emitProgress = async (phase: string, progress: number, message?: string, error?: string, resultDataSourceId?: number) => {
+            const { SocketIODriver } = await import('../drivers/SocketIODriver.js');
+            const { ISocketEvent } = await import('../types/ISocketEvent.js');
+            
+            const event = {
+                jobId,
+                userId,
+                fileId,
+                fileName: sheetInfo?.file_name || fileId,
+                phase,
+                progress,
+                message,
+                error,
+                dataSourceId: resultDataSourceId,
+                timestamp: new Date()
+            };
+            
+            await SocketIODriver.getInstance().emitEvent(ISocketEvent.EXCEL_UPLOAD_PROGRESS, JSON.stringify(event));
+        };
+        
+        try {
+            // Emit queued status
+            await emitProgress('queued', 0, 'Upload queued');
+            
+            // Emit processing start
+            await emitProgress('processing', 10, 'Starting Excel data processing');
+            
+            while (retryCount < maxRetries) {
+                try {
+                    const { ExcelDataSourceProcessor } = await import('../processors/ExcelDataSourceProcessor.js');
+                    
+                    await emitProgress('processing', 25, 'Creating table structure');
+                    
+                    const result = await ExcelDataSourceProcessor.getInstance().addExcelDataSource(
+                        dataSourceName,
+                        fileId,
+                        data,
+                        { user_id: userId } as any,
+                        projectId,
+                        dataSourceId,
+                        uploadSessionId,
+                        sheetInfo,
+                        classification
+                    );
+                    
+                    if (result.status === 'success') {
+                        await emitProgress('completed', 100, 'Excel upload completed successfully', undefined, result.data_source_id);
+                        console.log(`[QueueService] Excel upload completed: ${jobId}`);
+                        return;
+                    } else {
+                        throw new Error('Excel upload returned error status');
+                    }
+                    
+                } catch (error: any) {
+                    retryCount++;
+                    console.error(`[QueueService] Excel upload attempt ${retryCount} failed for job ${jobId}:`, error.message);
+                    
+                    if (retryCount < maxRetries) {
+                        const backoffDelay = Math.pow(2, retryCount) * 1000; // Exponential backoff: 2s, 4s, 8s
+                        await emitProgress('processing', 10 + (retryCount * 20), `Retrying upload (attempt ${retryCount + 1}/${maxRetries})...`);
+                        await new Promise(resolve => setTimeout(resolve, backoffDelay));
+                    } else {
+                        // Parse structured error if available
+                        let detailedError: any;
+                        try {
+                            detailedError = JSON.parse(error.message);
+                        } catch {
+                            detailedError = null;
+                        }
+                        
+                        // Build user-friendly error message
+                        let errorMessage = error.message;
+                        if (detailedError && detailedError.rowNumber) {
+                            errorMessage = `Error at row ${detailedError.rowNumber}`;
+                            if (detailedError.columnName) {
+                                errorMessage += ` in column "${detailedError.columnName}"`;
+                            }
+                            errorMessage += `: ${detailedError.detailedError || 'Data validation failed'}`;
+                        }
+                        
+                        throw Object.assign(error, { 
+                            userFriendlyMessage: errorMessage,
+                            details: detailedError 
+                        });
+                    }
+                }
+            }
+            
+        } catch (error: any) {
+            console.error(`[QueueService] Excel upload failed permanently for job ${jobId}:`, error);
+            
+            // Use user-friendly message if available
+            const errorMessage = error.userFriendlyMessage || error.message || 'Excel upload failed after all retry attempts';
+            
+            await emitProgress('failed', 0, undefined, errorMessage);
         }
     }
 }

@@ -8,15 +8,32 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
     function setUsers(usersList: IUserManagement[]) {
         users.value = usersList;
         if (import.meta.client) {
-            localStorage.setItem('userManagementUsers', JSON.stringify(usersList));
-            enableRefreshDataFlag('setUsers');
+            try {
+                localStorage.setItem('userManagementUsers', JSON.stringify(usersList));
+                enableRefreshDataFlag('setUsers');
+            } catch (error: any) {
+                if (error.name === 'QuotaExceededError') {
+                    console.warn('[UserManagementStore] localStorage quota exceeded for users.');
+                    enableRefreshDataFlag('setUsers');
+                } else {
+                    console.error('[UserManagementStore] Error saving users to localStorage:', error);
+                }
+            }
         }
     }
 
     function setSelectedUser(user: IUserManagement) {
         selectedUser.value = user;
         if (import.meta.client) {
-            localStorage.setItem('selectedUserManagement', JSON.stringify(user));
+            try {
+                localStorage.setItem('selectedUserManagement', JSON.stringify(user));
+            } catch (error: any) {
+                if (error.name === 'QuotaExceededError') {
+                    console.warn('[UserManagementStore] localStorage quota exceeded for selectedUser.');
+                } else {
+                    console.error('[UserManagementStore] Error saving selectedUser to localStorage:', error);
+                }
+            }
         }
     }
 

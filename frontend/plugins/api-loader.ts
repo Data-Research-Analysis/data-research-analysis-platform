@@ -1,25 +1,28 @@
 /**
  * API Loader Plugin
  * 
- * Automatically intercepts all fetch requests and displays a loading indicator.
+ * Automatically intercepts all fetch requests and displays a loading indicator
+ * with context-aware, personalized messages.
  * Uses the global loader composable to manage loading state across the application.
  * 
  * Features:
  * - Intercepts native fetch API
- * - Automatically shows/hides loader
+ * - Automatically shows/hides loader with personalized messages
  * - Handles errors gracefully
  * - Supports URL exclusion list for specific endpoints
  * - Preserves original fetch behavior
  * 
  * @example
  * // Automatically works for all fetch calls:
- * await fetch('/api/projects') // Loader shows automatically
+ * await fetch('/upload-excel-preview') // Shows: "Hang tight! We're reading your Excel file..."
  */
 
 export default defineNuxtPlugin(() => {
   // Only run on client-side
   if (import.meta.client) {
     const { showLoader, hideLoader, forceHide } = useGlobalLoader()
+    const { getMessageForContext } = useLoaderMessages()
+    const route = useRoute()
     
     // URLs that should not trigger the loader
     const excludedUrls = [
@@ -84,7 +87,9 @@ export default defineNuxtPlugin(() => {
       
       // Show loader unless URL is excluded
       if (!skipLoader) {
-        showLoader()
+        // Get personalized message based on current route and API endpoint
+        const message = getMessageForContext(route.path, urlString)
+        showLoader(message)
       }
       
       try {

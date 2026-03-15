@@ -32,33 +32,58 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
     function setDataModels(dataModelsList: IDataModel[]) {
         dataModels.value = dataModelsList;
         if (import.meta.client) {
-            localStorage.setItem('dataModels', JSON.stringify(dataModelsList));
-            enableRefreshDataFlag('setDataModels');
+            try {
+                localStorage.setItem('dataModels', JSON.stringify(dataModelsList));
+                enableRefreshDataFlag('setDataModels');
+            } catch (error: any) {
+                if (error.name === 'QuotaExceededError') {
+                    console.warn('[DataModelsStore] localStorage quota exceeded for dataModels. Data kept in memory only.');
+                    // Keep data in memory, just skip localStorage persistence
+                    enableRefreshDataFlag('setDataModels');
+                } else {
+                    console.error('[DataModelsStore] Error saving dataModels to localStorage:', error);
+                }
+            }
         }
     }
     function setSelectedDataModel(dataModel: IDataModel) {
         selectedDataModel.value = dataModel;
         if (import.meta.client) {
-            localStorage.setItem('selectedDataModel', JSON.stringify(dataModel));
+            try {
+                localStorage.setItem('selectedDataModel', JSON.stringify(dataModel));
+            } catch (error: any) {
+                if (error.name === 'QuotaExceededError') {
+                    console.warn('[DataModelsStore] localStorage quota exceeded for selectedDataModel. Data kept in memory only.');
+                } else {
+                    console.error('[DataModelsStore] Error saving selectedDataModel to localStorage:', error);
+                }
+            }
         }
     }
     function setDataModelTables(dataModelTablesList: IDataModelTable[]) {
         dataModelTables.value = dataModelTablesList;
         if (import.meta.client) {
-            localStorage.setItem('dataModelTables', JSON.stringify(dataModelTablesList));
-            enableRefreshDataFlag('setDataModelTables');
+            try {
+                localStorage.setItem('dataModelTables', JSON.stringify(dataModelTablesList));
+                enableRefreshDataFlag('setDataModelTables');
+            } catch (error: any) {
+                if (error.name === 'QuotaExceededError') {
+                    console.warn('[DataModelsStore] localStorage quota exceeded for dataModelTables. Data kept in memory only.');
+                    console.warn(`[DataModelsStore] Attempted to store ${dataModelTablesList.length} tables. Consider reducing data size or clearing old localStorage data.`);
+                    // Keep data in memory, just skip localStorage persistence
+                    enableRefreshDataFlag('setDataModelTables');
+                } else {
+                    console.error('[DataModelsStore] Error saving dataModelTables to localStorage:', error);
+                }
+            }
         }
     }
     function getDataModels() {
-        if (import.meta.client && localStorage.getItem('dataModels')) {
-            dataModels.value = JSON.parse(localStorage.getItem('dataModels') || '[]');
-        }
+        // Return current value - don't overwrite with potentially stale localStorage
         return dataModels.value;
     }
     function getDataModelTables() {
-        if (import.meta.client && localStorage.getItem('dataModelTables')) {
-            dataModelTables.value = JSON.parse(localStorage.getItem('dataModelTables') || '[]');
-        }
+        // Return current value - don't overwrite with potentially stale localStorage
         return dataModelTables.value;
     }
     async function retrieveDataModels(projectId: number) {
@@ -94,7 +119,8 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         setDataModelTables(data);
     }
     function getSelectedDataModel() {
-        if (import.meta.client && localStorage.getItem('selectedDataModel')) {
+        // Load from localStorage only if not already set
+        if (import.meta.client && !selectedDataModel.value && localStorage.getItem('selectedDataModel')) {
             selectedDataModel.value = JSON.parse(localStorage.getItem('selectedDataModel') || 'null');
         }
         return selectedDataModel.value

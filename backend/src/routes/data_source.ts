@@ -24,6 +24,8 @@ import {
     requireDataSourcePermission 
 } from '../middleware/rbacMiddleware.js';
 import { EAction } from '../services/PermissionService.js';
+import { validateExcelUpload } from '../middleware/validateFileUpload.js';
+import { QueueService } from '../services/QueueService.js';
 
 const router = express.Router();
 
@@ -415,7 +417,7 @@ async (req: Request, res: Response) => {
     }
 });
 
-router.post('/add-excel-data-source', expensiveOperationsLimiter, async (req: Request, res: Response, next: any) => {
+router.post('/add-excel-data-source', validateExcelUpload, async (req: Request, res: Response, next: any) => {
     next();
 }, validateJWT, validate([
     body('data_source_name').notEmpty().trim().escape(), 
@@ -423,11 +425,12 @@ router.post('/add-excel-data-source', expensiveOperationsLimiter, async (req: Re
     body('data').notEmpty(), 
     body('project_id').notEmpty().trim().escape(), 
     body('data_source_id').optional().trim().escape(),
+    body('upload_session_id').optional().trim().escape(),
     body('sheet_info').optional(),
     body('classification').optional().trim().escape(),
 ]), requireProjectPermission(EAction.CREATE, 'project_id'),
 async (req: Request, res: Response) => {
-    const { data_source_name, file_id, data, project_id, data_source_id, sheet_info, classification } = matchedData(req);
+    const { data_source_name, file_id, data, project_id, data_source_id, upload_session_id, sheet_info, classification } = matchedData(req);
     if (data?.columns && data.columns.length > 0) {
         console.log('Sample columns from request:', data.columns.slice(0, 2));
     }
@@ -436,27 +439,40 @@ async (req: Request, res: Response) => {
     }
     
     try {
-        // Sanitize boolean values in the data before processing
+        // Sanitize boolean values in the data before queueing
         const sanitizedData = UtilityService.getInstance().sanitizeDataForPostgreSQL(data);
         console.log('Data after sanitization:', {
             columnsCount: sanitizedData?.columns?.length || 0,
             rowsCount: sanitizedData?.rows?.length || 0
         });
         
-        const result = await ExcelDataSourceProcessor.getInstance().addExcelDataSource(
-            data_source_name, 
-            file_id, 
-            JSON.stringify(sanitizedData), 
-            req.body.tokenDetails, 
-            project_id, 
-            data_source_id, 
-            sheet_info,
-            classification || null
-        );
-        res.status(200).send({message: 'Excel data source created successfully.', result});
+        // Queue the job for background processing instead of synchronous execution
+        const jobId = await QueueService.getInstance().addExcelUploadJob({
+            userId: req.body.tokenDetails.user_id,
+            projectId: project_id,
+            dataSourceName: data_source_name,
+            fileId: file_id,
+            data: JSON.stringify(sanitizedData),
+            dataSourceId: data_source_id,
+            uploadSessionId: upload_session_id,
+            sheetInfo: sheet_info,
+            classification: classification || null
+        });
+        
+        // Return immediately with job ID for status tracking
+        res.status(202).send({
+            success: true,
+            message: 'Excel upload queued for processing',
+            jobId,
+            status: 'queued'
+        });
+        
     } catch (error) {
-        console.error('Excel data source creation error:', error);
-        res.status(400).send({message: 'Excel data source creation failed.'});
+        console.error('Excel data source queueing error:', error);
+        res.status(500).send({
+            success: false,
+            message: 'Failed to queue Excel upload job.'
+        });
     }
 });
 
@@ -591,6 +607,8 @@ router.post('/upload-excel-preview', expensiveOperationsLimiter, async (req: Req
             sheet_index: sheet.index,
             columns: sheet.columns,
             rows: sheet.rows,
+            renamedColumns: sheet.renamedColumns || [],
+            hasDuplicates: sheet.hasDuplicates || false,
             metadata: {
                 rowCount: sheet.metadata.rowCount,
                 columnCount: sheet.metadata.columnCount
@@ -833,6 +851,48 @@ router.get('/sync-status/:datasourceid',
                 success: false,
                 message: 'Failed to get sync status',
                 error: error.message 
+            });
+        }
+    }
+);
+
+/**
+ * GET /data-source/excel-upload-status/:jobId
+ * Get status of a specific Excel upload job
+ * Used for polling fallback when Socket.IO is unavailable
+ */
+router.get('/excel-upload-status/:jobId', 
+    validateJWT,
+    validate([
+        param('jobId').notEmpty().trim().escape()
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const { jobId } = matchedData(req);
+            
+            // Note: theta-mn-queue doesn't have built-in job status tracking
+            // This is a placeholder implementation
+            // In production, you would:
+            // 1. Store job states in Redis with TTL
+            // 2. Track job progress/status as it processes
+            // 3. Query that state here
+            
+            // For now, we'll return a basic response
+            // The frontend should primarily rely on Socket.IO events
+            res.status(200).json({
+                success: true,
+                jobId,
+                status: 'processing', // States: queued, active, processing, completed, failed
+                message: 'Job status tracking not fully implemented. Please use Socket.IO events for real-time updates.',
+                note: 'This endpoint is a fallback for when Socket.IO is unavailable'
+            });
+            
+        } catch (error: any) {
+            console.error('[DataSource] Excel upload status error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Failed to get upload status',
+                error: error.message
             });
         }
     }

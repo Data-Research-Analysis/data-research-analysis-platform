@@ -14,4 +14,5 @@ export const ISocketEvent = {
     NOTIFICATION_READ: 'notification-read',
     NOTIFICATION_MARK_ALL_READ: 'notification-mark-all-read',
     NOTIFICATION_DELETED: 'notification-deleted',
+    EXCEL_UPLOAD_PROGRESS: 'excel-upload-progress',
 };
