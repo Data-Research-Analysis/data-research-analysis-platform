@@ -2,7 +2,7 @@ import { DBDriver } from "../drivers/DBDriver.js";
 import { ITokenDetails } from "../types/ITokenDetails.js";
 import { EDataSourceType } from "../types/EDataSourceType.js";
 import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
-import { DRAPrivateBetaUsers } from "../models/DRAPrivateBetaUsers.js";
+import { DRAEnterpriseQuery } from "../models/DRAEnterpriseQuery.js";
 import { EUserType } from "../types/EUserType.js";
 import bcrypt from 'bcryptjs';
 import { UtilityService } from "../services/UtilityService.js";
@@ -12,7 +12,7 @@ import { SocketIODriver } from "../drivers/SocketIODriver.js";
 import { IUserManagement } from "../types/IUserManagement.js";
 import { IUserUpdate } from "../types/IUserUpdate.js";
 import { IUserCreation } from "../types/IUserCreation.js";
-import { IBetaUserForConversion } from "../types/IBetaUserForConversion.js";
+import { IEnterpriseQueryForConversion } from "../types/IEnterpriseQueryForConversion.js";
 import { DRADashboard } from "../models/DRADashboard.js";
 import { DRADashboardExportMetaData } from "../models/DRADashboardExportMetaData.js";
 import { DRADataModel } from "../models/DRADataModel.js";
@@ -337,8 +337,8 @@ export class UserManagementProcessor {
         });
     }
 
-    async getPrivateBetaUserForConversion(tokenDetails: ITokenDetails, betaUserId: number): Promise<IBetaUserForConversion | null> {
-        return new Promise<IBetaUserForConversion | null>(async (resolve, reject) => {
+    async getEnterpriseQueryForConversion(tokenDetails: ITokenDetails, betaUserId: number): Promise<IEnterpriseQueryForConversion | null> {
+        return new Promise<IEnterpriseQueryForConversion | null>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
             if (!driver) {
@@ -356,8 +356,8 @@ export class UserManagementProcessor {
             }
 
             try {
-                // Get the private beta user
-                const betaUser = await manager.findOne(DRAPrivateBetaUsers, {where: {id: betaUserId}});
+                // Get the enterprise inquiry
+                const betaUser = await manager.findOne(DRAEnterpriseQuery, {where: {id: betaUserId}});
                 if (!betaUser) {
                     return resolve(null);
                 }
@@ -369,8 +369,8 @@ export class UserManagementProcessor {
                     return resolve(null);
                 }
 
-                // Return beta user data formatted for conversion
-                const conversionData: IBetaUserForConversion = {
+                // Return enterprise inquiry data formatted for conversion
+                const conversionData: IEnterpriseQueryForConversion = {
                     id: betaUser.id,
                     first_name: betaUser.first_name,
                     last_name: betaUser.last_name,
@@ -382,7 +382,7 @@ export class UserManagementProcessor {
 
                 return resolve(conversionData);
             } catch (error) {
-                console.error('Error getting beta user for conversion:', error);
+                console.error('Error getting enterprise inquiry for conversion:', error);
                 return resolve(null);
             }
         });

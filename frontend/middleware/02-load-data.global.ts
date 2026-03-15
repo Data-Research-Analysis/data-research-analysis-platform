@@ -4,8 +4,8 @@ import { useDataModelsStore } from '@/stores/data_models';
 import { useDashboardsStore } from '@/stores/dashboards';
 import { useArticlesStore } from '@/stores/articles';
 import { useLoggedInUserStore } from "@/stores/logged_in_user";
-import { usePrivateBetaUserStore } from '@/stores/private_beta_users';
 import { useUserManagementStore } from '@/stores/user_management';
+import { useEnterpriseQueryStore } from '@/stores/enterprise_queries';
 
 /**
  * Global middleware to load necessary data before pages render
@@ -65,8 +65,8 @@ function isAdminUserRoute(path: string): boolean {
   return path.startsWith('/admin/users');
 }
 
-function isAdminPrivateBetaRoute(path: string): boolean {
-  return path.startsWith('/admin/private-beta-users');
+function isAdminEnterpriseQueryRoute(path: string): boolean {
+  return path.startsWith('/admin/enterprise-queries');
 }
 
 function isAdminDatabaseRoute(path: string): boolean {
@@ -138,8 +138,8 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
   const dataModelsStore = useDataModelsStore();
   const dashboardsStore = useDashboardsStore();
   const articlesStore = useArticlesStore();
-  const privateBetaUserStore = usePrivateBetaUserStore();
   const userManagementStore = useUserManagementStore();
+  const enterpriseQueryStore = useEnterpriseQueryStore();
 
   try {
     // OPTIMIZATION: Skip data loading for public routes
@@ -373,12 +373,12 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
               markDataLoaded('users');
             })());
           }
-        } else if (isAdminPrivateBetaRoute(to.path)) {
-          // Only load private beta users
-          if (shouldRefreshData('privateBetaUsers')) {
+        } else if (isAdminEnterpriseQueryRoute(to.path)) {
+          // Only load enterprise queries
+          if (shouldRefreshData('enterpriseQueries')) {
             loadTasks.push((async () => {
-              await privateBetaUserStore.retrievePrivateBetaUsers();
-              markDataLoaded('privateBetaUsers');
+              await enterpriseQueryStore.retrieveEnterpriseQueries();
+              markDataLoaded('enterpriseQueries');
             })());
           }
         }

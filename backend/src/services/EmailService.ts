@@ -1676,6 +1676,149 @@ ${projectsUrl}`;
     }
 
     /**
+     * Send enterprise inquiry notification to admin
+     * 
+     * Sent to admin when a new enterprise contact form is submitted.
+     * Includes all contact details and link to admin dashboard.
+     * 
+     * @param data - Enterprise inquiry details
+     * @returns Send result with message ID
+     */
+    public async sendEnterpriseInquiryNotificationToAdmin(data: {
+        firstName: string;
+        lastName: string;
+        businessEmail: string;
+        phoneNumber: string;
+        companyName: string;
+        country: string;
+        agreeToReceiveUpdates: boolean;
+        submittedAt: Date;
+    }): Promise<SendMailResult> {
+        const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
+        const adminUrl = `${frontendUrl}/admin/enterprise-queries`;
+        const adminEmail = process.env.ADMIN_EMAIL || process.env.SUPPORT_EMAIL || 'admin@dataresearchanalysis.com';
+        
+        const html = await TemplateEngineService.getInstance().render('enterprise-inquiry-admin-notification.html', [
+            { key: 'first_name', value: data.firstName },
+            { key: 'last_name', value: data.lastName },
+            { key: 'business_email', value: data.businessEmail },
+            { key: 'phone_number', value: data.phoneNumber },
+            { key: 'company_name', value: data.companyName },
+            { key: 'country', value: data.country },
+            { key: 'marketing_consent', value: data.agreeToReceiveUpdates ? 'Yes' : 'No' },
+            { key: 'submitted_at', value: new Intl.DateTimeFormat('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                timeZoneName: 'short'
+            }).format(data.submittedAt) },
+            { key: 'admin_url', value: adminUrl }
+        ]);
+
+        const text = `New Enterprise Inquiry Received
+
+A new enterprise inquiry has been submitted through the contact form.
+
+Contact Information:
+- Full Name: ${data.firstName} ${data.lastName}
+- Business Email: ${data.businessEmail}
+- Phone Number: ${data.phoneNumber}
+- Company: ${data.companyName}
+- Country: ${data.country}
+- Marketing Consent: ${data.agreeToReceiveUpdates ? 'Yes' : 'No'}
+- Submitted: ${data.submittedAt.toISOString()}
+
+View in Admin Dashboard: ${adminUrl}
+
+Action Required: Please review this inquiry and follow up with the potential client within 24 hours for the best conversion rates.`;
+
+        return this.mailDriver.sendMail({
+            to: adminEmail,
+            subject: `🎯 New Enterprise Inquiry from ${data.companyName}`,
+            text,
+            html
+        });
+    }
+
+    /**
+     * Send enterprise inquiry confirmation to user
+     * 
+     * Sent to user after they submit the enterprise contact form.
+     * Thanks them and sets expectations for response time.
+     * 
+     * @param data - Enterprise inquiry details
+     * @returns Send result with message ID
+     */
+    public async sendEnterpriseInquiryConfirmationToUser(data: {
+        firstName: string;
+        businessEmail: string;
+        companyName: string;
+    }): Promise<SendMailResult> {
+        const frontendUrl = UtilityService.getInstance().getConstants('FRONTEND_URL') || 'http://localhost:3000';
+        const platformUrl = frontendUrl;
+        const supportEmail = process.env.SUPPORT_EMAIL || 'hello@dataresearchanalysis.com';
+        const caseStudiesUrl = `${frontendUrl}/articles?category=case-studies`;
+        const featuresUrl = `${frontendUrl}/#features`;
+        const documentationUrl = `${frontendUrl}/articles`;
+        const privacyPolicyUrl = `${frontendUrl}/privacy-policy`;
+        
+        const html = await TemplateEngineService.getInstance().render('enterprise-inquiry-user-confirmation.html', [
+            { key: 'first_name', value: data.firstName },
+            { key: 'company_name', value: data.companyName },
+            { key: 'platform_url', value: platformUrl },
+            { key: 'support_email', value: supportEmail },
+            { key: 'case_studies_url', value: caseStudiesUrl },
+            { key: 'features_url', value: featuresUrl },
+            { key: 'documentation_url', value: documentationUrl },
+            { key: 'privacy_policy_url', value: privacyPolicyUrl }
+        ]);
+
+        const text = `Thank You for Your Inquiry
+
+Hi ${data.firstName},
+
+Thank you for your interest in Data Research Analysis Platform's enterprise solutions. We've received your inquiry and our team is excited to connect with you.
+
+A member of our enterprise sales team will review your information and reach out to you within 1-2 business days to discuss how we can support ${data.companyName}'s data analytics needs.
+
+What Happens Next?
+1. Our team reviews your requirements
+2. We prepare a customized demo and proposal
+3. Schedule a personalized consultation call
+4. Discuss pricing, implementation, and next steps
+
+What Makes Us Different?
+✓ Connect to 10+ data sources (PostgreSQL, MySQL, MongoDB, Google Analytics, HubSpot, and more)
+✓ AI-powered data modeling and insights generation
+✓ Build interactive dashboards without coding
+✓ Enterprise-grade security and compliance
+✓ Dedicated support and onboarding
+
+Explore Our Platform: ${platformUrl}
+
+In the meantime, check out:
+- Customer Success Stories: ${caseStudiesUrl}
+- Platform Features: ${featuresUrl}
+- Documentation: ${documentationUrl}
+
+If you have any immediate questions, feel free to reply to this email or contact us at ${supportEmail}.
+
+Best regards,
+Enterprise Sales Team
+Data Research Analysis Platform
+${platformUrl}`;
+
+        return this.mailDriver.sendMail({
+            to: data.businessEmail,
+            subject: 'Thank You for Your Enterprise Inquiry - Data Research Analysis',
+            text,
+            html
+        });
+    }
+
+    /**
      * Close email service and cleanup resources
      */
     async close(): Promise<void> {

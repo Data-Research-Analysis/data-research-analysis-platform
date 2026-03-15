@@ -45,7 +45,7 @@ onMounted(async () => {
 async function loadBetaUserData() {
     state.loadingBetaUser = true;
     try {
-        const result = await userManagementStore.getPrivateBetaUserForConversion(state.betaUserId);
+        const result = await userManagementStore.getEnterpriseQueryForConversion(state.betaUserId);
         if (result.success) {
             state.betaUserData = result.betaUser;
             // Pre-populate form fields
@@ -55,20 +55,20 @@ async function loadBetaUserData() {
         } else {
             $swal.fire({
                 title: "Error!",
-                text: result.message || "Failed to load beta user data",
+                text: result.message || "Failed to load inquiry data",
                 icon: "error",
                 confirmButtonColor: "#3C8DBC",
             });
-            router.push('/admin/private-beta-users');
+            router.push('/admin/enterprise-queries');
         }
     } catch (error) {
         $swal.fire({
             title: "Error!",
-            text: "An unexpected error occurred while loading beta user data.",
+            text: "An unexpected error occurred while loading inquiry data.",
             icon: "error",
             confirmButtonColor: "#3C8DBC",
         });
-        router.push('/admin/private-beta-users');
+        router.push('/admin/enterprise-queries');
     } finally {
         state.loadingBetaUser = false;
     }
@@ -160,7 +160,7 @@ async function createUser() {
             
             // Redirect based on conversion type
             if (state.isConversion) {
-                router.push(`/admin/private-beta-users?converted=true&userName=${encodeURIComponent(state.first_name + ' ' + state.last_name)}`);
+                router.push(`/admin/enterprise-queries?converted=true&userName=${encodeURIComponent(state.first_name + ' ' + state.last_name)}`);
             } else {
                 router.push('/admin/users');
             }
@@ -210,7 +210,7 @@ function resetForm() {
             <!-- Navigation breadcrumb -->
             <div v-if="state.isConversion" class="ml-4 mr-4 md:ml-10 md:mr-10 mt-5 mb-2">
                 <div class="text-sm text-gray-600">
-                    <NuxtLink to="/admin/private-beta-users" class="hover:text-primary-blue-100 underline">Private Beta Users</NuxtLink>
+                    <NuxtLink to="/admin/enterprise-queries" class="hover:text-primary-blue-100 underline">Enterprise Inquiries</NuxtLink>
                     <span class="mx-2">→</span>
                     <span class="text-gray-800 font-medium">Convert to User</span>
                 </div>
@@ -220,17 +220,17 @@ function resetForm() {
                 <div class="flex flex-row justify-between items-center mb-5">
                     <div>
                         <div class="font-bold text-2xl">
-                            {{ state.isConversion ? 'Convert Private Beta User' : 'Create New User' }}
+                            {{ state.isConversion ? 'Convert Enterprise Inquiry' : 'Create New User' }}
                         </div>
                         <div v-if="state.isConversion && state.betaUserData" class="text-sm text-gray-600 mt-1">
                             Converting: {{ state.betaUserData.first_name }} {{ state.betaUserData.last_name }} ({{ state.betaUserData.email }})
                         </div>
                     </div>
                     <NuxtLink 
-                        :to="state.isConversion ? '/admin/private-beta-users' : '/admin/users'"
+                        :to="state.isConversion ? '/admin/enterprise-queries' : '/admin/users'"
                         class="text-sm px-4 py-2 bg-gray-600 text-white hover:bg-gray-700 cursor-pointer font-bold shadow-md rounded-lg"
                     >
-                        {{ state.isConversion ? 'Back to Beta Users' : 'Back to Users' }}
+                        {{ state.isConversion ? 'Back to Enterprise Inquiries' : 'Back to Users' }}
                     </NuxtLink>
                 </div>
 
@@ -238,7 +238,7 @@ function resetForm() {
                 <div v-if="state.loadingBetaUser" class="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded-lg mb-5">
                     <div class="flex items-center">
                         <spinner class="mr-2" />
-                        Loading private beta user data...
+                        Loading enterprise inquiry data...
                     </div>
                 </div>
 
@@ -247,7 +247,7 @@ function resetForm() {
                     <div class="flex items-center">
                         <font-awesome icon="fas fa-info-circle" class="mr-2" />
                         <div>
-                            <strong>Converting Beta User:</strong> The form has been pre-populated with data from {{ state.betaUserData.first_name }} {{ state.betaUserData.last_name }}. 
+                            <strong>Converting Enterprise Inquiry:</strong> The form has been pre-populated with data from {{ state.betaUserData.first_name }} {{ state.betaUserData.last_name }}. 
                             You can modify any information before creating the user account.
                             <div class="mt-2 text-sm">
                                 <strong>Original Company:</strong> {{ state.betaUserData.company_name || 'Not provided' }} |
@@ -374,7 +374,7 @@ function resetForm() {
                         </button>
 
                         <NuxtLink 
-                            :to="state.isConversion ? '/admin/private-beta-users' : '/admin/users'"
+                            :to="state.isConversion ? '/admin/enterprise-queries' : '/admin/users'"
                             class="px-6 py-3 bg-gray-400 text-white hover:bg-gray-500 cursor-pointer font-bold shadow-md rounded-lg text-center"
                         >
                             Cancel

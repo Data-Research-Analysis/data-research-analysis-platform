@@ -37,6 +37,7 @@ function isPublicRoute(path: string): boolean {
     '/return-refund-policy',
     '/cancellation-policy',
     '/articles',
+    '/enterprise-contact',
   ];
   
   const publicPatterns = [

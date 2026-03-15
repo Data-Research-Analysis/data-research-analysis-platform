@@ -121,10 +121,16 @@ const displaySavings = (tier: PricingTier) => {
 const { $swal } = useNuxtApp();
 
 const handleCTAClick = async (tierName: string) => {
-    if (tierName === 'PROFESSIONAL' || tierName === 'ENTERPRISE') {
+    if (tierName === 'ENTERPRISE') {
+        // Navigate to enterprise contact page
+        navigateTo('/enterprise-contact');
+        return;
+    }
+    
+    if (tierName === 'PROFESSIONAL') {
         const result = await ($swal as any).fire({
             title: 'Paid Plans Coming Soon!',
-            html: `<p>Paid plans are not yet available, but we'll register you a <strong>free account</strong> and notify you as soon as <strong>${tierName === 'PROFESSIONAL' ? 'Pro' : 'Enterprise'}</strong> plans launch.</p>`,
+            html: `<p>Paid plans are not yet available, but we'll register you a <strong>free account</strong> and notify you as soon as <strong>Pro</strong> plans launch.</p>`,
             icon: 'info',
             showCancelButton: true,
             confirmButtonText: 'Register Free Account',
@@ -216,19 +222,25 @@ const formatValue = (value: number | string): string => {
 
                         <!-- Price -->
                         <div class="mb-6">
-                            <div class="flex items-baseline gap-2">
+                            <div v-if="tier.name === 'ENTERPRISE'" class="flex flex-col">
+                                <span class="text-3xl font-extrabold text-gray-900">
+                                    Custom Pricing
+                                </span>
+                                <span class="text-sm text-gray-600 mt-2">Tailored to your needs</span>
+                            </div>
+                            <div v-else class="flex items-baseline gap-2">
                                 <span class="text-5xl font-extrabold text-gray-900">
                                     ${{ displayPrice(tier) }}
                                 </span>
                                 <span class="text-gray-600">/month</span>
                             </div>
-                            <p v-if="billingPeriod === 'annual' && tier.monthlyPrice > 0" class="text-sm text-gray-500 mt-1">
+                            <p v-if="tier.name !== 'ENTERPRISE' && billingPeriod === 'annual' && tier.monthlyPrice > 0" class="text-sm text-gray-500 mt-1">
                                 <span class="line-through">${{ tier.monthlyPrice }}/month</span>
                             </p>
-                            <p v-if="billingPeriod === 'annual' && tier.monthlyPrice > 0" class="text-sm text-green-600 font-medium mt-1">
+                            <p v-if="tier.name !== 'ENTERPRISE' && billingPeriod === 'annual' && tier.monthlyPrice > 0" class="text-sm text-green-600 font-medium mt-1">
                                 {{ displaySavings(tier) }}
                             </p>
-                            <p v-if="billingPeriod === 'annual' && tier.monthlyPrice > 0" class="text-xs text-gray-500 mt-1">
+                            <p v-if="tier.name !== 'ENTERPRISE' && billingPeriod === 'annual' && tier.monthlyPrice > 0" class="text-xs text-gray-500 mt-1">
                                 Billed annually at ${{ tier.annualPrice }}
                             </p>
                         </div>
@@ -301,11 +313,13 @@ const formatValue = (value: number | string): string => {
                                     : 'bg-gradient-to-r from-gray-700 to-gray-800 hover:from-gray-800 hover:to-gray-900 text-white shadow-lg'
                             "
                         >
-                            {{ tier.name === 'FREE' ? 'Get Free' : tier.name === 'PROFESSIONAL' ? 'Get Pro' : 'Get Enterprise' }}
+                            {{ tier.name === 'FREE' ? 'Get Free' : tier.name === 'PROFESSIONAL' ? 'Get Pro' : 'Contact Sales' }}
                         </button>
                     </div>
                 </div>
             </div>
         </div>
+        
+
     </section>
 </template>

@@ -1,22 +1,22 @@
 <script setup>
 import { NuxtLink } from '#components';
-import { usePrivateBetaUserStore } from '@/stores/private_beta_users';
+import { useEnterpriseQueryStore } from '@/stores/enterprise_queries';
 import { useUserManagementStore } from '@/stores/user_management';
 const { $swal } = useNuxtApp();
 const router = useRouter();
-const privateBetaUserStore = usePrivateBetaUserStore();
+const enterpriseQueryStore = useEnterpriseQueryStore();
 const userManagementStore = useUserManagementStore();
 const state = reactive({
-    convertingUsers: new Set(),
+    convertingQueries: new Set(),
 });
-const privateBetaUsers = computed(() => [...privateBetaUserStore.getPrivateBetaUsers()].sort((a, b) => a.id - b.id));
+const enterpriseQueries = computed(() => [...enterpriseQueryStore.getEnterpriseQueries()].sort((a, b) => a.id - b.id));
 
-async function convertBetaUserToUser(betaUser) {
+async function convertInquiryToUser(inquiry) {
     // Check if already converted
-    if (betaUser.is_converted) {
+    if (inquiry.is_converted) {
         $swal.fire({
             title: "Already Converted",
-            text: `${betaUser.first_name} ${betaUser.last_name} has already been converted to a platform user.`,
+            text: `${inquiry.first_name} ${inquiry.last_name} has already been converted to a platform user.`,
             icon: "info",
             confirmButtonColor: "#3C8DBC",
         });
@@ -24,7 +24,7 @@ async function convertBetaUserToUser(betaUser) {
     }
     
     const { value: confirmConvert } = await $swal.fire({
-        title: `Convert ${betaUser.first_name} ${betaUser.last_name} to Full User?`,
+        title: `Convert ${inquiry.first_name} ${inquiry.last_name} to Full User?`,
         html: `
             <div class="text-left">
                 <p><strong>This will:</strong></p>
@@ -33,8 +33,8 @@ async function convertBetaUserToUser(betaUser) {
                     <li>Allow them to log in and use the platform</li>
                     <li>Pre-populate the user creation form with their data</li>
                 </ul>
-                <p><strong>Email:</strong> ${betaUser.business_email}</p>
-                <p><strong>Company:</strong> ${betaUser.company_name}</p>
+                <p><strong>Email:</strong> ${inquiry.business_email}</p>
+                <p><strong>Company:</strong> ${inquiry.company_name}</p>
                 <p class="mt-3 text-sm text-gray-600"><em>Note: You can modify the information before finalizing the user account.</em></p>
             </div>
         `,
@@ -50,11 +50,11 @@ async function convertBetaUserToUser(betaUser) {
         return;
     }
 
-    state.convertingUsers.add(betaUser.id);
+    state.convertingQueries.add(inquiry.id);
     
     try {
-        // Navigate to user creation form with beta user ID
-        router.push(`/admin/users/create?betaUserId=${betaUser.id}`);
+        // Navigate to user creation form with inquiry ID
+        router.push(`/admin/users/create?betaUserId=${inquiry.id}`);
     } catch (error) {
         $swal.fire({
             title: "Error!",
@@ -63,15 +63,15 @@ async function convertBetaUserToUser(betaUser) {
             confirmButtonColor: "#3C8DBC",
         });
     } finally {
-        state.convertingUsers.delete(betaUser.id);
+        state.convertingQueries.delete(inquiry.id);
     }
 }
 
-function getButtonText(user) {
-    if (state.convertingUsers.has(user.id)) {
+function getButtonText(query) {
+    if (state.convertingQueries.has(query.id)) {
         return 'Converting...';
     }
-    if (user.is_converted) {
+    if (query.is_converted) {
         return 'Already Converted';
     }
     return 'Convert to User';
@@ -104,12 +104,12 @@ onMounted(() => {
             <div class="min-h-100 flex flex-col ml-4 mr-4 mb-10 md:ml-10 md:mr-10 mt-5 border border-primary-blue-100 border-solid p-10 shadow-md rounded-lg">
                 <div class="flex flex-row">
                     <div class="font-bold text-2xl mb-5">
-                        List Private Beta Users
+                        Enterprise Inquiries
                     </div>
                 </div>
                 <div class="bg-white shadow-md overflow-hidden rounded-lg ring-1 ring-gray-200 ring-inset">
                     <div class="overflow-x-auto">
-                        <table v-if="privateBetaUsers && privateBetaUsers.length" class="min-w-full divide-y divide-gray-200">
+                        <table v-if="enterpriseQueries && enterpriseQueries.length" class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
@@ -123,55 +123,55 @@ onMounted(() => {
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
-                                <tr v-for="user in privateBetaUsers" 
-                                    :key="user.id"
-                                    :class="{ 'bg-gray-100': user.is_converted, 'hover:bg-gray-50': !user.is_converted }">
+                                <tr v-for="query in enterpriseQueries" 
+                                    :key="query.id"
+                                    :class="{ 'bg-gray-100': query.is_converted, 'hover:bg-gray-50': !query.is_converted }">
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        {{ user.id }}
+                                        {{ query.id }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        {{ user.first_name }} {{ user.last_name }}
+                                        {{ query.first_name }} {{ query.last_name }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        {{ user.business_email }}
+                                        {{ query.business_email }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        {{ user.phone_number }}
+                                        {{ query.phone_number }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        {{ user.company_name }}
+                                        {{ query.company_name }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        {{ user.country }}
+                                        {{ query.country }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {{ user.created_at }}
+                                        {{ query.created_at }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                         <button 
-                                           @click="convertBetaUserToUser(user)"
-                                            :disabled="state.convertingUsers.has(user.id) || user.is_converted"
+                                           @click="convertInquiryToUser(query)"
+                                            :disabled="state.convertingQueries.has(query.id) || query.is_converted"
                                             :class="[
                                                 'inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg shadow-sm transition-colors',
-                                                user.is_converted 
+                                                query.is_converted 
                                                     ? 'bg-gray-200 text-gray-500 cursor-not-allowed' 
                                                     : 'bg-green-600 text-white hover:bg-green-700 cursor-pointer'
                                             ]"
-                                            :title="user.is_converted 
-                                                ? 'This user has already been converted' 
-                                                : 'Convert this beta user to a full platform user'"
+                                            :title="query.is_converted 
+                                                ? 'This inquiry has already been converted' 
+                                                : 'Convert this enterprise inquiry to a full platform user'"
                                         >
-                                            <font-awesome v-if="!user.is_converted" icon="fas fa-user-plus" class="mr-1 text-2xl" />
+                                            <font-awesome v-if="!query.is_converted" icon="fas fa-user-plus" class="mr-1 text-2xl" />
                                             <font-awesome v-else icon="fas fa-check-circle" class="mr-1 text-2xl" />
-                                            {{ getButtonText(user) }}
+                                            {{ getButtonText(query) }}
                                         </button>
                                     </td>
                                 </tr>
                             </tbody>
                         </table>
                         <div v-else class="text-center py-12">
-                            <font-awesome icon="fas fa-users" class="text-gray-400 text-6xl mb-4" />
-                            <p class="text-xl font-semibold text-gray-900">No Private Beta Users found</p>
+                            <font-awesome icon="fas fa-building" class="text-gray-400 text-6xl mb-4" />
+                            <p class="text-xl font-semibold text-gray-900">No Enterprise Inquiries found</p>
                         </div>
                     </div>
                 </div>

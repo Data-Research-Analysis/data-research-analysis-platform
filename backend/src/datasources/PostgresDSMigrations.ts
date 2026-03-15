@@ -1,5 +1,5 @@
 import { DataSource } from "typeorm";
-import { DRAPrivateBetaUsers } from "../models/DRAPrivateBetaUsers.js";
+import { DRAEnterpriseQuery } from "../models/DRAEnterpriseQuery.js";
 import { DRADataModel } from "../models/DRADataModel.js";
 import { DRADataModelSource } from "../models/DRADataModelSource.js";
 import { DRATableMetadata } from "../models/DRATableMetadata.js";
@@ -49,7 +49,7 @@ export default new DataSource({
     database: database,
     synchronize: false,
     logging: true,
-    entities: [DRAUsersPlatform, DRAProject, DRAProjectMember, DRAProjectInvitation, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAPrivateBetaUsers, DRADashboard, DRAArticle, DRAArticleCategory, DRAArticleVersion, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRADataModelRefreshHistory, DRASubscriptionTier, DRAUserSubscription, DRAPlatformSettings, DRAAccountCancellation, DRAMongoDBSyncHistory, SyncHistory, DRACampaign, DRACampaignChannel, DRACampaignOfflineData, DRAAIJoinSuggestion],
+    entities: [DRAUsersPlatform, DRAProject, DRAProjectMember, DRAProjectInvitation, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAEnterpriseQuery, DRADashboard, DRAArticle, DRAArticleCategory, DRAArticleVersion, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRADataModelRefreshHistory, DRASubscriptionTier, DRAUserSubscription, DRAPlatformSettings, DRAAccountCancellation, DRAMongoDBSyncHistory, SyncHistory, DRACampaign, DRACampaignChannel, DRACampaignOfflineData, DRAAIJoinSuggestion],
     subscribers: [],
     migrations: ['./src/migrations/*.ts'],
 });
