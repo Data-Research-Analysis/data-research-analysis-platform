@@ -13,10 +13,10 @@ const state = reactive({
         },
         {
             id: 2,
-            menu_name: 'Private Beta Users',
+            menu_name: 'Enterprise Inquiries',
             show_menu: true,
             sub_menus: [
-                { id: 1, name: 'List Private Beta Users', path: '/admin/private-beta-users' },
+                { id: 1, name: 'List Enterprise Inquiries', path: '/admin/enterprise-queries' },
             ],
         },
         {

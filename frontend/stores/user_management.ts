@@ -207,7 +207,7 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
         }
     }
 
-    async function getPrivateBetaUserForConversion(betaUserId: number) {
+    async function getEnterpriseQueryForConversion(betaUserId: number) {
         const token = getAuthToken();
         if (!token) {
             return { success: false, message: 'Not authenticated' };
@@ -224,7 +224,7 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
             });
             return { success: true, betaUser };
         } catch (error: any) {
-            return { success: false, message: error.data?.message || 'Failed to fetch beta user data' };
+            return { success: false, message: error.data?.message || 'Failed to fetch enterprise inquiry data' };
         }
     }
 
@@ -312,7 +312,7 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
         toggleEmailVerification,
         createUser,
         deleteUser,
-        getPrivateBetaUserForConversion,
+        getEnterpriseQueryForConversion,
         fetchUserSubscription,
         updateUserSubscription,
         getAvailableTiers,

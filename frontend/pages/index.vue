@@ -51,11 +51,10 @@ const getPricingSchema = () => {
             {
                 "@type": "Offer",
                 "name": "ENTERPRISE Plan",
-                "price": "2499",
+                "description": "Custom pricing tailored to your needs. Contact our sales team for a quote.",
                 "priceCurrency": "USD",
                 "priceValidUntil": "2027-12-31",
                 "availability": "https://schema.org/InStock",
-                "billingIncrement": "month",
                 "url": `${siteUrl}/#pricing`
             }
         ]

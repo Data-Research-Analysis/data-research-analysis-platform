@@ -1,4 +1,4 @@
-export interface IPrivateBetaUser {
+export interface IEnterpriseQuery {
     id: number;
     first_name: string;
     last_name: string;

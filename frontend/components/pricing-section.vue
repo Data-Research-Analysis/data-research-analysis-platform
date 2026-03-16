@@ -43,14 +43,63 @@ const tiers: PricingTier[] = [
             'Campaign Management',
             'Scheduled Data Refreshes',
             '3 Public Dashboard Links',
-            'PNG Export'
+            'PNG Export Only'
+        ]
+    },
+    {
+        name: 'STARTER',
+        monthlyPrice: 29,
+        annualPrice: 278,
+        popular: true,
+        features: {
+            rows: '500K',
+            projects: 10,
+            dataSources: 15,
+            dashboards: 15,
+            dataModelsPerSource: 'Unlimited',
+            aiGenerations: 100,
+            teamMembers: 'Solo Only'
+        },
+        additionalFeatures: [
+            'All FREE features',
+            'CSV/Excel Export',
+            'Advanced Attribution (5 models)',
+            'Email Support (48hr)',
+            'Custom Dashboard Colors',
+            'Real-Time In-App Notifications',
+            '20 Public Dashboard Links'
         ]
     },
     {
         name: 'PROFESSIONAL',
+        monthlyPrice: 129,
+        annualPrice: 1238,
+        popular: false,
+        features: {
+            rows: '5M',
+            projects: 'Unlimited',
+            dataSources: 'Unlimited',
+            dashboards: 'Unlimited',
+            dataModelsPerSource: 'Unlimited',
+            aiGenerations: 500,
+            teamMembers: '2-5'
+        },
+        additionalFeatures: [
+            'All STARTER features',
+            'Team Collaboration (2-5 users)',
+            'Basic RBAC (3 roles)',
+            'Dashboard Embedding',
+            'Custom Dashboard Themes',
+            'API Access (read-only)',
+            'Email Support (24hr)',
+            'Light Branding (logo + colors)'
+        ]
+    },
+    {
+        name: 'PROFESSIONAL PLUS',
         monthlyPrice: 399,
         annualPrice: 3829,
-        popular: true,
+        popular: false,
         features: {
             rows: '100M',
             projects: 'Unlimited',
@@ -58,23 +107,19 @@ const tiers: PricingTier[] = [
             dashboards: 'Unlimited',
             dataModelsPerSource: 'Unlimited',
             aiGenerations: 'Unlimited',
-            teamMembers: 100
+            teamMembers: '6-100'
         },
         additionalFeatures: [
-            'All FREE features',
-            'Team Collaboration + RBAC',
-            'Advanced Attribution (5 models)',
-            'CSV/Excel Export',
-            'Custom Dashboard Themes',
-            'Slack/Teams Integration',
-            'Dashboard Embedding',
-            'SSO/SAML',
-            'Custom Branding',
-            'Audit Logs',
-            'IP Whitelisting',
-            'Priority Support (24/7)',
+            'All PROFESSIONAL features',
+            'Full Team Collaboration (6-100 users)',
+            'Advanced RBAC (5 roles, 19 permissions)',
+            'OAuth SSO (Google, LinkedIn)',
+            'Basic Branding (logo + colors)',
+            'API Access (read/write)',
+            'Priority Support (24/7, 4hr SLA)',
             'Dedicated Account Manager',
-            'Unlimited Public Links'
+            'Quarterly Business Reviews',
+            '99.5% Uptime SLA'
         ]
     },
     {
@@ -92,16 +137,13 @@ const tiers: PricingTier[] = [
             teamMembers: '100+'
         },
         additionalFeatures: [
-            'All PROFESSIONAL features',
-            'Multi-Tenancy',
-            'Dedicated Instance',
+            'All PROFESSIONAL PLUS features',
             '99.9% Uptime SLA',
-            'On-Premise Deployment',
             'White-Glove Onboarding',
             'Custom Feature Development',
-            'Quarterly Business Reviews',
             'Direct Engineering Support',
-            'Volume Discounts'
+            'Volume Discounts',
+            'Custom SLA Agreements'
         ]
     }
 ];
@@ -121,10 +163,16 @@ const displaySavings = (tier: PricingTier) => {
 const { $swal } = useNuxtApp();
 
 const handleCTAClick = async (tierName: string) => {
-    if (tierName === 'PROFESSIONAL' || tierName === 'ENTERPRISE') {
+    if (tierName === 'ENTERPRISE') {
+        // Navigate to enterprise contact page
+        navigateTo('/enterprise-contact');
+        return;
+    }
+    
+    if (tierName === 'STARTER' || tierName === 'PROFESSIONAL' || tierName === 'PROFESSIONAL PLUS') {
         const result = await ($swal as any).fire({
             title: 'Paid Plans Coming Soon!',
-            html: `<p>Paid plans are not yet available, but we'll register you a <strong>free account</strong> and notify you as soon as <strong>${tierName === 'PROFESSIONAL' ? 'Pro' : 'Enterprise'}</strong> plans launch.</p>`,
+            html: `<p>Paid plans are not yet available, but we'll register you a <strong>free account</strong> and notify you as soon as paid plans launch.</p>`,
             icon: 'info',
             showCancelButton: true,
             confirmButtonText: 'Register Free Account',
@@ -135,7 +183,9 @@ const handleCTAClick = async (tierName: string) => {
     }
     const planMap: Record<string, string> = {
         'FREE': 'free',
+        'STARTER': 'starter',
         'PROFESSIONAL': 'professional',
+        'PROFESSIONAL PLUS': 'professional_plus',
         'ENTERPRISE': 'enterprise'
     };
     navigateTo(`/register?plan=${planMap[tierName]}`);
@@ -193,7 +243,7 @@ const formatValue = (value: number | string): string => {
             </div>
 
             <!-- Pricing Cards Grid -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 mb-12">
                 <div
                     v-for="tier in tiers"
                     :key="tier.name"
@@ -216,19 +266,25 @@ const formatValue = (value: number | string): string => {
 
                         <!-- Price -->
                         <div class="mb-6">
-                            <div class="flex items-baseline gap-2">
+                            <div v-if="tier.name === 'ENTERPRISE'" class="flex flex-col">
+                                <span class="text-3xl font-extrabold text-gray-900">
+                                    Custom Pricing
+                                </span>
+                                <span class="text-sm text-gray-600 mt-2">Tailored to your needs</span>
+                            </div>
+                            <div v-else class="flex items-baseline gap-2">
                                 <span class="text-5xl font-extrabold text-gray-900">
                                     ${{ displayPrice(tier) }}
                                 </span>
                                 <span class="text-gray-600">/month</span>
                             </div>
-                            <p v-if="billingPeriod === 'annual' && tier.monthlyPrice > 0" class="text-sm text-gray-500 mt-1">
+                            <p v-if="tier.name !== 'ENTERPRISE' && billingPeriod === 'annual' && tier.monthlyPrice > 0" class="text-sm text-gray-500 mt-1">
                                 <span class="line-through">${{ tier.monthlyPrice }}/month</span>
                             </p>
-                            <p v-if="billingPeriod === 'annual' && tier.monthlyPrice > 0" class="text-sm text-green-600 font-medium mt-1">
+                            <p v-if="tier.name !== 'ENTERPRISE' && billingPeriod === 'annual' && tier.monthlyPrice > 0" class="text-sm text-green-600 font-medium mt-1">
                                 {{ displaySavings(tier) }}
                             </p>
-                            <p v-if="billingPeriod === 'annual' && tier.monthlyPrice > 0" class="text-xs text-gray-500 mt-1">
+                            <p v-if="tier.name !== 'ENTERPRISE' && billingPeriod === 'annual' && tier.monthlyPrice > 0" class="text-xs text-gray-500 mt-1">
                                 Billed annually at ${{ tier.annualPrice }}
                             </p>
                         </div>
@@ -301,11 +357,13 @@ const formatValue = (value: number | string): string => {
                                     : 'bg-gradient-to-r from-gray-700 to-gray-800 hover:from-gray-800 hover:to-gray-900 text-white shadow-lg'
                             "
                         >
-                            {{ tier.name === 'FREE' ? 'Get Free' : tier.name === 'PROFESSIONAL' ? 'Get Pro' : 'Get Enterprise' }}
+                            {{ tier.name === 'FREE' ? 'Get Free' : tier.name === 'STARTER' ? 'Get Starter' : tier.name === 'PROFESSIONAL' ? 'Get Pro' : tier.name === 'PROFESSIONAL PLUS' ? 'Get Pro Plus' : 'Contact Sales' }}
                         </button>
                     </div>
                 </div>
             </div>
         </div>
+        
+
     </section>
 </template>

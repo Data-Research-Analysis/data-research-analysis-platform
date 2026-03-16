@@ -1,7 +1,7 @@
 import express, { Express, Request, Response } from 'express';
 import { UtilityService } from '../services/UtilityService.js';
 import { TokenProcessor } from '../processors/TokenProcessor.js';
-import { PrivateBetaUserProcessor } from '../processors/PrivateBetaUserProcessor.js';
+import { EnterpriseQueryProcessor } from '../processors/EnterpriseQueryProcessor.js';
 import { validateJWT } from '../middleware/authenticate.js';
 const router = express.Router();
 
@@ -10,17 +10,17 @@ router.get('/generate-token', async (req: Request, res: Response, next: any) => 
     res.status(200).send({token});
 });
 
-router.post('/private-beta-apply', async (req: Request, res: Response, next: any) => {
-  next();
+router.post('/enterprise-inquiry', async (req: Request, res: Response, next: any) => {
+    next();
 }, validateJWT, async (req: Request, res: Response) => {
     const { first_name, last_name, phone_number, business_email, company_name, agree_to_receive_updates, country } = req.body;
-    const result = await PrivateBetaUserProcessor.getInstance().applyForBeta({
+    const result = await EnterpriseQueryProcessor.getInstance().submitEnterpriseInquiry({
         first_name, last_name, phone_number, business_email, company_name, agree_to_receive_updates, country
     });
     if (!result.alreadyExists) {
-        res.status(200).send({ message: 'Subscribed successfully', email: result.email });
+        res.status(200).send({ message: 'Inquiry submitted successfully', email: result.email });
     } else {
-        res.status(400).send({ message: 'The email provided is already subscribed. Please provide a new valid email.', email: result.email });
+        res.status(400).send({ message: 'The email provided has already been submitted. Please provide a new valid email.', email: result.email });
     }
 });
 
