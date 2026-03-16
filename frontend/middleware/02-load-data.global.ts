@@ -6,6 +6,7 @@ import { useArticlesStore } from '@/stores/articles';
 import { useLoggedInUserStore } from "@/stores/logged_in_user";
 import { useUserManagementStore } from '@/stores/user_management';
 import { useEnterpriseQueryStore } from '@/stores/enterprise_queries';
+import { useOrganizationsStore } from '@/stores/organizations';
 
 /**
  * Global middleware to load necessary data before pages render
@@ -140,6 +141,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
   const articlesStore = useArticlesStore();
   const userManagementStore = useUserManagementStore();
   const enterpriseQueryStore = useEnterpriseQueryStore();
+  const organizationsStore = useOrganizationsStore();
 
   try {
     // OPTIMIZATION: Skip data loading for public routes
@@ -156,6 +158,16 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
           params: to.params,
           currentProjectsCount: projectsStore.projects.length
         });
+        
+        // === ORGANIZATIONS - Load for all authenticated routes ===
+        // Organizations are needed for the organization switcher in header
+        if (shouldRefreshData('organizations')) {
+          console.log('[load-data] Loading organizations');
+          loadTasks.push((async () => {
+            await organizationsStore.retrieveOrganizations();
+            markDataLoaded('organizations');
+          })());
+        }
         
         // === PROJECT ROUTES ===
         if (isProjectListRoute(to.path)) {

@@ -103,6 +103,10 @@ function scrollToPricing(event) {
                         <NuxtLink to="/projects">Projects</NuxtLink>
                     </div>
                 </div>
+                <!-- Organization Switcher -->
+                <div class="mr-4">
+                    <organization-switcher />
+                </div>
                 <!-- Notification Bell -->
                 <div class="mr-4">
                     <NotificationBell />
