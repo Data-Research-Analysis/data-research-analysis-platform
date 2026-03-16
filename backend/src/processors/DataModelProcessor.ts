@@ -37,7 +37,7 @@ export class DataModelProcessor {
      * @param tokenDetails 
      * @returns list of data models for the project
      */
-    async getDataModels(projectId: number, tokenDetails: ITokenDetails): Promise<DRADataModel[]> {
+    async getDataModels(projectId: number, tokenDetails: ITokenDetails, organizationId: number | null = null): Promise<DRADataModel[]> {
         return new Promise<DRADataModel[]>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -54,8 +54,12 @@ export class DataModelProcessor {
             }
             
             // Verify project exists - check if user is owner or member (RBAC)
+            const projectWhere: any = {id: projectId, users_platform: user};
+            if (organizationId !== null) {
+                projectWhere.organization_id = organizationId;
+            }
             const project = await manager.findOne(DRAProject, {
-                where: {id: projectId, users_platform: user}
+                where: projectWhere
             });
             
             // If user is not the owner, check if they are a project member
@@ -68,15 +72,16 @@ export class DataModelProcessor {
                     relations: {project: true}
                 });
                 
-                if (!projectMember) {
-                    // User is neither owner nor member - no access
+                // Also check organization context for member access
+                if (!projectMember || (organizationId !== null && projectMember.project?.organization_id !== organizationId)) {
+                    // User is neither owner nor member, or project not in specified organization - no access
                     return resolve([]);
                 }
             }
             
             // Query data models filtering by project through data_source relationship
             // Include both single-source models (ds.project_id) and cross-source models (dms_ds.project_id)
-            const dataModels = await manager
+            let queryBuilder = manager
                 .createQueryBuilder(DRADataModel, 'dm')
                 .leftJoinAndSelect('dm.data_source', 'ds')
                 .leftJoinAndSelect('ds.project', 'ds_project')  // Load project for single-source models
@@ -91,8 +96,21 @@ export class DataModelProcessor {
                           // Cross-source models: any linked data source belongs to this project
                           .orWhere('dms_ds.project_id = :projectId', { projectId });
                     })
-                )
-                .getMany();
+                );
+            
+            // Add organization filter if specified - check through project relationship
+            if (organizationId !== null) {
+                queryBuilder = queryBuilder.andWhere(
+                    new Brackets((qb) => {
+                        // For single-source models, check ds.project.organization_id
+                        qb.where('ds_project.organization_id = :orgId', { orgId: organizationId })
+                          // For cross-source models, check dms_ds.project.organization_id
+                          .orWhere('dms_ds_project.organization_id = :orgId', { orgId: organizationId });
+                    })
+                );
+            }
+            
+            const dataModels = await queryBuilder.getMany();
             
             return resolve(dataModels);
         });

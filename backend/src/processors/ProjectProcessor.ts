@@ -21,7 +21,7 @@ export class ProjectProcessor {
         return ProjectProcessor.instance;
     }
 
-    async addProject(project_name: string, description: string | undefined, tokenDetails: ITokenDetails): Promise<boolean> {
+    async addProject(project_name: string, description: string | undefined, tokenDetails: ITokenDetails, organizationId: number | null = null): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -51,6 +51,10 @@ export class ProjectProcessor {
                 project.description = description || '';
                 project.users_platform = user;
                 project.created_at = new Date();
+                // Set organization_id if provided (multi-tenant)
+                if (organizationId) {
+                    project.organization_id = organizationId;
+                }
                 const savedProject = await transactionManager.save(project);
                 savedProjectId = savedProject.id;
                 
@@ -70,7 +74,7 @@ export class ProjectProcessor {
         });
     }
 
-    async getProjects(tokenDetails: ITokenDetails): Promise<any[]> {
+    async getProjects(tokenDetails: ITokenDetails, organizationId: number | null = null): Promise<any[]> {
         return new Promise<any[]>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -93,9 +97,15 @@ export class ProjectProcessor {
                 return resolve([]);
             }
             
+            // Build where clause for organization filtering
+            const ownerWhere: any = { users_platform: user };
+            if (organizationId !== null) {
+                ownerWhere.organization_id = organizationId;
+            }
+            
             // Load owned projects
             const ownedProjects = await manager.find(DRAProject, {
-                where: {users_platform: user},
+                where: ownerWhere,
                 relations: {
                     users_platform: true,
                     data_sources: {
@@ -111,6 +121,7 @@ export class ProjectProcessor {
                     name: true,
                     description: true,
                     created_at: true,
+                    organization_id: true,
                     users_platform: {
                         id: true
                     },
@@ -138,10 +149,12 @@ export class ProjectProcessor {
             });
             
             // Load projects where user is a member (but not owner - those are loaded above)
+            const memberWhere: any = {
+                user: {id: user_id}
+            };
+            // If org filtering, also filter member projects by organization
             const memberProjects = await manager.find(DRAProjectMember, {
-                where: {
-                    user: {id: user_id}
-                },
+                where: memberWhere,
                 relations: {
                     project: {
                         users_platform: true,
@@ -173,6 +186,11 @@ export class ProjectProcessor {
             
             // Add member projects (skip if already in map as owner)
             memberProjects.forEach(member => {
+                // Filter by organization_id if specified
+                if (organizationId !== null && member.project.organization_id !== organizationId) {
+                    return; // Skip projects not in the specified organization
+                }
+                
                 if (!allProjectsMap.has(member.project.id)) {
                     allProjectsMap.set(member.project.id, {
                         ...member.project,
@@ -187,6 +205,7 @@ export class ProjectProcessor {
             const projectsWithCounts = Array.from(allProjectsMap.values()).map(project => ({
                 id: project.id,
                 user_platform_id: project.users_platform?.id || user_id,
+                organization_id: project.organization_id || null,
                 name: project.name,
                 description: project.description,
                 created_at: project.created_at,
@@ -208,7 +227,7 @@ export class ProjectProcessor {
         });
     }
 
-    async deleteProject(projectId: number, tokenDetails: ITokenDetails): Promise<boolean> {
+    async deleteProject(projectId: number, tokenDetails: ITokenDetails, organizationId: number | null = null): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             try {
                 const { user_id } = tokenDetails;
@@ -234,6 +253,12 @@ export class ProjectProcessor {
 
                 const project = await manager.findOne(DRAProject, {where: {id: projectId}, relations: ['data_sources', 'data_sources.data_models']});
                 if (!project) {
+                    return resolve(false);
+                }
+                
+                // Verify organization context if provided
+                if (organizationId !== null && project.organization_id !== organizationId) {
+                    console.error(`[ProjectProcessor] Project ${projectId} does not belong to organization ${organizationId}`);
                     return resolve(false);
                 }
                 
@@ -421,7 +446,8 @@ export class ProjectProcessor {
     public async updateProject(
         projectId: number,
         updates: { name?: string; description?: string },
-        tokenDetails: ITokenDetails
+        tokenDetails: ITokenDetails,
+        organizationId: number | null = null
     ): Promise<boolean> {
         try {
             const { user_id } = tokenDetails;
@@ -440,6 +466,12 @@ export class ProjectProcessor {
             });
 
             if (!project) return false;
+            
+            // Verify organization context if provided
+            if (organizationId !== null && project.organization_id !== organizationId) {
+                console.error(`[ProjectProcessor] Project ${projectId} does not belong to organization ${organizationId}`);
+                return false;
+            }
 
             // Update fields if provided
             if (updates.name !== undefined) {
@@ -463,7 +495,8 @@ export class ProjectProcessor {
     public async transferOwnership(
         projectId: number,
         newOwnerId: number,
-        currentOwnerId: number
+        currentOwnerId: number,
+        organizationId: number | null = null
     ): Promise<boolean> {
         try {
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -485,6 +518,11 @@ export class ProjectProcessor {
 
                 if (!project) {
                     throw new Error('Project not found');
+                }
+                
+                // Verify organization context if provided
+                if (organizationId !== null && project.organization_id !== organizationId) {
+                    throw new Error(`Project ${projectId} does not belong to organization ${organizationId}`);
                 }
 
                 // Verify current user is the owner

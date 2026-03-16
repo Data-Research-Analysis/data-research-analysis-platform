@@ -29,7 +29,7 @@ export class DashboardProcessor {
         return DashboardProcessor.instance;
     }
 
-    async getDashboards(tokenDetails: ITokenDetails): Promise<DRADashboard[]> {
+    async getDashboards(tokenDetails: ITokenDetails, organizationId: number | null = null): Promise<DRADashboard[]> {
         return new Promise<DRADashboard[]>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -75,10 +75,18 @@ export class DashboardProcessor {
             const allDashboardsMap = new Map();
             
             ownedDashboards.forEach(d => {
+                // Filter by organization_id if specified (check through project)
+                if (organizationId !== null && d.project?.organization_id !== organizationId) {
+                    return; // Skip dashboards not in the specified organization
+                }
                 allDashboardsMap.set(d.id, d);
             });
             
             memberDashboards.forEach(d => {
+                // Filter by organization_id if specified (check through project)
+                if (organizationId !== null && d.project?.organization_id !== organizationId) {
+                    return; // Skip dashboards not in the specified organization
+                }
                 if (!allDashboardsMap.has(d.id)) {
                     allDashboardsMap.set(d.id, d);
                 }

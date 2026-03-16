@@ -15,12 +15,14 @@ import {
 } from '../middleware/rbacMiddleware.js';
 import { EAction } from '../services/PermissionService.js';
 import { aiOperationsLimiter } from '../middleware/rateLimit.js';
+import { optionalOrganizationContext, type IOrganizationContextRequest } from '../middleware/organizationContext.js';
 const router = express.Router();
 
 router.get('/list', async (req: Request, res: Response, next: any) => {
     next();
-},validateJWT, async (req: Request, res: Response) => {
-    const data_sources_list = await DashboardProcessor.getInstance().getDashboards(req.body.tokenDetails);    
+}, validateJWT, optionalOrganizationContext, async (req: IOrganizationContextRequest, res: Response) => {
+    const organizationId = req.organizationId || null;
+    const data_sources_list = await DashboardProcessor.getInstance().getDashboards(req.body.tokenDetails, organizationId);    
     res.status(200).send(data_sources_list);
 });
 router.post('/add', async (req: Request, res: Response, next: any) => {

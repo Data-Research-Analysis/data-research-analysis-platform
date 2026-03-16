@@ -26,6 +26,7 @@ import {
 import { EAction } from '../services/PermissionService.js';
 import { validateExcelUpload } from '../middleware/validateFileUpload.js';
 import { QueueService } from '../services/QueueService.js';
+import { optionalOrganizationContext, type IOrganizationContextRequest } from '../middleware/organizationContext.js';
 
 const router = express.Router();
 
@@ -82,8 +83,9 @@ const excelUpload = multer({
 
 router.get('/list', async (req: Request, res: Response, next: any) => {
     next();
-},validateJWT, async (req: Request, res: Response) => {
-    const data_sources_list = await DataSourceProcessor.getInstance().getDataSources(req.body.tokenDetails);    
+}, validateJWT, optionalOrganizationContext, async (req: IOrganizationContextRequest, res: Response) => {
+    const organizationId = req.organizationId || null;
+    const data_sources_list = await DataSourceProcessor.getInstance().getDataSources(req.body.tokenDetails, organizationId);    
     res.status(200).send(data_sources_list);
 });
 
