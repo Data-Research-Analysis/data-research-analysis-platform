@@ -24,7 +24,9 @@
     "rename:analyze": "node --import tsx scripts/analyze-tables-for-rename.ts",
     "rename:execute": "node --import tsx scripts/rename-existing-tables.ts",
     "rename:execute:dry-run": "node --import tsx scripts/rename-existing-tables.ts --dry-run",
-    "rename:verify": "node --import tsx scripts/verify-renames.ts"
+    "rename:verify": "node --import tsx scripts/verify-renames.ts",
+    "migrate:users-to-orgs": "node --import tsx scripts/migrate-users-to-organizations.ts --execute",
+    "migrate:users-to-orgs:dry-run": "node --import tsx scripts/migrate-users-to-organizations.ts"
   },
   "keywords": [],
   "author": "",
