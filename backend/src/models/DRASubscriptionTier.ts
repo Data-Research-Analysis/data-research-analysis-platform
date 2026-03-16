@@ -1,5 +1,6 @@
 import { Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn, Relation, UpdateDateColumn } from 'typeorm';
 import { DRAUserSubscription } from './DRAUserSubscription.js';
+import { DRAOrganizationSubscription } from './DRAOrganizationSubscription.js';
 
 export enum ESubscriptionTier {
     FREE = 'free',
@@ -55,4 +56,7 @@ export class DRASubscriptionTier {
 
     @OneToMany(() => DRAUserSubscription, (subscription) => subscription.subscription_tier)
     user_subscriptions!: Relation<DRAUserSubscription>[];
+
+    @OneToMany(() => DRAOrganizationSubscription, (subscription) => subscription.subscription_tier)
+    organization_subscriptions!: Relation<DRAOrganizationSubscription>[];
 }
