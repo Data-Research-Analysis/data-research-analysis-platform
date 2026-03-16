@@ -27,6 +27,7 @@
 import { DataSource } from 'typeorm';
 import { DBDriver } from '../src/drivers/DBDriver.js';
 import { EDataSourceType } from '../src/types/EDataSourceType.js';
+import { PostgresDataSource } from '../src/datasources/PostgresDataSource.js';
 import { DRAUsersPlatform } from '../src/models/DRAUsersPlatform.js';
 import { DRAOrganization } from '../src/models/DRAOrganization.js';
 import { DRAWorkspace } from '../src/models/DRAWorkspace.js';
@@ -35,6 +36,8 @@ import { DRAOrganizationSubscription } from '../src/models/DRAOrganizationSubscr
 import { DRAUserSubscription } from '../src/models/DRAUserSubscription.js';
 import { DRAProject } from '../src/models/DRAProject.js';
 import { DRASubscriptionTier } from '../src/models/DRASubscriptionTier.js';
+import dotenv from 'dotenv';
+dotenv.config();
 
 interface MigrationStats {
     totalUsers: number;
@@ -288,11 +291,41 @@ async function migrateMigrationUsersToOrganizations(dryRun: boolean = true) {
     try {
         // Initialize database connection
         console.log('📡 Connecting to database...');
+        
+        // Get database connection parameters from environment
+        const host = process.env.POSTGRESQL_HOST || 'localhost';
+        const port = parseInt(process.env.POSTGRESQL_PORT || '5432');
+        const database = process.env.POSTGRESQL_DB_NAME || 'dra_db';
+        const username = process.env.POSTGRESQL_USERNAME || 'dra_user';
+        const password = process.env.POSTGRESQL_PASSWORD || 'dra_password';
+        
+        // Create PostgresDataSource instance
+        const postgresDataSource = PostgresDataSource.getInstance().getDataSource(
+            host,
+            port,
+            database,
+            username,
+            password
+        );
+        
+        // Get and initialize the driver
         const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
         if (!driver) {
             throw new Error('PostgreSQL driver unavailable');
         }
+        
+        // Initialize driver with data source
+        const connected = await driver.initialize(postgresDataSource);
+        if (!connected) {
+            throw new Error('Failed to establish database connection');
+        }
+        
+        // Get the initialized data source
         dataSource = await driver.getConcreteDriver();
+        if (!dataSource || !dataSource.isInitialized) {
+            throw new Error('Database connection not initialized');
+        }
+        
         console.log('✅ Database connected');
         console.log();
 
