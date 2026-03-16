@@ -46,7 +46,7 @@ onMounted(async () => {
 
 /**
  * Switch to selected organization
- * Triggers workspace reload and updates global context
+ * Triggers data refresh for new organization context
  */
 async function selectOrganization(organization: IOrganization) {
     if (currentOrganization.value?.id === organization.id) {
@@ -57,12 +57,24 @@ async function selectOrganization(organization: IOrganization) {
     console.log('[OrganizationSwitcher] Switching to organization:', organization.name);
     organizationsStore.setSelectedOrganization(organization);
     
-    // Reload projects for new organization context
-    // This will be implemented when we update API calls to include org context
-    if (import.meta.client) {
-        // Force page reload to refresh all data with new organization context
-        // TODO: Replace with reactive updates once API integration is complete
-        window.location.reload();
+    // Refresh all data for new organization context
+    console.log('[OrganizationSwitcher] Refreshing data for new organization...');
+    try {
+        // Clear existing data to show loading states
+        projectsStore.clearProjects();
+        dataSourceStore.clearDataSources();
+        dashboardsStore.clearDashboards();
+        
+        // Refresh all data stores with new organization context
+        await Promise.all([
+            projectsStore.retrieveProjects(),
+            dataSourceStore.retrieveDataSources(),
+            dashboardsStore.retrieveDashboards(),
+        ]);
+        
+        console.log('[OrganizationSwitcher] Data refresh complete');
+    } catch (error) {
+        console.error('[OrganizationSwitcher] Failed to refresh data:', error);
     }
 }
 

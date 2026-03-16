@@ -1,10 +1,18 @@
 <script setup lang="ts">
 import { useOrganizationsStore } from '@/stores/organizations';
 import { useLoggedInUserStore } from '@/stores/logged_in_user';
+import { useProjectsStore } from '@/stores/projects';
+import { useDataSourceStore } from '@/stores/data_sources';
+import { useDataModelsStore } from '@/stores/data_models';
+import { useDashboardsStore } from '@/stores/dashboards';
 import type { IWorkspace } from '@/types/IWorkspace';
 
 const organizationsStore = useOrganizationsStore();
 const loggedInUserStore = useLoggedInUserStore();
+const projectsStore = useProjectsStore();
+const dataSourceStore = useDataSourceStore();
+const dataModelsStore = useDataModelsStore();
+const dashboardsStore = useDashboardsStore();
 const route = useRoute();
 
 // State
@@ -60,13 +68,25 @@ async function selectWorkspace(workspace: IWorkspace) {
     if (!workspace || workspace.id === currentWorkspace.value?.id) return;
     
     try {
+        console.log('[workspace-switcher] Switching to workspace:', workspace.name);
         organizationsStore.setSelectedWorkspace(workspace);
         
-        // TODO: Remove this page reload once API integration is complete
-        // For now, reload to ensure all data is scoped to the new workspace
-        if (import.meta.client) {
-            window.location.reload();
-        }
+        // Refresh all data for new workspace context
+        console.log('[workspace-switcher] Refreshing data for new workspace...');
+        
+        // Clear existing data to show loading states
+        projectsStore.clearProjects();
+        dataSourceStore.clearDataSources();
+        dashboardsStore.clearDashboards();
+        
+        // Refresh all data stores with new workspace context
+        await Promise.all([
+            projectsStore.retrieveProjects(),
+            dataSourceStore.retrieveDataSources(),
+            dashboardsStore.retrieveDashboards(),
+        ]);
+        
+        console.log('[workspace-switcher] Data refresh complete');
     } catch (error) {
         console.error('[workspace-switcher] Failed to switch workspace:', error);
     }

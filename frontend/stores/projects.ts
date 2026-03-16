@@ -68,11 +68,17 @@ export const useProjectsStore = defineStore('projectsDRA', () => {
         }
         const url = `${baseUrl()}/project/list`;
         console.log('[ProjectsStore] Fetching projects from API...');
+        
+        // Get organization context headers
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
+        
         const data = await $fetch(url, {
             method: "GET",
             headers: {
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
+                ...orgHeaders,
             },
         });
         console.log('[ProjectsStore] API returned', Array.isArray(data) ? data.length : 'non-array', 'projects');
