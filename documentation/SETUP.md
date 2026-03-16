@@ -58,6 +58,28 @@ npm run setup:express
 | `npm run setup:migrate` | Run database migrations |
 | `npm run setup:seed` | Run database seeders |
 
+#### Multi-Tenant Organization Migration (Issue #283)
+
+After running the standard database migrations, execute the user-to-organization data migration:
+
+```bash
+# Step 1: Preview the migration (dry-run, no changes made)
+docker-compose exec backend.dataresearchanalysis.test npm run migrate:users-to-orgs:dry-run
+
+# Step 2: Review the output and verify the organizations that would be created
+
+# Step 3: Execute the actual migration (irreversible)
+docker-compose exec backend.dataresearchanalysis.test npm run migrate:users-to-orgs
+```
+
+**⚠️ Important Notes:**
+- Run `npm run setup:migrate` FIRST to create organization tables
+- The user-to-organization migration is **one-time only**
+- Dry-run mode previews changes without modifying the database
+- Each user gets a personal organization (e.g., "John's Organization")
+- All user projects are automatically transferred to their personal organization
+- The migration is idempotent (safe to run multiple times - skips already-migrated users)
+
 Migrations and seeders are automatically executed during initial setup, but can be run manually if needed.
 
 ### Health & Monitoring
@@ -246,9 +268,16 @@ If you prefer manual setup or need to customize the process, follow the platform
 8. In a new terminal window/tab run `cd data-research-analysis-platform/backend`.
 9. Run `npm run typeorm migration:generate ./src/migrations/CreateTables -- -d ./src/datasources/PostgresDSMigrations.ts` to generate the migration file that creates tables file from the data models. Only run this command if the migration file create tables migration file is not present.
 10. Run `npm run typeorm migration:run -- -d ./src/datasources/PostgresDSMigrations.ts` to run the migrations.
-11. After the migrations have been completed then run `npm run seed:run -- -d ./src/datasources/PostgresDSMigrations.ts src/seeders/*.ts` to run the seeders.
-12. Now visit http://frontend.dataresearchanalysis.test:3000 in your browser!
-13. To revert the migrations run the command `npm run typeorm migration:revert -- -d ./src/datasources/PostgresDSMigrations.ts`
+11. **(NEW) Multi-Tenant Migration:** Run user-to-organization migration:
+    ```bash
+    # Preview migration (dry-run)
+    docker-compose exec backend.dataresearchanalysis.test npm run migrate:users-to-orgs:dry-run
+    # Execute migration after reviewing output
+    docker-compose exec backend.dataresearchanalysis.test npm run migrate:users-to-orgs
+    ```
+12. After the migrations have been completed then run `npm run seed:run -- -d ./src/datasources/PostgresDSMigrations.ts src/seeders/*.ts` to run the seeders.
+13. Now visit http://frontend.dataresearchanalysis.test:3000 in your browser!
+14. To revert the migrations run the command `npm run typeorm migration:revert -- -d ./src/datasources/PostgresDSMigrations.ts`
 
 ## Ubuntu Setup
 1. Add `127.0.0.1 frontend.dataresearchanalysis.test backend.dataresearchanalysis.test` to your hosts file `~/etc/hosts`.
@@ -261,9 +290,16 @@ If you prefer manual setup or need to customize the process, follow the platform
 8. In a new terminal window/tab run `cd data-research-analysis-platform/backend`.
 9. Run `npm run typeorm migration:generate ./src/migrations/CreateTables -- -d ./src/datasources/PostgresDSMigrations.ts` to generate the migration file that creates tables file from the data models. Only run this command if the migration file create tables migration file is not present.
 10. Run `npm run typeorm migration:run -- -d ./src/datasources/PostgresDSMigrations.ts` to run the migrations.
-11. After the migrations have been completed then run `npm run seed:run -- -d ./src/datasources/PostgresDSMigrations.ts src/seeders/*.ts` to run the seeders.
-12. Now visit http://frontend.dataresearchanalysis.test:3000 in your browser!
-13. To revert the migrations run the command `npm run typeorm migration:revert -- -d ./src/datasources/PostgresDSMigrations.ts`
+11. **(NEW) Multi-Tenant Migration:** Run user-to-organization migration:
+    ```bash
+    # Preview migration (dry-run)
+    docker-compose exec backend.dataresearchanalysis.test npm run migrate:users-to-orgs:dry-run
+    # Execute migration after reviewing output
+    docker-compose exec backend.dataresearchanalysis.test npm run migrate:users-to-orgs
+    ```
+12. After the migrations have been completed then run `npm run seed:run -- -d ./src/datasources/PostgresDSMigrations.ts src/seeders/*.ts` to run the seeders.
+13. Now visit http://frontend.dataresearchanalysis.test:3000 in your browser!
+14. To revert the migrations run the command `npm run typeorm migration:revert -- -d ./src/datasources/PostgresDSMigrations.ts`
 
 ## Test User Credentials
 
