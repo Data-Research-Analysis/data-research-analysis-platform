@@ -166,7 +166,25 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
           loadTasks.push((async () => {
             await organizationsStore.retrieveOrganizations();
             markDataLoaded('organizations');
+            
+            // After loading organizations, load workspaces for the selected organization
+            const selectedOrg = organizationsStore.getSelectedOrganization();
+            if (selectedOrg && shouldRefreshData('workspaces')) {
+              console.log('[load-data] Loading workspaces for organization', selectedOrg.id);
+              await organizationsStore.retrieveWorkspaces(selectedOrg.id);
+              markDataLoaded('workspaces');
+            }
           })());
+        } else {
+          // If organizations are already loaded, still check if we need to refresh workspaces
+          const selectedOrg = organizationsStore.getSelectedOrganization();
+          if (selectedOrg && shouldRefreshData('workspaces')) {
+            console.log('[load-data] Loading workspaces for cached organization', selectedOrg.id);
+            loadTasks.push((async () => {
+              await organizationsStore.retrieveWorkspaces(selectedOrg.id);
+              markDataLoaded('workspaces');
+            })());
+          }
         }
         
         // === PROJECT ROUTES ===
