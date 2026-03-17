@@ -10,9 +10,15 @@
  */
 
 import { useOrganizationsStore } from '@/stores/organizations';
+import { useProjectsStore } from '@/stores/projects';
+import { useDataSourcesStore } from '@/stores/data_sources';
+import { useDashboardsStore } from '@/stores/dashboards';
 import type { IOrganization } from '~/types/IOrganization';
 
 const organizationsStore = useOrganizationsStore();
+const projectsStore = useProjectsStore();
+const dataSourceStore = useDataSourcesStore();
+const dashboardsStore = useDashboardsStore();
 const isMounted = ref(false);
 const isLoading = ref(false);
 

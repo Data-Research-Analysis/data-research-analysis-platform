@@ -147,13 +147,14 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
         console.log('[OrganizationsStore] Fetching organizations from API...');
         
         try {
-            const data = await $fetch<IOrganization[]>(url, {
+            const response = await $fetch<{ success: boolean; data: IOrganization[] }>(url, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Authorization-Type': 'auth',
                 },
             });
+            const data = response.data || [];
             console.log('[OrganizationsStore] API returned', data.length, 'organizations');
             setOrganizations(data);
             
@@ -184,7 +185,7 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
         console.log('[OrganizationsStore] Fetching workspaces from API...');
         
         try {
-            const data = await $fetch<IWorkspace[]>(url, {
+            const response = await $fetch<{ success: boolean; data: IWorkspace[] }>(url, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -192,6 +193,7 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
                     'X-Organization-Id': organizationId.toString(),
                 },
             });
+            const data = response.data || [];
             console.log('[OrganizationsStore] API returned', data.length, 'workspaces');
             setWorkspaces(data);
             

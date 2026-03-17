@@ -173,9 +173,10 @@ export class OrganizationService {
 
     /**
      * Get all organizations for a user
+     * Includes user's role in each organization
      * 
      * @param userId - User's platform ID
-     * @returns Array of organizations the user is a member of
+     * @returns Array of organizations with user_role field
      */
     async getUserOrganizations(userId: number): Promise<DRAOrganization[]> {
         const manager = await this.getEntityManager();
@@ -188,7 +189,14 @@ export class OrganizationService {
             relations: ['organization', 'organization.subscription', 'organization.subscription.subscription_tier']
         });
 
-        return memberships.map(m => m.organization);
+        // Map organizations and attach user's role for each
+        return memberships.map(m => {
+            const org = m.organization;
+            // Add user_role as a non-persistent property for API response
+            (org as any).user_role = m.role;
+            (org as any).is_owner = m.role === EOrganizationRole.OWNER;
+            return org;
+        });
     }
 
     /**
