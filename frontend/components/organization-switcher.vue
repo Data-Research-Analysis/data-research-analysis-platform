@@ -35,18 +35,26 @@ const displayName = computed(() => {
 
 // Load organizations from API on component mount
 onMounted(async () => {
+    console.log('[OrganizationSwitcher] onMounted - setting isMounted to true');
     isMounted.value = true;
+    
+    console.log('[OrganizationSwitcher] Current organizations:', organizationsStore.getOrganizations());
+    console.log('[OrganizationSwitcher] Current selected org:', organizationsStore.getSelectedOrganization());
     
     // Only load if not already loaded
     if (organizations.value.length === 0) {
+        console.log('[OrganizationSwitcher] No organizations loaded, fetching...');
         isLoading.value = true;
         try {
             await organizationsStore.retrieveOrganizations();
+            console.log('[OrganizationSwitcher] Organizations loaded:', organizationsStore.getOrganizations());
         } catch (error) {
             console.error('[OrganizationSwitcher] Failed to load organizations:', error);
         } finally {
             isLoading.value = false;
         }
+    } else {
+        console.log('[OrganizationSwitcher] Organizations already loaded');
     }
 });
 

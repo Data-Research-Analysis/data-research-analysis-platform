@@ -48,18 +48,26 @@ const isDefaultWorkspace = computed(() => {
 
 // Lifecycle
 onMounted(async () => {
+    console.log('[WorkspaceSwitcher] onMounted - setting isMounted to true');
     isMounted.value = true;
+    
+    console.log('[WorkspaceSwitcher] Current organization:', currentOrganization.value);
+    console.log('[WorkspaceSwitcher] Current workspaces:', workspaces.value);
     
     // Auto-load workspaces if not already loaded (should be loaded by middleware)
     if (workspaces.value.length === 0 && currentOrganization.value) {
+        console.log('[WorkspaceSwitcher] No workspaces loaded, fetching...');
         isLoading.value = true;
         try {
             await organizationsStore.retrieveWorkspaces(currentOrganization.value.id);
+            console.log('[WorkspaceSwitcher] Workspaces loaded:', organizationsStore.getWorkspaces());
         } catch (error) {
             console.error('[workspace-switcher] Failed to load workspaces:', error);
         } finally {
             isLoading.value = false;
         }
+    } else {
+        console.log('[WorkspaceSwitcher] Workspaces already loaded or no organization');
     }
 });
 
@@ -129,13 +137,14 @@ function getWorkspaceRoleBadgeClass(workspace: IWorkspace): string {
 
 <template>
     <ClientOnly>
-        <div v-if="isMounted && currentOrganization" class="workspace-switcher">
+        <div v-if="isMounted" class="workspace-switcher">
             <menu-dropdown direction="left" offset-y="10">
                 <template #menuItem="{ onClick }">
                     <button
                         type="button"
                         @click="onClick"
                         class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white bg-opacity-20 hover:bg-opacity-30 transition-all text-white text-sm font-medium whitespace-nowrap cursor-pointer"
+                        :disabled="!currentOrganization"
                     >
                         <font-awesome-icon :icon="['fas', 'folder-tree']" class="w-4 h-4" />
                         <span>{{ displayName }}</span>
