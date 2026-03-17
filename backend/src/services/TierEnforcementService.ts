@@ -1,7 +1,6 @@
 import { DBDriver } from '../drivers/DBDriver.js';
 import { EDataSourceType } from '../types/EDataSourceType.js';
 import { DRAUsersPlatform } from '../models/DRAUsersPlatform.js';
-import { DRAUserSubscription } from '../models/DRAUserSubscription.js';
 import { DRASubscriptionTier, ESubscriptionTier } from '../models/DRASubscriptionTier.js';
 import { DRAProject } from '../models/DRAProject.js';
 import { DRADataSource } from '../models/DRADataSource.js';
@@ -11,6 +10,7 @@ import { DRAProjectMember } from '../models/DRAProjectMember.js';
 import { EUserType } from '../types/EUserType.js';
 import { TierLimitError } from '../types/TierLimitError.js';
 import { getRedisClient } from '../config/redis.config.js';
+import { OrganizationService } from './OrganizationService.js';
 
 /**
  * Extended usage statistics with tier limit enforcement data
@@ -121,7 +121,7 @@ export class TierEnforcementService {
     }
 
     /**
-     * Get user's current subscription with tier details
+     * Get user's current subscription tier via their personal organization.
      */
     private async getUserSubscription(userId: number) {
         const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -134,37 +134,12 @@ export class TierEnforcementService {
             throw new Error('Database manager not available');
         }
 
-        const subscription = await concreteDriver.manager.findOne(DRAUserSubscription, {
-            where: {
-                users_platform: { id: userId },
-                is_active: true
-            },
-            relations: ['subscription_tier'],
-            order: {
-                started_at: 'DESC'
-            }
-        });
+        const { tier, orgSubscription } = await OrganizationService.getInstance().getOrgSubscriptionTierForUser(
+            userId,
+            concreteDriver.manager
+        );
 
-        if (!subscription) {
-            // Default to FREE tier if no subscription found
-            const freeTier = await concreteDriver.manager.findOne(DRASubscriptionTier, {
-                where: { tier_name: ESubscriptionTier.FREE }
-            });
-            
-            if (!freeTier) {
-                throw new Error('FREE tier not found - run database seeders');
-            }
-
-            return {
-                tier: freeTier,
-                subscription: null
-            };
-        }
-
-        return {
-            tier: subscription.subscription_tier,
-            subscription
-        };
+        return { tier, subscription: orgSubscription };
     }
 
     /**

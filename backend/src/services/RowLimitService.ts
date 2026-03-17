@@ -1,8 +1,8 @@
 import { DBDriver } from "../drivers/DBDriver.js";
 import { EDataSourceType } from "../types/EDataSourceType.js";
-import { DRAUserSubscription } from "../models/DRAUserSubscription.js";
 import { DRAUsersPlatform } from "../models/DRAUsersPlatform.js";
-import { ESubscriptionTier, DRASubscriptionTier } from "../models/DRASubscriptionTier.js";
+import { ESubscriptionTier } from "../models/DRASubscriptionTier.js";
+import { OrganizationService } from "./OrganizationService.js";
 
 export interface IUsageStats {
     tier: ESubscriptionTier;
@@ -29,90 +29,62 @@ export class RowLimitService {
     }
     
     /**
-     * Get user's current subscription tier
+     * Get user's current subscription tier via their personal organization.
      * Always fetches from database - NO CACHING
      */
     async getUserTier(userId: number): Promise<ESubscriptionTier> {
-        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-        if (!driver) {
-            console.error('PostgreSQL driver not available - defaulting to FREE tier');
-            return ESubscriptionTier.FREE;
-        }
-        
-        const concreteDriver = await driver.getConcreteDriver();
-        if (!concreteDriver) {
-            console.error('Failed to get PostgreSQL connection - defaulting to FREE tier');
-            return ESubscriptionTier.FREE;
-        }
-        
-        const manager = concreteDriver.manager;
-        if (!manager) {
-            console.error('Database manager not available - defaulting to FREE tier');
-            return ESubscriptionTier.FREE;
-        }
-        
-        const subscription = await manager.findOne(DRAUserSubscription, {
-            where: {
-                users_platform: { id: userId },
-                is_active: true
-            },
-            relations: ['subscription_tier'],
-            order: {
-                started_at: 'DESC' // Get most recent
+        try {
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                console.error('PostgreSQL driver not available - defaulting to FREE tier');
+                return ESubscriptionTier.FREE;
             }
-        });
-        
-        if (!subscription) {
-            // Auto-assign free tier for users without subscription
-            await this.assignFreeTier(userId);
+
+            const concreteDriver = await driver.getConcreteDriver();
+            if (!concreteDriver?.manager) {
+                console.error('Database manager not available - defaulting to FREE tier');
+                return ESubscriptionTier.FREE;
+            }
+
+            const { tier } = await OrganizationService.getInstance().getOrgSubscriptionTierForUser(
+                userId,
+                concreteDriver.manager
+            );
+            return tier.tier_name as ESubscriptionTier;
+        } catch (error) {
+            console.error('[RowLimitService] Error getting user tier, defaulting to FREE:', error);
             return ESubscriptionTier.FREE;
         }
-        
-        return subscription.subscription_tier.tier_name as ESubscriptionTier;
     }
     
     /**
-     * Get row limit for user's current tier
+     * Get row limit for user's current tier via their personal organization.
      * Always fetches from database - NO CACHING for real-time updates
      */
     async getRowLimit(userId: number): Promise<number> {
-        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-        if (!driver) {
-            console.error('PostgreSQL driver not available - defaulting to FREE tier limit');
-            return 100000; // Default to free tier limit
-        }
-        
-        const concreteDriver = await driver.getConcreteDriver();
-        if (!concreteDriver) {
-            console.error('Failed to get PostgreSQL connection - defaulting to FREE tier limit');
-            return 100000;
-        }
-        
-        const manager = concreteDriver.manager;
-        if (!manager) {
-            console.error('Database manager not available - defaulting to FREE tier limit');
-            return 100000;
-        }
-        
-        const subscription = await manager.findOne(DRAUserSubscription, {
-            where: {
-                users_platform: { id: userId },
-                is_active: true
-            },
-            relations: ['subscription_tier'],
-            order: {
-                started_at: 'DESC'
+        try {
+            const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+            if (!driver) {
+                console.error('PostgreSQL driver not available - defaulting to FREE tier limit');
+                return 100000;
             }
-        });
-        
-        if (!subscription) {
-            // Auto-assign free tier
-            await this.assignFreeTier(userId);
-            return 100000; // Default FREE tier limit
+
+            const concreteDriver = await driver.getConcreteDriver();
+            if (!concreteDriver?.manager) {
+                console.error('Database manager not available - defaulting to FREE tier limit');
+                return 100000;
+            }
+
+            const { tier } = await OrganizationService.getInstance().getOrgSubscriptionTierForUser(
+                userId,
+                concreteDriver.manager
+            );
+            // CRITICAL: Always read from database for real-time admin updates
+            return Number(tier.max_rows_per_data_model);
+        } catch (error) {
+            console.error('[RowLimitService] Error getting row limit, defaulting to FREE:', error);
+            return 100000;
         }
-        
-        // CRITICAL: Always read from database for real-time admin updates
-        return Number(subscription.subscription_tier.max_rows_per_data_model);
     }
     
     /**
@@ -160,121 +132,52 @@ export class RowLimitService {
     }
     
     /**
-     * Assign free tier to user (for new users or users without subscription)
+     * Assign free tier to user.
+     * @deprecated Subscription tiers are now managed at the organization level.
+     * A FREE tier is assigned automatically when a personal organization is created.
+     * This method is a no-op kept for backward compatibility during the transition.
      */
     async assignFreeTier(userId: number): Promise<void> {
-        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
-        if (!driver) {
-            console.error('Cannot assign free tier - PostgreSQL driver not available');
-            return;
-        }
-        
-        const concreteDriver = await driver.getConcreteDriver();
-        if (!concreteDriver) {
-            console.error('Cannot assign free tier - Failed to get PostgreSQL connection');
-            return;
-        }
-        
-        const manager = concreteDriver.manager;
-        if (!manager) {
-            console.error('Cannot assign free tier - Database manager not available');
-            return;
-        }
-        
-        // Check if user already has a subscription
-        const existingSubscription = await manager.findOne(DRAUserSubscription, {
-            where: {
-                users_platform: { id: userId },
-                is_active: true
-            }
-        });
-        
-        if (existingSubscription) {
-            console.log(`User ${userId} already has an active subscription`);
-            return;
-        }
-        
-        const user = await manager.findOne(DRAUsersPlatform, { 
-            where: { id: userId } 
-        });
-        
-        if (!user) {
-            console.error(`User ${userId} not found`);
-            return;
-        }
-        
-        const freeTier = await manager.findOne(DRASubscriptionTier, {
-            where: { tier_name: ESubscriptionTier.FREE }
-        });
-        
-        if (!freeTier) {
-            console.error('FREE tier not found in database - run seeders');
-            return;
-        }
-        
-        const subscription = manager.create(DRAUserSubscription, {
-            users_platform: user,
-            subscription_tier: freeTier,
-            started_at: new Date(),
-            is_active: true
-        });
-        
-        await manager.save(subscription);
-        console.log(`✅ Assigned FREE tier to user ${userId}`);
+        console.log(`[RowLimitService] assignFreeTier called for user ${userId} - no-op (org-level subscriptions)`);
     }
     
     /**
-     * Get usage statistics for user
+     * Get usage statistics for user via their personal organization subscription.
      */
     async getUsageStats(userId: number): Promise<IUsageStats> {
         const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
         if (!driver) {
             throw new Error('Database driver not available');
         }
-        
+
         const concreteDriver = await driver.getConcreteDriver();
-        if (!concreteDriver) {
-            throw new Error('Failed to get PostgreSQL connection');
-        }
-        
-        const manager = concreteDriver.manager;
-        if (!manager) {
+        if (!concreteDriver?.manager) {
             throw new Error('Database manager not available');
         }
-        
+
+        const manager = concreteDriver.manager;
+
         const user = await manager.findOne(DRAUsersPlatform, {
             where: { id: userId },
             relations: ['projects', 'data_sources', 'dashboards']
         });
-        
+
         if (!user) {
             throw new Error('User not found');
         }
-        
-        const tier = await this.getUserTier(userId);
-        const rowLimit = await this.getRowLimit(userId);
-        
-        const subscription = await manager.findOne(DRAUserSubscription, {
-            where: {
-                users_platform: { id: userId },
-                is_active: true
-            },
-            relations: ['subscription_tier'],
-            order: {
-                started_at: 'DESC'
-            }
-        });
-        
+
+        const { tier } = await OrganizationService.getInstance().getOrgSubscriptionTierForUser(userId, manager);
+
         return {
-            tier,
-            rowLimit,
+            tier: tier.tier_name as ESubscriptionTier,
+            rowLimit: Number(tier.max_rows_per_data_model),
             projectCount: user.projects?.length || 0,
-            maxProjects: subscription?.subscription_tier.max_projects || null,
+            maxProjects: tier.max_projects,
             dataSourceCount: user.data_sources?.length || 0,
-            maxDataSources: subscription?.subscription_tier.max_data_sources_per_project || null,
+            maxDataSources: tier.max_data_sources_per_project,
             dashboardCount: user.dashboards?.length || 0,
-            maxDashboards: subscription?.subscription_tier.max_dashboards || null,
-            aiGenerationsPerMonth: subscription?.subscription_tier.ai_generations_per_month || null
+            maxDashboards: tier.max_dashboards,
+            aiGenerationsPerMonth: tier.ai_generations_per_month
         };
     }
 }

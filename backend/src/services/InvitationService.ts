@@ -8,7 +8,7 @@ import { DRAUsersPlatform } from '../models/DRAUsersPlatform.js';
 import { DRAProject } from '../models/DRAProject.js';
 import { DRAProjectMember } from '../models/DRAProjectMember.js';
 import { DRASubscriptionTier } from '../models/DRASubscriptionTier.js';
-import { DRAUserSubscription } from '../models/DRAUserSubscription.js';
+import { OrganizationService } from './OrganizationService.js';
 import { IInvitationCreate, IInvitationResponse, IInvitationAccept } from '../interfaces/IInvitation.js';
 import { EmailService } from './EmailService.js';
 import { NotificationHelperService } from './NotificationHelperService.js';
@@ -77,14 +77,11 @@ export class InvitationService {
             throw new Error('Project not found');
         }
 
-        // Get owner's active subscription
-        const userSubscription = await manager.findOne(DRAUserSubscription, {
-            where: { 
-                users_platform: { id: project.users_platform.id },
-                is_active: true
-            },
-            relations: ['subscription_tier']
-        });
+        // Get owner's active subscription via their personal organization
+        const { tier: subscriptionTier } = await OrganizationService.getInstance().getOrgSubscriptionTierForUser(
+            project.users_platform.id,
+            manager
+        );
 
         // Count current members + pending invitations
         const currentMemberCount = await manager.count(DRAProjectMember, { where: { project: { id: projectId } } });
@@ -98,10 +95,10 @@ export class InvitationService {
 
         const totalCount = currentMemberCount + pendingInvitationCount;
 
-        // Get max members from subscription, default to FREE tier (3 members)
+        // Get max members from subscription tier, default to FREE tier (3 members)
         let maxMembers: number | null = 3;
-        if (userSubscription && userSubscription.subscription_tier) {
-            maxMembers = userSubscription.subscription_tier.max_members_per_project;
+        if (subscriptionTier) {
+            maxMembers = subscriptionTier.max_members_per_project;
         }
 
         // null or undefined means unlimited
