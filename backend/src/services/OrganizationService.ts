@@ -5,7 +5,7 @@ import { DRAOrganization } from '../models/DRAOrganization.js';
 import { DRAWorkspace } from '../models/DRAWorkspace.js';
 import { DRAOrganizationMember } from '../models/DRAOrganizationMember.js';
 import { DRAOrganizationSubscription } from '../models/DRAOrganizationSubscription.js';
-import { DRASubscriptionTier } from '../models/DRASubscriptionTier.js';
+import { DRASubscriptionTier, ESubscriptionTier } from '../models/DRASubscriptionTier.js';
 import { DRAUsersPlatform } from '../models/DRAUsersPlatform.js';
 
 export enum EOrganizationRole {
@@ -483,6 +483,51 @@ export class OrganizationService {
      * @param tierName - Subscription tier name
      * @returns max_members value (null = unlimited)
      */
+    /**
+     * Resolve the subscription tier for a user via their personal (owner) organization.
+     *
+     * Lookup path: userId → DRAOrganizationMember (role='owner') → DRAOrganization
+     *              → DRAOrganizationSubscription → DRASubscriptionTier
+     *
+     * Falls back to the FREE tier when the user has no owner-role membership or
+     * their organization has no subscription yet.
+     *
+     * @param userId  - The platform user ID
+     * @param manager - Active TypeORM EntityManager (may be from a transaction)
+     */
+    async getOrgSubscriptionTierForUser(
+        userId: number,
+        manager: EntityManager
+    ): Promise<{ tier: DRASubscriptionTier; orgSubscription: DRAOrganizationSubscription | null }> {
+        // Find the organization the user owns (personal org)
+        const ownerMembership = await manager.findOne(DRAOrganizationMember, {
+            where: {
+                users_platform_id: userId,
+                role: 'owner',
+                is_active: true
+            },
+            relations: ['organization', 'organization.subscription', 'organization.subscription.subscription_tier']
+        });
+
+        const orgSubscription = ownerMembership?.organization?.subscription ?? null;
+        const tier = orgSubscription?.subscription_tier ?? null;
+
+        if (tier) {
+            return { tier, orgSubscription };
+        }
+
+        // Fallback: return FREE tier
+        const freeTier = await manager.findOne(DRASubscriptionTier, {
+            where: { tier_name: ESubscriptionTier.FREE }
+        });
+
+        if (!freeTier) {
+            throw new Error('FREE tier not found in database — run seeders');
+        }
+
+        return { tier: freeTier, orgSubscription: null };
+    }
+
     private getMaxMembersForTier(tierName: string): number | null {
         const normalizedTier = tierName.toUpperCase();
 
