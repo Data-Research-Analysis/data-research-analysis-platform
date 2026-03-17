@@ -51,10 +51,10 @@ onMounted(async () => {
     isMounted.value = true;
     
     // Auto-load workspaces if not already loaded (should be loaded by middleware)
-    if (workspaces.value.length === 0) {
+    if (workspaces.value.length === 0 && currentOrganization.value) {
         isLoading.value = true;
         try {
-            await organizationsStore.retrieveWorkspaces();
+            await organizationsStore.retrieveWorkspaces(currentOrganization.value.id);
         } catch (error) {
             console.error('[workspace-switcher] Failed to load workspaces:', error);
         } finally {
