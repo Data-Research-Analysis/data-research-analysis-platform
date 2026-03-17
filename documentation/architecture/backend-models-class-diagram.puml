@@ -233,15 +233,6 @@ package "Subscriptions" {
         +is_active: boolean
     }
 
-    class DRAUserSubscription {
-        +id: number
-        +tier: string
-        +assigned_at: Date
-        +assigned_by: number?
-        --
-        +users_platform: DRAUsersPlatform {onDelete: CASCADE}
-    }
-
     class DRAEmailPreferences {
         +id: number
         +marketing_emails: boolean
@@ -439,7 +430,6 @@ DRAProject ||--o{ DRAProjectInvitation : "has invitations"
 DRAUsersPlatform ||--o{ DRAProjectMember : "member of"
 DRAUsersPlatform ||--o{ DRANotification : "receives"
 DRAUsersPlatform ||--o{ DRAAccountCancellation : "requests"
-DRAUsersPlatform ||--o| DRAUserSubscription : "subscribed via"
 DRAUsersPlatform ||--o| DRAEmailPreferences : "preferences"
 DRADataSource ||--o{ DRAMongoDBSyncHistory : "tracks syncs"
 DRADataSource ||--o{ DRATableMetadata : "has metadata"
