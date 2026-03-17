@@ -131,17 +131,18 @@ function getWorkspaceRoleBadgeClass(workspace: IWorkspace): string {
     <ClientOnly>
         <div v-if="isMounted && currentOrganization" class="workspace-switcher">
             <menu-dropdown direction="left" offset-y="10">
-                <template #menuItem>
+                <template #menuItem="{ onClick }">
                     <button
                         type="button"
-                        class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white bg-opacity-20 hover:bg-opacity-30 transition-all text-white text-sm font-medium whitespace-nowrap"
+                        @click="onClick"
+                        class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white bg-opacity-20 hover:bg-opacity-30 transition-all text-white text-sm font-medium whitespace-nowrap cursor-pointer"
                     >
                         <font-awesome-icon :icon="['fas', 'folder-tree']" class="w-4 h-4" />
                         <span>{{ displayName }}</span>
                         <font-awesome-icon :icon="['fas', 'chevron-down']" class="w-3 h-3 ml-1" />
                     </button>
                 </template>
-                <template #dropdownMenu>
+                <template #dropdownMenu="{ onClick }">
                     <div class="bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden min-w-[280px] max-h-[400px] overflow-y-auto">
                         <!-- Header -->
                         <div class="px-4 py-3 bg-gray-50 border-b border-gray-200">
@@ -162,7 +163,7 @@ function getWorkspaceRoleBadgeClass(workspace: IWorkspace): string {
                             <button
                                 v-for="workspace in workspaces"
                                 :key="workspace.id"
-                                @click="selectWorkspace(workspace)"
+                                @click="() => { selectWorkspace(workspace); onClick(); }"
                                 type="button"
                                 class="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-100 transition-colors text-left cursor-pointer"
                                 :class="{ 'bg-blue-50': workspace.id === currentWorkspace?.id }"
