@@ -228,74 +228,6 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
         }
     }
 
-    async function fetchUserSubscription(userId: number) {
-        const token = getAuthToken();
-        if (!token) {
-            return null;
-        }
-        const url = `${baseUrl()}/admin/users/${userId}/subscription`;
-        try {
-            const result = await $fetch(url, {
-                method: "GET",
-                headers: {
-                    "Authorization": `Bearer ${token}`,
-                    "Authorization-Type": "auth",
-                },
-            });
-            return result.data;
-        } catch (error) {
-            console.error('Error fetching user subscription:', error);
-            return null;
-        }
-    }
-
-    async function updateUserSubscription(userId: number, tierId: number, endsAt?: string) {
-        const token = getAuthToken();
-        if (!token) {
-            return { success: false, message: 'Not authenticated' };
-        }
-        const url = `${baseUrl()}/admin/users/${userId}/subscription`;
-        try {
-            const body: any = { tier_id: tierId };
-            if (endsAt) {
-                body.ends_at = endsAt;
-            }
-            const result = await $fetch(url, {
-                method: "PUT",
-                headers: {
-                    "Authorization": `Bearer ${token}`,
-                    "Authorization-Type": "auth",
-                },
-                body,
-            });
-            return { success: true, data: result.data };
-        } catch (error: any) {
-            console.error('Error updating user subscription:', error);
-            return { success: false, message: error.data?.message || error.message || 'Error updating subscription' };
-        }
-    }
-
-    async function getAvailableTiers(userId: number) {
-        const token = getAuthToken();
-        if (!token) {
-            return [];
-        }
-        const url = `${baseUrl()}/admin/users/${userId}/available-tiers`;
-        try {
-            const result = await $fetch(url, {
-                method: "GET",
-                headers: {
-                    "Authorization": `Bearer ${token}`,
-                    "Authorization-Type": "auth",
-                },
-            });
-            return result.data || [];
-        } catch (error) {
-            console.error('Error fetching available tiers:', error);
-            return [];
-        }
-    }
-
     return {
         users,
         selectedUser,
@@ -313,8 +245,5 @@ export const useUserManagementStore = defineStore('userManagementStore', () => {
         createUser,
         deleteUser,
         getEnterpriseQueryForConversion,
-        fetchUserSubscription,
-        updateUserSubscription,
-        getAvailableTiers,
     }
 });
