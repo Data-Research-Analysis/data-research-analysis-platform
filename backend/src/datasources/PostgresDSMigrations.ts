@@ -21,7 +21,6 @@ import { DRAAIDataModelConversation } from "../models/DRAAIDataModelConversation
 import { DRAAIDataModelMessage } from "../models/DRAAIDataModelMessage.js";
 import { DRADataModelRefreshHistory } from "../models/DRADataModelRefreshHistory.js";
 import { DRASubscriptionTier } from "../models/DRASubscriptionTier.js";
-import { DRAUserSubscription } from "../models/DRAUserSubscription.js";
 import { DRAPlatformSettings } from "../models/DRAPlatformSettings.js";
 import { DRAAccountCancellation } from "../models/DRAAccountCancellation.js";
 import { DRAMongoDBSyncHistory } from "../models/DRAMongoDBSyncHistory.js";
@@ -62,7 +61,7 @@ export default new DataSource({
     database: database,
     synchronize: false,
     logging: true,
-    entities: [DRAUsersPlatform, DRAProject, DRAProjectMember, DRAProjectInvitation, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAEnterpriseQuery, DRADashboard, DRAArticle, DRAArticleCategory, DRAArticleVersion, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRAAIInsightReport, DRAAIInsightMessage, DRADataModelRefreshHistory, DRAScheduledBackupRun, DRASubscriptionTier, DRAUserSubscription, DRAPlatformSettings, DRAAccountCancellation, DRAEmailPreferences, DRANotification, DRAMongoDBSyncHistory, SyncHistory, DRACampaign, DRACampaignChannel, DRACampaignOfflineData, DRAAIJoinSuggestion, DRAReport, DRAReportItem, DRAReportShareKey, DRAOrganization, DRAWorkspace, DRAOrganizationMember, DRAWorkspaceMember, DRAOrganizationSubscription],
+    entities: [DRAUsersPlatform, DRAProject, DRAProjectMember, DRAProjectInvitation, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAEnterpriseQuery, DRADashboard, DRAArticle, DRAArticleCategory, DRAArticleVersion, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRAAIInsightReport, DRAAIInsightMessage, DRADataModelRefreshHistory, DRAScheduledBackupRun, DRASubscriptionTier, DRAPlatformSettings, DRAAccountCancellation, DRAEmailPreferences, DRANotification, DRAMongoDBSyncHistory, SyncHistory, DRACampaign, DRACampaignChannel, DRACampaignOfflineData, DRAAIJoinSuggestion, DRAReport, DRAReportItem, DRAReportShareKey, DRAOrganization, DRAWorkspace, DRAOrganizationMember, DRAWorkspaceMember, DRAOrganizationSubscription],
     subscribers: [],
     migrations: ['./src/migrations/*.ts'],
 });
