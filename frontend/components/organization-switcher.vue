@@ -21,6 +21,7 @@ const dataSourceStore = useDataSourceStore();
 const dashboardsStore = useDashboardsStore();
 const isMounted = ref(false);
 const isLoading = ref(false);
+const showCreateModal = ref(false);
 
 // Reactive references to store state
 const currentOrganization = computed(() => organizationsStore.getSelectedOrganization());
@@ -35,26 +36,17 @@ const displayName = computed(() => {
 
 // Load organizations from API on component mount
 onMounted(async () => {
-    console.log('[OrganizationSwitcher] onMounted - setting isMounted to true');
-    isMounted.value = true;
-    
-    console.log('[OrganizationSwitcher] Current organizations:', organizationsStore.getOrganizations());
-    console.log('[OrganizationSwitcher] Current selected org:', organizationsStore.getSelectedOrganization());
-    
+    isMounted.value = true;    
     // Only load if not already loaded
     if (organizations.value.length === 0) {
-        console.log('[OrganizationSwitcher] No organizations loaded, fetching...');
         isLoading.value = true;
         try {
             await organizationsStore.retrieveOrganizations();
-            console.log('[OrganizationSwitcher] Organizations loaded:', organizationsStore.getOrganizations());
         } catch (error) {
             console.error('[OrganizationSwitcher] Failed to load organizations:', error);
         } finally {
             isLoading.value = false;
         }
-    } else {
-        console.log('[OrganizationSwitcher] Organizations already loaded');
     }
 });
 
@@ -68,11 +60,9 @@ async function selectOrganization(organization: IOrganization) {
         return;
     }
     
-    console.log('[OrganizationSwitcher] Switching to organization:', organization.name);
     organizationsStore.setSelectedOrganization(organization);
     
     // Refresh all data for new organization context
-    console.log('[OrganizationSwitcher] Refreshing data for new organization...');
     try {
         // Clear existing data to show loading states
         projectsStore.clearProjects();
@@ -86,7 +76,6 @@ async function selectOrganization(organization: IOrganization) {
             dashboardsStore.retrieveDashboards(),
         ]);
         
-        console.log('[OrganizationSwitcher] Data refresh complete');
     } catch (error) {
         console.error('[OrganizationSwitcher] Failed to refresh data:', error);
     }
@@ -104,6 +93,15 @@ function getRoleBadgeClass(org: IOrganization): string {
     if (org.user_role === 'admin') return 'bg-blue-100 text-blue-800';
     return 'bg-gray-100 text-gray-800';
 }
+
+function openCreateModal() {
+    showCreateModal.value = true;
+}
+
+function closeCreateModal() {
+    showCreateModal.value = false;
+}
+
 </script>
 
 <template>
@@ -113,23 +111,23 @@ function getRoleBadgeClass(org: IOrganization): string {
                 <template #menuItem="{ onClick }">
                     <div 
                         @click="onClick" 
-                        class="flex items-center gap-2 px-3 py-1.5 bg-white hover:bg-gray-100 rounded-lg cursor-pointer transition-all duration-200 shadow-sm border border-gray-200 text-blue-700"
+                        class="flex items-center gap-2 px-3 py-1.5 bg-white hover:bg-gray-100 rounded-lg cursor-pointer transition-all duration-200 shadow-sm border border-gray-200 text-primary-blue-200"
                     >
                         <!-- Organization Icon -->
                         <font-awesome-icon 
                             :icon="['fas', 'building']" 
-                            class="text-blue-700 text-sm"
+                            class="text-primary-blue-200 text-sm"
                         />
                         
                         <!-- Organization Name -->
-                        <span class="text-blue-700 text-sm font-medium">
+                        <span class="text-primary-blue-200 text-sm font-medium">
                             {{ displayName }}
                         </span>
                         
                         <!-- Dropdown Arrow -->
                         <font-awesome-icon 
                             :icon="['fas', 'chevron-down']" 
-                            class="text-blue-700 text-xs ml-1"
+                            class="text-primary-blue-200 text-xs ml-1"
                         />
                     </div>
                 </template>
@@ -213,14 +211,15 @@ function getRoleBadgeClass(org: IOrganization): string {
                             <p class="text-sm text-gray-500">No organizations available</p>
                         </div>
                         
-                        <!-- Footer - Create New Organization (future) -->
+                        <!-- Footer - Create New Organization -->
                         <div class="px-4 py-2 bg-gray-50 border-t border-gray-200">
                             <button 
-                                disabled
-                                class="w-full text-left px-3 py-2 text-sm text-gray-400 cursor-not-allowed flex items-center gap-2"
+                                type="button"
+                                @click="openCreateModal"
+                                class="w-full text-left px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded transition-colors flex items-center gap-2 font-medium"
                             >
                                 <font-awesome-icon :icon="['fas', 'plus']" />
-                                <span>Create Organization (Coming Soon)</span>
+                                <span>Create Organization</span>
                             </button>
                         </div>
                     </div>
@@ -236,4 +235,10 @@ function getRoleBadgeClass(org: IOrganization): string {
             </div>
         </template>
     </ClientOnly>
+    
+    <!-- Create Organization Modal -->
+    <CreateOrganizationModal 
+        v-if="showCreateModal" 
+        @close="closeCreateModal"
+    />
 </template>

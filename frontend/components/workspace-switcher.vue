@@ -18,6 +18,7 @@ const route = useRoute();
 // State
 const isMounted = ref(false);
 const isLoading = ref(false);
+const showCreateModal = ref(false);
 
 // Computed properties
 const currentWorkspace = computed(() => {
@@ -48,26 +49,17 @@ const isDefaultWorkspace = computed(() => {
 
 // Lifecycle
 onMounted(async () => {
-    console.log('[WorkspaceSwitcher] onMounted - setting isMounted to true');
-    isMounted.value = true;
-    
-    console.log('[WorkspaceSwitcher] Current organization:', currentOrganization.value);
-    console.log('[WorkspaceSwitcher] Current workspaces:', workspaces.value);
-    
+    isMounted.value = true;    
     // Auto-load workspaces if not already loaded (should be loaded by middleware)
     if (workspaces.value.length === 0 && currentOrganization.value) {
-        console.log('[WorkspaceSwitcher] No workspaces loaded, fetching...');
         isLoading.value = true;
         try {
             await organizationsStore.retrieveWorkspaces(currentOrganization.value.id);
-            console.log('[WorkspaceSwitcher] Workspaces loaded:', organizationsStore.getWorkspaces());
         } catch (error) {
             console.error('[workspace-switcher] Failed to load workspaces:', error);
         } finally {
             isLoading.value = false;
         }
-    } else {
-        console.log('[WorkspaceSwitcher] Workspaces already loaded or no organization');
     }
 });
 
@@ -126,13 +118,22 @@ function getWorkspaceRoleBadgeClass(workspace: IWorkspace): string {
         case 'ADMIN':
             return 'bg-purple-100 text-purple-700';
         case 'EDITOR':
-            return 'bg-blue-100 text-blue-700';
+            return 'bg-blue-100 text-primary-blue-200';
         case 'VIEWER':
             return 'bg-gray-100 text-gray-700';
         default:
             return 'bg-gray-100 text-gray-700';
     }
 }
+
+function openCreateModal() {
+    showCreateModal.value = true;
+}
+
+function closeCreateModal() {
+    showCreateModal.value = false;
+}
+
 </script>
 
 <template>
@@ -143,7 +144,7 @@ function getWorkspaceRoleBadgeClass(workspace: IWorkspace): string {
                     <button
                         type="button"
                         @click="onClick"
-                        class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white hover:bg-gray-100 transition-all text-blue-700 text-sm font-medium whitespace-nowrap cursor-pointer shadow-sm border border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white hover:bg-gray-100 transition-all text-primary-blue-200 text-sm font-medium whitespace-nowrap cursor-pointer shadow-sm border border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
                         :disabled="!currentOrganization"
                     >
                         <font-awesome-icon :icon="['fas', 'folder-tree']" class="w-4 h-4" />
@@ -230,15 +231,17 @@ function getWorkspaceRoleBadgeClass(workspace: IWorkspace): string {
                             <p class="text-xs text-gray-500 mt-1">Contact your organization admin</p>
                         </div>
                         
-                        <!-- Footer: Create Workspace (Coming Soon) -->
+                        <!-- Footer: Create Workspace -->
                         <div class="border-t border-gray-200 px-4 py-2 bg-gray-50">
                             <button
                                 type="button"
-                                disabled
-                                class="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-gray-400 bg-gray-100 rounded cursor-not-allowed"
+                                @click="openCreateModal"
+                                :disabled="!currentOrganization"
+                                class="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded transition-colors"
+                                :class="currentOrganization ? 'text-blue-600 bg-white hover:bg-blue-50 border border-gray-200' : 'text-gray-400 bg-gray-100 cursor-not-allowed'"
                             >
                                 <font-awesome-icon :icon="['fas', 'plus']" class="w-3 h-3" />
-                                Create Workspace (Coming Soon)
+                                Create Workspace
                             </button>
                         </div>
                     </div>
@@ -257,4 +260,10 @@ function getWorkspaceRoleBadgeClass(workspace: IWorkspace): string {
             </div>
         </template>
     </ClientOnly>
+    
+    <!-- Create Workspace Modal -->
+    <CreateWorkspaceModal 
+        v-if="showCreateModal" 
+        @close="closeCreateModal"
+    />
 </template>
