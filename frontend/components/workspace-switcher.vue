@@ -143,7 +143,7 @@ function getWorkspaceRoleBadgeClass(workspace: IWorkspace): string {
                     <button
                         type="button"
                         @click="onClick"
-                        class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white bg-opacity-20 hover:bg-opacity-30 transition-all text-white text-sm font-medium whitespace-nowrap cursor-pointer"
+                        class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white hover:bg-gray-100 transition-all text-blue-700 text-sm font-medium whitespace-nowrap cursor-pointer shadow-sm border border-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
                         :disabled="!currentOrganization"
                     >
                         <font-awesome-icon :icon="['fas', 'folder-tree']" class="w-4 h-4" />
@@ -258,7 +258,3 @@ function getWorkspaceRoleBadgeClass(workspace: IWorkspace): string {
         </template>
     </ClientOnly>
 </template>
-
-<style scoped>
-/* Component-specific styles if needed */
-</style>

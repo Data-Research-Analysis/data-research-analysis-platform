@@ -113,23 +113,23 @@ function getRoleBadgeClass(org: IOrganization): string {
                 <template #menuItem="{ onClick }">
                     <div 
                         @click="onClick" 
-                        class="flex items-center gap-2 px-3 py-1.5 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-lg cursor-pointer transition-all duration-200 border border-white border-opacity-30"
+                        class="flex items-center gap-2 px-3 py-1.5 bg-white hover:bg-gray-100 rounded-lg cursor-pointer transition-all duration-200 shadow-sm border border-gray-200 text-blue-700"
                     >
                         <!-- Organization Icon -->
                         <font-awesome-icon 
                             :icon="['fas', 'building']" 
-                            class="text-white text-sm"
+                            class="text-blue-700 text-sm"
                         />
                         
                         <!-- Organization Name -->
-                        <span class="text-white text-sm font-medium">
+                        <span class="text-blue-700 text-sm font-medium">
                             {{ displayName }}
                         </span>
                         
                         <!-- Dropdown Arrow -->
                         <font-awesome-icon 
                             :icon="['fas', 'chevron-down']" 
-                            class="text-white text-xs ml-1"
+                            class="text-blue-700 text-xs ml-1"
                         />
                     </div>
                 </template>
