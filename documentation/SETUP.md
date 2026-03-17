@@ -149,7 +149,14 @@ Available services: `backend`, `frontend`, `database`, `redis`, `mysql-test`, `m
 git clone https://github.com/Data-Research-Analysis/data-research-analysis-platform.git
 cd data-research-analysis-platform
 
-# 2. Add hosts entries (see Manual Setup section below)
+# 2. Add hosts entries (REQUIRED - see Manual Setup section below for platform-specific instructions)
+# Linux/Mac:
+sudo bash -c 'cat >> /etc/hosts << EOF
+127.0.0.1 frontend.dataresearchanalysis.test
+127.0.0.1 backend.dataresearchanalysis.test
+127.0.0.1 database.dataresearchanalysis.test
+EOF'
+# Windows: Add same entries to C:\Windows\System32\drivers\etc\hosts
 
 # 3. Run automated setup
 npm run setup
@@ -258,7 +265,13 @@ npm run setup -- --help
 If you prefer manual setup or need to customize the process, follow the platform-specific instructions below.
 
 ## Windows Setup
-1. Add `127.0.0.1 frontend.dataresearchanalysis.test backend.dataresearchanalysis.test` to your hosts file `c:\windows\system32\drivers\etc\hosts` (https://www.howtogeek.com/howto/27350/beginner-geek-how-to-edit-your-hosts-file/).
+1. Add the following entries to your hosts file `c:\windows\system32\drivers\etc\hosts` (https://www.howtogeek.com/howto/27350/beginner-geek-how-to-edit-your-hosts-file/):
+   ```
+   127.0.0.1 frontend.dataresearchanalysis.test
+   127.0.0.1 backend.dataresearchanalysis.test
+   127.0.0.1 database.dataresearchanalysis.test
+   ```
+   **Why this is needed:** The frontend makes API calls to `backend.dataresearchanalysis.test` from your browser (client-side). Without this hosts entry, your browser cannot resolve the hostname and all API calls will fail with "Failed to fetch" errors.
 2. Clone the repository `https://github.com/Data-Research-Analysis/data-research-analysis-platform.git`.
 3. Copy `backend/.env.example` to `backend/.env` and update any missing values as necessary.
 4. Copy `frontend/.env.example` to `frontend/.env` and update any missing values as necessary.
@@ -280,7 +293,15 @@ If you prefer manual setup or need to customize the process, follow the platform
 14. To revert the migrations run the command `npm run typeorm migration:revert -- -d ./src/datasources/PostgresDSMigrations.ts`
 
 ## Ubuntu Setup
-1. Add `127.0.0.1 frontend.dataresearchanalysis.test backend.dataresearchanalysis.test` to your hosts file `~/etc/hosts`.
+1. Add the following entries to your hosts file `/etc/hosts`:
+   ```bash
+   sudo bash -c 'cat >> /etc/hosts << EOF
+   127.0.0.1 frontend.dataresearchanalysis.test
+   127.0.0.1 backend.dataresearchanalysis.test
+   127.0.0.1 database.dataresearchanalysis.test
+   EOF'
+   ```
+   **Why this is needed:** The frontend makes API calls to `backend.dataresearchanalysis.test` from your browser (client-side). Without this hosts entry, your browser cannot resolve the hostname and all API calls will fail with "Failed to fetch" errors.
 2. Clone the repository `https://github.com/Data-Research-Analysis/data-research-analysis-platform.git`.
 3. Copy `backend/.env.example` to `backend/.env` and update any missing values as necessary.
 4. Copy `frontend/.env.example` to `frontend/.env` and update any missing values as necessary.
