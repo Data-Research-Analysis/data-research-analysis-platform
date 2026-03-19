@@ -255,4 +255,90 @@ router.put(
     }
 );
 
+/**
+ * PUT /workspaces/:id
+ * Update workspace details
+ * Requires workspace ADMIN role
+ * 
+ * Body:
+ * - name: string (optional)
+ * - slug: string (optional, unique within organization)
+ * - description: string (optional)
+ */
+router.put(
+    '/:id',
+    validateJWT,
+    validate([
+        param('id').notEmpty().isInt(),
+        body('name').optional().trim(),
+        body('slug')
+            .optional()
+            .trim()
+            .matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+            .withMessage('Slug must be lowercase alphanumeric with hyphens'),
+        body('description').optional().trim()
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const { id, name, slug, description } = matchedData(req);
+
+            const workspace = await processor.updateWorkspace(
+                parseInt(id),
+                { name, slug, description },
+                req.body.tokenDetails
+            );
+
+            res.status(200).json({
+                success: true,
+                message: 'Workspace updated successfully',
+                data: workspace
+            });
+        } catch (error: any) {
+            res.status(500).json({
+                success: false,
+                error: error.message
+            });
+        }
+    }
+);
+
+/**
+ * DELETE /workspaces/:id
+ * Delete a workspace
+ * Requires workspace ADMIN role
+ * Will cascade delete all projects and related data
+ * 
+ * Body:
+ * - confirmName: string (required, must match workspace name)
+ */
+router.delete(
+    '/:id',
+    validateJWT,
+    validate([
+        param('id').notEmpty().isInt(),
+        body('confirmName').notEmpty().withMessage('Workspace name confirmation is required')
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const { id, confirmName } = matchedData(req);
+
+            await processor.deleteWorkspace(
+                parseInt(id),
+                confirmName,
+                req.body.tokenDetails
+            );
+
+            res.status(200).json({
+                success: true,
+                message: 'Workspace deleted successfully'
+            });
+        } catch (error: any) {
+            res.status(500).json({
+                success: false,
+                error: error.message
+            });
+        }
+    }
+);
+
 export default router;

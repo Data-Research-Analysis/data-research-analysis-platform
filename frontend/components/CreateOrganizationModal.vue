@@ -7,19 +7,8 @@ const organizationsStore = useOrganizationsStore();
 
 const state = reactive({
     name: '',
-    slug: '',
     submitting: false,
     errors: {} as Record<string, string>
-});
-
-// Auto-generate slug from name
-watch(() => state.name, (newName) => {
-    if (newName && !state.slug) {
-        state.slug = newName
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-+|-+$/g, '');
-    }
 });
 
 function validateForm(): boolean {
@@ -29,14 +18,6 @@ function validateForm(): boolean {
         state.errors.name = 'Organization name is required';
     } else if (state.name.trim().length < 3) {
         state.errors.name = 'Organization name must be at least 3 characters';
-    }
-    
-    if (!state.slug.trim()) {
-        state.errors.slug = 'Slug is required';
-    } else if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(state.slug)) {
-        state.errors.slug = 'Slug must be lowercase alphanumeric with hyphens only';
-    } else if (state.slug.length < 3) {
-        state.errors.slug = 'Slug must be at least 3 characters';
     }
     
     return Object.keys(state.errors).length === 0;
@@ -65,9 +46,8 @@ async function createOrganization() {
                     'Content-Type': 'application/json'
                 },
                 body: {
-                    name: state.name.trim(),
-                    slug: state.slug.trim(),
-                    subscriptionTierId: 1 // Default to free tier
+                    name: state.name.trim()
+                    // subscriptionTierId not needed - backend defaults to FREE tier
                 }
             }
         );
@@ -78,7 +58,13 @@ async function createOrganization() {
                 text: 'Organization created successfully',
                 icon: 'success',
                 confirmButtonColor: '#1e3a5f',
-                timer: 2000
+                timer: 2000,
+                didOpen: () => {
+                    const swalContainer = document.querySelector('.swal2-container');
+                    if (swalContainer) {
+                        (swalContainer as HTMLElement).style.zIndex = '10001';
+                    }
+                }
             });
             
             // Refresh organizations list
@@ -103,6 +89,12 @@ async function createOrganization() {
             text: errorMessage,
             icon: 'error',
             confirmButtonColor: '#1e3a5f',
+            didOpen: () => {
+                const swalContainer = document.querySelector('.swal2-container');
+                if (swalContainer) {
+                    (swalContainer as HTMLElement).style.zIndex = '10001';
+                }
+            }
         });
     } finally {
         state.submitting = false;
@@ -115,13 +107,14 @@ function closeModal() {
 </script>
 
 <template>
-    <div class="fixed inset-0 z-50 overflow-y-auto" @click.self="closeModal">
-        <div class="flex min-h-screen items-center justify-center p-4">
-            <!-- Overlay -->
-            <div class="fixed inset-0 bg-black bg-opacity-50 transition-opacity"></div>
-            
-            <!-- Modal -->
-            <div class="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full">
+    <Teleport to="body">
+        <div class="fixed inset-0 z-[9999] overflow-y-auto" @click.self="closeModal">
+            <div class="flex min-h-screen items-center justify-center p-4">
+                <!-- Overlay -->
+                <div class="fixed inset-0 bg-black bg-opacity-50 transition-opacity z-[9999]"></div>
+                
+                <!-- Modal -->
+                <div class="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full z-[10000]">
                 <!-- Header -->
                 <div class="bg-primary-blue-100 px-6 py-4 rounded-t-2xl">
                     <div class="flex items-center justify-between">
@@ -129,7 +122,7 @@ function closeModal() {
                         <button
                             @click="closeModal"
                             type="button"
-                            class="text-white hover:text-gray-200 transition-colors"
+                            class="text-white hover:text-gray-200 transition-colors cursor-pointer"
                         >
                             <font-awesome-icon :icon="['fas', 'xmark']" class="w-6 h-6" />
                         </button>
@@ -152,34 +145,12 @@ function closeModal() {
                                 v-model="state.name"
                                 type="text"
                                 placeholder="e.g., Acme Corporation"
-                                class="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                class="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900"
                                 :class="{ 'border-red-500': state.errors.name }"
                                 maxlength="100"
                             />
                             <p v-if="state.errors.name" class="mt-1 text-sm text-red-600">
                                 {{ state.errors.name }}
-                            </p>
-                        </div>
-                        
-                        <!-- Slug -->
-                        <div>
-                            <label for="org-slug" class="block text-sm font-medium text-gray-700 mb-2">
-                                Slug (URL-safe identifier) <span class="text-red-500">*</span>
-                            </label>
-                            <input
-                                id="org-slug"
-                                v-model="state.slug"
-                                type="text"
-                                placeholder="e.g., acme-corp"
-                                class="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors font-mono text-sm"
-                                :class="{ 'border-red-500': state.errors.slug }"
-                                maxlength="50"
-                            />
-                            <p v-if="state.errors.slug" class="mt-1 text-sm text-red-600">
-                                {{ state.errors.slug }}
-                            </p>
-                            <p v-else class="mt-1 text-xs text-gray-500">
-                                Lowercase letters, numbers, and hyphens only (e.g., my-organization)
                             </p>
                         </div>
                         
@@ -203,14 +174,14 @@ function closeModal() {
                             <button
                                 type="button"
                                 @click="closeModal"
-                                class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+                                class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors cursor-pointer"
                                 :disabled="state.submitting"
                             >
                                 Cancel
                             </button>
                             <button
                                 type="submit"
-                                class="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                class="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
                                 :disabled="state.submitting"
                             >
                                 <font-awesome-icon
@@ -223,7 +194,8 @@ function closeModal() {
                         </div>
                     </form>
                 </div>
+                </div>
             </div>
         </div>
-    </div>
+    </Teleport>
 </template>

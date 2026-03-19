@@ -181,49 +181,40 @@ onMounted(async () => {
                         <h3 class="font-bold text-lg">Edit User Details</h3>
                         
                         <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-bold mb-2">First Name</label>
-                                <input 
+                            <BaseFormField label="First Name" required>
+                                <BaseInput
                                     v-model="state.editing.first_name"
-                                    type="text"
-                                    class="w-full p-2 border border-gray-300 rounded"
                                     placeholder="First Name"
                                     required
                                 />
-                            </div>
-                            <div>
-                                <label class="block text-sm font-bold mb-2">Last Name</label>
-                                <input 
+                            </BaseFormField>
+                            <BaseFormField label="Last Name" required>
+                                <BaseInput
                                     v-model="state.editing.last_name"
-                                    type="text"
-                                    class="w-full p-2 border border-gray-300 rounded"
                                     placeholder="Last Name"
                                     required
                                 />
-                            </div>
+                            </BaseFormField>
                         </div>
 
-                        <div>
-                            <label class="block text-sm font-bold mb-2">Email</label>
-                            <input 
+                        <BaseFormField label="Email" required>
+                            <BaseInput
                                 v-model="state.editing.email"
                                 type="email"
-                                class="w-full p-2 border border-gray-300 rounded"
                                 placeholder="Email Address"
                                 required
                             />
-                        </div>
+                        </BaseFormField>
 
-                        <div>
-                            <label class="block text-sm font-bold mb-2">User Type</label>
-                            <select 
+                        <BaseFormField label="User Type">
+                            <BaseSelect
                                 v-model="state.editing.user_type"
-                                class="w-full p-2 border border-gray-300 rounded"
-                            >
-                                <option value="normal">Normal User</option>
-                                <option value="admin">Administrator</option>
-                            </select>
-                        </div>
+                                :options="[
+                                    { value: 'normal', label: 'Normal User' },
+                                    { value: 'admin', label: 'Administrator' }
+                                ]"
+                            />
+                        </BaseFormField>
                     </div>
 
                     <!-- Action Buttons -->

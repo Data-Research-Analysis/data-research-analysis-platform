@@ -15,35 +15,28 @@ const processor = OrganizationProcessor.getInstance();
  * 
  * Body:
  * - name: string (required)
- * - slug: string (required, unique, URL-safe)
  * - domain: string (optional)
  * - logoUrl: string (optional)
- * - subscriptionTierId: number (required)
+ * - subscriptionTierId: number (optional, defaults to FREE tier)
  */
 router.post(
     '/',
     validateJWT,
     validate([
         body('name').notEmpty().trim().withMessage('Organization name is required'),
-        body('slug')
-            .notEmpty()
-            .trim()
-            .matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
-            .withMessage('Slug must be lowercase alphanumeric with hyphens'),
         body('domain').optional().trim().isURL({ require_protocol: false }),
         body('logoUrl').optional().trim().isURL(),
-        body('subscriptionTierId').notEmpty().isInt().withMessage('Subscription tier ID is required')
+        body('subscriptionTierId').optional().isInt().withMessage('Subscription tier ID must be an integer')
     ]),
     async (req: Request, res: Response) => {
         try {
-            const { name, slug, domain, logoUrl, subscriptionTierId } = matchedData(req);
+            const { name, domain, logoUrl, subscriptionTierId } = matchedData(req);
 
             const organization = await processor.createOrganization({
                 name,
-                slug,
                 domain,
                 logoUrl,
-                subscriptionTierId: parseInt(subscriptionTierId),
+                subscriptionTierId: subscriptionTierId ? parseInt(subscriptionTierId) : undefined,
                 tokenDetails: req.body.tokenDetails
             });
 
@@ -147,6 +140,48 @@ router.get(
             res.status(200).json({
                 success: true,
                 data: usage
+            });
+        } catch (error: any) {
+            res.status(500).json({
+                success: false,
+                error: error.message
+            });
+        }
+    }
+);
+
+/**
+ * GET /organizations/:id/members
+ * Get all members of an organization
+ * User must be a member of the organization
+ */
+router.get(
+    '/:id/members',
+    validateJWT,
+    organizationContext,
+    validate([param('id').notEmpty().isInt()]),
+    async (req: Request, res: Response) => {
+        try {
+            const { id } = matchedData(req);
+            const members = await processor.getOrganizationMembers(
+                parseInt(id),
+                req.body.tokenDetails
+            );
+
+            // Format member data for frontend
+            const formattedMembers = members.map(member => ({
+                id: member.id,
+                users_platform_id: member.users_platform_id,
+                role: member.role,
+                joined_at: member.joined_at,
+                is_active: member.is_active,
+                user_email: member.user.email,
+                user_name: `${member.user.first_name} ${member.user.last_name}`
+            }));
+
+            res.status(200).json({
+                success: true,
+                data: formattedMembers
             });
         } catch (error: any) {
             res.status(500).json({
@@ -313,6 +348,93 @@ router.get(
             res.status(200).json({
                 success: true,
                 data: workspaces
+            });
+        } catch (error: any) {
+            res.status(500).json({
+                success: false,
+                error: error.message
+            });
+        }
+    }
+);
+
+/**
+ * PUT /organizations/:id
+ * Update organization details
+ * Requires OWNER or ADMIN role
+ * 
+ * Body:
+ * - name: string (optional)
+ * - domain: string (optional)
+ * - logoUrl: string (optional)
+ */
+router.put(
+    '/:id',
+    validateJWT,
+    organizationContext,
+    requireOrganizationRole(EOrganizationRole.ADMIN),
+    validate([
+        param('id').notEmpty().isInt(),
+        body('name').optional().trim(),
+        body('domain').optional().trim().isURL({ require_protocol: false }),
+        body('logoUrl').optional().trim().isURL()
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const { id, name, domain, logoUrl } = matchedData(req);
+
+            const organization = await processor.updateOrganization({
+                organizationId: parseInt(id),
+                name,
+                domain,
+                logoUrl
+            });
+
+            res.status(200).json({
+                success: true,
+                message: 'Organization updated successfully',
+                data: organization
+            });
+        } catch (error: any) {
+            res.status(500).json({
+                success: false,
+                error: error.message
+            });
+        }
+    }
+);
+
+/**
+ * DELETE /organizations/:id
+ * Delete an organization
+ * Requires OWNER role
+ * Will cascade delete all workspaces and related data
+ * 
+ * Body:
+ * - confirmName: string (required, must match organization name)
+ */
+router.delete(
+    '/:id',
+    validateJWT,
+    organizationContext,
+    requireOrganizationRole(EOrganizationRole.OWNER),
+    validate([
+        param('id').notEmpty().isInt(),
+        body('confirmName').notEmpty().withMessage('Organization name confirmation is required')
+    ]),
+    async (req: Request, res: Response) => {
+        try {
+            const { id, confirmName } = matchedData(req);
+
+            await processor.deleteOrganization(
+                parseInt(id),
+                confirmName,
+                req.body.tokenDetails
+            );
+
+            res.status(200).json({
+                success: true,
+                message: 'Organization deleted successfully'
             });
         } catch (error: any) {
             res.status(500).json({

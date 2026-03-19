@@ -70,41 +70,6 @@ const stats: MigrationStats = {
 };
 
 /**
- * Generate unique organization slug from user details
- * Format: {firstname}-{lastname}-org or {username}-org
- */
-function generateOrganizationSlug(user: DRAUsersPlatform, existingSlugs: Set<string>): string {
-    let baseSlug: string;
-    
-    if (user.first_name && user.last_name) {
-        baseSlug = `${user.first_name}-${user.last_name}-org`
-            .toLowerCase()
-            .replace(/[^a-z0-9-]/g, '-')
-            .replace(/-+/g, '-')
-            .replace(/^-|-$/g, '');
-    } else {
-        // Fallback to email username
-        const emailUsername = user.email.split('@')[0];
-        baseSlug = `${emailUsername}-org`
-            .toLowerCase()
-            .replace(/[^a-z0-9-]/g, '-')
-            .replace(/-+/g, '-')
-            .replace(/^-|-$/g, '');
-    }
-
-    // Ensure uniqueness
-    let slug = baseSlug;
-    let counter = 1;
-    while (existingSlugs.has(slug)) {
-        slug = `${baseSlug}-${counter}`;
-        counter++;
-    }
-
-    existingSlugs.add(slug);
-    return slug;
-}
-
-/**
  * Generate organization name from user details
  */
 function generateOrganizationName(user: DRAUsersPlatform): string {
@@ -145,7 +110,6 @@ function getMaxMembersForTier(tierName: string): number | null {
 async function migrateUser(
     user: DRAUsersPlatform,
     dataSource: DataSource,
-    existingSlugs: Set<string>,
     dryRun: boolean
 ): Promise<UserMigrationResult> {
     const manager = dataSource.manager;
@@ -186,11 +150,9 @@ async function migrateUser(
         const result = await manager.transaction(async (transactionalManager) => {
             // 1. Create organization
             const orgName = generateOrganizationName(user);
-            const orgSlug = generateOrganizationSlug(user, existingSlugs);
             
             const organization = transactionalManager.create(DRAOrganization, {
                 name: orgName,
-                slug: orgSlug,
                 is_active: true,
                 settings: {
                     migrated_from_user_id: user.id,
@@ -365,9 +327,6 @@ async function migrateMigrationUsersToOrganizations(dryRun: boolean = true) {
             console.log();
         }
 
-        // Track existing slugs for uniqueness
-        const existingSlugs = new Set(existingOrgs.map(org => org.slug));
-
         // Migrate each user
         console.log('🚀 Starting migration...');
         console.log();
@@ -386,7 +345,7 @@ async function migrateMigrationUsersToOrganizations(dryRun: boolean = true) {
             }
 
             console.log(`${progress} 🔄 Migrating ${user.email}...`);
-            const result = await migrateUser(user, dataSource, existingSlugs, dryRun);
+            const result = await migrateUser(user, dataSource, dryRun);
             results.push(result);
 
             if (result.success) {

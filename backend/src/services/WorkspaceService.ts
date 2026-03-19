@@ -159,16 +159,29 @@ export class WorkspaceService {
      * @param organizationId - Organization ID
      * @returns Array of workspaces in the organization
      */
-    async getOrganizationWorkspaces(organizationId: number): Promise<DRAWorkspace[]> {
+    async getOrganizationWorkspaces(organizationId: number, userId?: number): Promise<DRAWorkspace[]> {
         const manager = await this.getEntityManager();
 
-        return await manager.find(DRAWorkspace, {
+        const workspaces = await manager.find(DRAWorkspace, {
             where: {
                 organization: { id: organizationId },
                 is_active: true
             },
-            relations: ['members', 'projects']
+            relations: ['members', 'members.user', 'projects']
         });
+
+        // If userId provided, add user_role property to each workspace
+        if (userId) {
+            return workspaces.map(workspace => {
+                const membership = workspace.members?.find(m => m.user?.id === userId);
+                // Add user_role as a non-persistent property for API response
+                (workspace as any).user_role = membership?.role || null;
+                (workspace as any).is_admin = membership?.role === EWorkspaceRole.ADMIN;
+                return workspace;
+            });
+        }
+
+        return workspaces;
     }
 
     /**
@@ -509,8 +522,9 @@ export class WorkspaceService {
      * All projects in workspace remain but become orphaned (workspace_id = null)
      * 
      * @param workspaceId - Workspace ID
+     * @param confirmName - Must match workspace name exactly for confirmation
      */
-    async deleteWorkspace(workspaceId: number): Promise<void> {
+    async deleteWorkspace(workspaceId: number, confirmName: string): Promise<void> {
         const manager = await this.getEntityManager();
 
         await manager.transaction(async (transactionalManager) => {
@@ -520,6 +534,11 @@ export class WorkspaceService {
 
             if (!workspace) {
                 throw new Error(`Workspace ID ${workspaceId} not found`);
+            }
+
+            // Validate confirmation
+            if (workspace.name !== confirmName) {
+                throw new Error('Workspace name confirmation does not match');
             }
 
             // Check if it's the default workspace

@@ -5,6 +5,7 @@ import { useProjectsStore } from '@/stores/projects';
 import { useDataSourceStore } from '@/stores/data_sources';
 import { useDataModelsStore } from '@/stores/data_models';
 import { useDashboardsStore } from '@/stores/dashboards';
+import WorkspaceSettingsModal from '@/components/WorkspaceSettingsModal.vue';
 import type { IWorkspace } from '@/types/IWorkspace';
 
 const organizationsStore = useOrganizationsStore();
@@ -19,6 +20,8 @@ const route = useRoute();
 const isMounted = ref(false);
 const isLoading = ref(false);
 const showCreateModal = ref(false);
+const showSettingsModal = ref(false);
+const selectedWorkspaceForSettings = ref<IWorkspace | null>(null);
 
 // Computed properties
 const currentWorkspace = computed(() => {
@@ -93,16 +96,14 @@ async function selectWorkspace(workspace: IWorkspace) {
 }
 
 function getWorkspaceRoleBadge(workspace: IWorkspace): string {
-    if (!currentUserId.value) return 'Member';
-    const member = workspace.members?.find(m => m.user_id === currentUserId.value);
-    if (!member) return 'Member';
+    if (!workspace.user_role) return 'Member';
     
-    switch (member.role) {
-        case 'ADMIN':
+    switch (workspace.user_role) {
+        case 'admin':
             return 'Admin';
-        case 'EDITOR':
+        case 'editor':
             return 'Editor';
-        case 'VIEWER':
+        case 'viewer':
             return 'Viewer';
         default:
             return 'Member';
@@ -110,16 +111,14 @@ function getWorkspaceRoleBadge(workspace: IWorkspace): string {
 }
 
 function getWorkspaceRoleBadgeClass(workspace: IWorkspace): string {
-    if (!currentUserId.value) return 'bg-gray-100 text-gray-700';
-    const member = workspace.members?.find(m => m.user_id === currentUserId.value);
-    if (!member) return 'bg-gray-100 text-gray-700';
+    if (!workspace.user_role) return 'bg-gray-100 text-gray-700';
     
-    switch (member.role) {
-        case 'ADMIN':
+    switch (workspace.user_role) {
+        case 'admin':
             return 'bg-purple-100 text-purple-700';
-        case 'EDITOR':
+        case 'editor':
             return 'bg-blue-100 text-primary-blue-200';
-        case 'VIEWER':
+        case 'viewer':
             return 'bg-gray-100 text-gray-700';
         default:
             return 'bg-gray-100 text-gray-700';
@@ -132,6 +131,17 @@ function openCreateModal() {
 
 function closeCreateModal() {
     showCreateModal.value = false;
+}
+
+function openSettingsModal(workspace: IWorkspace, event: Event) {
+    event.stopPropagation();
+    selectedWorkspaceForSettings.value = workspace;
+    showSettingsModal.value = true;
+}
+
+function closeSettingsModal() {
+    showSettingsModal.value = false;
+    selectedWorkspaceForSettings.value = null;
 }
 
 </script>
@@ -213,8 +223,23 @@ function closeCreateModal() {
                                     </div>
                                 </div>
                                 
-                                <!-- Active Checkmark -->
-                                <div class="shrink-0">
+                                <!-- Settings & Active Checkmark -->
+                                <div class="shrink-0 flex items-center gap-2">
+                                    <!-- Settings Gear (Admin Only) -->
+                                    <button
+                                        v-if="workspace.user_role === 'admin'"
+                                        type="button"
+                                        @click="(event) => openSettingsModal(workspace, event)"
+                                        class="p-1 rounded hover:bg-gray-200 transition-colors"
+                                        title="Workspace Settings"
+                                    >
+                                        <font-awesome-icon
+                                            :icon="['fas', 'gear']"
+                                            class="w-4 h-4 text-gray-500 hover:text-gray-700"
+                                        />
+                                    </button>
+                                    
+                                    <!-- Active Checkmark -->
                                     <font-awesome-icon
                                         v-if="workspace.id === currentWorkspace?.id"
                                         :icon="['fas', 'check']"
@@ -265,5 +290,15 @@ function closeCreateModal() {
     <CreateWorkspaceModal 
         v-if="showCreateModal" 
         @close="closeCreateModal"
+    />
+    
+    <!-- Workspace Settings Modal -->
+    <WorkspaceSettingsModal
+        v-if="showSettingsModal && selectedWorkspaceForSettings && currentOrganization"
+        :workspace="selectedWorkspaceForSettings"
+        :organization-id="currentOrganization.id"
+        @close="closeSettingsModal"
+        @updated="closeSettingsModal"
+        @deleted="closeSettingsModal"
     />
 </template>

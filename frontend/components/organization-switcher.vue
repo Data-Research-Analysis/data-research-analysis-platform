@@ -22,6 +22,8 @@ const dashboardsStore = useDashboardsStore();
 const isMounted = ref(false);
 const isLoading = ref(false);
 const showCreateModal = ref(false);
+const showSettingsModal = ref(false);
+const selectedOrgForSettings = ref<IOrganization | null>(null);
 
 // Reactive references to store state
 const currentOrganization = computed(() => organizationsStore.getSelectedOrganization());
@@ -102,6 +104,20 @@ function closeCreateModal() {
     showCreateModal.value = false;
 }
 
+function openSettingsModal(org: IOrganization, event?: MouseEvent) {
+    // Stop propagation to prevent triggering org selection
+    if (event) {
+        event.stopPropagation();
+    }
+    selectedOrgForSettings.value = org;
+    showSettingsModal.value = true;
+}
+
+function closeSettingsModal() {
+    showSettingsModal.value = false;
+    selectedOrgForSettings.value = null;
+}
+
 </script>
 
 <template>
@@ -176,14 +192,24 @@ function closeCreateModal() {
                                             <p class="text-sm font-medium text-gray-900 truncate">
                                                 {{ org.name }}
                                             </p>
-                                            <p class="text-xs text-gray-500 truncate mt-0.5">
-                                                {{ org.slug }}
-                                            </p>
                                         </div>
                                     </div>
                                     
                                     <!-- Role Badge & Active Indicator -->
                                     <div class="flex items-center gap-2 ml-2">
+                                        <!-- Settings Button -->
+                                        <button
+                                            v-if="org.user_role === 'owner' || org.user_role === 'admin'"
+                                            @click.stop="openSettingsModal(org, $event)"
+                                            class="p-1 hover:bg-gray-200 rounded transition-colors cursor-pointer"
+                                            title="Organization Settings"
+                                        >
+                                            <font-awesome-icon 
+                                                :icon="['fas', 'gear']" 
+                                                class="text-gray-500 hover:text-gray-700 text-sm"
+                                            />
+                                        </button>
+                                        
                                         <span 
                                             :class="getRoleBadgeClass(org)"
                                             class="px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap"
@@ -240,5 +266,14 @@ function closeCreateModal() {
     <CreateOrganizationModal 
         v-if="showCreateModal" 
         @close="closeCreateModal"
+    />
+    
+    <!-- Organization Settings Modal -->
+    <OrganizationSettingsModal
+        v-if="showSettingsModal && selectedOrgForSettings"
+        :organization="selectedOrgForSettings"
+        @close="closeSettingsModal"
+        @updated="closeSettingsModal"
+        @deleted="closeSettingsModal"
     />
 </template>

@@ -15,7 +15,6 @@ export enum OrganizationRole {
 export interface IOrganization {
     id: number;
     name: string;
-    slug: string;
     domain?: string | null;
     settings?: {
         migrated_from_user_id?: number;

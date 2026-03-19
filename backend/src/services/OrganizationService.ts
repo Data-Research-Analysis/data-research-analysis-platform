@@ -16,11 +16,10 @@ export enum EOrganizationRole {
 
 interface ICreateOrganizationParams {
     name: string;
-    slug: string;
     domain?: string;
     logoUrl?: string;
     ownerId: number;
-    subscriptionTierId: number;
+    subscriptionTierId?: number; // Optional - defaults to FREE tier
 }
 
 interface IAddMemberParams {
@@ -93,20 +92,24 @@ export class OrganizationService {
         const manager = await this.getEntityManager();
 
         return await manager.transaction(async (transactionalManager) => {
-            // Validate slug uniqueness
-            const existingOrg = await transactionalManager.findOne(DRAOrganization, {
-                where: { slug: params.slug }
-            });
-            if (existingOrg) {
-                throw new Error(`Organization slug "${params.slug}" already exists`);
-            }
-
-            // Validate subscription tier exists
-            const subscriptionTier = await transactionalManager.findOne(DRASubscriptionTier, {
-                where: { id: params.subscriptionTierId }
-            });
-            if (!subscriptionTier) {
-                throw new Error(`Subscription tier ID ${params.subscriptionTierId} not found`);
+            // Validate or default subscription tier
+            let subscriptionTier: DRASubscriptionTier | null;
+            if (params.subscriptionTierId) {
+                // Use provided tier ID
+                subscriptionTier = await transactionalManager.findOne(DRASubscriptionTier, {
+                    where: { id: params.subscriptionTierId }
+                });
+                if (!subscriptionTier) {
+                    throw new Error(`Subscription tier ID ${params.subscriptionTierId} not found`);
+                }
+            } else {
+                // Default to FREE tier
+                subscriptionTier = await transactionalManager.findOne(DRASubscriptionTier, {
+                    where: { tier_name: ESubscriptionTier.FREE }
+                });
+                if (!subscriptionTier) {
+                    throw new Error('FREE tier not found in database — run seeders: npm run seed:run');
+                }
             }
 
             // Validate user exists
@@ -120,7 +123,6 @@ export class OrganizationService {
             // Create organization
             const organization = transactionalManager.create(DRAOrganization, {
                 name: params.name,
-                slug: params.slug,
                 domain: params.domain,
                 logo_url: params.logoUrl,
                 is_active: true,
@@ -456,6 +458,30 @@ export class OrganizationService {
     }
 
     /**
+     * Get all members of an organization
+     * Returns list of active members with user details
+     * 
+     * @param organizationId - Organization ID
+     * @returns Array of organization members with user info
+     */
+    async getOrganizationMembers(organizationId: number): Promise<DRAOrganizationMember[]> {
+        const manager = await this.getEntityManager();
+
+        const members = await manager.find(DRAOrganizationMember, {
+            where: {
+                organization: { id: organizationId },
+                is_active: true
+            },
+            relations: ['user'],
+            order: {
+                joined_at: 'ASC'
+            }
+        });
+
+        return members;
+    }
+
+    /**
      * Get user's role in an organization
      * 
      * @param userId - User ID
@@ -547,5 +573,93 @@ export class OrganizationService {
                 console.warn(`Unknown subscription tier: ${tierName}, defaulting to max_members=1`);
                 return 1; // Default to personal org for safety
         }
+    }
+
+    /**
+     * Update organization details
+     * 
+     * @param params - Update parameters
+     * @returns Updated organization
+     * @throws Error if organization not found
+     */
+    async updateOrganization(params: IUpdateOrganizationParams): Promise<DRAOrganization> {
+        const manager = await this.getEntityManager();
+
+        return await manager.transaction(async (transactionalManager) => {
+            // Fetch existing organization
+            const organization = await transactionalManager.findOne(DRAOrganization, {
+                where: { id: params.organizationId }
+            });
+
+            if (!organization) {
+                throw new Error(`Organization ID ${params.organizationId} not found`);
+            }
+
+            // Update fields if provided
+            if (params.name) organization.name = params.name;
+            if (params.domain !== undefined) organization.domain = params.domain;
+            if (params.logoUrl !== undefined) organization.logo_url = params.logoUrl;
+            if (params.settings !== undefined) organization.settings = params.settings;
+
+            return await transactionalManager.save(organization);
+        });
+    }
+
+    /**
+     * Delete an organization
+     * Validates confirmation name and cascades to all related entities
+     * 
+     * @param organizationId - Organization ID
+     * @param confirmName - Must match organization name exactly
+     * @throws Error if confirmation doesn't match or organization not found
+     */
+    async deleteOrganization(organizationId: number, confirmName: string): Promise<void> {
+        const manager = await this.getEntityManager();
+
+        await manager.transaction(async (transactionalManager) => {
+            // Fetch organization
+            const organization = await transactionalManager.findOne(DRAOrganization, {
+                where: { id: organizationId }
+            });
+
+            if (!organization) {
+                throw new Error(`Organization ID ${organizationId} not found`);
+            }
+
+            // Validate confirmation
+            if (organization.name !== confirmName) {
+                throw new Error('Organization name confirmation does not match');
+            }
+
+            // TypeORM will cascade delete via relationships:
+            // - organization_members (CASCADE)
+            // - workspaces (CASCADE)
+            // - workspace_members (CASCADE via workspace)
+            // - organization_subscription (CASCADE)
+            await transactionalManager.remove(organization);
+        });
+    }
+
+    /**
+     * Get all organizations in the system (admin only)
+     * Returns all organizations with member counts and subscription details
+     * 
+     * @returns All organizations with enriched data
+     */
+    async getAllOrganizations(): Promise<DRAOrganization[]> {
+        const manager = await this.getEntityManager();
+
+        const organizations = await manager.find(DRAOrganization, {
+            relations: [
+                'subscription',
+                'subscription.subscription_tier',
+                'members',
+                'members.user',
+                'workspaces'
+            ],
+            order: { id: 'ASC' }
+        });
+
+        return organizations;
     }
 }

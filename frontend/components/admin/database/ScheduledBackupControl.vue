@@ -18,43 +18,45 @@
         <div class="flex justify-between items-center">
           <span class="text-gray-600">Schedule:</span>
           <div class="flex items-center gap-2">
-            <select 
+            <BaseSelect
               v-model="selectedSchedule"
               @change="handleScheduleChange"
               :disabled="loading"
-              class="bg-gray-100 text-gray-900 px-3 py-1 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 cursor-pointer"
-            >
-              <option value="0 * * * *">Every Hour</option>
-              <option value="0 */2 * * *">Every 2 Hours</option>
-              <option value="0 */6 * * *">Every 6 Hours</option>
-              <option value="0 */12 * * *">Every 12 Hours</option>
-              <option value="0 0 * * *">Daily at Midnight</option>
-              <option value="0 2 * * *">Daily at 2 AM</option>
-              <option value="0 6 * * *">Daily at 6 AM</option>
-              <option value="0 12 * * *">Daily at Noon</option>
-              <option value="0 0 * * 0">Weekly (Sunday)</option>
-              <option value="0 0 1 * *">Monthly (1st day)</option>
-            </select>
+              :options="[
+                { value: '0 * * * *', label: 'Every Hour' },
+                { value: '0 */2 * * *', label: 'Every 2 Hours' },
+                { value: '0 */6 * * *', label: 'Every 6 Hours' },
+                { value: '0 */12 * * *', label: 'Every 12 Hours' },
+                { value: '0 0 * * *', label: 'Daily at Midnight' },
+                { value: '0 2 * * *', label: 'Daily at 2 AM' },
+                { value: '0 6 * * *', label: 'Daily at 6 AM' },
+                { value: '0 12 * * *', label: 'Daily at Noon' },
+                { value: '0 0 * * 0', label: 'Weekly (Sunday)' },
+                { value: '0 0 1 * *', label: 'Monthly (1st day)' }
+              ]"
+              input-class="bg-gray-100 text-gray-900 cursor-pointer"
+            />
             <code class="bg-gray-50 text-gray-700 px-2 py-1 rounded text-sm border border-gray-200">{{ status?.current_schedule }}</code>
           </div>
         </div>
         <div class="flex justify-between items-center">
           <span class="text-gray-600">Retention Days:</span>
           <div class="flex items-center gap-2">
-            <select 
+            <BaseSelect
               v-model="selectedRetentionDays"
               @change="handleRetentionChange"
               :disabled="loading"
-              class="bg-gray-100 text-gray-900 px-3 py-1 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 cursor-pointer"
-            >
-              <option :value="7">7 days</option>
-              <option :value="14">14 days</option>
-              <option :value="30">30 days</option>
-              <option :value="60">60 days</option>
-              <option :value="90">90 days</option>
-              <option :value="180">180 days</option>
-              <option :value="365">365 days</option>
-            </select>
+              :options="[
+                { value: 7, label: '7 days' },
+                { value: 14, label: '14 days' },
+                { value: 30, label: '30 days' },
+                { value: 60, label: '60 days' },
+                { value: 90, label: '90 days' },
+                { value: 180, label: '180 days' },
+                { value: 365, label: '365 days' }
+              ]"
+              input-class="bg-gray-100 text-gray-900 cursor-pointer"
+            />
             <span class="text-sm text-gray-600">Keep backups for {{ config?.retention_days || 30 }} days</span>
           </div>
         </div>

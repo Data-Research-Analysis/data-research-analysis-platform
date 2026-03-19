@@ -1,4 +1,5 @@
 import Swal from "sweetalert2";
+import "sweetalert2/dist/sweetalert2.min.css";
 
 /**
  * SweetAlert2 Plugin
@@ -17,10 +18,10 @@ export default defineNuxtPlugin((nuxtApp) => {
     // Default options for all SweetAlert2 dialogs
     customClass: {
       popup: 'rounded-lg shadow-xl',
-      confirmButton: 'bg-primary-blue-300 hover:bg-primary-blue-400 text-white font-bold py-2 px-4 rounded cursor-pointer',
-      cancelButton: 'bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded ml-2 cursor-pointer',
+      confirmButton: 'swal2-styled',
+      cancelButton: 'swal2-styled',
     },
-    buttonsStyling: false,
+    buttonsStyling: true, // Use SweetAlert's default button styling
   });
   
   nuxtApp.provide("swal", swalWithDefaults);

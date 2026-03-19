@@ -11,13 +11,16 @@ import { EUserType } from '../types/EUserType.js';
 import { NotificationHelperService } from '../services/NotificationHelperService.js';
 import { RowLimitService } from '../services/RowLimitService.js';
 import { DRASubscriptionTier } from '../models/DRASubscriptionTier.js';
+import { OrganizationService } from '../services/OrganizationService.js';
 
 export class AuthProcessor {
     private static instance: AuthProcessor;
     private notificationHelper: NotificationHelperService;
+    private organizationService: OrganizationService;
     
     private constructor() {
         this.notificationHelper = NotificationHelperService.getInstance();
+        this.organizationService = OrganizationService.getInstance();
     }
 
     public static getInstance(): AuthProcessor {
@@ -135,6 +138,28 @@ export class AuthProcessor {
                     console.error(`⚠️  Failed to assign FREE tier to user ${newUser.id}:`, tierError);
                     // Continue registration even if tier assignment fails
                     // User can be assigned tier later via admin panel
+                }
+                
+                // Auto-create personal organization for new user
+                try {
+                    const orgName = `${firstName}'s Organization`;
+                    const orgSlug = `${firstName.toLowerCase()}-${lastName.toLowerCase()}-${newUser.id}`.replace(/[^a-z0-9-]/g, '-');
+                    const freeTier = await manager.findOne(DRASubscriptionTier, { where: { tier_name: 'free' } });
+                    
+                    if (freeTier) {
+                        const personalOrg = await this.organizationService.createOrganization({
+                            name: orgName,
+                            slug: orgSlug,
+                            ownerId: newUser.id,
+                            subscriptionTierId: freeTier.id
+                        });
+                        console.log(`🏢 Created personal organization ${personalOrg.id} for user ${newUser.id} (${email})`);
+                    } else {
+                        console.error(`⚠️  FREE tier not found - cannot create personal organization for user ${newUser.id}`);
+                    }
+                } catch (orgError) {
+                    console.error(`⚠️  Failed to create personal organization for user ${newUser.id}:`, orgError);
+                    // Continue registration - user can create org later via UI
                 }
                 
                 const expiredAt = new Date();

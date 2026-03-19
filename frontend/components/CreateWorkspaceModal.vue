@@ -10,7 +10,8 @@ const state = reactive({
     slug: '',
     description: '',
     submitting: false,
-    errors: {} as Record<string, string>
+    errors: {} as Record<string, string>,
+    slugManuallyEdited: false // Track if user manually edited slug
 });
 
 const currentOrganization = computed(() => {
@@ -19,7 +20,8 @@ const currentOrganization = computed(() => {
 
 // Auto-generate slug from name
 watch(() => state.name, (newName) => {
-    if (newName && !state.slug) {
+    // Only auto-generate if user hasn't manually edited the slug
+    if (!state.slugManuallyEdited) {
         state.slug = newName
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, '-')
@@ -93,7 +95,13 @@ async function createWorkspace() {
                 text: 'Workspace created successfully',
                 icon: 'success',
                 confirmButtonColor: '#1e3a5f',
-                timer: 2000
+                timer: 2000,
+                didOpen: () => {
+                    const swalContainer = document.querySelector('.swal2-container');
+                    if (swalContainer) {
+                        (swalContainer as HTMLElement).style.zIndex = '10001';
+                    }
+                }
             });
             
             // Refresh workspaces list for current organization
@@ -118,6 +126,12 @@ async function createWorkspace() {
             text: errorMessage,
             icon: 'error',
             confirmButtonColor: '#1e3a5f',
+            didOpen: () => {
+                const swalContainer = document.querySelector('.swal2-container');
+                if (swalContainer) {
+                    (swalContainer as HTMLElement).style.zIndex = '10001';
+                }
+            }
         });
     } finally {
         state.submitting = false;
@@ -130,32 +144,33 @@ function closeModal() {
 </script>
 
 <template>
-    <div class="fixed inset-0 z-50 overflow-y-auto" @click.self="closeModal">
-        <div class="flex min-h-screen items-center justify-center p-4">
-            <!-- Overlay -->
-            <div class="fixed inset-0 bg-black bg-opacity-50 transition-opacity"></div>
-            
-            <!-- Modal -->
-            <div class="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full">
-                <!-- Header -->
-                <div class="bg-primary-blue-100 px-6 py-4 rounded-t-2xl">
-                    <div class="flex items-center justify-between">
-                        <h2 class="text-2xl font-bold text-white">Create Workspace</h2>
-                        <button
-                            @click="closeModal"
-                            type="button"
-                            class="text-white hover:text-gray-200 transition-colors"
-                        >
-                            <font-awesome-icon :icon="['fas', 'xmark']" class="w-6 h-6" />
-                        </button>
-                    </div>
-                    <p class="text-white/90 text-sm mt-2">
-                        Create a new workspace in {{ currentOrganization?.name || 'your organization' }}
-                    </p>
-                </div>
+    <Teleport to="body">
+        <div class="fixed inset-0 z-[9999] overflow-y-auto" @click.self="closeModal">
+            <div class="flex min-h-screen items-center justify-center p-4">
+                <!-- Overlay -->
+                <div class="fixed inset-0 bg-black bg-opacity-50 transition-opacity z-[9999]"></div>
                 
-                <!-- Body -->
-                <div class="px-6 py-6">
+                <!-- Modal -->
+                <div class="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full z-[10000]">
+                    <!-- Header -->
+                    <div class="bg-primary-blue-100 px-6 py-4 rounded-t-2xl">
+                        <div class="flex items-center justify-between">
+                            <h2 class="text-2xl font-bold text-white">Create Workspace</h2>
+                            <button
+                                @click="closeModal"
+                                type="button"
+                                class="text-white hover:text-gray-200 transition-colors cursor-pointer"
+                            >
+                                <font-awesome-icon :icon="['fas', 'xmark']" class="w-6 h-6" />
+                            </button>
+                        </div>
+                        <p class="text-white/90 text-sm mt-2">
+                            Create a new workspace in {{ currentOrganization?.name || 'your organization' }}
+                        </p>
+                    </div>
+                    
+                    <!-- Body -->
+                    <div class="px-6 py-6">
                     <form @submit.prevent="createWorkspace" class="space-y-5">
                         <!-- Workspace Name -->
                         <div>
@@ -167,7 +182,7 @@ function closeModal() {
                                 v-model="state.name"
                                 type="text"
                                 placeholder="e.g., Marketing Team"
-                                class="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                class="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-gray-900"
                                 :class="{ 'border-red-500': state.errors.name }"
                                 maxlength="100"
                             />
@@ -184,9 +199,10 @@ function closeModal() {
                             <input
                                 id="workspace-slug"
                                 v-model="state.slug"
+                                @input="state.slugManuallyEdited = true"
                                 type="text"
                                 placeholder="e.g., marketing-team"
-                                class="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors font-mono text-sm"
+                                class="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors font-mono text-sm text-gray-900"
                                 :class="{ 'border-red-500': state.errors.slug }"
                                 maxlength="50"
                             />
@@ -208,7 +224,7 @@ function closeModal() {
                                 v-model="state.description"
                                 rows="3"
                                 placeholder="Briefly describe the purpose of this workspace..."
-                                class="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none"
+                                class="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none text-gray-900"
                                 maxlength="500"
                             />
                             <p class="mt-1 text-xs text-gray-500">
@@ -236,14 +252,14 @@ function closeModal() {
                             <button
                                 type="button"
                                 @click="closeModal"
-                                class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+                                class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors cursor-pointer"
                                 :disabled="state.submitting"
                             >
                                 Cancel
                             </button>
                             <button
                                 type="submit"
-                                class="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                class="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
                                 :disabled="state.submitting || !currentOrganization"
                             >
                                 <font-awesome-icon
@@ -255,8 +271,9 @@ function closeModal() {
                             </button>
                         </div>
                     </form>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
+    </Teleport>
 </template>

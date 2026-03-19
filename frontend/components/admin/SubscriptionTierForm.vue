@@ -137,34 +137,24 @@ function setNull(field) {
 <template>
     <form @submit.prevent="handleSubmit" class="space-y-4">
         <!-- Tier Name -->
-        <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">
-                Tier Name <span class="text-red-500">*</span>
-            </label>
-            <input
+        <BaseFormField label="Tier Name" required>
+            <BaseInput
                 v-model="formData.tier_name"
-                type="text"
                 placeholder="e.g., Premium, Standard, Custom"
-                class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-blue-100 focus:border-primary-blue-100"
-                :class="{ 'border-red-500': errors.tier_name }"
+                :error="errors.tier_name"
             />
-            <p v-if="errors.tier_name" class="mt-1 text-sm text-red-500">{{ errors.tier_name }}</p>
-        </div>
+        </BaseFormField>
 
         <!-- Max Rows Per Data Model -->
-        <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">
-                Max Rows Per Data Model <span class="text-red-500">*</span>
-            </label>
+        <BaseFormField label="Max Rows Per Data Model" required>
             <div class="flex gap-2">
-                <input
-                    v-model.number="formData.max_rows_per_data_model"
-                    type="number"
-                    required
+                <BaseNumberInput
+                    v-model="formData.max_rows_per_data_model"
                     placeholder="e.g., 100000"
-                    class="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-blue-100 focus:border-primary-blue-100"
-                    :class="{ 'border-red-500': errors.max_rows_per_data_model }"
-                    min="-1"                    
+                    :error="errors.max_rows_per_data_model"
+                    :min="-1"
+                    input-class="flex-1"
+                    required
                 />
                 <button
                     type="button"
@@ -175,22 +165,17 @@ function setNull(field) {
                 </button>
             </div>
             <p v-if="formData.max_rows_per_data_model === -1" class="mt-1 text-sm text-blue-600">Set to unlimited</p>
-            <p v-if="errors.max_rows_per_data_model" class="mt-1 text-sm text-red-500">{{ errors.max_rows_per_data_model }}</p>
-        </div>
+        </BaseFormField>
 
         <!-- Max Projects -->
-        <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">
-                Max Projects <span class="text-red-500">*</span>
-            </label>
+        <BaseFormField label="Max Projects" required>
             <div class="flex gap-2">
-                <input
-                    v-model.number="formData.max_projects"
-                    type="number"
+                <BaseNumberInput
+                    v-model="formData.max_projects"
                     placeholder="Enter number or click Unlimited"
-                    class="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-blue-100 focus:border-primary-blue-100"
-                    :class="{ 'border-red-500': errors.max_projects }"
-                    min="-1"                    
+                    :error="errors.max_projects"
+                    :min="-1"
+                    input-class="flex-1"
                 />
                 <button
                     type="button"
@@ -201,22 +186,17 @@ function setNull(field) {
                 </button>
             </div>
             <p v-if="formData.max_projects === -1" class="mt-1 text-sm text-blue-600">Set to unlimited</p>
-            <p v-if="errors.max_projects" class="mt-1 text-sm text-red-500">{{ errors.max_projects }}</p>
-        </div>
+        </BaseFormField>
 
         <!-- Max Data Sources Per Project -->
-        <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">
-                Max Data Sources Per Project <span class="text-red-500">*</span>
-            </label>
+        <BaseFormField label="Max Data Sources Per Project" required>
             <div class="flex gap-2">
-                <input
-                    v-model.number="formData.max_data_sources_per_project"
-                    type="number"
+                <BaseNumberInput
+                    v-model="formData.max_data_sources_per_project"
                     placeholder="Enter number or click Unlimited"
-                    class="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-blue-100 focus:border-primary-blue-100"
-                    :class="{ 'border-red-500': errors.max_data_sources_per_project }"
-                    min="-1"                    
+                    :error="errors.max_data_sources_per_project"
+                    :min="-1"
+                    input-class="flex-1"
                 />
                 <button
                     type="button"
@@ -227,22 +207,17 @@ function setNull(field) {
                 </button>
             </div>
             <p v-if="formData.max_data_sources_per_project === -1" class="mt-1 text-sm text-blue-600">Set to unlimited</p>
-            <p v-if="errors.max_data_sources_per_project" class="mt-1 text-sm text-red-500">{{ errors.max_data_sources_per_project }}</p>
-        </div>
+        </BaseFormField>
 
         <!-- Max Data Models Per Data Source -->
-        <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">
-                Max Data Models Per Data Source <span class="text-red-500">*</span>
-            </label>
+        <BaseFormField label="Max Data Models Per Data Source" required>
             <div class="flex gap-2">
-                <input
-                    v-model.number="formData.max_data_models_per_data_source"
-                    type="number"
+                <BaseNumberInput
+                    v-model="formData.max_data_models_per_data_source"
                     placeholder="Enter number or click Unlimited"
-                    class="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-blue-100 focus:border-primary-blue-100"
-                    :class="{ 'border-red-500': errors.max_data_models_per_data_source }"
-                    min="-1"
+                    :error="errors.max_data_models_per_data_source"
+                    :min="-1"
+                    input-class="flex-1"
                 />
                 <button
                     type="button"
@@ -253,22 +228,17 @@ function setNull(field) {
                 </button>
             </div>
             <p v-if="formData.max_data_models_per_data_source === -1" class="mt-1 text-sm text-blue-600">Set to unlimited</p>
-            <p v-if="errors.max_data_models_per_data_source" class="mt-1 text-sm text-red-500">{{ errors.max_data_models_per_data_source }}</p>
-        </div>
+        </BaseFormField>
 
         <!-- Max Dashboards -->
-        <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">
-                Max Dashboards <span class="text-red-500">*</span>
-            </label>
+        <BaseFormField label="Max Dashboards" required>
             <div class="flex gap-2">
-                <input
-                    v-model.number="formData.max_dashboards"
-                    type="number"
+                <BaseNumberInput
+                    v-model="formData.max_dashboards"
                     placeholder="Enter number or click Unlimited"
-                    class="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-blue-100 focus:border-primary-blue-100"
-                    :class="{ 'border-red-500': errors.max_dashboards }"
-                    min="-1"
+                    :error="errors.max_dashboards"
+                    :min="-1"
+                    input-class="flex-1"
                 />
                 <button
                     type="button"
@@ -279,22 +249,17 @@ function setNull(field) {
                 </button>
             </div>
             <p v-if="formData.max_dashboards === -1" class="mt-1 text-sm text-blue-600">Set to unlimited</p>
-            <p v-if="errors.max_dashboards" class="mt-1 text-sm text-red-500">{{ errors.max_dashboards }}</p>
-        </div>
+        </BaseFormField>
 
         <!-- AI Generations Per Month -->
-        <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">
-                AI Generations Per Month <span class="text-red-500">*</span>
-            </label>
+        <BaseFormField label="AI Generations Per Month" required>
             <div class="flex gap-2">
-                <input
-                    v-model.number="formData.ai_generations_per_month"
-                    type="number"
+                <BaseNumberInput
+                    v-model="formData.ai_generations_per_month"
                     placeholder="Enter number or click Unlimited"
-                    class="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-blue-100 focus:border-primary-blue-100"
-                    :class="{ 'border-red-500': errors.ai_generations_per_month }"
-                    min="-1"                    
+                    :error="errors.ai_generations_per_month"
+                    :min="-1"
+                    input-class="flex-1"
                 />
                 <button
                     type="button"
@@ -305,63 +270,47 @@ function setNull(field) {
                 </button>
             </div>
             <p v-if="formData.ai_generations_per_month === -1" class="mt-1 text-sm text-blue-600">Set to unlimited</p>
-            <p v-if="errors.ai_generations_per_month" class="mt-1 text-sm text-red-500">{{ errors.ai_generations_per_month }}</p>
-        </div>
+        </BaseFormField>
 
         <!-- Price Per Month USD -->
-        <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">
-                Price Per Month (USD) <span class="text-red-500">*</span>
-            </label>
+        <BaseFormField label="Price Per Month (USD)" required>
             <div class="flex items-center">
                 <span class="px-3 py-2 bg-gray-100 border border-r-0 border-gray-300 rounded-l-md text-gray-700">$</span>
-                <input
-                    v-model.number="formData.price_per_month_usd"
-                    type="number"
-                    step="0.01"
-                    required
-                    min="0"
+                <BaseNumberInput
+                    v-model="formData.price_per_month_usd"
                     placeholder="e.g., 0 or 99.99"
-                    class="flex-1 px-3 py-2 border border-gray-300 rounded-r-md shadow-sm focus:outline-none focus:ring-primary-blue-100 focus:border-primary-blue-100"
-                    :class="{ 'border-red-500': errors.price_per_month_usd }"
+                    :error="errors.price_per_month_usd"
+                    :min="0"
+                    :step="0.01"
+                    input-class="flex-1 rounded-l-none"
                 />
             </div>
-            <p v-if="errors.price_per_month_usd" class="mt-1 text-sm text-red-500">{{ errors.price_per_month_usd }}</p>
-        </div>
+        </BaseFormField>
 
         <!-- Price Per Year USD -->
-        <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">
-                Price Per Year (USD) <span class="text-gray-400 text-xs font-normal">(optional)</span>
-            </label>
+        <BaseFormField label="Price Per Year (USD)" :required="false" hint="Discounted annual billing price. Leave blank to hide annual pricing for this tier.">
+            <template #labelSuffix>
+                <span class="text-gray-400 text-xs font-normal ml-1">(optional)</span>
+            </template>
             <div class="flex items-center">
                 <span class="px-3 py-2 bg-gray-100 border border-r-0 border-gray-300 rounded-l-md text-gray-700">$</span>
-                <input
-                    v-model.number="formData.price_per_year_usd"
-                    type="number"
-                    step="0.01"
-                    min="0"
+                <BaseNumberInput
+                    v-model="formData.price_per_year_usd"
                     placeholder="e.g., 0 or 999.99 (leave blank if not set)"
-                    class="flex-1 px-3 py-2 border border-gray-300 rounded-r-md shadow-sm focus:outline-none focus:ring-primary-blue-100 focus:border-primary-blue-100"
-                    :class="{ 'border-red-500': errors.price_per_year_usd }"
+                    :error="errors.price_per_year_usd"
+                    :min="0"
+                    :step="0.01"
+                    input-class="flex-1 rounded-l-none"
                 />
             </div>
-            <p class="mt-1 text-xs text-gray-500">Discounted annual billing price. Leave blank to hide annual pricing for this tier.</p>
-            <p v-if="errors.price_per_year_usd" class="mt-1 text-sm text-red-500">{{ errors.price_per_year_usd }}</p>
-        </div>
+        </BaseFormField>
 
         <!-- Is Active -->
-        <div class="flex items-center">
-            <input
-                v-model="formData.is_active"
-                type="checkbox"
-                id="is_active"
-                class="h-4 w-4 text-primary-blue-100 focus:ring-primary-blue-100 border-gray-300 rounded cursor-pointer"
-            />
-            <label for="is_active" class="ml-2 block text-sm text-gray-700 cursor-pointer">
-                Active
-            </label>
-        </div>
+        <BaseCheckbox
+            v-model="formData.is_active"
+            label="Active"
+            id="is_active"
+        />
 
         <!-- Form Actions -->
         <div class="flex justify-end gap-3 pt-4">

@@ -8,10 +8,9 @@ import { DRAWorkspaceMember } from '../models/DRAWorkspaceMember.js';
 
 interface ICreateOrganizationParams {
     name: string;
-    slug: string;
     domain?: string;
     logoUrl?: string;
-    subscriptionTierId: number;
+    subscriptionTierId?: number; // Optional - defaults to FREE tier
     tokenDetails: ITokenDetails;
 }
 
@@ -200,6 +199,34 @@ export class OrganizationProcessor {
     }
 
     /**
+     * Get all members of an organization
+     * Validates user is a member before returning
+     * 
+     * @param organizationId - Organization ID
+     * @param tokenDetails - User authentication details
+     * @returns Array of organization members
+     */
+    async getOrganizationMembers(
+        organizationId: number,
+        tokenDetails: ITokenDetails
+    ): Promise<DRAOrganizationMember[]> {
+        try {
+            const userId = tokenDetails.user_id;
+
+            // Verify user is a member
+            const isMember = await this.organizationService.isUserMember(userId, organizationId);
+            if (!isMember) {
+                throw new Error('User is not a member of this organization');
+            }
+
+            return await this.organizationService.getOrganizationMembers(organizationId);
+        } catch (error: any) {
+            console.error('[OrganizationProcessor] getOrganizationMembers error:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Remove a member from an organization
      * 
      * @param organizationId - Organization ID
@@ -276,6 +303,52 @@ export class OrganizationProcessor {
         }
     }
 
+    /**
+     * Update organization details
+     * 
+     * @param params - Organization update parameters
+     * @returns Updated organization
+     */
+    async updateOrganization(params: IUpdateOrganizationParams): Promise<DRAOrganization> {
+        try {
+            return await this.organizationService.updateOrganization(params);
+        } catch (error: any) {
+            console.error('[OrganizationProcessor] updateOrganization error:', error);
+            throw new Error(`Failed to update organization: ${error.message}`);
+        }
+    }
+
+    /**
+     * Delete an organization
+     * Validates confirmation name matches before deletion
+     * 
+     * @param organizationId - Organization ID
+     * @param confirmName - Confirmation name (must match organization name)
+     * @param tokenDetails - Requester's authentication details
+     */
+    async deleteOrganization(
+        organizationId: number,
+        confirmName: string,
+        tokenDetails: ITokenDetails
+    ): Promise<void> {
+        try {
+            // Verify requester is owner
+            const requesterRole = await this.organizationService.getUserRole(
+                tokenDetails.user_id,
+                organizationId
+            );
+
+            if (requesterRole !== EOrganizationRole.OWNER) {
+                throw new Error('Only organization owners can delete the organization');
+            }
+
+            await this.organizationService.deleteOrganization(organizationId, confirmName);
+        } catch (error: any) {
+            console.error('[OrganizationProcessor] deleteOrganization error:', error);
+            throw new Error(`Failed to delete organization: ${error.message}`);
+        }
+    }
+
     // ============================================================
     // WORKSPACE OPERATIONS
     // ============================================================
@@ -323,7 +396,11 @@ export class OrganizationProcessor {
                 throw new Error('User is not a member of this organization');
             }
 
-            return await this.workspaceService.getOrganizationWorkspaces(organizationId);
+            // Pass userId to get user_role property added to each workspace
+            return await this.workspaceService.getOrganizationWorkspaces(
+                organizationId,
+                tokenDetails.user_id
+            );
         } catch (error: any) {
             console.error('[OrganizationProcessor] getOrganizationWorkspaces error:', error);
             return [];
@@ -491,6 +568,88 @@ export class OrganizationProcessor {
         } catch (error: any) {
             console.error('[OrganizationProcessor] getWorkspaceProjects error:', error);
             return [];
+        }
+    }
+
+    /**
+     * Update workspace details
+     * 
+     * @param workspaceId - Workspace ID
+     * @param updates - Fields to update
+     * @param tokenDetails - Requester's authentication details
+     * @returns Updated workspace
+     */
+    async updateWorkspace(
+        workspaceId: number,
+        updates: { name?: string; slug?: string; description?: string },
+        tokenDetails: ITokenDetails
+    ): Promise<DRAWorkspace> {
+        try {
+            // Verify requester is workspace admin
+            const requesterRole = await this.workspaceService.getUserRole(
+                tokenDetails.user_id,
+                workspaceId
+            );
+
+            if (requesterRole !== EWorkspaceRole.ADMIN) {
+                throw new Error('Only workspace admins can update workspace details');
+            }
+
+            return await this.workspaceService.updateWorkspace(workspaceId, updates);
+        } catch (error: any) {
+            console.error('[OrganizationProcessor] updateWorkspace error:', error);
+            throw new Error(`Failed to update workspace: ${error.message}`);
+        }
+    }
+
+    /**
+     * Delete a workspace
+     * Validates confirmation name matches before deletion
+     * 
+     * @param workspaceId - Workspace ID
+     * @param confirmName - Confirmation name (must match workspace name)
+     * @param tokenDetails - Requester's authentication details
+     */
+    async deleteWorkspace(
+        workspaceId: number,
+        confirmName: string,
+        tokenDetails: ITokenDetails
+    ): Promise<void> {
+        try {
+            // Verify requester is workspace admin
+            const requesterRole = await this.workspaceService.getUserRole(
+                tokenDetails.user_id,
+                workspaceId
+            );
+
+            if (requesterRole !== EWorkspaceRole.ADMIN) {
+                throw new Error('Only workspace admins can delete the workspace');
+            }
+
+            await this.workspaceService.deleteWorkspace(workspaceId, confirmName);
+        } catch (error: any) {
+            console.error('[OrganizationProcessor] deleteWorkspace error:', error);
+            throw new Error(`Failed to delete workspace: ${error.message}`);
+        }
+    }
+
+    /**
+     * Get all organizations in the system (admin only)
+     * 
+     * @param tokenDetails - User authentication details
+     * @returns Array of all organizations
+     */
+    async getAllOrganizations(tokenDetails: ITokenDetails): Promise<DRAOrganization[]> {
+        try {
+            // Validate admin access
+            if (tokenDetails.user_type !== 'admin') {
+                throw new Error('Admin access required');
+            }
+
+            return await this.organizationService.getAllOrganizations();
+        } catch (error: any) {
+            console.error('[OrganizationProcessor] getAllOrganizations error:', error);
+            throw error;
         }
     }
 }
