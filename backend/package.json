@@ -28,7 +28,9 @@
     "migrate:users-to-orgs": "node --import tsx scripts/migrate-users-to-organizations.ts --execute",
     "migrate:users-to-orgs:dry-run": "node --import tsx scripts/migrate-users-to-organizations.ts",
     "verify-multi-tenant": "node --import tsx scripts/verify-multi-tenant.ts",
-    "verify-multi-tenant:detailed": "node --import tsx scripts/verify-multi-tenant.ts --detailed"
+    "verify-multi-tenant:detailed": "node --import tsx scripts/verify-multi-tenant.ts --detailed",
+    "cleanup:personal-orgs": "node --import tsx scripts/cleanup-duplicate-personal-orgs.ts",
+    "cleanup:personal-orgs:execute": "node --import tsx scripts/cleanup-duplicate-personal-orgs.ts --execute"
   },
   "keywords": [],
   "author": "",

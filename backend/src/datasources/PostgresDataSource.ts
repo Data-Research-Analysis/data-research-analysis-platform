@@ -39,6 +39,7 @@ import { DRAReportShareKey } from "../models/DRAReportShareKey.js";
 import { DRAOrganization } from "../models/DRAOrganization.js";
 import { DRAWorkspace } from "../models/DRAWorkspace.js";
 import { DRAOrganizationMember } from "../models/DRAOrganizationMember.js";
+import { DRAOrganizationInvitation } from "../models/DRAOrganizationInvitation.js";
 import { DRAWorkspaceMember } from "../models/DRAWorkspaceMember.js";
 import { DRAOrganizationSubscription } from "../models/DRAOrganizationSubscription.js";
 import { DRACampaignOfflineData } from "../models/DRACampaignOfflineData.js";
@@ -65,7 +66,7 @@ export class PostgresDataSource {
             database: database,
             synchronize: false,
             logging: true,
-            entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAEnterpriseQuery, DRADashboard, DRAArticle, DRAArticleCategory, DRAArticleVersion, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRAAIInsightReport, DRAAIInsightMessage, DRADataModelRefreshHistory, DRAScheduledBackupRun, DRASubscriptionTier, DRAProjectMember, DRAProjectInvitation, DRANotification, DRAPlatformSettings, DRAAccountCancellation, DRAEmailPreferences, DRAMongoDBSyncHistory, SyncHistory, DRACampaign, DRACampaignChannel, DRAAIJoinSuggestion, DRAReport, DRAReportItem, DRAReportShareKey, DRAOrganization, DRAWorkspace, DRAOrganizationMember, DRAWorkspaceMember, DRAOrganizationSubscription, DRACampaignOfflineData],
+            entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAEnterpriseQuery, DRADashboard, DRAArticle, DRAArticleCategory, DRAArticleVersion, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRAAIInsightReport, DRAAIInsightMessage, DRADataModelRefreshHistory, DRAScheduledBackupRun, DRASubscriptionTier, DRAProjectMember, DRAProjectInvitation, DRANotification, DRAPlatformSettings, DRAAccountCancellation, DRAEmailPreferences, DRAMongoDBSyncHistory, SyncHistory, DRACampaign, DRACampaignChannel, DRAAIJoinSuggestion, DRAReport, DRAReportItem, DRAReportShareKey, DRAOrganization, DRAWorkspace, DRAOrganizationMember, DRAOrganizationInvitation, DRAWorkspaceMember, DRAOrganizationSubscription, DRACampaignOfflineData],
             subscribers: [],
             // Only load TypeORM migration files (exclude utility scripts like migrate-articles-markdown.ts)
             migrations: ['./src/migrations/*.ts'],
