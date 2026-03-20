@@ -152,6 +152,11 @@ async function connectDataSource(classification) {
                 method: "POST",
                 ...requestOptions
             });
+            
+            // Invalidate related caches when data source is added
+            const cacheManager = useCacheManager();
+            cacheManager.invalidateRelated('dataSource');
+            
             state.connectionSuccess = true;
             state.showAlert = true;
             state.errorMessages.push(data.message);

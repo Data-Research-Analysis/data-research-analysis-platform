@@ -511,6 +511,7 @@ async function createDataSource(classification = null) {
     let dataSourceId = null;
     let successCount = 0;
     let failCount = 0;
+    let cacheInvalidated = false; // Track if cache has been invalidated
     
     // Generate unique upload session ID to group all sheets together
     const uploadSessionId = `upload_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -588,6 +589,13 @@ async function createDataSource(classification = null) {
                 file.jobId = response.jobId;
                 file.status = 'queued';
                 file.statusMessage = 'Upload queued';
+                
+                // Invalidate cache once first job is queued (data source will be created)
+                if (!cacheInvalidated) {
+                    const cacheManager = useCacheManager();
+                    cacheManager.invalidateRelated('dataSource');
+                    cacheInvalidated = true;
+                }
                 
                 console.log('[Excel Upload] Job queued:', response.jobId, 'for file:', file.id);
             } else {

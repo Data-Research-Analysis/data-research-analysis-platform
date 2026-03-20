@@ -370,6 +370,7 @@ async function createDataSource(classification = null) {
     state.loading = true;
     const url = `${baseUrl()}/data-source/add-pdf-data-source`;
     let dataSourceId = null;
+    let cacheInvalidated = false; // Track if cache has been invalidated
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
     // Process each sheet as a separate data source entry
@@ -419,9 +420,14 @@ async function createDataSource(classification = null) {
         });
         
         dataSourceId = response.result.data_source_id;
-        file.status = 'uploaded';
-        
-        await sleep(1000);
+            
+            // Invalidate cache once when data source is first created
+            if (!cacheInvalidated && dataSourceId) {
+                const cacheManager = useCacheManager();
+                cacheManager.invalidateRelated('dataSource', dataSourceId);
+                cacheInvalidated = true;
+            }
+            
     }
     
     state.loading = false;

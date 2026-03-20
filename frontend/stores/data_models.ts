@@ -510,6 +510,10 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
             }
         );
         
+        // Invalidate related caches when data model is created
+        const cacheManager = useCacheManager();
+        cacheManager.invalidateRelated('dataModel', newModel.id);
+        
         // Add to local store
         dataModels.value.push(newModel);
         setDataModels(dataModels.value);

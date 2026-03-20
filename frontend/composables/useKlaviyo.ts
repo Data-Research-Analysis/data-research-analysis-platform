@@ -68,6 +68,13 @@ export const useKlaviyo = () => {
                     },
                 }
             );
+            
+            // Invalidate related caches when data source is added
+            if (response?.dataSourceId) {
+                const cacheManager = useCacheManager();
+                cacheManager.invalidateRelated('dataSource', response.dataSourceId);
+            }
+            
             return response?.dataSourceId ?? null;
         } catch (error) {
             console.error('[useKlaviyo] Failed to add data source:', error);

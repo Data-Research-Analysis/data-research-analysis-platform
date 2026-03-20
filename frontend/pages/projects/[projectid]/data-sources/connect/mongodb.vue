@@ -221,6 +221,10 @@ async function connectDataSource(classification?: string) {
                 ...requestOptions
             });
             
+            // Invalidate related caches when data source is added
+            const cacheManager = useCacheManager();
+            cacheManager.invalidateRelated('dataSource');
+            
             // Show progress modal immediately
             showProgressModal.value = true;
             syncProgress.value = {

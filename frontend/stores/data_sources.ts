@@ -268,6 +268,11 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                 },
                 body: config
             }) as any;
+            
+            // Invalidate related caches when data source is added
+            const cacheManager = useCacheManager();
+            cacheManager.invalidateRelated('dataSource', data.data_source_id);
+            
             // Refresh data sources list
             await retrieveDataSources();
             return data.data_source_id || null;
@@ -364,6 +369,11 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                 },
                 body: config
             }) as any;
+            
+            // Invalidate related caches when data source is added
+            const cacheManager = useCacheManager();
+            cacheManager.invalidateRelated('dataSource', data.data_source_id);
+            
             // Refresh data sources list
             await retrieveDataSources();
             return data.data_source_id || null;
@@ -460,6 +470,10 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
                 body: config
             }) as any;
 
+            // Invalidate related caches when data source is added
+            const cacheManager = useCacheManager();
+            cacheManager.invalidateRelated('dataSource', data.dataSourceId);
+            
             // Refresh data sources list
             await retrieveDataSources();
             return data.dataSourceId || null;
@@ -642,6 +656,10 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
             if (response.ok) {
                 const data = await response.json();
                 if (data.success) {
+                    // Invalidate related caches when data source is added
+                    const cacheManager = useCacheManager();
+                    cacheManager.invalidateRelated('dataSource', data.dataSourceId);
+                    
                     // Refresh data sources list
                     await retrieveDataSources();
                     return data.dataSourceId || null;
@@ -810,6 +828,10 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
             if (response.ok) {
                 const data = await response.json();
                 if (data.success) {
+                    // Invalidate related caches when data source is added
+                    const cacheManager = useCacheManager();
+                    cacheManager.invalidateRelated('dataSource', data.dataSourceId);
+                    
                     await retrieveDataSources();
                     return data.dataSourceId || null;
                 }
@@ -895,6 +917,10 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
             });
 
             if (response.ok) {
+                // Invalidate related caches when data source is deleted
+                const cacheManager = useCacheManager();
+                cacheManager.invalidateRelated('dataSource', dataSourceId);
+                
                 // Remove from local store state
                 dataSources.value = dataSources.value.filter(ds => ds.id !== dataSourceId);
                 if (import.meta.client) {
