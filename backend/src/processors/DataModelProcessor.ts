@@ -975,7 +975,7 @@ export class DataModelProcessor {
      * @param tokenDetails 
      * @returns list of tables from data models that have been created in the project database
      */
-    public async getTablesFromDataModels(projectId: number, tokenDetails: ITokenDetails): Promise<any> {
+    public async getTablesFromDataModels(projectId: number, tokenDetails: ITokenDetails, includeRows: boolean = false): Promise<any> {
         return new Promise<any>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -1104,11 +1104,24 @@ export class DataModelProcessor {
                         continue;
                     }
                     
-                    query = `SELECT * FROM "${dataModelTableName.schema}"."${dataModelTableName.table_name}"`;
-                    let rowsData = await dbConnector.query(query);
-                    
-                    if (tableSchema) {
-                        tableSchema.rows = rowsData;
+                    if (includeRows) {
+                        // DEPRECATED: Old behavior for backwards compatibility
+                        console.warn(`[DataModelProcessor] includeRows=true is deprecated. Use /data-model/:id/data endpoint instead.`);
+                        const dataQuery = `SELECT * FROM "${dataModelTableName.schema}"."${dataModelTableName.table_name}"`;
+                        const rowsData = await dbConnector.query(dataQuery);
+                        if (tableSchema) {
+                            tableSchema.rows = rowsData;
+                            tableSchema.row_count = rowsData.length;
+                        }
+                    } else {
+                        // New behavior: Get row count instead of all rows for performance
+                        const countQuery = `SELECT COUNT(*) as row_count FROM "${dataModelTableName.schema}"."${dataModelTableName.table_name}"`;
+                        const countResult = await dbConnector.query(countQuery);
+                        
+                        if (tableSchema) {
+                            tableSchema.row_count = parseInt(countResult[0]?.row_count || '0', 10);
+                            tableSchema.rows = [];  // Empty array for backwards compatibility
+                        }
                     }
                 }
                 
@@ -1132,7 +1145,8 @@ export class DataModelProcessor {
                         logical_name: logicalName,
                         is_cross_source: dm.is_cross_source,
                         columns: [],
-                        rows: table.rows,
+                        rows: table.rows || [],
+                        row_count: table.row_count || 0,
                     }));
                 }).flat();
                 
@@ -1225,6 +1239,7 @@ export class DataModelProcessor {
                         is_cross_source: true,
                         columns: [],
                         rows: [],
+                        row_count: 0,  // Will be populated below
                     }));
                 }).flat();
                 
@@ -1232,6 +1247,28 @@ export class DataModelProcessor {
                 tempTables.forEach((t: any, idx: number) => {
                     console.log(`  CrossSource [${idx}] DM:${t.data_model_id} ${t.schema}.${t.table_name} (logical: ${t.logical_name})`);
                 });
+                
+                // Get row counts or full data for cross-source models
+                for (const table of tempTables) {
+                    try {
+                        if (includeRows) {
+                            // DEPRECATED: Old behavior for backwards compatibility
+                            const dataQuery = `SELECT * FROM "${table.schema}"."${table.table_name}"`;
+                            const rowsData = await dbConnector.query(dataQuery);
+                            table.rows = rowsData;
+                            table.row_count = rowsData.length;
+                        } else {
+                            // New behavior: Get row count only
+                            const countQuery = `SELECT COUNT(*) as row_count FROM "${table.schema}"."${table.table_name}"`;
+                            const countResult = await dbConnector.query(countQuery);
+                            table.row_count = parseInt(countResult[0]?.row_count || '0', 10);
+                        }
+                    } catch (error) {
+                        console.error(`[DataModelProcessor] Error getting data for ${table.schema}.${table.table_name}:`, error);
+                        table.row_count = 0;
+                        table.rows = [];
+                    }
+                }
                 
                 // Add columns to cross-source tables
                 tempTables.forEach((table: any) => {
@@ -1260,6 +1297,96 @@ export class DataModelProcessor {
             });
             return resolve(finalResult);
         });
+    }
+
+    /**
+     * Get paginated data from a data model table
+     * @param options - Pagination and filtering options
+     * @returns Promise with rows and total count
+     */
+    public async getDataModelData(options: {
+        dataModelId: number;
+        page: number;
+        limit: number;
+        sortBy?: string;
+        sortOrder?: 'ASC' | 'DESC';
+        filters?: Record<string, any>;
+        tokenDetails: ITokenDetails;
+    }): Promise<{ rows: any[]; total: number }> {
+        const { dataModelId, page, limit, sortBy, sortOrder, filters, tokenDetails } = options;
+        
+        const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+        if (!driver) {
+            throw new Error('Database driver not available');
+        }
+        const dbConnector = await driver.getConcreteDriver();
+        if (!dbConnector) {
+            throw new Error('Database connector not available');
+        }
+        const manager = dbConnector.manager;
+        
+        // Get data model
+        const dataModel = await manager.findOne(DRADataModel, { where: { id: dataModelId } });
+        if (!dataModel) {
+            throw new Error('Data model not found');
+        }
+        
+        const { schema, name: tableName } = dataModel;
+        const offset = (page - 1) * limit;
+        
+        // Build query
+        let query = `SELECT * FROM "${schema}"."${tableName}"`;
+        const queryParams: any[] = [];
+        
+        // Apply filters
+        if (filters && Object.keys(filters).length > 0) {
+            const conditions: string[] = [];
+            let paramIndex = 1;
+            
+            for (const [col, val] of Object.entries(filters)) {
+                conditions.push(`"${col}" = $${paramIndex}`);
+                queryParams.push(val);
+                paramIndex++;
+            }
+            
+            if (conditions.length > 0) {
+                query += ` WHERE ${conditions.join(' AND ')}`;
+            }
+        }
+        
+        // Apply sorting
+        if (sortBy) {
+            query += ` ORDER BY "${sortBy}" ${sortOrder || 'ASC'}`;
+        }
+        
+        // Apply pagination
+        query += ` LIMIT ${limit} OFFSET ${offset}`;
+        
+        // Get total count (with same filters)
+        let countQuery = `SELECT COUNT(*) as total FROM "${schema}"."${tableName}"`;
+        if (filters && Object.keys(filters).length > 0) {
+            const conditions: string[] = [];
+            let paramIndex = 1;
+            
+            for (const [col, val] of Object.entries(filters)) {
+                conditions.push(`"${col}" = $${paramIndex}`);
+                paramIndex++;
+            }
+            
+            if (conditions.length > 0) {
+                countQuery += ` WHERE ${conditions.join(' AND ')}`;
+            }
+        }
+        
+        // Execute queries
+        const countResult = await dbConnector.query(countQuery, queryParams);
+        const total = parseInt(countResult[0]?.total || '0', 10);
+        
+        const rows = await dbConnector.query(query, queryParams);
+        
+        console.log(`[DataModelProcessor] getDataModelData - DM:${dataModelId}, Page:${page}, Limit:${limit}, Total:${total}, Returned:${rows.length}`);
+        
+        return { rows, total };
     }
 
     public async executeQueryOnDataModel(query: string, tokenDetails: ITokenDetails): Promise<any> {

@@ -64,14 +64,33 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         dataModelTables.value = dataModelTablesList;
         if (import.meta.client) {
             try {
-                localStorage.setItem('dataModelTables', JSON.stringify(dataModelTablesList));
+                // Store only metadata, exclude rows array to prevent QuotaExceededError
+                const metadataOnly = dataModelTablesList.map(table => ({
+                    ...table,
+                    rows: undefined,  // Remove rows array from localStorage
+                    row_count: table.row_count || table.rows?.length || 0
+                }));
+                
+                localStorage.setItem('dataModelTables', JSON.stringify(metadataOnly));
                 enableRefreshDataFlag('setDataModelTables');
             } catch (error: any) {
                 if (error.name === 'QuotaExceededError') {
-                    console.warn('[DataModelsStore] localStorage quota exceeded for dataModelTables. Data kept in memory only.');
-                    console.warn(`[DataModelsStore] Attempted to store ${dataModelTablesList.length} tables. Consider reducing data size or clearing old localStorage data.`);
-                    // Keep data in memory, just skip localStorage persistence
-                    enableRefreshDataFlag('setDataModelTables');
+                    console.warn('[DataModelsStore] localStorage quota exceeded - storing minimal metadata only');
+                    // Fallback: store even less data (just IDs, names, and counts)
+                    try {
+                        const minimalMeta = dataModelTablesList.map(t => ({
+                            data_model_id: t.data_model_id,
+                            table_name: t.table_name,
+                            logical_name: t.logical_name,
+                            schema: t.schema,
+                            row_count: t.row_count || 0
+                        }));
+                        localStorage.setItem('dataModelTables', JSON.stringify(minimalMeta));
+                        enableRefreshDataFlag('setDataModelTables');
+                    } catch (fallbackError) {
+                        console.error('[DataModelsStore] Even minimal metadata storage failed:', fallbackError);
+                        enableRefreshDataFlag('setDataModelTables');
+                    }
                 } else {
                     console.error('[DataModelsStore] Error saving dataModelTables to localStorage:', error);
                 }
