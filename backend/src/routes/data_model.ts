@@ -112,7 +112,8 @@ router.get('/:data_model_id/data', async (req: Request, res: Response, next: any
     query('limit').optional().toInt().default(100),
     query('sort_by').optional().trim(),
     query('sort_order').optional().isIn(['ASC', 'DESC']),
-    query('filters').optional().isJSON()
+    query('filters').optional().isJSON(),
+    query('search').optional().trim()
 ]), requireDataModelPermission(EAction.READ, 'data_model_id'),
 async (req: Request, res: Response) => {
     try {
@@ -123,6 +124,7 @@ async (req: Request, res: Response) => {
         const sort_by = validatedData.sort_by;
         const sort_order = validatedData.sort_order;
         const filters = validatedData.filters ? JSON.parse(validatedData.filters) : undefined;
+        const search = validatedData.search;
         
         const result = await DataModelProcessor.getInstance().getDataModelData({
             dataModelId: data_model_id,
@@ -131,6 +133,7 @@ async (req: Request, res: Response) => {
             sortBy: sort_by,
             sortOrder: sort_order,
             filters,
+            search,
             tokenDetails: req.body.tokenDetails
         });
         

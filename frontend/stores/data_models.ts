@@ -189,15 +189,19 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         page: number = 1,
         limit: number = 100,
         sortBy?: string,
-        sortOrder?: 'ASC' | 'DESC'
+        sortOrder?: 'ASC' | 'DESC',
+        search?: string,
+        filters?: Record<string, any>
     ): Promise<IDataModelData> {
         const token = getAuthToken();
         if (!token) {
             throw new Error('Authentication required');
         }
         
-        // Create cache key
-        const cacheKey = `dm_${dataModelId}_p${page}_l${limit}_s${sortBy || 'none'}_${sortOrder || 'none'}`;
+        // Create cache key including search and filters
+        const filterKey = filters ? JSON.stringify(filters) : 'none';
+        const searchKey = search || 'none';
+        const cacheKey = `dm_${dataModelId}_p${page}_l${limit}_s${sortBy || 'none'}_${sortOrder || 'none'}_search${searchKey}_f${filterKey}`;
         const cached = dataModelDataCache.value.get(cacheKey);
         
         // Return cached data if fresh (< 5 minutes)
@@ -217,8 +221,10 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         const params: Record<string, any> = { page, limit };
         if (sortBy) params.sort_by = sortBy;
         if (sortOrder) params.sort_order = sortOrder;
+        if (search) params.search = search;
+        if (filters && Object.keys(filters).length > 0) params.filters = JSON.stringify(filters);
         
-        console.log(`[DataModelsStore] Fetching data for model ${dataModelId}, page ${page}, limit ${limit}`);
+        console.log(`[DataModelsStore] Fetching data for model ${dataModelId}, page ${page}, limit ${limit}, search: ${search || 'none'}, filters: ${Object.keys(filters || {}).length}`);
         
         const response = await $fetch<IDataModelData>(
             `${baseUrl()}/data-model/${dataModelId}/data`,

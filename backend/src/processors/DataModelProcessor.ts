@@ -1311,9 +1311,10 @@ export class DataModelProcessor {
         sortBy?: string;
         sortOrder?: 'ASC' | 'DESC';
         filters?: Record<string, any>;
+        search?: string;
         tokenDetails: ITokenDetails;
     }): Promise<{ rows: any[]; total: number }> {
-        const { dataModelId, page, limit, sortBy, sortOrder, filters, tokenDetails } = options;
+        const { dataModelId, page, limit, sortBy, sortOrder, filters, search, tokenDetails } = options;
         
         const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
         if (!driver) {
@@ -1337,21 +1338,109 @@ export class DataModelProcessor {
         // Build query
         let query = `SELECT * FROM "${schema}"."${tableName}"`;
         const queryParams: any[] = [];
+        let paramIndex = 1;
+        const conditions: string[] = [];
         
-        // Apply filters
-        if (filters && Object.keys(filters).length > 0) {
-            const conditions: string[] = [];
-            let paramIndex = 1;
-            
-            for (const [col, val] of Object.entries(filters)) {
-                conditions.push(`"${col}" = $${paramIndex}`);
-                queryParams.push(val);
+        // Apply global search (searches all text columns)
+        if (search && search.trim()) {
+            const searchColumns = await this.getSearchableColumns(dbConnector, schema, tableName);
+            if (searchColumns.length > 0) {
+                const searchConditions = searchColumns.map(col => 
+                    `"${col}"::text ILIKE $${paramIndex}`
+                );
+                conditions.push(`(${searchConditions.join(' OR ')})`);
+                queryParams.push(`%${search.trim()}%`);
                 paramIndex++;
             }
-            
-            if (conditions.length > 0) {
-                query += ` WHERE ${conditions.join(' AND ')}`;
+        }
+        
+        // Apply filters with advanced operators
+        if (filters && Object.keys(filters).length > 0) {
+            for (const [col, filterDef] of Object.entries(filters)) {
+                // Filter can be simple value (equals) or object with operator
+                if (typeof filterDef === 'object' && filterDef !== null && 'operator' in filterDef) {
+                    const { operator, value } = filterDef;
+                    
+                    switch (operator) {
+                        case 'equals':
+                            conditions.push(`"${col}" = $${paramIndex}`);
+                            queryParams.push(value);
+                            paramIndex++;
+                            break;
+                        case 'contains':
+                            conditions.push(`"${col}"::text ILIKE $${paramIndex}`);
+                            queryParams.push(`%${value}%`);
+                            paramIndex++;
+                            break;
+                        case 'startsWith':
+                            conditions.push(`"${col}"::text ILIKE $${paramIndex}`);
+                            queryParams.push(`${value}%`);
+                            paramIndex++;
+                            break;
+                        case 'endsWith':
+                            conditions.push(`"${col}"::text ILIKE $${paramIndex}`);
+                            queryParams.push(`%${value}`);
+                            paramIndex++;
+                            break;
+                        case 'gt':
+                            conditions.push(`"${col}" > $${paramIndex}`);
+                            queryParams.push(value);
+                            paramIndex++;
+                            break;
+                        case 'gte':
+                            conditions.push(`"${col}" >= $${paramIndex}`);
+                            queryParams.push(value);
+                            paramIndex++;
+                            break;
+                        case 'lt':
+                            conditions.push(`"${col}" < $${paramIndex}`);
+                            queryParams.push(value);
+                            paramIndex++;
+                            break;
+                        case 'lte':
+                            conditions.push(`"${col}" <= $${paramIndex}`);
+                            queryParams.push(value);
+                            paramIndex++;
+                            break;
+                        case 'between':
+                            if (Array.isArray(value) && value.length === 2) {
+                                conditions.push(`"${col}" BETWEEN $${paramIndex} AND $${paramIndex + 1}`);
+                                queryParams.push(value[0], value[1]);
+                                paramIndex += 2;
+                            }
+                            break;
+                        case 'in':
+                            if (Array.isArray(value) && value.length > 0) {
+                                const placeholders = value.map((_, idx) => `$${paramIndex + idx}`).join(', ');
+                                conditions.push(`"${col}" IN (${placeholders})`);
+                                queryParams.push(...value);
+                                paramIndex += value.length;
+                            }
+                            break;
+                        case 'isNull':
+                            conditions.push(`"${col}" IS NULL`);
+                            break;
+                        case 'isNotNull':
+                            conditions.push(`"${col}" IS NOT NULL`);
+                            break;
+                        default:
+                            // Default to equals
+                            conditions.push(`"${col}" = $${paramIndex}`);
+                            queryParams.push(value);
+                            paramIndex++;
+                    }
+                } else {
+                    // Simple value = equals operator
+                    conditions.push(`"${col}" = $${paramIndex}`);
+                    queryParams.push(filterDef);
+                    paramIndex++;
+                }
             }
+        }
+        
+        // Add WHERE clause if conditions exist
+        if (conditions.length > 0) {
+            query += ` WHERE ${conditions.join(' AND ')}`;
         }
         
         // Apply sorting
@@ -1362,20 +1451,10 @@ export class DataModelProcessor {
         // Apply pagination
         query += ` LIMIT ${limit} OFFSET ${offset}`;
         
-        // Get total count (with same filters)
+        // Get total count (with same filters and search)
         let countQuery = `SELECT COUNT(*) as total FROM "${schema}"."${tableName}"`;
-        if (filters && Object.keys(filters).length > 0) {
-            const conditions: string[] = [];
-            let paramIndex = 1;
-            
-            for (const [col, val] of Object.entries(filters)) {
-                conditions.push(`"${col}" = $${paramIndex}`);
-                paramIndex++;
-            }
-            
-            if (conditions.length > 0) {
-                countQuery += ` WHERE ${conditions.join(' AND ')}`;
-            }
+        if (conditions.length > 0) {
+            countQuery += ` WHERE ${conditions.join(' AND ')}`;
         }
         
         // Execute queries
@@ -1384,9 +1463,22 @@ export class DataModelProcessor {
         
         const rows = await dbConnector.query(query, queryParams);
         
-        console.log(`[DataModelProcessor] getDataModelData - DM:${dataModelId}, Page:${page}, Limit:${limit}, Total:${total}, Returned:${rows.length}`);
+        console.log(`[DataModelProcessor] getDataModelData - DM:${dataModelId}, Page:${page}, Limit:${limit}, Total:${total}, Returned:${rows.length}, Search:${search || 'none'}, Filters:${Object.keys(filters || {}).length}`);
         
         return { rows, total };
+    }
+    
+    private async getSearchableColumns(dbConnector: any, schema: string, tableName: string): Promise<string[]> {
+        const result = await dbConnector.query(`
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_schema = $1 
+              AND table_name = $2 
+              AND data_type IN ('character varying', 'text', 'character')
+            ORDER BY ordinal_position
+        `, [schema, tableName]);
+        
+        return result.map((row: any) => row.column_name);
     }
 
     public async executeQueryOnDataModel(query: string, tokenDetails: ITokenDetails): Promise<any> {

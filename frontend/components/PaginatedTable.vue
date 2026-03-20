@@ -1,5 +1,14 @@
 <template>
-  <div class="paginated-table w-full">
+  <div class="paginated-table w-full space-y-4">
+    <!-- Filters Section -->
+    <DataTableFilters 
+      v-if="showFilters && !error && columns.length > 0"
+      :columns="columns"
+      :initial-search="searchQuery"
+      :initial-filters="filters"
+      @filter-change="onFilterChange"
+    />
+    
     <!-- Error State -->
     <div v-if="error" class="error-state bg-red-50 border border-red-200 rounded-lg p-6 text-center">
       <font-awesome-icon :icon="['fas', 'triangle-exclamation']" class="text-red-500 text-4xl mb-3" />
@@ -15,21 +24,35 @@
     </div>
 
     <!-- Empty State -->
-    <div v-else-if="!loading && totalRows === 0" class="empty-state bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
+    <div v-else-if="!loading && totalRows === 0 && !searchQuery && Object.keys(filters).length === 0" class="empty-state bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
       <font-awesome-icon :icon="['fas', 'table']" class="text-gray-400 text-5xl mb-4" />
       <h3 class="text-lg font-semibold text-gray-700 mb-2">No Data Available</h3>
       <p class="text-gray-500">This data model doesn't contain any rows yet.</p>
+    </div>
+    
+    <!-- No Results State (after filtering) -->
+    <div v-else-if="!loading && totalRows === 0 && (searchQuery || Object.keys(filters).length > 0)" class="empty-state bg-yellow-50 border border-yellow-200 rounded-lg p-8 text-center">
+      <font-awesome-icon :icon="['fas', 'search']" class="text-yellow-500 text-5xl mb-4" />
+      <h3 class="text-lg font-semibold text-yellow-800 mb-2">No Results Found</h3>
+      <p class="text-yellow-700 mb-4">Try adjusting your search or filters.</p>
+      <button 
+        @click="clearFilters" 
+        class="bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-700 transition-colors"
+      >
+        Clear Filters
+      </button>
     </div>
 
     <!-- Data Table -->
     <div v-else class="data-table-container">
       <!-- Table Header -->
-      <div class="table-header bg-gray-100 border-b border-gray-300 sticky top-0 z-10">
-        <div class="flex">
+      <div class="table-header bg-gray-100 border border-gray-300 rounded-t-lg">
+        <div class="flex overflow-x-auto">
           <div 
             v-for="col in columns" 
             :key="col.name" 
-            class="header-cell flex-1 px-4 py-3 font-semibold text-left cursor-pointer hover:bg-gray-200 transition-colors flex items-center gap-2"
+            class="header-cell flex-shrink-0 px-4 py-3 font-semibold text-left cursor-pointer hover:bg-gray-200 transition-colors flex items-center gap-2"
+            :style="{ minWidth: '150px' }"
             @click="sortBy(col.name)"
           >
             <span class="truncate">{{ col.name }}</span>
@@ -46,7 +69,7 @@
       <SkeletonTable v-if="loading" :rows="pageSize" :columns="columns.length" />
       
       <!-- Data Rows -->
-      <div v-else class="table-body">
+      <div v-else class="table-body border-x border-gray-300">
         <div 
           v-for="(row, idx) in data" 
           :key="idx" 
@@ -55,7 +78,8 @@
           <div 
             v-for="col in columns" 
             :key="col.name" 
-            class="cell flex-1 px-4 py-3 text-sm truncate"
+            class="cell flex-shrink-0 px-4 py-3 text-sm truncate"
+            :style="{ minWidth: '150px' }"
             :title="String(row[col.name])"
           >
             {{ row[col.name] }}
@@ -63,45 +87,16 @@
         </div>
       </div>
       
-      <!-- Pagination Controls -->
-      <div class="pagination-controls bg-white border-t border-gray-300 px-4 py-3 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <button 
-            @click="prevPage" 
-            :disabled="currentPage === 1 || loading"
-            class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-          >
-            <font-awesome-icon :icon="['fas', 'arrow-left']" />
-            Previous
-          </button>
-          
-          <button 
-            @click="nextPage" 
-            :disabled="!hasNextPage || loading"
-            class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-          >
-            Next
-            <font-awesome-icon :icon="['fas', 'arrow-right']" />
-          </button>
-        </div>
-        
-        <div class="page-info text-sm text-gray-600">
-          Page <strong>{{ currentPage }}</strong> of <strong>{{ totalPages }}</strong> 
-          (<strong>{{ totalRows.toLocaleString() }}</strong> total rows)
-        </div>
-        
-        <select 
-          v-model="pageSize" 
-          @change="changePageSize" 
-          class="page-size-selector px-3 py-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          :disabled="loading"
-        >
-          <option :value="25">25 per page</option>
-          <option :value="50">50 per page</option>
-          <option :value="100">100 per page</option>
-          <option :value="500">500 per page</option>
-        </select>
-      </div>
+      <!-- Advanced Pagination -->
+      <AdvancedPagination 
+        :current-page="currentPage"
+        :total-rows="totalRows"
+        :page-size="pageSize"
+        :show-keyboard-help="showKeyboardHelp"
+        :disable-keyboard-shortcuts="disableKeyboardShortcuts"
+        @page-change="onPageChange"
+        @page-size-change="onPageSizeChange"
+      />
     </div>
   </div>
 </template>
@@ -109,14 +104,22 @@
 <script setup lang="ts">
 import type { ITableColumn } from '~/types/IDataModelData';
 import SkeletonTable from './SkeletonTable.vue';
+import DataTableFilters from './DataTableFilters.vue';
+import AdvancedPagination from './AdvancedPagination.vue';
 
 interface Props {
   dataModelId: number;
   initialPageSize?: number;
+  showFilters?: boolean;
+  showKeyboardHelp?: boolean;
+  disableKeyboardShortcuts?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  initialPageSize: 100
+  initialPageSize: 100,
+  showFilters: true,
+  showKeyboardHelp: false,
+  disableKeyboardShortcuts: false
 });
 
 const dataModelsStore = useDataModelsStore();
@@ -130,6 +133,8 @@ const pageSize = ref(props.initialPageSize);
 const totalRows = ref(0);
 const sortColumn = ref<string | null>(null);
 const sortOrder = ref<'ASC' | 'DESC'>('ASC');
+const searchQuery = ref('');
+const filters = ref<Record<string, any>>({});
 
 const totalPages = computed(() => Math.ceil(totalRows.value / pageSize.value));
 const hasNextPage = computed(() => currentPage.value < totalPages.value);
@@ -144,7 +149,9 @@ async function fetchData() {
       currentPage.value,
       pageSize.value,
       sortColumn.value || undefined,
-      sortOrder.value
+      sortOrder.value,
+      searchQuery.value || undefined,
+      Object.keys(filters.value).length > 0 ? filters.value : undefined
     );
     
     data.value = response.data;
@@ -165,22 +172,32 @@ async function fetchData() {
   }
 }
 
-function nextPage() {
-  if (hasNextPage.value && !loading.value) {
-    currentPage.value++;
+function onPageChange(page: number) {
+  if (page !== currentPage.value && !loading.value) {
+    currentPage.value = page;
     fetchData();
   }
 }
 
-function prevPage() {
-  if (currentPage.value > 1 && !loading.value) {
-    currentPage.value--;
+function onPageSizeChange(newPageSize: number) {
+  if (newPageSize !== pageSize.value) {
+    pageSize.value = newPageSize;
+    currentPage.value = 1; // Reset to first page when changing page size
     fetchData();
   }
 }
 
-function changePageSize() {
-  currentPage.value = 1; // Reset to first page when changing page size
+function onFilterChange(filterData: { search: string; filters: Record<string, any> }) {
+  searchQuery.value = filterData.search;
+  filters.value = filterData.filters;
+  currentPage.value = 1; // Reset to first page when filters change
+  fetchData();
+}
+
+function clearFilters() {
+  searchQuery.value = '';
+  filters.value = {};
+  currentPage.value = 1;
   fetchData();
 }
 
@@ -198,6 +215,7 @@ function sortBy(column: string) {
   
   currentPage.value = 1; // Reset to first page when sorting
   fetchData();
+}
 }
 
 // Load data on mount
