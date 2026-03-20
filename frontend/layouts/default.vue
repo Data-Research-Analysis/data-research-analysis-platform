@@ -41,6 +41,7 @@ const isInInvitationAccept = computed(() => {
     <div class="relative flex flex-col min-h-screen data-research-analysis">
         <header-nav />
         <breadcrumbs v-if="state.authenticated && !isInPublicDashboard && !isInOauthCallback && !isInInvitationAccept" />
+        <email-verification-banner />
         <div class="flex flex-grow"
         :class="{
             'flex-row': state.authenticated,

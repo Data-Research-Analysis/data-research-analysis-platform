@@ -6,4 +6,5 @@ export interface IUsersPlatform {
     last_name: string;
     user_type: EUserType;
     token: string;
+    email_verified_at?: Date | null;
 }

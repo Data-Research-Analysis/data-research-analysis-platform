@@ -46,10 +46,42 @@ export const useLoggedInUserStore = defineStore('loggedInUserDRA', () => {
         }
     }
     
+    async function retrieveLoggedInUser() {
+        const token = getAuthToken();
+        if (!token) return;
+        
+        try {
+            const config = useRuntimeConfig();
+            const response = await $fetch<IUsersPlatform>(
+                `${config.public.apiBase}/auth/me`,
+                {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Authorization-Type': 'auth'
+                    }
+                }
+            );
+            
+            if (response) {
+                // Keep the token from the existing user or the current token
+                const existingUser = getLoggedInUser();
+                const userWithToken = {
+                    ...response,
+                    token: existingUser?.token || token
+                };
+                setLoggedInUser(userWithToken);
+            }
+        } catch (error) {
+            console.error('[LoggedInUserStore] Error fetching user data:', error);
+        }
+    }
+    
     return {
         loggedInUser,
         setLoggedInUser,
         getLoggedInUser,
         clearUserPlatform,
+        retrieveLoggedInUser,
     }
 });

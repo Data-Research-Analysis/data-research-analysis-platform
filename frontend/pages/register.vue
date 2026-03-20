@@ -119,6 +119,65 @@ async function createAccount() {
                   ...requestOptions
                 });
                 state.registrationSuccess = true;
+                
+                // Check for invitation token in URL
+                const route = useRoute();
+                const router = useRouter();
+                const invitationToken = route.query.token as string | undefined;
+                
+                if (invitationToken) {
+                  try {
+                    // Auto-login the user
+                    const loginResponse = await $fetch(`${baseUrl()}/auth/login`, {
+                      method: "POST",
+                      headers: {
+                        "Authorization": `Bearer ${state.token}`,
+                        "Authorization-Type": "non-auth",
+                      },
+                      body: {
+                        email: state.email,
+                        password: state.password,
+                      }
+                    });
+                    
+                    if (loginResponse.token) {
+                      // Save the auth token to cookie
+                      if (import.meta.client) {
+                        const authCookie = useCookie('dra_auth_token', {
+                          maxAge: 60 * 60 * 24 * 7, // 7 days
+                          path: '/',
+                          sameSite: 'lax'
+                        });
+                        authCookie.value = loginResponse.token;
+                      }
+                      
+                      // Auto-accept the organization invitation
+                      const config = useRuntimeConfig();
+                      await $fetch(`${config.public.apiBase}/organization-invitations/accept`, {
+                        method: "POST",
+                        headers: {
+                          "Authorization": `Bearer ${loginResponse.token}`,
+                          "Authorization-Type": "auth",
+                          "Content-Type": "application/json",
+                        },
+                        body: {
+                          token: invitationToken
+                        }
+                      });
+                      
+                      // Force full page navigation to projects (ensures middleware runs and state is fresh)
+                      if (import.meta.client) {
+                        window.location.href = '/projects';
+                      }
+                      return;
+                    }
+                  } catch (inviteError: any) {
+                    console.error('Failed to auto-accept invitation:', inviteError);
+                    // Continue with normal registration flow if invitation fails
+                  }
+                }
+                
+                // Normal registration flow (no invitation or invitation failed)
                 state.showAlert = true;
                 state.errorMessages.push(data.message);
                 state.firstName = "";
