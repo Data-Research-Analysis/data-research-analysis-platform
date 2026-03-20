@@ -160,10 +160,6 @@ onUnmounted(() => {
   width: 100%;
 }
 
-.list-item {
-  /* Parent component provides styling via slot */
-}
-
 .load-more-trigger {
   display: flex;
   justify-content: center;

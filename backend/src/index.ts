@@ -2,6 +2,7 @@ import "reflect-metadata";
 import express from 'express';
 import bodyParser from 'body-parser';
 import cors from 'cors';
+import compression from 'compression';
 import { createServer } from 'http';
 import { UtilityService } from './services/UtilityService.js';
 import { SocketIODriver } from './drivers/SocketIODriver.js';
@@ -206,6 +207,22 @@ app.use(cors({
 // CRITICAL: Don't use express.json() before this as it has 100kb default limit
 app.use(bodyParser.urlencoded({ limit: '1000mb', extended: true }));
 app.use(bodyParser.json({ limit: '1000mb' }));
+
+// Response compression middleware
+// Compresses responses with Gzip or Brotli (if supported by client)
+// Only compresses responses > 1KB to avoid overhead on small responses
+app.use(compression({
+  threshold: 1024, // Only compress responses larger than 1KB
+  level: 6,        // Balance between compression speed and size (1-9, default 6)
+  filter: (req, res) => {
+    // Don't compress if client explicitly disables it
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    // Use default compression filter (checks Content-Type)
+    return compression.filter(req, res);
+  }
+}));
 
 // Apply global rate limiter to all routes
 // Individual routes may have stricter limits

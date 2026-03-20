@@ -1,5 +1,6 @@
 import _ from "lodash";
 import { DBDriver } from "../drivers/DBDriver.js";
+import { SocketIODriver } from "../drivers/SocketIODriver.js";
 import { ITokenDetails } from "../types/ITokenDetails.js";
 import { DRADashboard } from "../models/DRADashboard.js";
 import { IDashboardChart, IDashboardDataStructure } from "../types/IDashboard.js";
@@ -184,6 +185,17 @@ export class DashboardProcessor {
                 // Notification removed - notifyDashboardUpdated method not yet implemented
                 // TODO: Implement notifyDashboardUpdated in NotificationHelperService
                 
+                // Emit Socket.IO event for cache invalidation
+                try {
+                    await SocketIODriver.getInstance().emitEvent('dashboard:updated', {
+                        dashboardId: dashboardId,
+                        projectId: projectId,
+                        timestamp: new Date()
+                    });
+                } catch (socketError) {
+                    console.warn('[DashboardProcessor] Failed to emit Socket.IO event:', socketError);
+                }
+                
                 return resolve(true);
             } catch (error) {
                 console.log('error', error);
@@ -240,13 +252,25 @@ export class DashboardProcessor {
                 }
             }
 
-            // Store dashboard info for notification
+            // Store dashboard info for notification and events
             const dashboardName = `Dashboard #${dashboard.id}`;
+            const projectId = dashboard.project?.id;
             
             await manager.remove(dashboard);
             
             // Notification removed - notifyDashboardDeleted method not yet implemented
             // TODO: Implement notifyDashboardDeleted in NotificationHelperService
+            
+            // Emit Socket.IO event for cache invalidation
+            try {
+                await SocketIODriver.getInstance().emitEvent('dashboard:deleted', {
+                    dashboardId: dashboardId,
+                    projectId: projectId,
+                    timestamp: new Date()
+                });
+            } catch (socketError) {
+                console.warn('[DashboardProcessor] Failed to emit Socket.IO event:', socketError);
+            }
             
             return resolve(true);
         });

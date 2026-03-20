@@ -1,5 +1,6 @@
 import _ from "lodash";
 import { DBDriver } from "../drivers/DBDriver.js";
+import { SocketIODriver } from "../drivers/SocketIODriver.js";
 import { DRADataModel } from "../models/DRADataModel.js";
 import { DRADashboard } from "../models/DRADashboard.js";
 import { ITokenDetails } from "../types/ITokenDetails.js";
@@ -199,8 +200,9 @@ export class DataModelProcessor {
                 const dbConnector = await driver.getConcreteDriver();
                 await dbConnector.query(`DROP TABLE IF EXISTS ${dataModel.schema}.${dataModel.name}`);
                 
-                // Store data model name for notification
+                // Store data model name and project ID for notification and events
                 const dataModelName = dataModel.name;
+                const projectId = dataModel.data_source?.project?.id;
                 
                 // Remove the data model record
                 await manager.remove(dataModel);
@@ -208,6 +210,17 @@ export class DataModelProcessor {
                 
                 // Send notification
                 await this.notificationHelper.notifyDataModelDeleted(user_id, dataModelName);
+                
+                // Emit Socket.IO event for cache invalidation
+                try {
+                    await SocketIODriver.getInstance().emitEvent('dataModel:deleted', {
+                        dataModelId: dataModelId,
+                        projectId: projectId,
+                        timestamp: new Date()
+                    });
+                } catch (socketError) {
+                    console.warn('[DataModelProcessor] Failed to emit Socket.IO event:', socketError);
+                }
                 
                 return resolve(true);
             } catch (error) {
@@ -961,6 +974,18 @@ export class DataModelProcessor {
                 const successfulInserts = rowsFromDataSource.length - failedInserts;
                 console.log(`[DataModelProcessor] Inserted ${successfulInserts}/${rowsFromDataSource.length} rows into ${dataModelName} (${failedInserts} failed)`);
                 await manager.update(DRADataModel, {id: existingDataModel.id}, {schema: 'public', name: dataModelName, sql_query: selectTableQuery, query: JSON.parse(queryJSON)});
+                
+                // Emit Socket.IO event for cache invalidation
+                try {
+                    await SocketIODriver.getInstance().emitEvent('dataModel:refreshed', {
+                        dataModelId: existingDataModel.id,
+                        projectId: dataSource?.project?.id,
+                        timestamp: new Date()
+                    });
+                } catch (socketError) {
+                    console.warn('[DataModelProcessor] Failed to emit Socket.IO event:', socketError);
+                }
+                
                 return resolve(true);
             } catch (error) {
                 console.log('error', error);

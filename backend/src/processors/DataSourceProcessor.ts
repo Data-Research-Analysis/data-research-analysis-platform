@@ -1,5 +1,6 @@
 import _ from "lodash";
 import { DBDriver } from "../drivers/DBDriver.js";
+import { SocketIODriver } from "../drivers/SocketIODriver.js";
 import { IDBConnectionDetails } from "../types/IDBConnectionDetails.js";
 import { IAPIConnectionDetails } from "../types/IAPIConnectionDetails.js";
 import { DRADataSource } from "../models/DRADataSource.js";
@@ -261,6 +262,17 @@ export class DataSourceProcessor {
                     }
                 }
 
+                // Emit Socket.IO event for cache invalidation
+                try {
+                    await SocketIODriver.getInstance().emitEvent('dataSource:created', {
+                        dataSourceId: savedDataSource.id,
+                        projectId: savedDataSource.project_id,
+                        timestamp: new Date()
+                    });
+                } catch (socketError) {
+                    console.warn('[DataSourceProcessor] Failed to emit Socket.IO event:', socketError);
+                }
+
                 return resolve(true);
             }
             return resolve(false);
@@ -319,6 +331,18 @@ export class DataSourceProcessor {
             }
 
             await manager.save(dataSource);
+            
+            // Emit Socket.IO event for cache invalidation
+            try {
+                await SocketIODriver.getInstance().emitEvent('dataSource:updated', {
+                    dataSourceId: dataSource.id,
+                    projectId: dataSource.project_id,
+                    timestamp: new Date()
+                });
+            } catch (socketError) {
+                console.warn('[DataSourceProcessor] Failed to emit Socket.IO event:', socketError);
+            }
+            
             return resolve(true);
         });
     }
@@ -613,8 +637,9 @@ export class DataSourceProcessor {
                     }
                 }
 
-                // Store data source name for notification
+                // Store data source name and project ID for notification and events
                 const dataSourceName = dataSource.name;
+                const projectId = dataSource.project_id;
 
                 // Remove the data source record (CASCADE will handle related metadata)
                 await manager.remove(dataSource);
@@ -622,6 +647,17 @@ export class DataSourceProcessor {
 
                 // Send notification
                 await this.notificationHelper.notifyDataSourceDeleted(user_id, dataSourceName);
+                
+                // Emit Socket.IO event for cache invalidation
+                try {
+                    await SocketIODriver.getInstance().emitEvent('dataSource:deleted', {
+                        dataSourceId: dataSourceId,
+                        projectId: projectId,
+                        timestamp: new Date()
+                    });
+                } catch (socketError) {
+                    console.warn('[DataSourceProcessor] Failed to emit Socket.IO event:', socketError);
+                }
 
                 return resolve(true);
             } catch (error) {
