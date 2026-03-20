@@ -1,6 +1,7 @@
 import {defineStore} from 'pinia'
 import type { IDataModel } from '~/types/IDataModel';
 import type { IDataModelTable } from '~/types/IDataModelTable';
+import type { IDataModelData } from '~/types/IDataModelData';
 
 interface RefreshStatus {
     status: string;
@@ -28,6 +29,9 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
     const refreshStatus = ref<Map<number, RefreshStatus>>(new Map())
     const refreshJobs = ref<Map<string, RefreshJob>>(new Map())
     const refreshErrors = ref<Map<number, string>>(new Map())
+    
+    // In-memory cache for paginated data (not persisted to localStorage)
+    const dataModelDataCache = ref<Map<string, IDataModelData>>(new Map())
 
     function setDataModels(dataModelsList: IDataModel[]) {
         dataModels.value = dataModelsList;
@@ -167,6 +171,102 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         selectedDataModel.value = undefined
         if (import.meta.client) {
             localStorage.removeItem('selectedDataModel');
+        }
+    }
+    
+    /**
+     * Fetch paginated data from a data model
+     * Implements 5-minute in-memory cache for performance
+     * @param dataModelId - ID of the data model
+     * @param page - Page number (1-indexed)
+     * @param limit - Number of rows per page
+     * @param sortBy - Optional column to sort by
+     * @param sortOrder - Sort order (ASC or DESC)
+     * @returns Promise with paginated data and metadata
+     */
+    async function fetchDataModelData(
+        dataModelId: number,
+        page: number = 1,
+        limit: number = 100,
+        sortBy?: string,
+        sortOrder?: 'ASC' | 'DESC'
+    ): Promise<IDataModelData> {
+        const token = getAuthToken();
+        if (!token) {
+            throw new Error('Authentication required');
+        }
+        
+        // Create cache key
+        const cacheKey = `dm_${dataModelId}_p${page}_l${limit}_s${sortBy || 'none'}_${sortOrder || 'none'}`;
+        const cached = dataModelDataCache.value.get(cacheKey);
+        
+        // Return cached data if fresh (< 5 minutes)
+        if (cached && cached.fetchedAt) {
+            const age = Date.now() - cached.fetchedAt.getTime();
+            if (age < 5 * 60 * 1000) { // 5 minutes in milliseconds
+                console.log(`[DataModelsStore] Using cached data for ${cacheKey}, age: ${Math.round(age / 1000)}s`);
+                return cached;
+            }
+        }
+        
+        // Get organization context headers
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
+        
+        // Build query parameters
+        const params: Record<string, any> = { page, limit };
+        if (sortBy) params.sort_by = sortBy;
+        if (sortOrder) params.sort_order = sortOrder;
+        
+        console.log(`[DataModelsStore] Fetching data for model ${dataModelId}, page ${page}, limit ${limit}`);
+        
+        const response = await $fetch<IDataModelData>(
+            `${baseUrl()}/data-model/${dataModelId}/data`,
+            {
+                params,
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Authorization-Type": "auth",
+                    ...orgHeaders,
+                },
+            }
+        );
+        
+        // Add to cache with timestamp
+        const cachedData: IDataModelData = {
+            ...response,
+            fetchedAt: new Date()
+        };
+        dataModelDataCache.value.set(cacheKey, cachedData);
+        
+        // Limit cache size (keep only last 20 entries)
+        if (dataModelDataCache.value.size > 20) {
+            const firstKey = dataModelDataCache.value.keys().next().value;
+            dataModelDataCache.value.delete(firstKey);
+        }
+        
+        return response;
+    }
+    
+    /**
+     * Clear the data model data cache
+     * Call this when data models are refreshed or updated
+     */
+    function clearDataModelDataCache(dataModelId?: number) {
+        if (dataModelId) {
+            // Clear cache for specific data model
+            const keysToDelete: string[] = [];
+            dataModelDataCache.value.forEach((_, key) => {
+                if (key.startsWith(`dm_${dataModelId}_`)) {
+                    keysToDelete.push(key);
+                }
+            });
+            keysToDelete.forEach(key => dataModelDataCache.value.delete(key));
+            console.log(`[DataModelsStore] Cleared cache for data model ${dataModelId}`);
+        } else {
+            // Clear all cache
+            dataModelDataCache.value.clear();
+            console.log('[DataModelsStore] Cleared all data model data cache');
         }
     }
     
@@ -433,6 +533,9 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
         clearDataModels,
         getSelectedDataModel,
         clearSelectedDataModel,
+        // Paginated data methods
+        fetchDataModelData,
+        clearDataModelDataCache,
         // Cross-source methods
         fetchAllProjectTables,
         suggestJoins,
