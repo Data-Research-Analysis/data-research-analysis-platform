@@ -286,3 +286,4 @@ describe('RowLimitService', () => {
             await expect(service.getUsageStats(1)).rejects.toThrow('User not found');
         });
     });
+});

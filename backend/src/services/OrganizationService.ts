@@ -16,10 +16,20 @@ export enum EOrganizationRole {
 
 interface ICreateOrganizationParams {
     name: string;
+    slug?: string;
     domain?: string;
     logoUrl?: string;
     ownerId: number;
     subscriptionTierId?: number; // Optional - defaults to FREE tier
+}
+
+export interface IUpdateOrganizationParams {
+    organizationId: number;
+    name?: string;
+    slug?: string;
+    domain?: string;
+    logoUrl?: string;
+    settings?: Record<string, any>;
 }
 
 interface IAddMemberParams {

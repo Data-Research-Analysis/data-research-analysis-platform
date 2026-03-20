@@ -487,3 +487,4 @@ describe('TierEnforcementService', () => {
             expect(stats.maxProjects).toBe(3);
         });
     });
+});

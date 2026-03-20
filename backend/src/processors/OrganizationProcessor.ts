@@ -8,6 +8,7 @@ import { DRAWorkspaceMember } from '../models/DRAWorkspaceMember.js';
 
 interface ICreateOrganizationParams {
     name: string;
+    slug?: string;
     domain?: string;
     logoUrl?: string;
     subscriptionTierId?: number; // Optional - defaults to FREE tier
@@ -17,6 +18,7 @@ interface ICreateOrganizationParams {
 interface IUpdateOrganizationParams {
     organizationId: number;
     name?: string;
+    slug?: string;
     domain?: string;
     logoUrl?: string;
     settings?: Record<string, any>;

@@ -156,7 +156,7 @@ export async function organizationContext(
  * );
  * ```
  */
-export function requireOrganizationRole(minimumRole: EOrganizationRole) {
+export function requireOrganizationRole(roles: EOrganizationRole | EOrganizationRole[]) {
     const roleHierarchy = {
         [EOrganizationRole.OWNER]: 3,
         [EOrganizationRole.ADMIN]: 2,
@@ -172,13 +172,20 @@ export function requireOrganizationRole(minimumRole: EOrganizationRole) {
             return;
         }
 
+        const allowedRoles = Array.isArray(roles) ? roles : [roles];
         const userRoleLevel = roleHierarchy[req.organizationRole];
-        const requiredRoleLevel = roleHierarchy[minimumRole];
+        
+        // Check if user has any of the allowed roles (by hierarchy level)
+        const hasPermission = allowedRoles.some(role => {
+            const requiredRoleLevel = roleHierarchy[role];
+            return userRoleLevel >= requiredRoleLevel;
+        });
 
-        if (userRoleLevel < requiredRoleLevel) {
+        if (!hasPermission) {
+            const roleNames = allowedRoles.join(' or ');
             res.status(403).json({
                 success: false,
-                error: `Insufficient permissions. ${minimumRole} role or higher required.`
+                error: `Insufficient permissions. ${roleNames} role required.`
             });
             return;
         }

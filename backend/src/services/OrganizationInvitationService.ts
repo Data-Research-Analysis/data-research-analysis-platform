@@ -358,15 +358,15 @@ export class OrganizationInvitationService {
         invitation.accepted_at = new Date();
         await manager.save(invitation);
 
-        // Create notification
-        await this.notificationHelper.createNotification({
-            user_id: user.id,
-            type: 'organization_invitation_accepted',
-            title: 'Welcome to the team!',
-            message: `You've joined ${invitation.organization.name}`,
-            related_entity_type: 'organization',
-            related_entity_id: invitation.organization_id
-        });
+        // Create notification (commented out - notification system not yet implemented)
+        // await this.notificationHelper.createNotification({
+        //     user_id: user.id,
+        //     type: 'organization_invitation_accepted',
+        //     title: 'Welcome to the team!',
+        //     message: `You've joined ${invitation.organization.name}`,
+        //     related_entity_type: 'organization',
+        //     related_entity_id: invitation.organization_id
+        // });
 
         return {
             message: 'Successfully joined organization',

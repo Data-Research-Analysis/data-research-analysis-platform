@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { OrganizationInvitationService } from '../services/OrganizationInvitationService.js';
 import { validateJWT } from '../middleware/authenticate.js';
 import { organizationContext, requireOrganizationRole } from '../middleware/organizationContext.js';
+import { EOrganizationRole } from '../services/OrganizationService.js';
 import { invitationLimiter } from '../middleware/rateLimit.js';
 
 const router = Router();
@@ -24,7 +25,7 @@ router.post(
     '/',
     validateJWT,
     organizationContext,
-    requireOrganizationRole(['admin', 'owner']),
+    requireOrganizationRole([EOrganizationRole.ADMIN, EOrganizationRole.OWNER]),
     invitationLimiter,
     async (req: Request, res: Response): Promise<void> => {
         try {
@@ -96,7 +97,7 @@ router.get(
     '/org/:orgId',
     validateJWT,
     organizationContext,
-    requireOrganizationRole(['admin', 'owner']),
+    requireOrganizationRole([EOrganizationRole.ADMIN, EOrganizationRole.OWNER]),
     async (req: Request, res: Response): Promise<void> => {
         try {
             const { orgId } = req.params;
@@ -211,7 +212,7 @@ router.delete(
     '/:invitationId',
     validateJWT,
     organizationContext,
-    requireOrganizationRole(['admin', 'owner']),
+    requireOrganizationRole([EOrganizationRole.ADMIN, EOrganizationRole.OWNER]),
     async (req: Request, res: Response): Promise<void> => {
         try {
             const { invitationId } = req.params;
@@ -243,7 +244,7 @@ router.post(
     '/resend/:invitationId',
     validateJWT,
     organizationContext,
-    requireOrganizationRole(['admin', 'owner']),
+    requireOrganizationRole([EOrganizationRole.ADMIN, EOrganizationRole.OWNER]),
     invitationLimiter,
     async (req: Request, res: Response): Promise<void> => {
         try {

@@ -602,15 +602,15 @@ router.post('/upload-excel-preview', expensiveOperationsLimiter, async (req: Req
         }
         
         // Format response similar to PDF extraction
-        const formattedSheets = parseResult.sheets.map(sheet => ({
+        const formattedSheets = parseResult.sheets.map((sheet: any) => ({
             sheet_id: `sheet_${sheet.index}`,
             sheet_name: sheet.name,
             original_sheet_name: sheet.metadata.originalSheetName,
             sheet_index: sheet.index,
             columns: sheet.columns,
             rows: sheet.rows,
-            renamedColumns: sheet.renamedColumns || [],
-            hasDuplicates: sheet.hasDuplicates || false,
+            renamedColumns: (sheet as any).renamedColumns || [],
+            hasDuplicates: (sheet as any).hasDuplicates || false,
             metadata: {
                 rowCount: sheet.metadata.rowCount,
                 columnCount: sheet.metadata.columnCount
