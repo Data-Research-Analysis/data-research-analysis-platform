@@ -13,83 +13,10 @@ const state = reactive({
         email: '',
         user_type: 'normal'
     },
-    subscription: {
-        current: null,
-        availableTiers: [],
-        selectedTierId: null,
-        endsAt: '',
-        loading: false,
-    },
     loading: true
 });
 
 const userId = computed(() => parseInt(route.params.userid));
-
-async function loadUserSubscription() {
-    state.subscription.loading = true;
-    try {
-        const [currentSubscription, availableTiers] = await Promise.all([
-            userManagementStore.fetchUserSubscription(userId.value),
-            userManagementStore.getAvailableTiers(userId.value)
-        ]);
-        state.subscription.current = currentSubscription;
-        state.subscription.availableTiers = availableTiers;
-        if (currentSubscription) {
-            state.subscription.selectedTierId = currentSubscription.subscription_tier.id;
-            if (currentSubscription.ends_at) {
-                state.subscription.endsAt = new Date(currentSubscription.ends_at).toISOString().split('T')[0];
-            }
-        }
-    } catch (error) {
-        console.error('Error loading subscription:', error);
-    } finally {
-        state.subscription.loading = false;
-    }
-}
-
-async function updateSubscription() {
-    if (!state.subscription.selectedTierId) {
-        $swal.fire({
-            title: "Validation Error",
-            text: "Please select a subscription tier.",
-            icon: "error",
-            confirmButtonColor: "#3C8DBC",
-        });
-        return;
-    }
-
-    const result = await userManagementStore.updateUserSubscription(
-        userId.value,
-        state.subscription.selectedTierId,
-        state.subscription.endsAt || undefined
-    );
-
-    if (result.success) {
-        $swal.fire({
-            title: "Success!",
-            text: "Subscription updated successfully.",
-            icon: "success",
-            confirmButtonColor: "#3C8DBC",
-        });
-        await loadUserSubscription();
-    } else {
-        $swal.fire({
-            title: "Error!",
-            text: result.message || "Failed to update subscription.",
-            icon: "error",
-            confirmButtonColor: "#3C8DBC",
-        });
-    }
-}
-
-function getTierBadgeClass(tierName) {
-    if (!tierName) return 'bg-gray-100 text-gray-700';
-    const name = tierName.toUpperCase();
-    if (name === 'FREE') return 'bg-gray-100 text-gray-700';
-    if (name === 'PROFESSIONAL') return 'bg-purple-100 text-purple-700';
-    if (name === 'ENTERPRISE') return 'bg-yellow-100 text-yellow-700';
-    return 'bg-gray-100 text-gray-700';
-}
 
 async function loadUser() {
     state.loading = true;
@@ -194,7 +121,6 @@ function formatDate(dateString) {
 
 onMounted(async () => {
     await loadUser();
-    await loadUserSubscription();
 });
 </script>
 <template>
@@ -250,141 +176,45 @@ onMounted(async () => {
                         </div>
                     </div>
 
-                    <!-- Subscription Management Section -->
-                    <div class="bg-blue-50 p-6 rounded-lg border border-blue-200">
-                        <h3 class="font-bold text-lg mb-4 flex items-center gap-2">
-                            <font-awesome icon="fas fa-crown" class="text-yellow-500" />
-                            Subscription Management
-                        </h3>
-                        
-                        <div v-if="state.subscription.loading" class="text-center text-gray-500">
-                            Loading subscription information...
-                        </div>
-
-                        <div v-else class="space-y-4">
-                            <!-- Current Subscription Display -->
-                            <div class="bg-white p-4 rounded-lg border border-gray-200">
-                                <p class="text-sm font-bold mb-2">Current Subscription:</p>
-                                <div v-if="state.subscription.current" class="space-y-2">
-                                    <div>
-                                        <span :class="['px-3 py-1.5 rounded-lg text-sm font-bold inline-block', getTierBadgeClass(state.subscription.current.subscription_tier?.tier_name)]">
-                                            {{ state.subscription.current.subscription_tier?.tier_name?.toUpperCase() || 'UNKNOWN' }}
-                                        </span>
-                                    </div>
-                                    <div class="text-sm text-gray-600">
-                                        <p><strong>Started:</strong> {{ new Date(state.subscription.current.started_at).toLocaleDateString() }}</p>
-                                        <p v-if="state.subscription.current.ends_at">
-                                            <strong>Ends:</strong> {{ new Date(state.subscription.current.ends_at).toLocaleDateString() }}
-                                        </p>
-                                        <p v-else class="text-green-600 font-medium">
-                                            <strong>Status:</strong> Active (No expiration)
-                                        </p>
-                                        <p v-if="state.subscription.current.cancelled_at" class="text-red-600 font-medium">
-                                            <strong>Cancelled:</strong> {{ new Date(state.subscription.current.cancelled_at).toLocaleDateString() }}
-                                        </p>
-                                    </div>
-                                </div>
-                                <div v-else class="text-gray-500 italic">
-                                    No active subscription assigned
-                                </div>
-                            </div>
-
-                            <!-- Update Subscription Form -->
-                            <div class="space-y-3">
-                                <!-- Debug Info -->
-                                <div v-if="state.subscription.availableTiers.length === 0" class="bg-yellow-50 border border-yellow-200 p-3 rounded text-sm text-yellow-800">
-                                    <strong>Debug:</strong> No subscription tiers available. Available tiers count: {{ state.subscription.availableTiers.length }}
-                                </div>
-                                
-                                <div>
-                                    <label class="block text-sm font-bold mb-2">Select Subscription Tier</label>
-                                    <select 
-                                        v-model="state.subscription.selectedTierId"
-                                        class="w-full p-2 border border-gray-300 rounded"
-                                    >
-                                        <option :value="null" disabled>Select a tier...</option>
-                                        <option 
-                                            v-for="tier in state.subscription.availableTiers" 
-                                            :key="tier.id" 
-                                            :value="tier.id"
-                                        >
-                                            {{ tier.tier_name?.toUpperCase() }} - {{ tier.price_per_month_usd == 0 ? 'Free' : `$${tier.price_per_month_usd}/month` }}
-                                        </option>
-                                    </select>
-                                    <p class="text-xs text-gray-500 mt-1">{{ state.subscription.availableTiers.length }} tier(s) available</p>
-                                </div>
-
-                                <div>
-                                    <label class="block text-sm font-bold mb-2">
-                                        Expiration Date (Optional)
-                                        <span class="text-xs font-normal text-gray-500 ml-2">Leave empty for no expiration</span>
-                                    </label>
-                                    <input 
-                                        v-model="state.subscription.endsAt"
-                                        type="date"
-                                        class="w-full p-2 border border-gray-300 rounded"
-                                    />
-                                </div>
-
-                                <button 
-                                    @click="updateSubscription"
-                                    class="w-full px-6 py-3 bg-blue-600 text-white hover:bg-blue-700 cursor-pointer font-bold shadow-md rounded flex items-center justify-center gap-2"
-                                >
-                                    <font-awesome icon="fas fa-save" />
-                                    Update Subscription
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
                     <!-- Edit Form -->
                     <div class="space-y-4">
                         <h3 class="font-bold text-lg">Edit User Details</h3>
                         
                         <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-bold mb-2">First Name</label>
-                                <input 
+                            <BaseFormField label="First Name" required>
+                                <BaseInput
                                     v-model="state.editing.first_name"
-                                    type="text"
-                                    class="w-full p-2 border border-gray-300 rounded"
                                     placeholder="First Name"
                                     required
                                 />
-                            </div>
-                            <div>
-                                <label class="block text-sm font-bold mb-2">Last Name</label>
-                                <input 
+                            </BaseFormField>
+                            <BaseFormField label="Last Name" required>
+                                <BaseInput
                                     v-model="state.editing.last_name"
-                                    type="text"
-                                    class="w-full p-2 border border-gray-300 rounded"
                                     placeholder="Last Name"
                                     required
                                 />
-                            </div>
+                            </BaseFormField>
                         </div>
 
-                        <div>
-                            <label class="block text-sm font-bold mb-2">Email</label>
-                            <input 
+                        <BaseFormField label="Email" required>
+                            <BaseInput
                                 v-model="state.editing.email"
                                 type="email"
-                                class="w-full p-2 border border-gray-300 rounded"
                                 placeholder="Email Address"
                                 required
                             />
-                        </div>
+                        </BaseFormField>
 
-                        <div>
-                            <label class="block text-sm font-bold mb-2">User Type</label>
-                            <select 
+                        <BaseFormField label="User Type">
+                            <BaseSelect
                                 v-model="state.editing.user_type"
-                                class="w-full p-2 border border-gray-300 rounded"
-                            >
-                                <option value="normal">Normal User</option>
-                                <option value="admin">Administrator</option>
-                            </select>
-                        </div>
+                                :options="[
+                                    { value: 'normal', label: 'Normal User' },
+                                    { value: 'admin', label: 'Administrator' }
+                                ]"
+                            />
+                        </BaseFormField>
                     </div>
 
                     <!-- Action Buttons -->

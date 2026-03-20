@@ -92,10 +92,16 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
             dataModels.value = [];
             return;
         }
+        
+        // Get organization context headers
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
+        
         const data = await $fetch<IDataModel[]>(`${baseUrl()}/data-model/list/${projectId}`, {
             headers: {
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
+                ...orgHeaders,
             },
         });
         setDataModels(data)
@@ -110,10 +116,16 @@ export const useDataModelsStore = defineStore('dataModelsDRA', () => {
             setDataModelTables([]);
             return;
         }
+        
+        // Get organization context headers
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
+        
         const data = await $fetch(`${baseUrl()}/data-model/tables/project/${projectId}`, {
             headers: {
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
+                ...orgHeaders,
             },
         }) as any;
         setDataModelTables(data);

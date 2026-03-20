@@ -156,7 +156,12 @@ async function deleteCategory(categoryId) {
                                         {{ category.id }}
                                     </td>
                                     <td class="px-6 py-4 text-sm text-gray-900">
-                                        <input v-if="state.is_editing && state.category_id_editing === category.id" type="text" v-model="state.category_title_editing" class="px-3 py-1 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-primary-blue-100" />
+                                        <BaseInput
+                                            v-if="state.is_editing && state.category_id_editing === category.id"
+                                            v-model="state.category_title_editing"
+                                            type="text"
+                                            input-class="px-3 py-1"
+                                        />
                                         <span v-else>{{ category.title }}</span>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">

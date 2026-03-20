@@ -13,6 +13,7 @@ import user from './routes/user.js';
 import project from './routes/project.js';
 import project_members from './routes/project_members.js';
 import project_invitations from './routes/project_invitations.js';
+import organization_invitations from './routes/organization_invitations.js';
 import data_source from './routes/data_source.js';
 import data_model from './routes/data_model.js';
 import data_model_refresh from './routes/data_model_refresh.js';
@@ -31,6 +32,8 @@ import linkedin_ads from './routes/linkedin_ads.js';
 import hubspot from './routes/hubspot.js';
 import klaviyo from './routes/klaviyo.js';
 import performance from './routes/performance.js';
+import organizations from './routes/organizations.js';
+import workspaces from './routes/workspaces.js';
 import article from './routes/admin/article.js';
 import category from './routes/admin/category.js';
 import image from './routes/admin/image.js';
@@ -40,12 +43,12 @@ import database from './routes/admin/database.js';
 import scheduled_backups from './routes/admin/scheduled_backups.js';
 import admin_sitemap from './routes/admin/sitemap.js';
 import admin_subscription_tiers from './routes/admin/subscription_tiers.js';
-import user_subscriptions from './routes/admin/user_subscriptions.js';
 import platform_settings from './routes/admin/platform-settings.js';
 import paid_plans from './routes/admin/paid-plans.js';
 import account_cancellations from './routes/admin/account-cancellations.js';
 import admin_project_members from './routes/admin/project_members.js';
 import admin_stats from './routes/admin/stats.js';
+import admin_organizations from './routes/admin/organizations.js';
 import public_article from './routes/article.js';
 import sitemap from './routes/sitemap.js';
 import subscription from './routes/subscription.js';
@@ -195,7 +198,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'Authorization-Type'],
+  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'Authorization-Type', 'X-Organization-Id', 'x-workspace-id'],
   exposedHeaders: ['Set-Cookie']
 }));
 
@@ -214,6 +217,7 @@ app.use('/user', user);
 app.use('/project', project);
 app.use('/project', project_members);
 app.use('/project-invitations', project_invitations);
+app.use('/organization-invitations', organization_invitations);
 app.use('/data-source', data_source);
 app.use('/data-model', data_model);
 app.use('/refresh', data_model_refresh);
@@ -232,12 +236,13 @@ app.use('/linkedin-ads', linkedin_ads);
 app.use('/hubspot', hubspot);
 app.use('/klaviyo', klaviyo);
 app.use('/performance', performance);
+app.use('/organizations', organizations);
+app.use('/workspaces', workspaces);
 app.use('/admin/article', article);
 app.use('/admin/category', category);
 app.use('/admin/image', image);
 app.use('/admin/enterprise-queries', enterprise_queries);
 app.use('/admin/users', users);
-app.use('/admin/users', user_subscriptions);
 app.use('/admin/database', database);
 app.use('/admin/scheduled-backups', scheduled_backups);
 app.use('/admin/sitemap', admin_sitemap);
@@ -247,6 +252,7 @@ app.use('/admin/paid-plans', paid_plans);
 app.use('/admin/account-cancellations', account_cancellations);
 app.use('/admin/projects', admin_project_members);
 app.use('/admin/stats', admin_stats);
+app.use('/admin/organizations', admin_organizations);
 app.use('/article', public_article);
 app.use('/sitemap.txt', sitemap);
 app.use('/subscription', subscription);

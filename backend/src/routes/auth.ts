@@ -98,6 +98,30 @@ router.get('/validate-token', async (req: Request, res: Response, next: any) => 
 });
 
 /**
+ * Resend email verification for authenticated user
+ */
+router.post('/resend-verification', async (req: Request, res: Response, next: any) => {
+    next();
+}, validateJWT, async (req: Request, res: Response) => {
+    try {
+        const userId = req?.body?.tokenDetails?.user_id || null;
+        if (!userId) {
+            return res.status(401).send({success: false, message: 'User not authenticated'});
+        }
+        
+        const success = await AuthProcessor.getInstance().resendVerificationEmail(userId);
+        if (success) {
+            res.status(200).send({success: true, message: 'Verification email sent successfully'});
+        } else {
+            res.status(500).send({success: false, message: 'Failed to send verification email'});
+        }
+    } catch (error) {
+        console.error('Error resending verification email:', error);
+        res.status(500).send({success: false, message: 'Error sending verification email'});
+    }
+});
+
+/**
  * This route is used to get the current authenticated user's information
  */
 router.get('/me', async (req: Request, res: Response, next: any) => {

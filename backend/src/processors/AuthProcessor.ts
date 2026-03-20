@@ -11,13 +11,19 @@ import { EUserType } from '../types/EUserType.js';
 import { NotificationHelperService } from '../services/NotificationHelperService.js';
 import { RowLimitService } from '../services/RowLimitService.js';
 import { DRASubscriptionTier } from '../models/DRASubscriptionTier.js';
+import { OrganizationService } from '../services/OrganizationService.js';
+import { OrganizationInvitationService } from '../services/OrganizationInvitationService.js';
 
 export class AuthProcessor {
     private static instance: AuthProcessor;
     private notificationHelper: NotificationHelperService;
+    private organizationService: OrganizationService;
+    private organizationInvitationService: OrganizationInvitationService;
     
     private constructor() {
         this.notificationHelper = NotificationHelperService.getInstance();
+        this.organizationService = OrganizationService.getInstance();
+        this.organizationInvitationService = OrganizationInvitationService.getInstance();
     }
 
     public static getInstance(): AuthProcessor {
@@ -44,7 +50,8 @@ export class AuthProcessor {
                         first_name: user.first_name, 
                         last_name: user.last_name, 
                         user_type: user.user_type,
-                        token: '' // Token not needed for /auth/me endpoint
+                        token: '', // Token not needed for /auth/me endpoint
+                        email_verified_at: user.email_verified_at
                     };
                     return resolve(userPlatform);
                 } else {
@@ -71,7 +78,7 @@ export class AuthProcessor {
                 if (passwordMatch) {
                     const secret = UtilityService.getInstance().getConstants('JWT_SECRET');
                     const token = jwt.sign({user_id: user.id, user_type: user.user_type, email: user.email}, secret);
-                    const userPlatform:IUsersPlatform = {id: user.id, email: email, first_name: user.first_name, last_name: user.last_name, user_type: user.user_type, token: token};
+                    const userPlatform:IUsersPlatform = {id: user.id, email: email, first_name: user.first_name, last_name: user.last_name, user_type: user.user_type, token: token, email_verified_at: user.email_verified_at};
                     return resolve(userPlatform);
                 } else {
                     return resolve(null);
@@ -135,6 +142,35 @@ export class AuthProcessor {
                     console.error(`⚠️  Failed to assign FREE tier to user ${newUser.id}:`, tierError);
                     // Continue registration even if tier assignment fails
                     // User can be assigned tier later via admin panel
+                }
+                
+                // Auto-create personal organization for new user ONLY if they don't have pending invitations
+                try {
+                    // Check if user has any pending organization invitations
+                    const pendingInvitations = await this.organizationInvitationService.getUserPendingOrgInvitations(email);
+                    
+                    if (pendingInvitations.length > 0) {
+                        console.log(`📨 User ${newUser.id} (${email}) has ${pendingInvitations.length} pending invitation(s) - skipping personal organization creation`);
+                    } else {
+                        const orgName = `${firstName}'s Organization`;
+                        const orgSlug = `${firstName.toLowerCase()}-${lastName.toLowerCase()}-${newUser.id}`.replace(/[^a-z0-9-]/g, '-');
+                        const freeTier = await manager.findOne(DRASubscriptionTier, { where: { tier_name: 'free' } });
+                        
+                        if (freeTier) {
+                            const personalOrg = await this.organizationService.createOrganization({
+                                name: orgName,
+                                slug: orgSlug,
+                                ownerId: newUser.id,
+                                subscriptionTierId: freeTier.id
+                            });
+                            console.log(`🏢 Created personal organization ${personalOrg.id} for user ${newUser.id} (${email})`);
+                        } else {
+                            console.error(`⚠️  FREE tier not found - cannot create personal organization for user ${newUser.id}`);
+                        }
+                    }
+                } catch (orgError) {
+                    console.error(`⚠️  Failed to create personal organization for user ${newUser.id}:`, orgError);
+                    // Continue registration - user can create org later via UI
                 }
                 
                 const expiredAt = new Date();
@@ -402,6 +438,72 @@ export class AuthProcessor {
                 }
             }
             return resolve(false);
+        });
+    }
+
+    /**
+     * Resend email verification for an authenticated user
+     * @param userId The ID of the authenticated user requesting a resend
+     * @returns Promise<boolean> true if email was sent successfully
+     */
+    public async resendVerificationEmail(userId: number): Promise<boolean> {
+        return new Promise<boolean>(async (resolve, reject) => {
+            try {
+                let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
+                const concreteDriver = await driver.getConcreteDriver();
+                if (!concreteDriver) {
+                    return resolve(false);
+                }
+                const manager = concreteDriver.manager;
+                
+                // Get user
+                const user: DRAUsersPlatform|null = await manager.findOne(DRAUsersPlatform, {where: {id: userId}});
+                if (!user) {
+                    return resolve(false);
+                }
+                
+                // Check if email is already verified
+                if (user.email_verified_at) {
+                    console.log('Email already verified for user:', userId);
+                    return resolve(true); // Already verified, return success
+                }
+                
+                // Generate new verification codes
+                const salt = parseInt(UtilityService.getInstance().getConstants('PASSWORD_SALT'));
+                const emailVerificationCode = encodeURIComponent(await bcrypt.hash(`${user.email}${user.password}${Date.now()}`, salt));
+                const unsubscribeCode = encodeURIComponent(await bcrypt.hash(`${user.email}${user.password}${Date.now()}`, salt));
+                
+                const expiredAt = new Date();
+                expiredAt.setDate(expiredAt.getDate() + 3); // expires in 3 days from now
+                
+                // Save email verification code
+                let verificationCode = new DRAVerificationCode();
+                verificationCode.users_platform = user;
+                verificationCode.code = emailVerificationCode;
+                verificationCode.expired_at = expiredAt;
+                await manager.save(verificationCode);
+
+                // Save unsubscribe code
+                verificationCode = new DRAVerificationCode();
+                verificationCode.users_platform = user;
+                verificationCode.code = unsubscribeCode;
+                verificationCode.expired_at = expiredAt;
+                await manager.save(verificationCode);
+                
+                // Send email
+                await EmailService.getInstance().sendEmailVerificationWithUnsubscribe(
+                    user.email,
+                    `${user.first_name} ${user.last_name}`,
+                    emailVerificationCode,
+                    unsubscribeCode
+                );
+                
+                console.log('Verification email resent successfully for user:', userId);
+                return resolve(true);
+            } catch (error) {
+                console.error('Error resending verification email:', error);
+                return resolve(false);
+            }
         });
     }
 }

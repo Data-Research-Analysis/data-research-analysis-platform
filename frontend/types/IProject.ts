@@ -17,6 +17,7 @@ export interface IProjectMember {
 export interface IProject {
     id: number;
     user_platform_id: number;
+    organization_id?: number;
     name: string;
     description?: string;
     created_at?: string;

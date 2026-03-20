@@ -48,6 +48,7 @@ function isPublicRoute(path: string): boolean {
     /^\/unsubscribe\/.+$/,        // /unsubscribe/[code]
     /^\/connect\/.+$/,            // /connect/[provider] — OAuth callback landing pages
     /^\/oauth\/.+$/,              // /oauth/[provider]/callback — Google OAuth callback
+    /^\/organization-invitations\/accept\/.+$/,  // /organization-invitations/accept/[token] — Public invitation view page
   ];
   
   // Check exact matches
@@ -164,6 +165,12 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
       }
       
       if (isAuthorized) {
+        // Fetch fresh user data from backend to ensure email_verified_at and other fields are up to date
+        // This runs once per session when token is first validated
+        if (!isServer && !loggedInUserStore.getLoggedInUser()?.email_verified_at) {
+          await loggedInUserStore.retrieveLoggedInUser();
+        }
+        
         // Check if user is trying to access admin pages
         if (to.path.startsWith("/admin")) {
           const currentUser = loggedInUserStore.getLoggedInUser();

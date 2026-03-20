@@ -13,11 +13,12 @@ import {
     requireDataModelPermission 
 } from '../middleware/rbacMiddleware.js';
 import { EAction } from '../services/PermissionService.js';
+import { optionalOrganizationContext, type IOrganizationContextRequest } from '../middleware/organizationContext.js';
 const router = express.Router();
 
 router.get('/list/:project_id', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([param('project_id').notEmpty().trim().escape().toInt()]), async (req: Request, res: Response) => {
+}, validateJWT, optionalOrganizationContext, validate([param('project_id').notEmpty().trim().escape().toInt()]), async (req: IOrganizationContextRequest, res: Response) => {
     const { project_id } = matchedData(req);
     const projectIdNum = parseInt(String(project_id), 10);
     
@@ -25,7 +26,8 @@ router.get('/list/:project_id', async (req: Request, res: Response, next: any) =
         return res.status(400).send({ message: 'Invalid project_id' });
     }
     
-    const data_models_list = await DataModelProcessor.getInstance().getDataModels(projectIdNum, req.body.tokenDetails);    
+    const organizationId = req.organizationId || null;
+    const data_models_list = await DataModelProcessor.getInstance().getDataModels(projectIdNum, req.body.tokenDetails, organizationId);    
     res.status(200).send(data_models_list);
 });
 router.delete('/delete/:data_model_id', async (req: Request, res: Response, next: any) => {

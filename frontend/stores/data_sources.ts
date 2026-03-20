@@ -72,10 +72,16 @@ export const useDataSourceStore = defineStore('dataSourcesDRA', () => {
             dataSources.value = [];
             return;
         }
+        
+        // Get organization context headers
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
+        
         const data = await $fetch(`${baseUrl()}/data-source/list`, {
             headers: {
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
+                ...orgHeaders,
             },
         }) as any;
         setDataSources(data)

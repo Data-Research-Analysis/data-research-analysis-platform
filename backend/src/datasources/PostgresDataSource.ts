@@ -22,7 +22,6 @@ import { DRAAIInsightMessage } from "../models/DRAAIInsightMessage.js";
 import { DRADataModelRefreshHistory } from "../models/DRADataModelRefreshHistory.js";
 import { DRAScheduledBackupRun } from "../models/DRAScheduledBackupRun.js";
 import { DRASubscriptionTier } from "../models/DRASubscriptionTier.js";
-import { DRAUserSubscription } from "../models/DRAUserSubscription.js";
 import { DRAProjectMember } from "../models/DRAProjectMember.js";
 import { DRAProjectInvitation } from "../models/DRAProjectInvitation.js";
 import { DRANotification } from "../models/DRANotification.js";
@@ -37,6 +36,13 @@ import { DRAAIJoinSuggestion } from "../models/DRAAIJoinSuggestion.js";
 import { DRAReport } from "../models/DRAReport.js";
 import { DRAReportItem } from "../models/DRAReportItem.js";
 import { DRAReportShareKey } from "../models/DRAReportShareKey.js";
+import { DRAOrganization } from "../models/DRAOrganization.js";
+import { DRAWorkspace } from "../models/DRAWorkspace.js";
+import { DRAOrganizationMember } from "../models/DRAOrganizationMember.js";
+import { DRAOrganizationInvitation } from "../models/DRAOrganizationInvitation.js";
+import { DRAWorkspaceMember } from "../models/DRAWorkspaceMember.js";
+import { DRAOrganizationSubscription } from "../models/DRAOrganizationSubscription.js";
+import { DRACampaignOfflineData } from "../models/DRACampaignOfflineData.js";
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -60,7 +66,7 @@ export class PostgresDataSource {
             database: database,
             synchronize: false,
             logging: true,
-            entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAEnterpriseQuery, DRADashboard, DRAArticle, DRAArticleCategory, DRAArticleVersion, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRAAIInsightReport, DRAAIInsightMessage, DRADataModelRefreshHistory, DRAScheduledBackupRun, DRASubscriptionTier, DRAUserSubscription, DRAProjectMember, DRAProjectInvitation, DRANotification, DRAPlatformSettings, DRAAccountCancellation, DRAEmailPreferences, DRAMongoDBSyncHistory, SyncHistory, DRACampaign, DRACampaignChannel, DRAAIJoinSuggestion, DRAReport, DRAReportItem, DRAReportShareKey],
+            entities: [DRAUsersPlatform, DRAProject, DRAVerificationCode, DRADataSource, DRADataModel, DRADataModelSource, DRATableMetadata, DRACrossSourceJoinCatalog, DRAEnterpriseQuery, DRADashboard, DRAArticle, DRAArticleCategory, DRAArticleVersion, DRACategory, DRASitemapEntry, DRADashboardExportMetaData, DRAAIDataModelConversation, DRAAIDataModelMessage, DRAAIInsightReport, DRAAIInsightMessage, DRADataModelRefreshHistory, DRAScheduledBackupRun, DRASubscriptionTier, DRAProjectMember, DRAProjectInvitation, DRANotification, DRAPlatformSettings, DRAAccountCancellation, DRAEmailPreferences, DRAMongoDBSyncHistory, SyncHistory, DRACampaign, DRACampaignChannel, DRAAIJoinSuggestion, DRAReport, DRAReportItem, DRAReportShareKey, DRAOrganization, DRAWorkspace, DRAOrganizationMember, DRAOrganizationInvitation, DRAWorkspaceMember, DRAOrganizationSubscription, DRACampaignOfflineData],
             subscribers: [],
             // Only load TypeORM migration files (exclude utility scripts like migrate-articles-markdown.ts)
             migrations: ['./src/migrations/*.ts'],

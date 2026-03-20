@@ -647,6 +647,159 @@ You can start collaborating immediately!`;
     }
 
     /**
+     * Send organization invitation to NEW user
+     * 
+     * Sent when a non-registered user is invited to join an organization.
+     * User must accept invitation via token link.
+     * 
+     * @param data - Invitation details (email, organizationName, inviterName, role, token, frontendUrl)
+     * @returns Send result with message ID
+     */
+    public async sendOrganizationInvitation(data: {
+        email: string;
+        organizationName: string;
+        inviterName: string;
+        role: string;
+        token: string;
+        frontendUrl: string;
+    }): Promise<SendMailResult> {
+        const acceptUrl = `${data.frontendUrl}/organization-invitations/accept/${data.token}`;
+        
+        const roleDescriptions: Record<string, string> = {
+            owner: 'Full control over the organization, including billing and deletion',
+            admin: 'Manage members, projects, and organization settings',
+            member: 'Access permitted projects and collaborate with team members'
+        };
+
+        const text = `${data.inviterName} has invited you to join "${data.organizationName}"
+
+Role: ${data.role.toUpperCase()}
+${roleDescriptions[data.role.toLowerCase()] || 'Join this organization'}
+
+Accept invitation: ${acceptUrl}
+
+This invitation will expire in 7 days.
+
+If you did not expect this invitation, please ignore this email.`;
+
+        return this.mailDriver.sendMail({
+            to: data.email,
+            subject: `You've been invited to join ${data.organizationName}`,
+            text,
+            html: `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <div style="background-color: #3b82f6; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
+        <h1 style="color: white; margin: 0;">You're Invited!</h1>
+    </div>
+    
+    <div style="background-color: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+        <p style="font-size: 16px; margin-bottom: 20px;">Hi there,</p>
+        
+        <p style="font-size: 16px; margin-bottom: 20px;">
+            <strong>${data.inviterName}</strong> has invited you to join 
+            <strong>${data.organizationName}</strong> as a <strong>${data.role}</strong> 
+            on Data Research Analysis.
+        </p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="${acceptUrl}" 
+               style="display: inline-block; padding: 14px 28px; background-color: #10b981; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;">
+                Accept Invitation
+            </a>
+        </div>
+        
+        <p style="font-size: 14px; color: #6b7280; margin-top: 20px;">
+            This invitation expires in 7 days.
+        </p>
+        
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+        
+        <p style="font-size: 13px; color: #9ca3af;">
+            If you don't have an account yet, clicking the button will take you to registration. 
+            Your account will be automatically added to the organization.
+        </p>
+        
+        <p style="font-size: 13px; color: #9ca3af; margin-top: 20px;">
+            If you didn't expect this invitation, you can safely ignore this email.
+        </p>
+    </div>
+</body>
+</html>`
+        });
+    }
+
+    /**
+     * Send notification to EXISTING user added to organization
+     * 
+     * Sent when a registered user is added directly to an organization.
+     * No acceptance needed - they're already a member.
+     * 
+     * @param data - Invitation details (email, organizationName, inviterName, role)
+     * @returns Send result with message ID
+     */
+    public async sendOrganizationMemberAdded(data: {
+        email: string;
+        organizationName: string;
+        inviterName: string;
+        role: string;
+    }): Promise<SendMailResult> {
+        const projectsUrl = `${UtilityService.getInstance().getConstants('FRONTEND_URL')}/projects`;
+        
+        const text = `${data.inviterName} has added you to "${data.organizationName}"
+
+Role: ${data.role.toUpperCase()}
+
+View your projects: ${projectsUrl}
+
+You can start collaborating immediately!`;
+
+        return this.mailDriver.sendMail({
+            to: data.email,
+            subject: `You've been added to ${data.organizationName}`,
+            text,
+            html: `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <div style="background-color: #3b82f6; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
+        <h1 style="color: white; margin: 0;">Welcome to the Team!</h1>
+    </div>
+    
+    <div style="background-color: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+        <p style="font-size: 16px; margin-bottom: 20px;">Hi there,</p>
+        
+        <p style="font-size: 16px; margin-bottom: 20px;">
+            <strong>${data.inviterName}</strong> has added you to 
+            <strong>${data.organizationName}</strong> as a <strong>${data.role}</strong>.
+        </p>
+        
+        <p style="font-size: 16px; margin-bottom: 20px;">
+            You can now access the organization and its projects.
+        </p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="${projectsUrl}" 
+               style="display: inline-block; padding: 14px 28px; background-color: #3b82f6; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;">
+                View Projects
+            </a>
+        </div>
+    </div>
+</body>
+</html>`
+        });
+    }
+
+    /**
      * Send email verification (legacy template with unsubscribe)
      * 
      * Uses the existing verify-email.html template with name, verification code,

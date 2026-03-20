@@ -59,7 +59,7 @@ export class DataSourceProcessor {
 
 
 
-    async getDataSources(tokenDetails: ITokenDetails): Promise<any[]> {
+    async getDataSources(tokenDetails: ITokenDetails, organizationId: number | null = null): Promise<any[]> {
         return new Promise<any[]>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -75,9 +75,10 @@ export class DataSourceProcessor {
                 return resolve([]);
             }
 
-            // 1. Get owned data sources
+            // 1. Get owned data sources (filtered by organization through project)
+            const ownedDataSourcesQuery: any = { users_platform: user };
             const ownedDataSources = await manager.find(DRADataSource, {
-                where: { users_platform: user },
+                where: ownedDataSourcesQuery,
                 relations: {
                     project: true,
                     data_models: true
@@ -103,10 +104,18 @@ export class DataSourceProcessor {
             const allDataSourcesMap = new Map();
 
             ownedDataSources.forEach(ds => {
+                // Filter by organization_id if specified (check through project)
+                if (organizationId !== null && ds.project?.organization_id !== organizationId) {
+                    return; // Skip data sources not in the specified organization
+                }
                 allDataSourcesMap.set(ds.id, ds);
             });
 
             memberDataSources.forEach(ds => {
+                // Filter by organization_id if specified (check through project)
+                if (organizationId !== null && ds.project?.organization_id !== organizationId) {
+                    return; // Skip data sources not in the specified organization
+                }
                 if (!allDataSourcesMap.has(ds.id)) {
                     allDataSourcesMap.set(ds.id, ds);
                 }

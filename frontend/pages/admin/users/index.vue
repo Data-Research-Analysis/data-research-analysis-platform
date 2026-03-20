@@ -3,38 +3,11 @@ import { NuxtLink } from '#components';
 import { useUserManagementStore } from '@/stores/user_management';
 const { $swal } = useNuxtApp();
 const userManagementStore = useUserManagementStore();
-const state = reactive({
-    userSubscriptions: {},
-    loadingSubscriptions: false,
-});
 
 const users = computed(() => [...userManagementStore.getUsers()].sort((a, b) => a.id - b.id));
 
-async function loadUserSubscriptions() {
-    state.loadingSubscriptions = true;
-    for (const user of users.value) {
-        const subscription = await userManagementStore.fetchUserSubscription(user.id);
-        state.userSubscriptions[user.id] = subscription;
-    }
-    state.loadingSubscriptions = false;
-}
-
-function getUserSubscription(userId) {
-    return state.userSubscriptions[userId];
-}
-
-function getTierBadgeClass(tierName) {
-    if (!tierName) return 'bg-gray-100 text-gray-700';
-    const name = tierName.toUpperCase();
-    if (name === 'FREE') return 'bg-gray-100 text-gray-700';
-    if (name === 'PROFESSIONAL') return 'bg-purple-100 text-purple-700';
-    if (name === 'ENTERPRISE') return 'bg-yellow-100 text-yellow-700';
-    return 'bg-gray-100 text-gray-700';
-}
-
 onMounted(async () => {
     await userManagementStore.retrieveUsers();
-    await loadUserSubscriptions();
 });
 
 async function deleteUser(userId) {
@@ -156,7 +129,6 @@ function formatDate(dateString) {
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User Type</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subscription</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email Verified</th>
                                     <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
@@ -175,17 +147,6 @@ function formatDate(dateString) {
                                     <td class="px-6 py-4 whitespace-nowrap text-sm">
                                         <span :class="{'bg-red-100 text-red-800 px-2 py-1 rounded-lg text-xs font-medium': user.user_type === 'admin', 'bg-blue-100 text-blue-800 px-2 py-1 rounded-lg text-xs font-medium': user.user_type === 'normal'}">
                                             {{ user.user_type.toUpperCase() }}
-                                        </span>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                        <span v-if="state.loadingSubscriptions" class="text-gray-400 text-xs">
-                                            Loading...
-                                        </span>
-                                        <span v-else-if="getUserSubscription(user.id)" :class="['px-2 py-1 rounded-lg text-xs font-medium', getTierBadgeClass(getUserSubscription(user.id)?.subscription_tier?.tier_name)]">
-                                            {{ getUserSubscription(user.id)?.subscription_tier?.tier_name?.toUpperCase() || 'UNKNOWN' }}
-                                        </span>
-                                        <span v-else class="text-gray-400 text-xs">
-                                            Not Assigned
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm">

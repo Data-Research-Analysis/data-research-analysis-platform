@@ -81,58 +81,46 @@ async function submitForm() {
                 
                 <form @submit.prevent="submitForm" class="space-y-6">
                     <!-- URL Field -->
-                    <div>
-                        <label for="url" class="block text-sm font-medium text-gray-700 mb-2">
-                            URL <span class="text-red-500">*</span>
-                        </label>
-                        <input
+                    <BaseFormField label="URL" required>
+                        <BaseInput
                             id="url"
                             v-model="state.url"
-                            type="text"
+                            type="url"
                             placeholder="https://www.example.com/page"
                             @blur="validateUrl"
-                            class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue-500"
-                            :class="{ 'border-red-500': urlError }"
+                            :error="urlError"
                             required
                         />
-                        <p v-if="urlError" class="mt-1 text-sm text-red-500">{{ urlError }}</p>
-                    </div>
+                    </BaseFormField>
                     
                     <!-- Status Field -->
-                    <div>
-                        <label for="publish_status" class="block text-sm font-medium text-gray-700 mb-2">
-                            Status <span class="text-red-500">*</span>
-                        </label>
-                        <select
+                    <BaseFormField
+                        label="Status"
+                        required
+                        hint="Draft entries will not appear in the public sitemap"
+                    >
+                        <BaseSelect
                             id="publish_status"
                             v-model="state.publish_status"
-                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue-500"
+                            :options="[
+                                { value: 'draft', label: 'Draft' },
+                                { value: 'published', label: 'Published' }
+                            ]"
                             required
-                        >
-                            <option value="draft">Draft</option>
-                            <option value="published">Published</option>
-                        </select>
-                        <p class="mt-1 text-sm text-gray-500">
-                            Draft entries will not appear in the public sitemap
-                        </p>
-                    </div>
+                        />
+                    </BaseFormField>
                     
                     <!-- Priority Field -->
-                    <div>
-                        <label for="priority" class="block text-sm font-medium text-gray-700 mb-2">
-                            Priority
-                        </label>
-                        <input
+                    <BaseFormField
+                        label="Priority"
+                        hint="Lower numbers appear first in the sitemap (0 = highest priority)"
+                    >
+                        <BaseNumberInput
                             id="priority"
-                            v-model.number="state.priority"
-                            type="number"
-                            min="0"
-                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue-500"
+                            v-model="state.priority"
+                            :min="0"
                         />
-                        <p class="mt-1 text-sm text-gray-500">
-                            Lower numbers appear first in the sitemap (0 = highest priority)
-                        </p>
-                    </div>
+                    </BaseFormField>
                     
                     <!-- Submit Button -->
                     <div class="flex gap-3">

@@ -7,8 +7,9 @@ import { DRAVerificationCode } from '../models/DRAVerificationCode.js';
 import { DRAUsersPlatform } from '../models/DRAUsersPlatform.js';
 import { DRAProject } from '../models/DRAProject.js';
 import { DRAProjectMember } from '../models/DRAProjectMember.js';
+import { DRAOrganizationMember } from '../models/DRAOrganizationMember.js';
 import { DRASubscriptionTier } from '../models/DRASubscriptionTier.js';
-import { DRAUserSubscription } from '../models/DRAUserSubscription.js';
+import { OrganizationService } from './OrganizationService.js';
 import { IInvitationCreate, IInvitationResponse, IInvitationAccept } from '../interfaces/IInvitation.js';
 import { EmailService } from './EmailService.js';
 import { NotificationHelperService } from './NotificationHelperService.js';
@@ -77,14 +78,11 @@ export class InvitationService {
             throw new Error('Project not found');
         }
 
-        // Get owner's active subscription
-        const userSubscription = await manager.findOne(DRAUserSubscription, {
-            where: { 
-                users_platform: { id: project.users_platform.id },
-                is_active: true
-            },
-            relations: ['subscription_tier']
-        });
+        // Get owner's active subscription via their personal organization
+        const { tier: subscriptionTier } = await OrganizationService.getInstance().getOrgSubscriptionTierForUser(
+            project.users_platform.id,
+            manager
+        );
 
         // Count current members + pending invitations
         const currentMemberCount = await manager.count(DRAProjectMember, { where: { project: { id: projectId } } });
@@ -98,10 +96,10 @@ export class InvitationService {
 
         const totalCount = currentMemberCount + pendingInvitationCount;
 
-        // Get max members from subscription, default to FREE tier (3 members)
+        // Get max members from subscription tier, default to FREE tier (3 members)
         let maxMembers: number | null = 3;
-        if (userSubscription && userSubscription.subscription_tier) {
-            maxMembers = userSubscription.subscription_tier.max_members_per_project;
+        if (subscriptionTier) {
+            maxMembers = subscriptionTier.max_members_per_project;
         }
 
         // null or undefined means unlimited
@@ -124,10 +122,10 @@ export class InvitationService {
     async createInvitation(data: IInvitationCreate): Promise<IInvitationResponse | { addedDirectly: true; userId: number }> {
         const manager = await this.getManager();
         
-        // Verify project exists and get owner info
+        // Verify project exists and get owner info + organization
         const project = await manager.findOne(DRAProject, {
             where: { id: data.projectId },
-            relations: ['users_platform']
+            relations: ['users_platform', 'organization']
         });
 
         if (!project) {
@@ -164,7 +162,25 @@ export class InvitationService {
         // Check if user already exists in the platform
         const existingUser = await manager.findOne(DRAUsersPlatform, { where: { email: data.email } });
 
+        // CRITICAL: Validate organization membership first
+        if (!project.organization) {
+            throw new Error('Project must belong to an organization');
+        }
+
         if (existingUser) {
+            // Verify user is a member of the project's organization
+            const orgMember = await manager.findOne(DRAOrganizationMember, {
+                where: {
+                    organization_id: project.organization.id,
+                    users_platform_id: existingUser.id,
+                    is_active: true
+                }
+            });
+
+            if (!orgMember) {
+                throw new Error('User must be a member of this organization before being invited to projects. Please invite them to the organization first.');
+            }
+
             // Check if already a member
             const existingMember = await manager.findOne(DRAProjectMember, {
                 where: {
@@ -195,70 +211,12 @@ export class InvitationService {
                 role: data.marketing_role ?? 'cmo'
             });
 
-            return { addedDirectly: true, userId: existingUser.id };
+            return {addedDirectly: true, userId: existingUser.id };
         }
 
-        // Check for existing pending invitation
-        const existingInvitation = await manager.findOne(DRAProjectInvitation, {
-            where: {
-                project: { id: data.projectId },
-                invited_email: data.email,
-                status: 'pending',
-                expires_at: MoreThan(new Date())
-            }
-        });
-
-        if (existingInvitation) {
-            throw new Error('A pending invitation already exists for this email');
-        }
-
-        // Create new invitation with verification code
-        const token = this.generateSecureToken();
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + INVITATION_EXPIRY_DAYS);
-
-        // Create verification code first
-        const verificationCode = manager.create(DRAVerificationCode, {
-            code: token,
-            expired_at: expiresAt,
-            users_platform: inviter
-        });
-        await manager.save(verificationCode);
-
-        // Create invitation linked to verification code
-        const invitation = manager.create(DRAProjectInvitation, {
-            project: project,
-            invited_by: inviter,
-            invited_email: data.email,
-            marketing_role: data.marketing_role ?? 'cmo',
-            verification_code: verificationCode,
-            status: 'pending',
-            expires_at: expiresAt
-        });
-
-        await manager.save(invitation);
-
-        // Send invitation email to new user
-        await this.emailService.sendProjectInvitationToNewUser({
-            email: data.email,
-            projectName: project.name,
-            inviterName: `${inviter.first_name} ${inviter.last_name}`.trim() || inviter.email,
-            role: data.marketing_role ?? 'cmo',
-            token: token
-        });
-
-        return {
-            id: invitation.id,
-            project_id: project.id,
-            project_name: project.name,
-            invited_by_name: `${inviter.first_name} ${inviter.last_name}`.trim() || inviter.email,
-            invited_email: invitation.invited_email,
-            marketing_role: (data.marketing_role ?? 'cmo') as 'analyst' | 'manager' | 'cmo',
-            status: invitation.status,
-            invitation_token: verificationCode.code,
-            created_at: invitation.created_at,
-            expires_at: invitation.expires_at
-        };
+        // User doesn't exist - reject with helpful message
+        // According to organization-first invitation model, users must join the organization first
+        throw new Error('User must be a member of this organization before being invited to projects. Please invite them to the organization first.');
     }
 
     /**

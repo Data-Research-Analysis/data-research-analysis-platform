@@ -1,8 +1,7 @@
 import { DBDriver } from "../drivers/DBDriver.js";
 import { EDataSourceType } from "../types/EDataSourceType.js";
-import { DRAUserSubscription } from "../models/DRAUserSubscription.js";
 import { ESubscriptionTier } from "../models/DRASubscriptionTier.js";
-import { RowLimitService } from "./RowLimitService.js";
+import { OrganizationService } from "./OrganizationService.js";
 
 export interface ILimitCheckResult {
     allowed: boolean;
@@ -25,42 +24,26 @@ export class SubscriptionLimitService {
     }
     
     /**
-     * Get user's active subscription with tier details
+     * Get user's active subscription tier via their personal organization.
      */
     private async getUserSubscription(userId: number) {
         const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
         if (!driver) {
             throw new Error('Database driver not available');
         }
-        
+
         const concreteDriver = await driver.getConcreteDriver();
-        if (!concreteDriver) {
-            throw new Error('Failed to get PostgreSQL connection');
-        }
-        
-        const manager = concreteDriver.manager;
-        if (!manager) {
+        if (!concreteDriver?.manager) {
             throw new Error('Database manager not available');
         }
-        
-        const subscription = await manager.findOne(DRAUserSubscription, {
-            where: {
-                users_platform: { id: userId },
-                is_active: true
-            },
-            relations: ['subscription_tier'],
-            order: {
-                started_at: 'DESC'
-            }
-        });
-        
-        if (!subscription) {
-            // Auto-assign free tier if no subscription exists
-            await RowLimitService.getInstance().assignFreeTier(userId);
-            return await this.getUserSubscription(userId); // Recursive call after assignment
-        }
-        
-        return subscription;
+
+        const { tier } = await OrganizationService.getInstance().getOrgSubscriptionTierForUser(
+            userId,
+            concreteDriver.manager
+        );
+
+        // Return shape compatible with existing callers: { subscription_tier: DRASubscriptionTier }
+        return { subscription_tier: tier };
     }
     
     /**

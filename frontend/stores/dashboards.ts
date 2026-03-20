@@ -53,11 +53,17 @@ export const useDashboardsStore = defineStore('dashboardsDRA', () => {
             return;
         }
         const url = `${baseUrl()}/dashboard/list`;
+        
+        // Get organization context headers
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
+        
         const data = await $fetch(url, {
             method: "GET",
             headers: {
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
+                ...orgHeaders,
             },
         });
         setDashboards(data)

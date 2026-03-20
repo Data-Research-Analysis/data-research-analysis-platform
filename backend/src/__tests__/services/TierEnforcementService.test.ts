@@ -4,16 +4,19 @@ import { ESubscriptionTier } from '../../models/DRASubscriptionTier.js';
 import { EUserType } from '../../types/EUserType.js';
 import { DBDriver } from '../../drivers/DBDriver.js';
 import { getRedisClient } from '../../config/redis.config.js';
+import { OrganizationService } from '../../services/OrganizationService.js';
 
 // Mock dependencies
 jest.mock('../../drivers/DBDriver.js');
 jest.mock('../../config/redis.config.js');
+jest.mock('../../services/OrganizationService.js');
 
 describe('TierEnforcementService', () => {
     let service: TierEnforcementService;
     let mockManager: any;
     let mockDriver: any;
     let mockRedis: any;
+    let mockGetOrgSubscriptionTierForUser: jest.Mock;
 
     beforeEach(() => {
         service = TierEnforcementService.getInstance();
@@ -45,6 +48,12 @@ describe('TierEnforcementService', () => {
 
         (DBDriver.getInstance as jest.Mock) = jest.fn().mockReturnValue({
             getDriver: jest.fn().mockResolvedValue(mockDriver),
+        });
+
+        // Mock OrganizationService singleton
+        mockGetOrgSubscriptionTierForUser = jest.fn();
+        (OrganizationService.getInstance as jest.Mock) = jest.fn().mockReturnValue({
+            getOrgSubscriptionTierForUser: mockGetOrgSubscriptionTierForUser,
         });
     });
 
@@ -103,22 +112,14 @@ describe('TierEnforcementService', () => {
         };
 
         beforeEach(() => {
-            // Mock active subscription
-            mockManager.findOne.mockImplementation((entity: any) => {
-                if (entity.name === 'DRAUserSubscription') {
-                    return Promise.resolve({
-                        id: 1,
-                        subscription_tier: mockFreeTier,
-                        is_active: true,
-                    });
-                }
-                if (entity.name === 'DRAUsersPlatform') {
-                    return Promise.resolve({
-                        id: 1,
-                        user_type: EUserType.NORMAL,
-                    });
-                }
-                return Promise.resolve(null);
+            // Default: normal user, FREE tier via org subscription
+            mockManager.findOne.mockResolvedValue({
+                id: 1,
+                user_type: EUserType.NORMAL,
+            });
+            mockGetOrgSubscriptionTierForUser.mockResolvedValue({
+                tier: mockFreeTier,
+                orgSubscription: { id: 1 },
             });
             mockRedis.get.mockResolvedValue(null); // No override
         });
@@ -149,21 +150,9 @@ describe('TierEnforcementService', () => {
         });
 
         it('should allow unlimited projects when max_projects is null', async () => {
-            mockManager.findOne.mockImplementation((entity: any) => {
-                if (entity.name === 'DRAUserSubscription') {
-                    return Promise.resolve({
-                        id: 1,
-                        subscription_tier: { ...mockFreeTier, max_projects: null },
-                        is_active: true,
-                    });
-                }
-                if (entity.name === 'DRAUsersPlatform') {
-                    return Promise.resolve({
-                        id: 1,
-                        user_type: EUserType.NORMAL,
-                    });
-                }
-                return Promise.resolve(null);
+            mockGetOrgSubscriptionTierForUser.mockResolvedValue({
+                tier: { ...mockFreeTier, max_projects: null },
+                orgSubscription: { id: 1 },
             });
             mockManager.count.mockResolvedValue(1000); // Many projects
 
@@ -171,14 +160,9 @@ describe('TierEnforcementService', () => {
         });
 
         it('should bypass limit for admin users', async () => {
-            mockManager.findOne.mockImplementation((entity: any) => {
-                if (entity.name === 'DRAUsersPlatform') {
-                    return Promise.resolve({
-                        id: 1,
-                        user_type: EUserType.ADMIN,
-                    });
-                }
-                return Promise.resolve(null);
+            mockManager.findOne.mockResolvedValue({
+                id: 1,
+                user_type: EUserType.ADMIN,
             });
             mockManager.count.mockResolvedValue(100); // Over limit
 
@@ -224,21 +208,13 @@ describe('TierEnforcementService', () => {
         };
 
         beforeEach(() => {
-            mockManager.findOne.mockImplementation((entity: any) => {
-                if (entity.name === 'DRAUserSubscription') {
-                    return Promise.resolve({
-                        id: 1,
-                        subscription_tier: mockStarterTier,
-                        is_active: true,
-                    });
-                }
-                if (entity.name === 'DRAUsersPlatform') {
-                    return Promise.resolve({
-                        id: 1,
-                        user_type: EUserType.NORMAL,
-                    });
-                }
-                return Promise.resolve(null);
+            mockManager.findOne.mockResolvedValue({
+                id: 1,
+                user_type: EUserType.NORMAL,
+            });
+            mockGetOrgSubscriptionTierForUser.mockResolvedValue({
+                tier: mockStarterTier,
+                orgSubscription: { id: 1 },
             });
             mockRedis.get.mockResolvedValue(null);
         });
@@ -262,14 +238,9 @@ describe('TierEnforcementService', () => {
         });
 
         it('should bypass limit for admin users', async () => {
-            mockManager.findOne.mockImplementation((entity: any) => {
-                if (entity.name === 'DRAUsersPlatform') {
-                    return Promise.resolve({
-                        id: 1,
-                        user_type: EUserType.ADMIN,
-                    });
-                }
-                return Promise.resolve(null);
+            mockManager.findOne.mockResolvedValue({
+                id: 1,
+                user_type: EUserType.ADMIN,
             });
             mockManager.count.mockResolvedValue(100);
 
@@ -299,21 +270,13 @@ describe('TierEnforcementService', () => {
         };
 
         beforeEach(() => {
-            mockManager.findOne.mockImplementation((entity: any) => {
-                if (entity.name === 'DRAUserSubscription') {
-                    return Promise.resolve({
-                        id: 1,
-                        subscription_tier: mockProTier,
-                        is_active: true,
-                    });
-                }
-                if (entity.name === 'DRAUsersPlatform') {
-                    return Promise.resolve({
-                        id: 1,
-                        user_type: EUserType.NORMAL,
-                    });
-                }
-                return Promise.resolve(null);
+            mockManager.findOne.mockResolvedValue({
+                id: 1,
+                user_type: EUserType.NORMAL,
+            });
+            mockGetOrgSubscriptionTierForUser.mockResolvedValue({
+                tier: mockProTier,
+                orgSubscription: { id: 1 },
             });
             mockRedis.get.mockResolvedValue(null);
         });
@@ -332,14 +295,9 @@ describe('TierEnforcementService', () => {
         });
 
         it('should bypass limit for admin users', async () => {
-            mockManager.findOne.mockImplementation((entity: any) => {
-                if (entity.name === 'DRAUsersPlatform') {
-                    return Promise.resolve({
-                        id: 1,
-                        user_type: EUserType.ADMIN,
-                    });
-                }
-                return Promise.resolve(null);
+            mockManager.findOne.mockResolvedValue({
+                id: 1,
+                user_type: EUserType.ADMIN,
             });
             mockManager.count.mockResolvedValue(100);
 
@@ -356,21 +314,13 @@ describe('TierEnforcementService', () => {
         };
 
         beforeEach(() => {
-            mockManager.findOne.mockImplementation((entity: any) => {
-                if (entity.name === 'DRAUserSubscription') {
-                    return Promise.resolve({
-                        id: 1,
-                        subscription_tier: mockStarterTier,
-                        is_active: true,
-                    });
-                }
-                if (entity.name === 'DRAUsersPlatform') {
-                    return Promise.resolve({
-                        id: 1,
-                        user_type: EUserType.NORMAL,
-                    });
-                }
-                return Promise.resolve(null);
+            mockManager.findOne.mockResolvedValue({
+                id: 1,
+                user_type: EUserType.NORMAL,
+            });
+            mockGetOrgSubscriptionTierForUser.mockResolvedValue({
+                tier: mockStarterTier,
+                orgSubscription: { id: 1 },
             });
             mockRedis.get.mockResolvedValue(null);
         });
@@ -396,24 +346,9 @@ describe('TierEnforcementService', () => {
         });
 
         it('should allow unlimited AI generations when limit is null', async () => {
-            mockManager.findOne.mockImplementation((entity: any) => {
-                if (entity.name === 'DRAUserSubscription') {
-                    return Promise.resolve({
-                        id: 1,
-                        subscription_tier: {
-                            ...mockStarterTier,
-                            ai_generations_per_month: null,
-                        },
-                        is_active: true,
-                    });
-                }
-                if (entity.name === 'DRAUsersPlatform') {
-                    return Promise.resolve({
-                        id: 1,
-                        user_type: EUserType.NORMAL,
-                    });
-                }
-                return Promise.resolve(null);
+            mockGetOrgSubscriptionTierForUser.mockResolvedValue({
+                tier: { ...mockStarterTier, ai_generations_per_month: null },
+                orgSubscription: { id: 1 },
             });
             mockRedis.get.mockResolvedValue('1000');
 
@@ -421,14 +356,9 @@ describe('TierEnforcementService', () => {
         });
 
         it('should bypass limit for admin users', async () => {
-            mockManager.findOne.mockImplementation((entity: any) => {
-                if (entity.name === 'DRAUsersPlatform') {
-                    return Promise.resolve({
-                        id: 1,
-                        user_type: EUserType.ADMIN,
-                    });
-                }
-                return Promise.resolve(null);
+            mockManager.findOne.mockResolvedValue({
+                id: 1,
+                user_type: EUserType.ADMIN,
             });
             mockRedis.get.mockResolvedValue('1000');
 
@@ -482,15 +412,9 @@ describe('TierEnforcementService', () => {
         };
 
         beforeEach(() => {
-            mockManager.findOne.mockImplementation((entity: any) => {
-                if (entity.name === 'DRAUserSubscription') {
-                    return Promise.resolve({
-                        id: 1,
-                        subscription_tier: mockStarterTier,
-                        is_active: true,
-                    });
-                }
-                return Promise.resolve(null);
+            mockGetOrgSubscriptionTierForUser.mockResolvedValue({
+                tier: mockStarterTier,
+                orgSubscription: { id: 1 },
             });
             mockManager.count.mockImplementation((entity: any) => {
                 if (entity.name === 'DRAProject') return Promise.resolve(5);
@@ -528,19 +452,13 @@ describe('TierEnforcementService', () => {
         });
 
         it('should handle unlimited tiers correctly', async () => {
-            mockManager.findOne.mockImplementation((entity: any) => {
-                if (entity.name === 'DRAUserSubscription') {
-                    return Promise.resolve({
-                        id: 1,
-                        subscription_tier: {
-                            ...mockStarterTier,
-                            max_projects: null,
-                            ai_generations_per_month: null,
-                        },
-                        is_active: true,
-                    });
-                }
-                return Promise.resolve(null);
+            mockGetOrgSubscriptionTierForUser.mockResolvedValue({
+                tier: {
+                    ...mockStarterTier,
+                    max_projects: null,
+                    ai_generations_per_month: null,
+                },
+                orgSubscription: { id: 1 },
             });
 
             const stats = await service.getUsageStats(1);
@@ -551,21 +469,16 @@ describe('TierEnforcementService', () => {
             expect(stats.aiGenerationsPerMonth).toBeNull();
         });
 
-        it('should default to FREE tier when no subscription found', async () => {
-            mockManager.findOne.mockImplementation((entity: any) => {
-                if (entity.name === 'DRAUserSubscription') {
-                    return Promise.resolve(null);
-                }
-                if (entity.name === 'DRASubscriptionTier') {
-                    return Promise.resolve({
-                        id: 1,
-                        tier_name: ESubscriptionTier.FREE,
-                        max_projects: 3,
-                        row_limit: 1000,
-                        price_per_month_usd: 0,
-                    });
-                }
-                return Promise.resolve(null);
+        it('should default to FREE tier when org has no subscription', async () => {
+            mockGetOrgSubscriptionTierForUser.mockResolvedValue({
+                tier: {
+                    id: 1,
+                    tier_name: ESubscriptionTier.FREE,
+                    max_projects: 3,
+                    row_limit: 1000,
+                    price_per_month_usd: 0,
+                },
+                orgSubscription: null,
             });
 
             const stats = await service.getUsageStats(1);

@@ -221,7 +221,7 @@ export class SubscriptionTierProcessor {
         
         const tier = await manager.findOne(DRASubscriptionTier, {
             where: { id },
-            relations: ['user_subscriptions']
+            relations: ['organization_subscriptions']
         });
         
         if (!tier) {
@@ -229,7 +229,7 @@ export class SubscriptionTierProcessor {
         }
         
         // Check if there are active subscriptions
-        const activeSubscriptions = tier.user_subscriptions?.filter(sub => sub.is_active) || [];
+        const activeSubscriptions = tier.organization_subscriptions?.filter(sub => sub.is_active) || [];
         if (activeSubscriptions.length > 0) {
             throw new Error(`Cannot delete tier: ${activeSubscriptions.length} active subscriptions exist`);
         }

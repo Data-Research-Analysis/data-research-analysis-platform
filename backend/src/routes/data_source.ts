@@ -26,6 +26,7 @@ import {
 import { EAction } from '../services/PermissionService.js';
 import { validateExcelUpload } from '../middleware/validateFileUpload.js';
 import { QueueService } from '../services/QueueService.js';
+import { optionalOrganizationContext, type IOrganizationContextRequest } from '../middleware/organizationContext.js';
 
 const router = express.Router();
 
@@ -82,8 +83,9 @@ const excelUpload = multer({
 
 router.get('/list', async (req: Request, res: Response, next: any) => {
     next();
-},validateJWT, async (req: Request, res: Response) => {
-    const data_sources_list = await DataSourceProcessor.getInstance().getDataSources(req.body.tokenDetails);    
+}, validateJWT, optionalOrganizationContext, async (req: IOrganizationContextRequest, res: Response) => {
+    const organizationId = req.organizationId || null;
+    const data_sources_list = await DataSourceProcessor.getInstance().getDataSources(req.body.tokenDetails, organizationId);    
     res.status(200).send(data_sources_list);
 });
 
@@ -600,15 +602,15 @@ router.post('/upload-excel-preview', expensiveOperationsLimiter, async (req: Req
         }
         
         // Format response similar to PDF extraction
-        const formattedSheets = parseResult.sheets.map(sheet => ({
+        const formattedSheets = parseResult.sheets.map((sheet: any) => ({
             sheet_id: `sheet_${sheet.index}`,
             sheet_name: sheet.name,
             original_sheet_name: sheet.metadata.originalSheetName,
             sheet_index: sheet.index,
             columns: sheet.columns,
             rows: sheet.rows,
-            renamedColumns: sheet.renamedColumns || [],
-            hasDuplicates: sheet.hasDuplicates || false,
+            renamedColumns: (sheet as any).renamedColumns || [],
+            hasDuplicates: (sheet as any).hasDuplicates || false,
             metadata: {
                 rowCount: sheet.metadata.rowCount,
                 columnCount: sheet.metadata.columnCount

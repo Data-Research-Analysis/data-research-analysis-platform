@@ -83,6 +83,15 @@ function closeDrawer() {
             
             <!-- Authenticated Menu -->
             <div v-else class="flex flex-col mt-20 ml-2">
+                <!-- Organization Switcher -->
+                <div class="mb-4">
+                    <organization-switcher />
+                </div>
+                <!-- Workspace Switcher -->
+                <div class="mb-4">
+                    <workspace-switcher />
+                </div>
+                <div class="w-3/4 h-1 bg-white m-auto mb-4"></div>
                 <div v-if="isUserAdmin" class="text-xl font-bold hover:text-gray-300 cursor-pointer" @click="closeDrawer">
                     <NuxtLink to="/admin">Admin</NuxtLink>
                 </div>

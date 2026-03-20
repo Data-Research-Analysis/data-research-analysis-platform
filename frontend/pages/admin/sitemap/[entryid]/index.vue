@@ -132,39 +132,25 @@ async function submitForm() {
                 
                 <form @submit.prevent="submitForm" class="space-y-6">
                     <!-- URL Field -->
-                    <div>
-                        <label for="url" class="block text-sm font-medium text-gray-700 mb-2">
-                            URL <span class="text-red-500">*</span>
-                        </label>
-                        <input
+                    <BaseFormField label="URL" required>
+                        <BaseInput
                             id="url"
                             v-model="state.url"
-                            type="text"
+                            type="url"
                             placeholder="https://www.example.com/page"
+                            :error="urlError"
                             @blur="validateUrl"
-                            class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue-500"
-                            :class="{ 'border-red-500': urlError }"
-                            required
                         />
-                        <p v-if="urlError" class="mt-1 text-sm text-red-500">{{ urlError }}</p>
-                    </div>
+                    </BaseFormField>
                     
                     <!-- Priority Field -->
-                    <div>
-                        <label for="priority" class="block text-sm font-medium text-gray-700 mb-2">
-                            Priority
-                        </label>
-                        <input
+                    <BaseFormField label="Priority" hint="Lower numbers appear first in the sitemap (0 = highest priority)">
+                        <BaseNumberInput
                             id="priority"
-                            v-model.number="state.priority"
-                            type="number"
-                            min="0"
-                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue-500"
+                            v-model="state.priority"
+                            :min="0"
                         />
-                        <p class="mt-1 text-sm text-gray-500">
-                            Lower numbers appear first in the sitemap (0 = highest priority)
-                        </p>
-                    </div>
+                    </BaseFormField>
                     
                     <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
                         <p class="text-sm text-blue-700">

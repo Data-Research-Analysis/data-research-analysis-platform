@@ -45,8 +45,11 @@ const projects = computed(() => {
 });
 
 const selectedProjectMembers = computed(() => {
+    console.log('Computing selectedProjectMembers for projectId:', state.selectedProjectId);
     if (!state.selectedProjectId) return [];
+
     const project = projects.value.find(p => p.id === state.selectedProjectId);
+    console.log('Found project for selectedProjectId:', project);
     return project?.members || [];
 });
 

@@ -43,12 +43,28 @@
                 </div>
 
                 <div class="flex gap-3 flex-wrap">
-                    <input 
-                        v-model="inviteEmail" 
-                        type="email"
-                        placeholder="Email address" 
-                        class="flex-1 min-w-[200px] px-3.5 py-2.5 border border-gray-300 rounded-md text-[15px] focus:outline-none focus:border-blue-500 transition-colors"
-                    />
+                    <!-- Organization Member Dropdown -->
+                    <div class="flex-1 min-w-[200px]">
+                        <select
+                            v-model="selectedOrgMemberId"
+                            class="w-full px-3.5 py-2.5 border border-gray-300 rounded-md text-[15px] focus:outline-none focus:border-blue-500 transition-colors cursor-pointer"
+                            :disabled="loadingOrgMembers || orgMembers.length === 0"
+                        >
+                            <option :value="null" disabled selected>
+                                {{ loadingOrgMembers ? 'Loading members...' : orgMembers.length === 0 ? 'No available members' : 'Select organization member' }}
+                            </option>
+                            <option 
+                                v-for="member in orgMembers" 
+                                :key="member.value" 
+                                :value="member.value"
+                            >
+                                {{ member.label }}
+                            </option>
+                        </select>
+                        <p class="mt-1 text-xs text-gray-600">
+                            Only organization members can be added to projects
+                        </p>
+                    </div>
                     <select
                         v-model="inviteMarketingRole"
                         class="min-w-[160px] px-3.5 py-2.5 border border-gray-300 rounded-md text-[15px] focus:outline-none focus:border-blue-500 transition-colors cursor-pointer"
@@ -61,11 +77,23 @@
                     <button 
                         @click="inviteMember" 
                         class="px-5 py-2.5 bg-blue-500 text-white rounded-md font-medium hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer" 
-                        :disabled="!inviteEmail || isAtMemberLimit"
+                        :disabled="!selectedOrgMemberId || isAtMemberLimit || loadingOrgMembers"
                         :title="isAtMemberLimit ? 'Member limit reached — upgrade to invite more' : ''"
                     >
-                        Send Invitation
+                        Add Member
                     </button>
+                </div>
+                
+                <!-- Help text for inviting new people -->
+                <div v-if="orgMembers.length === 0 && !loadingOrgMembers" class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p class="text-sm text-blue-800">
+                        <font-awesome-icon :icon="['fas', 'info-circle']" class="mr-2" />
+                        No available organization members to add. 
+                        <NuxtLink to="/admin/organizations" class="font-medium underline cursor-pointer">
+                            Go to organization settings
+                        </NuxtLink> 
+                        to invite new people to your organization first.
+                    </p>
                 </div>
                 <p v-if="inviteMessage" :class="['mt-3 px-2.5 py-2.5 rounded-md text-sm', inviteError ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800']">
                     {{ inviteMessage }}
@@ -206,6 +234,7 @@ import { ref, computed, watch, onMounted } from 'vue';
 import { useProjectsStore } from '~/stores/projects';
 import { useLoggedInUserStore } from '~/stores/logged_in_user';
 import { useSubscriptionStore } from '~/stores/subscription';
+import { useOrganizationsStore } from '~/stores/organizations';
 import { useTierLimits } from '~/composables/useTierLimits';
 
 interface Member {
@@ -243,6 +272,7 @@ const props = defineProps<{
 const projectsStore = useProjectsStore();
 const loggedInUserStore = useLoggedInUserStore();
 const subscriptionStore = useSubscriptionStore();
+const organizationsStore = useOrganizationsStore();
 
 function handleComingSoon() {
     const { $swal } = useNuxtApp() as any;
@@ -275,13 +305,11 @@ const isAtMemberLimit = computed(() => {
 const emit = defineEmits(['close', 'memberUpdated']);
 
 const localMembers = ref<Member[]>([]);
-const pendingInvitations = ref<Invitation[]>([]);
-const inviteEmail = ref('');
+const selectedOrgMemberId = ref<number | null>(null);
 const inviteMarketingRole = ref<'analyst' | 'manager' | 'cmo'>('manager');
 const inviteMessage = ref('');
 const inviteError = ref(false);
 const loading = ref(false);
-const loadingInvitations = ref(false);
 const resending = ref<number | null>(null);
 const cancelling = ref<number | null>(null);
 
@@ -292,17 +320,33 @@ watch(() => props.members, (newMembers) => {
     }
 }, { immediate: true, deep: true });
 
-// Fetch pending invitations when dialog opens
+// Reset form when dialog opens
 watch(() => props.isOpen, async (newValue) => {
+    console.log('[DEBUG] Dialog opened:', newValue);
     if (newValue) {
-        inviteEmail.value = '';
+        console.log('[DEBUG] canManageMembers:', canManageMembers.value);
+        console.log('[DEBUG] projectId:', props.projectId);
+        
+        selectedOrgMemberId.value = null;
         inviteMessage.value = '';
         inviteError.value = false;
         inviteMarketingRole.value = 'manager';
         
-        // Fetch pending invitations if user can manage members
-        if (canManageMembers.value) {
-            await fetchPendingInvitations();
+        // Load organization members if not already loaded
+        const project = projectsStore.projects.find(p => p.id === props.projectId);
+        if (project?.organization_id) {
+            const existingMembers = organizationsStore.getOrganizationMembers(project.organization_id);
+            console.log('[ProjectMembersDialog] Existing org members:', existingMembers.length);
+            
+            if (existingMembers.length === 0) {
+                console.log('[ProjectMembersDialog] Loading organization members for org', project.organization_id);
+                try {
+                    await organizationsStore.retrieveOrganizationMembers(project.organization_id);
+                    console.log('[ProjectMembersDialog] Organization members loaded');
+                } catch (error) {
+                    console.error('[ProjectMembersDialog] Failed to load organization members:', error);
+                }
+            }
         }
     }
 });
@@ -318,6 +362,33 @@ const canManageMembers = computed(() => {
     // analyst can manage members; project owner (is_owner flag) also can
     return project.is_owner || myRole === 'analyst';
 });
+
+// Get available organization members (filtered to exclude existing project members)
+const orgMembers = computed(() => {
+    const project = projectsStore.projects.find(p => p.id === props.projectId);
+    if (!project?.organization_id) return [];
+    
+    const allOrgMembers = organizationsStore.getOrganizationMembers(project.organization_id);
+    console.log('allOrgMembers:', allOrgMembers);
+    const projectMemberIds = new Set(localMembers.value.map(m => m.user.id));
+    
+    return allOrgMembers
+        .filter(m => !projectMemberIds.has(m.user_id))
+        .map(m => ({
+            value: m.user_id,
+            label: `${m.user?.first_name || ''} ${m.user?.last_name || ''} (${m.user?.email || ''})`.trim(),
+            email: m.user?.email || ''
+        }));
+});
+
+const loadingOrgMembers = computed(() => false);
+
+// Get pending invitations from store
+const pendingInvitations = computed(() => {
+    return projectsStore.getPendingInvitations(props.projectId);
+});
+
+const loadingInvitations = computed(() => false);
 
 function close() {
     emit('close');
@@ -339,32 +410,6 @@ function formatDate(dateString: string): string {
         return `in ${diffDays} days`;
     } else {
         return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    }
-}
-
-async function fetchPendingInvitations() {
-    if (!canManageMembers.value) return;
-    
-    try {
-        loadingInvitations.value = true;
-        const data = await $fetch<{success: boolean, invitations: any[]}>(
-            `${baseUrl()}/project-invitations/project/${props.projectId}`,
-            {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${getAuthToken()}`,
-                    'Authorization-Type': 'auth',
-                }
-            }
-        );
-        
-        if (data.success) {
-            pendingInvitations.value = data.invitations || [];
-        }
-    } catch (error) {
-        console.error('Error fetching invitations:', error);
-    } finally {
-        loadingInvitations.value = false;
     }
 }
 
@@ -404,7 +449,7 @@ async function cancelInvitation(invitationId: number) {
     
     try {
         cancelling.value = invitationId;
-        const data = await $fetch<{success: boolean}>(
+        const data = await $fetch<{success: boolean; message?: string}>(
             `${baseUrl()}/project-invitations/${invitationId}`,
             {
                 method: 'DELETE',
@@ -416,7 +461,8 @@ async function cancelInvitation(invitationId: number) {
         );
         
         if (data.success) {
-            pendingInvitations.value = pendingInvitations.value.filter(i => i.id !== invitationId);
+            // Refresh invitations from store
+            await projectsStore.retrievePendingInvitations(props.projectId);
             inviteMessage.value = 'Invitation cancelled';
             inviteError.value = false;
             setTimeout(() => { inviteMessage.value = ''; }, 3000);
@@ -434,7 +480,7 @@ async function cancelInvitation(invitationId: number) {
 }
 
 async function inviteMember() {
-    if (!inviteEmail.value) return;
+    if (!selectedOrgMemberId.value) return;
     
     // Check tier limits before allowing invitation
     if (!checkMemberLimit()) {
@@ -443,6 +489,10 @@ async function inviteMember() {
     
     inviteMessage.value = '';
     inviteError.value = false;
+    
+    // Find the selected member's email
+    const selectedMember = orgMembers.value.find(m => m.value === selectedOrgMemberId.value);
+    if (!selectedMember) return;
     
     try {
         const data = await $fetch<{success: boolean, message: string, invitation: any}>(
@@ -455,7 +505,7 @@ async function inviteMember() {
                 },
                 body: {
                     projectId: props.projectId,
-                    email: inviteEmail.value,
+                    email: selectedMember.email,
                     marketing_role: inviteMarketingRole.value
                 }
             }
@@ -463,23 +513,25 @@ async function inviteMember() {
         
         if (data.success) {
             if (data.invitation?.addedDirectly) {
-                inviteMessage.value = `User added successfully`;
+                inviteMessage.value = `Member added successfully`;
                 // Refresh members list
                 emit('memberUpdated');
             } else {
-                inviteMessage.value = `Invitation sent to ${inviteEmail.value}`;
-                // Refresh invitations list
-                await fetchPendingInvitations();
+                inviteMessage.value = `Invitation sent to ${selectedMember.email}`;
+                // Refresh invitations list from store
+                await projectsStore.retrievePendingInvitations(props.projectId);
             }
-            inviteEmail.value = '';
+            selectedOrgMemberId.value = null;
             inviteMarketingRole.value = 'manager';
             inviteError.value = false;
         } else {
-            inviteMessage.value = data.message || 'Failed to send invitation';
+            inviteMessage.value = data.message || 'Failed to add member';
             inviteError.value = true;
         }
     } catch (error: any) {
-        inviteMessage.value = error.message || 'Failed to send invitation';
+        // Show helpful error message for org membership validation
+        const errorMsg = error.data?.message || error.message || 'Failed to add member';
+        inviteMessage.value = errorMsg;
         inviteError.value = true;
     }
 }

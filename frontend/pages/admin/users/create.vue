@@ -267,92 +267,82 @@ function resetForm() {
                 <form @submit.prevent="createUser" class="space-y-6">
                     <!-- Name Fields -->
                     <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-bold mb-2">First Name *</label>
-                            <input 
+                        <BaseFormField label="First Name" required>
+                            <BaseInput
                                 v-model="state.first_name"
-                                type="text"
-                                class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-primary-blue-100"
-                                :class="{ 'border-red-500 bg-red-50': state.errors.first_name }"
                                 placeholder="First Name"
+                                :error="state.errors.first_name"
                                 :disabled="state.loading"
                                 required
                             />
-                        </div>
-                        <div>
-                            <label class="block text-sm font-bold mb-2">Last Name *</label>
-                            <input 
+                        </BaseFormField>
+                        <BaseFormField label="Last Name" required>
+                            <BaseInput
                                 v-model="state.last_name"
-                                type="text"
-                                class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-primary-blue-100"
-                                :class="{ 'border-red-500 bg-red-50': state.errors.last_name }"
                                 placeholder="Last Name"
+                                :error="state.errors.last_name"
                                 :disabled="state.loading"
                                 required
                             />
-                        </div>
+                        </BaseFormField>
                     </div>
 
                     <!-- Email Field -->
-                    <div>
-                        <label class="block text-sm font-bold mb-2">Email Address *</label>
-                        <input 
+                    <BaseFormField label="Email Address" required>
+                        <BaseInput
                             v-model="state.email"
                             type="email"
-                            class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-primary-blue-100"
-                            :class="{ 'border-red-500 bg-red-50': state.errors.email }"
                             placeholder="Email Address"
+                            :error="state.errors.email"
                             :disabled="state.loading"
                             required
                         />
-                    </div>
+                    </BaseFormField>
 
                     <!-- Password Fields -->
                     <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-bold mb-2">Password *</label>
-                            <input 
+                        <BaseFormField 
+                            label="Password" 
+                            required
+                            hint="Must be at least 8 characters with uppercase, lowercase, number, and special character"
+                        >
+                            <BaseInput
                                 v-model="state.password"
                                 type="password"
-                                class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-primary-blue-100"
-                                :class="{ 'border-red-500 bg-red-50': state.errors.password }"
                                 placeholder="Password"
+                                :error="state.errors.password"
                                 :disabled="state.loading"
+                                :show-password-toggle="true"
                                 required
                             />
-                            <div class="text-xs text-gray-600 mt-1">
-                                Must be at least 8 characters with uppercase, lowercase, number, and special character
-                            </div>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-bold mb-2">Confirm Password *</label>
-                            <input 
+                        </BaseFormField>
+                        <BaseFormField label="Confirm Password" required>
+                            <BaseInput
                                 v-model="state.confirm_password"
                                 type="password"
-                                class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-primary-blue-100"
-                                :class="{ 'border-red-500 bg-red-50': state.errors.confirm_password }"
                                 placeholder="Confirm Password"
+                                :error="state.errors.confirm_password"
                                 :disabled="state.loading"
+                                :show-password-toggle="true"
                                 required
                             />
-                        </div>
+                        </BaseFormField>
                     </div>
 
                     <!-- User Type Field -->
-                    <div>
-                        <label class="block text-sm font-bold mb-2">User Type</label>
-                        <select 
+                    <BaseFormField 
+                        label="User Type"
+                        hint="Administrators have full access to the admin panel"
+                    >
+                        <BaseSelect
                             v-model="state.user_type"
-                            class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-primary-blue-100"
+                            :options="[
+                                { value: 'normal', label: 'Normal User' },
+                                { value: 'admin', label: 'Administrator' }
+                            ]"
                             :disabled="state.loading"
-                        >
-                            <option value="normal">Normal User</option>
-                            <option value="admin">Administrator</option>
-                        </select>
-                        <div class="text-xs text-gray-600 mt-1">
-                            Administrators have full access to the admin panel
-                        </div>
-                    </div>
+                        />
+                    </BaseFormField>
 
                     <!-- Action Buttons -->
                     <div class="flex flex-wrap gap-4 pt-6 border-t">

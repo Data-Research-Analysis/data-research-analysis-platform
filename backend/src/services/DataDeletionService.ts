@@ -6,7 +6,6 @@ import { DRADataSource } from "../models/DRADataSource.js";
 import { DRADataModel } from "../models/DRADataModel.js";
 import { DRADashboard } from "../models/DRADashboard.js";
 import { DRANotification } from "../models/DRANotification.js";
-import { DRAUserSubscription } from "../models/DRAUserSubscription.js";
 import { FilesService } from "./FilesService.js";
 import { getRedisClient } from "../config/redis.config.js";
 import { GoogleOAuthService } from "./GoogleOAuthService.js";
@@ -85,13 +84,10 @@ export class DataDeletionService {
             // 5. Delete notifications
             await this.deleteNotifications(userId, queryRunner.manager);
 
-            // 6. Delete user subscriptions
-            await this.deleteUserSubscriptions(userId, queryRunner.manager);
-
-            // 7. Delete OAuth sessions from Redis
+            // 6. Delete OAuth sessions from Redis
             await this.deleteOAuthSessions(userId);
 
-            // 8. Anonymize user record (keep for billing history)
+            // 7. Anonymize user record (keep for billing history)
             await this.anonymizeUserRecord(userId, queryRunner.manager);
 
             await queryRunner.commitTransaction();
@@ -302,20 +298,6 @@ export class DataDeletionService {
             console.log(`[DataDeletion] Deleted notifications for user ${userId}`);
         } catch (error) {
             console.error('[DataDeletion] Error in deleteNotifications:', error);
-            // Non-critical error, continue deletion
-        }
-    }
-
-    /**
-     * Delete user subscription records
-     */
-    private async deleteUserSubscriptions(userId: number, manager: any): Promise<void> {
-        try {
-            const subscriptionRepo = manager.getRepository(DRAUserSubscription);
-            await subscriptionRepo.delete({ users_platform: { id: userId } });
-            console.log(`[DataDeletion] Deleted subscriptions for user ${userId}`);
-        } catch (error) {
-            console.error('[DataDeletion] Error in deleteUserSubscriptions:', error);
             // Non-critical error, continue deletion
         }
     }

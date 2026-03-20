@@ -3,10 +3,21 @@ import type { IProject } from '~/types/IProject';
 
 let initialized = false;
 
+interface IPendingInvitation {
+    id: number;
+    project_id: number;
+    invited_email: string;
+    marketing_role: string;
+    status: string;
+    expires_at: string;
+    created_at: string;
+}
+
 export const useProjectsStore = defineStore('projectsDRA', () => {
     const projects = ref<IProject[]>([])
     const selectedProject = ref<IProject>()
     const myProjectRole = ref<'analyst' | 'manager' | 'cmo' | null>(null)
+    const pendingInvitations = ref<Record<number, IPendingInvitation[]>>({})
     
     function setProjects(projectsList: IProject[]) {
         console.log('[ProjectsStore] setProjects called with', projectsList.length, 'projects');
@@ -68,11 +79,17 @@ export const useProjectsStore = defineStore('projectsDRA', () => {
         }
         const url = `${baseUrl()}/project/list`;
         console.log('[ProjectsStore] Fetching projects from API...');
+        
+        // Get organization context headers
+        const { getOrgHeaders } = useOrganizationContext();
+        const orgHeaders = getOrgHeaders();
+        
         const data = await $fetch(url, {
             method: "GET",
             headers: {
                 "Authorization": `Bearer ${token}`,
                 "Authorization-Type": "auth",
+                ...orgHeaders,
             },
         });
         console.log('[ProjectsStore] API returned', Array.isArray(data) ? data.length : 'non-array', 'projects');
@@ -87,10 +104,65 @@ export const useProjectsStore = defineStore('projectsDRA', () => {
         }
         return selectedProject.value
     }
+    function setPendingInvitations(projectId: number, invitations: IPendingInvitation[]) {
+        console.log('[ProjectsStore] setPendingInvitations for project', projectId, 'with', invitations.length, 'invitations');
+        pendingInvitations.value[projectId] = invitations;
+        
+        if (import.meta.client) {
+            try {
+                localStorage.setItem('pendingInvitations', JSON.stringify(pendingInvitations.value));
+            } catch (error: any) {
+                if (error.name === 'QuotaExceededError') {
+                    console.warn('[ProjectsStore] localStorage quota exceeded for pending invitations');
+                } else {
+                    console.error('[ProjectsStore] Error saving pending invitations:', error);
+                }
+            }
+        }
+    }
+    
+    async function retrievePendingInvitations(projectId: number) {
+        console.log('[ProjectsStore] retrievePendingInvitations for project', projectId);
+        const token = getAuthToken();
+        if (!token) {
+            console.log('[ProjectsStore] No token, cannot fetch invitations');
+            return;
+        }
+        
+        const url = `${baseUrl()}/project-invitations/project/${projectId}`;
+        console.log('[ProjectsStore] Fetching pending invitations from API...');
+        
+        try {
+            const data = await $fetch<{success: boolean, invitations: any[]}>(url, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Authorization-Type': 'auth',
+                }
+            });
+            
+            if (data.success) {
+                console.log('[ProjectsStore] API returned', data.invitations?.length || 0, 'invitations');
+                setPendingInvitations(projectId, data.invitations || []);
+            } else {
+                setPendingInvitations(projectId, []);
+            }
+        } catch (error) {
+            console.error('[ProjectsStore] Failed to fetch pending invitations:', error);
+            throw error;
+        }
+    }
+    
+    function getPendingInvitations(projectId: number): IPendingInvitation[] {
+        return pendingInvitations.value[projectId] || [];
+    }
+    
     function clearProjects() {
         projects.value = []
+        pendingInvitations.value = {}
         if (import.meta.client) {
             localStorage.removeItem('projects');
+            localStorage.removeItem('pendingInvitations');
             enableRefreshDataFlag('clearProjects');
         }
     }
@@ -116,6 +188,12 @@ export const useProjectsStore = defineStore('projectsDRA', () => {
         } else {
             projects.value = cached;
         }
+        
+        // Restore pending invitations if available
+        if (localStorage.getItem('pendingInvitations')) {
+            pendingInvitations.value = JSON.parse(localStorage.getItem('pendingInvitations') || '{}');
+        }
+        
         initialized = true;
     }
     
@@ -123,10 +201,14 @@ export const useProjectsStore = defineStore('projectsDRA', () => {
         projects,
         selectedProject,
         myProjectRole,
+        pendingInvitations,
         setProjects,
         setSelectedProject,
+        setPendingInvitations,
         getProjects,
         retrieveProjects,
+        retrievePendingInvitations,
+        getPendingInvitations,
         clearProjects,
         getSelectedProject,
         clearSelectedProject

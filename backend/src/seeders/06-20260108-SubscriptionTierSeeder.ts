@@ -82,14 +82,18 @@ export class SubscriptionTierSeeder extends Seeder {
                 await tierRepo.save(tier);
                 console.log(`✅ Created tier: ${tierData.tier_name}`);
             } else {
-                // Update price_per_year_usd on existing tiers so the new column is populated
-                if (existing.price_per_year_usd === null || existing.price_per_year_usd === undefined) {
-                    existing.price_per_year_usd = tierData.price_per_year_usd ?? null;
-                    await tierRepo.save(existing);
-                    console.log(`✅ Updated price_per_year_usd for tier: ${tierData.tier_name}`);
-                } else {
-                    console.log(`⏭️  Tier already exists: ${tierData.tier_name}`);
-                }
+                // Update all tier properties to keep seed data as source of truth
+                existing.max_rows_per_data_model = tierData.max_rows_per_data_model;
+                existing.max_projects = tierData.max_projects;
+                existing.max_data_sources_per_project = tierData.max_data_sources_per_project;
+                existing.max_dashboards = tierData.max_dashboards;
+                existing.max_data_models_per_data_source = tierData.max_data_models_per_data_source;
+                existing.max_members_per_project = tierData.max_members_per_project;
+                existing.ai_generations_per_month = tierData.ai_generations_per_month;
+                existing.price_per_month_usd = tierData.price_per_month_usd;
+                existing.price_per_year_usd = tierData.price_per_year_usd ?? null;
+                await tierRepo.save(existing);
+                console.log(`✅ Updated tier: ${tierData.tier_name}`);
             }
         }
 

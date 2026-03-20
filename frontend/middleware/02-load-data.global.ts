@@ -6,6 +6,7 @@ import { useArticlesStore } from '@/stores/articles';
 import { useLoggedInUserStore } from "@/stores/logged_in_user";
 import { useUserManagementStore } from '@/stores/user_management';
 import { useEnterpriseQueryStore } from '@/stores/enterprise_queries';
+import { useOrganizationsStore } from '@/stores/organizations';
 
 /**
  * Global middleware to load necessary data before pages render
@@ -140,6 +141,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
   const articlesStore = useArticlesStore();
   const userManagementStore = useUserManagementStore();
   const enterpriseQueryStore = useEnterpriseQueryStore();
+  const organizationsStore = useOrganizationsStore();
 
   try {
     // OPTIMIZATION: Skip data loading for public routes
@@ -157,6 +159,34 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
           currentProjectsCount: projectsStore.projects.length
         });
         
+        // === ORGANIZATIONS - Load for all authenticated routes ===
+        // Organizations are needed for the organization switcher in header
+        if (shouldRefreshData('organizations')) {
+          console.log('[load-data] Loading organizations');
+          loadTasks.push((async () => {
+            await organizationsStore.retrieveOrganizations();
+            markDataLoaded('organizations');
+            
+            // After loading organizations, load workspaces for the selected organization
+            const selectedOrg = organizationsStore.getSelectedOrganization();
+            if (selectedOrg && shouldRefreshData('workspaces')) {
+              console.log('[load-data] Loading workspaces for organization', selectedOrg.id);
+              await organizationsStore.retrieveWorkspaces(selectedOrg.id);
+              markDataLoaded('workspaces');
+            }
+          })());
+        } else {
+          // If organizations are already loaded, still check if we need to refresh workspaces
+          const selectedOrg = organizationsStore.getSelectedOrganization();
+          if (selectedOrg && shouldRefreshData('workspaces')) {
+            console.log('[load-data] Loading workspaces for cached organization', selectedOrg.id);
+            loadTasks.push((async () => {
+              await organizationsStore.retrieveWorkspaces(selectedOrg.id);
+              markDataLoaded('workspaces');
+            })());
+          }
+        }
+        
         // === PROJECT ROUTES ===
         if (isProjectListRoute(to.path)) {
           // Only load projects for list page
@@ -165,6 +195,20 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
             loadTasks.push((async () => {
               await projectsStore.retrieveProjects();
               markDataLoaded('projects');
+              
+              // Pre-load organization members for the first project's organization
+              // This covers the common case where user opens a project dialog
+              if (projectsStore.projects.length > 0) {
+                const firstProject = projectsStore.projects[0];
+                if (firstProject.organization_id) {
+                  console.log('[load-data] Pre-loading organization members for first project org', firstProject.organization_id);
+                  try {
+                    await organizationsStore.retrieveOrganizationMembers(firstProject.organization_id);
+                  } catch (error) {
+                    console.error('[load-data] Failed to pre-load organization members:', error);
+                  }
+                }
+              }
             })());
           }
         } else if (isProjectDetailRoute(to.path)) {
@@ -348,6 +392,27 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
               }
             })()
           );
+          
+          // Load organization members and pending invitations for project settings/members management
+          if (projectId && !isNaN(projectId)) {
+            loadTasks.push(
+              (async () => {
+                // First ensure projects are loaded to get organization_id
+                if (projectsStore.projects.length === 0) {
+                  await projectsStore.retrieveProjects();
+                }
+                const project = projectsStore.projects.find(p => p.id === projectId);
+                if (project?.organization_id) {
+                  console.log('[load-data] Loading organization members for project', projectId);
+                  await organizationsStore.retrieveOrganizationMembers(project.organization_id);
+                }
+              })(),
+              (async () => {
+                console.log('[load-data] Loading pending invitations for project', projectId);
+                await projectsStore.retrievePendingInvitations(projectId);
+              })()
+            );
+          }
         }
         
         // === ADMIN ROUTES ===
