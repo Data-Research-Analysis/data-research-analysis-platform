@@ -195,6 +195,20 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
             loadTasks.push((async () => {
               await projectsStore.retrieveProjects();
               markDataLoaded('projects');
+              
+              // Pre-load organization members for the first project's organization
+              // This covers the common case where user opens a project dialog
+              if (projectsStore.projects.length > 0) {
+                const firstProject = projectsStore.projects[0];
+                if (firstProject.organization_id) {
+                  console.log('[load-data] Pre-loading organization members for first project org', firstProject.organization_id);
+                  try {
+                    await organizationsStore.retrieveOrganizationMembers(firstProject.organization_id);
+                  } catch (error) {
+                    console.error('[load-data] Failed to pre-load organization members:', error);
+                  }
+                }
+              }
             })());
           }
         } else if (isProjectDetailRoute(to.path)) {
@@ -378,6 +392,27 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
               }
             })()
           );
+          
+          // Load organization members and pending invitations for project settings/members management
+          if (projectId && !isNaN(projectId)) {
+            loadTasks.push(
+              (async () => {
+                // First ensure projects are loaded to get organization_id
+                if (projectsStore.projects.length === 0) {
+                  await projectsStore.retrieveProjects();
+                }
+                const project = projectsStore.projects.find(p => p.id === projectId);
+                if (project?.organization_id) {
+                  console.log('[load-data] Loading organization members for project', projectId);
+                  await organizationsStore.retrieveOrganizationMembers(project.organization_id);
+                }
+              })(),
+              (async () => {
+                console.log('[load-data] Loading pending invitations for project', projectId);
+                await projectsStore.retrievePendingInvitations(projectId);
+              })()
+            );
+          }
         }
         
         // === ADMIN ROUTES ===

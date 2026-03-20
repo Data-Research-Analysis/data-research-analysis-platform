@@ -134,8 +134,8 @@
                                 <tbody class="bg-white divide-y divide-gray-200">
                                     <tr v-for="member in members" :key="member.id">
                                         <td class="px-6 py-4 whitespace-nowrap">
-                                            <div class="text-sm font-medium text-gray-900">{{ member.user_email }}</div>
-                                            <div class="text-sm text-gray-500">{{ member.user_name }}</div>
+                                            <div class="text-sm font-medium text-gray-900">{{ member.user?.email || 'N/A' }}</div>
+                                            <div class="text-sm text-gray-500">{{ member.user?.first_name }} {{ member.user?.last_name }}</div>
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             <span :class="getRoleBadgeClass(member.role)" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full">
@@ -143,12 +143,12 @@
                                             </span>
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            {{ formatDate(member.joined_at) }}
+                                            {{ formatDate(member.joined_at.toString()) }}
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                             <button
                                                 v-if="member.role !== 'owner' && isOwnerOrAdmin"
-                                                @click="removeMember(member.users_platform_id)"
+                                                @click="removeMember(member.user_id)"
                                                 class="text-red-600 hover:text-red-900"
                                             >
                                                 Remove
@@ -157,6 +157,53 @@
                                     </tr>
                                 </tbody>
                             </table>
+                        </div>
+
+                        <!-- Pending Invitations Section -->
+                        <div v-if="pendingOrgInvitations.length > 0" class="mt-8">
+                            <h3 class="text-lg font-medium text-gray-900 mb-4">Pending Invitations</h3>
+                            <div class="space-y-3">
+                                <div 
+                                    v-for="invite in pendingOrgInvitations" 
+                                    :key="invite.id"
+                                    class="p-4 bg-amber-50 border border-amber-200 rounded-lg"
+                                >
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex-1">
+                                            <div class="flex items-center gap-2 mb-1">
+                                                <font-awesome-icon :icon="['fas', 'envelope']" class="text-amber-600" />
+                                                <span class="text-sm font-medium text-gray-900">{{ invite.invited_email }}</span>
+                                                <span :class="getRoleBadgeClass(invite.role)" class="px-2 py-0.5 text-xs leading-5 font-semibold rounded-full">
+                                                    {{ invite.role }}
+                                                </span>
+                                            </div>
+                                            <div class="text-xs text-gray-600">
+                                                <span>Invited by {{ invite.inviter_name || 'Unknown' }}</span>
+                                                <span class="mx-2">•</span>
+                                                <span>Expires {{ formatDate(invite.expires_at) }}</span>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <button
+                                                @click="resendOrgInvitation(invite.id)"
+                                                :disabled="resendingInviteId === invite.id"
+                                                class="px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-100 rounded hover:bg-blue-200 disabled:opacity-50 cursor-pointer"
+                                            >
+                                                <font-awesome-icon v-if="resendingInviteId === invite.id" :icon="['fas', 'spinner']" class="animate-spin mr-1" />
+                                                Resend
+                                            </button>
+                                            <button
+                                                @click="cancelOrgInvitation(invite.id)"
+                                                :disabled="cancellingInviteId === invite.id"
+                                                class="px-3 py-1.5 text-xs font-medium text-red-700 bg-red-100 rounded hover:bg-red-200 disabled:opacity-50 cursor-pointer"
+                                            >
+                                                <font-awesome-icon v-if="cancellingInviteId === invite.id" :icon="['fas', 'spinner']" class="animate-spin mr-1" />
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -198,29 +245,16 @@
         <!-- Invite Member Modal -->
         <overlay-dialog v-if="showInviteModal" @close="showInviteModal = false" :y-offset="100">
             <template v-slot:overlay>
-                <h3 class="text-2xl font-bold text-gray-900 mb-6">Add Team Member</h3>
+                <h3 class="text-2xl font-bold text-gray-900 mb-6">Invite Team Member</h3>
                 
-                <!-- Coming Soon Notice -->
-                <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <div class="flex items-start gap-3">
-                        <font-awesome-icon :icon="['fas', 'info-circle']" class="text-blue-600 mt-0.5 flex-shrink-0" />
-                        <div>
-                            <h4 class="text-sm font-semibold text-blue-900 mb-1">Email Invitations Coming Soon</h4>
-                            <p class="text-sm text-blue-800">
-                                Email-based organization invitations are currently in development. For now, you can add existing platform users by their User ID.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
                 <form @submit.prevent="inviteMember" class="space-y-6">
-                    <BaseFormField label="User ID" required hint="The ID of an existing platform user">
+                    <BaseFormField label="Email Address" required hint="Enter the email address of the person you want to invite">
                         <BaseInput
-                            id="invite-user-id"
-                            v-model="inviteUserId"
-                            type="number"
+                            id="invite-email"
+                            v-model="inviteEmail"
+                            type="email"
                             required
-                            placeholder="Enter user ID"
+                            placeholder="colleague@company.com"
                         />
                     </BaseFormField>
                     
@@ -241,7 +275,7 @@
                         </button>
                         <button type="submit" :disabled="isInviting" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 cursor-pointer">
                             <font-awesome-icon v-if="isInviting" :icon="['fas', 'spinner']" class="animate-spin mr-2" />
-                            Add Member
+                            Send Invitation
                         </button>
                     </div>
                 </form>
@@ -264,7 +298,7 @@ const route = useRoute();
 const router = useRouter();
 const organizationsStore = useOrganizationsStore();
 const config = useRuntimeConfig();
-const { $swal } = useNuxtApp();
+const { $swal } = useNuxtApp() as any;
 
 const orgId = computed(() => parseInt(route.params.orgid as string));
 
@@ -275,11 +309,15 @@ const isInviting = ref(false);
 const error = ref<string | null>(null);
 const activeTab = ref('general');
 const showInviteModal = ref(false);
-const inviteUserId = ref('');
+const inviteEmail = ref('');
 const inviteRole = ref('member');
 
 const organization = ref<IOrganization | null>(null);
 const members = ref<IOrganizationMember[]>([]);
+const pendingOrgInvitations = ref<any[]>([]);
+const loadingInvitations = ref(false);
+const resendingInviteId = ref<number | null>(null);
+const cancellingInviteId = ref<number | null>(null);
 const usage = ref<IOrganizationUsage | null>(null);
 const subscription = ref<any>(null);
 
@@ -334,7 +372,8 @@ async function loadOrganization() {
 
         await Promise.all([
             loadMembers(),
-            loadUsage()
+            loadUsage(),
+            loadPendingInvitations()
         ]);
     } catch (e: any) {
         console.error('Failed to load organization:', e);
@@ -349,7 +388,7 @@ async function loadMembers() {
     if (!token) return;
 
     try {
-        const response = await $fetch<{ success: boolean; data: IOrganizationMember[] }>(
+        const response = await $fetch<{ success: boolean; members: any[] }>(
             `${config.public.apiBase}/organizations/${orgId.value}/members`,
             {
                 headers: {
@@ -360,8 +399,23 @@ async function loadMembers() {
             }
         );
 
-        if (response.success && response.data) {
-            members.value = response.data;
+        if (response.success && response.members) {
+            // Map API response to IOrganizationMember format
+            members.value = response.members.map((m: any) => ({
+                id: m.id,
+                organization_id: orgId.value,
+                user_id: m.users_platform_id,
+                role: m.role || 'member',
+                joined_at: new Date(m.joined_at || m.created_at),
+                invited_by: m.invited_by || null,
+                is_active: m.is_active !== false,
+                user: {
+                    id: m.users_platform_id,
+                    email: m.user_email,
+                    first_name: m.user_first_name || m.user_name?.split(' ')[0] || '',
+                    last_name: m.user_last_name || m.user_name?.split(' ').slice(1).join(' ') || '',
+                }
+            }));
         }
     } catch (e) {
         console.error('Failed to load members:', e);
@@ -437,6 +491,33 @@ async function updateGeneral() {
     }
 }
 
+async function loadPendingInvitations() {
+    const token = getAuthToken();
+    if (!token) return;
+
+    try {
+        loadingInvitations.value = true;
+        const response = await $fetch<{ success: boolean; invitations: any[] }>(
+            `${config.public.apiBase}/organization-invitations/org/${orgId.value}`,
+            {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Authorization-Type': 'auth',
+                    'X-Organization-Id': orgId.value.toString()
+                }
+            }
+        );
+
+        if (response.success) {
+            pendingOrgInvitations.value = response.invitations;
+        }
+    } catch (e) {
+        console.error('Failed to load invitations:', e);
+    } finally {
+        loadingInvitations.value = false;
+    }
+}
+
 async function inviteMember() {
     const token = getAuthToken();
     if (!token) return;
@@ -444,7 +525,7 @@ async function inviteMember() {
     try {
         isInviting.value = true;
 
-        await $fetch(`${config.public.apiBase}/organizations/${orgId.value}/members`, {
+        await $fetch(`${config.public.apiBase}/organization-invitations`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -453,22 +534,23 @@ async function inviteMember() {
                 'Content-Type': 'application/json'
             },
             body: {
-                userId: parseInt(inviteUserId.value),
+                organizationId: orgId.value,
+                email: inviteEmail.value,
                 role: inviteRole.value
             }
         });
 
         // Reload members and usage
-        await Promise.all([loadMembers(), loadUsage()]);
+        await Promise.all([loadMembers(), loadUsage(), loadPendingInvitations()]);
 
         // Reset form and close modal
-        inviteUserId.value = '';
+        inviteEmail.value = '';
         inviteRole.value = 'member';
         showInviteModal.value = false;
 
         $swal.fire({
             title: 'Success',
-            text: 'Member added successfully',
+            text: 'Invitation sent successfully',
             icon: 'success',
             confirmButtonColor: '#3C8DBC'
         });
@@ -476,12 +558,94 @@ async function inviteMember() {
         console.error('Failed to invite member:', e);
         $swal.fire({
             title: 'Error',
-            text: e.data?.error || e.message || 'Failed to add member',
+            text: e.data?.message || e.message || 'Failed to send invitation',
             icon: 'error',
             confirmButtonColor: '#3C8DBC'
         });
     } finally {
         isInviting.value = false;
+    }
+}
+
+async function resendOrgInvitation(inviteId: number) {
+    const token = getAuthToken();
+    if (!token) return;
+
+    try {
+        resendingInviteId.value = inviteId;
+
+        await $fetch(`${config.public.apiBase}/organization-invitations/resend/${inviteId}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Authorization-Type': 'auth',
+                'X-Organization-Id': orgId.value.toString()
+            }
+        });
+
+        $swal.fire({
+            title: 'Success',
+            text: 'Invitation resent',
+            icon: 'success',
+            confirmButtonColor: '#3C8DBC'
+        });
+    } catch (e: any) {
+        $swal.fire({
+            title: 'Error',
+            text: e.data?.message || 'Failed to resend invitation',
+            icon: 'error',
+            confirmButtonColor: '#3C8DBC'
+        });
+    } finally {
+        resendingInviteId.value = null;
+    }
+}
+
+async function cancelOrgInvitation(inviteId: number) {
+    const { value: confirmed } = await $swal.fire({
+        title: 'Cancel Invitation?',
+        text: 'This will revoke the invitation link',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#DD4B39',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Yes, cancel it'
+    });
+
+    if (!confirmed) return;
+
+    const token = getAuthToken();
+    if (!token) return;
+
+    try {
+        cancellingInviteId.value = inviteId;
+
+        await $fetch(`${config.public.apiBase}/organization-invitations/${inviteId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Authorization-Type': 'auth',
+                'X-Organization-Id': orgId.value.toString()
+            }
+        });
+
+        await loadPendingInvitations();
+
+        $swal.fire({
+            title: 'Success',
+            text: 'Invitation cancelled',
+            icon: 'success',
+            confirmButtonColor: '#3C8DBC'
+        });
+    } catch (e: any) {
+        $swal.fire({
+            title: 'Error',
+            text: e.data?.message || 'Failed to cancel invitation',
+            icon: 'error',
+            confirmButtonColor: '#3C8DBC'
+        });
+    } finally {
+        cancellingInviteId.value = null;
     }
 }
 

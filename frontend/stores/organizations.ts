@@ -14,7 +14,7 @@
  */
 
 import { defineStore } from 'pinia';
-import type { IOrganization, IOrganizationUsage } from '~/types/IOrganization';
+import type { IOrganization, IOrganizationMember, IOrganizationUsage } from '~/types/IOrganization';
 import type { IWorkspace } from '~/types/IWorkspace';
 
 let initialized = false;
@@ -24,6 +24,7 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
     const selectedOrganization = ref<IOrganization | null>(null);
     const currentWorkspaces = ref<IWorkspace[]>([]);
     const selectedWorkspace = ref<IWorkspace | null>(null);
+    const organizationMembers = ref<Record<number, IOrganizationMember[]>>({});
     
     /**
      * Set organizations list from API response
@@ -101,6 +102,26 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
                     console.warn('[OrganizationsStore] localStorage quota exceeded for workspaces');
                 } else {
                     console.error('[OrganizationsStore] Error saving workspaces:', error);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Set organization members for a specific organization
+     */
+    function setOrganizationMembers(organizationId: number, members: IOrganizationMember[]) {
+        console.log('[OrganizationsStore] setOrganizationMembers for org', organizationId, 'with', members.length, 'members');
+        organizationMembers.value[organizationId] = members;
+        
+        if (import.meta.client) {
+            try {
+                localStorage.setItem('organizationMembers', JSON.stringify(organizationMembers.value));
+            } catch (error: any) {
+                if (error.name === 'QuotaExceededError') {
+                    console.warn('[OrganizationsStore] localStorage quota exceeded for organization members');
+                } else {
+                    console.error('[OrganizationsStore] Error saving organization members:', error);
                 }
             }
         }
@@ -209,6 +230,59 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
     }
     
     /**
+     * Fetch members for a specific organization
+     */
+    async function retrieveOrganizationMembers(organizationId: number) {
+        console.log('[OrganizationsStore] retrieveOrganizationMembers for org', organizationId);
+        const token = getAuthToken();
+        if (!token) {
+            console.log('[OrganizationsStore] No token, cannot fetch members');
+            return;
+        }
+        
+        const config = useRuntimeConfig();
+        const url = `${config.public.apiBase}/organizations/${organizationId}/members`;
+        console.log('[OrganizationsStore] Fetching organization members from API...');
+        
+        try {
+            const response = await $fetch<{ success: boolean; members: any[] }>(url, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Authorization-Type': 'auth',
+                    'X-Organization-Id': organizationId.toString(),
+                },
+            });
+            
+            if (response.success && response.members) {
+                const members: IOrganizationMember[] = response.members.map((m: any) => ({
+                    id: m.id,
+                    organization_id: organizationId,
+                    user_id: m.users_platform_id,
+                    role: m.role || 'member',
+                    joined_at: new Date(m.joined_at || m.created_at),
+                    invited_by: m.invited_by || null,
+                    is_active: m.is_active !== false,
+                    user: {
+                        id: m.users_platform_id,
+                        email: m.user_email,
+                        first_name: m.user_first_name || m.user_name?.split(' ')[0] || '',
+                        last_name: m.user_last_name || m.user_name?.split(' ').slice(1).join(' ') || '',
+                    }
+                }));
+                
+                console.log('[OrganizationsStore] API returned', members.length, 'members');
+                setOrganizationMembers(organizationId, members);
+            } else {
+                setOrganizationMembers(organizationId, []);
+            }
+        } catch (error) {
+            console.error('[OrganizationsStore] Failed to fetch organization members:', error);
+            throw error;
+        }
+    }
+    
+    /**
      * Get organizations (returns current value, use retrieveOrganizations to refresh from API)
      */
     function getOrganizations() {
@@ -248,6 +322,13 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
     }
     
     /**
+     * Get members for a specific organization
+     */
+    function getOrganizationMembers(organizationId: number): IOrganizationMember[] {
+        return organizationMembers.value[organizationId] || [];
+    }
+    
+    /**
      * Clear all organization data (on logout)
      */
     function clearOrganizations() {
@@ -255,12 +336,14 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
         selectedOrganization.value = null;
         currentWorkspaces.value = [];
         selectedWorkspace.value = null;
+        organizationMembers.value = {};
         
         if (import.meta.client) {
             localStorage.removeItem('organizations');
             localStorage.removeItem('selectedOrganization');
             localStorage.removeItem('currentWorkspaces');
             localStorage.removeItem('selectedWorkspace');
+            localStorage.removeItem('organizationMembers');
             enableRefreshDataFlag('clearOrganizations');
         }
     }
@@ -282,6 +365,9 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
         if (localStorage.getItem('selectedWorkspace')) {
             selectedWorkspace.value = JSON.parse(localStorage.getItem('selectedWorkspace') || 'null');
         }
+        if (localStorage.getItem('organizationMembers')) {
+            organizationMembers.value = JSON.parse(localStorage.getItem('organizationMembers') || '{}');
+        }
         
         initialized = true;
     }
@@ -292,18 +378,22 @@ export const useOrganizationsStore = defineStore('organizationsDRA', () => {
         selectedOrganization,
         currentWorkspaces,
         selectedWorkspace,
+        organizationMembers,
         
         // Actions
         setOrganizations,
         setSelectedOrganization,
         setWorkspaces,
         setSelectedWorkspace,
+        setOrganizationMembers,
         retrieveOrganizations,
         retrieveWorkspaces,
+        retrieveOrganizationMembers,
         getOrganizations,
         getSelectedOrganization,
         getWorkspaces,
         getSelectedWorkspace,
+        getOrganizationMembers,
         clearOrganizations,
     };
 });
