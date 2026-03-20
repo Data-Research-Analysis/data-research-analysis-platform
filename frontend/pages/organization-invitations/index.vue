@@ -100,7 +100,7 @@ definePageMeta({
 
 const config = useRuntimeConfig();
 const router = useRouter();
-const $swal = inject('$swal') as any;
+const { $swal } = useNuxtApp();
 
 const invitations = ref<any[]>([]);
 const isLoading = ref(true);
