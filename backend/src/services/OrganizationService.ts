@@ -188,7 +188,13 @@ export class OrganizationService {
                 user: { id: userId },
                 is_active: true
             },
-            relations: ['organization', 'organization.subscription', 'organization.subscription.subscription_tier']
+            relations: [
+                'organization',
+                'organization.subscription',
+                'organization.subscription.subscription_tier',
+                'organization.members',
+                'organization.members.user'
+            ]
         });
 
         // Map organizations and attach user's role for each

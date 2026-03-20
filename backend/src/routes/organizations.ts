@@ -181,7 +181,7 @@ router.get(
 
             res.status(200).json({
                 success: true,
-                data: formattedMembers
+                members: formattedMembers
             });
         } catch (error: any) {
             res.status(500).json({
