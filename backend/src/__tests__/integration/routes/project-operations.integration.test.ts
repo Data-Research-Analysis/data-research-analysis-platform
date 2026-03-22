@@ -10,6 +10,8 @@ import { EUserType } from '../../../types/EUserType.js';
  */
 describe('Project Operations Integration Tests', () => {
     let mockProjectProcessor: any;
+    const testOrgId = 1;
+    const testWorkspaceId = 1;
     const testTokenDetails: ITokenDetails = {
         user_id: 1,
         email: 'test@test.com',
@@ -44,14 +46,18 @@ describe('Project Operations Integration Tests', () => {
             const result = await ProjectProcessor.getInstance().addProject(
                 'Sales Analytics',
                 'Q4 2025 sales data analysis',
-                testTokenDetails
+                testTokenDetails,
+                testOrgId,
+                testWorkspaceId
             );
 
             expect(result).toBe(true);
             expect(mockProjectProcessor.addProject).toHaveBeenCalledWith(
                 'Sales Analytics',
                 'Q4 2025 sales data analysis',
-                testTokenDetails
+                testTokenDetails,
+                testOrgId,
+                testWorkspaceId
             );
         });
 
@@ -61,14 +67,18 @@ describe('Project Operations Integration Tests', () => {
             const result = await ProjectProcessor.getInstance().addProject(
                 'Marketing Dashboard',
                 undefined,
-                testTokenDetails
+                testTokenDetails,
+                testOrgId,
+                testWorkspaceId
             );
 
             expect(result).toBe(true);
             expect(mockProjectProcessor.addProject).toHaveBeenCalledWith(
                 'Marketing Dashboard',
                 undefined,
-                testTokenDetails
+                testTokenDetails,
+                testOrgId,
+                testWorkspaceId
             );
         });
 
@@ -78,7 +88,9 @@ describe('Project Operations Integration Tests', () => {
             const result = await ProjectProcessor.getInstance().addProject(
                 'Failed Project',
                 'This should fail',
-                testTokenDetails
+                testTokenDetails,
+                testOrgId,
+                testWorkspaceId
             );
 
             expect(result).toBe(false);
@@ -90,7 +102,9 @@ describe('Project Operations Integration Tests', () => {
             const result = await ProjectProcessor.getInstance().addProject(
                 '',
                 'Empty name test',
-                testTokenDetails
+                testTokenDetails,
+                testOrgId,
+                testWorkspaceId
             );
 
             expect(result).toBe(false);
@@ -102,13 +116,17 @@ describe('Project Operations Integration Tests', () => {
             await ProjectProcessor.getInstance().addProject(
                 'User Project',
                 'Created by test user',
-                testTokenDetails
+                testTokenDetails,
+                testOrgId,
+                testWorkspaceId
             );
 
             expect(mockProjectProcessor.addProject).toHaveBeenCalledWith(
                 expect.any(String),
                 expect.any(String),
-                testTokenDetails
+                testTokenDetails,
+                testOrgId,
+                testWorkspaceId
             );
         });
     });
@@ -130,7 +148,7 @@ describe('Project Operations Integration Tests', () => {
         it('should handle empty project list', async () => {
             mockProjectProcessor.getProjects.mockResolvedValue([]);
 
-            const result = await ProjectProcessor.getInstance().getProjects(testTokenDetails);
+            const result = await ProjectProcessor.getInstance().getProjects(testTokenDetails, testOrgId, testWorkspaceId);
 
             expect(result).toEqual([]);
         });
@@ -141,7 +159,7 @@ describe('Project Operations Integration Tests', () => {
             ];
             mockProjectProcessor.getProjects.mockResolvedValue(mockProjects);
 
-            const result = await ProjectProcessor.getInstance().getProjects(testTokenDetails);
+            const result = await ProjectProcessor.getInstance().getProjects(testTokenDetails, testOrgId, testWorkspaceId);
 
             expect(result).toEqual(mockProjects);
             expect(result.every((p: any) => p.user_id === 1)).toBe(true);
@@ -160,7 +178,7 @@ describe('Project Operations Integration Tests', () => {
             ];
             mockProjectProcessor.getProjects.mockResolvedValue(mockProjects);
 
-            const result = await ProjectProcessor.getInstance().getProjects(testTokenDetails);
+            const result = await ProjectProcessor.getInstance().getProjects(testTokenDetails, testOrgId, testWorkspaceId);
 
             expect(result[0]).toHaveProperty('id');
             expect(result[0]).toHaveProperty('name');
@@ -172,16 +190,16 @@ describe('Project Operations Integration Tests', () => {
         it('should successfully delete project', async () => {
             mockProjectProcessor.deleteProject.mockResolvedValue(true);
 
-            const result = await ProjectProcessor.getInstance().deleteProject(1, testTokenDetails);
+            const result = await ProjectProcessor.getInstance().deleteProject(1, testTokenDetails, testOrgId, testWorkspaceId);
 
             expect(result).toBe(true);
-            expect(mockProjectProcessor.deleteProject).toHaveBeenCalledWith(1, testTokenDetails);
+            expect(mockProjectProcessor.deleteProject).toHaveBeenCalledWith(1, testTokenDetails, testOrgId, testWorkspaceId);
         });
 
         it('should handle deletion failures', async () => {
             mockProjectProcessor.deleteProject.mockResolvedValue(false);
 
-            const result = await ProjectProcessor.getInstance().deleteProject(999, testTokenDetails);
+            const result = await ProjectProcessor.getInstance().deleteProject(999, testTokenDetails, testOrgId, testWorkspaceId);
 
             expect(result).toBe(false);
         });
@@ -189,7 +207,7 @@ describe('Project Operations Integration Tests', () => {
         it('should cascade delete associated data sources', async () => {
             mockProjectProcessor.deleteProject.mockResolvedValue(true);
 
-            const result = await ProjectProcessor.getInstance().deleteProject(1, testTokenDetails);
+            const result = await ProjectProcessor.getInstance().deleteProject(1, testTokenDetails, testOrgId, testWorkspaceId);
 
             expect(result).toBe(true);
             // Processor handles cascade internally
@@ -198,7 +216,7 @@ describe('Project Operations Integration Tests', () => {
         it('should cascade delete associated data models', async () => {
             mockProjectProcessor.deleteProject.mockResolvedValue(true);
 
-            const result = await ProjectProcessor.getInstance().deleteProject(1, testTokenDetails);
+            const result = await ProjectProcessor.getInstance().deleteProject(1, testTokenDetails, testOrgId, testWorkspaceId);
 
             expect(result).toBe(true);
             // Processor handles cascade internally
@@ -207,7 +225,7 @@ describe('Project Operations Integration Tests', () => {
         it('should cascade delete associated dashboards', async () => {
             mockProjectProcessor.deleteProject.mockResolvedValue(true);
 
-            const result = await ProjectProcessor.getInstance().deleteProject(1, testTokenDetails);
+            const result = await ProjectProcessor.getInstance().deleteProject(1, testTokenDetails, testOrgId, testWorkspaceId);
 
             expect(result).toBe(true);
             // Processor handles cascade internally
@@ -222,7 +240,7 @@ describe('Project Operations Integration Tests', () => {
             };
             mockProjectProcessor.deleteProject.mockResolvedValue(false);
 
-            const result = await ProjectProcessor.getInstance().deleteProject(1, unauthorizedUser);
+            const result = await ProjectProcessor.getInstance().deleteProject(1, unauthorizedUser, testOrgId, testWorkspaceId);
 
             expect(result).toBe(false);
         });
@@ -255,7 +273,9 @@ describe('Project Operations Integration Tests', () => {
             await ProjectProcessor.getInstance().addProject(
                 'Test <script>alert("xss")</script> Project',
                 'Description',
-                testTokenDetails
+                testTokenDetails,
+                testOrgId,
+                testWorkspaceId
             );
 
             // Validation happens in route layer, processor receives sanitized input
@@ -266,7 +286,7 @@ describe('Project Operations Integration Tests', () => {
             mockProjectProcessor.deleteProject.mockResolvedValue(false);
 
             // Type system prevents non-numeric IDs, but runtime validation exists
-            const result = await ProjectProcessor.getInstance().deleteProject(NaN, testTokenDetails);
+            const result = await ProjectProcessor.getInstance().deleteProject(NaN, testTokenDetails, testOrgId, testWorkspaceId);
 
             expect(result).toBe(false);
         });

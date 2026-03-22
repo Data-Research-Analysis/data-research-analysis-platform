@@ -32,6 +32,8 @@ describe('Cross-Organization Security', () => {
     let user2: DRAUsersPlatform;
     let org1Id: number;
     let org2Id: number;
+    let workspace1Id: number;
+    let workspace2Id: number;
     let org1Project: DRAProject;
     let org2Project: DRAProject;
     let freeTier: DRASubscriptionTier;
@@ -76,7 +78,6 @@ describe('Cross-Organization Security', () => {
         // Create organizations for each user
         const org1 = await organizationService.createOrganization({
             name: 'Test Organization 1',
-            slug: `test-org-1-${Date.now()}`,
             ownerId: user1.id,
             subscriptionTierId: freeTier.id
         });
@@ -84,7 +85,6 @@ describe('Cross-Organization Security', () => {
 
         const org2 = await organizationService.createOrganization({
             name: 'Test Organization 2',
-            slug: `test-org-2-${Date.now()}`,
             ownerId: user2.id,
             subscriptionTierId: freeTier.id
         });
@@ -99,6 +99,13 @@ describe('Cross-Organization Security', () => {
             .then(m => m.find(require('../../models/DRAWorkspace.js').DRAWorkspace, {
                 where: { organization: { id: org2Id } }
             })) as any[];
+        
+        workspace1Id = workspaces1[0]?.id;
+        workspace2Id = workspaces2[0]?.id;
+        
+        if (!workspace1Id || !workspace2Id) {
+            throw new Error('Workspaces not created automatically');
+        }
 
         // Create projects in each organization
         org1Project = manager.create(DRAProject, {
@@ -143,7 +150,8 @@ describe('Cross-Organization Security', () => {
         it('should allow access to own organization projects', async () => {
             const projects = await projectProcessor.getProjects(
                 { user_id: user1.id, user_type: EUserType.NORMAL, email: user1.email, iat: Math.floor(Date.now() / 1000) },
-                org1Id
+                org1Id,
+                workspace1Id
             );
             
             expect(projects).toBeDefined();
@@ -154,7 +162,8 @@ describe('Cross-Organization Security', () => {
         it('should NOT allow access to other organization projects', async () => {
             const projects = await projectProcessor.getProjects(
                 { user_id: user1.id, user_type: EUserType.NORMAL, email: user1.email, iat: Math.floor(Date.now() / 1000) },
-                org2Id // User 1 trying to access Org 2
+                org2Id, // User 1 trying to access Org 2
+                workspace2Id
             );
             
             // Should return empty array or not include org2's project
@@ -173,7 +182,7 @@ describe('Cross-Organization Security', () => {
     describe('Project Isolation', () => {
         it('should filter projects by organization_id', async () => {
             // Get all projects for user1 in org1
-            const org1Projects = await projectProcessor.getProjects({ user_id: user1.id, user_type: EUserType.NORMAL, email: user1.email, iat: Math.floor(Date.now() / 1000) }, org1Id);
+            const org1Projects = await projectProcessor.getProjects({ user_id: user1.id, user_type: EUserType.NORMAL, email: user1.email, iat: Math.floor(Date.now() / 1000) }, org1Id, workspace1Id);
             
             // Verify ALL returned projects belong to org1
             for (const project of org1Projects) {
@@ -185,7 +194,8 @@ describe('Cross-Organization Security', () => {
             // User 1 tries to get projects from Org 2
             const projects = await projectProcessor.getProjects(
                 { user_id: user1.id, user_type: EUserType.NORMAL, email: user1.email, iat: Math.floor(Date.now() / 1000) },
-                org2Id
+                org2Id,
+                workspace2Id
             );
             
             // Should not include org2's project

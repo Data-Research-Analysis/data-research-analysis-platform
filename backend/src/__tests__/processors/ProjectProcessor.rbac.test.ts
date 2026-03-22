@@ -3,6 +3,8 @@ import { ProjectProcessor } from '../../processors/ProjectProcessor.js';
 import { DRAProject } from '../../models/DRAProject.js';
 import { DRAProjectMember } from '../../models/DRAProjectMember.js';
 import { DRAUsersPlatform } from '../../models/DRAUsersPlatform.js';
+import { DRAOrganization } from '../../models/DRAOrganization.js';
+import { DRAWorkspace } from '../../models/DRAWorkspace.js';
 import { EProjectRole } from '../../types/EProjectRole.js';
 import { ITokenDetails } from '../../types/ITokenDetails.js';
 import { EUserType } from '../../types/EUserType.js';
@@ -14,6 +16,8 @@ import { EUserType } from '../../types/EUserType.js';
  */
 describe('ProjectProcessor RBAC Tests', () => {
     let projectProcessor: ProjectProcessor;
+    let testOrg: DRAOrganization;
+    let testWorkspace: DRAWorkspace;
     let ownerUser: DRAUsersPlatform;
     let adminUser: DRAUsersPlatform;
     let editorUser: DRAUsersPlatform;
@@ -76,12 +80,30 @@ describe('ProjectProcessor RBAC Tests', () => {
             user_type: EUserType.NORMAL
         });
         await manager.save(nonMemberUser);
+        
+        // Create test organization
+        testOrg = manager.create(DRAOrganization, {
+            name: `RBAC Test Org ${Date.now()}`,
+            owner_id: ownerUser.id,
+            created_at: new Date()
+        });
+        await manager.save(testOrg);
+        
+        // Create test workspace
+        testWorkspace = manager.create(DRAWorkspace, {
+            name: `RBAC Test Workspace ${Date.now()}`,
+            organization: testOrg,
+            created_at: new Date()
+        });
+        await manager.save(testWorkspace);
 
         // Create test project
         testProject = manager.create(DRAProject, {
             name: `RBAC Test Project ${Date.now()}`,
             description: 'Testing RBAC',
             users_platform: ownerUser,
+            organization_id: testOrg.id,
+            workspace_id: testWorkspace.id,
             created_at: new Date()
         });
         await manager.save(testProject);
@@ -141,6 +163,14 @@ describe('ProjectProcessor RBAC Tests', () => {
         if (testProject) {
             await manager.remove(testProject);
         }
+        
+        // Clean up workspace and organization
+        if (testWorkspace) {
+            await manager.remove(testWorkspace);
+        }
+        if (testOrg) {
+            await manager.remove(testOrg);
+        }
 
         // Clean up users
         const users = [ownerUser, adminUser, editorUser, viewerUser, nonMemberUser];
@@ -166,7 +196,7 @@ describe('ProjectProcessor RBAC Tests', () => {
                 iat: Date.now()
             };
 
-            const projects = await projectProcessor.getProjects(tokenDetails);
+            const projects = await projectProcessor.getProjects(tokenDetails, testOrg.id, testWorkspace.id);
             
             expect(projects).toHaveLength(1);
             expect(projects[0].id).toBe(testProject.id);
@@ -182,7 +212,7 @@ describe('ProjectProcessor RBAC Tests', () => {
                 iat: Date.now()
             };
 
-            const projects = await projectProcessor.getProjects(tokenDetails);
+            const projects = await projectProcessor.getProjects(tokenDetails, testOrg.id, testWorkspace.id);
             
             expect(projects[0].members).toBeDefined();
             expect(projects[0].members).toHaveLength(4); // owner + admin + editor + viewer
@@ -202,7 +232,7 @@ describe('ProjectProcessor RBAC Tests', () => {
                 iat: Date.now()
             };
 
-            const projects = await projectProcessor.getProjects(tokenDetails);
+            const projects = await projectProcessor.getProjects(tokenDetails, testOrg.id, testWorkspace.id);
             
             expect(projects).toHaveLength(1);
             expect(projects[0].id).toBe(testProject.id);
@@ -218,7 +248,7 @@ describe('ProjectProcessor RBAC Tests', () => {
                 iat: Date.now()
             };
 
-            const projects = await projectProcessor.getProjects(tokenDetails);
+            const projects = await projectProcessor.getProjects(tokenDetails, testOrg.id, testWorkspace.id);
             
             expect(projects[0].members).toBeDefined();
             expect(projects[0].members).toHaveLength(4);
@@ -234,7 +264,7 @@ describe('ProjectProcessor RBAC Tests', () => {
                 iat: Date.now()
             };
 
-            const projects = await projectProcessor.getProjects(tokenDetails);
+            const projects = await projectProcessor.getProjects(tokenDetails, testOrg.id, testWorkspace.id);
             
             expect(projects).toHaveLength(1);
             expect(projects[0].id).toBe(testProject.id);
@@ -250,7 +280,7 @@ describe('ProjectProcessor RBAC Tests', () => {
                 iat: Date.now()
             };
 
-            const projects = await projectProcessor.getProjects(tokenDetails);
+            const projects = await projectProcessor.getProjects(tokenDetails, testOrg.id, testWorkspace.id);
             
             expect(projects[0].members).toBeDefined();
             expect(projects[0].members).toHaveLength(4);
@@ -266,7 +296,7 @@ describe('ProjectProcessor RBAC Tests', () => {
                 iat: Date.now()
             };
 
-            const projects = await projectProcessor.getProjects(tokenDetails);
+            const projects = await projectProcessor.getProjects(tokenDetails, testOrg.id, testWorkspace.id);
             
             expect(projects).toHaveLength(1);
             expect(projects[0].id).toBe(testProject.id);
@@ -282,7 +312,7 @@ describe('ProjectProcessor RBAC Tests', () => {
                 iat: Date.now()
             };
 
-            const projects = await projectProcessor.getProjects(tokenDetails);
+            const projects = await projectProcessor.getProjects(tokenDetails, testOrg.id, testWorkspace.id);
             
             expect(projects[0].members).toBeDefined();
             expect(projects[0].members).toHaveLength(4);
@@ -298,7 +328,7 @@ describe('ProjectProcessor RBAC Tests', () => {
                 iat: Date.now()
             };
 
-            const projects = await projectProcessor.getProjects(tokenDetails);
+            const projects = await projectProcessor.getProjects(tokenDetails, testOrg.id, testWorkspace.id);
             
             expect(projects).toHaveLength(0);
         });
@@ -377,7 +407,7 @@ describe('ProjectProcessor RBAC Tests', () => {
                 iat: Date.now()
             };
 
-            const projects = await projectProcessor.getProjects(tokenDetails);
+            const projects = await projectProcessor.getProjects(tokenDetails, testOrg.id, testWorkspace.id);
             
             // Should return 3 projects: testProject (admin), ownedProject (owner), memberProject (editor)
             expect(projects).toHaveLength(3);
@@ -413,7 +443,7 @@ describe('ProjectProcessor RBAC Tests', () => {
                 iat: Date.now()
             };
 
-            const projects = await projectProcessor.getProjects(tokenDetails);
+            const projects = await projectProcessor.getProjects(tokenDetails, testOrg.id, testWorkspace.id);
             
             expect(typeof projects[0].is_owner).toBe('boolean');
             expect(projects[0].is_owner).toBe(true);
@@ -427,7 +457,7 @@ describe('ProjectProcessor RBAC Tests', () => {
                 iat: Date.now()
             };
 
-            const projects = await projectProcessor.getProjects(tokenDetails);
+            const projects = await projectProcessor.getProjects(tokenDetails, testOrg.id, testWorkspace.id);
             
             expect(typeof projects[0].user_role).toBe('string');
             expect(projects[0].user_role).toBe('viewer');
@@ -441,7 +471,7 @@ describe('ProjectProcessor RBAC Tests', () => {
                 iat: Date.now()
             };
 
-            const projects = await projectProcessor.getProjects(tokenDetails);
+            const projects = await projectProcessor.getProjects(tokenDetails, testOrg.id, testWorkspace.id);
             
             expect(Array.isArray(projects[0].members)).toBe(true);
         });

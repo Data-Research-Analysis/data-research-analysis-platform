@@ -18,6 +18,9 @@ describe('E2E: Data Model Builder Flow', () => {
     let dbDriver: any;
     let authToken: string;
     let userId: number;
+    let organizationId: number;
+    let workspaceId: number;
+    let projectId: number;
     let dataSourceId: number;
     let dataModelId: number;
 
@@ -54,6 +57,25 @@ describe('E2E: Data Model Builder Flow', () => {
             .send({ email: testEmail, password: 'TestPassword123!' });
 
         authToken = loginResponse.body.token;
+        
+        // Create organization, workspace, and project (Phase 2 requirement)
+        const orgResult = await concreteDriver.manager.query(
+            'INSERT INTO dra_organizations (name, owner_id, created_at) VALUES ($1, $2, $3) RETURNING id',
+            [`Data Model E2E Org ${Date.now()}`, userId, new Date()]
+        );
+        organizationId = orgResult[0].id;
+        
+        const wsResult = await concreteDriver.manager.query(
+            'INSERT INTO dra_workspaces (name, organization_id, created_at) VALUES ($1, $2, $3) RETURNING id',
+            [`Data Model E2E Workspace ${Date.now()}`, organizationId, new Date()]
+        );
+        workspaceId = wsResult[0].id;
+        
+        const projResult = await concreteDriver.manager.query(
+            'INSERT INTO dra_projects (name, users_platform_id, organization_id, workspace_id, created_at) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+            [`Data Model E2E Project ${Date.now()}`, userId, organizationId, workspaceId, new Date()]
+        );
+        projectId = projResult[0].id;
 
         // Create test data source
         const dsResponse = await request(app)
@@ -62,6 +84,7 @@ describe('E2E: Data Model Builder Flow', () => {
             .send({
                 name: 'Model Test Database',
                 type: EDataSourceType.POSTGRESQL,
+                project_id: projectId,
                 connection_details: {
                     host: 'localhost',
                     port: 5432,
@@ -77,6 +100,8 @@ describe('E2E: Data Model Builder Flow', () => {
     afterAll(async () => {
         try {
             const concreteDriver = await dbDriver.getConcreteDriver();
+            // Cascade deletes will handle workspaces, projects, data sources, models
+            await concreteDriver.manager.query('DELETE FROM dra_organizations WHERE id = $1', [organizationId]);
             await concreteDriver.manager.query('DELETE FROM dra_users_platform WHERE id = $1', [userId]);
         } catch (error) {
             console.error('Cleanup error:', error);
