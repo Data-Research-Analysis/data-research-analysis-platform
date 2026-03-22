@@ -16,7 +16,6 @@ export enum EOrganizationRole {
 
 interface ICreateOrganizationParams {
     name: string;
-    slug?: string;
     domain?: string;
     logoUrl?: string;
     ownerId: number;
@@ -26,7 +25,6 @@ interface ICreateOrganizationParams {
 export interface IUpdateOrganizationParams {
     organizationId: number;
     name?: string;
-    slug?: string;
     domain?: string;
     logoUrl?: string;
     settings?: Record<string, any>;
@@ -271,12 +269,13 @@ export class OrganizationService {
             }
 
             // Check if user already exists
-            const existingMember = await transactionalManager.findOne(DRAOrganizationMember, {
-                where: {
-                    organization: { id: params.organizationId },
-                    user: { id: params.userId }
-                }
-            });
+            const existingMember = await transactionalManager
+                .createQueryBuilder(DRAOrganizationMember, 'member')
+                .innerJoin('member.organization', 'org')
+                .innerJoin('member.user', 'user')
+                .where('org.id = :organizationId', { organizationId: params.organizationId })
+                .andWhere('user.id = :userId', { userId: params.userId })
+                .getOne();
             if (existingMember) {
                 throw new Error(`User ID ${params.userId} is already a member of this organization`);
             }
@@ -330,13 +329,14 @@ export class OrganizationService {
         const manager = await this.getEntityManager();
 
         await manager.transaction(async (transactionalManager) => {
-            const member = await transactionalManager.findOne(DRAOrganizationMember, {
-                where: {
-                    organization: { id: organizationId },
-                    user: { id: userId }
-                },
-                relations: ['organization', 'organization.subscription']
-            });
+            const member = await transactionalManager
+                .createQueryBuilder(DRAOrganizationMember, 'member')
+                .leftJoinAndSelect('member.organization', 'org')
+                .leftJoinAndSelect('org.subscription', 'sub')
+                .leftJoinAndSelect('member.user', 'user')
+                .where('org.id = :organizationId', { organizationId })
+                .andWhere('user.id = :userId', { userId })
+                .getOne();
 
             if (!member) {
                 throw new Error(`User ID ${userId} is not a member of organization ID ${organizationId}`);
@@ -344,13 +344,13 @@ export class OrganizationService {
 
             // Prevent removing last owner
             if (member.role === EOrganizationRole.OWNER) {
-                const ownerCount = await transactionalManager.count(DRAOrganizationMember, {
-                    where: {
-                        organization: { id: organizationId },
-                        role: EOrganizationRole.OWNER,
-                        is_active: true
-                    }
-                });
+                const ownerCount = await transactionalManager
+                    .createQueryBuilder(DRAOrganizationMember, 'member')
+                    .innerJoin('member.organization', 'org')
+                    .where('org.id = :organizationId', { organizationId })
+                    .andWhere('member.role = :role', { role: EOrganizationRole.OWNER })
+                    .andWhere('member.is_active = :isActive', { isActive: true })
+                    .getCount();
 
                 if (ownerCount <= 1) {
                     throw new Error('Cannot remove the last owner from the organization');
@@ -386,13 +386,14 @@ export class OrganizationService {
         const manager = await this.getEntityManager();
 
         return await manager.transaction(async (transactionalManager) => {
-            const member = await transactionalManager.findOne(DRAOrganizationMember, {
-                where: {
-                    organization: { id: organizationId },
-                    user: { id: userId },
-                    is_active: true
-                }
-            });
+            const member = await transactionalManager
+                .createQueryBuilder(DRAOrganizationMember, 'member')
+                .innerJoin('member.organization', 'org')
+                .innerJoin('member.user', 'user')
+                .where('org.id = :organizationId', { organizationId })
+                .andWhere('user.id = :userId', { userId })
+                .andWhere('member.is_active = :isActive', { isActive: true })
+                .getOne();
 
             if (!member) {
                 throw new Error(`Active member not found for user ID ${userId} in organization ID ${organizationId}`);
@@ -400,13 +401,13 @@ export class OrganizationService {
 
             // Prevent demoting last owner
             if (member.role === EOrganizationRole.OWNER && newRole !== EOrganizationRole.OWNER) {
-                const ownerCount = await transactionalManager.count(DRAOrganizationMember, {
-                    where: {
-                        organization: { id: organizationId },
-                        role: EOrganizationRole.OWNER,
-                        is_active: true
-                    }
-                });
+                const ownerCount = await transactionalManager
+                    .createQueryBuilder(DRAOrganizationMember, 'member')
+                    .innerJoin('member.organization', 'org')
+                    .where('org.id = :organizationId', { organizationId })
+                    .andWhere('member.role = :role', { role: EOrganizationRole.OWNER })
+                    .andWhere('member.is_active = :isActive', { isActive: true })
+                    .getCount();
 
                 if (ownerCount <= 1) {
                     throw new Error('Cannot change role of the last owner in the organization');
@@ -462,13 +463,14 @@ export class OrganizationService {
     async isUserMember(userId: number, organizationId: number): Promise<boolean> {
         const manager = await this.getEntityManager();
 
-        const member = await manager.findOne(DRAOrganizationMember, {
-            where: {
-                organization: { id: organizationId },
-                user: { id: userId },
-                is_active: true
-            }
-        });
+        const member = await manager
+            .createQueryBuilder(DRAOrganizationMember, 'member')
+            .innerJoin('member.organization', 'org')
+            .innerJoin('member.user', 'user')
+            .where('org.id = :organizationId', { organizationId })
+            .andWhere('user.id = :userId', { userId })
+            .andWhere('member.is_active = :isActive', { isActive: true })
+            .getOne();
 
         return !!member;
     }
@@ -507,13 +509,14 @@ export class OrganizationService {
     async getUserRole(userId: number, organizationId: number): Promise<EOrganizationRole | null> {
         const manager = await this.getEntityManager();
 
-        const member = await manager.findOne(DRAOrganizationMember, {
-            where: {
-                organization: { id: organizationId },
-                user: { id: userId },
-                is_active: true
-            }
-        });
+        const member = await manager
+            .createQueryBuilder(DRAOrganizationMember, 'member')
+            .innerJoin('member.organization', 'org')
+            .innerJoin('member.user', 'user')
+            .where('org.id = :organizationId', { organizationId })
+            .andWhere('user.id = :userId', { userId })
+            .andWhere('member.is_active = :isActive', { isActive: true })
+            .getOne();
 
         return member ? (member.role as EOrganizationRole) : null;
     }
@@ -541,15 +544,16 @@ export class OrganizationService {
         userId: number,
         manager: EntityManager
     ): Promise<{ tier: DRASubscriptionTier; orgSubscription: DRAOrganizationSubscription | null }> {
-        // Find the organization the user owns (personal org)
-        const ownerMembership = await manager.findOne(DRAOrganizationMember, {
-            where: {
-                users_platform_id: userId,
-                role: 'owner',
-                is_active: true
-            },
-            relations: ['organization', 'organization.subscription', 'organization.subscription.subscription_tier']
-        });
+        // Find the organization the user owns (personal org) using QueryBuilder to avoid alias conflicts
+        const ownerMembership = await manager
+            .createQueryBuilder(DRAOrganizationMember, 'member')
+            .leftJoinAndSelect('member.organization', 'org')
+            .leftJoinAndSelect('org.subscription', 'sub')
+            .leftJoinAndSelect('sub.subscription_tier', 'tier')
+            .where('member.users_platform_id = :userId', { userId })
+            .andWhere('member.role = :role', { role: 'owner' })
+            .andWhere('member.is_active = :isActive', { isActive: true })
+            .getOne();
 
         const orgSubscription = ownerMembership?.organization?.subscription ?? null;
         const tier = orgSubscription?.subscription_tier ?? null;

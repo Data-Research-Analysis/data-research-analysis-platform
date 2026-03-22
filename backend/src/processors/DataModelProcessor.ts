@@ -123,7 +123,7 @@ export class DataModelProcessor {
      * @param tokenDetails 
      * @returns true if the data model was deleted, false otherwise
      */
-    public async deleteDataModel(dataModelId: number, tokenDetails: ITokenDetails): Promise<boolean> {
+    public async deleteDataModel(dataModelId: number, tokenDetails: ITokenDetails, organizationId?: number, workspaceId?: number): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             try {
                 const { user_id } = tokenDetails;
@@ -165,6 +165,26 @@ export class DataModelProcessor {
                         // Data model not associated with a project, user can't access it
                         return resolve(false);
                     }
+                }
+                
+                // Verify organization/workspace ownership (if provided)
+                if (organizationId && dataModel.organization_id !== organizationId) {
+                    console.error(`[DataModelProcessor] Data model ${dataModelId} belongs to different organization (expected ${organizationId}, got ${dataModel.organization_id})`);
+                    return resolve(false);
+                }
+                if (workspaceId && dataModel.workspace_id !== workspaceId) {
+                    console.error(`[DataModelProcessor] Data model ${dataModelId} belongs to different workspace (expected ${workspaceId}, got ${dataModel.workspace_id})`);
+                    return resolve(false);
+                }
+                
+                // AUTO-POPULATE: If somehow null (legacy data), set from context
+                if (!dataModel.organization_id && organizationId) {
+                    console.warn(`[DataModelProcessor] Auto-populating NULL organization_id for data model ${dataModelId}`);
+                    dataModel.organization_id = organizationId;
+                }
+                if (!dataModel.workspace_id && workspaceId) {
+                    console.warn(`[DataModelProcessor] Auto-populating NULL workspace_id for data model ${dataModelId}`);
+                    dataModel.workspace_id = workspaceId;
                 }
                 
                 // Clean up dashboard references before deleting
@@ -326,6 +346,10 @@ export class DataModelProcessor {
                 newModel.auto_refresh_enabled = originalModel.auto_refresh_enabled;
                 newModel.users_platform = user;
                 newModel.data_source = originalModel.data_source;
+                
+                // REQUIRED: Inherit organization_id and workspace_id from parent data_source (Phase 2)
+                newModel.organization_id = originalModel.data_source.organization_id;
+                newModel.workspace_id = originalModel.data_source.workspace_id;
                 
                 // Reset refresh-related fields
                 newModel.last_refreshed_at = undefined;
@@ -1544,7 +1568,9 @@ export class DataModelProcessor {
     public async updateDataModelSettings(
         dataModelId: number,
         updates: Partial<DRADataModel>,
-        tokenDetails: ITokenDetails
+        tokenDetails: ITokenDetails,
+        organizationId?: number,
+        workspaceId?: number
     ): Promise<boolean> {
         return new Promise<boolean>(async (resolve) => {
             const { user_id } = tokenDetails;
@@ -1575,6 +1601,26 @@ export class DataModelProcessor {
                 if (!dataModel) {
                     console.error(`[DataModelProcessor] Data model ${dataModelId} not found`);
                     return resolve(false);
+                }
+                
+                // Verify organization/workspace ownership (if provided)
+                if (organizationId && dataModel.organization_id !== organizationId) {
+                    console.error(`[DataModelProcessor] Data model ${dataModelId} belongs to different organization (expected ${organizationId}, got ${dataModel.organization_id})`);
+                    return resolve(false);
+                }
+                if (workspaceId && dataModel.workspace_id !== workspaceId) {
+                    console.error(`[DataModelProcessor] Data model ${dataModelId} belongs to different workspace (expected ${workspaceId}, got ${dataModel.workspace_id})`);
+                    return resolve(false);
+                }
+                
+                // AUTO-POPULATE: If somehow null (legacy data), set from context
+                if (!dataModel.organization_id && organizationId) {
+                    console.warn(`[DataModelProcessor] Auto-populating NULL organization_id for data model ${dataModelId}`);
+                    dataModel.organization_id = organizationId;
+                }
+                if (!dataModel.workspace_id && workspaceId) {
+                    console.warn(`[DataModelProcessor] Auto-populating NULL workspace_id for data model ${dataModelId}`);
+                    dataModel.workspace_id = workspaceId;
                 }
                 
                 // Update fields

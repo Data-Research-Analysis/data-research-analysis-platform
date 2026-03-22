@@ -153,13 +153,11 @@ export class AuthProcessor {
                         console.log(`📨 User ${newUser.id} (${email}) has ${pendingInvitations.length} pending invitation(s) - skipping personal organization creation`);
                     } else {
                         const orgName = `${firstName}'s Organization`;
-                        const orgSlug = `${firstName.toLowerCase()}-${lastName.toLowerCase()}-${newUser.id}`.replace(/[^a-z0-9-]/g, '-');
                         const freeTier = await manager.findOne(DRASubscriptionTier, { where: { tier_name: 'free' } });
                         
                         if (freeTier) {
                             const personalOrg = await this.organizationService.createOrganization({
                                 name: orgName,
-                                slug: orgSlug,
                                 ownerId: newUser.id,
                                 subscriptionTierId: freeTier.id
                             });

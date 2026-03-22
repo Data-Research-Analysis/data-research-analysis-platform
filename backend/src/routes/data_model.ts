@@ -14,6 +14,7 @@ import {
 } from '../middleware/rbacMiddleware.js';
 import { EAction } from '../services/PermissionService.js';
 import { optionalOrganizationContext, type IOrganizationContextRequest } from '../middleware/organizationContext.js';
+import { workspaceContext, type IWorkspaceContextRequest } from '../middleware/workspaceContext.js';
 const router = express.Router();
 
 router.get('/list/:project_id', async (req: Request, res: Response, next: any) => {
@@ -32,10 +33,15 @@ router.get('/list/:project_id', async (req: Request, res: Response, next: any) =
 });
 router.delete('/delete/:data_model_id', async (req: Request, res: Response, next: any) => {
     next();
-}, validateJWT, validate([param('data_model_id').notEmpty().trim().escape().toInt()]), authorize(Permission.DATA_MODEL_DELETE), requireDataModelPermission(EAction.DELETE, 'data_model_id'),
-async (req: Request, res: Response) => {
+}, validateJWT, workspaceContext, validate([param('data_model_id').notEmpty().trim().escape().toInt()]), authorize(Permission.DATA_MODEL_DELETE), requireDataModelPermission(EAction.DELETE, 'data_model_id'),
+async (req: IWorkspaceContextRequest, res: Response) => {
     const { data_model_id } = matchedData(req);
-    const result = await DataModelProcessor.getInstance().deleteDataModel(data_model_id,  req.body.tokenDetails);            
+    const result = await DataModelProcessor.getInstance().deleteDataModel(
+        data_model_id,
+        req.body.tokenDetails,
+        req.organizationId!,
+        req.workspaceId!
+    );            
     if (result) {
         res.status(200).send({message: 'The data model has been deleted.'});        
     } else {
@@ -304,9 +310,10 @@ async (req: Request, res: Response) => {
  */
 router.patch('/:data_model_id',
     validateJWT,
+    workspaceContext,
     validate([param('data_model_id').notEmpty().trim().escape().toInt()]),
     requireDataModelPermission(EAction.UPDATE, 'data_model_id'),
-    async (req: Request, res: Response) => {
+    async (req: IWorkspaceContextRequest, res: Response) => {
         try {
             const { data_model_id } = matchedData(req);
             const dataModelId = parseInt(String(data_model_id), 10);
@@ -328,7 +335,9 @@ router.patch('/:data_model_id',
             const result = await DataModelProcessor.getInstance().updateDataModelSettings(
                 dataModelId,
                 updates,
-                req.body.tokenDetails
+                req.body.tokenDetails,
+                req.organizationId!,
+                req.workspaceId!
             );
             
             if (result) {

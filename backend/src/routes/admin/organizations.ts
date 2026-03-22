@@ -35,7 +35,6 @@ router.get(
             const enrichedOrgs = organizations.map(org => ({
                 id: org.id,
                 name: org.name,
-                slug: org.slug,
                 domain: org.domain,
                 logoUrl: org.logo_url,
                 createdAt: org.created_at,

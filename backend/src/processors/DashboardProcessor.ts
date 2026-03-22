@@ -136,7 +136,7 @@ export class DashboardProcessor {
             }
         });
     }
-    async updateDashboard(dashboardId: number, projectId: number, data: IDashboardDataStructure, tokenDetails: ITokenDetails): Promise<boolean> {
+    async updateDashboard(dashboardId: number, projectId: number, data: IDashboardDataStructure, tokenDetails: ITokenDetails, organizationId?: number, workspaceId?: number): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             const driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -178,6 +178,28 @@ export class DashboardProcessor {
                 }
             }
             
+            // Verify organization/workspace ownership (if provided)
+            if (organizationId && dashboard.organization_id !== organizationId) {
+                console.error(`[DashboardProcessor] Dashboard ${dashboardId} belongs to different organization (expected ${organizationId}, got ${dashboard.organization_id})`);
+                return resolve(false);
+            }
+            if (workspaceId && dashboard.workspace_id !== workspaceId) {
+                console.error(`[DashboardProcessor] Dashboard ${dashboardId} belongs to different workspace (expected ${workspaceId}, got ${dashboard.workspace_id})`);
+                return resolve(false);
+            }
+            
+            // AUTO-POPULATE: If somehow null (legacy data), set from context
+            if (!dashboard.organization_id && organizationId) {
+                console.warn(`[DashboardProcessor] Auto-populating NULL organization_id for dashboard ${dashboardId}`);
+                dashboard.organization_id = organizationId;
+                await manager.save(dashboard);
+            }
+            if (!dashboard.workspace_id && workspaceId) {
+                console.warn(`[DashboardProcessor] Auto-populating NULL workspace_id for dashboard ${dashboardId}`);
+                dashboard.workspace_id = workspaceId;
+                await manager.save(dashboard);
+            }
+            
             try {
                 // TypeScript workaround for TypeORM deep partial type
                 await manager.update(DRADashboard, {id: dashboardId}, {data: data as any});
@@ -210,7 +232,7 @@ export class DashboardProcessor {
      * @param tokenDetails 
      * @returns true if the dashboard was deleted, false otherwise
      */
-    public async deleteDashboard(dashboardId: number, tokenDetails: ITokenDetails): Promise<boolean> {
+    public async deleteDashboard(dashboardId: number, tokenDetails: ITokenDetails, organizationId?: number, workspaceId?: number): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             const { user_id } = tokenDetails;
             let driver = await DBDriver.getInstance().getDriver(EDataSourceType.POSTGRESQL);
@@ -250,6 +272,16 @@ export class DashboardProcessor {
                 } else {
                     return resolve(false);
                 }
+            }
+            
+            // Verify organization/workspace ownership (if provided)
+            if (organizationId && dashboard.organization_id !== organizationId) {
+                console.error(`[DashboardProcessor] Dashboard ${dashboardId} belongs to different organization (expected ${organizationId}, got ${dashboard.organization_id})`);
+                return resolve(false);
+            }
+            if (workspaceId && dashboard.workspace_id !== workspaceId) {
+                console.error(`[DashboardProcessor] Dashboard ${dashboardId} belongs to different workspace (expected ${workspaceId}, got ${dashboard.workspace_id})`);
+                return resolve(false);
             }
 
             // Store dashboard info for notification and events
@@ -456,6 +488,9 @@ export class DashboardProcessor {
             users_platform: user,
             data: { charts: [] },
             is_template: false,
+            // REQUIRED: Inherit organization_id and workspace_id from parent project (Phase 2)
+            organization_id: project.organization_id,
+            workspace_id: project.workspace_id,
         });
         const saved = await manager.save(dashboard);
         return saved.id;
