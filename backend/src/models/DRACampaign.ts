@@ -12,7 +12,17 @@ import {
 import { DRAProject } from './DRAProject.js';
 import { DRAUsersPlatform } from './DRAUsersPlatform.js';
 import { DRACampaignChannel } from './DRACampaignChannel.js';
+import { DRAOrganization } from './DRAOrganization.js';
+import { DRAWorkspace } from './DRAWorkspace.js';
 
+/**
+ * Campaign entity for marketing attribution tracking
+ * 
+ * REQUIRED: Every campaign must belong to an organization and workspace.
+ * Inherits organization_id and workspace_id from parent project.
+ * 
+ * @see Phase 1 Migration: EnforceOrganizationWorkspacePhase1
+ */
 @Entity('dra_campaigns')
 export class DRACampaign {
     @PrimaryGeneratedColumn()
@@ -62,6 +72,21 @@ export class DRACampaign {
 
     @UpdateDateColumn()
     updated_at!: Date;
+
+    // REQUIRED: Multi-tenant organization & workspace (inherited from project)
+    @ManyToOne(() => DRAOrganization, { onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'organization_id' })
+    organization!: Relation<DRAOrganization>;
+
+    @Column({ type: 'int', name: 'organization_id' })
+    organization_id!: number;
+
+    @ManyToOne(() => DRAWorkspace, { onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'workspace_id' })
+    workspace!: Relation<DRAWorkspace>;
+
+    @Column({ type: 'int', name: 'workspace_id' })
+    workspace_id!: number;
 
     @ManyToOne(() => DRAProject, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'project_id' })

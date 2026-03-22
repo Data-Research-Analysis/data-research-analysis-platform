@@ -2,6 +2,8 @@ import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDa
 import { DRADataModel } from './DRADataModel.js';
 import { DRADataSource } from './DRADataSource.js';
 import { DRAUsersPlatform } from './DRAUsersPlatform.js';
+import { DRAOrganization } from './DRAOrganization.js';
+import { DRAWorkspace } from './DRAWorkspace.js';
 
 /**
  * Junction table entity for many-to-many relationship between data models and data sources
@@ -32,6 +34,24 @@ export class DRADataModelSource {
     @ManyToOne(() => DRAUsersPlatform, user => user.data_model_sources, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'users_platform_id' })
     users_platform!: Relation<DRAUsersPlatform>;
+
+    /**
+     * REQUIRED: Organization and workspace (Phase 2 Migration)
+     * Inherits from parent data model
+     */
+    @ManyToOne(() => DRAOrganization, { onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'organization_id' })
+    organization!: Relation<DRAOrganization>;
+
+    @Column({ type: 'int', name: 'organization_id' })
+    organization_id!: number;
+
+    @ManyToOne(() => DRAWorkspace, { onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'workspace_id' })
+    workspace!: Relation<DRAWorkspace>;
+
+    @Column({ type: 'int', name: 'workspace_id' })
+    workspace_id!: number;
 
     @CreateDateColumn({ type: 'timestamp', name: 'created_at', default: () => 'NOW()' })
     created_at!: Date;

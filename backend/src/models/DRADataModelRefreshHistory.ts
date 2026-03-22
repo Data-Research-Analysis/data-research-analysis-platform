@@ -2,6 +2,8 @@ import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, Relation
 import { DRADataModel } from './DRADataModel.js';
 import { DRAUsersPlatform } from './DRAUsersPlatform.js';
 import { DRADataSource } from './DRADataSource.js';
+import { DRAOrganization } from './DRAOrganization.js';
+import { DRAWorkspace } from './DRAWorkspace.js';
 
 @Entity('dra_data_model_refresh_history')
 export class DRADataModelRefreshHistory {
@@ -59,4 +61,22 @@ export class DRADataModelRefreshHistory {
     @ManyToOne(() => DRADataSource, { onDelete: 'SET NULL', nullable: true })
     @JoinColumn({ name: 'trigger_source_id', referencedColumnName: 'id' })
     trigger_source?: Relation<DRADataSource>
+
+    /**
+     * REQUIRED: Organization and workspace (Phase 2 Migration)
+     * Inherits from parent data model
+     */
+    @ManyToOne(() => DRAOrganization, { onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'organization_id' })
+    organization!: Relation<DRAOrganization>;
+
+    @Column({ type: 'int', name: 'organization_id' })
+    organization_id!: number;
+
+    @ManyToOne(() => DRAWorkspace, { onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'workspace_id' })
+    workspace!: Relation<DRAWorkspace>;
+
+    @Column({ type: 'int', name: 'workspace_id' })
+    workspace_id!: number;
 }

@@ -2,6 +2,8 @@ import { Column, Entity, JoinColumn, JoinTable, ManyToOne, OneToMany, PrimaryGen
 import { DRAUsersPlatform } from './DRAUsersPlatform.js';
 import { DRADataModel } from './DRADataModel.js';
 import { DRAProject } from './DRAProject.js';
+import { DRAOrganization } from './DRAOrganization.js';
+import { DRAWorkspace } from './DRAWorkspace.js';
 import { DRAAIDataModelConversation } from './DRAAIDataModelConversation.js';
 import { DRADataModelSource } from './DRADataModelSource.js';
 import { DRATableMetadata } from './DRATableMetadata.js';
@@ -175,6 +177,25 @@ export class DRADataSource {
     @ManyToOne(() => DRAProject, (project) => project.data_sources, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'project_id', referencedColumnName: 'id' })
     project!: Relation<DRAProject>
+    
+    /**
+     * REQUIRED: Organization and workspace membership (Phase 2 Migration)
+     * Data sources inherit organization/workspace from their parent project.
+     * These fields ensure multi-tenant isolation at the data source level.
+     */
+    @ManyToOne(() => DRAOrganization, { onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'organization_id' })
+    organization!: Relation<DRAOrganization>;
+
+    @Column({ type: 'int', name: 'organization_id' })
+    organization_id!: number;
+
+    @ManyToOne(() => DRAWorkspace, { onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'workspace_id' })
+    workspace!: Relation<DRAWorkspace>;
+
+    @Column({ type: 'int', name: 'workspace_id' })
+    workspace_id!: number;
     
     @OneToMany(() => DRATableMetadata, (metadata) => metadata.data_source, { cascade: ["remove", "update"] })
     table_metadata!: Relation<DRATableMetadata>[];

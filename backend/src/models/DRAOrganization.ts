@@ -33,9 +33,6 @@ export class DRAOrganization {
     @Column({ type: 'varchar', length: 255 })
     name!: string;
 
-    @Column({ type: 'varchar', length: 255, nullable: true, unique: true })
-    slug!: string | null;  // URL-friendly identifier
-
     @Column({ type: 'varchar', length: 255, nullable: true })
     domain!: string | null;  // For auto-join (e.g., users@acme.com → Acme Corp org)
 

@@ -1,6 +1,8 @@
 import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn, Relation, CreateDateColumn } from 'typeorm';
 import { DRAUsersPlatform } from './DRAUsersPlatform.js';
 import { DRADataSource } from './DRADataSource.js';
+import { DRAOrganization } from './DRAOrganization.js';
+import { DRAWorkspace } from './DRAWorkspace.js';
 import { DRAAIDataModelConversation } from './DRAAIDataModelConversation.js';
 import { DRADataModelSource } from './DRADataModelSource.js';
 import { DRADataModelRefreshHistory } from './DRADataModelRefreshHistory.js';
@@ -51,6 +53,25 @@ export class DRADataModel {
     @ManyToOne(() => DRADataSource, (dataSource) => dataSource.data_models, { onDelete: 'CASCADE', nullable: true })
     @JoinColumn({ name: 'data_source_id', referencedColumnName: 'id' })
     data_source?: Relation<DRADataSource>
+    
+    /**
+     * REQUIRED: Organization and workspace membership (Phase 2 Migration)
+     * Data models inherit organization/workspace from their parent data source.
+     * These fields ensure multi-tenant isolation at the data model level.
+     */
+    @ManyToOne(() => DRAOrganization, { onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'organization_id' })
+    organization!: Relation<DRAOrganization>;
+
+    @Column({ type: 'int', name: 'organization_id' })
+    organization_id!: number;
+
+    @ManyToOne(() => DRAWorkspace, { onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'workspace_id' })
+    workspace!: Relation<DRAWorkspace>;
+
+    @Column({ type: 'int', name: 'workspace_id' })
+    workspace_id!: number;
     
     @OneToMany(() => DRADataModelSource, (source) => source.data_model)
     data_model_sources!: Relation<DRADataModelSource>[]
