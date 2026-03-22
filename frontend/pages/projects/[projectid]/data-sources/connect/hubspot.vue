@@ -1,6 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'project' });
 
+import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useHubSpot } from '@/composables/useHubSpot';
 
 const route = useRoute();
@@ -19,6 +20,21 @@ async function connectWithHubSpot() {
     try {
         state.loading = true;
         state.error = null;
+        
+        // PHASE 2 REQUIREMENT: Validate workspace selection before allowing data source creation
+        const { requireWorkspace } = useOrganizationContext();
+        const validation = requireWorkspace();
+        if (!validation.valid) {
+            await $swal.fire({
+                title: 'Workspace Required',
+                text: validation.error || 'Please select a workspace before connecting a data source.',
+                icon: 'warning',
+                confirmButtonColor: '#3C8DBC',
+            });
+            state.loading = false;
+            return;
+        }
+        
         await hubspot.startOAuthFlow(projectId);
         // Browser navigates away to HubSpot — execution stops here.
     } catch (err: any) {

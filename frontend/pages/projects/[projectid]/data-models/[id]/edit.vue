@@ -1,6 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'project' });
 
+import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useProjectsStore } from '@/stores/projects';
 import { useDataModelsStore } from '@/stores/data_models';
 import { useProjectPermissions } from '@/composables/useProjectPermissions';
@@ -103,6 +104,19 @@ async function copyDataModel() {
     });
     
     if (!confirmCopy) return;
+    
+    // PHASE 2 REQUIREMENT: Validate workspace selection before allowing data model copy
+    const { requireWorkspace } = useOrganizationContext();
+    const validation = requireWorkspace();
+    if (!validation.valid) {
+        await $swal.fire({
+            title: 'Workspace Required',
+            text: validation.error || 'Please select a workspace before copying a data model.',
+            icon: 'warning',
+            confirmButtonColor: '#3C8DBC',
+        });
+        return;
+    }
     
     // Show loading
     $swal.fire({
@@ -249,12 +263,6 @@ async function copyDataModel() {
                     <p class="text-sm text-gray-600 mt-1">View and explore the data in this cross-source model</p>
                 </div>
                 <PaginatedTable v-if="state.data_model && state.data_model.id" :data-model-id="state.data_model.id" />
-            </div>
-        </div>
-    </div>
-                        Back to Data Models
-                    </NuxtLink>
-                </div>
             </div>
         </div>
     </div>

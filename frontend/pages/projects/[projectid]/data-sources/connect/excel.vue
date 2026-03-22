@@ -5,11 +5,13 @@ import _ from 'lodash';
 import { useColumnTypeDetection } from '@/composables/file-uploads/useColumnTypeDetection';
 import { useDataNormalization } from '@/composables/file-uploads/useDataNormalization';
 import { useFileValidation } from '@/composables/file-uploads/useFileValidation';
+import { useOrganizationContext } from '@/composables/useOrganizationContext';
 
 const { $swal, $socketio } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
 const config = useRuntimeConfig();
+const { requireWorkspace } = useOrganizationContext();
 
 // Initialize composables
 const columnDetector = useColumnTypeDetection();
@@ -471,6 +473,19 @@ async function createDataSource(classification = null) {
     // Prevent execution if button should be disabled
     if (buttonDisabled.value) {
         state.showClassificationModal = false;
+        return;
+    }
+    
+    // PHASE 2 REQUIREMENT: Validate workspace selection before allowing data source creation
+    const validation = requireWorkspace();
+    if (!validation.valid) {
+        state.showClassificationModal = false;
+        await $swal.fire({
+            title: 'Workspace Required',
+            text: validation.error || 'Please select a workspace before creating a data source.',
+            icon: 'warning',
+            confirmButtonColor: '#3C8DBC',
+        });
         return;
     }
 

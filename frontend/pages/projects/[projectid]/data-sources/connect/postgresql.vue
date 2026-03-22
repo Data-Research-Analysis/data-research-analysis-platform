@@ -3,8 +3,10 @@
 definePageMeta({ layout: 'project' });
 import { useReCaptcha } from "vue-recaptcha-v3";
 import { useDataSourceStore } from '@/stores/data_sources';
+import { useOrganizationContext } from '@/composables/useOrganizationContext';
 const dataSourceStore = useDataSourceStore();
 const recaptcha = useReCaptcha();
+const { requireWorkspace } = useOrganizationContext();
 
 const { $swal } = useNuxtApp();
 const route = useRoute();
@@ -180,6 +182,18 @@ function goBack() {
 }
 
 function handleConnectClick() {
+    // PHASE 2 REQUIREMENT: Validate workspace selection before allowing data source creation
+    const validation = requireWorkspace();
+    if (!validation.valid) {
+        $swal.fire({
+            title: 'Workspace Required',
+            text: validation.error || 'Please select a workspace before creating a data source.',
+            icon: 'warning',
+            confirmButtonColor: '#3C8DBC',
+        });
+        return;
+    }
+    
     // Show classification modal before saving
     validateFields();
     if (state.host_error || state.port_error || state.database_name_error || state.username_error || state.password_error) {

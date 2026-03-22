@@ -5,12 +5,14 @@ import { ref } from 'vue';
 import { useReCaptcha } from "vue-recaptcha-v3";
 import { useDataSourceStore } from '@/stores/data_sources';
 import { useLoggedInUserStore } from '@/stores/logged_in_user';
+import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { io, Socket } from 'socket.io-client';
 import MongoDBSyncProgress from '@/components/MongoDBSyncProgress.vue';
 
 const dataSourceStore = useDataSourceStore();
 const userStore = useLoggedInUserStore();
 const recaptcha = useReCaptcha();
+const { requireWorkspace } = useOrganizationContext();
 
 const { $swal } = useNuxtApp();
 const route = useRoute();
@@ -260,6 +262,18 @@ async function connectDataSource(classification?: string) {
 }
 
 function handleConnectClick() {
+    // PHASE 2 REQUIREMENT: Validate workspace selection before allowing data source creation
+    const validation = requireWorkspace();
+    if (!validation.valid) {
+        $swal.fire({
+            title: 'Workspace Required',
+            text: validation.error || 'Please select a workspace before creating a data source.',
+            icon: 'warning',
+            confirmButtonColor: '#3C8DBC',
+        });
+        return;
+    }
+    
     validateFields();
     if (state.connection_string_error) {
         state.showAlert = true;

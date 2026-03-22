@@ -335,6 +335,20 @@ async function createDataSource(classification = null) {
         return;
     }
 
+    // PHASE 2 REQUIREMENT: Validate workspace selection before allowing data source creation
+    const { requireWorkspace } = useOrganizationContext();
+    const validation = requireWorkspace();
+    if (!validation.valid) {
+        state.showClassificationModal = false;
+        await $swal.fire({
+            title: 'Workspace Required',
+            text: validation.error || 'Please select a workspace before creating a data source.',
+            icon: 'warning',
+            confirmButtonColor: '#3C8DBC',
+        });
+        return;
+    }
+
     const token = getAuthToken();
     if (!state.data_source_name || state.data_source_name.trim() === '') {
         state.showClassificationModal = false;

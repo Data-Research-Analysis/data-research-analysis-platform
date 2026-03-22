@@ -4,6 +4,7 @@ import {useSubscriptionStore} from '@/stores/subscription';
 import {useLoggedInUserStore} from '@/stores/logged_in_user';
 import {useApiErrorHandler} from '@/composables/useApiErrorHandler';
 import {useAuthenticatedFetch, useAuthenticatedMutation} from '@/composables/useAuthenticatedFetch';
+import {useOrganizationContext} from '@/composables/useOrganizationContext';
 import ProjectMembersDialog from '~/components/ProjectMembersDialog.vue';
 
 const projectsStore = useProjectsStore();
@@ -12,6 +13,7 @@ const loggedInUserStore = useLoggedInUserStore();
 const { $swal } = useNuxtApp();
 const { handleApiError } = useApiErrorHandler();
 const { isTitleTruncated } = useTruncation();
+const { requireWorkspace, getOrgHeaders, getWorkspaceName } = useOrganizationContext();
 
 const state = reactive({
     project_name: '',
@@ -73,6 +75,18 @@ onUnmounted(() => {
     subscriptionStore.stopAutoRefresh();
 });
 async function addProject() {
+    // PHASE 1 REQUIREMENT: Validate workspace selection before allowing project creation
+    const validation = requireWorkspace();
+    if (!validation.valid) {
+        await $swal.fire({
+            title: 'Workspace Required',
+            text: validation.error || 'Please select a workspace before creating a project.',
+            icon: 'warning',
+            confirmButtonColor: '#3C8DBC',
+        });
+        return;
+    }
+    
     // Check tier limits before allowing project creation
     if (!subscriptionStore.canCreateProject) {
         state.showTierLimitModal = true;
@@ -86,10 +100,17 @@ async function addProject() {
         return;
     }
     
+    const currentWorkspace = getWorkspaceName();
     const { value: formValues } = await $swal.fire({
         title: "Create New Project",
         html: `
             <div class="text-left">
+                <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                    <p class="text-sm text-blue-800">
+                        <strong>Workspace:</strong> ${currentWorkspace}
+                    </p>
+                </div>
+                
                 <label for="swal-input1" class="block text-sm font-medium text-gray-700 mb-1">
                     Project Name <span class="text-red-500">*</span>
                 </label>
@@ -129,12 +150,17 @@ async function addProject() {
         
         const { execute } = useAuthenticatedMutation();
         try {
+            // PHASE 1 REQUIREMENT: Include organization/workspace headers
+            const orgHeaders = getOrgHeaders();
             const data = await execute('/project/add', {
                 method: 'POST',
                 body: { 
                     project_name: projectName,
                     description: description
-                }
+                },
+                // Organization/workspace context headers are auto-added by useAuthenticatedMutation
+                // but we explicitly pass them here for clarity
+                headers: orgHeaders
             });
             
             if (data) {

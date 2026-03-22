@@ -1,6 +1,7 @@
 <script setup lang="ts">
 
 definePageMeta({ layout: 'project' });
+import { useOrganizationContext } from '@/composables/useOrganizationContext';
 import { useGoogleOAuth } from '@/composables/useGoogleOAuth';
 import { useGoogleAds } from '@/composables/useGoogleAds';
 import type { IGoogleAdsAccount, IGoogleAdsReportTypeDefinition } from '~/types/IGoogleAds';
@@ -74,6 +75,20 @@ async function initiateGoogleSignIn() {
     try {
         state.loading = true;
         state.error = null;
+        
+        // PHASE 2 REQUIREMENT: Validate workspace selection before allowing data source creation
+        const { requireWorkspace } = useOrganizationContext();
+        const validation = requireWorkspace();
+        if (!validation.valid) {
+            await $swal.fire({
+                title: 'Workspace Required',
+                text: validation.error || 'Please select a workspace before connecting a data source.',
+                icon: 'warning',
+                confirmButtonColor: '#3C8DBC',
+            });
+            state.loading = false;
+            return;
+        }
 
         // Pass 'google_ads' as service type
         await oauth.initiateAuth(projectId, 'google_ads');

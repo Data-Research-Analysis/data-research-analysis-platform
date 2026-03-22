@@ -205,6 +205,69 @@ export default defineNuxtPlugin(async (nuxtApp) => {
     });
     
     // Cache invalidation events (for ETag and SWR caching)
+    socket.on('project:created', async (data: { projectId: number; userId: number; organizationId: number | null; timestamp: Date }) => {
+      console.log('🔄 Cache invalidation: project created', data);
+      const projectsStore = useProjectsStore();
+      
+      // Invalidate projects list cache
+      const { invalidatePattern } = await import('@/composables/useStaleWhileRevalidate');
+      invalidatePattern(/\/project\/list/);
+      
+      // Clear ETag cache for projects endpoints
+      const { clearETagCache } = await import('@/composables/useFetchWithETag');
+      clearETagCache();
+      
+      // Invalidate cache manager timestamps
+      const { useCacheManager } = await import('@/composables/useCacheManager');
+      const cacheManager = useCacheManager();
+      cacheManager.invalidateCache('projects');
+      
+      // Refresh projects in store
+      await projectsStore.retrieveProjects();
+    });
+    
+    socket.on('project:updated', async (data: { projectId: number; userId: number; organizationId: number | null; timestamp: Date }) => {
+      console.log('🔄 Cache invalidation: project updated', data);
+      const projectsStore = useProjectsStore();
+      
+      // Invalidate projects list cache
+      const { invalidatePattern } = await import('@/composables/useStaleWhileRevalidate');
+      invalidatePattern(/\/project\/list/);
+      
+      // Clear ETag cache for projects endpoints
+      const { clearETagCache } = await import('@/composables/useFetchWithETag');
+      clearETagCache();
+      
+      // Invalidate cache manager timestamps
+      const { useCacheManager } = await import('@/composables/useCacheManager');
+      const cacheManager = useCacheManager();
+      cacheManager.invalidateCache('projects');
+      
+      // Refresh projects in store
+      await projectsStore.retrieveProjects();
+    });
+    
+    socket.on('project:deleted', async (data: { projectId: number; userId: number; organizationId: number | null; timestamp: Date }) => {
+      console.log('🔄 Cache invalidation: project deleted', data);
+      const projectsStore = useProjectsStore();
+      
+      // Invalidate projects list cache
+      const { invalidatePattern } = await import('@/composables/useStaleWhileRevalidate');
+      invalidatePattern(/\/project\/list/);
+      
+      // Clear ETag cache for projects endpoints
+      const { clearETagCache } = await import('@/composables/useFetchWithETag');
+      clearETagCache();
+      
+      // Invalidate cache manager timestamps
+      const { useCacheManager } = await import('@/composables/useCacheManager');
+      const cacheManager = useCacheManager();
+      cacheManager.invalidateCache('projects');
+      
+      // Refresh projects in store
+      await projectsStore.retrieveProjects();
+    });
+    
     socket.on('dataSource:created', async (data: { dataSourceId: number; projectId: number; timestamp: Date }) => {
       console.log('🔄 Cache invalidation: dataSource created', data);
       const dataSourceStore = useDataSourceStore();
