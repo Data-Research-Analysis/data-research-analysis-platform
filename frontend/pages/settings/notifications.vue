@@ -271,7 +271,3 @@ async function resetToDefaults() {
   }
 }
 </script>
-
-<style scoped>
-/* Additional custom styles if needed */
-</style>
