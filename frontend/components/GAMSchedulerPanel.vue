@@ -1,70 +1,79 @@
 <template>
-  <div class="scheduler-panel">
-    <div class="scheduler-header">
-      <h3>Scheduled Syncs</h3>
-      <button @click="refreshJobs" class="refresh-btn" :disabled="isLoading">
+  <div class="bg-white rounded-lg p-6 shadow-md">
+    <div class="flex justify-between items-center mb-6">
+      <h3 class="m-0 text-2xl font-semibold text-gray-800">Scheduled Syncs</h3>
+      <button 
+        @click="refreshJobs" 
+        class="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white border-none rounded-md cursor-pointer text-sm font-medium transition-all duration-200 hover:bg-blue-600 hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed"
+        :disabled="isLoading"
+      >
         <span v-if="!isLoading">🔄</span>
-        <span v-else class="spinner">⏳</span>
+        <span v-else class="animate-spin">⏳</span>
         Refresh
       </button>
     </div>
 
     <!-- Error Banner -->
-    <div v-if="error" class="error-banner">
-      <span class="error-icon">⚠️</span>
+    <div v-if="error" class="flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-md text-red-600 mb-5">
+      <span class="text-lg">⚠️</span>
       {{ error }}
-      <button @click="error = null" class="close-btn">×</button>
+      <button @click="error = null" class="ml-auto bg-transparent border-none text-2xl text-red-600 cursor-pointer p-0 leading-none">×</button>
     </div>
 
     <!-- Statistics -->
-    <div v-if="stats" class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-value">{{ stats.totalJobs }}</div>
-        <div class="stat-label">Total Jobs</div>
+    <div v-if="stats" class="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4 mb-6 max-md:grid-cols-2">
+      <div class="bg-gradient-to-br from-[#667eea] to-[#764ba2] rounded-lg p-5 text-white text-center">
+        <div class="text-4xl font-bold mb-2">{{ stats.totalJobs }}</div>
+        <div class="text-sm opacity-90">Total Jobs</div>
       </div>
-      <div class="stat-card">
-        <div class="stat-value">{{ stats.enabledJobs }}</div>
-        <div class="stat-label">Active</div>
+      <div class="bg-gradient-to-br from-[#667eea] to-[#764ba2] rounded-lg p-5 text-white text-center">
+        <div class="text-4xl font-bold mb-2">{{ stats.enabledJobs }}</div>
+        <div class="text-sm opacity-90">Active</div>
       </div>
-      <div class="stat-card">
-        <div class="stat-value">{{ stats.disabledJobs }}</div>
-        <div class="stat-label">Paused</div>
+      <div class="bg-gradient-to-br from-[#667eea] to-[#764ba2] rounded-lg p-5 text-white text-center">
+        <div class="text-4xl font-bold mb-2">{{ stats.disabledJobs }}</div>
+        <div class="text-sm opacity-90">Paused</div>
       </div>
-      <div class="stat-card">
-        <div class="stat-value">{{ stats.totalRuns }}</div>
-        <div class="stat-label">Total Runs</div>
+      <div class="bg-gradient-to-br from-[#667eea] to-[#764ba2] rounded-lg p-5 text-white text-center">
+        <div class="text-4xl font-bold mb-2">{{ stats.totalRuns }}</div>
+        <div class="text-sm opacity-90">Total Runs</div>
       </div>
     </div>
 
     <!-- Next Scheduled Job -->
-    <div v-if="nextScheduledJob" class="next-job-banner">
-      <span class="next-job-icon">⏰</span>
-      <span class="next-job-text">
+    <div v-if="nextScheduledJob" class="flex items-center gap-3 px-4 py-4 bg-gradient-to-br from-[#f093fb] to-[#f5576c] rounded-lg text-white mb-6 text-base">
+      <span class="text-2xl">⏰</span>
+      <span>
         Next sync: <strong>{{ nextScheduledJob.dataSourceName || `Data Source #${nextScheduledJob.dataSourceId}` }}</strong>
         {{ formatNextRun(nextScheduledJob.nextRun) }}
       </span>
     </div>
 
     <!-- Scheduled Jobs List -->
-    <div class="jobs-list">
-      <div v-if="scheduledJobs.length === 0 && !isLoading" class="no-jobs">
-        <p>No scheduled syncs configured</p>
-        <p class="hint">Configure sync schedules in the data source advanced settings</p>
+    <div class="flex flex-col gap-4">
+      <div v-if="scheduledJobs.length === 0 && !isLoading" class="text-center py-12 px-6 text-gray-600">
+        <p class="my-2">No scheduled syncs configured</p>
+        <p class="text-sm text-gray-400 my-2">Configure sync schedules in the data source advanced settings</p>
       </div>
 
-      <div v-for="job in scheduledJobs" :key="job.dataSourceId" class="job-card" :class="{ disabled: !job.enabled }">
-        <div class="job-header">
-          <div class="job-title">
-            <span class="job-icon" :class="{ active: job.enabled }">
+      <div 
+        v-for="job in scheduledJobs" 
+        :key="job.dataSourceId" 
+        class="border-2 border-gray-200 rounded-lg p-5 transition-all duration-300 hover:border-gray-300 hover:shadow-md"
+        :class="{ 'opacity-70 bg-gray-50': !job.enabled }"
+      >
+        <div class="flex justify-between items-center mb-4 max-md:flex-col max-md:items-start max-md:gap-3">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl">
               {{ job.enabled ? '🟢' : '⏸️' }}
             </span>
-            <h4>{{ job.dataSourceName || `Data Source #${job.dataSourceId}` }}</h4>
+            <h4 class="m-0 text-lg font-semibold text-gray-700">{{ job.dataSourceName || `Data Source #${job.dataSourceId}` }}</h4>
           </div>
-          <div class="job-actions">
+          <div class="flex gap-2 max-md:w-full max-md:flex-wrap">
             <button 
               v-if="job.enabled" 
               @click="handlePauseJob(job.dataSourceId)" 
-              class="action-btn pause-btn"
+              class="px-3 py-1.5 border border-gray-300 rounded bg-white cursor-pointer text-[13px] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-yellow-50 hover:border-yellow-500 max-md:flex-1 max-md:min-w-[calc(50%-4px)]"
               :disabled="isLoading"
               title="Pause scheduled sync"
             >
@@ -73,7 +82,7 @@
             <button 
               v-else 
               @click="handleResumeJob(job.dataSourceId)" 
-              class="action-btn resume-btn"
+              class="px-3 py-1.5 border border-gray-300 rounded bg-white cursor-pointer text-[13px] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-green-50 hover:border-green-500 max-md:flex-1 max-md:min-w-[calc(50%-4px)]"
               :disabled="isLoading"
               title="Resume scheduled sync"
             >
@@ -81,7 +90,7 @@
             </button>
             <button 
               @click="handleTriggerJob(job.dataSourceId)" 
-              class="action-btn trigger-btn"
+              class="px-3 py-1.5 border border-gray-300 rounded bg-white cursor-pointer text-[13px] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-50 hover:border-blue-500 max-md:flex-1 max-md:min-w-[calc(50%-4px)]"
               :disabled="isLoading"
               title="Run sync now"
             >
@@ -89,7 +98,7 @@
             </button>
             <button 
               @click="handleCancelJob(job.dataSourceId)" 
-              class="action-btn cancel-btn"
+              class="px-3 py-1.5 border border-gray-300 rounded bg-white cursor-pointer text-[13px] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-red-50 hover:border-red-500 max-md:flex-1 max-md:min-w-[calc(50%-4px)]"
               :disabled="isLoading"
               title="Cancel scheduled sync"
             >
@@ -98,29 +107,32 @@
           </div>
         </div>
 
-        <div class="job-details">
-          <div class="job-detail-item">
-            <span class="detail-label">Schedule:</span>
-            <span class="detail-value">{{ getFrequencyDisplay(job.schedule) }}</span>
+        <div class="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3 mb-4 max-md:grid-cols-1">
+          <div class="flex flex-col gap-1">
+            <span class="text-xs text-gray-600 font-medium">Schedule:</span>
+            <span class="text-sm text-gray-700 font-semibold">{{ getFrequencyDisplay(job.schedule) }}</span>
           </div>
-          <div class="job-detail-item">
-            <span class="detail-label">Last Run:</span>
-            <span class="detail-value">{{ formatLastRun(job.lastRun) }}</span>
+          <div class="flex flex-col gap-1">
+            <span class="text-xs text-gray-600 font-medium">Last Run:</span>
+            <span class="text-sm text-gray-700 font-semibold">{{ formatLastRun(job.lastRun) }}</span>
           </div>
-          <div class="job-detail-item">
-            <span class="detail-label">Next Run:</span>
-            <span class="detail-value" :class="{ upcoming: job.enabled }">
+          <div class="flex flex-col gap-1">
+            <span class="text-xs text-gray-600 font-medium">Next Run:</span>
+            <span 
+              class="text-sm text-gray-700 font-semibold"
+              :class="{ 'text-green-600': job.enabled }"
+            >
               {{ job.enabled ? formatNextRun(job.nextRun) : 'Paused' }}
             </span>
           </div>
-          <div class="job-detail-item">
-            <span class="detail-label">Run Count:</span>
-            <span class="detail-value">{{ job.runCount }} times</span>
+          <div class="flex flex-col gap-1">
+            <span class="text-xs text-gray-600 font-medium">Run Count:</span>
+            <span class="text-sm text-gray-700 font-semibold">{{ job.runCount }} times</span>
           </div>
         </div>
 
-        <div class="job-footer">
-          <code class="cron-expression">{{ job.schedule }}</code>
+        <div class="pt-3 border-t border-gray-200">
+          <code class="inline-block px-2 py-1 bg-gray-50 border border-gray-200 rounded text-xs text-gray-700 font-mono">{{ job.schedule }}</code>
         </div>
       </div>
     </div>
@@ -199,315 +211,3 @@ const handleCancelJob = async (dataSourceId: number) => {
   }
 };
 </script>
-
-<style scoped>
-.scheduler-panel {
-  background: white;
-  border-radius: 8px;
-  padding: 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.scheduler-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-}
-
-.scheduler-header h3 {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 600;
-  color: #1a202c;
-}
-
-.refresh-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: #4299e1;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.2s;
-}
-
-.refresh-btn:hover:not(:disabled) {
-  background: #3182ce;
-  transform: translateY(-1px);
-}
-
-.refresh-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.spinner {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-/* Error Banner */
-.error-banner {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  background: #fff5f5;
-  border: 1px solid #feb2b2;
-  border-radius: 6px;
-  color: #c53030;
-  margin-bottom: 20px;
-}
-
-.error-icon {
-  font-size: 18px;
-}
-
-.close-btn {
-  margin-left: auto;
-  background: none;
-  border: none;
-  font-size: 24px;
-  color: #c53030;
-  cursor: pointer;
-  padding: 0;
-  line-height: 1;
-}
-
-/* Statistics Grid */
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.stat-card {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 8px;
-  padding: 20px;
-  color: white;
-  text-align: center;
-}
-
-.stat-value {
-  font-size: 36px;
-  font-weight: 700;
-  margin-bottom: 8px;
-}
-
-.stat-label {
-  font-size: 14px;
-  opacity: 0.9;
-}
-
-/* Next Job Banner */
-.next-job-banner {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px;
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  border-radius: 8px;
-  color: white;
-  margin-bottom: 24px;
-  font-size: 16px;
-}
-
-.next-job-icon {
-  font-size: 24px;
-}
-
-/* Jobs List */
-.jobs-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.no-jobs {
-  text-align: center;
-  padding: 48px 24px;
-  color: #718096;
-}
-
-.no-jobs p {
-  margin: 8px 0;
-}
-
-.no-jobs .hint {
-  font-size: 14px;
-  color: #a0aec0;
-}
-
-/* Job Card */
-.job-card {
-  border: 2px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 20px;
-  transition: all 0.3s;
-}
-
-.job-card:hover {
-  border-color: #cbd5e0;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.job-card.disabled {
-  opacity: 0.7;
-  background: #f7fafc;
-}
-
-.job-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.job-title {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.job-icon {
-  font-size: 24px;
-}
-
-.job-title h4 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: #2d3748;
-}
-
-.job-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.action-btn {
-  padding: 6px 12px;
-  border: 1px solid #cbd5e0;
-  border-radius: 4px;
-  background: white;
-  cursor: pointer;
-  font-size: 13px;
-  transition: all 0.2s;
-}
-
-.action-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.action-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.pause-btn:hover:not(:disabled) {
-  background: #fef5e7;
-  border-color: #f39c12;
-}
-
-.resume-btn:hover:not(:disabled) {
-  background: #e8f5e9;
-  border-color: #4caf50;
-}
-
-.trigger-btn:hover:not(:disabled) {
-  background: #e3f2fd;
-  border-color: #2196f3;
-}
-
-.cancel-btn:hover:not(:disabled) {
-  background: #ffebee;
-  border-color: #f44336;
-}
-
-/* Job Details */
-.job-details {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.job-detail-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.detail-label {
-  font-size: 12px;
-  color: #718096;
-  font-weight: 500;
-}
-
-.detail-value {
-  font-size: 14px;
-  color: #2d3748;
-  font-weight: 600;
-}
-
-.detail-value.upcoming {
-  color: #38a169;
-}
-
-/* Job Footer */
-.job-footer {
-  padding-top: 12px;
-  border-top: 1px solid #e2e8f0;
-}
-
-.cron-expression {
-  display: inline-block;
-  padding: 4px 8px;
-  background: #f7fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 4px;
-  font-size: 12px;
-  color: #4a5568;
-  font-family: 'Courier New', monospace;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .job-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-
-  .job-actions {
-    width: 100%;
-    flex-wrap: wrap;
-  }
-
-  .action-btn {
-    flex: 1;
-    min-width: calc(50% - 4px);
-  }
-
-  .job-details {
-    grid-template-columns: 1fr;
-  }
-}
-</style>
