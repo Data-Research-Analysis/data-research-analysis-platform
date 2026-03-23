@@ -11,7 +11,7 @@ const { $swal, $socketio } = useNuxtApp();
 const route = useRoute();
 const router = useRouter();
 const config = useRuntimeConfig();
-const { requireWorkspace } = useOrganizationContext();
+const { requireWorkspace, getOrgHeaders } = useOrganizationContext();
 
 // Initialize composables
 const columnDetector = useColumnTypeDetection();
@@ -84,7 +84,7 @@ const buttonDisabled = computed(() => {
 });
 
 const buttonStatusText = computed(() => {
-    if (state.requiresReview && !state.reviewAcknowledged) return 'Please review and approve renamed columns';
+    if (state.requiresReview && !state.reviewAcknowledged) return 'Please review and approve proposed column name changes';
     if (state.loading) return 'Creating Data Source...';
     if (state.files.length === 0) return 'Please upload Excel files first';
     if (hasErrorFiles.value && !hasProcessingFiles.value) return 'Some files failed - fix errors or remove them';
@@ -98,7 +98,7 @@ const buttonStatusText = computed(() => {
 const handleExcelUploadProgress = (eventData) => {
     try {
         const data = typeof eventData === 'string' ? JSON.parse(eventData) : eventData;
-        const { jobId, fileId, phase, progress, message, error, dataSourceId } = data;
+        const { jobId, fileId, phase, progress, message, error, dataSourceId, errorDetails } = data;
         
         // Find the file associated with this job
         const file = state.files.find(f => f.id === fileId);
@@ -146,6 +146,7 @@ const handleExcelUploadProgress = (eventData) => {
             file.progress = 0;
             file.statusMessage = error || 'Upload failed';
             file.error = error;
+            file.errorDetails = errorDetails;  // BUGFIX: Store structured error details for detailed error display
             
             // Parse structured error if available
             let errorTitle = 'Upload Failed';
@@ -195,20 +196,20 @@ async function showDuplicateColumnModal(sheetName, renamedColumns, fileId) {
     ).join('<br>');
     
     const result = await $swal.fire({
-        title: 'Column Names Sanitized',
+        title: 'Column Names Require Sanitization',
         icon: 'info',
         html: `
             <div class="text-left">
-                <p class="mb-3">The following columns in <strong>${sheetName}</strong> were automatically renamed for database compatibility:</p>
+                <p class="mb-3">The following columns in <strong>${sheetName}</strong> will be renamed when the data source is created:</p>
                 <div class="bg-blue-50 border border-blue-200 rounded p-3 mb-3 text-sm" style="max-height: 300px; overflow-y: auto;">
                     ${columnList}
                 </div>
                 <p class="text-sm text-gray-600 mb-2">
-                    <strong>Why?</strong> Column names with spaces, special characters, or duplicates are converted to database-friendly names (lowercase letters, numbers, and underscores only).
+                    <strong>Why?</strong> Column names with spaces, special characters, or duplicates will be converted to database-friendly names (lowercase letters, numbers, and underscores only).
                 </p>
                 <p class="text-sm text-gray-600">
-                    <strong>Action Required:</strong> Please review the renamed columns in the preview below. 
-                    You can manually rename them or approve the automatic names.
+                    <strong>Action Required:</strong> Review the proposed column names in the preview below. 
+                    You can manually edit them or approve the suggested names.
                 </p>
             </div>
         `,
@@ -279,16 +280,17 @@ function showRenamedColumnsList() {
     `).join('');
     
     $swal.fire({
-        title: 'All Renamed Columns',
+        title: 'Proposed Column Name Changes',
         html: `
             <div class="overflow-x-auto">
+                <p class="text-sm text-gray-600 mb-3 text-left">These column names will be applied when the data source is created:</p>
                 <table class="w-full text-left text-sm border-collapse">
                     <thead class="bg-gray-100">
                         <tr>
                             <th class="px-4 py-2 border font-semibold">Sheet</th>
                             <th class="px-4 py-2 border font-semibold">Original Name</th>
                             <th class="px-4 py-2 border"></th>
-                            <th class="px-4 py-2 border font-semibold">New Name</th>
+                            <th class="px-4 py-2 border font-semibold">Proposed Name</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -565,6 +567,7 @@ async function createDataSource(classification = null) {
                 headers: {
                     "Authorization": `Bearer ${token}`,
                     "Authorization-Type": "auth",
+                    ...getOrgHeaders()
                 },
                 body: {
                     file_id: file.id,
@@ -684,26 +687,87 @@ function goBack() {
 
 function showErrorDetails(file) {
     const errorMessage = file.error || file.statusMessage || 'Unknown error';
+    const errorDetails = file.errorDetails;
     
-    // Build detailed error explanation
+    // Build error display with structured details if available
+    let errorHtml = '';
     let suggestions = [];
-    if (errorMessage.toLowerCase().includes('integer') || errorMessage.toLowerCase().includes('out of range')) {
-        suggestions.push('The Excel file contains numeric values that are too large for the database.');
-        suggestions.push('Maximum integer value: 2,147,483,647');
-        suggestions.push('Solution: Reduce the size of large numbers, or use text format for very large IDs.');
-    } else if (errorMessage.toLowerCase().includes('format') || errorMessage.toLowerCase().includes('invalid')) {
-        suggestions.push('Some data in the Excel file has an invalid format.');
-        suggestions.push('Check date formats, numeric values, and special characters.');
-    } else if (errorMessage.toLowerCase().includes('empty') || errorMessage.toLowerCase().includes('required')) {
-        suggestions.push('Required fields cannot be empty.');
-        suggestions.push('Check that all mandatory columns have values.');
-    } else if (errorMessage.toLowerCase().includes('duplicate')) {
-        suggestions.push('Duplicate values found where unique values are required.');
-        suggestions.push('Check for duplicate IDs or keys in your data.');
+    
+    if (errorDetails) {
+        // We have structured error details from the backend
+        errorHtml = `<p style="color: #d33; font-weight: bold; margin-bottom: 10px;">${errorMessage}</p>`;
+        
+        if (errorDetails.rowNumber || errorDetails.columnName || errorDetails.detailedError || errorDetails.sqlError) {
+            errorHtml += `<div style="background: #f8f9fa; padding: 12px; border-radius: 4px; margin: 10px 0;">`;
+            
+            if (errorDetails.rowNumber) {
+                errorHtml += `<p style="margin: 5px 0;"><strong>Row:</strong> ${errorDetails.rowNumber}</p>`;
+            }
+            
+            if (errorDetails.columnName) {
+                errorHtml += `<p style="margin: 5px 0;"><strong>Column:</strong> ${errorDetails.columnName}</p>`;
+            }
+            
+            if (errorDetails.detailedError) {
+                errorHtml += `<p style="margin: 5px 0;"><strong>Error Type:</strong> ${errorDetails.detailedError}</p>`;
+            }
+            
+            if (errorDetails.sqlError && errorDetails.sqlError !== errorDetails.detailedError) {
+                errorHtml += `<p style="margin: 5px 0; font-size: 0.85em; color: #666;"><strong>Technical Details:</strong> ${errorDetails.sqlError}</p>`;
+            }
+            
+            errorHtml += `</div>`;
+        }
+        
+        // Generate specific suggestions based on the detailed error
+        const detailedError = errorDetails.detailedError || '';
+        const sqlError = errorDetails.sqlError || '';
+        const combinedError = (detailedError + ' ' + sqlError).toLowerCase();
+        
+        if (combinedError.includes('integer') || combinedError.includes('out of range') || combinedError.includes('numeric')) {
+            suggestions.push('The value in this column exceeds the maximum allowed size.');
+            suggestions.push('Maximum integer value: 2,147,483,647');
+            suggestions.push('Solution: Reduce the size of the number, or use text format for very large IDs.');
+        } else if (combinedError.includes('organization_id') || combinedError.includes('workspace_id') || combinedError.includes('violates not null')) {
+            suggestions.push('Required system fields are missing.');
+            suggestions.push('This is likely a configuration issue. Please contact support.');
+        } else if (combinedError.includes('format') || combinedError.includes('invalid')) {
+            suggestions.push('The data in this cell has an invalid format.');
+            suggestions.push('Check that dates are in a consistent format (e.g., YYYY-MM-DD).');
+            suggestions.push('Ensure numeric values don\'t contain text or special characters.');
+        } else if (combinedError.includes('empty') || combinedError.includes('required') || combinedError.includes('null')) {
+            suggestions.push('A required field is empty.');
+            suggestions.push(`Check row ${errorDetails.rowNumber || 'N/A'} and ensure all mandatory columns have values.`);
+        } else if (combinedError.includes('duplicate') || combinedError.includes('unique')) {
+            suggestions.push('Duplicate values found where unique values are required.');
+            suggestions.push(`Check for duplicate values in column "${errorDetails.columnName || 'unknown'}".`);
+        } else {
+            suggestions.push('A data validation error occurred in this specific cell.');
+            suggestions.push('Check the data type matches the column requirements.');
+            suggestions.push('Remove any special characters or unusual formatting.');
+        }
     } else {
-        suggestions.push('Check your Excel file for data quality issues.');
-        suggestions.push('Ensure all values match their column types (numbers, dates, text).');
-        suggestions.push('Remove any special characters or formatting that might cause issues.');
+        // Fall back to generic error parsing if no structured details
+        errorHtml = `<p style="color: #d33; font-weight: bold; margin-bottom: 10px;">${errorMessage}</p>`;
+        
+        if (errorMessage.toLowerCase().includes('integer') || errorMessage.toLowerCase().includes('out of range')) {
+            suggestions.push('The Excel file contains numeric values that are too large for the database.');
+            suggestions.push('Maximum integer value: 2,147,483,647');
+            suggestions.push('Solution: Reduce the size of large numbers, or use text format for very large IDs.');
+        } else if (errorMessage.toLowerCase().includes('format') || errorMessage.toLowerCase().includes('invalid')) {
+            suggestions.push('Some data in the Excel file has an invalid format.');
+            suggestions.push('Check date formats, numeric values, and special characters.');
+        } else if (errorMessage.toLowerCase().includes('empty') || errorMessage.toLowerCase().includes('required')) {
+            suggestions.push('Required fields cannot be empty.');
+            suggestions.push('Check that all mandatory columns have values.');
+        } else if (errorMessage.toLowerCase().includes('duplicate')) {
+            suggestions.push('Duplicate values found where unique values are required.');
+            suggestions.push('Check for duplicate IDs or keys in your data.');
+        } else {
+            suggestions.push('Check your Excel file for data quality issues.');
+            suggestions.push('Ensure all values match their column types (numbers, dates, text).');
+            suggestions.push('Remove any special characters or formatting that might cause issues.');
+        }
     }
     
     $swal.fire({
@@ -711,7 +775,7 @@ function showErrorDetails(file) {
         title: `Error in ${file.name}`,
         html: `
             <div style="text-align: left;">
-                <p style="color: #d33; font-weight: bold; margin-bottom: 10px;">${errorMessage}</p>
+                ${errorHtml}
                 <hr style="margin: 15px 0;">
                 <p style="font-weight: bold; margin-bottom: 8px;">Suggested Solutions:</p>
                 <ul style="padding-left: 20px; color: #666; line-height: 1.6;">
@@ -724,7 +788,7 @@ function showErrorDetails(file) {
             </div>
         `,
         confirmButtonText: 'OK',
-        width: '550px'
+        width: '600px'
     });
 }
 
@@ -749,12 +813,17 @@ async function handleFiles(files) {
     const token = getAuthToken();
     const rejectedFiles = [];
     
-    for (const file of files) {
+    // Convert FileList to array to access index for unique IDs
+    const filesArray = Array.from(files);
+    
+    for (let i = 0; i < filesArray.length; i++) {
+        const file = filesArray[i];
         if (isValidFile(file)) {
             try {
                 // Store raw file object for upload
+                // Use index to guarantee unique IDs when multiple files selected simultaneously
                 const fileEntry = {
-                    id: `file_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+                    id: `file_${Date.now()}_${i}_${Math.floor(Math.random() * 10000)}`,
                     name: file.name,
                     size: file.size,
                     sizeFormatted: formatFileSize(file.size),
@@ -769,6 +838,9 @@ async function handleFiles(files) {
                 };
                 
                 state.files.push(fileEntry);
+                
+                console.log(`[Excel Upload] Added file to state: ${file.name} (ID: ${fileEntry.id})`);
+                console.log(`[Excel Upload] Total files in state: ${state.files.length}`);
                 
                 // Upload to server for parsing
                 const formData = new FormData();
@@ -894,6 +966,14 @@ async function handleFiles(files) {
             text: `The following files could not be processed: ${rejectedFiles.join(', ')}`,
         });
     }
+    
+    // Debug: Check for duplicate IDs
+    const fileIds = state.files.map(f => f.id);
+    const duplicateIds = fileIds.filter((id, index) => fileIds.indexOf(id) !== index);
+    if (duplicateIds.length > 0) {
+        console.error('[Excel Upload] Duplicate file IDs detected:', duplicateIds);
+    }
+    console.log(`[Excel Upload] Processing complete. Total files: ${filesArray.length}, Successfully added: ${state.files.length}, Rejected: ${rejectedFiles.length}`);
     
     // Reset file input to allow re-uploading files
     if (import.meta.client) {
@@ -1166,19 +1246,19 @@ onMounted(async () => {
                     </div>
                     <div class="ml-3 flex-1">
                         <h3 class="text-sm font-medium text-yellow-800">
-                            Column Names Sanitized for Database Compatibility
+                            Column Name Changes Required for Database Compatibility
                         </h3>
                         <div class="mt-2 text-sm text-yellow-700">
                             <p>
-                                Some columns were automatically renamed because they contained spaces, special characters, or were duplicates. 
-                                Renamed columns are highlighted in yellow in the preview below.
+                                Some columns will be renamed when creating the data source because they contain spaces, special characters, or are duplicates. 
+                                Proposed changes are highlighted in yellow in the preview below.
                             </p>
                             <p class="mt-1">
-                                <strong>Action Required:</strong> Review the renamed columns and either:
+                                <strong>Action Required:</strong> Review the proposed column names and either:
                             </p>
                             <ul class="list-disc list-inside mt-1">
-                                <li>Approve the automatic names and proceed with upload</li>
-                                <li>Manually rename columns by clicking on their names in the preview</li>
+                                <li>Approve the suggested names and create the data source</li>
+                                <li>Manually edit column names by clicking on them in the preview</li>
                             </ul>
                         </div>
                         <div class="mt-4 flex gap-3">
@@ -1187,14 +1267,14 @@ onMounted(async () => {
                                 class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded text-sm"
                             >
                                 <font-awesome-icon :icon="['fas', 'check']" class="mr-2" />
-                                Approve Renames & Continue
+                                Approve Changes & Continue
                             </button>
                             <button
                                 @click="showRenamedColumnsList"
                                 class="border border-yellow-600 text-yellow-700 hover:bg-yellow-50 px-4 py-2 rounded text-sm"
                             >
                                 <font-awesome-icon :icon="['fas', 'list']" class="mr-2" />
-                                View All Renamed Columns
+                                View All Proposed Changes
                             </button>
                         </div>
                     </div>
