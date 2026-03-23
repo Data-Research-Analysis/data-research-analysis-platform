@@ -51,6 +51,10 @@ export default defineNuxtConfig({
       path: '~/components',
       pathPrefix: true,
     },
+    {
+      path: '~/components/charts',
+      pathPrefix: false,
+    },
   ],
   css: [
     '~/assets/css/main.css',
