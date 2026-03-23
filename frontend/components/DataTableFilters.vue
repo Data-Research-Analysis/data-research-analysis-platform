@@ -73,25 +73,31 @@
     
     <!-- Active Filter Chips -->
     <div v-if="hasActiveFilters" class="active-filters flex flex-wrap gap-2">
-      <div v-if="searchQuery.trim()" class="filter-chip bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm flex items-center gap-2">
-        <font-awesome-icon :icon="['fas', 'search']" class="text-xs" />
-        <span>Search: "{{ searchQuery }}"</span>
-        <button @click="clearSearch" class="hover:text-blue-900">
-          <font-awesome-icon :icon="['fas', 'xmark']" class="text-xs" />
-        </button>
-      </div>
-      
-      <div 
-        v-for="(filter, col) in activeColumnFilters" 
-        :key="col" 
-        class="filter-chip bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm flex items-center gap-2"
+      <TransitionGroup
+        enter-active-class="transition-all duration-200 ease-in"
+        enter-from-class="opacity-0 scale-90"
+        enter-to-class="opacity-100 scale-100"
       >
-        <font-awesome-icon :icon="['fas', 'filter']" class="text-xs" />
-        <span>{{ col }}: {{ formatFilterValue(filter) }}</span>
-        <button @click="removeFilter(col)" class="hover:text-purple-900">
-          <font-awesome-icon :icon="['fas', 'xmark']" class="text-xs" />
-        </button>
-      </div>
+        <div v-if="searchQuery.trim()" key="search-chip" class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm flex items-center gap-2">
+          <font-awesome-icon :icon="['fas', 'search']" class="text-xs" />
+          <span>Search: "{{ searchQuery }}"</span>
+          <button @click="clearSearch" class="hover:text-blue-900">
+            <font-awesome-icon :icon="['fas', 'xmark']" class="text-xs" />
+          </button>
+        </div>
+        
+        <div 
+          v-for="(filter, col) in activeColumnFilters" 
+          :key="col" 
+          class="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm flex items-center gap-2"
+        >
+          <font-awesome-icon :icon="['fas', 'filter']" class="text-xs" />
+          <span>{{ col }}: {{ formatFilterValue(filter) }}</span>
+          <button @click="removeFilter(col)" class="hover:text-purple-900">
+            <font-awesome-icon :icon="['fas', 'xmark']" class="text-xs" />
+          </button>
+        </div>
+      </TransitionGroup>
     </div>
     
     <!-- Filter Summary -->
@@ -246,20 +252,3 @@ defineExpose({
   applyFilters
 });
 </script>
-
-<style scoped>
-.filter-chip {
-  animation: fadeIn 0.2s ease-in;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: scale(0.9);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-</style>

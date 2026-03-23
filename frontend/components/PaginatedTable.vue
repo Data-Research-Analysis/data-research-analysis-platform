@@ -46,8 +46,8 @@
     <!-- Data Table -->
     <div v-else class="data-table-container">
       <!-- Table Header -->
-      <div class="table-header bg-gray-100 border border-gray-300 rounded-t-lg">
-        <div class="flex overflow-x-auto">
+      <div class="overflow-x-auto bg-gray-100 border border-gray-300 rounded-t-lg">
+        <div class="flex">
           <div 
             v-for="col in columns" 
             :key="col.name" 
@@ -69,7 +69,7 @@
       <SkeletonTable v-if="loading" :rows="pageSize" :columns="columns.length" />
       
       <!-- Data Rows -->
-      <div v-else class="table-body border-x border-gray-300">
+      <div v-else class="overflow-x-auto overflow-y-auto max-h-[600px] border-x border-gray-300">
         <div 
           v-for="(row, idx) in data" 
           :key="idx" 
@@ -216,33 +216,9 @@ function sortBy(column: string) {
   currentPage.value = 1; // Reset to first page when sorting
   fetchData();
 }
-}
 
 // Load data on mount
 onMounted(() => {
   fetchData();
 });
 </script>
-
-<style scoped>
-.table-header {
-  overflow-x: auto;
-}
-
-.table-body {
-  overflow-x: auto;
-  max-height: 600px;
-  overflow-y: auto;
-}
-
-.header-cell,
-.cell {
-  min-width: 150px;
-}
-
-.truncate {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-</style>
