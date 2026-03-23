@@ -31,11 +31,11 @@ onMounted(() => {
           console.log('🔥 Starting cache warming...')
           
           // Import stores dynamically to avoid SSR issues
-          const { useProjectStore } = await import('@/stores/projects')
+          const { useProjectsStore } = await import('@/stores/projects')
           const { useDataSourceStore } = await import('@/stores/data_sources')
           const { useLoggedInUserStore } = await import('@/stores/logged_in_user')
           
-          const projectsStore = useProjectStore()
+          const projectsStore = useProjectsStore()
           const dataSourcesStore = useDataSourceStore()
           const loggedInUserStore = useLoggedInUserStore()
           
