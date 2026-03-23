@@ -1,5 +1,5 @@
 <template>
-    <div class="gam-export-panel">
+    <div class="w-full">
         <div class="export-header">
             <h3 class="text-lg font-semibold text-gray-900">Export Data</h3>
             <p class="text-sm text-gray-600 mt-1">Export your Google Ad Manager data in various formats</p>
@@ -293,9 +293,3 @@ async function handleDelete(fileName: string) {
     }
 }
 </script>
-
-<style scoped>
-.gam-export-panel {
-    @apply w-full;
-}
-</style>

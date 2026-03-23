@@ -35,8 +35,8 @@
         @click="goToFirst" 
         :disabled="currentPage === 1"
         :title="`First Page${!disableKeyboardHints ? ' (Ctrl + Home)' : ''}`"
-        class="pagination-btn"
-        :class="{ disabled: currentPage === 1 }"
+        class="px-4 py-2 border border-gray-300 rounded-lg transition-colors"
+        :class="currentPage === 1 ? 'text-gray-400 opacity-50 cursor-not-allowed' : 'text-gray-700 hover:bg-blue-50 hover:border-blue-300 active:bg-blue-100'"
       >
         <font-awesome-icon :icon="['fas', 'angles-left']" />
       </button>
@@ -46,8 +46,8 @@
         @click="prevPage" 
         :disabled="currentPage === 1"
         :title="`Previous Page${!disableKeyboardHints ? ' (PageUp)' : ''}`"
-        class="pagination-btn"
-        :class="{ disabled: currentPage === 1 }"
+        class="px-4 py-2 border border-gray-300 rounded-lg transition-colors"
+        :class="currentPage === 1 ? 'text-gray-400 opacity-50 cursor-not-allowed' : 'text-gray-700 hover:bg-blue-50 hover:border-blue-300 active:bg-blue-100'"
       >
         <font-awesome-icon :icon="['fas', 'arrow-left']" />
       </button>
@@ -72,8 +72,8 @@
         @click="nextPage" 
         :disabled="currentPage === totalPages"
         :title="`Next Page${!disableKeyboardHints ? ' (PageDown)' : ''}`"
-        class="pagination-btn"
-        :class="{ disabled: currentPage === totalPages }"
+        class="px-4 py-2 border border-gray-300 rounded-lg transition-colors"
+        :class="currentPage === totalPages ? 'text-gray-400 opacity-50 cursor-not-allowed' : 'text-gray-700 hover:bg-blue-50 hover:border-blue-300 active:bg-blue-100'"
       >
         <font-awesome-icon :icon="['fas', 'arrow-right']" />
       </button>
@@ -83,8 +83,8 @@
         @click="goToLast" 
         :disabled="currentPage === totalPages"
         :title="`Last Page${!disableKeyboardHints ? ' (Ctrl + End)' : ''}`"
-        class="pagination-btn"
-        :class="{ disabled: currentPage === totalPages }"
+        class="px-4 py-2 border border-gray-300 rounded-lg transition-colors"
+        :class="currentPage === totalPages ? 'text-gray-400 opacity-50 cursor-not-allowed' : 'text-gray-700 hover:bg-blue-50 hover:border-blue-300 active:bg-blue-100'"
       >
         <font-awesome-icon :icon="['fas', 'angles-right']" />
       </button>
@@ -95,10 +95,10 @@
       <div class="text-xs text-gray-500 flex items-start gap-2">
         <font-awesome-icon :icon="['fas', 'keyboard']" class="mt-0.5 text-gray-400" />
         <div class="flex flex-wrap gap-x-4 gap-y-1">
-          <span><kbd>PageUp</kbd> Previous</span>
-          <span><kbd>PageDown</kbd> Next</span>
-          <span><kbd>Ctrl+Home</kbd> First</span>
-          <span><kbd>Ctrl+End</kbd> Last</span>
+          <span><kbd class="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-mono">PageUp</kbd> Previous</span>
+          <span><kbd class="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-mono">PageDown</kbd> Next</span>
+          <span><kbd class="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-mono">Ctrl+Home</kbd> First</span>
+          <span><kbd class="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-mono">Ctrl+End</kbd> Last</span>
         </div>
       </div>
     </div>
@@ -246,40 +246,16 @@ defineExpose({
 });
 </script>
 
-<style scoped>
-.pagination-btn {
-  @apply px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white;
-}
-
-.pagination-btn.disabled {
-  @apply text-gray-400;
-}
-
-.pagination-btn:not(.disabled) {
-  @apply text-gray-700;
-}
-
-.pagination-btn:not(.disabled):hover {
-  @apply bg-blue-50 border-blue-300;
-}
-
-.pagination-btn:not(.disabled):active {
-  @apply bg-blue-100;
-}
-
-kbd {
-  @apply px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-mono;
-}
-
-/* Remove spinner from number input */
-input[type="number"]::-webkit-inner-spin-button,
-input[type="number"]::-webkit-outer-spin-button {
+<style>
+/* Remove spinner from number input in pagination */
+.page-input::-webkit-inner-spin-button,
+.page-input::-webkit-outer-spin-button {
   -webkit-appearance: none;
   appearance: none;
   margin: 0;
 }
 
-input[type="number"] {
+.page-input {
   -moz-appearance: textfield;
   appearance: textfield;
 }

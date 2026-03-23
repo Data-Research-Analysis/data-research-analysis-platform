@@ -1627,6 +1627,7 @@ function createSheet(name = null, columns = [], rows = []) {
     ? columns.map(col => ({
         ...col,
         id: col?.id ? col.id : `col_${Date.now()}_${Math.random()}`,
+        title: col?.title || col?.name || col?.key || 'Untitled',
         inferredType: col?.inferredType || col?.type || 'text',
         forcedType: col?.forcedType || null,
         width: col.width || 150,
@@ -1637,6 +1638,7 @@ function createSheet(name = null, columns = [], rows = []) {
     : (props.columns || []).map(col => ({
         ...col,
         id: col?.id ? col.id : `col_${Date.now()}_${Math.random()}`,
+        title: col?.title || col?.name || col?.key || 'Untitled',
         inferredType: col?.inferredType || col?.type || 'text',
         forcedType: col?.forcedType || null,
         width: col.width || 150,
@@ -1841,6 +1843,7 @@ onMounted(() => {
             columns: sheet.columns.map(col => ({
                 ...col,
                 id: col?.id ? col.id : `col_${Date.now()}_${Math.random()}`,
+                title: col?.title || col?.name || col?.key || 'Untitled',
                 inferredType: col?.inferredType || col?.type || 'text',
                 forcedType: col?.forcedType || null,
                 width: col.width || 150,
@@ -1868,6 +1871,7 @@ onMounted(() => {
         tableState.columns = props.columns.map(col => ({
             ...col,
             id: col?.id ? col.id : `col_${Date.now()}_${Math.random()}`,
+            title: col?.title || col?.name || col?.key || 'Untitled',
             inferredType: col?.inferredType || col?.type || 'text',
             forcedType: col?.forcedType || null,
             width: col.width || 150,

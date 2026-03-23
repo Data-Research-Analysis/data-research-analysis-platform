@@ -89,7 +89,7 @@
               <!-- Resize Handle -->
               <div 
                 v-if="allowResize"
-                class="resize-handle absolute top-0 right-0 h-full w-1 bg-transparent hover:bg-blue-400 cursor-col-resize z-20"
+                class="resize-handle absolute top-0 right-0 h-full w-1 bg-transparent hover:bg-blue-400 active:bg-blue-500 cursor-col-resize z-20 transition-colors"
                 @mousedown="startResize(col.name, $event)"
               ></div>
             </th>
@@ -382,14 +382,6 @@ defineExpose({
 
 .header-cell.dragging {
   opacity: 0.5;
-}
-
-.resize-handle {
-  transition: background-color 0.15s ease;
-}
-
-.resize-handle:active {
-  @apply bg-blue-500;
 }
 
 /* Prevent text selection during resize */
