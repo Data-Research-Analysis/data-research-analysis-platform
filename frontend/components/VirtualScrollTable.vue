@@ -22,14 +22,14 @@
     </div>
 
     <!-- Virtual Scroll Container -->
-    <div v-else class="virtual-scroll-container">
+    <div v-else class="relative">
       <!-- Table Header (Fixed) -->
-      <div class="table-header bg-gray-100 border-b border-gray-300 sticky top-0 z-20">
+      <div class="bg-gray-100 border-b border-gray-300 sticky top-0 z-20">
         <div class="flex">
           <div 
             v-for="col in columns" 
             :key="col.name" 
-            class="header-cell flex-1 px-4 py-3 font-semibold text-left cursor-pointer hover:bg-gray-200 transition-colors flex items-center gap-2"
+            class="flex-1 px-4 py-3 font-semibold text-left cursor-pointer hover:bg-gray-200 transition-colors flex items-center gap-2 min-w-[150px]"
             @click="sortBy(col.name)"
           >
             <span class="truncate">{{ col.name }}</span>
@@ -45,8 +45,8 @@
       <!-- Virtual Scroll Content -->
       <div 
         ref="scrollContainer"
-        class="scroll-container overflow-y-auto border border-gray-300 rounded-b-lg"
-        :style="{ height: viewportHeight + 'px' }"
+        class="relative overflow-y-auto border border-gray-300 rounded-b-lg"
+        :style="{ height: viewportHeight + 'px', willChange: 'scroll-position' }"
         @scroll="handleScroll"
       >
         <!-- Loading overlay -->
@@ -76,7 +76,7 @@
               <div 
                 v-for="col in columns" 
                 :key="col.name" 
-                class="cell flex-1 px-4 py-3 text-sm truncate flex items-center"
+                class="flex-1 px-4 py-3 text-sm truncate flex items-center min-w-[150px]"
                 :title="String(row[col.name])"
               >
                 {{ row[col.name] }}
@@ -100,8 +100,6 @@
     </div>
   </div>
 </template>
-
-<script setup lang="ts">
 import type { ITableColumn } from '~/types/IDataModelData';
 
 interface Props {
@@ -264,30 +262,3 @@ onMounted(() => {
   loadInitialData();
 });
 </script>
-
-<style scoped>
-.virtual-scroll-container {
-  position: relative;
-}
-
-.scroll-container {
-  position: relative;
-  will-change: scroll-position;
-}
-
-.table-row {
-  box-sizing: border-box;
-}
-
-.header-cell,
-.cell {
-  min-width: 150px;
-  box-sizing: border-box;
-}
-
-.truncate {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-</style>

@@ -1,12 +1,12 @@
 <template>
   <transition name="modal-fade">
-    <div v-if="isVisible" class="modal-overlay" @click.self="handleOverlayClick">
-      <div class="modal-container">
-        <div class="modal-header">
-          <h2>MongoDB Sync Progress</h2>
+    <div v-if="isVisible" class="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-5" @click.self="handleOverlayClick">
+      <div class="bg-white rounded-xl shadow-2xl max-w-[700px] w-full max-h-[90vh] flex flex-col overflow-hidden">
+        <div class="p-6 border-b border-gray-200 flex items-center justify-between">
+          <h2 class="m-0 text-2xl font-semibold text-gray-900">MongoDB Sync Progress</h2>
           <button 
             v-if="canClose" 
-            class="close-button" 
+            class="bg-transparent border-0 text-[32px] text-gray-500 cursor-pointer leading-none p-0 w-8 h-8 flex items-center justify-center rounded-md transition-colors hover:bg-gray-100 hover:text-gray-900" 
             @click="closeModal"
             aria-label="Close"
           >
@@ -14,7 +14,7 @@
           </button>
         </div>
         
-        <div class="modal-body">
+        <div class="p-6 overflow-y-auto flex-1">
           <!-- Overall Progress -->
           <div class="progress-section">
             <div class="status-badge" :class="statusClass">
@@ -236,75 +236,7 @@ function handleOverlayClick() {
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-  padding: 20px;
-}
-
-.modal-container {
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-  max-width: 700px;
-  width: 100%;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.modal-header {
-  padding: 24px;
-  border-bottom: 1px solid #e5e7eb;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.modal-header h2 {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 600;
-  color: #111827;
-}
-
-.close-button {
-  background: none;
-  border: none;
-  font-size: 32px;
-  color: #6b7280;
-  cursor: pointer;
-  line-height: 1;
-  padding: 0;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  transition: background-color 0.2s, color 0.2s;
-}
-
-.close-button:hover {
-  background-color: #f3f4f6;
-  color: #111827;
-}
-
-.modal-body {
-  padding: 24px;
-  overflow-y: auto;
-  flex: 1;
-}
-
+/* Progress section styling - complex state-dependent styles kept as CSS */
 .progress-section {
   margin-bottom: 32px;
 }

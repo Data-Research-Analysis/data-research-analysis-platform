@@ -632,17 +632,29 @@
         </div>
 
         <!-- WYSIWYG Editor View with transition -->
-        <transition name="fade" mode="out-in">
+        <Transition
+            mode="out-in"
+            enter-active-class="transition-opacity duration-200 ease"
+            enter-from-class="opacity-0"
+            leave-active-class="transition-opacity duration-200 ease"
+            leave-to-class="opacity-0"
+        >
             <editor-content
                 v-show="viewMode === 'wysiwyg'" 
                 :editor="editor"
                 key="wysiwyg"
                 class="text-block-editor-content bg-white p-2 cursor-text border border-solid border-gray-300 transition-opacity duration-200 rounded-lg" 
             />
-        </transition>
+        </Transition>
         
         <!-- Raw Markdown View with enhanced styling -->
-        <transition name="fade" mode="out-in">
+        <Transition
+            mode="out-in"
+            enter-active-class="transition-opacity duration-200 ease"
+            enter-from-class="opacity-0"
+            leave-active-class="transition-opacity duration-200 ease"
+            leave-to-class="opacity-0"
+        >
             <div v-show="viewMode === 'markdown'" key="markdown" class="relative">
                 <textarea
                     v-model="markdownContent"
@@ -659,16 +671,6 @@
                     <span>• Click "Editor" to see formatted view</span>
                 </div>
             </div>
-        </transition>
+        </Transition>
     </div>
 </template>
-
-<style scoped>
-/* Phase 6: Smooth transitions */
-.fade-enter-active, .fade-leave-active {
-    transition: opacity 0.2s ease;
-}
-.fade-enter-from, .fade-leave-to {
-    opacity: 0;
-}
-</style>

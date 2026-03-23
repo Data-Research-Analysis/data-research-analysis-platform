@@ -1,12 +1,12 @@
 <template>
-  <div class="infinite-list">
+  <div class="w-full">
     <!-- List Items -->
     <div v-for="item in items" :key="item.id" class="list-item">
       <slot :item="item" />
     </div>
     
     <!-- Load More Trigger -->
-    <div v-if="hasMore" ref="loadMoreTrigger" class="load-more-trigger py-8">
+    <div v-if="hasMore" ref="loadMoreTrigger" class="flex justify-center items-center py-8">
       <div v-if="loading" class="loading flex flex-col items-center gap-3">
         <font-awesome-icon :icon="['fas', 'spinner']" class="animate-spin text-2xl text-blue-600" />
         <span class="text-sm text-gray-600">Loading more...</span>
@@ -154,15 +154,3 @@ onUnmounted(() => {
   }
 });
 </script>
-
-<style scoped>
-.infinite-list {
-  width: 100%;
-}
-
-.load-more-trigger {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-</style>

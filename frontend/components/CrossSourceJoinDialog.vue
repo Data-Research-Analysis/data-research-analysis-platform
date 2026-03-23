@@ -21,7 +21,7 @@
                         <v-list-item
                             v-for="(suggestion, index) in suggestions"
                             :key="index"
-                            class="border rounded mb-2"
+                            class="border border-black/[0.12] rounded mb-2 cursor-pointer transition-colors hover:bg-black/[0.04]"
                             @click="applySuggestion(suggestion)"
                         >
                             <template v-slot:prepend>

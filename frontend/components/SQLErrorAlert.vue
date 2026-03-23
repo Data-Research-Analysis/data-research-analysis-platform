@@ -1,5 +1,10 @@
 <template>
-  <Transition name="slide-down">
+  <Transition
+    enter-active-class="transition-all duration-300 ease"
+    enter-from-class="opacity-0 -translate-y-5"
+    leave-active-class="transition-all duration-300 ease"
+    leave-to-class="opacity-0 -translate-y-2.5"
+  >
     <div 
       v-if="error" 
       class="sql-error-alert mb-6"
@@ -77,20 +82,3 @@ defineProps({
 
 defineEmits(['dismiss']);
 </script>
-
-<style scoped>
-.slide-down-enter-active,
-.slide-down-leave-active {
-  transition: all 0.3s ease;
-}
-
-.slide-down-enter-from {
-  opacity: 0;
-  transform: translateY(-20px);
-}
-
-.slide-down-leave-to {
-  opacity: 0;
-  transform: translateY(-10px);
-}
-</style>

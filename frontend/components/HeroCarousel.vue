@@ -46,7 +46,12 @@ onUnmounted(() => {
         
         <!-- Images -->
         <div class="absolute inset-0 top-8 bg-gray-800">
-            <transition-group name="fade">
+            <TransitionGroup
+                enter-active-class="transition-opacity duration-1000 ease"
+                enter-from-class="opacity-0"
+                leave-active-class="transition-opacity duration-1000 ease"
+                leave-to-class="opacity-0"
+            >
                 <div v-for="(img, index) in images" :key="img" v-show="index === currentImageIndex" class="absolute inset-0 w-full h-full">
                      <img 
                         :src="img" 
@@ -56,7 +61,7 @@ onUnmounted(() => {
                         :loading="index === 0 ? 'eager' : 'lazy'"
                      />
                 </div>
-            </transition-group>
+            </TransitionGroup>
         </div>
         
         <!-- Progress Indicators -->
@@ -71,15 +76,3 @@ onUnmounted(() => {
         </div>
     </div>
 </template>
-
-<style scoped>
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 1s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-</style>
