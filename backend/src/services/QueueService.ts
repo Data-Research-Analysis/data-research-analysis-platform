@@ -360,7 +360,7 @@ export class QueueService {
         const maxRetries = 3;
         let retryCount = 0;
         
-        const emitProgress = async (phase: string, progress: number, message?: string, error?: string, resultDataSourceId?: number) => {
+        const emitProgress = async (phase: string, progress: number, message?: string, error?: string, resultDataSourceId?: number, errorDetails?: any) => {
             const { SocketIODriver } = await import('../drivers/SocketIODriver.js');
             const { ISocketEvent } = await import('../types/ISocketEvent.js');
             
@@ -373,6 +373,7 @@ export class QueueService {
                 progress,
                 message,
                 error,
+                errorDetails,  // BUGFIX: Include structured error details for frontend display
                 dataSourceId: resultDataSourceId,
                 timestamp: new Date()
             };
@@ -410,7 +411,11 @@ export class QueueService {
                         console.log(`[QueueService] Excel upload completed: ${jobId}`);
                         return;
                     } else {
-                        throw new Error('Excel upload returned error status');
+                        // BUGFIX: Create structured error with details from processor result
+                        const errorMessage = result.error || 'Excel upload returned error status';
+                        const error: any = new Error(errorMessage);
+                        error.details = result.errorDetails;
+                        throw error;
                     }
                     
                 } catch (error: any) {
@@ -454,7 +459,8 @@ export class QueueService {
             // Use user-friendly message if available
             const errorMessage = error.userFriendlyMessage || error.message || 'Excel upload failed after all retry attempts';
             
-            await emitProgress('failed', 0, undefined, errorMessage);
+            // BUGFIX: Pass structured error details to frontend for better error display
+            await emitProgress('failed', 0, undefined, errorMessage, undefined, error.details);
         }
     }
 }
